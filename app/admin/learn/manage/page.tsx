@@ -600,7 +600,7 @@ export default function ManageContentPage() {
 
       {/* Toolbar */}
       <div className="manage__toolbar">
-        <span style={{ fontSize: '.85rem', color: '#6B7280' }}>
+        <span style={{ fontSize: '.85rem', color: 'var(--color-text-tertiary)' }}>
           {loading ? 'Loading...' : tab === 'assignments' ? `${activeAssignments.length} active, ${historyAssignments.length} history` : tab === 'activity' ? `${filteredActivities.length} activities` : tab === 'student_overrides' ? 'Admin student control panel' : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
         </span>
         {tab === 'questions' ? (
@@ -681,8 +681,8 @@ export default function ManageContentPage() {
 
             {/* Specific Lesson Selection (shown when mode = 'specific') */}
             {assignForm.lesson_mode === 'specific' && assignForm.enroll_module_id && (
-              <div style={{ background: '#F3F4F6', borderRadius: '8px', padding: '.75rem', marginBottom: '.5rem' }}>
-                <p style={{ fontSize: '.8rem', color: '#4B5563', margin: '0 0 .5rem', fontWeight: 500 }}>Select lessons to open:</p>
+              <div style={{ background: 'var(--color-bg-subtle)', borderRadius: '8px', padding: '.75rem', marginBottom: '.5rem' }}>
+                <p style={{ fontSize: '.8rem', color: 'var(--color-text-secondary)', margin: '0 0 .5rem', fontWeight: 500 }}>Select lessons to open:</p>
                 {selectedLessonSlots.map((slotValue: string, idx: number) => (
                   <div key={idx} style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.35rem' }}>
                     <select
@@ -719,7 +719,7 @@ export default function ManageContentPage() {
               </div>
             )}
             {assignForm.lesson_mode === 'specific' && !assignForm.enroll_module_id && (
-              <p style={{ fontSize: '.78rem', color: '#F59E0B', margin: '0 0 .5rem' }}>Select a module above to see available lessons.</p>
+              <p style={{ fontSize: '.78rem', color: 'var(--color-warning)', margin: '0 0 .5rem' }}>Select a module above to see available lessons.</p>
             )}
 
             {/* Row 3: Due Date */}
@@ -742,14 +742,14 @@ export default function ManageContentPage() {
                 />
               )}
               {!assignForm.no_due_date && !assignForm.due_date && (
-                <span style={{ fontSize: '.75rem', color: '#F59E0B' }}>Pick a due date or check &ldquo;No due date&rdquo;</span>
+                <span style={{ fontSize: '.75rem', color: 'var(--color-warning)' }}>Pick a due date or check &ldquo;No due date&rdquo;</span>
               )}
             </div>
           </div>
 
           {/* ── Active Assignments ── */}
           <div style={{ marginTop: '1rem' }}>
-            <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: '#0F1419', margin: '0 0 0.5rem' }}>
+            <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 0.5rem' }}>
               Active Assignments ({activeAssignments.length})
             </h4>
             <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.75rem' }}>
@@ -763,7 +763,7 @@ export default function ManageContentPage() {
               {assignSearch && (
                 <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setAssignSearch('')} style={{ fontSize: '.75rem' }}>Clear</button>
               )}
-              <span style={{ fontSize: '.78rem', color: '#9CA3AF' }}>
+              <span style={{ fontSize: '.78rem', color: 'var(--color-text-muted)' }}>
                 {filteredActiveAssignments.length} of {activeAssignments.length} shown
               </span>
             </div>
@@ -790,16 +790,16 @@ export default function ManageContentPage() {
                         {' '}Assigned to: <strong>{a.assigned_to}</strong>
                         {' \u00B7 '}{new Date(a.created_at).toLocaleDateString()}
                         {a.due_date && <span> &middot; Due: {new Date(a.due_date).toLocaleDateString()}</span>}
-                        {!a.due_date && <span style={{ color: '#9CA3AF' }}> &middot; No due date</span>}
+                        {!a.due_date && <span style={{ color: 'var(--color-text-muted)' }}> &middot; No due date</span>}
                         {a.notes && <span> &middot; {a.notes}</span>}
                       </div>
                       {/* Progress bar */}
                       {progress && (
                         <div style={{ marginTop: '.35rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                           <div style={{ flex: 1, maxWidth: '200px', height: '6px', background: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${progress.percent}%`, height: '100%', background: progress.percent === 100 ? '#10B981' : '#3B82F6', borderRadius: '3px', transition: 'width 0.3s ease' }} />
+                            <div style={{ width: `${progress.percent}%`, height: '100%', background: progress.percent === 100 ? 'var(--color-success)' : 'var(--color-info)', borderRadius: '3px', transition: 'width 0.3s ease' }} />
                           </div>
-                          <span style={{ fontSize: '.72rem', color: '#6B7280' }}>{progress.completed}/{progress.total} lessons ({progress.percent}%)</span>
+                          <span style={{ fontSize: '.72rem', color: 'var(--color-text-tertiary)' }}>{progress.completed}/{progress.total} lessons ({progress.percent}%)</span>
                         </div>
                       )}
                     </div>
@@ -814,18 +814,18 @@ export default function ManageContentPage() {
           )}
 
           {/* ── Assignment History (Completed/Cancelled) ── */}
-          <div style={{ marginTop: '1.5rem', borderTop: '1px solid #E5E7EB', paddingTop: '1rem' }}>
+          <div style={{ marginTop: '1.5rem', borderTop: 'var(--border-light)', paddingTop: '1rem' }}>
             <button
               onClick={() => setShowHistory(!showHistory)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '.5rem', background: 'none', border: 'none',
                 cursor: 'pointer', fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600,
-                color: '#6B7280', padding: '0.25rem 0', width: '100%', textAlign: 'left',
+                color: 'var(--color-text-tertiary)', padding: '0.25rem 0', width: '100%', textAlign: 'left',
               }}
             >
               <span style={{ transform: showHistory ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block' }}>&#x25B6;</span>
               Assignment History ({historyAssignments.length})
-              <span style={{ fontSize: '.75rem', fontWeight: 400, color: '#9CA3AF', marginLeft: '.25rem' }}>
+              <span style={{ fontSize: '.75rem', fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: '.25rem' }}>
                 Completed &amp; Cancelled
               </span>
             </button>
@@ -843,7 +843,7 @@ export default function ManageContentPage() {
                   {historySearch && (
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setHistorySearch('')} style={{ fontSize: '.75rem' }}>Clear</button>
                   )}
-                  <span style={{ fontSize: '.78rem', color: '#9CA3AF' }}>
+                  <span style={{ fontSize: '.78rem', color: 'var(--color-text-muted)' }}>
                     {filteredHistoryAssignments.length} of {historyAssignments.length} shown
                   </span>
                 </div>
@@ -924,7 +924,7 @@ export default function ManageContentPage() {
                     <div className="manage__item-meta">
                       {a.user_email} &middot; {new Date(a.created_at).toLocaleString()}
                       {a.metadata && Object.keys(a.metadata).length > 0 && (
-                        <span style={{ marginLeft: '0.5rem', color: '#9CA3AF' }}>
+                        <span style={{ marginLeft: '0.5rem', color: 'var(--color-text-muted)' }}>
                           {JSON.stringify(a.metadata).substring(0, 80)}
                         </span>
                       )}
@@ -999,7 +999,7 @@ export default function ManageContentPage() {
                   <span className="manage__form-hint">Draft = hidden. Publish when content is ready.</span>
                 </div>
               </div>
-              <p style={{ fontSize: '.78rem', color: '#6B7280', marginTop: '.25rem' }}>After creating, use the <strong>Lesson Builder</strong> to add rich content blocks (text, images, quizzes, etc.).</p>
+              <p style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)', marginTop: '.25rem' }}>After creating, use the <strong>Lesson Builder</strong> to add rich content blocks (text, images, quizzes, etc.).</p>
             </>
           )}
           {tab === 'articles' && (
@@ -1018,7 +1018,7 @@ export default function ManageContentPage() {
                 </select>
               </div>
               <input className="manage__form-input" placeholder="Short excerpt" value={formData.excerpt || ''} onChange={e => setFormData(p => ({ ...p, excerpt: e.target.value }))} />
-              <p style={{ fontSize: '.78rem', color: '#6B7280' }}>Use the Article Editor to add rich content after creating the article.</p>
+              <p style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)' }}>Use the Article Editor to add rich content after creating the article.</p>
             </>
           )}
           {tab === 'questions' && (
@@ -1067,7 +1067,7 @@ export default function ManageContentPage() {
       {/* Flashcard Create Form */}
       {showForm && tab === 'flashcards' && (
         <div className="manage__form">
-          <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: '#0F1419', margin: '0 0 0.75rem' }}>Create Builtin Flashcard</h4>
+          <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 0.75rem' }}>Create Builtin Flashcard</h4>
           <input className="manage__form-input" placeholder="Term *" value={formData.term || ''} onChange={e => setFormData(p => ({ ...p, term: e.target.value }))} />
           <textarea className="manage__form-textarea" placeholder="Definition *" rows={3} value={formData.definition || ''} onChange={e => setFormData(p => ({ ...p, definition: e.target.value }))} />
           <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
@@ -1127,7 +1127,7 @@ export default function ManageContentPage() {
                       <input className="manage__form-input" style={{ flex: 1 }} type="number" step="50" min="0" placeholder="XP Reward" value={editModule.xp_reward ?? (m as any).xp_reward ?? 200} onChange={e => setEditModule(p => ({ ...p, xp_reward: parseInt(e.target.value) || 0 }))} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <label style={{ fontSize: '0.8rem', color: '#6B7280' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--color-text-tertiary)' }}>
                         <input type="checkbox" checked={editModule.is_fs_required ?? (m as any).is_fs_required ?? false} onChange={e => setEditModule(p => ({ ...p, is_fs_required: e.target.checked }))} />
                         {' '}FS Required
                       </label>
@@ -1149,7 +1149,7 @@ export default function ManageContentPage() {
                     <div className="manage__item-meta">
                       <span className={`manage__status manage__status--${m.status}`}>{m.status}</span>
                       {' '}{m.difficulty} &middot; {m.estimated_hours}h &middot; {m.lesson_count || 0} lessons
-                      {m.xp_value && <span style={{ marginLeft: '0.5rem', color: '#10B981', fontWeight: 600 }}>{m.xp_value} XP</span>}
+                      {m.xp_value && <span style={{ marginLeft: '0.5rem', color: 'var(--color-success)', fontWeight: 600 }}>{m.xp_value} XP</span>}
                     </div>
                   </div>
                   <div className="manage__item-actions">
@@ -1271,7 +1271,7 @@ export default function ManageContentPage() {
                       {' '}<span className={`manage__diff-badge manage__diff-badge--${q.difficulty}`}>{q.difficulty}</span>
                       {q.exam_category && <span> &middot; {q.exam_category}</span>}
                       {q.module_id && (
-                        <span> &middot; <Link href={`/admin/learn/modules/${q.module_id}`} style={{ color: '#1D3095', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                        <span> &middot; <Link href={`/admin/learn/modules/${q.module_id}`} style={{ color: 'var(--color-brand-navy)', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
                           {modules.find(m => m.id === q.module_id)?.title || 'Module'}
                         </Link></span>
                       )}
@@ -1322,7 +1322,7 @@ export default function ManageContentPage() {
                       {f.definition.substring(0, 100)}{f.definition.length > 100 ? '...' : ''}
                       {f.hint_1 && <span> &middot; <span style={{ color: '#7C3AED' }}>3 hints</span></span>}
                       {f.module_id && (
-                        <span> &middot; <Link href={`/admin/learn/modules/${f.module_id}`} style={{ color: '#1D3095', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                        <span> &middot; <Link href={`/admin/learn/modules/${f.module_id}`} style={{ color: 'var(--color-brand-navy)', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
                           {modules.find(m => m.id === f.module_id)?.title || 'Module'}
                         </Link></span>
                       )}
@@ -1348,10 +1348,10 @@ export default function ManageContentPage() {
                 </div>
               )}
 
-              <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.9rem', margin: '0.5rem 0', color: '#1D3095' }}>
+              <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.9rem', margin: '0.5rem 0', color: 'var(--color-brand-navy)' }}>
                 Learning Modules ({xpLearningModules.length})
               </h4>
-              <p style={{ fontSize: '0.78rem', color: '#6B7280', marginBottom: '0.75rem' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)', marginBottom: '0.75rem' }}>
                 Default: {xpDefaults.learning_module.xp_value} XP, {xpDefaults.learning_module.expiry_months} month expiry. Click a module to customize.
               </p>
               {xpLearningModules.map(m => {
@@ -1368,14 +1368,14 @@ export default function ManageContentPage() {
                         {editing ? (
                           <span style={{ display: 'inline-flex', gap: '0.4rem', marginLeft: '0.5rem' }} onClick={e => e.stopPropagation()}>
                             <input type="number" value={editing.xp_value} onChange={e => updateEditXP(editKey, 'xp_value', parseInt(e.target.value) || 0)}
-                              style={{ width: '70px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
-                            <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>XP</span>
+                              style={{ width: '70px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: 'var(--border-normal)', borderRadius: '4px' }} />
+                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>XP</span>
                             <input type="number" value={editing.expiry_months} onChange={e => updateEditXP(editKey, 'expiry_months', parseInt(e.target.value) || 0)}
-                              style={{ width: '50px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
-                            <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>mo</span>
+                              style={{ width: '50px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: 'var(--border-normal)', borderRadius: '4px' }} />
+                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>mo</span>
                           </span>
                         ) : (
-                          <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP &middot; {m.expiry_months}mo</span>
+                          <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: 'var(--color-success)' }}>{m.xp_value} XP &middot; {m.expiry_months}mo</span>
                         )}
                       </div>
                     </div>
@@ -1385,10 +1385,10 @@ export default function ManageContentPage() {
 
               {xpFsModules.length > 0 && (
                 <>
-                  <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.9rem', margin: '1.25rem 0 0.5rem', color: '#1D3095' }}>
+                  <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.9rem', margin: '1.25rem 0 0.5rem', color: 'var(--color-brand-navy)' }}>
                     FS Prep Modules ({xpFsModules.length})
                   </h4>
-                  <p style={{ fontSize: '0.78rem', color: '#6B7280', marginBottom: '0.75rem' }}>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)', marginBottom: '0.75rem' }}>
                     Default: {xpDefaults.fs_module.xp_value} XP, {xpDefaults.fs_module.expiry_months} month expiry.
                   </p>
                   {xpFsModules.map(m => {
@@ -1405,14 +1405,14 @@ export default function ManageContentPage() {
                             {editing ? (
                               <span style={{ display: 'inline-flex', gap: '0.4rem', marginLeft: '0.5rem' }} onClick={e => e.stopPropagation()}>
                                 <input type="number" value={editing.xp_value} onChange={e => updateEditXP(editKey, 'xp_value', parseInt(e.target.value) || 0)}
-                                  style={{ width: '70px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
-                                <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>XP</span>
+                                  style={{ width: '70px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: 'var(--border-normal)', borderRadius: '4px' }} />
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>XP</span>
                                 <input type="number" value={editing.expiry_months} onChange={e => updateEditXP(editKey, 'expiry_months', parseInt(e.target.value) || 0)}
-                                  style={{ width: '50px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
-                                <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>mo</span>
+                                  style={{ width: '50px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: 'var(--border-normal)', borderRadius: '4px' }} />
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>mo</span>
                               </span>
                             ) : (
-                              <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP &middot; {m.expiry_months}mo</span>
+                              <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: 'var(--color-success)' }}>{m.xp_value} XP &middot; {m.expiry_months}mo</span>
                             )}
                           </div>
                         </div>

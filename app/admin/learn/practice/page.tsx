@@ -201,11 +201,11 @@ export default function PracticeSessionPage() {
 
       <div style={{ maxWidth: 800 }}>
         {configs.map((cfg, idx) => (
-          <div key={idx} className="practice-config-row" style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: '1.25rem', marginBottom: '.75rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+          <div key={idx} className="practice-config-row" style={{ background: 'var(--color-bg-card)', border: 'var(--border-light)', borderRadius: 10, padding: '1.25rem', marginBottom: '.75rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: '#1D3095' }}>Problem Set {idx + 1}</span>
+              <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: 'var(--color-brand-navy)' }}>Problem Set {idx + 1}</span>
               {configs.length > 1 && (
-                <button onClick={() => removeConfig(idx)} style={{ background: 'none', border: 'none', color: '#BD1218', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600 }}>Remove</button>
+                <button onClick={() => removeConfig(idx)} style={{ background: 'none', border: 'none', color: 'var(--color-brand-red)', cursor: 'pointer', fontSize: '.85rem', fontWeight: 600 }}>Remove</button>
               )}
             </div>
 
@@ -215,7 +215,7 @@ export default function PracticeSessionPage() {
                 <select
                   value={cfg.typeId}
                   onChange={e => updateConfig(idx, 'typeId', e.target.value)}
-                  style={{ width: '100%', padding: '.5rem .7rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontFamily: 'Inter,sans-serif', fontSize: '.85rem', background: '#FFF' }}
+                  style={{ width: '100%', padding: '.5rem .7rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontFamily: 'Inter,sans-serif', fontSize: '.85rem', background: 'var(--color-bg-card)' }}
                 >
                   <option value="">-- Select a problem type --</option>
                   {Object.entries(categories).map(([catName, types]) => (
@@ -243,7 +243,7 @@ export default function PracticeSessionPage() {
                 <select
                   value={cfg.difficulty}
                   onChange={e => updateConfig(idx, 'difficulty', e.target.value)}
-                  style={{ width: '100%', padding: '.5rem .7rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontFamily: 'Inter,sans-serif', fontSize: '.85rem', background: '#FFF' }}
+                  style={{ width: '100%', padding: '.5rem .7rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontFamily: 'Inter,sans-serif', fontSize: '.85rem', background: 'var(--color-bg-card)' }}
                 >
                   <option value="easy">Easy</option>
                   <option value="medium">Medium</option>
@@ -254,7 +254,7 @@ export default function PracticeSessionPage() {
             </div>
 
             {cfg.typeId && (
-              <div style={{ fontSize: '.78rem', color: '#6B7280' }}>
+              <div style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)' }}>
                 {allTypes.find(t => t.id === cfg.typeId)?.description || ''}
                 {' '}&middot; Module {allTypes.find(t => t.id === cfg.typeId)?.module || ''}
               </div>
@@ -264,7 +264,7 @@ export default function PracticeSessionPage() {
 
         <button onClick={addConfig} style={{
           display: 'block', width: '100%', padding: '.75rem', border: '2px dashed #D1D5DB', borderRadius: 10,
-          background: '#FAFBFF', color: '#1D3095', fontFamily: 'Inter,sans-serif', fontSize: '.85rem', fontWeight: 600,
+          background: '#FAFBFF', color: 'var(--color-brand-navy)', fontFamily: 'Inter,sans-serif', fontSize: '.85rem', fontWeight: 600,
           cursor: 'pointer', marginBottom: '1.5rem', transition: 'all .15s',
         }}>
           + Add more problems to your practice session
@@ -275,8 +275,8 @@ export default function PracticeSessionPage() {
             <input type="checkbox" checked={randomize} onChange={e => setRandomize(e.target.checked)} />
             Randomize problem order
           </label>
-          <span style={{ fontSize: '.85rem', color: '#6B7280' }}>
-            Total: <strong style={{ color: '#1D3095' }}>{totalProblems}</strong> problems
+          <span style={{ fontSize: '.85rem', color: 'var(--color-text-tertiary)' }}>
+            Total: <strong style={{ color: 'var(--color-brand-navy)' }}>{totalProblems}</strong> problems
           </span>
         </div>
 
@@ -297,16 +297,16 @@ export default function PracticeSessionPage() {
     <>
       {/* Progress bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '.5rem' }}>
-        <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '.9rem', fontWeight: 600, color: '#0F1419' }}>
+        <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
           Question {currentIdx + 1} of {problems.length}
         </span>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{answeredCount}/{problems.length} answered</span>
-          <span style={{ fontSize: '.82rem', color: '#6B7280', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
+          <span style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)' }}>{answeredCount}/{problems.length} answered</span>
+          <span style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
         </div>
       </div>
-      <div style={{ height: 4, background: '#F3F4F6', borderRadius: 2, marginBottom: '1.5rem' }}>
-        <div style={{ height: '100%', width: `${((currentIdx + 1) / problems.length) * 100}%`, background: '#1D3095', borderRadius: 2, transition: 'width .3s' }} />
+      <div style={{ height: 4, background: 'var(--color-bg-subtle)', borderRadius: 2, marginBottom: '1.5rem' }}>
+        <div style={{ height: '100%', width: `${((currentIdx + 1) / problems.length) * 100}%`, background: 'var(--color-brand-navy)', borderRadius: 2, transition: 'width .3s' }} />
       </div>
 
       {/* Question nav dots */}
@@ -318,9 +318,9 @@ export default function PracticeSessionPage() {
           return (
             <button key={p.id} onClick={() => setCurrentIdx(i)} style={{
               width: 28, height: 28, borderRadius: '50%', fontSize: '.7rem', fontWeight: 700, cursor: 'pointer',
-              border: isCurrent ? '2px solid #1D3095' : '1px solid #E5E7EB',
-              background: isSkipped ? '#FEF2F2' : isAnswered ? '#EFF6FF' : '#FFF',
-              color: isSkipped ? '#BD1218' : isAnswered ? '#1D3095' : '#6B7280',
+              border: isCurrent ? '2px solid #1D3095' : 'var(--border-light)',
+              background: isSkipped ? 'var(--color-error-bg)' : isAnswered ? 'var(--color-info-bg)' : '#FFF',
+              color: isSkipped ? 'var(--color-brand-red)' : isAnswered ? 'var(--color-brand-navy)' : 'var(--color-text-tertiary)',
             }}>
               {i + 1}
             </button>
@@ -374,7 +374,7 @@ export default function PracticeSessionPage() {
             <button
               className="admin-btn admin-btn--ghost admin-btn--sm"
               onClick={() => seeSolution(currentProblem.id)}
-              style={{ color: '#BD1218', borderColor: '#FECACA' }}
+              style={{ color: 'var(--color-brand-red)', borderColor: '#FECACA' }}
             >
               Give Up &amp; See Solution (counts as incorrect)
             </button>
@@ -383,16 +383,16 @@ export default function PracticeSessionPage() {
 
         {/* Solution display (if viewed) */}
         {solutionViewed[currentProblem.id] && (
-          <div style={{ marginTop: '1.25rem', padding: '1rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8 }}>
-            <div style={{ fontSize: '.82rem', fontWeight: 700, color: '#BD1218', marginBottom: '.5rem' }}>
+          <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--color-error-bg)', border: '1px solid #FECACA', borderRadius: 8 }}>
+            <div style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--color-brand-red)', marginBottom: '.5rem' }}>
               You gave up on this problem. Correct answer: {solutionViewed[currentProblem.id].correct_answer}
             </div>
             <div style={{ fontSize: '.85rem', color: '#374151', lineHeight: 1.7 }}>
               {solutionViewed[currentProblem.id].steps.map(step => (
                 <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid #1D3095' }}>
-                  <div style={{ fontWeight: 600, color: '#1D3095', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
+                  <div style={{ fontWeight: 600, color: 'var(--color-brand-navy)', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
                   {step.description && <div style={{ whiteSpace: 'pre-line' }}>{step.description}</div>}
-                  {step.formula && <div style={{ fontFamily: 'monospace', background: '#F3F4F6', padding: '.3rem .6rem', borderRadius: 4, margin: '.25rem 0', fontSize: '.82rem' }}>{step.formula}</div>}
+                  {step.formula && <div style={{ fontFamily: 'monospace', background: 'var(--color-bg-subtle)', padding: '.3rem .6rem', borderRadius: 4, margin: '.25rem 0', fontSize: '.82rem' }}>{step.formula}</div>}
                   {step.calculation && <div style={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '.82rem' }}>{step.calculation}</div>}
                   {step.result && <div style={{ fontWeight: 600, color: '#059669' }}>{step.result}</div>}
                 </div>
@@ -468,13 +468,13 @@ export default function PracticeSessionPage() {
               <div className="quiz-results__question-num">
                 {r.is_correct ? (r.is_close ? '~' : '\u2713') : '\u2717'} Question {idx + 1}
                 {r.is_close && <span className="quiz-results__partial-badge">Rounding</span>}
-                {skippedIds.has(r.problem_id) && <span style={{ fontSize: '.7rem', background: '#FEF2F2', color: '#BD1218', padding: '.1rem .4rem', borderRadius: 3, fontWeight: 700 }}>Gave Up</span>}
+                {skippedIds.has(r.problem_id) && <span style={{ fontSize: '.7rem', background: 'var(--color-error-bg)', color: 'var(--color-brand-red)', padding: '.1rem .4rem', borderRadius: 3, fontWeight: 700 }}>Gave Up</span>}
               </div>
               <div className="quiz-results__question-text">{prob?.question_text}</div>
               <div className="quiz-results__answer">
                 <span>Your answer: <strong>{r.user_answer || '(no answer)'}</strong></span>
                 <span>Correct answer: <strong style={{ color: '#059669' }}>{r.correct_answer}</strong></span>
-                {r.difference !== null && <span style={{ fontSize: '.78rem', color: '#6B7280' }}>Difference: {r.difference.toFixed(6)}</span>}
+                {r.difference !== null && <span style={{ fontSize: '.78rem', color: 'var(--color-text-tertiary)' }}>Difference: {r.difference.toFixed(6)}</span>}
               </div>
               {r.rounding_warning && (
                 <div style={{ marginTop: '.5rem', padding: '.5rem .75rem', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 6, fontSize: '.78rem', color: '#92400E' }}>
@@ -484,18 +484,18 @@ export default function PracticeSessionPage() {
 
               {/* Expandable solution */}
               <button onClick={() => toggleSolution(r.problem_id)} style={{
-                background: 'none', border: 'none', color: '#1D3095', cursor: 'pointer',
+                background: 'none', border: 'none', color: 'var(--color-brand-navy)', cursor: 'pointer',
                 fontSize: '.82rem', fontWeight: 600, marginTop: '.5rem', padding: 0,
               }}>
                 {isExpanded ? 'Hide Solution' : 'Show Step-by-Step Solution'}
               </button>
               {isExpanded && r.solution_steps && r.solution_steps.length > 0 && (
-                <div style={{ marginTop: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: 8, border: '1px solid #E5E7EB' }}>
+                <div style={{ marginTop: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: 8, border: 'var(--border-light)' }}>
                   {r.solution_steps.map(step => (
                     <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid #1D3095' }}>
-                      <div style={{ fontWeight: 600, color: '#1D3095', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
+                      <div style={{ fontWeight: 600, color: 'var(--color-brand-navy)', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
                       {step.description && <div style={{ fontSize: '.85rem', color: '#374151', whiteSpace: 'pre-line' }}>{step.description}</div>}
-                      {step.formula && <div style={{ fontFamily: 'monospace', background: '#FFF', padding: '.3rem .6rem', borderRadius: 4, margin: '.25rem 0', fontSize: '.82rem', border: '1px solid #E5E7EB' }}>{step.formula}</div>}
+                      {step.formula && <div style={{ fontFamily: 'monospace', background: 'var(--color-bg-card)', padding: '.3rem .6rem', borderRadius: 4, margin: '.25rem 0', fontSize: '.82rem', border: 'var(--border-light)' }}>{step.formula}</div>}
                       {step.calculation && <div style={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '.82rem', color: '#374151' }}>{step.calculation}</div>}
                       {step.result && <div style={{ fontWeight: 600, color: '#059669', fontSize: '.85rem' }}>{step.result}</div>}
                     </div>

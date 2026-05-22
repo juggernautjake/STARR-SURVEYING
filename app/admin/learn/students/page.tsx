@@ -107,7 +107,7 @@ export default function StudentsPage() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#6B7280' }}>Loading student data...</div>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-tertiary)' }}>Loading student data...</div>
       ) : error ? (
         <div className="admin-login__error" style={{ maxWidth: 500, margin: '2rem auto' }}>{error}</div>
       ) : (
@@ -150,7 +150,7 @@ export default function StudentsPage() {
 
           {/* Student table */}
           {filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>
               {search ? 'No students match your search.' : 'No student activity recorded yet.'}
             </div>
           ) : (
@@ -188,10 +188,10 @@ export default function StudentsPage() {
                     <tr
                       key={student.email}
                       style={{ borderBottom: '1px solid #F3F4F6', transition: 'background .15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-app)')}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      <td style={{ padding: '.65rem .75rem', fontWeight: 500, color: '#0F1419' }}>
+                      <td style={{ padding: '.65rem .75rem', fontWeight: 500, color: 'var(--color-text-primary)' }}>
                         {student.email}
                       </td>
                       <td style={{ padding: '.65rem .75rem', color: '#374151' }}>{student.lessons_completed}</td>
@@ -208,7 +208,7 @@ export default function StudentsPage() {
                       <td style={{ padding: '.65rem .75rem', color: '#374151', fontWeight: 500 }}>
                         {student.xp_total.toLocaleString()}
                       </td>
-                      <td style={{ padding: '.65rem .75rem', color: '#9CA3AF', fontSize: '.8rem' }}>
+                      <td style={{ padding: '.65rem .75rem', color: 'var(--color-text-muted)', fontSize: '.8rem' }}>
                         {formatDate(student.last_active)}
                       </td>
                       <td style={{ padding: '.65rem .75rem' }}>

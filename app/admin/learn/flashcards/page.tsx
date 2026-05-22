@@ -423,9 +423,9 @@ export default function FlashcardsPage() {
                 <div className="fc-study__related">
                   <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>Related Content</h4>
                   {searchingRelated ? (
-                    <p style={{ fontSize: '0.82rem', color: '#9CA3AF' }}>Searching...</p>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Searching...</p>
                   ) : relatedLinks.length === 0 ? (
-                    <p style={{ fontSize: '0.82rem', color: '#9CA3AF' }}>No related content found.</p>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>No related content found.</p>
                   ) : (
                     relatedLinks.map((link, i) => (
                       <Link key={i} href={link.url || '#'} className="fc-study__related-link">
@@ -442,7 +442,7 @@ export default function FlashcardsPage() {
           {/* Navigation */}
           <div className="fc-study__nav">
             <button className="admin-btn admin-btn--ghost" onClick={prevCard}>&larr; Previous</button>
-            <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>{currentIdx + 1} / {studyCards.length}</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-tertiary)' }}>{currentIdx + 1} / {studyCards.length}</span>
             <button className="admin-btn admin-btn--secondary" onClick={nextCard}>Next &rarr;</button>
           </div>
         </div>
@@ -471,7 +471,7 @@ export default function FlashcardsPage() {
           </button>
         )}
         <button className="admin-btn admin-btn--ghost" onClick={() => setMode('create')}>+ Create Card</button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.82rem', color: '#6B7280', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.82rem', color: 'var(--color-text-tertiary)', cursor: 'pointer' }}>
           <input type="checkbox" checked={shuffled} onChange={e => setShuffled(e.target.checked)} />
           Shuffle
         </label>
@@ -499,7 +499,7 @@ export default function FlashcardsPage() {
             </span>
           </div>
           <div style={{ height: '4px', background: '#D1FAE5', borderRadius: '2px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${Math.round((fcStats.discovered / fcStats.total_available) * 100)}%`, background: '#10B981', borderRadius: '2px', transition: 'width 0.3s' }} />
+            <div style={{ height: '100%', width: `${Math.round((fcStats.discovered / fcStats.total_available) * 100)}%`, background: 'var(--color-success)', borderRadius: '2px', transition: 'width 0.3s' }} />
           </div>
         </div>
       )}
@@ -527,23 +527,23 @@ export default function FlashcardsPage() {
             <div key={card.id} className="admin-kb__article-card" style={{ cursor: 'default' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <h4 className="admin-kb__article-title">{card.term}</h4>
-                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '10px', background: card.source === 'builtin' ? '#EFF6FF' : '#ECFDF5', color: card.source === 'builtin' ? '#1D3095' : '#065F46', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '10px', background: card.source === 'builtin' ? 'var(--color-info-bg)' : 'var(--color-success-bg)', color: card.source === 'builtin' ? 'var(--color-brand-navy)' : '#065F46', flexShrink: 0 }}>
                   {card.source === 'builtin' ? 'Built-in' : 'Mine'}
                 </span>
               </div>
               <p className="admin-kb__article-excerpt">{card.definition}</p>
               {card.keywords && card.keywords.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
-                  {card.keywords.map(kw => <span key={kw} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', background: '#F3F4F6', borderRadius: '8px', color: '#6B7280' }}>{kw}</span>)}
+                  {card.keywords.map(kw => <span key={kw} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', background: 'var(--color-bg-subtle)', borderRadius: '8px', color: 'var(--color-text-tertiary)' }}>{kw}</span>)}
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                   {card.hint_1 && <span>{[card.hint_1, card.hint_2, card.hint_3].filter(Boolean).length} hint(s)</span>}
                   {(card.times_reviewed || 0) > 0 && <span> · {card.times_reviewed}x reviewed</span>}
                 </div>
                 {card.source === 'user' && (
-                  <button onClick={() => deleteCard(card.id)} style={{ fontSize: '0.75rem', color: '#BD1218', background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
+                  <button onClick={() => deleteCard(card.id)} style={{ fontSize: '0.75rem', color: 'var(--color-brand-red)', background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
                 )}
               </div>
             </div>

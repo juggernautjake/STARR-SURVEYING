@@ -57,7 +57,7 @@ export default function FieldbookPanel() {
   const [showCatManager, setShowCatManager] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('📁');
-  const [newCatColor, setNewCatColor] = useState('#1D3095');
+  const [newCatColor, setNewCatColor] = useState('var(--color-brand-navy)');
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState('');
 
@@ -181,7 +181,7 @@ export default function FieldbookPanel() {
       if (res.ok) {
         setNewCatName('');
         setNewCatIcon('📁');
-        setNewCatColor('#1D3095');
+        setNewCatColor('var(--color-brand-navy)');
         fetchCategories();
       }
     } catch { /* silent */ }
@@ -237,7 +237,7 @@ export default function FieldbookPanel() {
     return (
       <>
         <div className="learn__header">
-          <button onClick={() => { saveEntry(); setViewEntry(null); }} className="learn__back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1D3095', fontFamily: 'Inter,sans-serif', fontSize: '.85rem' }}>
+          <button onClick={() => { saveEntry(); setViewEntry(null); }} className="learn__back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-brand-navy)', fontFamily: 'Inter,sans-serif', fontSize: '.85rem' }}>
             ← Back to Fieldbook
           </button>
           <h2 className="learn__title">📝 Edit Note</h2>
@@ -315,7 +315,7 @@ export default function FieldbookPanel() {
                     key={cat.id}
                     className={`fbfull__cat-toggle ${entryCatIds.includes(cat.id) ? 'fbfull__cat-toggle--active' : ''}`}
                     onClick={() => toggleEntryCategory(cat.id)}
-                    style={entryCatIds.includes(cat.id) ? { background: cat.color, borderColor: cat.color, color: '#FFF' } : undefined}
+                    style={entryCatIds.includes(cat.id) ? { background: cat.color, borderColor: cat.color, color: 'var(--color-text-on-brand)' } : undefined}
                   >
                     {cat.icon} {cat.name}
                   </button>
@@ -454,7 +454,7 @@ export default function FieldbookPanel() {
             key={cat.id}
             className={`fbfull__chip ${selectedCategory === cat.id ? 'fbfull__chip--active' : ''}`}
             onClick={() => setSelectedCategory(cat.id)}
-            style={selectedCategory === cat.id ? { background: cat.color, borderColor: cat.color, color: '#FFF' } : undefined}
+            style={selectedCategory === cat.id ? { background: cat.color, borderColor: cat.color, color: 'var(--color-text-on-brand)' } : undefined}
           >
             {cat.icon} {cat.name}
           </button>

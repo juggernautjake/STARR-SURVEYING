@@ -146,9 +146,9 @@ export default function MockExamPage() {
   function getTimerColor(): string {
     const total = isQuickMode ? 3600 : 19200;
     const pct = timeLeft / total;
-    if (pct <= 0.1) return '#EF4444';
+    if (pct <= 0.1) return 'var(--color-error)';
     if (pct <= 0.25) return '#F97316';
-    return '#1D3095';
+    return 'var(--color-brand-navy)';
   }
 
   const answeredCount = questions.filter(q => answers[q.id]).length;
@@ -247,7 +247,7 @@ export default function MockExamPage() {
                     className="fs-mock__category-bar-fill"
                     style={{
                       width: `${score.percent}%`,
-                      background: score.percent >= 70 ? '#10B981' : score.percent >= 50 ? '#F59E0B' : '#EF4444',
+                      background: score.percent >= 70 ? 'var(--color-success)' : score.percent >= 50 ? 'var(--color-warning)' : 'var(--color-error)',
                     }}
                   />
                 </div>

@@ -206,7 +206,7 @@ export default function QuizHistoryPage() {
                 {/* Expandable Detail */}
                 {isExpanded && (
                   <div className="quiz-history__detail">
-                    {loadingDetails === attempt.id && <p style={{ padding: '1rem', fontSize: '0.85rem', color: '#9CA3AF' }}>Loading details...</p>}
+                    {loadingDetails === attempt.id && <p style={{ padding: '1rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Loading details...</p>}
                     {attemptDetails && attemptDetails.length > 0 && (
                       <div className="quiz-history__questions">
                         {attemptDetails.map((d, i) => (
@@ -240,7 +240,7 @@ export default function QuizHistoryPage() {
                       </div>
                     )}
                     {attemptDetails && attemptDetails.length === 0 && (
-                      <p style={{ padding: '1rem', fontSize: '0.85rem', color: '#9CA3AF' }}>No detailed answers available for this attempt.</p>
+                      <p style={{ padding: '1rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>No detailed answers available for this attempt.</p>
                     )}
                   </div>
                 )}

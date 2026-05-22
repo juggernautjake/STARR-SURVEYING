@@ -13,7 +13,7 @@ function dhtml(html: string) { return { __html: decodeUnicodeEscapes(html || '')
 /* ── Confetti burst (lightweight CSS-only, no deps) ── */
 function ConfettiBurst({ onDone }: { onDone: () => void }) {
   useEffect(() => { const t = setTimeout(onDone, 2500); return () => clearTimeout(t); }, [onDone]);
-  const colors = ['#10B981', '#F59E0B', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899', '#1D3095'];
+  const colors = ['var(--color-success)', 'var(--color-warning)', 'var(--color-info)', 'var(--color-error)', '#8B5CF6', '#EC4899', 'var(--color-brand-navy)'];
   return (
     <div className="confetti-container" aria-hidden="true">
       {Array.from({ length: 40 }).map((_, i) => {
@@ -374,10 +374,10 @@ export default function LessonViewerPage() {
           )}
         </div>
         <h2 className="admin-lesson__title">{lesson.title}</h2>
-        <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: '#9CA3AF', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.25rem', flexWrap: 'wrap' }}>
           <span>&#x23F1; ~{lesson.estimated_minutes} min</span>
           {lesson.tags?.length > 0 && <span>&#x1F3F7; {lesson.tags.join(', ')}</span>}
-          {completed && <span style={{ color: '#10B981', fontWeight: 600 }}>&#x2705; Completed</span>}
+          {completed && <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>&#x2705; Completed</span>}
         </div>
       </div>
 
@@ -395,7 +395,7 @@ export default function LessonViewerPage() {
             <p className="lesson-tracker__hint">Review all resources{requiredArticles.length > 0 ? ', articles,' : ''} and videos below to unlock the quiz.</p>
           )}
           {allContentReviewed && quizCount > 0 && (
-            <p className="lesson-tracker__hint" style={{ color: '#10B981' }}>All content reviewed! Quiz is now unlocked.</p>
+            <p className="lesson-tracker__hint" style={{ color: 'var(--color-success)' }}>All content reviewed! Quiz is now unlocked.</p>
           )}
         </div>
       )}
@@ -462,7 +462,7 @@ export default function LessonViewerPage() {
                   {block.block_type === 'image' && block.content.url && (
                     <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
                       <Image src={block.content.url} alt={block.content.alt || ''} width={400} height={300} unoptimized style={{ maxWidth: '100%', borderRadius: '8px' }} />
-                      {block.content.caption && <figcaption style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem' }}>{block.content.caption}</figcaption>}
+                      {block.content.caption && <figcaption style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)', marginTop: '.5rem' }}>{block.content.caption}</figcaption>}
                     </figure>
                   )}
                   {block.block_type === 'video' && block.content.url && (() => {
@@ -474,7 +474,7 @@ export default function LessonViewerPage() {
                     return (
                       <div style={{ margin: '1.5rem 0' }}>
                         <iframe src={embedUrl} style={{ width: '100%', aspectRatio: '16/9', border: 'none', borderRadius: '8px' }} allowFullScreen />
-                        {block.content.caption && <p style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem', textAlign: 'center' }}>{block.content.caption}</p>}
+                        {block.content.caption && <p style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)', marginTop: '.5rem', textAlign: 'center' }}>{block.content.caption}</p>}
                       </div>
                     );
                   })()}
@@ -553,7 +553,7 @@ export default function LessonViewerPage() {
                   )}
                   {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
                   {block.block_type === 'embed' && block.content.url && (
-                    <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: '1px solid #E5E7EB', borderRadius: '8px', margin: '1.5rem 0' }} />
+                    <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: 'var(--border-light)', borderRadius: '8px', margin: '1.5rem 0' }} />
                   )}
                   {block.block_type === 'table' && (
                     <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
@@ -627,7 +627,7 @@ export default function LessonViewerPage() {
                     );
                   })()}
                   {block.block_type === 'file' && block.content.url && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #E5E7EB' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: 'var(--border-light)' }}>
                       <span style={{ fontSize: '1.5rem' }}>📎</span>
                       <div><div style={{ fontWeight: 600, fontSize: '.9rem' }}>{block.content.name || 'File'}</div></div>
                       <a href={block.content.url} download={block.content.name} className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginLeft: 'auto' }}>Download</a>
@@ -641,11 +641,11 @@ export default function LessonViewerPage() {
                     return (
                       <div style={{ margin: '1.5rem 0', textAlign: 'center' }}>
                         <Image src={img.url} alt={img.alt || ''} width={400} height={300} unoptimized style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '8px', objectFit: 'contain' }} />
-                        {img.caption && <p style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem' }}>{img.caption}</p>}
+                        {img.caption && <p style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)', marginTop: '.5rem' }}>{img.caption}</p>}
                         {images.length > 1 && (
                           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '.75rem' }}>
                             <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setSlideshowIndexes(prev => ({ ...prev, [block.id]: idx <= 0 ? images.length - 1 : idx - 1 }))}>&larr;</button>
-                            <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{idx + 1} / {images.length}</span>
+                            <span style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)' }}>{idx + 1} / {images.length}</span>
                             <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setSlideshowIndexes(prev => ({ ...prev, [block.id]: idx >= images.length - 1 ? 0 : idx + 1 }))}>&rarr;</button>
                           </div>
                         )}
@@ -666,7 +666,7 @@ export default function LessonViewerPage() {
                                 {wasClicked ? '\u2705' : '\u25CB'}
                               </span>
                               {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
-                              {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
+                              {link.description && <span style={{ fontSize: '.78rem', color: 'var(--color-text-muted)', marginLeft: '.5rem' }}>{link.description}</span>}
                               <span className="lesson-resources__arrow">↗</span>
                             </a>
                           );
@@ -723,7 +723,7 @@ export default function LessonViewerPage() {
                         {cards.length > 1 && (
                           <div className="block-flashcard__nav">
                             <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx <= 0 ? cards.length - 1 : cardIdx - 1 })); }}>&larr;</button>
-                            <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{cardIdx + 1} / {cards.length}</span>
+                            <span style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)' }}>{cardIdx + 1} / {cards.length}</span>
                             <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx >= cards.length - 1 ? 0 : cardIdx + 1 })); }}>&rarr;</button>
                           </div>
                         )}
@@ -799,7 +799,7 @@ export default function LessonViewerPage() {
                                     {showHint && <span style={{ fontSize: '.82rem', color: '#D97706', fontStyle: 'italic' }}>{step.hint}</span>}
                                   </div>
                                 ) : (
-                                  <span style={{ fontSize: '.82rem', color: '#9CA3AF' }}>Locked — reveal previous steps first</span>
+                                  <span style={{ fontSize: '.82rem', color: 'var(--color-text-muted)' }}>Locked — reveal previous steps first</span>
                                 )}
                               </div>
                             );
@@ -919,7 +919,7 @@ export default function LessonViewerPage() {
                     {reviewed ? '\u2705' : '\u25CB'}
                   </span>
                   &#x1F3AC; {v.title}
-                  {v.description && <span style={{ fontSize: '0.78rem', color: '#9CA3AF', marginLeft: '0.5rem' }}>{v.description}</span>}
+                  {v.description && <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>{v.description}</span>}
                   <span className="lesson-resources__arrow">{'\u2197'}</span>
                 </a>
               );
@@ -957,7 +957,7 @@ export default function LessonViewerPage() {
             ))}
           </div>
           {!allArticlesRead && !completed && (
-            <p style={{ fontSize: '0.78rem', color: '#F59E0B', marginTop: '0.5rem' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-warning)', marginTop: '0.5rem' }}>
               Read all required articles to unlock the quiz.
             </p>
           )}
@@ -1013,7 +1013,7 @@ export default function LessonViewerPage() {
         )}
 
         {!completed && quizCount > 0 && canTakeQuiz && (
-          <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0.5rem 0 0' }}>
+          <p style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)', margin: '0.5rem 0 0' }}>
             Pass the lesson quiz to mark this lesson as complete.
           </p>
         )}

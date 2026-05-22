@@ -26,7 +26,7 @@ export default function ArticleDetailPage() {
         <Link href="/admin/learn/knowledge-base" className="learn__back">← Back to Knowledge Base</Link>
         <div className="kb__article-category">{article.category}</div>
         <h2 className="learn__title">{article.title}</h2>
-        <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.8rem', color: '#9CA3AF' }}>
+        <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.8rem', color: 'var(--color-text-muted)' }}>
           Updated {new Date(article.updated_at).toLocaleDateString()}{article.tags.length > 0 && ` · Tags: ${article.tags.join(', ')}`}
         </p>
       </div>

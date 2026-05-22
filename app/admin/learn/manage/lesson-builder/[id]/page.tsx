@@ -954,7 +954,7 @@ export default function LessonBuilderPage() {
           )}
           <h2 className="lesson-builder__title">{lesson.title}</h2>
           {lesson.module_id && (
-            <Link href={`/admin/learn/modules/${lesson.module_id}`} style={{ fontSize: '.72rem', color: '#1D3095', textDecoration: 'none' }}>
+            <Link href={`/admin/learn/modules/${lesson.module_id}`} style={{ fontSize: '.72rem', color: 'var(--color-brand-navy)', textDecoration: 'none' }}>
               Module {lesson.module_id.slice(0, 8)}... &rarr;
             </Link>
           )}
@@ -980,7 +980,7 @@ export default function LessonBuilderPage() {
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveBlocks(false)} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
           </button>
-          <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{blocks.length} block{blocks.length !== 1 ? 's' : ''} &middot; ~{estimateReadingTime()} min read</span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--color-text-tertiary)' }}>{blocks.length} block{blocks.length !== 1 ? 's' : ''} &middot; ~{estimateReadingTime()} min read</span>
           <div style={{ display: 'flex', gap: '.25rem' }}>
             <button className="lesson-builder__undo-btn" title="Undo (Ctrl+Z)" disabled={undoStack.current.length <= 1} onClick={() => { if (undoStack.current.length > 1) { const cur = undoStack.current.pop()!; redoStack.current.push(cur); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(undoStack.current[undoStack.current.length - 1]))); } }}>↶</button>
             <button className="lesson-builder__undo-btn" title="Redo (Ctrl+Shift+Z)" disabled={redoStack.current.length === 0} onClick={() => { if (redoStack.current.length > 0) { const next = redoStack.current.pop()!; undoStack.current.push(next); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(next))); } }}>↷</button>
@@ -1044,18 +1044,18 @@ export default function LessonBuilderPage() {
                 <div dangerouslySetInnerHTML={dhtml(block.content.html)} />
               )}
               {block.block_type === 'text' && (!block.content.html || block.content.html === '<p></p>') && (
-                <p style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Empty text block (will not render in published view)</p>
+                <p style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Empty text block (will not render in published view)</p>
               )}
               {block.block_type === 'image' && block.content.url && (
                 <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
                   <Image src={block.content.url} alt={block.content.alt || ''} width={600} height={400} unoptimized style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }} />
-                  {block.content.caption && <figcaption style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>{block.content.caption}</figcaption>}
+                  {block.content.caption && <figcaption style={{ fontSize: '0.82rem', color: 'var(--color-text-tertiary)', marginTop: '0.5rem' }}>{block.content.caption}</figcaption>}
                 </figure>
               )}
               {block.block_type === 'video' && block.content.url && (
                 <div style={{ margin: '1.5rem 0' }}>
                   <iframe src={convertToEmbedUrl(block.content.url)} style={{ width: '100%', aspectRatio: '16/9', border: 'none', borderRadius: '8px' }} allowFullScreen />
-                  {block.content.caption && <p style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem', textAlign: 'center' }}>{block.content.caption}</p>}
+                  {block.content.caption && <p style={{ fontSize: '0.82rem', color: 'var(--color-text-tertiary)', marginTop: '0.5rem', textAlign: 'center' }}>{block.content.caption}</p>}
                 </div>
               )}
               {block.block_type === 'callout' && (
@@ -1156,7 +1156,7 @@ export default function LessonBuilderPage() {
               )}
               {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
               {block.block_type === 'embed' && block.content.url && (
-                <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: '1px solid #E5E7EB', borderRadius: '8px', margin: '1.5rem 0' }} />
+                <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: 'var(--border-light)', borderRadius: '8px', margin: '1.5rem 0' }} />
               )}
               {block.block_type === 'table' && (
                 <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
@@ -1211,11 +1211,11 @@ export default function LessonBuilderPage() {
                 );
               })()}
               {block.block_type === 'file' && block.content.url && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #E5E7EB' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: 'var(--border-light)' }}>
                   <span style={{ fontSize: '1.5rem' }}>📎</span>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{block.content.name || 'File'}</div>
-                    {block.content.size > 0 && <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>{formatFileSize(block.content.size)}</div>}
+                    {block.content.size > 0 && <div style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)' }}>{formatFileSize(block.content.size)}</div>}
                   </div>
                   <a href={block.content.url} download={block.content.name} className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginLeft: 'auto' }}>Download</a>
                 </div>
@@ -1230,11 +1230,11 @@ export default function LessonBuilderPage() {
                     return (
                       <div style={{ position: 'relative', textAlign: 'center' }}>
                         <Image src={img.url} alt={img.alt || ''} width={600} height={400} unoptimized style={{ maxWidth: '100%', maxHeight: '500px', height: 'auto', borderRadius: '8px', objectFit: 'contain' }} />
-                        {img.caption && <p style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>{img.caption}</p>}
+                        {img.caption && <p style={{ fontSize: '0.82rem', color: 'var(--color-text-tertiary)', marginTop: '0.5rem' }}>{img.caption}</p>}
                         {images.length > 1 && (
                           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.75rem' }}>
                             <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => slideshowNav(block.id, 'prev', images.length)}>&larr;</button>
-                            <span style={{ fontSize: '0.82rem', color: '#6B7280' }}>{idx + 1} / {images.length}</span>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--color-text-tertiary)' }}>{idx + 1} / {images.length}</span>
                             <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => slideshowNav(block.id, 'next', images.length)}>&rarr;</button>
                           </div>
                         )}
@@ -1258,7 +1258,7 @@ export default function LessonBuilderPage() {
                     {(block.content.links || []).map((link: any, i: number) => (
                       <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
                         {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : link.type === 'quiz' ? '❓' : link.type === 'practice' ? '🎯' : '📎'} {link.title || link.url}
-                        {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
+                        {link.description && <span style={{ fontSize: '.78rem', color: 'var(--color-text-muted)', marginLeft: '.5rem' }}>{link.description}</span>}
                         <span className="lesson-resources__arrow">↗</span>
                       </a>
                     ))}
@@ -1314,7 +1314,7 @@ export default function LessonBuilderPage() {
                     {cards.length > 1 && (
                       <div className="block-flashcard__nav">
                         <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx <= 0 ? cards.length - 1 : cardIdx - 1 })); }}>&larr;</button>
-                        <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{cardIdx + 1} / {cards.length}</span>
+                        <span style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)' }}>{cardIdx + 1} / {cards.length}</span>
                         <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx >= cards.length - 1 ? 0 : cardIdx + 1 })); }}>&rarr;</button>
                       </div>
                     )}
@@ -1359,7 +1359,7 @@ export default function LessonBuilderPage() {
             );
           })}
           {blocks.length === 0 && (
-            <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '3rem' }}>No content blocks yet. Switch to Edit mode to add blocks.</p>
+            <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '3rem' }}>No content blocks yet. Switch to Edit mode to add blocks.</p>
           )}
         </div>
       ) : (
@@ -1477,7 +1477,7 @@ export default function LessonBuilderPage() {
                   {block.style?.rowGroup && (
                     <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); ungroupBlock(block.id); }} title="Remove from row group" style={{ fontSize: '.65rem', color: '#DC2626' }}>Ungroup</button>
                   )}
-                  <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); setShowStylePanel(showStylePanel === block.id ? null : block.id); }} title="Style" style={showStylePanel === block.id ? { borderColor: '#1D3095', color: '#1D3095' } : undefined}>🎨</button>
+                  <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); setShowStylePanel(showStylePanel === block.id ? null : block.id); }} title="Style" style={showStylePanel === block.id ? { borderColor: 'var(--color-brand-navy)', color: 'var(--color-brand-navy)' } : undefined}>🎨</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'up')} disabled={idx === 0} title="Move up">↑</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'down')} disabled={idx === blocks.length - 1} title="Move down">↓</button>
                   <button className="lesson-builder__block-btn" onClick={() => duplicateBlock(block.id)} title="Duplicate">⧉</button>
@@ -1509,7 +1509,7 @@ export default function LessonBuilderPage() {
                         <div className="lesson-builder__drop-zone-text">
                           <span style={{ fontSize: '2rem' }}>🖼</span>
                           <p>Drag & drop an image here, or click to browse</p>
-                          <p style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Or paste a URL below</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Or paste a URL below</p>
                         </div>
                       )}
                     </div>
@@ -1529,7 +1529,7 @@ export default function LessonBuilderPage() {
                     <input className="fc-form__input" placeholder="YouTube or Vimeo URL (e.g. https://youtube.com/watch?v=...)" value={block.content.url || ''} onChange={e => updateBlockContent(block.id, { ...block.content, url: e.target.value })} />
                     <input className="fc-form__input" placeholder="Caption (optional)" value={block.content.caption || ''} onChange={e => updateBlockContent(block.id, { ...block.content, caption: e.target.value })} style={{ marginTop: '0.5rem' }} />
                     {block.content.url && (
-                      <div style={{ marginTop: '0.75rem', borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+                      <div style={{ marginTop: '0.75rem', borderRadius: '8px', overflow: 'hidden', border: 'var(--border-light)' }}>
                         <iframe
                           src={convertToEmbedUrl(block.content.url)}
                           style={{ width: '100%', aspectRatio: '16/9', border: 'none' }}
@@ -1555,7 +1555,7 @@ export default function LessonBuilderPage() {
                     </select>
                     <textarea className="fc-form__textarea" value={block.content.text || ''} onChange={e => updateBlockContent(block.id, { ...block.content, text: e.target.value })} rows={3} placeholder="Callout text... (supports basic text)" />
                     {block.content.type === 'formula' && (
-                      <p style={{ fontSize: '.72rem', color: '#9CA3AF', marginTop: '.25rem' }}>Use &lt;sub&gt; for subscripts, &lt;sup&gt; for superscripts in formulas.</p>
+                      <p style={{ fontSize: '.72rem', color: 'var(--color-text-muted)', marginTop: '.25rem' }}>Use &lt;sub&gt; for subscripts, &lt;sup&gt; for superscripts in formulas.</p>
                     )}
                     <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`} style={{ marginTop: '0.5rem' }}>
                       <span dangerouslySetInnerHTML={dhtml(block.content.text || 'Preview...')} />
@@ -1579,17 +1579,17 @@ export default function LessonBuilderPage() {
                     </div>
                     {showQbPicker === block.id && (
                       <div className="lesson-builder__qb-picker">
-                        {qbLoading && <p style={{ fontSize: '.82rem', color: '#9CA3AF', padding: '.5rem' }}>Loading questions...</p>}
+                        {qbLoading && <p style={{ fontSize: '.82rem', color: 'var(--color-text-muted)', padding: '.5rem' }}>Loading questions...</p>}
                         {!qbLoading && qbQuestions.length === 0 && (
-                          <p style={{ fontSize: '.82rem', color: '#9CA3AF', padding: '.5rem' }}>No multiple-choice questions found for this lesson. Add questions in the Question Bank first.</p>
+                          <p style={{ fontSize: '.82rem', color: 'var(--color-text-muted)', padding: '.5rem' }}>No multiple-choice questions found for this lesson. Add questions in the Question Bank first.</p>
                         )}
                         {qbQuestions.map((q: any) => (
                           <button key={q.id} className="lesson-builder__qb-question" onClick={() => importQuestion(block.id, q)}>
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 600, fontSize: '.85rem', color: '#0F1419', marginBottom: '.2rem' }}>{q.question_text}</div>
-                              <div style={{ fontSize: '.72rem', color: '#6B7280' }}>{q.question_type} &middot; {q.difficulty} &middot; {(q.options || []).length} options</div>
+                              <div style={{ fontWeight: 600, fontSize: '.85rem', color: 'var(--color-text-primary)', marginBottom: '.2rem' }}>{q.question_text}</div>
+                              <div style={{ fontSize: '.72rem', color: 'var(--color-text-tertiary)' }}>{q.question_type} &middot; {q.difficulty} &middot; {(q.options || []).length} options</div>
                             </div>
-                            <span style={{ fontSize: '.72rem', color: '#1D3095', fontWeight: 600, flexShrink: 0 }}>Import</span>
+                            <span style={{ fontSize: '.72rem', color: 'var(--color-brand-navy)', fontWeight: 600, flexShrink: 0 }}>Import</span>
                           </button>
                         ))}
                       </div>
@@ -1632,7 +1632,7 @@ export default function LessonBuilderPage() {
                     <input className="fc-form__input" placeholder="Embed URL" value={block.content.url || ''} onChange={e => updateBlockContent(block.id, { ...block.content, url: e.target.value })} />
                     <input className="fc-form__input" type="number" placeholder="Height (px)" value={block.content.height || 400} onChange={e => updateBlockContent(block.id, { ...block.content, height: parseInt(e.target.value) || 400 })} style={{ marginTop: '0.5rem', maxWidth: '150px' }} />
                     {block.content.url && (
-                      <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: '1px solid #E5E7EB', borderRadius: '8px', marginTop: '0.75rem' }} title="Embed preview" />
+                      <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: 'var(--border-light)', borderRadius: '8px', marginTop: '0.75rem' }} title="Embed preview" />
                     )}
                   </div>
                 )}
@@ -1643,7 +1643,7 @@ export default function LessonBuilderPage() {
                       <thead>
                         <tr>
                           {(block.content.headers || []).map((h: string, hi: number) => (
-                            <th key={hi} style={{ padding: '0.4rem', border: '1px solid #E5E7EB' }}>
+                            <th key={hi} style={{ padding: '0.4rem', border: 'var(--border-light)' }}>
                               <input className="fc-form__input" value={h} onChange={e => {
                                 const headers = [...(block.content.headers || [])];
                                 headers[hi] = e.target.value;
@@ -1664,7 +1664,7 @@ export default function LessonBuilderPage() {
                         {(block.content.rows || []).map((row: string[], ri: number) => (
                           <tr key={ri}>
                             {row.map((cell: string, ci: number) => (
-                              <td key={ci} style={{ padding: '0.4rem', border: '1px solid #E5E7EB' }}>
+                              <td key={ci} style={{ padding: '0.4rem', border: 'var(--border-light)' }}>
                                 <input className="fc-form__input" value={cell} onChange={e => {
                                   const rows = [...(block.content.rows || [])];
                                   rows[ri] = [...rows[ri]];
@@ -1717,7 +1717,7 @@ export default function LessonBuilderPage() {
                           <span style={{ fontSize: '1.5rem' }}>📎</span>
                           <div>
                             <div style={{ fontWeight: 600 }}>{block.content.name || 'Uploaded file'}</div>
-                            {block.content.size > 0 && <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>{formatFileSize(block.content.size)}</div>}
+                            {block.content.size > 0 && <div style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)' }}>{formatFileSize(block.content.size)}</div>}
                           </div>
                         </div>
                       ) : (
@@ -1808,7 +1808,7 @@ export default function LessonBuilderPage() {
                 {block.block_type === 'html' && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem' }}>
-                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280' }}>Raw HTML</span>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--color-text-tertiary)' }}>Raw HTML</span>
                       <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => updateBlockContent(block.id, { ...block.content, showPreview: !block.content.showPreview })}>
                         {block.content.showPreview ? 'Edit' : 'Preview'}
                       </button>
@@ -1848,7 +1848,7 @@ export default function LessonBuilderPage() {
                 {block.block_type === 'link_reference' && (
                   <div>
                     {(block.content.links || []).map((link: any, li: number) => (
-                      <div key={li} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                      <div key={li} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: 'var(--color-bg-app)', borderRadius: '6px', border: 'var(--border-light)' }}>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
                           <input className="fc-form__input" placeholder="Link title" value={link.title || ''} onChange={e => {
                             const links = [...(block.content.links || [])];
@@ -1899,17 +1899,17 @@ export default function LessonBuilderPage() {
                 {block.block_type === 'flashcard' && (
                   <div>
                     <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.5rem', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280' }}>Flashcard Deck ({(block.content.cards || []).length} cards)</span>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--color-text-tertiary)' }}>Flashcard Deck ({(block.content.cards || []).length} cards)</span>
                       <div style={{ display: 'flex', gap: '.25rem' }}>
                         <button className={`admin-btn admin-btn--sm ${(block.content.layout || 'single') === 'single' ? 'admin-btn--primary' : 'admin-btn--ghost'}`} onClick={() => updateBlockContent(block.id, { ...block.content, layout: 'single' })} style={{ fontSize: '.72rem' }}>Single</button>
                         <button className={`admin-btn admin-btn--sm ${block.content.layout === 'grid' ? 'admin-btn--primary' : 'admin-btn--ghost'}`} onClick={() => updateBlockContent(block.id, { ...block.content, layout: 'grid' })} style={{ fontSize: '.72rem' }}>Grid (side-by-side)</button>
                       </div>
                     </div>
                     {(block.content.cards || []).map((card: any, ci: number) => (
-                      <div key={ci} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                      <div key={ci} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: 'var(--color-bg-app)', borderRadius: '6px', border: 'var(--border-light)' }}>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
                           <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
-                            <span style={{ fontSize: '.72rem', fontWeight: 600, color: '#1D3095', minWidth: '40px' }}>Front</span>
+                            <span style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--color-brand-navy)', minWidth: '40px' }}>Front</span>
                             <input className="fc-form__input" placeholder="Term or question" value={card.front || ''} onChange={e => {
                               const cards = [...(block.content.cards || [])];
                               cards[ci] = { ...cards[ci], front: e.target.value };
@@ -1946,7 +1946,7 @@ export default function LessonBuilderPage() {
                     <input className="fc-form__input" placeholder="Article title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} />
                     <textarea className="fc-form__textarea" placeholder="Summary text (shown collapsed)" value={block.content.summary || ''} onChange={e => updateBlockContent(block.id, { ...block.content, summary: e.target.value })} rows={2} style={{ marginTop: '.5rem' }} />
                     <div style={{ marginTop: '.5rem' }}>
-                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: '.35rem' }}>Full Content (HTML supported)</span>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--color-text-tertiary)', display: 'block', marginBottom: '.35rem' }}>Full Content (HTML supported)</span>
                       <textarea
                         className="fc-form__textarea"
                         value={block.content.full_content || ''}
@@ -1966,7 +1966,7 @@ export default function LessonBuilderPage() {
                     <input className="fc-form__input" placeholder="Link title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginTop: '.5rem' }} />
                     <input className="fc-form__input" placeholder="Description" value={block.content.description || ''} onChange={e => updateBlockContent(block.id, { ...block.content, description: e.target.value })} style={{ marginTop: '.5rem' }} />
                     <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' }}>
-                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280' }}>Icon:</span>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--color-text-tertiary)' }}>Icon:</span>
                       {['📖', '📝', '🎯', '📊', '🏠', '⚙', '🔬', '📐'].map(emoji => (
                         <button key={emoji} className={`admin-btn admin-btn--ghost admin-btn--sm ${block.content.icon === emoji ? 'admin-btn--active' : ''}`}
                           onClick={() => updateBlockContent(block.id, { ...block.content, icon: emoji })}
@@ -1994,9 +1994,9 @@ export default function LessonBuilderPage() {
                   const updateItems = (newItems: { text: string; style: string }[]) => updateBlockContent(block.id, { items: newItems });
                   return (
                     <div>
-                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', marginBottom: '.5rem', display: 'block' }}>Concept Bubbles ({items.length} item{items.length !== 1 ? 's' : ''}) — displayed side-by-side</span>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--color-text-tertiary)', marginBottom: '.5rem', display: 'block' }}>Concept Bubbles ({items.length} item{items.length !== 1 ? 's' : ''}) — displayed side-by-side</span>
                       {items.map((item, ii) => (
-                        <div key={ii} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                        <div key={ii} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: 'var(--color-bg-app)', borderRadius: '6px', border: 'var(--border-light)' }}>
                           <select className="fc-form__input" value={item.style || 'blue'} onChange={e => {
                             const next = [...items]; next[ii] = { ...next[ii], style: e.target.value }; updateItems(next);
                           }} style={{ flex: '0 0 120px' }}>
@@ -2034,7 +2034,7 @@ export default function LessonBuilderPage() {
                     <input className="fc-form__input" placeholder="Section title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginBottom: '.5rem' }} />
                     {(block.content.items || []).map((item: string, ii: number) => (
                       <div key={ii} style={{ display: 'flex', gap: '.5rem', marginBottom: '.35rem', alignItems: 'center' }}>
-                        <span style={{ color: '#10B981', fontSize: '.9rem', flexShrink: 0 }}>&#x2713;</span>
+                        <span style={{ color: 'var(--color-success)', fontSize: '.9rem', flexShrink: 0 }}>&#x2713;</span>
                         <input className="fc-form__input" value={item} onChange={e => {
                           const items = [...(block.content.items || [])];
                           items[ii] = e.target.value;
@@ -2067,7 +2067,7 @@ export default function LessonBuilderPage() {
                     <textarea className="fc-form__textarea lesson-builder__equation-input" placeholder="LaTeX: e.g. E = mc^2  or  \frac{a}{b}" value={block.content.latex || ''} onChange={e => updateBlockContent(block.id, { ...block.content, latex: e.target.value })} rows={3} spellCheck={false} />
                     {block.content.latex && (
                       <div className="lesson-builder__equation-preview">
-                        <span style={{ fontSize: '.68rem', fontWeight: 600, color: '#6B7280', marginBottom: '.25rem', display: 'block' }}>Preview</span>
+                        <span style={{ fontSize: '.68rem', fontWeight: 600, color: 'var(--color-text-tertiary)', marginBottom: '.25rem', display: 'block' }}>Preview</span>
                         <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={dhtml(renderLatex(block.content.latex || ''))} />
                       </div>
                     )}
@@ -2110,7 +2110,7 @@ export default function LessonBuilderPage() {
                     {(block.content.sections || []).map((sec: any, si: number) => (
                       <div key={si} className="lesson-builder__container-section">
                         <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.35rem' }}>
-                          <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '.25rem', flexShrink: 0 }}>
+                          <label style={{ fontSize: '.75rem', color: 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center', gap: '.25rem', flexShrink: 0 }}>
                             <input type="checkbox" checked={sec.open || false} onChange={e => {
                               const sections = [...(block.content.sections || [])];
                               sections[si] = { ...sections[si], open: e.target.checked };
@@ -2183,7 +2183,7 @@ export default function LessonBuilderPage() {
                       <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#374151', marginBottom: '.35rem', display: 'block' }}>Solution Steps</span>
                       {(block.content.steps || []).map((step: any, si: number) => (
                         <div key={si} style={{ display: 'flex', gap: '.35rem', marginBottom: '.45rem', alignItems: 'flex-start' }}>
-                          <span style={{ fontSize: '.78rem', fontWeight: 700, color: '#1D3095', minWidth: '1.5rem', marginTop: '.35rem' }}>{si + 1}.</span>
+                          <span style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--color-brand-navy)', minWidth: '1.5rem', marginTop: '.35rem' }}>{si + 1}.</span>
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                             <input className="fc-form__input" placeholder={`Step ${si + 1} label (e.g. "Identify known values")`} value={step.label || ''} onChange={e => {
                               const steps = [...(block.content.steps || [])];
@@ -2246,12 +2246,12 @@ export default function LessonBuilderPage() {
                       <label>Border</label>
                       <input type="color" value={block.style?.borderColor || '#e5e7eb'} onChange={e => updateBlockStyle(block.id, { borderColor: e.target.value, borderWidth: block.style?.borderWidth || 1 })} style={{ width: '40px', height: '30px', border: 'none', cursor: 'pointer' }} />
                       <input type="number" className="fc-form__input" value={block.style?.borderWidth || 0} onChange={e => updateBlockStyle(block.id, { borderWidth: parseInt(e.target.value) || 0 })} style={{ width: '60px' }} min={0} max={10} />
-                      <span style={{ fontSize: '.72rem', color: '#9CA3AF' }}>px</span>
+                      <span style={{ fontSize: '.72rem', color: 'var(--color-text-muted)' }}>px</span>
                     </div>
                     <div className="lesson-builder__style-row">
                       <label>Radius</label>
                       <input type="number" className="fc-form__input" value={block.style?.borderRadius ?? 8} onChange={e => updateBlockStyle(block.id, { borderRadius: parseInt(e.target.value) || 0 })} style={{ width: '60px' }} min={0} max={50} />
-                      <span style={{ fontSize: '.72rem', color: '#9CA3AF' }}>px</span>
+                      <span style={{ fontSize: '.72rem', color: 'var(--color-text-muted)' }}>px</span>
                     </div>
                     <div className="lesson-builder__style-row">
                       <label>Shadow</label>
@@ -2327,7 +2327,7 @@ export default function LessonBuilderPage() {
                     if (groupTypes.length === 0) return null;
                     return (
                       <div key={group} style={{ marginBottom: '1rem' }}>
-                        <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{group}</h4>
+                        <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{group}</h4>
                         <div className="lesson-builder__block-picker">
                           {groupTypes.map((bt) => (
                             <button key={bt.type} className="lesson-builder__block-option" onClick={() => { addBlock(bt.type); setBlockPickerSearch(''); }}>
@@ -2343,28 +2343,28 @@ export default function LessonBuilderPage() {
                     );
                   })}
                   {blockPickerSearch && BLOCK_TYPES.filter(bt => { const s = blockPickerSearch.toLowerCase(); return bt.label.toLowerCase().includes(s) || bt.description.toLowerCase().includes(s) || bt.type.includes(s); }).length === 0 && (
-                    <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: '.85rem', padding: '1rem 0' }}>No blocks match &ldquo;{blockPickerSearch}&rdquo;</p>
+                    <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '.85rem', padding: '1rem 0' }}>No blocks match &ldquo;{blockPickerSearch}&rdquo;</p>
                   )}
                 </>
               )}
               {blockPickerTab === 'templates' && (
                 <div>
-                  {templatesLoading && <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '1rem' }}>Loading templates...</p>}
+                  {templatesLoading && <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1rem' }}>Loading templates...</p>}
                   {!templatesLoading && savedTemplates.length === 0 && (
-                    <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '1rem' }}>No templates yet. Save blocks as a template to reuse them!</p>
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1rem' }}>No templates yet. Save blocks as a template to reuse them!</p>
                   )}
                   {['content', 'interactive', 'layout', 'assessment', 'custom'].map(cat => {
                     const catTemplates = savedTemplates.filter(t => t.category === cat);
                     if (catTemplates.length === 0) return null;
                     return (
                       <div key={cat} style={{ marginBottom: '1rem' }}>
-                        <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{cat}</h4>
+                        <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{cat}</h4>
                         {catTemplates.map((t: any) => (
                           <div key={t.id} className="lesson-builder__template-item">
                             <button className="lesson-builder__template-btn" onClick={() => insertTemplate(t)}>
                               <div>
-                                <div style={{ fontWeight: 600, fontSize: '.85rem', color: '#0F1419' }}>{t.name} {t.is_builtin && <span style={{ fontSize: '.6rem', background: '#DBEAFE', color: '#1E40AF', padding: '.1rem .3rem', borderRadius: '3px', marginLeft: '.25rem' }}>BUILT-IN</span>}</div>
-                                <div style={{ fontSize: '.72rem', color: '#6B7280' }}>{t.description || `${(t.blocks || []).length} block${(t.blocks || []).length !== 1 ? 's' : ''}`}</div>
+                                <div style={{ fontWeight: 600, fontSize: '.85rem', color: 'var(--color-text-primary)' }}>{t.name} {t.is_builtin && <span style={{ fontSize: '.6rem', background: '#DBEAFE', color: '#1E40AF', padding: '.1rem .3rem', borderRadius: '3px', marginLeft: '.25rem' }}>BUILT-IN</span>}</div>
+                                <div style={{ fontSize: '.72rem', color: 'var(--color-text-tertiary)' }}>{t.description || `${(t.blocks || []).length} block${(t.blocks || []).length !== 1 ? 's' : ''}`}</div>
                               </div>
                             </button>
                             {!t.is_builtin && (
@@ -2391,7 +2391,7 @@ export default function LessonBuilderPage() {
               <button className="admin-modal__close" onClick={() => setShowSaveTemplate(false)}>✕</button>
             </div>
             <div className="admin-modal__body">
-              <p style={{ fontSize: '.82rem', color: '#6B7280', marginBottom: '.75rem' }}>
+              <p style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)', marginBottom: '.75rem' }}>
                 {selectedBlockId ? 'Save the selected block as a reusable template.' : `Save all ${blocks.length} blocks as a reusable template.`}
               </p>
               <input className="fc-form__input" placeholder="Template name" value={saveTemplateName} onChange={e => setSaveTemplateName(e.target.value)} autoFocus style={{ marginBottom: '.5rem' }} />
@@ -2416,7 +2416,7 @@ export default function LessonBuilderPage() {
       {showLinkedPanel && (
         <div className="lesson-builder__linked-panel">
           <div className="lesson-builder__linked-header">
-            <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: '#1D3095', margin: 0 }}>Linked Content</h3>
+            <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: 'var(--color-brand-navy)', margin: 0 }}>Linked Content</h3>
             <button className="lesson-builder__block-btn" onClick={() => setShowLinkedPanel(false)}>{'\u2715'}</button>
           </div>
           <div className="lesson-builder__linked-body">
@@ -2425,8 +2425,8 @@ export default function LessonBuilderPage() {
               <div className="lesson-builder__linked-section">
                 <h4 className="lesson-builder__linked-section-title">Parent Module</h4>
                 <Link href={`/admin/learn/modules/${lesson.module_id}`} className="lesson-builder__linked-item" style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#1D3095' }}>{'\u{1F4DA}'} View Module</span>
-                  <span style={{ fontSize: '.72rem', color: '#6B7280' }}>{'\u2192'}</span>
+                  <span style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--color-brand-navy)' }}>{'\u{1F4DA}'} View Module</span>
+                  <span style={{ fontSize: '.72rem', color: 'var(--color-text-tertiary)' }}>{'\u2192'}</span>
                 </Link>
               </div>
             )}
@@ -2438,8 +2438,8 @@ export default function LessonBuilderPage() {
               {linkedContent.questions.map((q: any) => (
                 <div key={q.id} className="lesson-builder__linked-item">
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{(q.question_text || '').slice(0, 80)}{(q.question_text || '').length > 80 ? '...' : ''}</div>
-                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>
+                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{(q.question_text || '').slice(0, 80)}{(q.question_text || '').length > 80 ? '...' : ''}</div>
+                    <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>
                       <span className="manage__qtype-badge">{(q.question_type || '').replace('_', ' ')}</span>
                       <span className={`manage__diff-badge manage__diff-badge--${q.difficulty}`}>{q.difficulty}</span>
                     </div>
@@ -2447,7 +2447,7 @@ export default function LessonBuilderPage() {
                   <Link href="/admin/learn/manage/question-builder" style={{ fontSize: '.72rem', color: '#0891B2', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Edit</Link>
                 </div>
               ))}
-              <Link href="/admin/learn/manage/question-builder" style={{ display: 'block', fontSize: '.72rem', color: '#1D3095', textDecoration: 'none', textAlign: 'center', padding: '.35rem', marginTop: '.25rem' }}>
+              <Link href="/admin/learn/manage/question-builder" style={{ display: 'block', fontSize: '.72rem', color: 'var(--color-brand-navy)', textDecoration: 'none', textAlign: 'center', padding: '.35rem', marginTop: '.25rem' }}>
                 + Add Question
               </Link>
             </div>
@@ -2459,13 +2459,13 @@ export default function LessonBuilderPage() {
               {linkedContent.flashcards.map((fc: any) => (
                 <div key={fc.id} className="lesson-builder__linked-item">
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{fc.term}</div>
-                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>{(fc.definition || '').slice(0, 60)}</div>
+                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{fc.term}</div>
+                    <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>{(fc.definition || '').slice(0, 60)}</div>
                   </div>
                   <Link href="/admin/learn/flashcard-bank" style={{ fontSize: '.72rem', color: '#D97706', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Edit</Link>
                 </div>
               ))}
-              <Link href="/admin/learn/flashcard-bank" style={{ display: 'block', fontSize: '.72rem', color: '#1D3095', textDecoration: 'none', textAlign: 'center', padding: '.35rem', marginTop: '.25rem' }}>
+              <Link href="/admin/learn/flashcard-bank" style={{ display: 'block', fontSize: '.72rem', color: 'var(--color-brand-navy)', textDecoration: 'none', textAlign: 'center', padding: '.35rem', marginTop: '.25rem' }}>
                 + Add Flashcard
               </Link>
             </div>
@@ -2477,8 +2477,8 @@ export default function LessonBuilderPage() {
               {linkedContent.articles.map((art: any) => (
                 <div key={art.id} className="lesson-builder__linked-item">
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{art.title}</div>
-                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>{art.category || 'General'}{art.estimated_minutes ? ` \u00B7 ${art.estimated_minutes} min` : ''}</div>
+                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{art.title}</div>
+                    <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>{art.category || 'General'}{art.estimated_minutes ? ` \u00B7 ${art.estimated_minutes} min` : ''}</div>
                   </div>
                   <Link href={`/admin/learn/manage/article-editor/${art.id}`} style={{ fontSize: '.72rem', color: '#DC2626', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Edit</Link>
                 </div>
@@ -2498,7 +2498,7 @@ export default function LessonBuilderPage() {
               )}
               {blockAnalytics.length > 0 && (
                 <>
-                  <p style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.5rem' }}>{analyticsSessionCount} viewing session{analyticsSessionCount !== 1 ? 's' : ''} recorded</p>
+                  <p style={{ fontSize: '.72rem', color: 'var(--color-text-tertiary)', marginBottom: '.5rem' }}>{analyticsSessionCount} viewing session{analyticsSessionCount !== 1 ? 's' : ''} recorded</p>
                   {blockAnalytics.slice(0, 10).map((stat) => {
                     const matchingBlock = blocks.find(b => b.id === stat.block_id);
                     const blockLabel = matchingBlock
@@ -2509,10 +2509,10 @@ export default function LessonBuilderPage() {
                       <div key={stat.block_id} style={{ marginBottom: '.4rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', marginBottom: '.15rem' }}>
                           <span style={{ fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}>{blockLabel}</span>
-                          <span style={{ color: '#6B7280' }}>{stat.avg_time_seconds}s avg &middot; {stat.view_count} views</span>
+                          <span style={{ color: 'var(--color-text-tertiary)' }}>{stat.avg_time_seconds}s avg &middot; {stat.view_count} views</span>
                         </div>
-                        <div style={{ height: 4, background: '#F3F4F6', borderRadius: 2, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${(stat.avg_time_seconds / maxTime) * 100}%`, background: stat.avg_time_seconds > 30 ? '#EF4444' : stat.avg_time_seconds > 15 ? '#F59E0B' : '#10B981', borderRadius: 2 }} />
+                        <div style={{ height: 4, background: 'var(--color-bg-subtle)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${(stat.avg_time_seconds / maxTime) * 100}%`, background: stat.avg_time_seconds > 30 ? 'var(--color-error)' : stat.avg_time_seconds > 15 ? 'var(--color-warning)' : 'var(--color-success)', borderRadius: 2 }} />
                         </div>
                       </div>
                     );
@@ -2525,26 +2525,26 @@ export default function LessonBuilderPage() {
             {quizBlockAnalytics.length > 0 && (
               <div className="lesson-builder__linked-section">
                 <h4 className="lesson-builder__linked-section-title">{'\u{2753}'} Quiz Pass/Fail Rates</h4>
-                <p style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.5rem' }}>Per-question analytics from inline quiz blocks</p>
+                <p style={{ fontSize: '.72rem', color: 'var(--color-text-tertiary)', marginBottom: '.5rem' }}>Per-question analytics from inline quiz blocks</p>
                 {quizBlockAnalytics.map((qa, i) => {
                   const matchingBlock = blocks.find(b => b.id === qa.block_id);
                   const blockLabel = matchingBlock
                     ? `Quiz #${blocks.indexOf(matchingBlock) + 1}`
                     : qa.block_id.slice(0, 8);
-                  const passColor = qa.pass_rate >= 70 ? '#10B981' : qa.pass_rate >= 40 ? '#F59E0B' : '#EF4444';
+                  const passColor = qa.pass_rate >= 70 ? 'var(--color-success)' : qa.pass_rate >= 40 ? 'var(--color-warning)' : 'var(--color-error)';
                   return (
                     <div key={`${qa.block_id}-${i}`} style={{ marginBottom: '.6rem', background: '#FAFAFA', borderRadius: 6, padding: '.5rem .6rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.72rem', marginBottom: '.2rem' }}>
                         <span style={{ fontWeight: 600, color: '#374151' }}>{blockLabel}</span>
                         <span style={{ color: passColor, fontWeight: 700 }}>{qa.pass_rate}% pass</span>
                       </div>
-                      <div style={{ fontSize: '.68rem', color: '#6B7280', marginBottom: '.25rem', lineHeight: 1.3 }}>
+                      <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)', marginBottom: '.25rem', lineHeight: 1.3 }}>
                         {qa.question.length > 60 ? qa.question.substring(0, 60) + '...' : qa.question}
                       </div>
                       <div style={{ height: 6, background: '#E5E7EB', borderRadius: 3, overflow: 'hidden', marginBottom: '.15rem' }}>
                         <div style={{ height: '100%', width: `${qa.pass_rate}%`, background: passColor, borderRadius: 3, transition: 'width .3s' }} />
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.65rem', color: '#9CA3AF' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.65rem', color: 'var(--color-text-muted)' }}>
                         <span>{qa.correct} correct / {qa.wrong} wrong</span>
                         <span>{qa.attempts} total attempts</span>
                       </div>
@@ -2554,7 +2554,7 @@ export default function LessonBuilderPage() {
               </div>
             )}
 
-            <p style={{ fontSize: '.72rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.75rem' }}>
+            <p style={{ fontSize: '.72rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: '.75rem' }}>
               Lesson: {lessonId?.slice(0, 8)}
               {lesson?.module_id && <> &middot; Module: {lesson.module_id.slice(0, 8)}</>}
             </p>

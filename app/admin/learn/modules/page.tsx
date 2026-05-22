@@ -46,13 +46,13 @@ const AVAIL_OPTIONS: { key: AvailFilter; label: string }[] = [
 ];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  not_started:     { label: 'Not Started',      color: '#6B7280', bg: '#FFFFFF',    border: 'transparent' },
-  in_progress:     { label: 'In Progress',      color: '#92400E', bg: '#FFFBEB',    border: '#F59E0B' },
-  completed:       { label: 'Completed',         color: '#065F46', bg: '#ECFDF5',    border: '#10B981' },
-  due:             { label: 'Due',               color: '#1E40AF', bg: '#EFF6FF',    border: '#3B82F6' },
+  not_started:     { label: 'Not Started',      color: 'var(--color-text-tertiary)', bg: '#FFFFFF',    border: 'transparent' },
+  in_progress:     { label: 'In Progress',      color: '#92400E', bg: 'var(--color-warning-bg)',    border: 'var(--color-warning)' },
+  completed:       { label: 'Completed',         color: '#065F46', bg: 'var(--color-success-bg)',    border: 'var(--color-success)' },
+  due:             { label: 'Due',               color: '#1E40AF', bg: 'var(--color-info-bg)',    border: 'var(--color-info)' },
   needs_refreshing:{ label: 'Needs Refreshing',  color: '#6D28D9', bg: '#F5F3FF',    border: '#8B5CF6' },
-  enrolled:        { label: 'Enrolled',          color: '#1E40AF', bg: '#EFF6FF',    border: '#3B82F6' },
-  past_due:        { label: 'Past Due',          color: '#991B1B', bg: '#FEF2F2',    border: '#EF4444' },
+  enrolled:        { label: 'Enrolled',          color: '#1E40AF', bg: 'var(--color-info-bg)',    border: 'var(--color-info)' },
+  past_due:        { label: 'Past Due',          color: '#991B1B', bg: 'var(--color-error-bg)',    border: 'var(--color-error)' },
 };
 
 export default function ModulesListPage() {
@@ -328,7 +328,7 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
         <span>&#x23F1; ~{mod.estimated_hours}h</span>
         <span>&#x1F4D6; {mod.total_lessons} lesson{mod.total_lessons !== 1 ? 's' : ''}</span>
         {mod.completed_lessons > 0 && (
-          <span style={{ color: '#10B981', fontWeight: 600 }}>&#x2705; {mod.completed_lessons}/{mod.total_lessons}</span>
+          <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>&#x2705; {mod.completed_lessons}/{mod.total_lessons}</span>
         )}
         {mod.avg_quiz_score != null && (
           <span className={`quiz-avg-badge ${mod.avg_quiz_score >= 70 ? 'quiz-avg-badge--green' : mod.avg_quiz_score >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>

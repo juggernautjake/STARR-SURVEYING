@@ -80,11 +80,11 @@ export default function FSPrepHubPage() {
 
   function getStatusColor(status: string): string {
     switch (status) {
-      case 'completed': return '#10B981';
-      case 'in_progress': return '#F59E0B';
-      case 'available': return '#1D3095';
-      case 'locked': return '#9CA3AF';
-      default: return '#9CA3AF';
+      case 'completed': return 'var(--color-success)';
+      case 'in_progress': return 'var(--color-warning)';
+      case 'available': return 'var(--color-brand-navy)';
+      case 'locked': return 'var(--color-text-muted)';
+      default: return 'var(--color-text-muted)';
     }
   }
 
@@ -100,10 +100,10 @@ export default function FSPrepHubPage() {
 
   function getReadinessColor(pct: number): string {
     if (pct >= 90) return '#059669';
-    if (pct >= 75) return '#10B981';
-    if (pct >= 60) return '#F59E0B';
+    if (pct >= 75) return 'var(--color-success)';
+    if (pct >= 60) return 'var(--color-warning)';
     if (pct >= 40) return '#F97316';
-    return '#EF4444';
+    return 'var(--color-error)';
   }
 
   function getReadinessLabel(pct: number): string {
@@ -224,11 +224,11 @@ export default function FSPrepHubPage() {
                     </div>
                   </div>
                   <div className="fs-prep__module-status">
-                    <span className="fs-prep__module-status-badge" style={{ background: getStatusColor(mod.status), color: '#fff' }}>
+                    <span className="fs-prep__module-status-badge" style={{ background: getStatusColor(mod.status), color: 'var(--color-text-on-brand)' }}>
                       {getStatusLabel(mod.status)}
                     </span>
                     {mod.quiz_best_score > 0 && (
-                      <span className="fs-prep__module-score" style={{ color: mod.quiz_best_score >= 70 ? '#10B981' : '#EF4444' }}>
+                      <span className="fs-prep__module-score" style={{ color: mod.quiz_best_score >= 70 ? 'var(--color-success)' : 'var(--color-error)' }}>
                         Best: {mod.quiz_best_score}%
                       </span>
                     )}
@@ -243,7 +243,7 @@ export default function FSPrepHubPage() {
                         className="fs-prep__module-progress-fill"
                         style={{
                           width: isCompleted ? '100%' : `${Math.min(mod.quiz_best_score, 100)}%`,
-                          background: isCompleted ? '#10B981' : '#F59E0B',
+                          background: isCompleted ? 'var(--color-success)' : 'var(--color-warning)',
                         }}
                       />
                     </div>

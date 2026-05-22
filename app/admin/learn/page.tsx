@@ -72,7 +72,7 @@ export default function LearnHubPage() {
 
       {/* Section Cards */}
       <div className="admin-learn__sections">
-        <Link href="/admin/learn/roadmap" className="admin-learn__section-card" style={{ borderColor: '#1D3095', borderWidth: '2px' }}>
+        <Link href="/admin/learn/roadmap" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)', borderWidth: '2px' }}>
           <span className="admin-learn__section-icon">🗺️</span>
           <h3 className="admin-learn__section-title">My Roadmap</h3>
           <p className="admin-learn__section-desc">
@@ -108,14 +108,14 @@ export default function LearnHubPage() {
           <span className="admin-learn__section-arrow">Study Flashcards →</span>
         </Link>
 
-        <Link href="/admin/learn/exam-prep" className="admin-learn__section-card" style={{ borderColor: '#BD1218', borderWidth: '2px' }}>
+        <Link href="/admin/learn/exam-prep" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-red)', borderWidth: '2px' }}>
           <span className="admin-learn__section-icon">📝</span>
           <h3 className="admin-learn__section-title">Exam Prep (FS / RPLS)</h3>
           <p className="admin-learn__section-desc">
             Comprehensive FS exam preparation with 8 study modules, 270+ practice questions, timed mock exams, and progress tracking.
             Complete module quizzes to unlock the next level.
           </p>
-          <span className="admin-learn__section-arrow" style={{ color: '#BD1218' }}>Start Exam Prep →</span>
+          <span className="admin-learn__section-arrow" style={{ color: 'var(--color-brand-red)' }}>Start Exam Prep →</span>
         </Link>
 
         <Link href="/admin/learn/fieldbook" className="admin-learn__section-card">
@@ -128,24 +128,24 @@ export default function LearnHubPage() {
         </Link>
 
         {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
-          <Link href="/admin/learn/students" className="admin-learn__section-card" style={{ borderColor: '#1D3095' }}>
+          <Link href="/admin/learn/students" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)' }}>
             <span className="admin-learn__section-icon">👨‍🎓</span>
             <h3 className="admin-learn__section-title">Student Progress</h3>
             <p className="admin-learn__section-desc">
               View student learning activity, quiz scores, module completions, and XP.
             </p>
-            <span className="admin-learn__section-arrow" style={{ color: '#1D3095' }}>View Students →</span>
+            <span className="admin-learn__section-arrow" style={{ color: 'var(--color-brand-navy)' }}>View Students →</span>
           </Link>
         )}
 
         {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
-          <Link href="/admin/learn/manage" className="admin-learn__section-card" style={{ borderColor: '#BD1218' }}>
+          <Link href="/admin/learn/manage" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-red)' }}>
             <span className="admin-learn__section-icon">✏️</span>
             <h3 className="admin-learn__section-title">Manage Content</h3>
             <p className="admin-learn__section-desc">
               Create and edit modules, lessons, questions, flashcards, and articles.
             </p>
-            <span className="admin-learn__section-arrow" style={{ color: '#BD1218' }}>Manage →</span>
+            <span className="admin-learn__section-arrow" style={{ color: 'var(--color-brand-red)' }}>Manage →</span>
           </Link>
         )}
       </div>
