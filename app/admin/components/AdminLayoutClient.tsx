@@ -18,6 +18,7 @@ import IconRail from './nav/IconRail';
 import AdminPageHeader from './nav/AdminPageHeader';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { CalculatorProvider } from './calculator/CalculatorProvider';
+import CalculatorFab from './calculator/CalculatorFab';
 
 // Layout-global CSS only. Route-specific stylesheets are imported from
 // the corresponding route segment layout (e.g. app/admin/research/layout.tsx)
@@ -170,6 +171,7 @@ function Inner({ children }: { children: React.ReactNode }) {
           <FloatingMessenger />
           <DiscussionThreadButton />
           <Fieldbook />
+          <CalculatorFab />
         </FloatingActionMenu>
       </div>
       </CalculatorProvider>
