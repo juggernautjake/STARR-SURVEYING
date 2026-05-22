@@ -359,7 +359,7 @@
   padding: 0.1rem 0.25rem;
   border-radius: 6px;
   font-family: var(--font-body);
-  font-weight: 600;
+  font-weight: 700;
   border: 1px solid rgba(0, 0, 0, 0.25);
   cursor: pointer;
   transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease;
@@ -367,48 +367,50 @@
   /* Default = soft (function keys) */
   background: linear-gradient(180deg, #d0d4d8 0%, #a8acb2 100%);
   color: #0a0d08;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 2px 3px rgba(0, 0, 0, 0.35);
 }
 .calc-key:hover { filter: brightness(1.05); }
 .calc-key:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset; }
 
 .calc-key__shift-label {
-  font-size: 0.5rem;
-  font-weight: 700;
+  font-size: 0.62rem;
+  font-weight: 800;
   color: #2563eb;
   margin-bottom: 1px;
   line-height: 1;
   text-transform: lowercase;
+  letter-spacing: 0.01em;
 }
 .calc-key__label {
   line-height: 1.1;
+  font-weight: 700;
 }
 
 /* Digit keys — lighter, larger label */
 .calc-key--digit {
   background: linear-gradient(180deg, #f0f1f3 0%, #c5c8cd 100%);
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
 }
 /* Operators — dark navy */
 .calc-key--op {
   background: linear-gradient(180deg, #303440 0%, #1c1f29 100%);
   color: #f0f1f3;
-  font-size: 0.9rem;
+  font-size: 1.05rem;
 }
 /* Equals / eval — red */
 .calc-key--eval {
   background: linear-gradient(180deg, #c4341a 0%, #8a200d 100%);
   color: #fff;
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 800;
 }
 /* Shift modifier (2nd) — yellow body, dark text */
 .calc-key--shift {
   background: linear-gradient(180deg, #f7c948 0%, #d1990c 100%);
   color: #2b1a00;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
 }
 .calc-key--shift.calc-key--armed {
   outline: 2px solid #fff;
@@ -418,7 +420,7 @@
 .calc-key--accent {
   background: linear-gradient(180deg, #5b6471 0%, #353c46 100%);
   color: #f0f1f3;
-  font-size: 0.75rem;
+  font-size: 0.88rem;
 }
 
 /* Natural display (C-12) — stacked-typography renderer for Casio's
@@ -691,10 +693,10 @@
     padding: 0.4rem 0.5rem;
   }
   .calc-display__result, .calc-natural__result { font-size: 1.15rem; }
-  .calc-key { font-size: 0.62rem; padding: 0.05rem 0.15rem; }
-  .calc-key--digit { font-size: 0.78rem; }
-  .calc-key--op, .calc-key--eval { font-size: 0.78rem; }
-  .calc-key__shift-label { font-size: 0.45rem; }
+  .calc-key { font-size: 0.72rem; padding: 0.05rem 0.15rem; }
+  .calc-key--digit { font-size: 0.9rem; }
+  .calc-key--op, .calc-key--eval { font-size: 0.9rem; }
+  .calc-key__shift-label { font-size: 0.55rem; }
   /* Touch target — minimum 30px x 30px even with reduced font. */
   .calc-keypad { gap: 3px; }
 }
