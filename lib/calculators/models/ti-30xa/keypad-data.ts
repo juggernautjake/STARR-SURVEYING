@@ -1,90 +1,78 @@
 // lib/calculators/models/ti-30xa/keypad-data.ts
 //
-// TI-30Xa keypad layout. Added after the EXAM_CALCULATORS.md plan
-// completed at the user's request to support the TI-30Xa.
+// TI-30Xa keypad layout. **Rewritten from a high-resolution user-provided
+// device photo** during the CALCULATOR_POLISH_2 round. The earlier shipped
+// layout had a generic numeric-block-on-the-left arrangement; the real
+// TI-30Xa interleaves the numeric block with memory keys (STO/RCL/a b/c/←)
+// in column 1, with the standard operator stack (÷ × − + =) in column 5.
 //
-// The TI-30Xa is the *original* TI-30X — a simple, single-line scientific
-// calculator. Algebraic-entry only (no MathPrint, no multi-line display).
-// Single 2nd shift modifier (yellow); no ALPHA. Common surveying-relevant
-// features: trig + inverse via 2nd, log/10ˣ, ln/eˣ, x², √, yˣ, factorial,
-// 3 memory slots (STO/RCL/SUM), DRG mode toggle, F↔D fraction toggle.
+// Photo-confirmed grid is 5 cols × 8 rows. Every key has a yellow 2nd-shift
+// label printed above it. The 2nd key itself is **green** (not yellow,
+// which is unusual for TI); digit + operator keys are **black** with
+// white labels; everything else is light grey. Color overrides land in
+// CalculatorModal.css under .calc-model--ti-30xa.
 //
-// Layout: 5 cols × 9 rows. Standard numeric block bottom-right; function
-// keys above; 2nd in the top-left corner per device. Each key's secondary
-// (2nd) label is printed above in yellow per the device convention.
+// Engine semantics still come from the shared TI-36X Pro algebraic engine.
 
 import type { KeyDef, KeyKind } from '@/lib/calculators/shared';
 
 const op = (kind: KeyKind = 'op'): { kind: KeyKind } => ({ kind });
 
 export const TI_30XA_KEYPAD: KeyDef[] = [
-  // Row 1 — 2nd + mode + clear/on
-  { id: '2nd',  row: 1, col: 1, label: '2nd',       ...op('shift'), tone: 'shift' },
-  { id: 'mode', row: 1, col: 2, label: 'DRG',       shiftLabel: 'DRG►',     ...op('mode'),  tone: 'soft' },
-  { id: 'hyp',  row: 1, col: 3, label: 'HYP',       shiftLabel: 'HYP⁻¹',    ...op(),         tone: 'soft' },
-  { id: 'frac', row: 1, col: 4, label: 'a b/c',     shiftLabel: 'F↔D',      ...op(),         tone: 'soft' },
-  { id: 'clear', row: 1, col: 5, label: 'ON/AC',    shiftLabel: 'OFF',      ...op('clear'),  tone: 'soft' },
+  // ── Row 1 — modifier + DRG/LOG/LN/OFF ─────────────────────────────────
+  { id: '2nd',   row: 1, col: 1, label: '2nd',                                  ...op('shift'), tone: 'shift' },
+  { id: 'mode',  row: 1, col: 2, label: 'DRG',  shiftLabel: 'DRG►',            ...op('mode'),  tone: 'soft' },
+  { id: 'log',   row: 1, col: 3, label: 'LOG',  shiftLabel: '10ˣ',             ...op(),         tone: 'soft' },
+  { id: 'ln',    row: 1, col: 4, label: 'LN',   shiftLabel: 'eˣ',              ...op(),         tone: 'soft' },
+  { id: 'off',   row: 1, col: 5, label: 'OFF',  shiftLabel: 'ˣ√y',             ...op('clear'),  tone: 'soft' },
 
-  // Row 2 — π, trig openers. F-4: moved EE out of this row down to the
-  // numeric block where the real TI-30Xa silkscreens it; this slot now
-  // hosts `ANS` so the bottom area can carry the (−) / EE / = trio.
-  { id: 'pi',   row: 2, col: 1, label: 'π',         shiftLabel: 'e',        ...op(),         tone: 'soft' },
-  { id: 'sin',  row: 2, col: 2, label: 'sin',       shiftLabel: 'sin⁻¹',   ...op(),         tone: 'soft' },
-  { id: 'cos',  row: 2, col: 3, label: 'cos',       shiftLabel: 'cos⁻¹',   ...op(),         tone: 'soft' },
-  { id: 'tan',  row: 2, col: 4, label: 'tan',       shiftLabel: 'tan⁻¹',   ...op(),         tone: 'soft' },
-  { id: 'ans',  row: 2, col: 5, label: 'ANS',                                ...op('ans'),    tone: 'soft' },
+  // ── Row 2 — HYP + trig + yˣ ──────────────────────────────────────────
+  { id: 'hyp',   row: 2, col: 1, label: 'HYP',  shiftLabel: 'K',               ...op(),         tone: 'soft' },
+  { id: 'sin',   row: 2, col: 2, label: 'SIN',  shiftLabel: 'SIN⁻¹',           ...op(),         tone: 'soft' },
+  { id: 'cos',   row: 2, col: 3, label: 'COS',  shiftLabel: 'COS⁻¹',           ...op(),         tone: 'soft' },
+  { id: 'tan',   row: 2, col: 4, label: 'TAN',  shiftLabel: 'TAN⁻¹',           ...op(),         tone: 'soft' },
+  { id: 'pow',   row: 2, col: 5, label: 'yˣ',   shiftLabel: 'ˣ√y',             ...op(),         tone: 'soft' },
 
-  // Row 3 — power / root / log / ln
-  { id: 'xsq',  row: 3, col: 1, label: 'x²',        shiftLabel: '√',        ...op(),         tone: 'soft' },
-  { id: 'recip',row: 3, col: 2, label: 'x⁻¹',       shiftLabel: 'x!',       ...op(),         tone: 'soft' },
-  { id: 'pow',  row: 3, col: 3, label: 'yˣ',        shiftLabel: 'ʸ√x',      ...op(),         tone: 'soft' },
-  { id: 'log',  row: 3, col: 4, label: 'log',       shiftLabel: '10ˣ',     ...op(),         tone: 'soft' },
-  { id: 'ln',   row: 3, col: 5, label: 'ln',        shiftLabel: 'eˣ',      ...op(),         tone: 'soft' },
+  // ── Row 3 — π / 1/x / x² / √x  with ÷ in the operator column ─────────
+  { id: 'pi',    row: 3, col: 1, label: 'π',    shiftLabel: 'x≷y',             ...op(),         tone: 'soft' },
+  { id: 'recip', row: 3, col: 2, label: '1/x',  shiftLabel: 'FRQ',             ...op(),         tone: 'soft' },
+  { id: 'xsq',   row: 3, col: 3, label: 'x²',   shiftLabel: 'x̄',              ...op(),         tone: 'soft' },
+  { id: 'sqrt',  row: 3, col: 4, label: '√x',   shiftLabel: 'σxn-1',           ...op(),         tone: 'soft' },
+  { id: 'div',   row: 3, col: 5, label: '÷',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 4 — parens / EE etc.  + memory
-  { id: 'lparen', row: 4, col: 1, label: '(',       shiftLabel: '%',       ...op('paren'),  tone: 'soft' },
-  { id: 'rparen', row: 4, col: 2, label: ')',       shiftLabel: 'σ',       ...op('paren'),  tone: 'soft' },
-  { id: 'sto',    row: 4, col: 3, label: 'STO',     ...op(),                tone: 'soft' },
-  { id: 'rcl',    row: 4, col: 4, label: 'RCL',     ...op(),                tone: 'soft' },
-  { id: 'sum',    row: 4, col: 5, label: 'SUM',     ...op(),                tone: 'soft' },
+  // ── Row 4 — Σ+ / EE / ( / )  with × in the operator column ───────────
+  { id: 'sigma', row: 4, col: 1, label: 'Σ+',   shiftLabel: 'Σ−',              ...op(),         tone: 'soft' },
+  { id: 'ee',    row: 4, col: 2, label: 'EE',   shiftLabel: 'n',               ...op(),         tone: 'soft' },
+  { id: 'lparen',row: 4, col: 3, label: '(',    shiftLabel: 'Σx',              ...op('paren'),  tone: 'soft' },
+  { id: 'rparen',row: 4, col: 4, label: ')',    shiftLabel: 'Σx²',             ...op('paren'),  tone: 'soft' },
+  { id: 'mul',   row: 4, col: 5, label: '×',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 5 — comma / →DMS / Abs / DEL.  F-4 moved ANS up to row 2 col 5
-  // so the bottom-right operator stack (EE / =) has room. The DRG► is
-  // already on the `mode` shift label at row 1; no need for it here.
-  { id: 'comma',  row: 5, col: 1, label: ',',        ...op('comma'),       tone: 'soft' },
-  { id: 'dms',    row: 5, col: 2, label: '►DMS',    shiftLabel: 'D.MS',    ...op(),         tone: 'soft' },
-  { id: 'absx',   row: 5, col: 3, label: '|x|',     ...op(),               tone: 'soft' },
-  { id: 'drg',    row: 5, col: 4, label: 'DRG►',    ...op(),               tone: 'soft' },
-  { id: 'del',    row: 5, col: 5, label: 'DEL',     shiftLabel: 'INS',     ...op('delete'), tone: 'soft' },
+  // ── Row 5 — STO / 7 / 8 / 9 / −  ─────────────────────────────────────
+  { id: 'sto',   row: 5, col: 1, label: 'STO',  shiftLabel: 'EXC',             ...op(),         tone: 'soft' },
+  { id: 'n7',    row: 5, col: 2, label: '7',                                    ...op('digit'),  tone: 'digit' },
+  { id: 'n8',    row: 5, col: 3, label: '8',    shiftLabel: 'nCr',             ...op('digit'),  tone: 'digit' },
+  { id: 'n9',    row: 5, col: 4, label: '9',    shiftLabel: 'nPr',             ...op('digit'),  tone: 'digit' },
+  { id: 'sub',   row: 5, col: 5, label: '−',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 6 — top of numeric block
-  { id: 'n7',  row: 6, col: 1, label: '7', ...op('digit'),  tone: 'digit' },
-  { id: 'n8',  row: 6, col: 2, label: '8', ...op('digit'),  tone: 'digit' },
-  { id: 'n9',  row: 6, col: 3, label: '9', ...op('digit'),  tone: 'digit' },
-  { id: 'mul', row: 6, col: 4, label: '×', ...op('binop'),  tone: 'op' },
-  { id: 'div', row: 6, col: 5, label: '÷', ...op('binop'),  tone: 'op' },
+  // ── Row 6 — RCL / 4 / 5 / 6 / +  ─────────────────────────────────────
+  { id: 'rcl',   row: 6, col: 1, label: 'RCL',  shiftLabel: 'SUM',             ...op(),         tone: 'soft' },
+  { id: 'n4',    row: 6, col: 2, label: '4',    shiftLabel: 'FLO',             ...op('digit'),  tone: 'digit' },
+  { id: 'n5',    row: 6, col: 3, label: '5',    shiftLabel: 'SCI',             ...op('digit'),  tone: 'digit' },
+  { id: 'n6',    row: 6, col: 4, label: '6',    shiftLabel: 'ENG',             ...op('digit'),  tone: 'digit' },
+  { id: 'add',   row: 6, col: 5, label: '+',                                    ...op('binop'),  tone: 'op' },
 
-  // Row 7
-  { id: 'n4',  row: 7, col: 1, label: '4', ...op('digit'),  tone: 'digit' },
-  { id: 'n5',  row: 7, col: 2, label: '5', ...op('digit'),  tone: 'digit' },
-  { id: 'n6',  row: 7, col: 3, label: '6', ...op('digit'),  tone: 'digit' },
-  { id: 'add', row: 7, col: 4, label: '+', ...op('binop'),  tone: 'op' },
-  { id: 'sub', row: 7, col: 5, label: '−', ...op('binop'),  tone: 'op' },
+  // ── Row 7 — a b/c / 1 / 2 / 3 / =  ───────────────────────────────────
+  { id: 'frac',  row: 7, col: 1, label: 'a b/c', shiftLabel: 'd/c',            ...op(),         tone: 'soft' },
+  { id: 'n1',    row: 7, col: 2, label: '1',    shiftLabel: 'x³',              ...op('digit'),  tone: 'digit' },
+  { id: 'n2',    row: 7, col: 3, label: '2',    shiftLabel: '%',               ...op('digit'),  tone: 'digit' },
+  { id: 'n3',    row: 7, col: 4, label: '3',    shiftLabel: 'x!',              ...op('digit'),  tone: 'digit' },
+  { id: 'eq',    row: 7, col: 5, label: '=',                                    ...op('eval'),   tone: 'eval' },
 
-  // Row 8 — bottom of numeric block. F-4 fidelity fix: the `=` key is
-  // a single cell at the bottom-right of the real TI-30Xa (not rowSpan).
-  // EE moves down here too where the silkscreen puts it.
-  { id: 'n1',  row: 8, col: 1, label: '1', ...op('digit'),  tone: 'digit' },
-  { id: 'n2',  row: 8, col: 2, label: '2', ...op('digit'),  tone: 'digit' },
-  { id: 'n3',  row: 8, col: 3, label: '3', ...op('digit'),  tone: 'digit' },
-  { id: 'ee',  row: 8, col: 4, label: 'EE',  shiftLabel: 'EXP', ...op(),    tone: 'soft' },
-  { id: 'eq',  row: 8, col: 5, label: '=',   ...op('eval'),                   tone: 'eval' },
-
-  // Row 9 — zero / decimal / negate. Cols 4-5 intentionally empty —
-  // the real device's bottom row only has 0 / . / (−) on the left side.
-  { id: 'n0',     row: 9, col: 1, label: '0',   ...op('digit'),   tone: 'digit', colSpan: 2 },
-  { id: 'dot',    row: 9, col: 3, label: '.',   ...op('dot'),     tone: 'digit' },
-  { id: 'negate', row: 9, col: 4, label: '(−)', ...op('negate'),  tone: 'digit' },
+  // ── Row 8 — ← / 0 / . / +/− swap. Col 5 left empty (real device too) ─
+  { id: 'del',   row: 8, col: 1, label: '←',    shiftLabel: 'F↔D',             ...op('delete'), tone: 'soft' },
+  { id: 'n0',    row: 8, col: 2, label: '0',    shiftLabel: '³√x',             ...op('digit'),  tone: 'digit' },
+  { id: 'dot',   row: 8, col: 3, label: '.',    shiftLabel: 'FIX',             ...op('dot'),    tone: 'digit' },
+  { id: 'negate',row: 8, col: 4, label: '+⇄−',                                  ...op('negate'), tone: 'digit' },
 ];
 
-export const TI_30XA_GRID = { rows: 9, cols: 5 };
+export const TI_30XA_GRID = { rows: 8, cols: 5 };

@@ -596,19 +596,41 @@
   color: #d97706; /* orange — primary shift convention */
 }
 
-/* TI-30Xa palette — the original 30X has a darker charcoal body and
- * a green-tinted LCD vs the Pro's lighter grey. Keys are also a touch
- * more saturated. Engine + shared keypad tones still apply; this just
- * tweaks the surroundings. */
+/* TI-30Xa palette — refined from a high-resolution user-supplied
+ * device photo (CALCULATOR_POLISH_2.md P-4 followup). The real device
+ * is unusual: the 2nd key is BRIGHT GREEN (most TI calculators use
+ * yellow), the digit + operator keys are BLACK with white labels
+ * (not light grey like the rest of the function keys), and the
+ * shift-labels printed above the keys are tiny yellow text. */
 .calc-model--ti-30xa {
-  background: linear-gradient(180deg, #2a2c2e 0%, #14161a 100%);
+  background: linear-gradient(180deg, #4a4d52 0%, #2a2c2f 100%);
+}
+.calc-model--ti-30xa .calc-key {
+  background: linear-gradient(180deg, #f4f5f6 0%, #c8cbcf 100%);
+  color: #0c0e10;
+  border: 1px solid rgba(0, 0, 0, 0.35);
 }
 .calc-model--ti-30xa .calc-key--shift {
-  background: linear-gradient(180deg, #f0b830 0%, #b78900 100%);
-  color: #1a1a1a;
+  /* The hallmark green 2nd key. */
+  background: linear-gradient(180deg, #56b146 0%, #2e7d2a 100%);
+  color: #ffffff;
+}
+.calc-model--ti-30xa .calc-key--digit {
+  background: linear-gradient(180deg, #2a2c2f 0%, #16181b 100%);
+  color: #f5f7f9;
+  font-weight: 700;
+}
+.calc-model--ti-30xa .calc-key--op {
+  background: linear-gradient(180deg, #2a2c2f 0%, #16181b 100%);
+  color: #f5f7f9;
+}
+.calc-model--ti-30xa .calc-key--eval {
+  background: linear-gradient(180deg, #2a2c2f 0%, #16181b 100%);
+  color: #f5f7f9;
 }
 .calc-model--ti-30xa .calc-key__shift-label {
-  color: #d97706;
+  color: #f0b830;
+  font-weight: 700;
 }
 
 /* Casio fx-991ES PLUS palette override — silver body, dark-blue header
