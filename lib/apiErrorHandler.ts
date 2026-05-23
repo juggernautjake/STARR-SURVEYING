@@ -17,7 +17,7 @@ import { AIServiceError } from '@/lib/research/ai-client';
  */
 export function withErrorHandler(
   handler: (req: NextRequest) => Promise<NextResponse>,
-  options?: { routeName?: string }
+  options?: { routeName?: string; exposeErrors?: boolean }
 ): (req: NextRequest) => Promise<NextResponse> {
   return async (req: NextRequest) => {
     try {
@@ -61,10 +61,16 @@ export function withErrorHandler(
         );
       }
 
+      // Surface the real message when the route opts in (internal
+      // admin tooling) or in development. Public routes (e.g.
+      // share/[token]) keep the generic message so DB internals
+      // don't leak to unauthenticated viewers.
+      const reveal = options?.exposeErrors || process.env.NODE_ENV === 'development';
       return NextResponse.json(
         {
-          error: 'An unexpected error occurred',
-          message: process.env.NODE_ENV === 'development' ? error.message : undefined,
+          error: reveal && error.message ? error.message : 'An unexpected error occurred',
+          message: reveal ? error.message : undefined,
+          step: reveal ? 'unhandled exception' : undefined,
           timestamp: new Date().toISOString(),
         },
         { status: 500 }
@@ -78,6 +84,93 @@ export function withErrorHandler(
  */
 export function apiError(message: string, status: number = 400): NextResponse {
   return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * Shape of a Supabase/PostgREST error (or any pg-style error). Kept
+ * structural so callers don't need to import the SDK error type.
+ */
+export interface DbErrorLike {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+}
+
+/**
+ * Translate a database error into a specific, actionable HTTP
+ * response. Supabase's `.insert()/.update()` return an `error`
+ * object (they don't throw); pass it here to turn an opaque
+ * Postgres message into something a human can act on.
+ *
+ * `step` names the operation that failed (e.g. "create job",
+ * "add tags") so a multi-step route can say exactly which write
+ * broke. The raw `code`, `detail`, `hint`, and `dbMessage` ride
+ * along in the JSON so this internal admin tooling stays
+ * debuggable without digging through server logs.
+ */
+export function dbErrorResponse(error: DbErrorLike, step: string): NextResponse {
+  const code = error.code ?? null;
+  const meta = {
+    step,
+    code,
+    detail: error.details ?? null,
+    hint: error.hint ?? null,
+    dbMessage: error.message ?? null,
+  };
+
+  // Pull the offending column out of a not-null message like:
+  //   null value in column "org_id" of relation "jobs" ...
+  const colMatch = error.message?.match(/column "([^"]+)"/);
+  const column = colMatch?.[1];
+
+  switch (code) {
+    case '23502': // not_null_violation
+      return NextResponse.json({
+        error: `Could not ${step}: a required field${column ? ` ("${column}")` : ''} was empty. `
+          + `If this is "org_id", your account isn't linked to an organization yet — run seed 289 / verify org setup.`,
+        ...meta,
+      }, { status: 422 });
+    case '23503': // foreign_key_violation
+      return NextResponse.json({
+        error: `Could not ${step}: it references a record that doesn't exist`
+          + `${error.details ? ` (${error.details})` : ''}.`,
+        ...meta,
+      }, { status: 422 });
+    case '23505': // unique_violation
+      return NextResponse.json({
+        error: `Could not ${step}: a record with that value already exists`
+          + `${error.details ? ` (${error.details})` : ''}.`,
+        ...meta,
+      }, { status: 409 });
+    case '23514': // check_violation
+      return NextResponse.json({
+        error: `Could not ${step}: a value failed a validation rule`
+          + `${error.details ? ` (${error.details})` : ''}.`,
+        ...meta,
+      }, { status: 422 });
+    case '42501': // insufficient_privilege (RLS / role)
+      return NextResponse.json({
+        error: `Could not ${step}: the database denied permission (row-level security). `
+          + `The service-role key may be missing in this environment, or an RLS policy is blocking the write.`,
+        ...meta,
+      }, { status: 403 });
+    case '42P01': // undefined_table
+      return NextResponse.json({
+        error: `Could not ${step}: a required table is missing — a database migration/seed hasn't been applied. (${error.message})`,
+        ...meta,
+      }, { status: 500 });
+    case '42703': // undefined_column
+      return NextResponse.json({
+        error: `Could not ${step}: a required column is missing — a database migration/seed hasn't been applied. (${error.message})`,
+        ...meta,
+      }, { status: 500 });
+    default:
+      return NextResponse.json({
+        error: `Could not ${step}: ${error.message || 'unknown database error'}.`,
+        ...meta,
+      }, { status: 500 });
+  }
 }
 
 /**
