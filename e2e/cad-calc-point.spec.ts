@@ -5,19 +5,13 @@
 // AI menu, verifies the four solver methods render their
 // expected input groups, and asserts the Suggest button is
 // gated on a computed result.
-//
-// Deployment gate: this test exercises code introduced in slice D
-// of this branch. It will go green once the branch merges + the
-// deployment ships. Until then, expect a failure against
-// production with "calc-point-method test-id not found".
 
 import { test, expect } from '@playwright/test';
-import { loginAsAdmin } from './fixtures/auth';
+import { openCadWithDrawing } from './fixtures/auth';
 
 test.describe('Calc Point dialog', () => {
   test('opens via AI menu and toggles per-method inputs', async ({ page }) => {
-    await loginAsAdmin(page, '/admin/cad');
-    await page.waitForLoadState('networkidle');
+    await openCadWithDrawing(page);
 
     // Open AI menu, click Calc Point entry. Falls back to the event
     // channel if the menu hover-vs-click timing is fragile.

@@ -5,18 +5,13 @@
 // preview flow requires a polyline-with-misclosure fixture and is
 // covered by the geometry unit tests
 // (__tests__/cad/geometry/vertex-closure.test.ts).
-//
-// Deployment gate: this test exercises code introduced in slice E
-// of this branch. It will go green once the branch merges + the
-// deployment ships.
 
 import { test, expect } from '@playwright/test';
-import { loginAsAdmin } from './fixtures/auth';
+import { openCadWithDrawing } from './fixtures/auth';
 
 test.describe('Close Drawing dialog', () => {
   test('opens via the event channel and surfaces the no-selection hint', async ({ page }) => {
-    await loginAsAdmin(page, '/admin/cad');
-    await page.waitForLoadState('networkidle');
+    await openCadWithDrawing(page);
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('cad:openCloseDrawingDialog')));
 
     const hint = page.locator('text=Select a polyline or polygon feature first').first();

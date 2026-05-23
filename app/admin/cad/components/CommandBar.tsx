@@ -530,6 +530,7 @@ export default function CommandBar() {
         <form onSubmit={handleSubmit} className="flex-1">
           <input
             ref={inputRef}
+            data-testid="command-bar-input"
             className="w-full bg-transparent text-white outline-none placeholder-gray-600 transition-colors duration-150"
             value={input}
             onChange={(e) => setInput(e.target.value)}

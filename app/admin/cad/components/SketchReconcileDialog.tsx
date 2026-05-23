@@ -14,6 +14,7 @@ import { useMemo, useRef, useState } from 'react';
 import { X, Upload, Sparkles, AlertTriangle } from 'lucide-react';
 import { useAIStore, useDrawingStore } from '@/lib/cad/store';
 import { buildSolverPolylineProposal } from '@/lib/cad/ai/solver-proposal';
+import { collectedPoints } from '@/lib/cad/ai/selection-points';
 import type { Feature } from '@/lib/cad/types';
 
 interface Props { onClose: () => void }
@@ -36,20 +37,9 @@ export default function SketchReconcileDialog({ onClose }: Props): React.ReactEl
 
   // Pull every POINT feature from the drawing so the AI gets the
   // full collected-point cloud as anchor coordinates.
-  const collectedPoints = useMemo(() => {
+  const collected = useMemo(() => {
     const drawing = useDrawingStore.getState();
-    const out: Array<{ name: string; x: number; y: number }> = [];
-    for (const f of Object.values(drawing.document.features) as Feature[]) {
-      if (f.geometry.type !== 'POINT') continue;
-      const p = (f.geometry as { type: 'POINT'; position: { x: number; y: number } }).position;
-      const rawName = f.properties?.pointName;
-      out.push({
-        name: typeof rawName === 'string' ? rawName : f.id.slice(0, 8),
-        x: p.x,
-        y: p.y,
-      });
-    }
-    return out;
+    return collectedPoints(Object.values(drawing.document.features) as Feature[]);
   }, []);
 
   async function analyze(): Promise<void> {
@@ -63,7 +53,7 @@ export default function SketchReconcileDialog({ onClose }: Props): React.ReactEl
     try {
       const body = new FormData();
       body.append('sketch', file);
-      body.append('collectedPoints', JSON.stringify(collectedPoints));
+      body.append('collectedPoints', JSON.stringify(collected));
       if (notes.trim()) body.append('notes', notes.trim());
       const res = await fetch('/api/admin/cad/sketch-reconcile', { method: 'POST', body });
       const payload = await res.json();
@@ -105,7 +95,7 @@ export default function SketchReconcileDialog({ onClose }: Props): React.ReactEl
 
         <div className="p-4 space-y-3 text-xs">
           <div className="rounded border border-blue-300 dark:border-blue-700/50 bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-200 px-2 py-1.5">
-            Upload a photo of your field sketch (PNG / JPEG / WebP, ≤ 8 MB). The AI reads the drawn outline + any written measurements and proposes a closed polygon anchored against the <strong>{collectedPoints.length}</strong> point{collectedPoints.length === 1 ? '' : 's'} currently in this drawing. The proposal is rendered as a ghost — nothing persists until you accept it on the AI Proposal card.
+            Upload a photo of your field sketch (PNG / JPEG / WebP, ≤ 8 MB). The AI reads the drawn outline + any written measurements and proposes a closed polygon anchored against the <strong>{collected.length}</strong> point{collected.length === 1 ? '' : 's'} currently in this drawing. The proposal is rendered as a ghost — nothing persists until you accept it on the AI Proposal card.
           </div>
 
           <label className="block">
