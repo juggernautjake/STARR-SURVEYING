@@ -167,7 +167,18 @@ describe('proposeFromPrompt — tool_use translation', () => {
     await proposeFromPrompt('hi', CONTEXT, { client });
     expect(calls).toHaveLength(1);
     const toolNames = (calls[0].tools ?? []).map((t) => (t as Anthropic.Messages.Tool).name).sort();
-    expect(toolNames).toEqual(['addPoint', 'applyLayerStyle', 'createLayer', 'drawLineBetween', 'drawPolylineThrough'].sort());
+    expect(toolNames).toEqual(
+      [
+        'addPoint', 'applyLayerStyle', 'createLayer',
+        'drawLineBetween', 'drawPolylineThrough',
+        // Solver tools are advertised to the model so it can use
+        // them mid-conversation; they just never become proposals.
+        'bowditchAdjust', 'calcFourthCorner',
+        'calcPointFromBearingAndLine', 'calcPointFromBearingDistance',
+        'calcPointFromTwoBearings', 'calcPointParallelToLine',
+        'closureReport', 'inverseTwoPoints',
+      ].sort(),
+    );
   });
 
   it('marks the system prompt for ephemeral caching', async () => {

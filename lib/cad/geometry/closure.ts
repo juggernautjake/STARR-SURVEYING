@@ -88,3 +88,104 @@ export function transitAdjustment(traverse: Traverse): Point2D[] {
 
   return correctedPoints;
 }
+
+// ────────────────────────────────────────────────────────────
+// Vertex-array adapters (for the AI tool-registry + Calc-point
+// dialogue, which work in raw coordinates rather than Traverse
+// objects). See docs/planning/in-progress/CAD_POINTS_AND_AI.md
+// slices B and E.
+// ────────────────────────────────────────────────────────────
+
+export interface VertexClosureResult {
+  linearError: number;
+  errorEast: number;
+  errorNorth: number;
+  errorBearingDeg: number; // 0=N, clockwise
+  totalDistance: number;
+  precisionDenominator: number;
+  precisionRatio: string;
+  /** Closing leg as (last vertex → first vertex). */
+  closingFrom: Point2D;
+  closingTo: Point2D;
+}
+
+/**
+ * Closure of a polygon described as a sequence of perimeter
+ * vertices. The implied closing edge runs from the last vertex
+ * back to the first; the misclosure is the gap between them.
+ * Use this when the caller works in raw coordinates instead of
+ * the Traverse / Leg domain object.
+ */
+export function vertexClosure(vertices: Point2D[]): VertexClosureResult {
+  if (vertices.length < 2) {
+    return {
+      linearError: 0,
+      errorEast: 0,
+      errorNorth: 0,
+      errorBearingDeg: 0,
+      totalDistance: 0,
+      precisionDenominator: Infinity,
+      precisionRatio: '1:∞',
+      closingFrom: vertices[0] ?? { x: 0, y: 0 },
+      closingTo: vertices[0] ?? { x: 0, y: 0 },
+    };
+  }
+
+  const first = vertices[0];
+  const last = vertices[vertices.length - 1];
+  const errorEast = last.x - first.x;
+  const errorNorth = last.y - first.y;
+  const linearError = Math.hypot(errorEast, errorNorth);
+
+  let totalDistance = 0;
+  for (let i = 1; i < vertices.length; i++) {
+    totalDistance += Math.hypot(vertices[i].x - vertices[i - 1].x, vertices[i].y - vertices[i - 1].y);
+  }
+
+  let errorBearingDeg = Math.atan2(errorEast, errorNorth) * (180 / Math.PI);
+  if (errorBearingDeg < 0) errorBearingDeg += 360;
+
+  const precisionDenominator =
+    linearError > 1e-9 ? Math.round(totalDistance / linearError) : Number.POSITIVE_INFINITY;
+  const precisionRatio =
+    precisionDenominator === Number.POSITIVE_INFINITY
+      ? '1:∞'
+      : `1:${precisionDenominator.toLocaleString()}`;
+
+  return {
+    linearError,
+    errorEast,
+    errorNorth,
+    errorBearingDeg,
+    totalDistance,
+    precisionDenominator,
+    precisionRatio,
+    closingFrom: last,
+    closingTo: first,
+  };
+}
+
+/**
+ * Bowditch (compass-rule) adjustment of a vertex sequence. Returns
+ * a new array of vertices in which the first vertex is unchanged
+ * and the closure error has been distributed across the others
+ * proportionally to their cumulative edge length from the start.
+ * The final vertex coincides with the first.
+ */
+export function vertexBowditchAdjust(vertices: Point2D[]): Point2D[] {
+  if (vertices.length < 2) return vertices.slice();
+  const closure = vertexClosure(vertices);
+  if (closure.linearError < 1e-9 || closure.totalDistance < 1e-9) return vertices.slice();
+
+  const out: Point2D[] = [vertices[0]];
+  let cum = 0;
+  for (let i = 1; i < vertices.length; i++) {
+    cum += Math.hypot(vertices[i].x - vertices[i - 1].x, vertices[i].y - vertices[i - 1].y);
+    const r = cum / closure.totalDistance;
+    out.push({
+      x: vertices[i].x - closure.errorEast * r,
+      y: vertices[i].y - closure.errorNorth * r,
+    });
+  }
+  return out;
+}

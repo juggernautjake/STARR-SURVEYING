@@ -11,7 +11,7 @@
 import {
   toolRegistry,
   type ToolResult,
-  type ToolName,
+  type ProposalToolName,
   type AddPointArgs,
   type DrawLineBetweenArgs,
   type DrawPolylineThroughArgs,
@@ -31,8 +31,10 @@ export interface AIProposal {
   id: string;
   /** When the proposal was enqueued (ms since epoch). */
   createdAt: number;
-  /** The tool to invoke when the surveyor accepts. */
-  toolName: ToolName;
+  /** The tool to invoke when the surveyor accepts. Restricted to
+   *  the five feature-producing tools — solver tools never appear
+   *  here; they flow through the dialogue UI directly. */
+  toolName: ProposalToolName;
   /** Args object — discriminated by `toolName` at execute time. */
   args:
     | AddPointArgs
