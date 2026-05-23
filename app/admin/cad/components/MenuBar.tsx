@@ -626,6 +626,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
             setOpenMenu(null);
           },
         },
+        // CAD_POINTS_AND_AI slice F — sketch reconciliation.
+        {
+          label: 'Reconcile Hand Sketch…',
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:openSketchReconcileDialog'));
+            setOpenMenu(null);
+          },
+        },
       ],
     },
     {

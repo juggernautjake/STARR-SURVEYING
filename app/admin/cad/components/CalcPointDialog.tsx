@@ -56,7 +56,14 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
     () =>
       selectedFeatures.filter(
         (f) => f.geometry.type === 'POINT',
-      ).map((f) => ({ id: f.id, name: f.properties?.pointName ?? f.id.slice(0, 6), point: (f.geometry as { type: 'POINT'; position: Point2D }).position })),
+      ).map((f) => {
+        const rawName = f.properties?.pointName;
+        return {
+          id: f.id,
+          name: typeof rawName === 'string' ? rawName : f.id.slice(0, 6),
+          point: (f.geometry as { type: 'POINT'; position: Point2D }).position,
+        };
+      }),
     [selectedFeatures],
   );
 
