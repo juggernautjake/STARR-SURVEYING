@@ -618,6 +618,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
             setOpenMenu(null);
           },
         },
+        // CAD_POINTS_AND_AI slice E — closure repair workflow.
+        {
+          label: 'Close Drawing (Bowditch adjust)…',
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:openCloseDrawingDialog'));
+            setOpenMenu(null);
+          },
+        },
       ],
     },
     {

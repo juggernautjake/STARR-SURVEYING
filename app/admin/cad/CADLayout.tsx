@@ -19,6 +19,7 @@ import SettingsDialog from './components/SettingsDialog';
 import LayerTransferDialog from './components/LayerTransferDialog';
 import IntersectDialog from './components/IntersectDialog';
 import CalcPointDialog from './components/CalcPointDialog';
+import CloseDrawingDialog from './components/CloseDrawingDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
@@ -365,6 +366,15 @@ export default function CADLayout() {
     const handler = () => setShowCalcPoint(true);
     window.addEventListener('cad:openCalcPointDialog', handler);
     return () => window.removeEventListener('cad:openCalcPointDialog', handler);
+  }, []);
+
+  // CAD_POINTS_AND_AI slice E — Close Drawing dialogue. Opens on
+  // `cad:openCloseDrawingDialog` (fired from the MenuBar AI submenu).
+  const [showCloseDrawing, setShowCloseDrawing] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowCloseDrawing(true);
+    window.addEventListener('cad:openCloseDrawingDialog', handler);
+    return () => window.removeEventListener('cad:openCloseDrawingDialog', handler);
   }, []);
 
   // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
@@ -873,6 +883,9 @@ export default function CADLayout() {
 
       {/* Calc Point dialog (CAD_POINTS_AND_AI slice D) */}
       {showCalcPoint && <CalcPointDialog onClose={() => setShowCalcPoint(false)} />}
+
+      {/* Close Drawing dialog (CAD_POINTS_AND_AI slice E) */}
+      {showCloseDrawing && <CloseDrawingDialog onClose={() => setShowCloseDrawing(false)} />}
 
 
       {/* Curve Calculator dialog */}
