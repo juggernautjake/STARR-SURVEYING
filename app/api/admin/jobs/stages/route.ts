@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 
 const STAGE_ORDER = ['quote', 'research', 'fieldwork', 'drawing', 'legal', 'delivery', 'completed'];
 const STAGE_DATE_MAP: Record<string, string> = {
@@ -69,13 +69,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   });
 
   // Log activity
-  await supabaseAdmin.from('activity_log').insert({
+  await fireAndForget(supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
     action: 'job_stage_changed',
     entity_type: 'job',
     entity_id: job_id,
     details: { from: job.stage, to: to_stage },
-  }).catch(() => {});
+  }));
 
   return NextResponse.json({ success: true, from_stage: job.stage, to_stage });
 }, { routeName: 'jobs/stages' });

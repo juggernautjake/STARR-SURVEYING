@@ -21,9 +21,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data: modules } = await supabaseAdmin.from('learning_modules')
     .select('id, title, difficulty, order_index, status').order('order_index');
 
-  // Get FS modules if they exist
+  // Get FS modules if they exist. A missing table comes back as an
+  // `{ error }` (no throw), so `fsModules` is simply null then — no
+  // `.catch()` on the builder (it has none; that throws).
   const { data: fsModules } = await supabaseAdmin.from('fs_study_modules')
-    .select('id, title, module_number').order('module_number').catch(() => ({ data: null }));
+    .select('id, title, module_number').order('module_number');
 
   // Build a merged view: each module with its XP config (or the default)
   const configMap = new Map<string, { xp_value: number; expiry_months: number; difficulty_rating: number; id: string; is_active: boolean }>();

@@ -46,7 +46,13 @@ export function withErrorHandler(
           severity: 'high',
           status: 'new',
           occurred_at: new Date().toISOString(),
-        }).catch(() => {}); // Silently fail if DB logging fails
+        });
+        // NOTE: no `.catch()` on the builder above — Supabase query
+        // builders are thenable but have no `.catch` method, so
+        // `builder.catch()` throws "catch is not a function". The
+        // surrounding try/catch is what swallows logging failures.
+        // (This very bug previously made error_reports inserts fail
+        // silently, leaving the table empty during outages.)
       } catch { /* ignore logging failures */ }
 
       // For AI service errors, return the user-friendly message and category
@@ -84,6 +90,25 @@ export function withErrorHandler(
  */
 export function apiError(message: string, status: number = 400): NextResponse {
   return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * Await a best-effort ("fire and forget") database write, swallowing
+ * any error. Use this for advisory writes like activity logs and
+ * notifications whose failure must never break the main request.
+ *
+ * IMPORTANT: do NOT write `supabaseAdmin.from(...).insert(...).catch(...)`.
+ * Supabase query builders are thenable (awaitable) but have no
+ * `.catch` method, so calling `.catch()` on the builder throws
+ * "catch is not a function". Pass the builder here instead:
+ *   await fireAndForget(supabaseAdmin.from('activity_log').insert({...}));
+ */
+export async function fireAndForget(op: PromiseLike<unknown>): Promise<void> {
+  try {
+    await op;
+  } catch {
+    /* advisory write; intentionally ignored */
+  }
 }
 
 /**

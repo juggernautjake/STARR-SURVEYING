@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler, dbErrorResponse } from '@/lib/apiErrorHandler';
+import { withErrorHandler, dbErrorResponse, fireAndForget } from '@/lib/apiErrorHandler';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -192,13 +192,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (stageErr) warnings.push(`Stage history not logged: ${stageErr.message}`);
 
   // Activity log is purely advisory — never surface its failure.
-  await supabaseAdmin.from('activity_log').insert({
+  await fireAndForget(supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
     action: 'job_created',
     entity_type: 'job',
     entity_id: job.id,
     details: { job_number: finalJobNumber, name },
-  }).catch(() => {});
+  }));
 
   return NextResponse.json(
     warnings.length > 0 ? { job, warnings } : { job },

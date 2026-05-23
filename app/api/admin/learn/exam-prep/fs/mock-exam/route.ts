@@ -2,7 +2,7 @@
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
 
 /* GET — Generate a mock exam (110 questions from FS-MOCK category) */
@@ -194,13 +194,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             badgesAwarded.push('fs_ready');
 
             // Notify user
-            await supabaseAdmin.from('notifications').insert({
+            await fireAndForget(supabaseAdmin.from('notifications').insert({
               user_email: session.user.email,
               type: 'badge_earned',
               title: 'FS Exam Ready!',
               message: `Congratulations! You've completed all 8 FS prep modules and passed the mock exam. You are now FS Exam Ready! The company will cover your FS exam fee.`,
               is_read: false,
-            }).catch(() => {});
+            }));
           }
         }
       }

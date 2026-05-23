@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -60,13 +60,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  await supabaseAdmin.from('activity_log').insert({
+  await fireAndForget(supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
     action: 'job_file_uploaded',
     entity_type: 'job',
     entity_id: job_id,
     details: { file_name, file_type },
-  }).catch(() => {});
+  }));
 
   return NextResponse.json({ file }, { status: 201 });
 }, { routeName: 'jobs/files' });

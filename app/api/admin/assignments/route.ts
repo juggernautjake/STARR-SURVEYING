@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -62,7 +62,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Create notification for the assignee
-  await supabaseAdmin.from('notifications').insert({
+  await fireAndForget(supabaseAdmin.from('notifications').insert({
     user_email: assigned_to,
     type: 'assignment',
     title: 'New Assignment',
@@ -71,7 +71,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     link: '/admin/assignments',
     source_type: 'assignment',
     source_id: data.id,
-  }).catch(() => {});
+  }));
 
   return NextResponse.json({ assignment: data }, { status: 201 });
 }, { routeName: 'assignments' });
