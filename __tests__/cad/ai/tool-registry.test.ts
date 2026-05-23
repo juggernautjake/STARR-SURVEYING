@@ -50,9 +50,18 @@ function resetStores(): string {
 }
 
 describe('tool-registry — shape', () => {
-  it('exports all five tools by name', () => {
+  it('exports the five mutating tools plus the geometry-solver tools (CAD_POINTS_AND_AI B)', () => {
     expect(Object.keys(toolRegistry).sort()).toEqual(
-      ['addPoint', 'applyLayerStyle', 'createLayer', 'drawLineBetween', 'drawPolylineThrough'].sort(),
+      [
+        'addPoint', 'applyLayerStyle', 'createLayer',
+        'drawLineBetween', 'drawPolylineThrough',
+        // Geometry-solver tools — pure compute, dispatched via the
+        // dialogue UI rather than the proposal queue.
+        'bowditchAdjust', 'calcFourthCorner',
+        'calcPointFromBearingAndLine', 'calcPointFromBearingDistance',
+        'calcPointFromTwoBearings', 'calcPointParallelToLine',
+        'closureReport', 'inverseTwoPoints',
+      ].sort(),
     );
   });
 

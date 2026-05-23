@@ -11,6 +11,8 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium",
     "ws": "tsx server/ws.ts"
   },
   "dependencies": {
@@ -65,6 +67,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/dompurify": "^3.0.5",
     "@types/node": "20.10.5",
     "@types/qrcode": "^1.5.6",

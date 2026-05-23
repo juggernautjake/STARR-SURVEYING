@@ -18,6 +18,9 @@ import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import LayerTransferDialog from './components/LayerTransferDialog';
 import IntersectDialog from './components/IntersectDialog';
+import CalcPointDialog from './components/CalcPointDialog';
+import CloseDrawingDialog from './components/CloseDrawingDialog';
+import SketchReconcileDialog from './components/SketchReconcileDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
@@ -354,6 +357,33 @@ export default function CADLayout() {
     const handler = () => setShowIntersect(true);
     window.addEventListener('cad:openIntersect', handler);
     return () => window.removeEventListener('cad:openIntersect', handler);
+  }, []);
+
+  // CAD_POINTS_AND_AI slice D — Calc Point dialogue. Opens on
+  // `cad:openCalcPointDialog` (fired from the MenuBar AI submenu
+  // or the AI Copilot quick-actions).
+  const [showCalcPoint, setShowCalcPoint] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowCalcPoint(true);
+    window.addEventListener('cad:openCalcPointDialog', handler);
+    return () => window.removeEventListener('cad:openCalcPointDialog', handler);
+  }, []);
+
+  // CAD_POINTS_AND_AI slice E — Close Drawing dialogue. Opens on
+  // `cad:openCloseDrawingDialog` (fired from the MenuBar AI submenu).
+  const [showCloseDrawing, setShowCloseDrawing] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowCloseDrawing(true);
+    window.addEventListener('cad:openCloseDrawingDialog', handler);
+    return () => window.removeEventListener('cad:openCloseDrawingDialog', handler);
+  }, []);
+
+  // CAD_POINTS_AND_AI slice F — Sketch reconciliation dialogue.
+  const [showSketchReconcile, setShowSketchReconcile] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowSketchReconcile(true);
+    window.addEventListener('cad:openSketchReconcileDialog', handler);
+    return () => window.removeEventListener('cad:openSketchReconcileDialog', handler);
   }, []);
 
   // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
@@ -859,6 +889,15 @@ export default function CADLayout() {
 
       {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
       {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}
+
+      {/* Calc Point dialog (CAD_POINTS_AND_AI slice D) */}
+      {showCalcPoint && <CalcPointDialog onClose={() => setShowCalcPoint(false)} />}
+
+      {/* Close Drawing dialog (CAD_POINTS_AND_AI slice E) */}
+      {showCloseDrawing && <CloseDrawingDialog onClose={() => setShowCloseDrawing(false)} />}
+
+      {/* Sketch reconciliation dialog (CAD_POINTS_AND_AI slice F) */}
+      {showSketchReconcile && <SketchReconcileDialog onClose={() => setShowSketchReconcile(false)} />}
 
 
       {/* Curve Calculator dialog */}

@@ -5,6 +5,13 @@ import dynamic from 'next/dynamic';
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { getDirectionsUrl, OFFICE_ADDRESS } from './components/ServiceAreaMap';
 import { trackConversion } from './utils/gtag';
+import {
+  QUOTE_ATTACHMENT_ACCEPT,
+  QUOTE_ATTACHMENT_MAX_FILES,
+  QUOTE_ATTACHMENT_MAX_TOTAL_BYTES,
+  formatBytes,
+  validateQuoteAttachments,
+} from '@/lib/quote-attachments';
 
 // Import Home page styles
 import './styles/Home.css';
@@ -39,6 +46,7 @@ interface ContactFormData {
   company: string;
   propertyStreet: string;
   propertyCity: string;
+  propertyCounty: string;
   propertyNumber: string;
   serviceType: string;
   projectDetails: string;
@@ -54,6 +62,7 @@ export default function HomePage(): React.ReactElement {
     company: '',
     propertyStreet: '',
     propertyCity: '',
+    propertyCounty: '',
     propertyNumber: '',
     serviceType: '',
     projectDetails: '',
@@ -66,6 +75,8 @@ export default function HomePage(): React.ReactElement {
     submitted: false,
     error: '',
   });
+
+  const [attachments, setAttachments] = useState<File[]>([]);
 
   const services: Service[] = [
     {
@@ -155,11 +166,38 @@ export default function HomePage(): React.ReactElement {
     }));
   };
 
+  const handleAttachmentChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    const incoming = Array.from(e.target.files || []);
+    if (incoming.length === 0) return;
+    const merged = [...attachments, ...incoming];
+    const err = validateQuoteAttachments(merged);
+    if (err) {
+      setFormState((prev) => ({ ...prev, error: err.message }));
+      e.target.value = '';
+      return;
+    }
+    setAttachments(merged);
+    setFormState((prev) => ({ ...prev, error: '' }));
+    e.target.value = '';
+  };
+
+  const handleAttachmentRemove = (index: number): void => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setFormState((prev) => ({ ...prev, loading: true, error: '' }));
 
-    if (!formData.name || !formData.email || !formData.phone || !formData.propertyStreet || !formData.propertyCity) {
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.phone ||
+      !formData.propertyStreet ||
+      !formData.propertyCity ||
+      !formData.propertyCounty ||
+      !formData.propertyNumber
+    ) {
       setFormState((prev) => ({
         ...prev,
         loading: false,
@@ -169,11 +207,23 @@ export default function HomePage(): React.ReactElement {
     }
 
     try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      let response: Response;
+      if (attachments.length > 0) {
+        const body = new FormData();
+        for (const [key, value] of Object.entries(formData)) {
+          body.append(key, value);
+        }
+        for (const file of attachments) {
+          body.append('attachments', file, file.name);
+        }
+        response = await fetch('/api/contact', { method: 'POST', body });
+      } else {
+        response = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+      }
 
       if (response.ok) {
         // Track Google Ads conversion on successful form submission
@@ -187,12 +237,14 @@ export default function HomePage(): React.ReactElement {
           company: '',
           propertyStreet: '',
           propertyCity: '',
+          propertyCounty: '',
           propertyNumber: '',
           serviceType: '',
           projectDetails: '',
           preferredContact: 'email',
           howHeard: '',
         });
+        setAttachments([]);
       } else {
         setFormState((prev) => ({
           ...prev,
@@ -217,12 +269,14 @@ export default function HomePage(): React.ReactElement {
       company: '',
       propertyStreet: '',
       propertyCity: '',
+      propertyCounty: '',
       propertyNumber: '',
       serviceType: '',
       projectDetails: '',
       preferredContact: 'email',
       howHeard: '',
     });
+    setAttachments([]);
     setFormState({ loading: false, submitted: false, error: '' });
   };
 
@@ -403,6 +457,15 @@ export default function HomePage(): React.ReactElement {
             </p>
           </div>
 
+          <Link href="/pricing" className="home-contact__calc-banner">
+            <span className="home-contact__calc-banner-icon" aria-hidden="true">⚡</span>
+            <span className="home-contact__calc-banner-text">
+              <strong>Try our quote estimate calculator now!</strong>
+              <span className="home-contact__calc-banner-sub">Get an instant price range in under a minute — no waiting.</span>
+            </span>
+            <span className="home-contact__calc-banner-arrow" aria-hidden="true">→</span>
+          </Link>
+
           {formState.submitted ? (
             <div className="home-contact__success">
               <h3 className="home-contact__success-title">Thank You!</h3>
@@ -518,10 +581,27 @@ export default function HomePage(): React.ReactElement {
                   />
                 </div>
 
-                {/* Property Number - Optional */}
+                {/* Property County - Required */}
                 <div className="home-contact__form-group">
-                  <label htmlFor="propertyNumber" className="home-contact__label">
-                    Property / Account Number
+                  <label htmlFor="propertyCounty" className="home-contact__label home-contact__label--required">
+                    County
+                  </label>
+                  <input
+                    type="text"
+                    id="propertyCounty"
+                    name="propertyCounty"
+                    value={formData.propertyCounty}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="Bell"
+                    required
+                  />
+                </div>
+
+                {/* Property ID - Required */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="propertyNumber" className="home-contact__label home-contact__label--required">
+                    Property ID
                   </label>
                   <input
                     type="text"
@@ -530,7 +610,8 @@ export default function HomePage(): React.ReactElement {
                     value={formData.propertyNumber}
                     onChange={handleInputChange}
                     className="home-contact__input"
-                    placeholder="CAD account or parcel number (optional)"
+                    placeholder="CAD account or parcel number"
+                    required
                   />
                 </div>
 
@@ -607,6 +688,49 @@ export default function HomePage(): React.ReactElement {
                     className="home-contact__textarea"
                     placeholder="Tell us about your project, timeline, or any specific requirements..."
                   ></textarea>
+                </div>
+
+                {/* Attachments - Optional */}
+                <div className="home-contact__form-group home-contact__form-group--full">
+                  <label htmlFor="attachments" className="home-contact__label">
+                    Attach Files (Optional)
+                  </label>
+                  <div className="home-contact__attachments">
+                    <label htmlFor="attachments" className="home-contact__attachments-btn">
+                      <span aria-hidden="true">📎</span> Choose files…
+                      <input
+                        type="file"
+                        id="attachments"
+                        name="attachments"
+                        multiple
+                        accept={QUOTE_ATTACHMENT_ACCEPT}
+                        onChange={handleAttachmentChange}
+                        className="home-contact__attachments-input"
+                      />
+                    </label>
+                    <span className="home-contact__attachments-hint">
+                      Photos, PDFs, docs, or CAD files. Up to {QUOTE_ATTACHMENT_MAX_FILES} files,{' '}
+                      {formatBytes(QUOTE_ATTACHMENT_MAX_TOTAL_BYTES)} total.
+                    </span>
+                    {attachments.length > 0 && (
+                      <ul className="home-contact__attachments-list">
+                        {attachments.map((file, idx) => (
+                          <li key={`${file.name}-${idx}`} className="home-contact__attachments-item">
+                            <span className="home-contact__attachments-name">{file.name}</span>
+                            <span className="home-contact__attachments-size">{formatBytes(file.size)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAttachmentRemove(idx)}
+                              className="home-contact__attachments-remove"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              ×
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               </div>
 

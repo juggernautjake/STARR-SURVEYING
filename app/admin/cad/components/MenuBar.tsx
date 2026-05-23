@@ -605,6 +605,35 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: aiSidebarOpen ? 'Hide AI sidebar' : 'AI sidebar (tabs)',
           action: () => { toggleAISidebar(); setOpenMenu(null); },
         },
+        { separator: true },
+        // CAD_POINTS_AND_AI slice D — geometry-solver dialogue. Lets
+        // the surveyor pick a method (4th corner / bearing-distance /
+        // two-bearings / parallel) against the current point
+        // selection. Result is enqueued as a ghost-previewed AI
+        // proposal that they accept or skip.
+        {
+          label: 'Calc Point (4th corner, parallel, etc)…',
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:openCalcPointDialog'));
+            setOpenMenu(null);
+          },
+        },
+        // CAD_POINTS_AND_AI slice E — closure repair workflow.
+        {
+          label: 'Close Drawing (Bowditch adjust)…',
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:openCloseDrawingDialog'));
+            setOpenMenu(null);
+          },
+        },
+        // CAD_POINTS_AND_AI slice F — sketch reconciliation.
+        {
+          label: 'Reconcile Hand Sketch…',
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:openSketchReconcileDialog'));
+            setOpenMenu(null);
+          },
+        },
       ],
     },
     {

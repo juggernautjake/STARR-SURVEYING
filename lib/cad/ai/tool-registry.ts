@@ -36,6 +36,15 @@ import { generateId } from '../types';
 import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
 import { stampProvenance, type AIProvenance } from './provenance';
 import { ensureDraftLayerFor } from './sandbox';
+import {
+  calcFourthParallelogramCorner,
+  calcPointFromBearingDistance,
+  calcPointFromTwoBearings,
+  calcPointFromBearingAndLine,
+  calcPointParallelToLine,
+} from '../geometry/solver';
+import { vertexClosure, vertexBowditchAdjust, type VertexClosureResult } from '../geometry/closure';
+import { inverseBearingDistance, formatBearing, formatAzimuth } from '../geometry/bearing';
 
 // ────────────────────────────────────────────────────────────
 // Envelope + definition types
@@ -447,6 +456,285 @@ export const applyLayerStyle: ToolDefinition<ApplyLayerStyleArgs, Layer> = {
 };
 
 // ────────────────────────────────────────────────────────────
+// Geometry-solver tools (slice B of CAD_POINTS_AND_AI)
+//
+// These return computed coordinates and metrics without
+// mutating the drawing. They are the AI's deterministic
+// "calculator": when the model needs the 4th corner of a
+// nearly-rectangular pillar, or the intersection of two
+// bearings, it should call one of these instead of guessing.
+// The dialogue UI then renders the result as a ghost preview
+// (via the cad:copilotPreview event) that the surveyor accepts
+// or rejects before any feature is materialised.
+// ────────────────────────────────────────────────────────────
+
+interface SolverArgsThreePoints { adjacent1: Point2D; opposite: Point2D; adjacent2: Point2D }
+const calcFourthCornerTool: ToolDefinition<SolverArgsThreePoints, Point2D> = {
+  name: 'calcFourthCorner',
+  description:
+    'Calculate the fourth corner of a parallelogram given three corners. ' +
+    'Use this when a building/pillar corner was not shot but the surveyor ' +
+    'shot the other three. `opposite` is the corner diagonally across from ' +
+    'the missing one; `adjacent1` and `adjacent2` are the other two corners. ' +
+    'Returns the computed point; does not draw it. Combine with addPoint or ' +
+    'render as a ghost preview for review.',
+  inputSchema: {
+    type: 'object',
+    required: ['adjacent1', 'opposite', 'adjacent2'],
+    properties: {
+      adjacent1: pointSchema('First adjacent corner (shares an edge with the missing one).'),
+      opposite: pointSchema('Diagonal corner (across from the missing one).'),
+      adjacent2: pointSchema('Second adjacent corner (shares an edge with the missing one).'),
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const a1 = validatePoint(args.adjacent1, 'adjacent1');
+    if (!a1.ok) return a1;
+    const op = validatePoint(args.opposite, 'opposite');
+    if (!op.ok) return op;
+    const a2 = validatePoint(args.adjacent2, 'adjacent2');
+    if (!a2.ok) return a2;
+    const r = calcFourthParallelogramCorner(a1.result, op.result, a2.result);
+    if (!r.ok) return { ok: false, reason: r.reason };
+    return { ok: true, result: r.point };
+  },
+};
+
+interface SolverArgsBearingDistance { origin: Point2D; bearingDeg: number; distance: number }
+const calcPointFromBearingDistanceTool: ToolDefinition<SolverArgsBearingDistance, Point2D> = {
+  name: 'calcPointFromBearingDistance',
+  description:
+    'Compute a point at (origin + bearing × distance). Bearing is azimuth ' +
+    'in degrees clockwise from North; distance is in the document units.',
+  inputSchema: {
+    type: 'object',
+    required: ['origin', 'bearingDeg', 'distance'],
+    properties: {
+      origin: pointSchema('Starting point.'),
+      bearingDeg: { type: 'number', description: 'Azimuth, 0=N clockwise.' },
+      distance: { type: 'number', description: 'Distance from origin (non-negative).' },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const o = validatePoint(args.origin, 'origin');
+    if (!o.ok) return o;
+    const r = calcPointFromBearingDistance(o.result, args.bearingDeg, args.distance);
+    if (!r.ok) return { ok: false, reason: r.reason };
+    return { ok: true, result: r.point };
+  },
+};
+
+interface SolverArgsTwoBearings { originA: Point2D; bearingADeg: number; originB: Point2D; bearingBDeg: number }
+const calcPointFromTwoBearingsTool: ToolDefinition<SolverArgsTwoBearings, Point2D> = {
+  name: 'calcPointFromTwoBearings',
+  description:
+    'Intersect two rays defined by (origin, azimuth) pairs. Returns the ' +
+    'intersection point or fails if the rays are parallel.',
+  inputSchema: {
+    type: 'object',
+    required: ['originA', 'bearingADeg', 'originB', 'bearingBDeg'],
+    properties: {
+      originA: pointSchema('First ray origin.'),
+      bearingADeg: { type: 'number', description: 'Azimuth from originA, 0=N clockwise.' },
+      originB: pointSchema('Second ray origin.'),
+      bearingBDeg: { type: 'number', description: 'Azimuth from originB, 0=N clockwise.' },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const oa = validatePoint(args.originA, 'originA');
+    if (!oa.ok) return oa;
+    const ob = validatePoint(args.originB, 'originB');
+    if (!ob.ok) return ob;
+    const r = calcPointFromTwoBearings(oa.result, args.bearingADeg, ob.result, args.bearingBDeg);
+    if (!r.ok) return { ok: false, reason: r.reason };
+    return { ok: true, result: r.point };
+  },
+};
+
+interface SolverArgsBearingLine { origin: Point2D; bearingDeg: number; lineStart: Point2D; lineEnd: Point2D }
+const calcPointFromBearingAndLineTool: ToolDefinition<SolverArgsBearingLine, Point2D> = {
+  name: 'calcPointFromBearingAndLine',
+  description:
+    'Intersect a ray (origin, azimuth) with a reference line. The reference ' +
+    'line is treated as infinite; clamp at the caller if you need segment-only.',
+  inputSchema: {
+    type: 'object',
+    required: ['origin', 'bearingDeg', 'lineStart', 'lineEnd'],
+    properties: {
+      origin: pointSchema('Ray origin.'),
+      bearingDeg: { type: 'number', description: 'Azimuth from origin, 0=N clockwise.' },
+      lineStart: pointSchema('Reference line start.'),
+      lineEnd: pointSchema('Reference line end.'),
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const o = validatePoint(args.origin, 'origin');
+    if (!o.ok) return o;
+    const ls = validatePoint(args.lineStart, 'lineStart');
+    if (!ls.ok) return ls;
+    const le = validatePoint(args.lineEnd, 'lineEnd');
+    if (!le.ok) return le;
+    const r = calcPointFromBearingAndLine(o.result, args.bearingDeg, ls.result, le.result);
+    if (!r.ok) return { ok: false, reason: r.reason };
+    return { ok: true, result: r.point };
+  },
+};
+
+interface SolverArgsParallel { origin: Point2D; refStart: Point2D; refEnd: Point2D; perpendicularDistance: number; side: 'LEFT' | 'RIGHT'; alongDistance?: number }
+const calcPointParallelToLineTool: ToolDefinition<SolverArgsParallel, Point2D> = {
+  name: 'calcPointParallelToLine',
+  description:
+    'Drop a point on a line parallel to a reference line. Useful when the ' +
+    'missing corner is on a wall parallel to a wall whose endpoints were ' +
+    'shot. `perpendicularDistance` is the offset distance; `side` is LEFT ' +
+    'or RIGHT relative to the reference-line direction (right-hand rule ' +
+    'from refStart toward refEnd). Optional `alongDistance` slides the ' +
+    'result down the parallel.',
+  inputSchema: {
+    type: 'object',
+    required: ['origin', 'refStart', 'refEnd', 'perpendicularDistance', 'side'],
+    properties: {
+      origin: pointSchema('Anchor point the parallel passes through.'),
+      refStart: pointSchema('Reference line start.'),
+      refEnd: pointSchema('Reference line end.'),
+      perpendicularDistance: { type: 'number', description: 'Offset distance from origin.' },
+      side: { type: 'string', enum: ['LEFT', 'RIGHT'], description: 'Side relative to refStart→refEnd direction.' },
+      alongDistance: { type: 'number', description: 'Optional shift along the parallel from origin.' },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const o = validatePoint(args.origin, 'origin');
+    if (!o.ok) return o;
+    const rs = validatePoint(args.refStart, 'refStart');
+    if (!rs.ok) return rs;
+    const re = validatePoint(args.refEnd, 'refEnd');
+    if (!re.ok) return re;
+    if (args.side !== 'LEFT' && args.side !== 'RIGHT') {
+      return { ok: false, reason: "side must be 'LEFT' or 'RIGHT'." };
+    }
+    const r = calcPointParallelToLine(
+      o.result, rs.result, re.result,
+      args.perpendicularDistance, args.side, args.alongDistance ?? 0,
+    );
+    if (!r.ok) return { ok: false, reason: r.reason };
+    return { ok: true, result: r.point };
+  },
+};
+
+interface InverseTwoPointsResult {
+  azimuth: number;
+  distance: number;
+  bearing: string;
+  azimuthFormatted: string;
+}
+const inverseTwoPointsTool: ToolDefinition<{ from: Point2D; to: Point2D }, InverseTwoPointsResult> = {
+  name: 'inverseTwoPoints',
+  description:
+    'Compute the bearing, azimuth, and distance between two points. Returns ' +
+    'both raw numeric values and pre-formatted strings ("N 12°34\'56" E", ' +
+    '"123°45\'67\\"") for the AI to quote back to the surveyor.',
+  inputSchema: {
+    type: 'object',
+    required: ['from', 'to'],
+    properties: {
+      from: pointSchema('Start point.'),
+      to: pointSchema('End point.'),
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const f = validatePoint(args.from, 'from');
+    if (!f.ok) return f;
+    const t = validatePoint(args.to, 'to');
+    if (!t.ok) return t;
+    const inv = inverseBearingDistance(f.result, t.result);
+    return {
+      ok: true,
+      result: {
+        azimuth: inv.azimuth,
+        distance: inv.distance,
+        bearing: formatBearing(inv.azimuth),
+        azimuthFormatted: formatAzimuth(inv.azimuth),
+      },
+    };
+  },
+};
+
+const closureReportTool: ToolDefinition<{ vertices: Point2D[] }, VertexClosureResult> = {
+  name: 'closureReport',
+  description:
+    'Run a misclosure report on a sequence of perimeter vertices. The ' +
+    'implied closing edge runs from the last vertex back to the first. ' +
+    'Returns linear error, error bearing, precision (1:N), and the ' +
+    'closing-leg endpoints so the dialogue can render the gap on canvas.',
+  inputSchema: {
+    type: 'object',
+    required: ['vertices'],
+    properties: {
+      vertices: {
+        type: 'array',
+        items: pointSchema('Perimeter vertex.'),
+        minItems: 2,
+        description: 'Open perimeter; closing edge implied (last → first).',
+      },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    if (!Array.isArray(args.vertices) || args.vertices.length < 2) {
+      return { ok: false, reason: 'At least two vertices are required.' };
+    }
+    const checked: Point2D[] = [];
+    for (let i = 0; i < args.vertices.length; i++) {
+      const v = validatePoint(args.vertices[i], `vertices[${i}]`);
+      if (!v.ok) return v;
+      checked.push(v.result);
+    }
+    return { ok: true, result: vertexClosure(checked) };
+  },
+};
+
+const bowditchAdjustTool: ToolDefinition<{ vertices: Point2D[] }, Point2D[]> = {
+  name: 'bowditchAdjust',
+  description:
+    'Apply the Bowditch (compass-rule) adjustment to a sequence of ' +
+    'perimeter vertices. Returns a new vertex array where the first ' +
+    'vertex is anchored and the closure error has been distributed ' +
+    'proportionally to cumulative edge length. The final vertex matches ' +
+    'the first. The surveyor should preview the result as a ghost overlay ' +
+    'before accepting.',
+  inputSchema: {
+    type: 'object',
+    required: ['vertices'],
+    properties: {
+      vertices: {
+        type: 'array',
+        items: pointSchema('Perimeter vertex.'),
+        minItems: 2,
+      },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    if (!Array.isArray(args.vertices) || args.vertices.length < 2) {
+      return { ok: false, reason: 'At least two vertices are required.' };
+    }
+    const checked: Point2D[] = [];
+    for (let i = 0; i < args.vertices.length; i++) {
+      const v = validatePoint(args.vertices[i], `vertices[${i}]`);
+      if (!v.ok) return v;
+      checked.push(v.result);
+    }
+    return { ok: true, result: vertexBowditchAdjust(checked) };
+  },
+};
+
+// ────────────────────────────────────────────────────────────
 // Registry
 // ────────────────────────────────────────────────────────────
 
@@ -460,9 +748,52 @@ export const toolRegistry = {
   drawPolylineThrough,
   createLayer,
   applyLayerStyle,
+  // Geometry-solver tools (slice B):
+  calcFourthCorner: calcFourthCornerTool,
+  calcPointFromBearingDistance: calcPointFromBearingDistanceTool,
+  calcPointFromTwoBearings: calcPointFromTwoBearingsTool,
+  calcPointFromBearingAndLine: calcPointFromBearingAndLineTool,
+  calcPointParallelToLine: calcPointParallelToLineTool,
+  inverseTwoPoints: inverseTwoPointsTool,
+  closureReport: closureReportTool,
+  bowditchAdjust: bowditchAdjustTool,
 } as const;
 
 export type ToolName = keyof typeof toolRegistry;
+
+/**
+ * Names of tools that materialise a feature in the drawing — the
+ * original five. These are the only tool names that may appear in
+ * an AIProposal: accepting a proposal mutates the document, so
+ * solver tools (which only compute coordinates) flow through the
+ * dialogue UI directly rather than through the proposal queue.
+ *
+ * See docs/planning/in-progress/CAD_POINTS_AND_AI.md slice B.
+ */
+export type ProposalToolName =
+  | 'addPoint'
+  | 'drawLineBetween'
+  | 'drawPolylineThrough'
+  | 'createLayer'
+  | 'applyLayerStyle';
+
+/** Names of pure-calculation tools (no mutation; for solver UIs). */
+export type SolverToolName = Exclude<ToolName, ProposalToolName>;
+
+export const SOLVER_TOOL_NAMES = [
+  'calcFourthCorner',
+  'calcPointFromBearingDistance',
+  'calcPointFromTwoBearings',
+  'calcPointFromBearingAndLine',
+  'calcPointParallelToLine',
+  'inverseTwoPoints',
+  'closureReport',
+  'bowditchAdjust',
+] as const satisfies readonly SolverToolName[];
+
+export function isSolverTool(name: string): name is SolverToolName {
+  return (SOLVER_TOOL_NAMES as readonly string[]).includes(name);
+}
 
 // ────────────────────────────────────────────────────────────
 // Inline JSON-schema helpers (kept local; not exported)

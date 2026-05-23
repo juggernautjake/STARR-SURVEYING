@@ -15,7 +15,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { MissingApiKeyError } from '../ai-engine/claude-deed-parser';
 import {
   toolRegistry,
+  isSolverTool,
   type ToolName,
+  type ProposalToolName,
   type AddPointArgs,
   type DrawLineBetweenArgs,
   type DrawPolylineThroughArgs,
@@ -180,9 +182,16 @@ function blockToProposal(
 ): AIProposal | null {
   const name = block.name as ToolName;
   if (!(name in toolRegistry)) return null;
+  // Solver tools never become proposals — they only compute and
+  // are surfaced through the dialogue UI / ghost preview. The
+  // model should call them mid-conversation, not as accept-this
+  // actions; if it does emit one in a single-turn response we
+  // silently drop the block here. See CAD_POINTS_AND_AI slice B.
+  if (isSolverTool(name)) return null;
+  const proposalName = name as ProposalToolName;
 
   const provenance: AIProvenance = {
-    aiOrigin: `COPILOT_${name}`,
+    aiOrigin: `COPILOT_${proposalName}`,
     // Anthropic's response doesn't currently include a per-tool
     // confidence score, so we baseline at 0.8. Future slices can
     // promote a confidence emitted by the model in `narrative`.
@@ -202,16 +211,16 @@ function blockToProposal(
   return {
     id: generateId(),
     createdAt: Date.now(),
-    toolName: name,
+    toolName: proposalName,
     args,
-    description: describeArgs(name, args),
+    description: describeArgs(proposalName, args),
     confidence: provenance.aiConfidence,
     provenance,
   };
 }
 
 /** Best-effort single-sentence summary for the proposal card. */
-function describeArgs(name: ToolName, args: unknown): string {
+function describeArgs(name: ProposalToolName, args: unknown): string {
   if (name === 'addPoint') {
     const a = args as AddPointArgs;
     return `Drop a POINT at (${a.x.toFixed(2)}, ${a.y.toFixed(2)})${a.code ? ` with code ${a.code}` : ''}.`;
