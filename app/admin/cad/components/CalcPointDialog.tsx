@@ -31,6 +31,7 @@ import {
   type SolverResult,
 } from '@/lib/cad/geometry/solver';
 import { buildSolverPointProposal } from '@/lib/cad/ai/solver-proposal';
+import { selectedPoints } from '@/lib/cad/ai/selection-points';
 
 type Method = 'FOURTH_CORNER' | 'BEARING_DISTANCE' | 'TWO_BEARINGS' | 'PARALLEL';
 
@@ -53,17 +54,7 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
   // the surveyor doesn't pick an edge expecting a corner.
   const selectedFeatures = useSelectionStoreSelectedFeatures();
   const points = useMemo(
-    () =>
-      selectedFeatures.filter(
-        (f) => f.geometry.type === 'POINT',
-      ).map((f) => {
-        const rawName = f.properties?.pointName;
-        return {
-          id: f.id,
-          name: typeof rawName === 'string' ? rawName : f.id.slice(0, 6),
-          point: (f.geometry as { type: 'POINT'; position: Point2D }).position,
-        };
-      }),
+    () => selectedPoints(selectedFeatures),
     [selectedFeatures],
   );
 

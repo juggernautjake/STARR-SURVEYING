@@ -96,3 +96,31 @@ and AI). Higher-cost UX layers on top.
 - **Close Drawing: transit-rule** — math exists (`transitAdjustment`); dialogue exposes only Bowditch since it's the standard for closed traverses.
 - **AI Copilot dialogue mid-conversation tool calls** — the proposer (`claude-proposer.ts`) still makes a single API call; multi-turn loops where the AI calls `closureReport` → reasons → emits an `addPoint` proposal would let it run end-to-end repairs without UI ping-pong. Solver tools are silently filtered today.
 - **Playwright dialog specs against production** — go green after this branch merges + the deploy lands.
+
+## Post-merge audit (re-run after deploy)
+
+After the branch merged, a deeper Playwright pass that actually
+*places a point and computes* (rather than only opening dialogs)
+caught a real bug:
+
+- **`.position` vs `.point`** — `CalcPointDialog` and
+  `SketchReconcileDialog` read the POINT coordinate from
+  `geometry.position`, but the field is `geometry.point` (the rest
+  of the codebase uses `.point`). The dialogs crashed with
+  `TypeError: Cannot read properties of undefined (reading 'x')`
+  the moment a POINT was selected. The earlier E2E specs never
+  selected a point, so the empty-selection path passed and hid it.
+- **Fix** — extracted the POINT-extraction into
+  `lib/cad/ai/selection-points.ts` (`selectedPoints` +
+  `collectedPoints`), corrected the field, and pinned the contract
+  with `__tests__/cad/ai/selection-points.test.ts` (5 cases incl.
+  the real Feature shape, id-prefix fallback, non-POINT skip, and
+  missing-coordinate drop). Both dialogs now call the helper.
+- **New E2E** — `e2e/cad-calc-point-compute.spec.ts` places a
+  point via the canvas, selects it, runs the BEARING_DISTANCE
+  method, and asserts the result equals (px, py + 50) read back
+  from the dialog. Deployment-gated: green after the fix ships.
+
+Production suite status at audit time: 6/7 specs green; the 7th
+(compute) is the one that caught the bug and will pass post-deploy.
+CAD unit tests: 1066/1066.

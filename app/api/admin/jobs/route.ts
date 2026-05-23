@@ -93,13 +93,31 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (!name) return NextResponse.json({ error: 'Job name is required' }, { status: 400 });
 
-  // Auto-generate job number if not provided
+  // The jobs table is org-scoped (org_id is NOT NULL). Resolve the
+  // creator's organisation so the insert satisfies the constraint —
+  // same source of truth the org-scoped job sub-routes use.
+  const { data: creator } = await supabaseAdmin
+    .from('registered_users')
+    .select('default_org_id')
+    .eq('email', session.user.email)
+    .maybeSingle();
+  if (!creator?.default_org_id) {
+    return NextResponse.json(
+      { error: 'No organization is associated with your account. Set up or join an organization before creating jobs.' },
+      { status: 403 },
+    );
+  }
+  const orgId = creator.default_org_id;
+
+  // Auto-generate job number if not provided. Scope the running
+  // count to this org so two orgs don't collide on the same number.
   let finalJobNumber = job_number;
   if (!finalJobNumber) {
     const year = new Date().getFullYear();
     const { count } = await supabaseAdmin
       .from('jobs')
       .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
       .ilike('job_number', `${year}-%`);
     finalJobNumber = `${year}-${String((count || 0) + 1).padStart(4, '0')}`;
   }
@@ -107,6 +125,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { data: job, error } = await supabaseAdmin
     .from('jobs')
     .insert({
+      org_id: orgId,
       name, job_number: finalJobNumber, description, address, city,
       state: state || 'TX', zip, county, survey_type: survey_type || 'boundary',
       acreage, client_name, client_email, client_phone, client_company, client_address,
