@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, dbErrorResponse } from '@/lib/apiErrorHandler';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -96,15 +96,31 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // The jobs table is org-scoped (org_id is NOT NULL). Resolve the
   // creator's organisation so the insert satisfies the constraint —
   // same source of truth the org-scoped job sub-routes use.
-  const { data: creator } = await supabaseAdmin
+  const { data: creator, error: creatorErr } = await supabaseAdmin
     .from('registered_users')
     .select('default_org_id')
     .eq('email', session.user.email)
     .maybeSingle();
-  if (!creator?.default_org_id) {
+  if (creatorErr) {
+    // Distinguish "couldn't even look up your account" from "you have
+    // no org" — they need different fixes (schema vs. data).
+    return dbErrorResponse(creatorErr, 'look up your account');
+  }
+  if (!creator) {
     return NextResponse.json(
-      { error: 'No organization is associated with your account. Set up or join an organization before creating jobs.' },
-      { status: 403 },
+      { error: `No registered_users row found for ${session.user.email}. Your login exists but the user record is missing — re-run the user/org seeds.` },
+      { status: 409 },
+    );
+  }
+  if (!creator.default_org_id) {
+    return NextResponse.json(
+      {
+        error: 'Your account is not linked to an organization yet, so the job has nowhere to live. '
+          + 'Run seed 289 (dev-bootstrap) or set registered_users.default_org_id for your account, then sign out and back in.',
+        step: 'resolve organization',
+        code: 'NO_DEFAULT_ORG',
+      },
+      { status: 409 },
     );
   }
   const orgId = creator.default_org_id;
@@ -114,11 +130,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   let finalJobNumber = job_number;
   if (!finalJobNumber) {
     const year = new Date().getFullYear();
-    const { count } = await supabaseAdmin
+    const { count, error: countErr } = await supabaseAdmin
       .from('jobs')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId)
       .ilike('job_number', `${year}-%`);
+    if (countErr) return dbErrorResponse(countErr, 'generate the job number');
     finalJobNumber = `${year}-${String((count || 0) + 1).padStart(4, '0')}`;
   }
 
@@ -140,33 +157,41 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // The main insert is the most failure-prone step (NOT NULL, FK, RLS).
+  // dbErrorResponse turns the raw Postgres code into a specific message.
+  if (error) return dbErrorResponse(error, 'create the job');
+  if (!job) return NextResponse.json({ error: 'Job insert returned no row.' }, { status: 500 });
 
-  // Add tags if provided
+  // Secondary writes. The job already exists, so a failure here must
+  // NOT 500 the whole request — collect warnings and return them with
+  // the created job so the surveyor knows what didn't get attached.
+  const warnings: string[] = [];
+
   if (tags && Array.isArray(tags) && tags.length > 0) {
-    await supabaseAdmin.from('job_tags').insert(
+    const { error: tagErr } = await supabaseAdmin.from('job_tags').insert(
       tags.map((tag: string) => ({ job_id: job.id, tag }))
     );
+    if (tagErr) warnings.push(`Tags not saved: ${tagErr.message}`);
   }
 
-  // Add lead RPLS as team member
   if (lead_rpls_email) {
-    await supabaseAdmin.from('job_team').insert({
+    const { error: teamErr } = await supabaseAdmin.from('job_team').insert({
       job_id: job.id,
       user_email: lead_rpls_email,
       role: 'lead_rpls',
     });
+    if (teamErr) warnings.push(`Lead RPLS not added to team: ${teamErr.message}`);
   }
 
-  // Log initial stage
-  await supabaseAdmin.from('job_stages_history').insert({
+  const { error: stageErr } = await supabaseAdmin.from('job_stages_history').insert({
     job_id: job.id,
     to_stage: stage || 'quote',
     changed_by: session.user.email,
     notes: 'Job created',
   });
+  if (stageErr) warnings.push(`Stage history not logged: ${stageErr.message}`);
 
-  // Log activity
+  // Activity log is purely advisory — never surface its failure.
   await supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
     action: 'job_created',
@@ -175,8 +200,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     details: { job_number: finalJobNumber, name },
   }).catch(() => {});
 
-  return NextResponse.json({ job }, { status: 201 });
-}, { routeName: 'jobs' });
+  return NextResponse.json(
+    warnings.length > 0 ? { job, warnings } : { job },
+    { status: 201 },
+  );
+}, { routeName: 'jobs', exposeErrors: true });
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -196,7 +224,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse(error, 'update the job');
 
   // Update tags if provided
   if (tags && Array.isArray(tags)) {
@@ -209,7 +237,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   return NextResponse.json({ job: data });
-}, { routeName: 'jobs' });
+}, { routeName: 'jobs', exposeErrors: true });
 
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -225,6 +253,6 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     .update({ is_archived: true })
     .eq('id', id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse(error, 'archive the job');
   return NextResponse.json({ success: true });
-}, { routeName: 'jobs' });
+}, { routeName: 'jobs', exposeErrors: true });

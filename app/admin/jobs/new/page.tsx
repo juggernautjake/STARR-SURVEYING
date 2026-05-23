@@ -81,15 +81,18 @@ export default function NewJobPage() {
         body: JSON.stringify(body),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         router.push(`/admin/jobs/${data.job.id}`);
       } else {
-        const data = await res.json();
-        setError(data.error || 'Failed to create job');
+        // The API now returns a specific `error` (and often a `step`
+        // naming which write failed). Surface both so a retry shows
+        // the real cause instead of a generic message.
+        const detail = data.step ? ` (while trying to ${data.step})` : '';
+        setError((data.error || `Failed to create job (HTTP ${res.status})`) + detail);
       }
     } catch (err) {
-      setError('Network error');
+      setError(err instanceof Error ? `Network error: ${err.message}` : 'Network error');
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'create job' });
     }
     setSaving(false);
