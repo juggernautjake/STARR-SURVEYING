@@ -18,6 +18,7 @@ import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import LayerTransferDialog from './components/LayerTransferDialog';
 import IntersectDialog from './components/IntersectDialog';
+import CalcPointDialog from './components/CalcPointDialog';
 import ImportDialog from './components/ImportDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
@@ -354,6 +355,16 @@ export default function CADLayout() {
     const handler = () => setShowIntersect(true);
     window.addEventListener('cad:openIntersect', handler);
     return () => window.removeEventListener('cad:openIntersect', handler);
+  }, []);
+
+  // CAD_POINTS_AND_AI slice D — Calc Point dialogue. Opens on
+  // `cad:openCalcPointDialog` (fired from the MenuBar AI submenu
+  // or the AI Copilot quick-actions).
+  const [showCalcPoint, setShowCalcPoint] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowCalcPoint(true);
+    window.addEventListener('cad:openCalcPointDialog', handler);
+    return () => window.removeEventListener('cad:openCalcPointDialog', handler);
   }, []);
 
   // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
@@ -859,6 +870,9 @@ export default function CADLayout() {
 
       {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
       {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}
+
+      {/* Calc Point dialog (CAD_POINTS_AND_AI slice D) */}
+      {showCalcPoint && <CalcPointDialog onClose={() => setShowCalcPoint(false)} />}
 
 
       {/* Curve Calculator dialog */}
