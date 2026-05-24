@@ -26,8 +26,12 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   gridMajorSpacing: 100,
   gridMinorDivisions: 10,
   gridStyle: 'DOTS',
-  snapEnabled: false,
-  snapTypes: ['ENDPOINT', 'MIDPOINT', 'INTERSECTION', 'NEAREST', 'GRID'],
+  // Object snap ON by default so the line/polyline/curve tools lock
+  // onto existing points (a standalone POINT is an ENDPOINT snap
+  // target). GRID is intentionally excluded — the surveyor wanted the
+  // grid + snap-to-grid off, but still needs to snap to real points.
+  snapEnabled: true,
+  snapTypes: ['ENDPOINT', 'MIDPOINT', 'INTERSECTION', 'NEAREST'],
   snapRadius: 15,
   backgroundColor: '#FFFFFF',
   selectionColor: '#0088ff',

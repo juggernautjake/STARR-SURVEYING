@@ -752,6 +752,22 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
       }
     }
 
+    // Importing points almost always precedes drawing lines BETWEEN
+    // them, so make sure object snap is on (lock onto existing points).
+    // Leave the grid + grid-snap off; just ensure ENDPOINT snapping is
+    // available. Self-heals drawings saved while snap was off.
+    {
+      const s = drawingStore.document.settings;
+      const needsEnable = !s.snapEnabled;
+      const hasObjectSnap = s.snapTypes.some((t) => t !== 'GRID');
+      if (needsEnable || !hasObjectSnap) {
+        const types = hasObjectSnap
+          ? s.snapTypes
+          : ([...new Set([...s.snapTypes.filter((t) => t !== 'GRID'), 'ENDPOINT', 'MIDPOINT', 'INTERSECTION', 'NEAREST'])] as typeof s.snapTypes);
+        drawingStore.updateSettings({ snapEnabled: true, snapTypes: types });
+      }
+    }
+
     // Force the canvas to (re)render and frame the newly-added points.
     // Without this the features are in the store but the view doesn't
     // visibly update until the next pan/zoom.
