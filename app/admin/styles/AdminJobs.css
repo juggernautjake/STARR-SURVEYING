@@ -833,6 +833,53 @@
   border-bottom-color: var(--color-brand-navy);
 }
 .job-detail__tab-icon { font-size: 1rem; }
+.job-detail__tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  margin-left: 0.1rem;
+  border-radius: 999px;
+  background: var(--color-bg-subtle, #eef0f4);
+  color: var(--color-text-secondary, #475569);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.job-detail__tab--active .job-detail__tab-badge {
+  background: var(--color-brand-navy, #1D3095);
+  color: #fff;
+}
+
+/* Overview quick-action strip (JOB_WORKSPACE_BUILDOUT C) */
+.job-detail__quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.job-detail__quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--color-brand-navy, #1D3095);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-brand-navy, #1D3095);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, transform 0.12s;
+}
+.job-detail__quick-action:hover {
+  background: var(--color-brand-navy, #1D3095);
+  color: #fff;
+  transform: translateY(-1px);
+}
 
 /* Detail Content */
 .job-detail__content {

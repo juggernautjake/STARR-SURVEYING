@@ -81,6 +81,11 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  // Live tab counts. CAD + Photos report theirs via onCountChange when
+  // their tab is opened (we avoid preloading photos — their data URLs
+  // are heavy). null = not yet known, so no badge shows.
+  const [cadCount, setCadCount] = useState<number | null>(null);
+  const [photoCount, setPhotoCount] = useState<number | null>(null);
   const [stageHistory, setStageHistory] = useState<{ from_stage?: string; to_stage: string; changed_by: string; notes?: string; created_at: string }[]>([]);
   const [files, setFiles] = useState<{ id: string; file_name: string; file_type: string; file_url?: string; file_size?: number; section: string; description?: string; uploaded_by: string; uploaded_at: string; is_backup: boolean }[]>([]);
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
@@ -300,6 +305,17 @@ export default function JobDetailPage() {
 
   const stageInfo = STAGE_CONFIG[job.stage] || STAGE_CONFIG.quote;
 
+  // Tab badge counts. Files always known (job.file_count); research +
+  // field work fill in once their tab loads; CAD + Photos report via
+  // onCountChange. undefined = no badge.
+  const tabCounts: Record<string, number | undefined> = {
+    research: research.length || undefined,
+    cad: cadCount ?? undefined,
+    fieldwork: fieldData.length || undefined,
+    files: job.file_count || undefined,
+    photos: photoCount ?? undefined,
+  };
+
   return (
     <>
       <UnderConstruction
@@ -416,23 +432,37 @@ export default function JobDetailPage() {
 
       {/* Tabs */}
       <div className="job-detail__tabs">
-        {TABS.map(tab => (
-          <Tooltip key={tab.key} text={tab.tip} position="bottom" delay={600}>
-            <button
-              className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              <span className="job-detail__tab-icon">{tab.icon}</span>
-              {tab.label}
-            </button>
-          </Tooltip>
-        ))}
+        {TABS.map(tab => {
+          const count = tabCounts[tab.key];
+          return (
+            <Tooltip key={tab.key} text={tab.tip} position="bottom" delay={600}>
+              <button
+                className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                <span className="job-detail__tab-icon">{tab.icon}</span>
+                {tab.label}
+                {typeof count === 'number' && count > 0 && (
+                  <span className="job-detail__tab-badge">{count}</span>
+                )}
+              </button>
+            </Tooltip>
+          );
+        })}
       </div>
 
       {/* Tab Content */}
       <div className="job-detail__content">
         {activeTab === 'overview' && (
           <div className="job-detail__overview">
+            {/* Quick actions — jump straight into the parts of the job */}
+            <div className="job-detail__quick-actions">
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('research')}>🔍 Add research</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('cad')}>📐 Start a drawing</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('files')}>📁 Add files</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('photos')}>📷 Add photos</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('fieldwork')}>🏗️ Field work</button>
+            </div>
             <div className="job-detail__overview-grid">
               <div className="job-detail__overview-main">
                 {/* Description */}
@@ -514,7 +544,7 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'cad' && (
-          <JobCadPanel jobId={jobId} jobName={job.name} />
+          <JobCadPanel jobId={jobId} jobName={job.name} onCountChange={setCadCount} />
         )}
 
         {activeTab === 'fieldwork' && (
@@ -550,7 +580,7 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'photos' && (
-          <JobPhotoGallery jobId={jobId} />
+          <JobPhotoGallery jobId={jobId} onCountChange={setPhotoCount} />
         )}
 
         {activeTab === 'financial' && (
