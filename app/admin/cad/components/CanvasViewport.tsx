@@ -10739,8 +10739,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             geometry: {
               type: 'IMAGE',
               image: {
+                // Center on the drop point (bottom-left = drop − half size).
                 imageId,
-                position: { x: worldPt.wx, y: worldPt.wy },
+                position: { x: worldPt.wx - worldW / 2, y: worldPt.wy - worldH / 2 },
                 width: worldW,
                 height: worldH,
                 rotation: 0,
@@ -10754,6 +10755,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           };
           drawingStore.addFeature(feature);
           undoStore.pushUndo(makeAddFeatureEntry(feature));
+          toolStore.setTool('SELECT');
+          selectionStore.select(featureId, 'REPLACE');
         }}
       />
       {snapLabel && (
@@ -11259,8 +11262,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               geometry: {
                 type: 'IMAGE',
                 image: {
+                  // Center the image on the click point (bottom-left
+                  // anchor = click − half size) so it lands under the
+                  // cursor instead of up-and-right of it.
                   imageId: image.id,
-                  position: { x: imageInsertState.wx, y: imageInsertState.wy },
+                  position: { x: imageInsertState.wx - worldW / 2, y: imageInsertState.wy - worldH / 2 },
                   width: worldW,
                   height: worldH,
                   rotation: 0,
@@ -11276,7 +11282,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             undoStore.pushUndo(makeAddFeatureEntry(feature));
             setImageInsertState(null);
             onPlaceImageConsumed?.();
+            // Switch to SELECT + select the new image so its grips +
+            // properties are immediately available for scale/rotate.
             toolStore.setTool('SELECT');
+            selectionStore.select(featureId, 'REPLACE');
           }}
         />
       )}

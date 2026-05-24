@@ -120,6 +120,9 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   const [showProps, setShowProps] = useState(false);
   // Toggle between N/E (Northing/Easting with origin offset) and raw X/Y display
   const [useNE, setUseNE] = useState(true);
+  // Image scaling: when locked, changing width or height keeps the
+  // aspect ratio (uniform scale); unlocked allows non-uniform scale.
+  const [lockAspect, setLockAspect] = useState(true);
 
   // Snapshot before editing (for undo)
   const beforeRef = useRef<Feature | null>(null);
@@ -226,9 +229,31 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
     drawingStore.updateFeatureGeometry(featureId, geom);
   }
 
+  function updateImage(key: 'width' | 'height' | 'rotation' | 'mirrorX' | 'mirrorY', value: number | boolean) {
+    if (!feature || !feature.geometry.image) return;
+    const geom = { ...feature.geometry };
+    const im = { ...geom.image! };
+    if (key === 'width') {
+      const w = Math.max(0.001, value as number);
+      if (lockAspect && im.width > 0) im.height = im.height * (w / im.width);
+      im.width = w;
+    } else if (key === 'height') {
+      const h = Math.max(0.001, value as number);
+      if (lockAspect && im.height > 0) im.width = im.width * (h / im.height);
+      im.height = h;
+    } else if (key === 'rotation') {
+      im.rotation = ((value as number) * Math.PI) / 180;
+    } else if (key === 'mirrorX') {
+      im.mirrorX = value as boolean;
+    } else if (key === 'mirrorY') {
+      im.mirrorY = value as boolean;
+    }
+    geom.image = im;
+    drawingStore.updateFeatureGeometry(featureId, geom);
+  }
+
   // ── Property editing ─────────────────────────────────────────────────────
-  function updateProperty(key: string, value: string) {
-    if (!feature) return;
+  function updateProperty(key: string, value: string) {    if (!feature) return;
     drawingStore.updateFeature(featureId, {
       properties: { ...feature.properties, [key]: value },
     });
@@ -656,6 +681,39 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
                         />
                       </div>
                     ))}
+                  </>
+                );
+              })()}
+
+              {/* Image geometry — scale (uniform/non-uniform), rotate, mirror */}
+              {geom.type === 'IMAGE' && geom.image && (() => {
+                const im = geom.image!;
+                return (
+                  <>
+                    <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Image</div>
+                    <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={lockAspect}
+                        onChange={(e) => setLockAspect(e.target.checked)}
+                        className="accent-blue-500"
+                      />
+                      Lock aspect (uniform scale)
+                    </label>
+                    <CoordInput label="Width" value={im.width} onChange={(v) => updateImage('width', v)} />
+                    <CoordInput label="Height" value={im.height} onChange={(v) => updateImage('height', v)} />
+                    <CoordInput label="Rotation°" value={(im.rotation * 180) / Math.PI} onChange={(v) => updateImage('rotation', v)} />
+                    <div className="flex items-center gap-3 pt-0.5">
+                      <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none">
+                        <input type="checkbox" checked={im.mirrorX} onChange={(e) => updateImage('mirrorX', e.target.checked)} className="accent-blue-500" />
+                        Mirror X
+                      </label>
+                      <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none">
+                        <input type="checkbox" checked={im.mirrorY} onChange={(e) => updateImage('mirrorY', e.target.checked)} className="accent-blue-500" />
+                        Mirror Y
+                      </label>
+                    </div>
+                    <p className="text-gray-500 text-[9px] pt-0.5">Opacity is in the Style section above. Or use the Scale (SC) / Rotate (RO) tools to transform on-canvas.</p>
                   </>
                 );
               })()}
