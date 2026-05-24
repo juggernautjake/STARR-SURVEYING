@@ -190,12 +190,16 @@ describe('validateAndMigrateDocument — layer migration', () => {
     expect((result.layers['layer-1'] as unknown as Record<string, unknown>).lineTypeId).toBe('SOLID');
   });
 
-  it('merges the 22 default layers when absent from loaded document', () => {
+  it('does NOT inject default layers — loads exactly the saved layer set', () => {
+    // A survey must reopen with only the layers it was saved with.
+    // Injecting the standard layers resurrected ones the user removed.
     const raw = makeMinimalRaw();
     const result = validateAndMigrateDocument(raw);
-    for (const defaultLayer of PHASE3_DEFAULT_LAYERS) {
-      expect(result.layers[defaultLayer.id], `default layer ${defaultLayer.id}`).toBeDefined();
-    }
+    expect(Object.keys(result.layers)).toEqual(['layer-1']);
+    expect(result.layerOrder).toEqual(['layer-1']);
+    // None of the standard layers should have been added.
+    const injected = PHASE3_DEFAULT_LAYERS.filter((l) => result.layers[l.id]);
+    expect(injected).toHaveLength(0);
   });
 });
 
@@ -227,5 +231,63 @@ describe('validateAndMigrateDocument — globalStyleConfig', () => {
     expect(result.globalStyleConfig.backgroundColor).toBe('#111111');
     // Other keys should have defaults
     expect(result.globalStyleConfig.codeDisplayMode).toBeDefined();
+  });
+});
+
+// ── Full save → load round-trip (lossless) ─────────────────────────────────────
+
+describe('validateAndMigrateDocument — full round-trip', () => {
+  it('preserves features (point/line/image), labels, layers, groups, and images', () => {
+    const raw = makeMinimalRaw({
+      layers: {
+        'SURVEY-POINTS': { id: 'SURVEY-POINTS', name: 'Survey Points', visible: true, locked: false, frozen: false, color: '#000', lineWeight: 0.5, lineTypeId: 'SOLID', opacity: 1, groupId: null, sortOrder: 0, isProtected: false, autoAssignCodes: [] },
+      },
+      layerOrder: ['SURVEY-POINTS'],
+      features: {
+        p1: {
+          id: 'p1', type: 'POINT', layerId: 'SURVEY-POINTS',
+          geometry: { type: 'POINT', point: { x: 5000, y: 5001 } },
+          style: { color: null, lineWeight: null, opacity: 1, lineTypeId: null, symbolId: null, symbolSize: null, symbolRotation: 0, labelVisible: null, labelFormat: null, labelOffset: { x: 0, y: 0 }, isOverride: false },
+          properties: { pointName: '20fnd', code: '315' },
+          textLabels: [{ id: 'lbl1', text: '20fnd', x: 5000, y: 5001, visible: true }],
+        },
+        l1: {
+          id: 'l1', type: 'LINE', layerId: 'SURVEY-POINTS',
+          geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 10, y: 10 } },
+          style: { color: '#f00', lineWeight: 0.5, opacity: 1, lineTypeId: 'SOLID', symbolId: null, symbolSize: null, symbolRotation: 0, labelVisible: null, labelFormat: null, labelOffset: { x: 0, y: 0 }, isOverride: false },
+          properties: {},
+        },
+        img1: {
+          id: 'img1', type: 'IMAGE', layerId: 'SURVEY-POINTS',
+          geometry: { type: 'IMAGE', image: { imageId: 'proj-1', position: { x: 100, y: 200 }, width: 300, height: 150, rotation: 0.5, mirrorX: false, mirrorY: true } },
+          style: { color: null, lineWeight: null, opacity: 0.6, lineTypeId: null, symbolId: null, symbolSize: null, symbolRotation: 0, labelVisible: null, labelFormat: null, labelOffset: { x: 0, y: 0 }, isOverride: false },
+          properties: { imageName: 'aerial.png' },
+        },
+      },
+      featureGroups: { g1: { id: 'g1', name: 'Curb A', layerId: 'SURVEY-POINTS', featureIds: ['l1'] } },
+      projectImages: { 'proj-1': { id: 'proj-1', name: 'aerial.png', dataUrl: 'data:image/png;base64,AAAA', originalWidth: 600, originalHeight: 300, addedAt: '2026-01-01T00:00:00.000Z' } },
+    });
+
+    const result = validateAndMigrateDocument(raw);
+
+    // Layers: exactly what was saved, nothing injected.
+    expect(Object.keys(result.layers)).toEqual(['SURVEY-POINTS']);
+    // Features all survive with geometry + properties + labels intact.
+    expect(Object.keys(result.features).sort()).toEqual(['img1', 'l1', 'p1']);
+    expect((result.features.p1.geometry as { point: { x: number } }).point.x).toBe(5000);
+    expect(result.features.p1.properties.pointName).toBe('20fnd');
+    expect(result.features.p1.textLabels?.[0].text).toBe('20fnd');
+    expect((result.features.l1.geometry as { end: { y: number } }).end.y).toBe(10);
+    // Image geometry + opacity preserved.
+    const imgGeom = result.features.img1.geometry as { image: { width: number; rotation: number; mirrorY: boolean } };
+    expect(imgGeom.image.width).toBe(300);
+    expect(imgGeom.image.rotation).toBe(0.5);
+    expect(imgGeom.image.mirrorY).toBe(true);
+    expect(result.features.img1.style.opacity).toBe(0.6);
+    // Project image bitmap library preserved.
+    expect(result.projectImages['proj-1'].dataUrl).toBe('data:image/png;base64,AAAA');
+    expect(result.projectImages['proj-1'].originalWidth).toBe(600);
+    // Feature groups preserved.
+    expect(result.featureGroups.g1.featureIds).toEqual(['l1']);
   });
 });
