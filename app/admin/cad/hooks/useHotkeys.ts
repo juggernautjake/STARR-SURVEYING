@@ -127,6 +127,12 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
       actions: DEFAULT_ACTIONS,
       userBindings,
       getContext: () => useHotkeysStore.getState().activeContext,
+      // A key like `s` is both an action (Select) and a chord prefix
+      // (`s c` Scale, `s p` Spline). The default 1s window cleared the
+      // chord HUD before the surveyor could press the second key. Give
+      // a long window so the HUD effectively stays up until they pick
+      // the next key, while `s`-then-click still eventually fires Select.
+      chordTimeoutMs: 6000,
       onAction: (action) => {
         // Caller-side override gets first crack.
         if (optionsRef.current.onAction?.(action)) return;
