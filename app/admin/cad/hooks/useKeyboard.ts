@@ -182,7 +182,9 @@ export function useKeyboard() {
         break;
       }
       case 'file.save':
-        saveDocument();
+        // Route to the unified one-click Save (re-saves to the last
+        // destination, or prompts on first save). Owned by MenuBar.
+        window.dispatchEvent(new CustomEvent('cad:saveDocument'));
         break;
       case 'file.open':
         openFileDialog();
@@ -442,30 +444,6 @@ export function useKeyboard() {
       (activeTool === 'DRAW_POLYGON' && drawingPoints.length >= 3)
     ) {
       window.dispatchEvent(new CustomEvent('cad:confirm'));
-    }
-  }
-
-  function saveDocument() {
-    try {
-      const drawingStore = useDrawingStore.getState();
-      const payload = {
-        version: '1.0',
-        application: 'starr-cad',
-        document: drawingStore.document,
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement('a'), {
-        href: url,
-        download: `${drawingStore.document.name}.starr`,
-      });
-      a.click();
-      URL.revokeObjectURL(url);
-      drawingStore.markClean();
-      cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
-    } catch (err) {
-      cadLog.error('FileIO', 'Failed to save document', err);
-      alert('Failed to save the drawing. Try again, or contact support if it keeps failing.');
     }
   }
 

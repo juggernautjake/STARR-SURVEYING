@@ -16,7 +16,9 @@ import {
   useUIStore,
   useAIStore,
   AI_MODE_CYCLE,
+  useSaveTargetStore,
 } from '@/lib/cad/store';
+import { saveDrawingToCloud } from '@/lib/cad/persistence/cloud-save';
 import type { AIMode } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
@@ -80,26 +82,66 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const cycleAIMode = useAIStore((s) => s.cycleMode);
 
   // ─── File I/O ───────────────────────────────
-  function saveDocument() {
+  // Download the current drawing as a local .starr file. `silentName`,
+  // when given, re-saves under the remembered name (the browser writes to
+  // the download folder without a picker when "ask where to save" is off)
+  // and records a local save target so the next Ctrl+S repeats it.
+  function saveLocalCopy(silentName?: string) {
     try {
-      const payload = { version: '1.0', application: 'starr-cad', document: drawingStore.document };
+      const doc = drawingStore.document;
+      const name = (silentName ?? doc.name).trim() || 'drawing';
+      const payload = { version: '1.0', application: 'starr-cad', document: doc };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement('a'), {
-        href: url,
-        download: `${drawingStore.document.name}.starr`,
-      });
+      const a = Object.assign(document.createElement('a'), { href: url, download: `${name}.starr` });
       a.click();
       URL.revokeObjectURL(url);
       drawingStore.markClean();
-      // §16 — manual save supersedes the in-flight autosave;
-      // drop the slot so a stale crash recovery doesn't pop on
-      // the next reload.
-      void clearAutosave(drawingStore.document.id);
-      cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
+      useSaveTargetStore.getState().setLocalTarget(doc.id, name);
+      void clearAutosave(doc.id);
+      cadLog.info('FileIO', `Saved drawing locally: ${name}`);
     } catch (err) {
       cadLog.error('FileIO', 'Failed to save document', err);
       alert('Failed to save the drawing. Try again, or contact support if it keeps failing.');
+    }
+  }
+
+  // One-click Save: write back to wherever this drawing was last saved
+  // (same cloud record or same local file name) — no destination prompt.
+  // If the drawing has never been saved, alert and open the save dialog
+  // so the surveyor picks a destination once.
+  async function saveDocument() {
+    const doc = drawingStore.document;
+    const target = useSaveTargetStore.getState().targetFor(doc.id);
+
+    if (!target) {
+      // First save for this drawing — prompt for a name / destination.
+      // After this, Save writes back here automatically.
+      setDbDialog('save');
+      return;
+    }
+
+    if (target.kind === 'local') {
+      saveLocalCopy(target.name);
+      return;
+    }
+
+    // Cloud: silent update of the existing record.
+    try {
+      const { id, name } = await saveDrawingToCloud(doc, {
+        id: target.cloudId,
+        name: target.name,
+        description: target.description,
+      });
+      useSaveTargetStore.getState().setCloudTarget(doc.id, id, name, target.description);
+      drawingStore.markClean();
+      void clearAutosave(doc.id);
+      cadLog.info('FileIO', `Saved drawing to cloud: ${name}`);
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text: `Saved “${name}” to the cloud.` } }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Save failed';
+      cadLog.error('FileIO', 'Failed to save drawing to cloud', err);
+      alert(`Couldn’t save to the cloud: ${msg}\n\nYou can try again or use “Save to Cloud…”.`);
     }
   }
 
@@ -140,6 +182,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         drawingStore.loadDocument(doc);
         selectionStore.deselectAll();
         undoStore.clear();
+        // Remember this as the drawing's local save target so a later
+        // Ctrl+S writes back under the same name without prompting.
+        useSaveTargetStore.getState().setLocalTarget(doc.id, doc.name);
         cadLog.info('FileIO', `Loaded drawing: ${doc.name}`);
         // Zoom to the loaded drawing's content after a short delay to let the canvas render
         setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
@@ -368,8 +413,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Open Saved Drawing…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
         { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
-        { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
+        { label: 'Save', shortcut: 'Ctrl+S', action: () => { void saveDocument(); setOpenMenu(null); } },
         { label: 'Save to Cloud…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
+        { label: 'Save a copy (local .starr)…', action: () => { saveLocalCopy(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
         { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
@@ -715,6 +761,21 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       {drawingStore.isDirty && (
         <span className="ml-2 text-yellow-400 text-[10px] animate-[fadeIn_300ms_ease-out]">● unsaved</span>
       )}
+
+      {/* One-click Save — writes back to the drawing's last save target
+          (cloud record or local file name); prompts on the first save. */}
+      <button
+        type="button"
+        onClick={() => { void saveDocument(); }}
+        title="Save (Ctrl+S) — saves to this drawing's last file; prompts the first time"
+        className={`ml-2 px-2 py-0.5 text-[11px] rounded transition-colors flex items-center gap-1 ${
+          drawingStore.isDirty
+            ? 'bg-blue-600 hover:bg-blue-500 text-white'
+            : 'text-gray-400 hover:text-white hover:bg-gray-700'
+        }`}
+      >
+        Save
+      </button>
 
       {/* Document name — click to rename */}
       <div className="ml-auto mr-2 flex items-center gap-2 min-w-0">

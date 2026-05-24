@@ -690,7 +690,13 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
         properties: {
           pointId: pt.id,
           pointName: pt.pointName,
+          // Both resolved code forms are stored so the label can switch
+          // between alpha (BC01) and numeric (308) per the document's
+          // codeDisplayMode. `codeText` is the human remainder after the
+          // code (e.g. "ACS", "cap 4636").
           code: pt.resolvedAlphaCode,
+          codeNumeric: pt.resolvedNumericCode,
+          codeText: pt.description ?? '',
           // Full code/description text exactly as imported (raw code +
           // any remainder), so the label always shows the complete value
           // — even when the code is long or not in the code library.

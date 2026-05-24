@@ -24,3 +24,5 @@ export { useTransferStore } from './transfer-store';
 export { useCodeStyleStore, getEffectiveCodeStyleMap, resolveCodeStyleMapping } from './code-style-store';
 export type { CodeStyleOverride } from './code-style-store';
 export type { TransferOperation, TransferOptions } from './transfer-store';
+export { useSaveTargetStore } from './save-target-store';
+export type { SaveTarget } from './save-target-store';

@@ -118,6 +118,58 @@ export function getElementSelector(el: EventTarget | null): string {
   return `${tag}${parts.join('')}${text ? ` ("${text}")` : ''}`;
 }
 
+/* ─── Describe an unknown thrown / rejected value ─── */
+// Global error + unhandledrejection handlers receive arbitrary values:
+// Errors, but also raw DOM Events (a failed <img>/script load, a thrown
+// event object, a WebGL context-loss event). Naïvely stringifying those
+// yields the useless "[object Event]". This pulls out whatever signal is
+// actually available so reports are debuggable.
+export function describeError(value: unknown): { message: string; stack?: string } {
+  if (value == null) return { message: 'Unknown error (no detail provided)' };
+
+  if (value instanceof Error) {
+    return { message: value.message || value.name || 'Error', stack: value.stack };
+  }
+
+  // PromiseRejectionEvent → unwrap its reason.
+  if (typeof PromiseRejectionEvent !== 'undefined' && value instanceof PromiseRejectionEvent) {
+    return describeError(value.reason);
+  }
+
+  // ErrorEvent (script error) → message + source location, or its .error.
+  if (typeof ErrorEvent !== 'undefined' && value instanceof ErrorEvent) {
+    if (value.error && value.error !== value) return describeError(value.error);
+    const loc = value.filename
+      ? ` (${value.filename}:${value.lineno ?? 0}:${value.colno ?? 0})`
+      : '';
+    return { message: (value.message || 'Script error') + loc };
+  }
+
+  if (typeof DOMException !== 'undefined' && value instanceof DOMException) {
+    return { message: `${value.name}: ${value.message}` };
+  }
+
+  // Generic DOM Event — most often a resource (image/script/media) that
+  // failed to load. Surface the element + its source URL.
+  if (typeof Event !== 'undefined' && value instanceof Event) {
+    const target = value.target as (Partial<HTMLImageElement & HTMLScriptElement & HTMLLinkElement> & { tagName?: string }) | null;
+    const src = target?.src || target?.currentSrc || target?.href;
+    const tag = target?.tagName ? target.tagName.toLowerCase() : 'resource';
+    if (src) return { message: `Failed to load ${tag}: ${src}` };
+    return { message: `Unhandled "${value.type}" event` };
+  }
+
+  if (typeof value === 'string') return { message: value };
+
+  try {
+    const json = JSON.stringify(value);
+    if (json && json !== '{}') return { message: json };
+  } catch {
+    /* fall through */
+  }
+  return { message: String(value) };
+}
+
 /* ─── Sanitize Request Body ─── */
 const SENSITIVE_KEYS = new Set(['password', 'token', 'secret', 'api_key', 'authorization', 'cookie', 'credit_card', 'ssn']);
 

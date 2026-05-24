@@ -709,6 +709,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const featureIndexCacheRef = useRef<
     | (ReturnType<typeof buildFeatureIndex> & {
         featuresById: Record<string, Feature>;
+        // Layer map identity is part of the key: toggling a layer's
+        // visibility rebuilds `document.layers` (not `document.features`),
+        // and the index is built from the *visible* feature set, so it
+        // must rebuild when visibility changes — otherwise a layer hidden
+        // then re-shown stays culled out (its features are absent from a
+        // stale index).
+        layersById: Record<string, unknown>;
       })
     | null
   >(null);
@@ -909,6 +916,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       setCursorStyle(TOOL_CURSORS[activeTool] ?? 'crosshair');
     }
   }, [activeTool]);
+
+  // Switch the on-canvas point code between numeric ("308") and alpha
+  // ("BC01") when the document's codeDisplayMode changes — regenerate the
+  // affected POINT labels so the change shows immediately.
+  const codeDisplayMode = drawingStore.document.settings.codeDisplayMode;
+  useEffect(() => {
+    const dStore = useDrawingStore.getState();
+    const doc = dStore.document;
+    const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
+    for (const feature of Object.values(doc.features)) {
+      if (feature.type !== 'POINT') continue;
+      if (!feature.textLabels || feature.textLabels.length === 0) continue;
+      const layer = doc.layers[feature.layerId];
+      if (!layer) continue;
+      dStore.setFeatureTextLabels(feature.id, generateLabelsForFeature(feature, layer, prefs));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeDisplayMode]);
 
   // Auto-finish curved line when switching tools (including clicking curved line tool again)
   const prevToolRef = useRef(activeTool);
@@ -1476,7 +1501,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // index lookup is sub-millisecond at every realistic
     // zoom level so big drawings stop paying the O(n) cost
     // on each render.
-    const indexCache = ensureFeatureIndex(visibleFeatures, doc.features);
+    const indexCache = ensureFeatureIndex(visibleFeatures, doc.features, doc.layers);
     const viewportBBox = computeViewportWorldBBox();
     const culledFeatures = viewportBBox
       ? cullFeaturesWithIndex(
@@ -1564,14 +1589,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
    *  zoom so the per-frame cost is one Map lookup. */
   function ensureFeatureIndex(
     visibleFeatures: ReadonlyArray<Feature>,
-    featuresById: Record<string, Feature>
+    featuresById: Record<string, Feature>,
+    layersById: Record<string, unknown>
   ) {
     const cache = featureIndexCacheRef.current;
-    if (cache && cache.featuresById === featuresById) {
+    // Rebuild when either the feature map OR the layer map changes —
+    // the latter covers layer visibility toggles (hide → re-show).
+    if (cache && cache.featuresById === featuresById && cache.layersById === layersById) {
       return cache;
     }
     const next = buildFeatureIndex(visibleFeatures);
-    const stamped = { ...next, featuresById };
+    const stamped = { ...next, featuresById, layersById };
     featureIndexCacheRef.current = stamped;
     return stamped;
   }
@@ -2776,7 +2804,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // when they leave the viewport (which would churn during
     // pan).
     const docNow = useDrawingStore.getState().document;
-    const indexCache = ensureFeatureIndex(layerVisibleFeatures, docNow.features);
+    const indexCache = ensureFeatureIndex(layerVisibleFeatures, docNow.features, docNow.layers);
     const viewportBBox = computeViewportWorldBBox();
     const visibleFeatures = viewportBBox
       ? cullFeaturesWithIndex(
@@ -6904,7 +6932,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // an O(n) → O(cell footprint) speedup.
     const indexCache = ensureFeatureIndex(
       layerVisible,
-      drawingStore.document.features
+      drawingStore.document.features,
+      drawingStore.document.layers
     );
     const queryBox: LodBoundingBox = {
       minX: wx - worldTol,
@@ -7473,7 +7502,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const layerVisible = drawingStore.getVisibleFeatures();
       const indexCache = ensureFeatureIndex(
         layerVisible,
-        drawingStore.document.features
+        drawingStore.document.features,
+        drawingStore.document.layers
       );
       const worldRadius = settings.snapRadius / Math.max(0.0001, viewportStore.zoom);
       const queryBox: LodBoundingBox = {
@@ -7844,6 +7874,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
+            // Captured BEFORE selection changes — drives the two-step
+            // grab for points below.
+            const hitWasSelected = selectionStore.selectedIds.has(hit);
             const hitFeature = drawingStore.getFeature(hit);
             const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
             const featureGid  = hitFeature?.featureGroupId ?? undefined;
@@ -7892,19 +7925,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               featureIds = [hit];
             }
 
-            // Start drag-to-move: store original positions for undo
-            const startWorld = screenToDrawingWorld(sx, sy);
-            const originals = new Map<string, Feature>();
-            for (const id of featureIds) {
-              const f = drawingStore.getFeature(id);
-              if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+            // Two-step grab for POINTS: a first click only selects the
+            // point — you must click an ALREADY-selected point to grab and
+            // move it. This stops accidental nudges when clicking dense
+            // points (selecting a different point resets the gate). Point
+            // names / codes / descriptions (labels, handled above) and all
+            // other geometry keep one-click grab-to-move.
+            const isPoint = hitFeature?.geometry.type === 'POINT';
+            if (!isPoint || hitWasSelected) {
+              // Start drag-to-move: store original positions for undo
+              const startWorld = screenToDrawingWorld(sx, sy);
+              const originals = new Map<string, Feature>();
+              for (const id of featureIds) {
+                const f = drawingStore.getFeature(id);
+                if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+              }
+              dragFeatureRef.current = {
+                featureIds,
+                startWorld: { x: startWorld.wx, y: startWorld.wy },
+                originals,
+              };
+              setCursorStyle('grabbing');
+            } else {
+              // Point newly selected — armed to grab on the next press.
+              setCursorStyle('grab');
             }
-            dragFeatureRef.current = {
-              featureIds,
-              startWorld: { x: startWorld.wx, y: startWorld.wy },
-              originals,
-            };
-            setCursorStyle('grabbing');
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;

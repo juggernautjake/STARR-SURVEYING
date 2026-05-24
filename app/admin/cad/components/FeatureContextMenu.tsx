@@ -57,6 +57,9 @@ import {
   smoothPolyline,
   simplifyPolylineFeature,
   divideFeatureBy,
+  transferSelectionToLayer,
+  deleteSegmentAt,
+  splitFeatureAt,
 } from '@/lib/cad/operations';
 import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 import { generateId } from '@/lib/cad/types';
@@ -338,6 +341,37 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     selectionStore.selectMultiple(Array.from(expanded), 'REPLACE');
   }
 
+  // ── Build the layer list for quick Copy/Move-to-Layer submenus ───────────
+  // Acts on EXACTLY the current selection via the transfer kernel (which
+  // handles undo). bringAlongLinkedGeometry stays off so "this one point"
+  // means this one point — the full Send-to-Layer dialog covers advanced
+  // bring-along.
+  function buildLayerTransferSubmenu(keepOriginals: boolean): SubMenuDef[] {
+    const targets = layers.filter((l) => l && !l.locked);
+    if (targets.length === 0) {
+      return [{ id: 'no-target-layers', label: '(no unlocked layers)', disabled: true } as MenuItemDef];
+    }
+    return targets.map((l) => ({
+      id: `${keepOriginals ? 'copy' : 'move'}-to-${l.id}`,
+      label: l.name,
+      icon: <Layers size={12} />,
+      action: () => {
+        const ids = Array.from(selectionStore.selectedIds);
+        if (ids.length === 0) return;
+        transferSelectionToLayer(ids, l.id, {
+          keepOriginals,
+          renumberStart: null,
+          stripUnknownCodes: false,
+          codeMap: null,
+          targetTraverseId: null,
+          offset: null,
+          bringAlongLinkedGeometry: false,
+          transferOperationId: generateId(),
+        });
+      },
+    } as MenuItemDef));
+  }
+
   // ── Build "Modify" submenu ────────────────────────────────────────────────
   const modifySubmenu: SubMenuDef[] = [
     // ─ Interactive (cursor-driven) ──────────────────────────────────────
@@ -446,6 +480,25 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
               } as MenuItemDef,
             ]
           : []),
+        // Segment-level edits — quickly split or delete the individual
+        // edge under the cursor on a LINE / POLYLINE / POLYGON.
+        ...((feature.geometry.type === 'LINE' || feature.geometry.type === 'POLYLINE' || feature.geometry.type === 'POLYGON')
+          ? [
+              {
+                id: 'split-here',
+                label: 'Split here',
+                icon: <Slash size={12} />,
+                action: () => { splitFeatureAt(feature.id, { x: worldX, y: worldY }); },
+              } as MenuItemDef,
+              {
+                id: 'delete-segment',
+                label: 'Delete segment',
+                icon: <Trash2 size={12} />,
+                danger: true,
+                action: () => { deleteSegmentAt(feature.id, { x: worldX, y: worldY }); },
+              } as MenuItemDef,
+            ]
+          : []),
         { separator: true, id: 's0' },
         {
           id: 'copy',
@@ -498,6 +551,21 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
             useTransferStore.getState().open(ids);
             useTransferStore.getState().setOptions({ operation: 'DUPLICATE', keepOriginals: true });
           },
+        },
+        // Quick, dialog-free transfer of EXACTLY the current selection
+        // (one element, a few, or all — whatever is selected) to a
+        // chosen layer. Copy keeps the originals; Move reassigns them.
+        {
+          id: 'copyToLayerQuick',
+          label: `Copy ${selCount > 1 ? `${selCount} ` : ''}to Layer`,
+          icon: <Copy size={12} />,
+          submenu: buildLayerTransferSubmenu(true),
+        },
+        {
+          id: 'moveToLayerQuick',
+          label: `Move ${selCount > 1 ? `${selCount} ` : ''}to Layer`,
+          icon: <Layers size={12} />,
+          submenu: buildLayerTransferSubmenu(false),
         },
         { separator: true, id: 's1' },
         {
