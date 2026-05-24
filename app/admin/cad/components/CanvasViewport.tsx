@@ -7844,6 +7844,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
+            // Captured BEFORE selection changes — drives the two-step
+            // grab for points below.
+            const hitWasSelected = selectionStore.selectedIds.has(hit);
             const hitFeature = drawingStore.getFeature(hit);
             const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
             const featureGid  = hitFeature?.featureGroupId ?? undefined;
@@ -7892,19 +7895,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               featureIds = [hit];
             }
 
-            // Start drag-to-move: store original positions for undo
-            const startWorld = screenToDrawingWorld(sx, sy);
-            const originals = new Map<string, Feature>();
-            for (const id of featureIds) {
-              const f = drawingStore.getFeature(id);
-              if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+            // Two-step grab for POINTS: a first click only selects the
+            // point — you must click an ALREADY-selected point to grab and
+            // move it. This stops accidental nudges when clicking dense
+            // points (selecting a different point resets the gate). Point
+            // names / codes / descriptions (labels, handled above) and all
+            // other geometry keep one-click grab-to-move.
+            const isPoint = hitFeature?.geometry.type === 'POINT';
+            if (!isPoint || hitWasSelected) {
+              // Start drag-to-move: store original positions for undo
+              const startWorld = screenToDrawingWorld(sx, sy);
+              const originals = new Map<string, Feature>();
+              for (const id of featureIds) {
+                const f = drawingStore.getFeature(id);
+                if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+              }
+              dragFeatureRef.current = {
+                featureIds,
+                startWorld: { x: startWorld.wx, y: startWorld.wy },
+                originals,
+              };
+              setCursorStyle('grabbing');
+            } else {
+              // Point newly selected — armed to grab on the next press.
+              setCursorStyle('grab');
             }
-            dragFeatureRef.current = {
-              featureIds,
-              startWorld: { x: startWorld.wx, y: startWorld.wy },
-              originals,
-            };
-            setCursorStyle('grabbing');
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
