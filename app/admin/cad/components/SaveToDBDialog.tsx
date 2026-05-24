@@ -5,7 +5,7 @@
 //   mode='open'  — browse previously saved drawings and load one
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { useDrawingStore, useSelectionStore, useUndoStore, useSaveTargetStore } from '@/lib/cad/store';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
@@ -113,6 +113,14 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
 
       const body = await res.json() as { drawing: { id: string } };
       setSavedId(body.drawing.id);
+      // Remember the cloud destination so plain Save (Ctrl+S) writes back
+      // here without re-prompting.
+      useSaveTargetStore.getState().setCloudTarget(
+        doc.id,
+        body.drawing.id,
+        payload.name,
+        payload.description ?? null,
+      );
       drawingStore.markClean();
       cadLog.info('FileIO', `Saved drawing to DB: ${saveName}`);
       onClose();
@@ -135,12 +143,19 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `Server error: ${res.status}`);
       }
-      const body = await res.json() as { drawing: { document: unknown } };
+      const body = await res.json() as { drawing: { document: unknown; name?: string; description?: string | null } };
       const payload = body.drawing.document as { document?: unknown };
       const doc = validateAndMigrateDocument(payload?.document ?? payload);
       drawingStore.loadDocument(doc);
       selectionStore.deselectAll();
       undoStore.clear();
+      // Remember the cloud destination so Ctrl+S re-saves here directly.
+      useSaveTargetStore.getState().setCloudTarget(
+        doc.id,
+        id,
+        body.drawing.name ?? doc.name,
+        body.drawing.description ?? null,
+      );
       cadLog.info('FileIO', `Loaded drawing from DB: ${doc.name}`);
       onClose();
       setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
