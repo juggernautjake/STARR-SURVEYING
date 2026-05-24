@@ -12,6 +12,7 @@ import JobFileManager from '../../components/jobs/JobFileManager';
 import JobEquipmentList from '../../components/jobs/JobEquipmentList';
 import JobResearchPanel from '../../components/jobs/JobResearchPanel';
 import JobCadPanel from '../../components/jobs/JobCadPanel';
+import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
@@ -64,7 +65,8 @@ const TABS = [
   { key: 'research', label: 'Research', icon: '🔍', tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
   { key: 'cad', label: 'CAD', icon: '📐', tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
   { key: 'fieldwork', label: 'Field Work', icon: '🏗️', tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
-  { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, images, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
+  { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
+  { key: 'photos', label: 'Photos', icon: '📷', tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
   { key: 'financial', label: 'Financial', icon: '💰', tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
   { key: 'messages', label: 'Messages', icon: '💬', tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
 ];
@@ -545,6 +547,10 @@ export default function JobDetailPage() {
             onUpload={uploadFile}
             onDelete={deleteFile}
           />
+        )}
+
+        {activeTab === 'photos' && (
+          <JobPhotoGallery jobId={jobId} />
         )}
 
         {activeTab === 'financial' && (

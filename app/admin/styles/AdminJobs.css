@@ -192,6 +192,11 @@
   border: var(--border-light);
 }
 .jobs-page__btn--secondary:hover { background: #E5E7EB; }
+.jobs-page__btn--danger {
+  background: #DC2626;
+  color: #fff;
+}
+.jobs-page__btn--danger:hover { background: #B91C1C; }
 
 /* Pipeline */
 .jobs-page__pipeline {
