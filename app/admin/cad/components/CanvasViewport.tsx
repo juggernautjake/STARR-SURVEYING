@@ -644,6 +644,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Screen position of the last pointer-down, used to tell a click
   // (deselect) from a drag (pan) in the PAN tool.
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  // Tracks which document the image texture cache belongs to. When a
+  // different drawing is loaded we rebuild image textures from scratch
+  // so a stale/failed texture can't render as a "broken" image.
+  const imageCacheDocIdRef = useRef<string | null>(null);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
   // Phase 8 §11.6 — true while the IntersectDialog has a slot
@@ -1719,6 +1723,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const doc = useDrawingStore.getState().document;
     const { zoom } = useViewportStore.getState();
+
+    // On a document switch (open / load), drop every cached sprite +
+    // texture so images are rebuilt from THIS document's projectImages.
+    // Without this, a texture cached under an imageId from a previous
+    // document (or one that failed to decode mid-session) sticks around
+    // and renders as a broken image after reopening a saved survey.
+    if (imageCacheDocIdRef.current !== doc.id) {
+      for (const [, sprite] of pixi.imageSprites) {
+        sprite.parent?.removeChild(sprite);
+        sprite.destroy();
+      }
+      pixi.imageSprites.clear();
+      for (const [, tex] of pixi.imageTextures) {
+        try { tex.destroy(true); } catch { /* texture may be shared/already gone */ }
+      }
+      pixi.imageTextures.clear();
+      imageCacheDocIdRef.current = doc.id;
+    }
+
     const visibleFeatures = drawingStore.getVisibleFeatures().filter(
       (f) => f.geometry.type === 'IMAGE' && f.geometry.image,
     );

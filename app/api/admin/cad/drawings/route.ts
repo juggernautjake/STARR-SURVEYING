@@ -143,6 +143,45 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({ drawing: data }, { status: 201 });
 });
 
+// ─── PATCH — metadata-only update (rename / re-describe) ──────────────────────
+// Lets the file manager rename a drawing without re-uploading the whole
+// document JSONB.
+
+export const PATCH = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await req.json() as { id?: string; name?: string; description?: string };
+  if (!body.id) {
+    return NextResponse.json({ error: 'Missing required field: id' }, { status: 400 });
+  }
+  const patch: Record<string, unknown> = {};
+  if (typeof body.name === 'string') {
+    if (!body.name.trim()) {
+      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+    }
+    patch.name = body.name.trim();
+  }
+  if (typeof body.description === 'string') patch.description = body.description.trim() || null;
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('cad_drawings')
+    .update(patch)
+    .eq('id', body.id)
+    .eq('created_by', session.user.email)
+    .select('id, name, description, feature_count, layer_count, job_id, created_at, updated_at')
+    .maybeSingle();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'Drawing not found' }, { status: 404 });
+  return NextResponse.json({ drawing: data });
+});
+
 // ─── DELETE ──────────────────────────────────────────────────────────────────
 
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
