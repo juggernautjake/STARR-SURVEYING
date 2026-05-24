@@ -736,14 +736,21 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
       makeBatchEntry(`Import ${importResult.stats.parsedSuccessfully} points`, operations),
     );
 
-    // NOTE: do NOT auto-set a display origin offset here. Features are
-    // stored at their raw survey coordinates (world = easting/northing),
-    // and the coordinate readout is `displayed = world + origin`
-    // (see lib/cad/geometry/units.ts). Adding an origin equal to the
-    // data's min coordinate double-counted it — a point at world 5000
-    // displayed as ~9800 and rendered far NE of where the HUD said it
-    // was. With origin left at 0, displayed === raw survey coordinate
-    // and the points render exactly where the readout reports.
+    // Reset the display origin to 0. Features are stored at their raw
+    // survey coordinates (world = easting/northing), and the readout is
+    // `displayed = world + origin` (lib/cad/geometry/units.ts). A
+    // non-zero origin double-counts — a point at world 5000 with origin
+    // 4800 displays ~9800 and renders far NE of where the HUD reports.
+    // Older imports auto-set such an origin and it persists in the saved
+    // drawing, so we explicitly clear it here to self-heal those files.
+    {
+      const prefs = drawingStore.document.settings.displayPreferences;
+      if (prefs && (prefs.originNorthing !== 0 || prefs.originEasting !== 0)) {
+        drawingStore.updateSettings({
+          displayPreferences: { ...prefs, originNorthing: 0, originEasting: 0 },
+        });
+      }
+    }
 
     // Force the canvas to (re)render and frame the newly-added points.
     // Without this the features are in the store but the view doesn't

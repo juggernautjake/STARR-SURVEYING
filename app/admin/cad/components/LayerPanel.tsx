@@ -691,6 +691,20 @@ export default function LayerPanel() {
         >
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => {
+              // Select every feature on this layer so the surveyor can
+              // immediately Move / Scale / Rotate the whole layer.
+              const ids = Object.values(doc.features)
+                .filter((f) => f.layerId === contextMenu.layerId && !f.hidden)
+                .map((f) => f.id);
+              if (ids.length > 0) selectionStore.selectMultiple(ids, 'REPLACE');
+              setContextMenu(null);
+            }}
+          >
+            Select all in layer
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => startRename(contextMenu.layerId)}
           >
             Rename
