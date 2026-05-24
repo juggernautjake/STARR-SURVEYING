@@ -15,6 +15,8 @@ import JobCadPanel from '../../components/jobs/JobCadPanel';
 import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
 import InlineEditField from '../../components/jobs/InlineEditField';
 import JobActivityFeed from '../../components/jobs/JobActivityFeed';
+import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
+import { exportJobPdf } from '../../components/jobs/jobPdf';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
@@ -400,6 +402,22 @@ export default function JobDetailPage() {
             <span className="job-detail__stage-badge" style={{ background: stageInfo.color + '20', color: stageInfo.color }}>
               {stageInfo.icon} {stageInfo.label}
             </span>
+            <button
+              className="jobs-page__btn jobs-page__btn--secondary"
+              onClick={() => exportJobPdf({
+                ...job,
+                counts: {
+                  files: job.file_count,
+                  photos: photoCount ?? undefined,
+                  drawings: cadCount ?? undefined,
+                  research: research.length || undefined,
+                  hours: job.total_hours,
+                },
+              })}
+              title="Download a one-page job summary PDF"
+            >
+              ⬇ Export PDF
+            </button>
             <JobResultControl
               jobId={job.id}
               currentResult={job.result ?? null}
@@ -636,23 +654,7 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'messages' && (
-          <div className="job-detail__messages">
-            <div className="job-detail__section">
-              <h3>Job Thread</h3>
-              <p className="job-detail__section-desc">
-                This is a dedicated messaging thread for this job. All team members assigned to the job
-                can communicate, share updates, and coordinate field work here.
-              </p>
-              <div className="job-detail__messages-placeholder">
-                <span>💬</span>
-                <p>Job messaging thread will be connected to the internal messaging system.</p>
-                <p className="job-detail__field-data-sub">Each job gets its own conversation where team members can coordinate.</p>
-                <Link href="/admin/messages" className="jobs-page__btn jobs-page__btn--secondary">
-                  Go to Messages
-                </Link>
-              </div>
-            </div>
-          </div>
+          <JobMessagesPanel jobId={jobId} />
         )}
       </div>
 
