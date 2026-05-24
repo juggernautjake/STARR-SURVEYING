@@ -263,8 +263,11 @@ export function dispatchDefaultAction(action: BindableAction): void {
       return;
     }
     case 'edit.deselect':
+      // Escape fully releases the active tool: clear the selection AND
+      // return to SELECT so the cursor isn't still "wired" to the last
+      // modify tool (e.g. Scale) when the surveyor goes to pick another.
       useSelectionStore.getState().deselectAll();
-      useToolStore.getState().resetToolState();
+      useToolStore.getState().setTool('SELECT');
       return;
     case 'edit.delete':
       window.dispatchEvent(new CustomEvent('cad:deleteSelection'));

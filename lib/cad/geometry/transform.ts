@@ -113,25 +113,44 @@ export function transformFeature(
       break;
     case 'IMAGE':
       if (geom.image) {
-        // Transform all 4 corners of the image bounding box, then recompute position/width/height
+        // An image carries its own rotation, so it can't be reduced to an
+        // axis-aligned bounding box like other geometry. Instead we sample
+        // the transform around the image center to recover how it scales
+        // and rotates the local axes, then rebuild the image keeping its
+        // center where the transform put it. This handles translate /
+        // rotate / (uniform or non-uniform) scale without stretching the
+        // bitmap or double-counting the existing rotation.
         const img = geom.image;
-        const bl = transformFn({ x: img.position.x,             y: img.position.y             });
-        const br = transformFn({ x: img.position.x + img.width, y: img.position.y             });
-        const tr = transformFn({ x: img.position.x + img.width, y: img.position.y + img.height });
-        const tl = transformFn({ x: img.position.x,             y: img.position.y + img.height });
-        // Recompute axis-aligned bounding box
-        const minX = Math.min(bl.x, br.x, tr.x, tl.x);
-        const minY = Math.min(bl.y, br.y, tr.y, tl.y);
-        const maxX = Math.max(bl.x, br.x, tr.x, tl.x);
-        const maxY = Math.max(bl.y, br.y, tr.y, tl.y);
-        // Compute rotation angle change (angle of the bottom edge after transform)
-        const rotDelta = Math.atan2(br.y - bl.y, br.x - bl.x);
+        const cx = img.position.x + (img.width  / 2) * Math.cos(img.rotation) - (img.height / 2) * Math.sin(img.rotation);
+        const cy = img.position.y + (img.width  / 2) * Math.sin(img.rotation) + (img.height / 2) * Math.cos(img.rotation);
+        const center = { x: cx, y: cy };
+        // Current local axis directions in world space.
+        const ux = { x: Math.cos(img.rotation), y: Math.sin(img.rotation) };
+        const uy = { x: -Math.sin(img.rotation), y: Math.cos(img.rotation) };
+        const c1 = transformFn(center);
+        const ax = transformFn({ x: center.x + ux.x, y: center.y + ux.y });
+        const ay = transformFn({ x: center.x + uy.x, y: center.y + uy.y });
+        const ex = { x: ax.x - c1.x, y: ax.y - c1.y };
+        const ey = { x: ay.x - c1.x, y: ay.y - c1.y };
+        const scaleX = Math.hypot(ex.x, ex.y) || 1;
+        const scaleY = Math.hypot(ey.x, ey.y) || 1;
+        const newRotation = Math.atan2(ex.y, ex.x);
+        // A negative determinant means the transform reflected the image;
+        // record that as a horizontal mirror so orientation is preserved.
+        const det = ex.x * ey.y - ex.y * ey.x;
+        const newWidth = Math.max(img.width * scaleX, 0.001);
+        const newHeight = Math.max(img.height * scaleY, 0.001);
+        const half = {
+          x: (newWidth / 2) * Math.cos(newRotation) - (newHeight / 2) * Math.sin(newRotation),
+          y: (newWidth / 2) * Math.sin(newRotation) + (newHeight / 2) * Math.cos(newRotation),
+        };
         geom.image = {
           ...img,
-          position: { x: minX, y: minY },
-          width:  Math.max(maxX - minX, 0.001),
-          height: Math.max(maxY - minY, 0.001),
-          rotation: img.rotation + rotDelta,
+          position: { x: c1.x - half.x, y: c1.y - half.y },
+          width: newWidth,
+          height: newHeight,
+          rotation: newRotation,
+          mirrorX: det < 0 ? !img.mirrorX : img.mirrorX,
         };
       }
       break;
