@@ -4,6 +4,7 @@ import { generateId } from '../types';
 import { DEFAULT_LAYER_DISPLAY_PREFERENCES, DEFAULT_TEXT_LABEL_STYLE } from '../constants';
 import { inverseBearingDistance, formatBearing, formatAzimuth } from '../geometry/bearing';
 import { computeAreaFromPoints2D } from '../geometry/area';
+import { useDrawingStore } from '../store';
 
 /**
  * Format a distance value according to display preferences.
@@ -159,6 +160,11 @@ export function generateLabelsForFeature(
     };
   }
 
+  // Document-wide choice of how a point's code reads (numeric "308" vs
+  // alpha "BC01"). Read from the store so every regeneration path picks
+  // up the current setting without threading it through each caller.
+  const codeDisplayMode = useDrawingStore.getState().document.settings.codeDisplayMode ?? 'NUMERIC';
+
   // ── Point labels ──
   if (feature.type === 'POINT' && feature.geometry.point) {
     const pt = feature.geometry.point;
@@ -176,7 +182,27 @@ export function generateLabelsForFeature(
     }
 
     if (layerPrefs.showPointDescriptions) {
-      const desc = String(feature.properties.description ?? feature.properties.code ?? '');
+      // Resolve the code in the document's chosen display mode (numeric
+      // "308" vs alpha "BC01") and append any human remainder. Falls back
+      // to the stored raw description for points imported before both
+      // code forms were captured.
+      const alpha = feature.properties.code;
+      const numeric = feature.properties.codeNumeric;
+      // Only swap to the resolved code form when the code is actually
+      // recognized in the library (alpha ≠ numeric, e.g. BC03 ↔ 310).
+      // For unrecognized free-text codes ("brick", "txdot row marker")
+      // alpha === numeric === the uppercased word, so we instead show the
+      // raw description exactly as imported (preserves the original case).
+      const recognized = alpha != null && numeric != null && String(alpha) !== String(numeric);
+      let desc: string;
+      if (recognized) {
+        const codeStr = String(codeDisplayMode === 'NUMERIC' ? numeric : alpha);
+        const remainder = feature.properties.codeText != null ? String(feature.properties.codeText) : '';
+        desc = [codeStr, remainder].filter((s) => s.trim()).join(' ');
+        if (!desc) desc = String(feature.properties.description ?? '');
+      } else {
+        desc = String(feature.properties.description ?? feature.properties.code ?? '');
+      }
       if (desc) {
         result.push(addOrKeep('POINT_DESCRIPTION', desc, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointDescriptionTextStyle'));
         yStep -= 12;

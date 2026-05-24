@@ -913,7 +913,7 @@ export default function CADLayout() {
       {showPointTable && (
         <div className="h-48 border-t border-gray-700 shrink-0 animate-[slideInUp_200ms_cubic-bezier(0.16,1,0.3,1)]">
           <PointTablePanel
-            codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'ALPHA'}
+            codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'NUMERIC'}
             onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}
           />
         </div>

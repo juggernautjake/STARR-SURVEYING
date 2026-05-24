@@ -3,6 +3,7 @@ import { parseCSV } from '@/lib/cad/import/csv-parser';
 import { processImport } from '@/lib/cad/import/import-pipeline';
 import { DEFAULT_CSV_CONFIG } from '@/lib/cad/import/types';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
+import { useDrawingStore } from '@/lib/cad/store';
 import { DEFAULT_LAYER_DISPLAY_PREFERENCES, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import type { Feature, Layer, SurveyPoint } from '@/lib/cad/types';
 
@@ -26,6 +27,8 @@ function featureProps(pt: SurveyPoint) {
     pointId: pt.id,
     pointName: pt.pointName,
     code: pt.resolvedAlphaCode,
+    codeNumeric: pt.resolvedNumericCode,
+    codeText: pt.description ?? '',
     description:
       [pt.rawCode, pt.description]
         .map((s) => (s == null ? '' : String(s).trim()))
@@ -91,16 +94,27 @@ describe('survey CSV: point name + full description extraction', () => {
     }
   });
 
-  it('produces a POINT_NAME and POINT_DESCRIPTION label per point', () => {
+  it('produces a POINT_NAME and numeric POINT_DESCRIPTION label by default', () => {
+    useDrawingStore.getState().updateSettings({ codeDisplayMode: 'NUMERIC' });
     const pt = byName.get('21fnd')!;
     const labels = generateLabelsForFeature(pointFeature(pt), labelLayer, DEFAULT_DISPLAY_PREFERENCES);
     const name = labels.find((l) => l.kind === 'POINT_NAME');
     const desc = labels.find((l) => l.kind === 'POINT_DESCRIPTION');
     expect(name?.text).toBe('21fnd');
-    expect(desc?.text).toBe('310 ACS');
+    expect(desc?.text).toBe('310 ACS'); // numeric code 310 + remainder
+  });
+
+  it('switches the description code to alpha when codeDisplayMode = ALPHA', () => {
+    useDrawingStore.getState().updateSettings({ codeDisplayMode: 'ALPHA' });
+    const pt = byName.get('21fnd')!; // numeric 310 ↔ alpha BC03
+    const labels = generateLabelsForFeature(pointFeature(pt), labelLayer, DEFAULT_DISPLAY_PREFERENCES);
+    const desc = labels.find((l) => l.kind === 'POINT_DESCRIPTION');
+    expect(desc?.text).toBe('BC03 ACS');
+    useDrawingStore.getState().updateSettings({ codeDisplayMode: 'NUMERIC' }); // reset
   });
 
   it('shows long / unrecognized descriptions in full', () => {
+    useDrawingStore.getState().updateSettings({ codeDisplayMode: 'NUMERIC' });
     const pt = byName.get('208')!;
     const labels = generateLabelsForFeature(pointFeature(pt), labelLayer, DEFAULT_DISPLAY_PREFERENCES);
     const desc = labels.find((l) => l.kind === 'POINT_DESCRIPTION');

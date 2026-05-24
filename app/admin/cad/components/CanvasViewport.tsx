@@ -917,6 +917,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
   }, [activeTool]);
 
+  // Switch the on-canvas point code between numeric ("308") and alpha
+  // ("BC01") when the document's codeDisplayMode changes — regenerate the
+  // affected POINT labels so the change shows immediately.
+  const codeDisplayMode = drawingStore.document.settings.codeDisplayMode;
+  useEffect(() => {
+    const dStore = useDrawingStore.getState();
+    const doc = dStore.document;
+    const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
+    for (const feature of Object.values(doc.features)) {
+      if (feature.type !== 'POINT') continue;
+      if (!feature.textLabels || feature.textLabels.length === 0) continue;
+      const layer = doc.layers[feature.layerId];
+      if (!layer) continue;
+      dStore.setFeatureTextLabels(feature.id, generateLabelsForFeature(feature, layer, prefs));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeDisplayMode]);
+
   // Auto-finish curved line when switching tools (including clicking curved line tool again)
   const prevToolRef = useRef(activeTool);
   useEffect(() => {
