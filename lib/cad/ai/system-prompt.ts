@@ -52,6 +52,12 @@ export interface ProjectContext {
    *  but we surface the catalogue here so Claude can cite the
    *  uploaded docs by name in its reasoning. */
   referenceDocs?: Array<{ name: string; kind: 'DEED' | 'PLAT' | 'SKETCH' | 'PRIOR_DRAWING' | 'OTHER' }>;
+  /** Existing survey points so the model can resolve references by
+   *  name/number (e.g. "500", "528") and compute new geometry from real
+   *  coordinates. `x` is Easting, `y` is Northing, in US survey feet. */
+  points?: Array<{ name: string; x: number; y: number; code?: string }>;
+  /** Existing straight LINE features, by endpoint, for spatial context. */
+  lines?: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }>;
 }
 
 /** Build the system prompt string. Pure — no side effects, so
@@ -74,6 +80,15 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
     .map((d) => `  - ${d.kind}: ${d.name}`)
     .join('\n');
 
+  const pts = ctx.points ?? [];
+  const pointLines = pts
+    .map((p) => `  - ${p.name}: (${p.x.toFixed(3)}, ${p.y.toFixed(3)})${p.code ? ` [${p.code}]` : ''}`)
+    .join('\n');
+  const lineFeatures = ctx.lines ?? [];
+  const lineSummary = lineFeatures
+    .map((l) => `  - (${l.from.x.toFixed(2)}, ${l.from.y.toFixed(2)}) → (${l.to.x.toFixed(2)}, ${l.to.y.toFixed(2)})`)
+    .join('\n');
+
   return [
     'You are STARR CAD\'s drawing assistant for licensed Texas land surveyors.',
     'You help build technical survey drawings by calling typed tools. You never',
@@ -87,6 +102,12 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
     layerLines || '  (none — call createLayer first)',
     '',
     `Active layer (used when a tool arg omits layerId): ${ctx.activeLayerId}`,
+    '',
+    'Existing survey points (reference these by name/number; x = Easting, y = Northing, US feet):',
+    pts.length > 0 ? pointLines : '  (none)',
+    '',
+    lineFeatures.length > 0 ? 'Existing line features (endpoints):' : 'Existing line features: (none)',
+    lineFeatures.length > 0 ? lineSummary : '',
     '',
     'Previously-resolved point codes (surveyor already decided — re-use without re-asking):',
     resolutionEntries.length > 0 ? resolutionEntries : '  (none)',
@@ -113,6 +134,15 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
     '     drawLineBetween only when exactly two endpoints are involved.',
     '  6. Never delete or overwrite the surveyor\'s existing features —',
     '     additions only. Edits route through future tools (Slice 11+).',
+    '  7. When the surveyor names points (e.g. "500", "528 to 529"),',
+    '     resolve them from the Existing survey points list above. A',
+    '     "line A to B" means the segment between the points named A and B.',
+    '  8. For geometry you must compute — extending a line, a perpendicular',
+    '     foot, a point at a bearing/distance, an intersection, a parallel',
+    '     offset — call the matching calc* solver tool with the resolved',
+    '     coordinates, then addPoint / drawLineBetween to place the result.',
+    '     Show the computed coordinate + bearing/distance in plain text so',
+    '     the surveyor can sanity-check before approving.',
   ].join('\n');
 }
 

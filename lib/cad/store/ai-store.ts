@@ -564,10 +564,31 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     if (trimmed.length === 0) return;
     const drawing = useDrawingStore.getState();
     const ai = get();
+    // Feed the existing points + lines so the model can resolve named
+    // references ("500", "528") and compute new geometry from real
+    // coordinates. Capped to keep the prompt bounded on large surveys.
+    const allFeatures = Object.values(drawing.document.features);
+    const points = allFeatures
+      .filter((f) => f.geometry.type === 'POINT' && f.geometry.point)
+      .slice(0, 1500)
+      .map((f) => ({
+        name: String(
+          f.properties.pointName ?? f.properties.name ?? f.properties.pointNumber ?? f.id,
+        ),
+        x: f.geometry.point!.x,
+        y: f.geometry.point!.y,
+        code: f.properties.code != null ? String(f.properties.code) : undefined,
+      }));
+    const lines = allFeatures
+      .filter((f) => f.geometry.type === 'LINE' && f.geometry.start && f.geometry.end)
+      .slice(0, 500)
+      .map((f) => ({ from: f.geometry.start!, to: f.geometry.end! }));
     const context = {
       layers: Object.values(drawing.document.layers)
         .filter((l) => !l.name.startsWith('SURVEY-INFO'))
         .map((l) => ({ id: l.id, name: l.name, color: l.color })),
+      points,
+      lines,
       activeLayerId: drawing.activeLayerId,
       mode: ai.mode,
       sandboxDefault: ai.sandbox,
