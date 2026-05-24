@@ -11,6 +11,7 @@ import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import JobFileManager from '../../components/jobs/JobFileManager';
 import JobEquipmentList from '../../components/jobs/JobEquipmentList';
 import JobResearchPanel from '../../components/jobs/JobResearchPanel';
+import JobCadPanel from '../../components/jobs/JobCadPanel';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
@@ -61,6 +62,7 @@ interface Job {
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📋', tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
   { key: 'research', label: 'Research', icon: '🔍', tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
+  { key: 'cad', label: 'CAD', icon: '📐', tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
   { key: 'fieldwork', label: 'Field Work', icon: '🏗️', tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
   { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, images, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
   { key: 'financial', label: 'Financial', icon: '💰', tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
@@ -507,6 +509,10 @@ export default function JobDetailPage() {
             onAdd={addResearch}
             onDelete={deleteResearch}
           />
+        )}
+
+        {activeTab === 'cad' && (
+          <JobCadPanel jobId={jobId} jobName={job.name} />
         )}
 
         {activeTab === 'fieldwork' && (

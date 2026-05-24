@@ -175,6 +175,52 @@ export default function CADLayout() {
 
   // On mount: check for a pending RECON import, then check IndexedDB for a crash-recovery autosave
   useEffect(() => {
+    // ── Job-workspace deep link (JOB_WORKSPACE_BUILDOUT slice A) ────────────
+    // /admin/cad?drawing=<id>  → load that saved drawing.
+    // /admin/cad?job=<id>      → start a drawing pre-linked to the job;
+    //                            the param is read by SaveToDBDialog on save.
+    // Either param suppresses the New Drawing startup dialog.
+    const cadParams = new URLSearchParams(window.location.search);
+    const deepLinkDrawingId = cadParams.get('drawing');
+    const deepLinkJobId = cadParams.get('job');
+    if (deepLinkDrawingId) {
+      (async () => {
+        try {
+          const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(deepLinkDrawingId)}`);
+          if (!res.ok) throw new Error(`Failed to load drawing (${res.status})`);
+          const { drawing } = await res.json() as { drawing: { document: { document?: unknown } | unknown; job_id?: string | null } };
+          // Stored payload is { version, application, document }. Unwrap.
+          const raw = (drawing.document as { document?: unknown })?.document ?? drawing.document;
+          const doc = validateAndMigrateDocument(raw as Parameters<typeof validateAndMigrateDocument>[0]);
+          drawingStore.loadDocument(doc);
+          selectionStore.deselectAll();
+          undoStore.clear();
+          // Keep the editor's save aware of the drawing id + job link so
+          // re-saves update the same row and preserve the job.
+          if (drawing.job_id && !deepLinkJobId) {
+            const u = new URL(window.location.href);
+            u.searchParams.set('job', drawing.job_id);
+            window.history.replaceState(null, '', u.toString());
+          }
+          cadLog.info('JobLink', `Loaded job drawing ${deepLinkDrawingId}`);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+        } catch (err) {
+          cadLog.error('JobLink', 'Failed to load deep-linked drawing', err);
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `Could not load drawing ${deepLinkDrawingId}. It may have been deleted.` },
+          }));
+        }
+      })();
+      return; // Skip RECON / Compass / autosave flows for a deep-linked load
+    }
+    if (deepLinkJobId) {
+      // New drawing for a job — let the user set it up via the normal
+      // startup dialog, but skip autosave recovery. The job param stays
+      // in the URL for SaveToDBDialog to read on save.
+      if (drawingStore.document.layerOrder.length === 0) setShowNewDrawingDialog(true);
+      return;
+    }
+
     // ── RECON → CAD import ──────────────────────────────────────────────────
     // When the user clicks "Open in CAD Editor" in the RECON research interface,
     // the converted DrawingDocument is stored in localStorage under this key.
