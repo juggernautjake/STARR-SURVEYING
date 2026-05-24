@@ -13,6 +13,7 @@ import JobEquipmentList from '../../components/jobs/JobEquipmentList';
 import JobResearchPanel from '../../components/jobs/JobResearchPanel';
 import JobCadPanel from '../../components/jobs/JobCadPanel';
 import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
+import InlineEditField from '../../components/jobs/InlineEditField';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
@@ -108,6 +109,30 @@ export default function JobDetailPage() {
   }, [jobId, reportPageError]);
 
   useEffect(() => { loadJob(); }, [loadJob]);
+
+  // Inline-edit save: PUT the single changed field, then patch local
+  // state so the UI reflects it without a full reload. Throws on
+  // failure so InlineEditField can surface the message + roll back.
+  const saveField = useCallback(async (field: string, value: string) => {
+    // Coerce types the API expects.
+    let payloadValue: string | number | boolean | null = value;
+    if (field === 'acreage' || field === 'quote_amount') {
+      payloadValue = value.trim() === '' ? null : Number(value);
+      if (payloadValue !== null && !Number.isFinite(payloadValue)) throw new Error('Enter a number.');
+    } else if (field === 'is_priority') {
+      payloadValue = value === 'true';
+    } else if (value.trim() === '') {
+      payloadValue = null;
+    }
+    const res = await fetch('/api/admin/jobs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: jobId, [field]: payloadValue }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Save failed (${res.status})`);
+    setJob((prev) => (prev ? { ...prev, [field]: payloadValue as never } : prev));
+  }, [jobId]);
 
   // Load tab-specific data on tab change
   useEffect(() => {
@@ -465,47 +490,50 @@ export default function JobDetailPage() {
             </div>
             <div className="job-detail__overview-grid">
               <div className="job-detail__overview-main">
-                {/* Description */}
-                {job.description && (
-                  <div className="job-detail__section">
-                    <h3>Description</h3>
-                    <p>{job.description}</p>
-                  </div>
-                )}
+                {/* Description — click to edit */}
+                <div className="job-detail__section">
+                  <h3>Description</h3>
+                  <p>
+                    <InlineEditField value={job.description} type="textarea" ariaLabel="description"
+                      emptyLabel="Add a description…" onSave={(v) => saveField('description', v)} />
+                  </p>
+                </div>
 
-                {/* Property Details */}
+                {/* Property Details — click to edit */}
                 <div className="job-detail__section">
                   <h3>Property Details</h3>
                   <div className="job-detail__props">
-                    {job.address && <div className="job-detail__prop"><strong>Address:</strong> {job.address}{job.city && `, ${job.city}`}{job.state && `, ${job.state}`} {job.zip}</div>}
-                    {job.county && <div className="job-detail__prop"><strong>County:</strong> {job.county}</div>}
-                    {job.lot_number && <div className="job-detail__prop"><strong>Lot:</strong> {job.lot_number}</div>}
-                    {job.subdivision && <div className="job-detail__prop"><strong>Subdivision:</strong> {job.subdivision}</div>}
-                    {job.abstract_number && <div className="job-detail__prop"><strong>Abstract:</strong> {job.abstract_number}</div>}
-                    {job.acreage && <div className="job-detail__prop"><strong>Acreage:</strong> {job.acreage}</div>}
+                    <div className="job-detail__prop"><strong>Address:</strong> <InlineEditField value={job.address} ariaLabel="address" emptyLabel="Add address" onSave={(v) => saveField('address', v)} /></div>
+                    <div className="job-detail__prop"><strong>City:</strong> <InlineEditField value={job.city} ariaLabel="city" emptyLabel="Add city" onSave={(v) => saveField('city', v)} /></div>
+                    <div className="job-detail__prop"><strong>State:</strong> <InlineEditField value={job.state} ariaLabel="state" emptyLabel="Add state" onSave={(v) => saveField('state', v)} /></div>
+                    <div className="job-detail__prop"><strong>ZIP:</strong> <InlineEditField value={job.zip} ariaLabel="zip" emptyLabel="Add ZIP" onSave={(v) => saveField('zip', v)} /></div>
+                    <div className="job-detail__prop"><strong>County:</strong> <InlineEditField value={job.county} ariaLabel="county" emptyLabel="Add county" onSave={(v) => saveField('county', v)} /></div>
+                    <div className="job-detail__prop"><strong>Lot:</strong> <InlineEditField value={job.lot_number} ariaLabel="lot" emptyLabel="Add lot" onSave={(v) => saveField('lot_number', v)} /></div>
+                    <div className="job-detail__prop"><strong>Subdivision:</strong> <InlineEditField value={job.subdivision} ariaLabel="subdivision" emptyLabel="Add subdivision" onSave={(v) => saveField('subdivision', v)} /></div>
+                    <div className="job-detail__prop"><strong>Abstract:</strong> <InlineEditField value={job.abstract_number} ariaLabel="abstract" emptyLabel="Add abstract" onSave={(v) => saveField('abstract_number', v)} /></div>
+                    <div className="job-detail__prop"><strong>Acreage:</strong> <InlineEditField value={job.acreage} type="number" ariaLabel="acreage" emptyLabel="Add acreage" onSave={(v) => saveField('acreage', v)} /></div>
                   </div>
                 </div>
 
-                {/* Client */}
-                {job.client_name && (
-                  <div className="job-detail__section">
-                    <h3>Client</h3>
-                    <div className="job-detail__props">
-                      <div className="job-detail__prop"><strong>Name:</strong> {job.client_name}</div>
-                      {job.client_email && <div className="job-detail__prop"><strong>Email:</strong> {job.client_email}</div>}
-                      {job.client_phone && <div className="job-detail__prop"><strong>Phone:</strong> {job.client_phone}</div>}
-                      {job.client_company && <div className="job-detail__prop"><strong>Company:</strong> {job.client_company}</div>}
-                    </div>
+                {/* Client — click to edit */}
+                <div className="job-detail__section">
+                  <h3>Client</h3>
+                  <div className="job-detail__props">
+                    <div className="job-detail__prop"><strong>Name:</strong> <InlineEditField value={job.client_name} ariaLabel="client name" emptyLabel="Add client name" onSave={(v) => saveField('client_name', v)} /></div>
+                    <div className="job-detail__prop"><strong>Email:</strong> <InlineEditField value={job.client_email} type="email" ariaLabel="client email" emptyLabel="Add email" onSave={(v) => saveField('client_email', v)} /></div>
+                    <div className="job-detail__prop"><strong>Phone:</strong> <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} /></div>
+                    <div className="job-detail__prop"><strong>Company:</strong> <InlineEditField value={job.client_company} ariaLabel="client company" emptyLabel="Add company" onSave={(v) => saveField('client_company', v)} /></div>
                   </div>
-                )}
+                </div>
 
-                {/* Notes */}
-                {job.notes && (
-                  <div className="job-detail__section">
-                    <h3>Notes</h3>
-                    <p>{job.notes}</p>
-                  </div>
-                )}
+                {/* Notes — click to edit */}
+                <div className="job-detail__section">
+                  <h3>Notes</h3>
+                  <p>
+                    <InlineEditField value={job.notes} type="textarea" ariaLabel="notes"
+                      emptyLabel="Add notes…" onSave={(v) => saveField('notes', v)} />
+                  </p>
+                </div>
 
                 {/* Checklist */}
                 <JobChecklist

@@ -881,6 +881,38 @@
   transform: translateY(-1px);
 }
 
+/* Inline edit (JOB_WORKSPACE_BUILDOUT D) */
+.inline-edit {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.05rem 0.2rem;
+  transition: background 0.12s;
+  white-space: pre-wrap;
+}
+.inline-edit:hover { background: var(--color-bg-subtle, #eef0f4); }
+.inline-edit:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); }
+.inline-edit--empty { color: var(--color-text-tertiary, #94a3b8); font-style: italic; }
+.inline-edit__pencil { opacity: 0; font-size: 0.75em; color: var(--color-text-tertiary, #94a3b8); }
+.inline-edit:hover .inline-edit__pencil { opacity: 1; }
+.inline-edit--active { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.inline-edit__input {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--color-brand-navy, #1D3095);
+  border-radius: 4px;
+  min-width: 8rem;
+  max-width: 100%;
+}
+.inline-edit__actions { display: inline-flex; gap: 0.25rem; }
+.inline-edit__btn {
+  font: inherit; font-size: 0.75rem; padding: 0.2rem 0.5rem;
+  border: 1px solid var(--color-border, #cbd5e1); border-radius: 4px;
+  background: #fff; cursor: pointer;
+}
+.inline-edit__btn--save { background: var(--color-brand-navy, #1D3095); color: #fff; border-color: var(--color-brand-navy, #1D3095); }
+.inline-edit__status { font-size: 0.75rem; color: var(--color-text-tertiary, #94a3b8); }
+.inline-edit__error { font-size: 0.75rem; color: #DC2626; }
+
 /* Detail Content */
 .job-detail__content {
   background: #fff;
