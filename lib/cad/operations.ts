@@ -2648,6 +2648,91 @@ export function splitFeatureAt(featureId: string, worldPt: Point2D): boolean {
 }
 
 /**
+ * Delete the single segment of a LINE / POLYLINE / POLYGON nearest the
+ * given world point. A LINE is removed outright. A POLYLINE drops the
+ * clicked edge, splitting it into the (up to two) remaining runs. A
+ * POLYGON opens at the clicked edge into one polyline. Returns true when
+ * something was deleted. Lets a surveyor quickly trim one bad edge out of
+ * a chain without exploding the whole feature.
+ */
+export function deleteSegmentAt(featureId: string, worldPt: Point2D): boolean {
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const selectionStore = useSelectionStore.getState();
+  const f = drawingStore.getFeature(featureId);
+  if (!f) return false;
+  const g = f.geometry;
+
+  // A LINE is a single segment — deleting it removes the feature.
+  if (g.type === 'LINE') {
+    drawingStore.removeFeature(featureId);
+    undoStore.pushUndo(makeBatchEntry('Delete segment', [{ type: 'REMOVE_FEATURE', data: f }]));
+    selectionStore.deselectAll();
+    return true;
+  }
+
+  if ((g.type !== 'POLYLINE' && g.type !== 'POLYGON') || !g.vertices || g.vertices.length < 2) {
+    return false;
+  }
+  const chain = g.vertices;
+  const isClosed = g.type === 'POLYGON';
+  const segCount = isClosed ? chain.length : chain.length - 1;
+
+  let bestDist = Infinity;
+  let segIdx = -1;
+  for (let i = 0; i < segCount; i += 1) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    const cp = closestPointOnSegment(worldPt, a, b);
+    const d = Math.hypot(worldPt.x - cp.point.x, worldPt.y - cp.point.y);
+    if (d < bestDist) { bestDist = d; segIdx = i; }
+  }
+  if (segIdx < 0) return false;
+
+  const cloneStyle = (): typeof f.style => JSON.parse(JSON.stringify(f.style));
+  const cloneProps = (): typeof f.properties => {
+    const p = JSON.parse(JSON.stringify(f.properties));
+    // The split pieces are independent features, not a polyline group.
+    delete (p as Record<string, unknown>).polylineGroupId;
+    return p;
+  };
+  const mkPolyline = (verts: Point2D[]): Feature => ({
+    ...f,
+    id: generateId(),
+    type: 'POLYLINE',
+    style: cloneStyle(),
+    properties: cloneProps(),
+    geometry: { type: 'POLYLINE', vertices: verts },
+    textLabels: undefined,
+  });
+
+  const newFeatures: Feature[] = [];
+  if (isClosed) {
+    // Opening a polygon at segIdx: walk the remaining edges from the far
+    // endpoint of the cut all the way around to the near endpoint.
+    const opened: Point2D[] = [];
+    for (let k = 1; k <= chain.length; k += 1) {
+      opened.push(chain[(segIdx + k) % chain.length]);
+    }
+    if (opened.length >= 2) newFeatures.push(mkPolyline(opened));
+  } else {
+    const left = chain.slice(0, segIdx + 1);
+    const right = chain.slice(segIdx + 1);
+    if (left.length >= 2) newFeatures.push(mkPolyline(left));
+    if (right.length >= 2) newFeatures.push(mkPolyline(right));
+  }
+
+  drawingStore.removeFeature(featureId);
+  if (newFeatures.length > 0) drawingStore.addFeatures(newFeatures);
+  undoStore.pushUndo(makeBatchEntry('Delete segment', [
+    { type: 'REMOVE_FEATURE', data: f },
+    ...newFeatures.map((nf) => ({ type: 'ADD_FEATURE' as const, data: nf })),
+  ]));
+  selectionStore.selectMultiple(newFeatures.map((nf) => nf.id), 'REPLACE');
+  return true;
+}
+
+/**
  * Build a polar array of the current selection. `count` is
  * the total number of copies including the original. Copies
  * are placed evenly across `angleSpanDeg` (CCW positive,

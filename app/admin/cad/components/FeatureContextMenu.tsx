@@ -58,6 +58,8 @@ import {
   simplifyPolylineFeature,
   divideFeatureBy,
   transferSelectionToLayer,
+  deleteSegmentAt,
+  splitFeatureAt,
 } from '@/lib/cad/operations';
 import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 import { generateId } from '@/lib/cad/types';
@@ -475,6 +477,25 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
                     });
                   }
                 },
+              } as MenuItemDef,
+            ]
+          : []),
+        // Segment-level edits — quickly split or delete the individual
+        // edge under the cursor on a LINE / POLYLINE / POLYGON.
+        ...((feature.geometry.type === 'LINE' || feature.geometry.type === 'POLYLINE' || feature.geometry.type === 'POLYGON')
+          ? [
+              {
+                id: 'split-here',
+                label: 'Split here',
+                icon: <Slash size={12} />,
+                action: () => { splitFeatureAt(feature.id, { x: worldX, y: worldY }); },
+              } as MenuItemDef,
+              {
+                id: 'delete-segment',
+                label: 'Delete segment',
+                icon: <Trash2 size={12} />,
+                danger: true,
+                action: () => { deleteSegmentAt(feature.id, { x: worldX, y: worldY }); },
               } as MenuItemDef,
             ]
           : []),
