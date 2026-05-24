@@ -1789,14 +1789,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const { sx, sy } = w2s(img.position.x, img.position.y);
       sprite.position.set(sx, sy);
 
-      // Scale: world dimensions → screen pixels
+      // Scale: world dimensions → screen pixels. With the bottom-left
+      // anchor (0,1) at the image's world bottom-left, a POSITIVE y
+      // scale draws the image upright extending UP from the anchor —
+      // i.e. occupying screen rows [sy - hPx, sy], exactly where the
+      // selection frame + grips are drawn. The previous -scaleY pushed
+      // the image one full height BELOW its frame (and flipped it).
       const wPx = img.width * zoom;
       const hPx = img.height * zoom;
       const scaleX = wPx / (texture.width || 1);
       const scaleY = hPx / (texture.height || 1);
       sprite.scale.set(
         img.mirrorX ? -scaleX : scaleX,
-        img.mirrorY ? scaleY : -scaleY, // y inverted because screen y is down, world y is up
+        img.mirrorY ? -scaleY : scaleY,
       );
 
       // Rotation: world CCW positive → screen CW positive (invert)
