@@ -146,6 +146,32 @@ export default function LayerPanel() {
     setContextMenu(null);
   }
 
+  function handleDuplicateLayer(layerId: string) {
+    const src = doc.layers[layerId];
+    if (!src) return;
+    // New layer inherits the source's style/visibility, then receives a
+    // copy of every feature on the source layer (originals untouched).
+    const newId = generateId();
+    const newLayer: Layer = { ...src, id: newId, name: `${src.name} copy`, isDefault: false };
+    store.addLayer(newLayer);
+    const ids = Object.values(doc.features)
+      .filter((f) => f.layerId === layerId)
+      .map((f) => f.id);
+    if (ids.length > 0) {
+      transferSelectionToLayer(ids, newId, {
+        keepOriginals: true,
+        renumberStart: null,
+        stripUnknownCodes: false,
+        codeMap: null,
+        targetTraverseId: null,
+        offset: null,
+        bringAlongLinkedGeometry: false,
+        transferOperationId: generateId(),
+      });
+    }
+    setContextMenu(null);
+  }
+
   function handleChangeColor(layerId: string) {
     setContextMenu(null);
     // Create a temporary color input
@@ -702,6 +728,12 @@ export default function LayerPanel() {
             }}
           >
             Select all in layer
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => handleDuplicateLayer(contextMenu.layerId)}
+          >
+            Duplicate layer
           </button>
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
