@@ -641,6 +641,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const isPanningRef = useRef(false);
   const isSpaceDownRef = useRef(false);
   const isMiddleMouseRef = useRef(false);
+  // Screen position of the last pointer-down, used to tell a click
+  // (deselect) from a drag (pan) in the PAN tool.
+  const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
   // Phase 8 §11.6 — true while the IntersectDialog has a slot
@@ -7407,6 +7410,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       lastMouseRef.current = { x: sx, y: sy };
+      mouseDownPosRef.current = { x: sx, y: sy };
 
       // Middle mouse or Space+left → start panning
       if (e.button === 1 || (e.button === 0 && isSpaceDownRef.current)) {
@@ -9717,10 +9721,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
-      // PAN tool: stop panning
+      // PAN tool: stop panning. A click that didn't drag (no real
+      // movement) on empty canvas clears the current selection —
+      // panning itself never touches the selection, but the surveyor
+      // still expects "click off to deselect" to work while panning.
       if (toolState.activeTool === 'PAN') {
         isPanningRef.current = false;
         setCursorStyle('grab');
+        const down = mouseDownPosRef.current;
+        const moved = down ? Math.hypot(sx - down.x, sy - down.y) : 0;
+        if (moved < 4 && !hitTest(sx, sy) && selectionStore.selectedIds.size > 0) {
+          selectionStore.deselectAll();
+        }
         return;
       }
 
