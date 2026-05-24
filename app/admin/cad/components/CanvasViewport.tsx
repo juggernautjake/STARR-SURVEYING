@@ -709,6 +709,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const featureIndexCacheRef = useRef<
     | (ReturnType<typeof buildFeatureIndex> & {
         featuresById: Record<string, Feature>;
+        // Layer map identity is part of the key: toggling a layer's
+        // visibility rebuilds `document.layers` (not `document.features`),
+        // and the index is built from the *visible* feature set, so it
+        // must rebuild when visibility changes — otherwise a layer hidden
+        // then re-shown stays culled out (its features are absent from a
+        // stale index).
+        layersById: Record<string, unknown>;
       })
     | null
   >(null);
@@ -1476,7 +1483,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // index lookup is sub-millisecond at every realistic
     // zoom level so big drawings stop paying the O(n) cost
     // on each render.
-    const indexCache = ensureFeatureIndex(visibleFeatures, doc.features);
+    const indexCache = ensureFeatureIndex(visibleFeatures, doc.features, doc.layers);
     const viewportBBox = computeViewportWorldBBox();
     const culledFeatures = viewportBBox
       ? cullFeaturesWithIndex(
@@ -1564,14 +1571,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
    *  zoom so the per-frame cost is one Map lookup. */
   function ensureFeatureIndex(
     visibleFeatures: ReadonlyArray<Feature>,
-    featuresById: Record<string, Feature>
+    featuresById: Record<string, Feature>,
+    layersById: Record<string, unknown>
   ) {
     const cache = featureIndexCacheRef.current;
-    if (cache && cache.featuresById === featuresById) {
+    // Rebuild when either the feature map OR the layer map changes —
+    // the latter covers layer visibility toggles (hide → re-show).
+    if (cache && cache.featuresById === featuresById && cache.layersById === layersById) {
       return cache;
     }
     const next = buildFeatureIndex(visibleFeatures);
-    const stamped = { ...next, featuresById };
+    const stamped = { ...next, featuresById, layersById };
     featureIndexCacheRef.current = stamped;
     return stamped;
   }
@@ -2776,7 +2786,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // when they leave the viewport (which would churn during
     // pan).
     const docNow = useDrawingStore.getState().document;
-    const indexCache = ensureFeatureIndex(layerVisibleFeatures, docNow.features);
+    const indexCache = ensureFeatureIndex(layerVisibleFeatures, docNow.features, docNow.layers);
     const viewportBBox = computeViewportWorldBBox();
     const visibleFeatures = viewportBBox
       ? cullFeaturesWithIndex(
@@ -6904,7 +6914,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // an O(n) → O(cell footprint) speedup.
     const indexCache = ensureFeatureIndex(
       layerVisible,
-      drawingStore.document.features
+      drawingStore.document.features,
+      drawingStore.document.layers
     );
     const queryBox: LodBoundingBox = {
       minX: wx - worldTol,
@@ -7473,7 +7484,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const layerVisible = drawingStore.getVisibleFeatures();
       const indexCache = ensureFeatureIndex(
         layerVisible,
-        drawingStore.document.features
+        drawingStore.document.features,
+        drawingStore.document.layers
       );
       const worldRadius = settings.snapRadius / Math.max(0.0001, viewportStore.zoom);
       const queryBox: LodBoundingBox = {
