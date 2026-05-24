@@ -1760,10 +1760,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const projImg = (doc.projectImages ?? {})[img.imageId];
       if (!projImg) continue;
 
-      // Ensure texture exists (cached)
+      // Ensure texture exists (cached). Prefer the bucket URL; fall
+      // back to the inline data URL for legacy drawings.
       if (!pixi.imageTextures.has(img.imageId)) {
         try {
-          const tex = pixi.TextureClass.from(projImg.dataUrl);
+          const src = projImg.url ?? projImg.dataUrl;
+          if (!src) continue;
+          const tex = pixi.TextureClass.from(src);
           pixi.imageTextures.set(img.imageId, tex);
         } catch {
           continue;

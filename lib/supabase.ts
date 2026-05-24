@@ -25,6 +25,12 @@ export const RESEARCH_DOCUMENTS_BUCKET = 'research-documents';
 // upload modal on the maintenance event detail page.
 export const MAINTENANCE_DOCUMENTS_BUCKET = 'maintenance-documents';
 
+// CAD survey images bucket — aerial/plat raster images placed into CAD
+// drawings. Keeping the bytes here (referenced by public URL) instead of
+// inlining base64 in the drawing JSONB keeps image-heavy surveys small and
+// fast to save/load. Provisioned by seeds/290 or auto-created on first use.
+export const CAD_IMAGES_BUCKET = 'cad-images';
+
 // In-memory set of bucket names that have been verified to exist in this
 // process lifetime.  Avoids redundant Supabase calls on every upload.
 const _verifiedBuckets = new Set<string>();

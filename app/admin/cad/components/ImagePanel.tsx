@@ -6,7 +6,7 @@
 import { useState, useCallback } from 'react';
 import { X, Trash2, ImageIcon, Eye, EyeOff, Info, Download } from 'lucide-react';
 import { useDrawingStore, useSelectionStore } from '@/lib/cad/store';
-import type { ProjectImage } from '@/lib/cad/types';
+import { type ProjectImage, projectImageSrc } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
 
 interface Props {
@@ -42,7 +42,10 @@ function ImageThumbnail({
   onPlace: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const approxBytes = estimateDataUrlSize(image.dataUrl);
+  const imgSrc = projectImageSrc(image);
+  // Only inline data URLs have a meaningful byte estimate; bucket-backed
+  // images report 0 here (their size lives server-side).
+  const approxBytes = image.dataUrl ? estimateDataUrlSize(image.dataUrl) : 0;
 
   return (
     <div
@@ -61,7 +64,7 @@ function ImageThumbnail({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={image.dataUrl}
+        src={imgSrc}
         alt={image.name}
         className="w-full h-full object-cover bg-gray-900"
         draggable={false}
@@ -121,11 +124,12 @@ export default function ImagePanel({ open, onClose, onPlaceImage }: Props) {
   );
 
   const handleDownload = useCallback((image: ProjectImage) => {
+    const src = projectImageSrc(image);
     const a = Object.assign(document.createElement('a'), {
-      href: image.dataUrl,
-      download: image.name + (image.dataUrl.startsWith('data:image/png') ? '.png'
-        : image.dataUrl.startsWith('data:image/jpeg') ? '.jpg'
-        : image.dataUrl.startsWith('data:image/svg') ? '.svg'
+      href: src,
+      download: image.name + (src.includes('image/png') || src.endsWith('.png') ? '.png'
+        : src.includes('image/jpeg') || src.endsWith('.jpg') ? '.jpg'
+        : src.includes('image/svg') || src.endsWith('.svg') ? '.svg'
         : '.img'),
     });
     a.click();
