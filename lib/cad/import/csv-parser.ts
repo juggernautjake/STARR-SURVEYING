@@ -11,6 +11,12 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
 
   cadLog.info('CSVParser', `Parsing CSV: ${lines.length} total lines, start row ${startRow}, delimiter "${config.delimiter}"`);
 
+  // Synthetic, always-unique numbers for points whose NAME isn't
+  // numeric (e.g. "Temp0000", "MON1"). Negative so they never collide
+  // with real point numbers and cluster together when sorting by #.
+  // The display name (pointName) keeps the raw string regardless.
+  let syntheticSeq = -1;
+
   for (let i = startRow; i < lines.length; i++) {
     const line = lines[i];
     const cols = splitLine(line, config.delimiter);
@@ -29,15 +35,22 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
       continue;
     }
 
-    const ptNum = parseInt(cols[config.columns.pointNumber]);
+    const rawName = cols[config.columns.pointNumber]?.trim() ?? '';
+    // Point names are commonly alphanumeric ("20fnd", "Temp0000",
+    // "23set"). Keep the raw name; derive a numeric pointNumber from
+    // any leading digits, else assign a synthetic unique number.
+    // A non-numeric NAME must NOT drop the point — only invalid
+    // coordinates do.
+    const leadingDigits = rawName.match(/^\d+/);
+    const ptNum = leadingDigits ? parseInt(leadingDigits[0], 10) : syntheticSeq--;
     const rawN = parseFloat(cols[config.columns.northing]);
     const rawE = parseFloat(cols[config.columns.easting]);
     const z = config.columns.elevation >= 0 ? parseFloat(cols[config.columns.elevation]) : null;
     const desc = cols[config.columns.description]?.trim() ?? '';
 
-    if (isNaN(ptNum) || isNaN(rawN) || isNaN(rawE)) {
-      cadLog.warn('CSVParser', `Line ${i + 1}: invalid numeric value (ptNum=${ptNum}, N=${rawN}, E=${rawE}) — skipped`);
-      rows.push({ lineNumber: i + 1, rawLine: line, error: 'Invalid numeric value', data: null });
+    if (isNaN(rawN) || isNaN(rawE)) {
+      cadLog.warn('CSVParser', `Line ${i + 1}: invalid coordinate (N=${rawN}, E=${rawE}) — skipped`);
+      rows.push({ lineNumber: i + 1, rawLine: line, error: 'Invalid coordinate value', data: null });
       continue;
     }
 
@@ -45,7 +58,7 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
     const easting = config.coordinateOrder === 'NE' ? rawE : rawN;
 
     const { code, remainder } = extractCode(desc, config);
-    const pointName = cols[config.columns.pointNumber].trim();
+    const pointName = rawName;
 
     rows.push({
       lineNumber: i + 1,
