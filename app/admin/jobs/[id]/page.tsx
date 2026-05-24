@@ -14,6 +14,7 @@ import JobResearchPanel from '../../components/jobs/JobResearchPanel';
 import JobCadPanel from '../../components/jobs/JobCadPanel';
 import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
 import InlineEditField from '../../components/jobs/InlineEditField';
+import JobActivityFeed from '../../components/jobs/JobActivityFeed';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
@@ -69,6 +70,7 @@ const TABS = [
   { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
   { key: 'photos', label: 'Photos', icon: '📷', tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
   { key: 'financial', label: 'Financial', icon: '💰', tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
+  { key: 'activity', label: 'Activity', icon: '🕓', tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
   { key: 'messages', label: 'Messages', icon: '💬', tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
 ];
 
@@ -627,6 +629,10 @@ export default function JobDetailPage() {
               onAdd={addTimeEntry}
             />
           </div>
+        )}
+
+        {activeTab === 'activity' && (
+          <JobActivityFeed jobId={jobId} />
         )}
 
         {activeTab === 'messages' && (

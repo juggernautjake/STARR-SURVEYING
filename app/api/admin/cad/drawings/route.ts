@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 
 // ─── GET ────────────────────────────────────────────────────────────────────
 
@@ -127,6 +127,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Log to the job's activity feed when the drawing is job-linked.
+  if (data?.job_id) {
+    await fireAndForget(supabaseAdmin.from('activity_log').insert({
+      user_email: session.user.email,
+      action: 'cad_drawing_saved',
+      entity_type: 'job',
+      entity_id: data.job_id,
+      details: { name: data.name, drawing_id: data.id },
+    }));
   }
 
   return NextResponse.json({ drawing: data }, { status: 201 });
