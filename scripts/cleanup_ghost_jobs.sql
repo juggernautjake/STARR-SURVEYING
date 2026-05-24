@@ -30,7 +30,8 @@ SELECT
   -- advisory activity-log row only exists if the OLD buggy .catch
   -- line was reached without throwing (it always threw) — so ghosts
   -- from the bug typically have has_activity = false.
-  EXISTS (SELECT 1 FROM public.activity_log a WHERE a.entity_type = 'job' AND a.entity_id = j.id) AS has_activity
+  -- NB: activity_log.entity_id is text; jobs.id is uuid → cast.
+  EXISTS (SELECT 1 FROM public.activity_log a WHERE a.entity_type = 'job' AND a.entity_id = j.id::text) AS has_activity
 FROM public.jobs j
 WHERE j.org_id = '00000000-0000-0000-0000-000000000001'
   AND j.created_at >= now() - interval '3 days'
@@ -81,6 +82,8 @@ ORDER BY copies DESC, last_created DESC;
 -- DELETE FROM public.job_tags          WHERE job_id IN (SELECT id FROM doomed);
 -- WITH doomed AS (SELECT unnest(ARRAY['...']::uuid[]) AS id)
 -- DELETE FROM public.job_team          WHERE job_id IN (SELECT id FROM doomed);
+-- WITH doomed AS (SELECT unnest(ARRAY['...']::uuid[]) AS id)
+-- DELETE FROM public.activity_log      WHERE entity_type = 'job' AND entity_id IN (SELECT id::text FROM doomed);
 -- WITH doomed AS (SELECT unnest(ARRAY['...']::uuid[]) AS id)
 -- DELETE FROM public.jobs              WHERE id IN (SELECT id FROM doomed);
 
