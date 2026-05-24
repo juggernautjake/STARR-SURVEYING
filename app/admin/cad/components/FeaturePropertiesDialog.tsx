@@ -11,6 +11,7 @@ import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance } from '@/lib/cad/geometry/units';
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { setImageRotationAroundCenter } from '@/lib/cad/geometry/image';
+import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { parseLength } from '@/lib/cad/units';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -255,10 +256,24 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   }
 
   // ── Property editing ─────────────────────────────────────────────────────
-  function updateProperty(key: string, value: string) {    if (!feature) return;
-    drawingStore.updateFeature(featureId, {
-      properties: { ...feature.properties, [key]: value },
-    });
+  // Properties that feed point labels — editing any of these regenerates
+  // the feature's labels so the change shows on the drawing immediately.
+  const LABEL_PROPS = new Set(['name', 'pointName', 'pointNumber', 'description', 'code', 'elevation']);
+  function updateProperty(key: string, value: string) {
+    if (!feature) return;
+    const nextProps = { ...feature.properties, [key]: value };
+    drawingStore.updateFeature(featureId, { properties: nextProps });
+    if (LABEL_PROPS.has(key)) {
+      const layer = drawingStore.document.layers[feature.layerId];
+      if (layer) {
+        const labels = generateLabelsForFeature(
+          { ...feature, properties: nextProps },
+          layer,
+          drawingStore.document.settings.displayPreferences,
+        );
+        drawingStore.setFeatureTextLabels(featureId, labels);
+      }
+    }
   }
 
   // ── Drag title bar ───────────────────────────────────────────────────────

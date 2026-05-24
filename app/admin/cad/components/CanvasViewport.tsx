@@ -2877,7 +2877,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         // Get or create text object
         let textObj = pixi.labelTexts.get(labelKey);
-        const isHovered = hoveredLabelKeyRef.current === labelKey;
+        // Highlight every label of the hovered feature together (not just
+        // the one under the cursor) so a point's name + description light
+        // up as a unit with the marker.
+        const isHovered = hoveredIdRef.current === feature.id;
         const textColor = isHovered ? '#3b82f6' : (label.style.color ?? layer.color ?? '#000000');
         // Scale font size: label.style.fontSize is in "points on paper"
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
@@ -2990,7 +2993,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       activeKeys.add(key);
 
       const { sx, sy } = w2s(geom.point.x, geom.point.y);
-      const isHovered = hoveredLabelKeyRef.current === key;
+      const isHovered = hoveredIdRef.current === feature.id;
       const color = isHovered ? '#3b82f6' : (feature.style.color ?? layer.color ?? '#000000');
       const alpha = feature.style.opacity;
       const rotation = geom.textRotation ?? 0;
@@ -9822,24 +9825,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           setCursorStyle(fieldHover ? 'text' : 'grab');
         }
 
-        // Check label hover first (labels render on top of features)
+        // Unified hover: hovering a point's marker OR any of its labels
+        // (name / description / elevation / coordinates) lights up the
+        // whole group together. The owning feature drives the highlight,
+        // so the marker glows and every label of that feature highlights
+        // at once — which keeps dense point clouds legible (you can tell
+        // which name + code belongs to which marker). Labels render on
+        // top, so a label hit takes priority for the owning feature.
         const labelHover = hitTestLabel(sx, sy);
-        const prevLabelKey = hoveredLabelKeyRef.current;
+        const hit = hitTest(sx, sy);
+        const hoverFeatureId = labelHover?.featureId ?? hit;
         const newLabelKey = labelHover ? labelHover.key : null;
-        if (prevLabelKey !== newLabelKey) {
+        if (hoverFeatureId !== hoveredIdRef.current || newLabelKey !== hoveredLabelKeyRef.current) {
+          const featureChanged = hoverFeatureId !== hoveredIdRef.current;
+          hoveredIdRef.current = hoverFeatureId;
           hoveredLabelKeyRef.current = newLabelKey;
-          // Force a re-render to update label color
-          if (pixiRef.current?.app) {
+          // Drives LayerPanel per-layer + per-item highlighting too.
+          selectionStore.setHovered(hoverFeatureId);
+          // Re-render immediately so label colors track the marker glow.
+          if (featureChanged && pixiRef.current?.app) {
             renderLabels();
             renderTextFeatures();
           }
-        }
-
-        const hit = hitTest(sx, sy);
-        // Sync hovered feature to selection store (drives LayerPanel per-layer + per-item highlighting)
-        if (hit !== hoveredIdRef.current) {
-          hoveredIdRef.current = hit;
-          selectionStore.setHovered(hit);
         }
         // Update cursor style for SELECT tool
         if (toolStore.state.activeTool === 'SELECT') {
@@ -11319,14 +11326,50 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">
-                {label.kind === 'BEARING' ? 'Bearing' : label.kind === 'DISTANCE' ? 'Distance' : label.kind} Label
+                {label.kind === 'BEARING' ? 'Bearing'
+                  : label.kind === 'DISTANCE' ? 'Distance'
+                  : label.kind === 'POINT_NAME' ? 'Point Name'
+                  : label.kind === 'POINT_DESCRIPTION' ? 'Point Description'
+                  : label.kind} Label
               </span>
               <button
                 className="text-gray-500 hover:text-white text-xs p-0.5 rounded"
                 onClick={() => setLabelEditState(null)}
               >✕</button>
             </div>
-            <div className="text-[10px] text-gray-400 font-mono mb-2 truncate">{label.text}</div>
+            {(label.kind === 'POINT_NAME' || label.kind === 'POINT_DESCRIPTION') ? (
+              <div className="mb-2.5">
+                <label className="block text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">
+                  {label.kind === 'POINT_NAME' ? 'Point name' : 'Description'}
+                </label>
+                <input
+                  className="w-full bg-gray-700 text-white rounded px-1.5 py-1 text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.text}
+                  autoFocus
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // Persist to the point's property (survives label
+                    // regeneration) and update the on-canvas label text in
+                    // place — keeping the label id stable so this editor
+                    // stays open while typing.
+                    const f = drawingStore.getFeature(featureId);
+                    if (f) {
+                      const propKey = label.kind === 'POINT_NAME' ? 'name' : 'description';
+                      drawingStore.updateFeature(featureId, {
+                        properties: { ...f.properties, [propKey]: v },
+                      });
+                    }
+                    drawingStore.updateTextLabel(featureId, labelId, { text: v });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'Escape') setLabelEditState(null);
+                    e.stopPropagation();
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="text-[10px] text-gray-400 font-mono mb-2 truncate">{label.text}</div>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-gray-400 text-[10px] shrink-0">Font Size (pt)</span>

@@ -166,7 +166,9 @@ export function generateLabelsForFeature(
     let yStep = 0;
 
     if (layerPrefs.showPointNames) {
-      const name = String(feature.properties.name ?? feature.properties.pointNumber ?? '');
+      const name = String(
+        feature.properties.name ?? feature.properties.pointName ?? feature.properties.pointNumber ?? '',
+      );
       if (name) {
         result.push(addOrKeep('POINT_NAME', name, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointNameTextStyle'));
         yStep -= 12;

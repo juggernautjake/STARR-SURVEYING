@@ -691,6 +691,15 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
           pointId: pt.id,
           pointName: pt.pointName,
           code: pt.resolvedAlphaCode,
+          // Full code/description text exactly as imported (raw code +
+          // any remainder), so the label always shows the complete value
+          // — even when the code is long or not in the code library.
+          // Falls back to the resolved code if the raw fields are empty.
+          description:
+            [pt.rawCode, pt.description]
+              .map((s) => (s == null ? '' : String(s).trim()))
+              .filter(Boolean)
+              .join(' ') || pt.resolvedAlphaCode,
         },
       };
       pt.featureId = pointFeature.id;
