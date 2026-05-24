@@ -4,7 +4,7 @@
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 
 // GET — Fetch entries, categories, or search
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -18,7 +18,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // --- Fetch categories ---
   if (action === 'categories') {
     // Ensure defaults exist (best-effort)
-    await supabaseAdmin.rpc('ensure_default_fieldbook_categories', { p_email: email }).catch(() => {});
+    await fireAndForget(supabaseAdmin.rpc('ensure_default_fieldbook_categories', { p_email: email }));
 
     const { data, error } = await supabaseAdmin
       .from('fieldbook_categories')
