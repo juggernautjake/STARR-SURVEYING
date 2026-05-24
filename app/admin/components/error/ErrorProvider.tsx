@@ -20,6 +20,7 @@ import {
   getConsoleLogs,
   getEnvironmentInfo,
   getElementSelector,
+  describeError,
   submitErrorReport,
   retryPendingReports,
   resetSession,
@@ -141,7 +142,10 @@ export default function ErrorProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     function handleError(event: ErrorEvent) {
       event.preventDefault();
-      triggerReport(event.error || new Error(event.message), {
+      const { message, stack } = describeError(event.error ?? event);
+      const err = new Error(message);
+      if (stack) err.stack = stack;
+      triggerReport(err, {
         error_type: 'runtime',
         component_name: event.filename || undefined,
       });
@@ -149,7 +153,9 @@ export default function ErrorProvider({ children }: { children: ReactNode }) {
 
     function handleUnhandledRejection(event: PromiseRejectionEvent) {
       event.preventDefault();
-      const err = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
+      const { message, stack } = describeError(event.reason);
+      const err = new Error(message);
+      if (stack) err.stack = stack;
       triggerReport(err, { error_type: 'promise' });
     }
 
