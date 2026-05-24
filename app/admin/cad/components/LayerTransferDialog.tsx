@@ -410,11 +410,11 @@ export default function LayerTransferDialog({ onClose }: Props) {
       {/* Floating panel — non-modal so the surveyor can pan /
           zoom / pick on the canvas while it stays open. */}
       <div
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[440px] m-4 text-sm text-gray-200 overflow-hidden pointer-events-auto animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
+        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[440px] m-4 max-h-[calc(100vh-2rem)] flex flex-col text-sm text-gray-200 overflow-hidden pointer-events-auto animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
           <div className="flex items-center gap-2">
             <Layers size={16} className="text-blue-400" />
             <h2 className="font-semibold text-white">Send to Layer</h2>
@@ -425,7 +425,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
         </div>
 
         {/* Body */}
-        <div className="p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           {/* Operation picker */}
           <div>
             <label className="block text-[11px] text-gray-400 mb-1">Operation</label>
@@ -727,7 +727,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-600 bg-gray-900/40">
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-t border-gray-600 bg-gray-900/40">
           <span className="text-[10px] text-gray-500">
             {pickModeActive ? 'Click features to add. Esc leaves Pick mode.' : 'Tip: save the current setup as a preset for one-click re-use.'}
           </span>
