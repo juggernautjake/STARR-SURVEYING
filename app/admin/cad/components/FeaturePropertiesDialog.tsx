@@ -10,6 +10,8 @@ import type { Feature, Point2D } from '@/lib/cad/types';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance } from '@/lib/cad/geometry/units';
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
+import { setImageRotationAroundCenter } from '@/lib/cad/geometry/image';
+import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { parseLength } from '@/lib/cad/units';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -232,7 +234,7 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   function updateImage(key: 'width' | 'height' | 'rotation' | 'mirrorX' | 'mirrorY', value: number | boolean) {
     if (!feature || !feature.geometry.image) return;
     const geom = { ...feature.geometry };
-    const im = { ...geom.image! };
+    let im = { ...geom.image! };
     if (key === 'width') {
       const w = Math.max(0.001, value as number);
       if (lockAspect && im.width > 0) im.height = im.height * (w / im.width);
@@ -242,7 +244,8 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
       if (lockAspect && im.height > 0) im.width = im.width * (h / im.height);
       im.height = h;
     } else if (key === 'rotation') {
-      im.rotation = ((value as number) * Math.PI) / 180;
+      // Rotate around the image center (keeps it from walking off).
+      im = setImageRotationAroundCenter(im, ((value as number) * Math.PI) / 180);
     } else if (key === 'mirrorX') {
       im.mirrorX = value as boolean;
     } else if (key === 'mirrorY') {
@@ -253,10 +256,24 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   }
 
   // ── Property editing ─────────────────────────────────────────────────────
-  function updateProperty(key: string, value: string) {    if (!feature) return;
-    drawingStore.updateFeature(featureId, {
-      properties: { ...feature.properties, [key]: value },
-    });
+  // Properties that feed point labels — editing any of these regenerates
+  // the feature's labels so the change shows on the drawing immediately.
+  const LABEL_PROPS = new Set(['name', 'pointName', 'pointNumber', 'description', 'code', 'elevation']);
+  function updateProperty(key: string, value: string) {
+    if (!feature) return;
+    const nextProps = { ...feature.properties, [key]: value };
+    drawingStore.updateFeature(featureId, { properties: nextProps });
+    if (LABEL_PROPS.has(key)) {
+      const layer = drawingStore.document.layers[feature.layerId];
+      if (layer) {
+        const labels = generateLabelsForFeature(
+          { ...feature, properties: nextProps },
+          layer,
+          drawingStore.document.settings.displayPreferences,
+        );
+        drawingStore.setFeatureTextLabels(featureId, labels);
+      }
+    }
   }
 
   // ── Drag title bar ───────────────────────────────────────────────────────

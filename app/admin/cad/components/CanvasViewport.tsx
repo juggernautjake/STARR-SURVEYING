@@ -34,7 +34,16 @@ import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/g
 import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
+import {
+  imageCenter,
+  imageCorners,
+  worldToImageLocal,
+  imageLocalToWorld,
+  setImageRotationAroundCenter,
+  normalizeDeg,
+} from '@/lib/cad/geometry/image';
 import { generateId } from '@/lib/cad/types';
+import type { ImageGeometry } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
@@ -116,6 +125,7 @@ import {
 } from '@/lib/cad/geometry/curve-render';
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { useKeyboard } from '../hooks/useKeyboard';
+import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
 import PickModeContextMenu from './PickModeContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
@@ -130,6 +140,10 @@ import type { ProjectImage } from '@/lib/cad/types';
 // ─────────────────────────────────────────────
 const HIT_TOLERANCE_PX = 5;
 const DEFAULT_GRIP_SIZE = 8; // half-size of grip square in pixels (fallback)
+// Image rotation handle: how far (screen px) the circular grip floats
+// off the top edge, and the sentinel vertex index that marks it.
+const IMAGE_ROTATE_HANDLE_PX = 28;
+const IMAGE_ROTATE_GRIP = -2;
 const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performance issues
 // Minimum meaningful segment length in world units before zoom scaling.
 // Prevents duplicate zero-length segments on double-click.
@@ -701,9 +715,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
-    type: 'POINT' | 'LINE_START' | 'LINE_END' | 'VERTEX' | 'SPLINE_FIT' | 'SPLINE_HANDLE';
+    type: 'POINT' | 'LINE_START' | 'LINE_END' | 'VERTEX' | 'SPLINE_FIT' | 'SPLINE_HANDLE' | 'ROTATE';
   } | null>(null);
   const gripStartRef = useRef<Feature | null>(null);
+  // Active interactive image-rotation session (rotate handle drag or the
+  // RO tool acting on a single image). Captures the pivot (image center)
+  // and the reference angle so the grabbed point follows the cursor
+  // without jumping, and the start state for a single undo entry.
+  const imageRotateRef = useRef<{
+    featureId: string;
+    center: Point2D;
+    startRotation: number;
+    refAngle: number;
+    /** true when driven by the RO tool (commit on click) vs. handle drag (commit on mouseup). */
+    viaTool: boolean;
+    /** Feature snapshot at session start, for the single undo entry. */
+    before: Feature;
+  } | null>(null);
   const clickHitFeatureRef = useRef(false);
   const hoveredIdRef = useRef<string | null>(null);
   // Hovered label key (featureId:labelId or text:featureId) for blue highlight
@@ -887,6 +915,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   useEffect(() => {
     const prev = prevToolRef.current;
     prevToolRef.current = activeTool;
+    // Finalize an in-progress image rotation if the surveyor leaves the
+    // RO tool without a confirming click — commit what they see so the
+    // rotation is undoable and the session doesn't leak into the next tool.
+    if (prev === 'ROTATE' && activeTool !== 'ROTATE' && imageRotateRef.current?.viaTool) {
+      const session = imageRotateRef.current;
+      const after = useDrawingStore.getState().getFeature(session.featureId);
+      if (after) {
+        useUndoStore.getState().pushUndo({
+          id: generateId(),
+          description: 'Rotate image',
+          timestamp: Date.now(),
+          operations: [{ type: 'MODIFY_FEATURE', data: { id: session.featureId, before: session.before, after } }],
+        });
+      }
+      imageRotateRef.current = null;
+      setHud(null);
+    }
     if (prev === 'DRAW_CURVED_LINE' && activeTool !== 'DRAW_CURVED_LINE') {
       // The tool store's setTool already cleared drawingPoints, but we captured
       // the points before the switch via a subscription. Instead, we rely on
@@ -1701,13 +1746,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // drawFeature just draws a dashed selection-bounding-box when selected.
         if (geom.image) {
           const img = geom.image;
-          const { sx: ax, sy: ay } = w2s(img.position.x, img.position.y);
-          const { zoom } = useViewportStore.getState();
-          const wPx = img.width * zoom;
-          const hPx = img.height * zoom;
-          // Simple dashed rect outline for selection hit area
+          const { bl, br, tr, tl } = imageCorners(img);
+          const pBL = w2s(bl.x, bl.y);
+          const pBR = w2s(br.x, br.y);
+          const pTR = w2s(tr.x, tr.y);
+          const pTL = w2s(tl.x, tl.y);
+          // Outline of the (possibly rotated) image for the selection hit area
           g.lineStyle(0.5, color, alpha * 0.3);
-          g.drawRect(ax, ay - hPx, wPx, hPx);
+          g.moveTo(pBL.sx, pBL.sy);
+          g.lineTo(pBR.sx, pBR.sy);
+          g.lineTo(pTR.sx, pTR.sy);
+          g.lineTo(pTL.sx, pTL.sy);
+          g.closePath();
         }
         break;
       }
@@ -2827,7 +2877,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         // Get or create text object
         let textObj = pixi.labelTexts.get(labelKey);
-        const isHovered = hoveredLabelKeyRef.current === labelKey;
+        // Highlight every label of the hovered feature together (not just
+        // the one under the cursor) so a point's name + description light
+        // up as a unit with the marker.
+        const isHovered = hoveredIdRef.current === feature.id;
         const textColor = isHovered ? '#3b82f6' : (label.style.color ?? layer.color ?? '#000000');
         // Scale font size: label.style.fontSize is in "points on paper"
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
@@ -2940,7 +2993,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       activeKeys.add(key);
 
       const { sx, sy } = w2s(geom.point.x, geom.point.y);
-      const isHovered = hoveredLabelKeyRef.current === key;
+      const isHovered = hoveredIdRef.current === feature.id;
       const color = isHovered ? '#3b82f6' : (feature.style.color ?? layer.color ?? '#000000');
       const alpha = feature.style.opacity;
       const rotation = geom.textRotation ?? 0;
@@ -3236,6 +3289,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           g.drawRect(sx - gs / 2, sy - gs / 2, gs, gs);
         }
         g.endFill();
+
+        // IMAGE rotation handle: stalk + round grip off the top edge.
+        if (geom.type === 'IMAGE' && geom.image) {
+          const { handle, topMid } = imageRotateHandleScreen(geom.image);
+          g.lineStyle(1, gripBorderColor, 0.9);
+          g.moveTo(topMid.sx, topMid.sy);
+          g.lineTo(handle.sx, handle.sy);
+          g.lineStyle(1.5, gripBorderColor, 1);
+          g.beginFill(gripFill, 1);
+          g.drawCircle(handle.sx, handle.sy, gs / 2 + 1);
+          g.endFill();
+        }
       }
     }
 
@@ -3371,12 +3436,36 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Y, so BL/TR map to the NE-SW diagonal and BR/TL to the NW-SE one.
   function imageGripCursor(idx: number): string {
     switch (idx) {
+      case IMAGE_ROTATE_GRIP: return 'grab'; // rotation handle
       case 0: case 2: return 'nesw-resize';
       case 1: case 3: return 'nwse-resize';
       case 4: case 6: return 'ns-resize';
       case 5: case 7: return 'ew-resize';
       default: return 'move';
     }
+  }
+
+  // Screen position of an image's rotation handle: a fixed pixel
+  // distance straight out from the middle of the (rotated) top edge,
+  // plus the top-edge midpoint so the stalk can be drawn between them.
+  function imageRotateHandleScreen(img: ImageGeometry): {
+    handle: { sx: number; sy: number };
+    topMid: { sx: number; sy: number };
+  } {
+    const tm = imageLocalToWorld(img, { x: img.width / 2, y: img.height });
+    const { sx: tmx, sy: tmy } = w2s(tm.x, tm.y);
+    // Outward (screen) direction = perpendicular to the top edge, away
+    // from the image center. Derive it from the rotated up-axis.
+    const c = imageCenter(img);
+    const { sx: ccx, sy: ccy } = w2s(c.x, c.y);
+    let dx = tmx - ccx;
+    let dy = tmy - ccy;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len; dy /= len;
+    return {
+      topMid: { sx: tmx, sy: tmy },
+      handle: { sx: tmx + dx * IMAGE_ROTATE_HANDLE_PX, sy: tmy + dy * IMAGE_ROTATE_HANDLE_PX },
+    };
   }
 
   function getFeatureVertices(feature: Feature): Point2D[] {
@@ -3398,18 +3487,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       case 'SPLINE':
         return geom.spline ? splineGripPoints(geom.spline) : [];
       case 'IMAGE':
-        // 4 corners + 4 edge midpoints for IMAGE resize
+        // 4 corners + 4 edge midpoints for IMAGE resize — in the
+        // image's rotated frame so the grips ride the visible box.
         if (geom.image) {
-          const { position: p, width: w, height: h } = geom.image;
+          const img = geom.image;
+          const { bl, br, tr, tl } = imageCorners(img);
           return [
-            { x: p.x,       y: p.y     },   // 0: bottom-left
-            { x: p.x + w,   y: p.y     },   // 1: bottom-right
-            { x: p.x + w,   y: p.y + h },   // 2: top-right
-            { x: p.x,       y: p.y + h },   // 3: top-left
-            { x: p.x + w/2, y: p.y     },   // 4: bottom-mid
-            { x: p.x + w,   y: p.y + h/2 }, // 5: right-mid
-            { x: p.x + w/2, y: p.y + h },   // 6: top-mid
-            { x: p.x,       y: p.y + h/2 }, // 7: left-mid
+            bl,                                                 // 0: bottom-left
+            br,                                                 // 1: bottom-right
+            tr,                                                 // 2: top-right
+            tl,                                                 // 3: top-left
+            { x: (bl.x + br.x) / 2, y: (bl.y + br.y) / 2 },     // 4: bottom-mid
+            { x: (br.x + tr.x) / 2, y: (br.y + tr.y) / 2 },     // 5: right-mid
+            { x: (tl.x + tr.x) / 2, y: (tl.y + tr.y) / 2 },     // 6: top-mid
+            { x: (bl.x + tl.x) / 2, y: (bl.y + tl.y) / 2 },     // 7: left-mid
           ];
         }
         return [];
@@ -3563,6 +3654,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           for (const id of selIds) {
             const f = drawing.getFeature(id);
             if (!f) continue;
+            // Images rotate live around their center, so they're already
+            // showing the result — skip the ghost to avoid a double image.
+            if (f.geometry.type === 'IMAGE') continue;
             drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s);
           }
         }
@@ -6886,14 +6980,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           return feature.id;
         }
       }
-      // IMAGE hit testing — point-in-bounding-box
+      // IMAGE hit testing — point inside the (possibly rotated) box.
+      // Map the cursor into the image's local frame so rotation is
+      // respected; BL=(0,0), TR=(width,height).
       if (geom.type === 'IMAGE' && geom.image) {
         const img = geom.image;
-        const { zoom } = useViewportStore.getState();
-        const { sx: ax, sy: ay } = w2s(img.position.x, img.position.y);
-        const wPx = img.width * zoom;
-        const hPx = img.height * zoom;
-        if (sx >= ax && sx <= ax + wPx && sy >= ay - hPx && sy <= ay) {
+        const { wx, wy } = screenToDrawingWorld(sx, sy);
+        const lp = worldToImageLocal(img, { x: wx, y: wy });
+        if (lp.x >= 0 && lp.x <= img.width && lp.y >= 0 && lp.y <= img.height) {
           return feature.id;
         }
       }
@@ -7413,12 +7507,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   // Grip hit testing
   // ─────────────────────────────────────────────
-  function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number; gripType?: 'SPLINE_FIT' | 'SPLINE_HANDLE' } | null {
+  function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number; gripType?: 'SPLINE_FIT' | 'SPLINE_HANDLE' | 'ROTATE' } | null {
     const { selectedIds } = selectionStore;
     const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
     for (const featureId of selectedIds) {
       const feature = drawingStore.getFeature(featureId);
       if (!feature) continue;
+
+      // IMAGE rotation handle takes priority over the resize grips.
+      if (feature.geometry.type === 'IMAGE' && feature.geometry.image) {
+        const { handle } = imageRotateHandleScreen(feature.geometry.image);
+        if (Math.hypot(sx - handle.sx, sy - handle.sy) <= gripHitSize + 2) {
+          return { featureId, vertexIndex: IMAGE_ROTATE_GRIP, gripType: 'ROTATE' };
+        }
+      }
 
       // Specialized grip hit test for SPLINE features
       if (feature.geometry.type === 'SPLINE' && feature.geometry.spline && feature.geometry.spline.controlPoints.length >= 4) {
@@ -7630,9 +7732,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (grip) {
           const gType = grip.gripType === 'SPLINE_FIT' ? 'SPLINE_FIT'
             : grip.gripType === 'SPLINE_HANDLE' ? 'SPLINE_HANDLE'
+            : grip.gripType === 'ROTATE' ? 'ROTATE'
             : 'VERTEX';
           gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: gType };
-          gripStartRef.current = drawingStore.getFeature(grip.featureId) ?? null;
+          const startFeat = drawingStore.getFeature(grip.featureId) ?? null;
+          gripStartRef.current = startFeat;
+          // Begin an image-rotation session so the handle follows the cursor.
+          if (gType === 'ROTATE' && startFeat?.geometry.image) {
+            const img = startFeat.geometry.image;
+            const center = imageCenter(img);
+            const world = screenToDrawingWorld(sx, sy);
+            imageRotateRef.current = {
+              featureId: grip.featureId,
+              center,
+              startRotation: img.rotation,
+              refAngle: Math.atan2(world.wy - center.y, world.wx - center.x),
+              viaTool: false,
+              before: startFeat,
+            };
+          }
           return;
         }
       }
@@ -8178,6 +8296,47 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (hit) selectionStore.select(hit, 'REPLACE');
             break;
           }
+          // Single image → live "follow the cursor" rotation around the
+          // image center: click once to start, move to spin, click to set
+          // (Shift snaps to 15°). The image rotates for real as you move
+          // so you see the result before finalizing.
+          {
+            const selIds = Array.from(selectionStore.selectedIds);
+            const only = selIds.length === 1 ? drawingStore.getFeature(selIds[0]) : null;
+            if (!toolState.copyMode && only?.geometry.type === 'IMAGE' && only.geometry.image) {
+              const session = imageRotateRef.current;
+              if (session?.viaTool && session.featureId === only.id) {
+                // Click 2 — finalize with a single undo entry.
+                const after = drawingStore.getFeature(session.featureId);
+                if (after) {
+                  undoStore.pushUndo({
+                    id: generateId(),
+                    description: 'Rotate image',
+                    timestamp: Date.now(),
+                    operations: [{ type: 'MODIFY_FEATURE', data: { id: session.featureId, before: session.before, after } }],
+                  });
+                }
+                imageRotateRef.current = null;
+                toolStore.setRotateCenter(null);
+                setHud(null);
+                toolStore.setTool('SELECT'); // one-shot: release the tool
+              } else {
+                // Click 1 — begin the live session.
+                const center = imageCenter(only.geometry.image);
+                const world = screenToDrawingWorld(sx, sy);
+                imageRotateRef.current = {
+                  featureId: only.id,
+                  center,
+                  startRotation: only.geometry.image.rotation,
+                  refAngle: Math.atan2(world.wy - center.y, world.wx - center.x),
+                  viaTool: true,
+                  before: only,
+                };
+                toolStore.setRotateCenter(center);
+              }
+              break;
+            }
+          }
           if (!toolState.rotateCenter) {
             // Click 1: set the pivot
             toolStore.setRotateCenter(worldPt);
@@ -8202,11 +8361,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // those.
               duplicateSelection(0, 0);
               rotateSelection(angleDeg, center);
+              toolStore.setRotateCenter(null); // chain more copies
             } else {
               rotateSelection(angleDeg, center);
+              // One-shot: release the tool back to SELECT so the
+              // cursor isn't stuck rotating after the operation.
+              toolStore.setTool('SELECT');
             }
-            // Reset for chaining
-            toolStore.setRotateCenter(null);
           }
           break;
         }
@@ -8237,11 +8398,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (toolState.copyMode) {
               duplicateSelection(0, 0);
               scaleSelection(factor);
+              toolStore.setBasePoint(null); // chain more copies
             } else {
               scaleSelection(factor);
+              // One-shot: release the tool back to SELECT.
+              toolStore.setTool('SELECT');
             }
-            // Reset for chaining
-            toolStore.setBasePoint(null);
           }
           break;
         }
@@ -9395,86 +9557,86 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const { featureId, vertexIndex } = gripDragRef.current;
         const feature = drawingStore.getFeature(featureId);
         if (feature) {
+          // Interactive image rotation (rotate-handle drag): spin around
+          // the image center so the grabbed handle follows the cursor.
+          if (gripDragRef.current.type === 'ROTATE') {
+            const session = imageRotateRef.current;
+            const startImg = gripStartRef.current?.geometry.image;
+            if (session && startImg) {
+              const world = screenToDrawingWorld(sx, sy);
+              const cur = Math.atan2(world.wy - session.center.y, world.wx - session.center.x);
+              let newRot = session.startRotation + (cur - session.refAngle);
+              if (e.shiftKey) {
+                const step = Math.PI / 12; // snap to 15°
+                newRot = Math.round(newRot / step) * step;
+              }
+              const rotated = setImageRotationAroundCenter(startImg, newRot);
+              drawingStore.updateFeatureGeometry(featureId, { ...feature.geometry, image: rotated });
+              const deg = normalizeDeg((newRot * 180) / Math.PI);
+              setHud({
+                sx: sx + 18,
+                sy: sy - 10,
+                lines: [`Rotation: ${deg.toFixed(1)}°`, e.shiftKey ? 'Snapping 15° (Shift)' : 'Hold Shift = snap 15°'],
+              });
+            }
+            return;
+          }
           const geom = { ...feature.geometry };
           switch (geom.type) {
             case 'IMAGE': {
-              // IMAGE resize: 8 grips — 0=BL, 1=BR, 2=TR, 3=TL, 4=Bottom-mid, 5=Right-mid, 6=Top-mid, 7=Left-mid
-              if (geom.image) {
-                const img = { ...geom.image };
-                const origRight = img.position.x + img.width;
-                const origTop = img.position.y + img.height;
+              // IMAGE resize: 8 grips — 0=BL, 1=BR, 2=TR, 3=TL, 4=Bottom-mid,
+              // 5=Right-mid, 6=Top-mid, 7=Left-mid. We work in the image's
+              // local (un-rotated) frame so resize stays correct at any
+              // rotation: BL=(0,0), TR=(w,h). The opposite edge/corner is
+              // held fixed and the new bottom-left is mapped back to world.
+              const startImg = gripStartRef.current?.geometry.image;
+              if (geom.image && startImg) {
+                const w0 = startImg.width;
+                const h0 = startImg.height;
+                const lc = worldToImageLocal(startImg, worldPt);
+                let newW: number;
+                let newH: number;
                 switch (vertexIndex) {
-                  case 0: // BL — moves left and bottom
-                    img.width = origRight - worldPt.x;
-                    img.height = origTop - worldPt.y;
-                    img.position = { x: worldPt.x, y: worldPt.y };
-                    break;
-                  case 1: // BR — moves right and bottom
-                    img.width = worldPt.x - img.position.x;
-                    img.height = origTop - worldPt.y;
-                    img.position = { x: img.position.x, y: worldPt.y };
-                    break;
-                  case 2: // TR — moves right and top
-                    img.width = worldPt.x - img.position.x;
-                    img.height = worldPt.y - img.position.y;
-                    break;
-                  case 3: // TL — moves left and top
-                    img.width = origRight - worldPt.x;
-                    img.height = worldPt.y - img.position.y;
-                    img.position = { x: worldPt.x, y: img.position.y };
-                    break;
-                  case 4: // Bottom-mid — moves bottom
-                    img.height = origTop - worldPt.y;
-                    img.position = { x: img.position.x, y: worldPt.y };
-                    break;
-                  case 5: // Right-mid — moves right
-                    img.width = worldPt.x - img.position.x;
-                    break;
-                  case 6: // Top-mid — moves top
-                    img.height = worldPt.y - img.position.y;
-                    break;
-                  case 7: // Left-mid — moves left
-                    img.width = origRight - worldPt.x;
-                    img.position = { x: worldPt.x, y: img.position.y };
-                    break;
+                  case 0: newW = w0 - lc.x; newH = h0 - lc.y; break; // BL
+                  case 1: newW = lc.x;      newH = h0 - lc.y; break; // BR
+                  case 2: newW = lc.x;      newH = lc.y;      break; // TR
+                  case 3: newW = w0 - lc.x; newH = lc.y;      break; // TL
+                  case 4: newW = w0;        newH = h0 - lc.y; break; // Bottom-mid
+                  case 5: newW = lc.x;      newH = h0;        break; // Right-mid
+                  case 6: newW = w0;        newH = lc.y;      break; // Top-mid
+                  case 7: newW = w0 - lc.x; newH = h0;        break; // Left-mid
+                  default: newW = w0; newH = h0;
                 }
-                // Enforce minimum size
-                img.width  = Math.max(img.width,  0.1);
-                img.height = Math.max(img.height, 0.1);
+                newW = Math.max(newW, 0.1);
+                newH = Math.max(newH, 0.1);
 
-                // Ctrl on a CORNER grip → uniform scale: lock to the
-                // original aspect ratio, keeping the opposite corner
-                // fixed. Without Ctrl the corners scale freely
-                // (non-uniform / disproportionate stretch).
-                const startImg = gripStartRef.current?.geometry.image;
+                // Ctrl on a CORNER grip → keep the original aspect ratio
+                // (use the larger proposed change so the corner tracks the
+                // cursor).
                 const isCorner = vertexIndex >= 0 && vertexIndex <= 3;
-                if (e.ctrlKey && isCorner && startImg && startImg.height > 0) {
-                  const aspect = startImg.width / startImg.height; // w per h
-                  // Drive height off width (use the larger proposed
-                  // change so the dragged corner tracks the cursor).
-                  const wFromH = img.height * aspect;
-                  if (img.width >= wFromH) {
-                    img.height = img.width / aspect;
-                  } else {
-                    img.width = img.height * aspect;
-                  }
-                  // Re-anchor so the corner OPPOSITE the dragged one
-                  // stays put.
-                  switch (vertexIndex) {
-                    case 0: // BL fixed corner = TR (origRight, origTop)
-                      img.position = { x: origRight - img.width, y: origTop - img.height };
-                      break;
-                    case 1: // BR fixed corner = TL (position.x, origTop)
-                      img.position = { x: img.position.x, y: origTop - img.height };
-                      break;
-                    case 2: // TR fixed corner = BL (position stays)
-                      break;
-                    case 3: // TL fixed corner = BR (origRight, position.y)
-                      img.position = { x: origRight - img.width, y: img.position.y };
-                      break;
-                  }
+                if (e.ctrlKey && isCorner && h0 > 0) {
+                  const aspect = w0 / h0;
+                  if (newW >= newH * aspect) newH = newW / aspect;
+                  else newW = newH * aspect;
                 }
-                geom.image = img;
+
+                // New bottom-left in the local frame, derived from which
+                // edge stays fixed for this grip.
+                let blX: number;
+                let blY: number;
+                switch (vertexIndex) {
+                  case 0: blX = w0 - newW; blY = h0 - newH; break; // fixed TR
+                  case 1: blX = 0;         blY = h0 - newH; break; // fixed TL
+                  case 2: blX = 0;         blY = 0;         break; // fixed BL
+                  case 3: blX = w0 - newW; blY = 0;         break; // fixed BR
+                  case 4: blX = 0;         blY = h0 - newH; break; // fixed top
+                  case 5: blX = 0;         blY = 0;         break; // fixed left
+                  case 6: blX = 0;         blY = 0;         break; // fixed bottom
+                  case 7: blX = w0 - newW; blY = 0;         break; // fixed right
+                  default: blX = 0; blY = 0;
+                }
+                const newPos = imageLocalToWorld(startImg, { x: blX, y: blY });
+                geom.image = { ...geom.image, position: newPos, width: newW, height: newH, rotation: startImg.rotation };
               }
               break;
             }
@@ -9599,6 +9761,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return; // actively dragging a grip — skip hover/move logic
       }
 
+      // RO tool live-follow on a single image (no button held): the image
+      // spins to track the cursor around its center until the next click.
+      if (toolStore.state.activeTool === 'ROTATE' && imageRotateRef.current?.viaTool) {
+        const session = imageRotateRef.current;
+        const feature = drawingStore.getFeature(session.featureId);
+        const startImg = session.before.geometry.image;
+        if (feature && startImg) {
+          const world = screenToDrawingWorld(sx, sy);
+          const cur = Math.atan2(world.wy - session.center.y, world.wx - session.center.x);
+          let newRot = session.startRotation + (cur - session.refAngle);
+          if (e.shiftKey) {
+            const step = Math.PI / 12; // 15°
+            newRot = Math.round(newRot / step) * step;
+          }
+          const rotated = setImageRotationAroundCenter(startImg, newRot);
+          drawingStore.updateFeatureGeometry(session.featureId, { ...feature.geometry, image: rotated });
+          toolStore.setPreviewPoint({ x: world.wx, y: world.wy });
+          const deg = normalizeDeg((newRot * 180) / Math.PI);
+          setHud({
+            sx: sx + 18,
+            sy: sy - 10,
+            lines: [`Rotation: ${deg.toFixed(1)}°`, e.shiftKey ? 'Snapping 15° (Shift)' : 'Click to set · Shift = snap 15°'],
+          });
+        }
+        return;
+      }
+
       // Element drag-to-move in SELECT mode
       if (dragFeatureRef.current && !gripDragRef.current) {
         const { featureIds, startWorld, originals } = dragFeatureRef.current;
@@ -9636,29 +9825,36 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           setCursorStyle(fieldHover ? 'text' : 'grab');
         }
 
-        // Check label hover first (labels render on top of features)
+        // Unified hover: hovering a point's marker OR any of its labels
+        // (name / description / elevation / coordinates) lights up the
+        // whole group together. The owning feature drives the highlight,
+        // so the marker glows and every label of that feature highlights
+        // at once — which keeps dense point clouds legible (you can tell
+        // which name + code belongs to which marker). Labels render on
+        // top, so a label hit takes priority for the owning feature.
         const labelHover = hitTestLabel(sx, sy);
-        const prevLabelKey = hoveredLabelKeyRef.current;
+        const hit = hitTest(sx, sy);
+        const hoverFeatureId = labelHover?.featureId ?? hit;
         const newLabelKey = labelHover ? labelHover.key : null;
-        if (prevLabelKey !== newLabelKey) {
+        if (hoverFeatureId !== hoveredIdRef.current || newLabelKey !== hoveredLabelKeyRef.current) {
+          const featureChanged = hoverFeatureId !== hoveredIdRef.current;
+          hoveredIdRef.current = hoverFeatureId;
           hoveredLabelKeyRef.current = newLabelKey;
-          // Force a re-render to update label color
-          if (pixiRef.current?.app) {
+          // Drives LayerPanel per-layer + per-item highlighting too.
+          selectionStore.setHovered(hoverFeatureId);
+          // Re-render immediately so label colors track the marker glow.
+          if (featureChanged && pixiRef.current?.app) {
             renderLabels();
             renderTextFeatures();
           }
         }
-
-        const hit = hitTest(sx, sy);
-        // Sync hovered feature to selection store (drives LayerPanel per-layer + per-item highlighting)
-        if (hit !== hoveredIdRef.current) {
-          hoveredIdRef.current = hit;
-          selectionStore.setHovered(hit);
-        }
         // Update cursor style for SELECT tool
         if (toolStore.state.activeTool === 'SELECT') {
           if (!gripDragRef.current && !tbHover) {
-            const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
+            // Test grips/handles whenever something is selected — the
+            // image rotation handle floats off the box, so it can be hot
+            // even when the cursor isn't over the feature body.
+            const onGrip = selectionStore.selectedIds.size > 0 ? hitTestGrip(sx, sy) : null;
             if (onGrip) {
               // Image grips get a directional resize cursor so the
               // surveyor knows the corner/edge is draggable to resize.
@@ -9915,19 +10111,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Commit grip drag
       if (gripDragRef.current && gripStartRef.current) {
+        const isRotate = gripDragRef.current.type === 'ROTATE';
         const { featureId } = gripDragRef.current;
         const before = gripStartRef.current;
         const after = drawingStore.getFeature(featureId);
         if (after) {
           undoStore.pushUndo({
             id: generateId(),
-            description: 'Grip edit',
+            description: isRotate ? 'Rotate image' : 'Grip edit',
             timestamp: Date.now(),
             operations: [{ type: 'MODIFY_FEATURE', data: { id: featureId, before, after } }],
           });
         }
         gripDragRef.current = null;
         gripStartRef.current = null;
+        imageRotateRef.current = null;
         setHud(null); // clear the image-resize size/Ctrl hint
         setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
         return;
@@ -10869,6 +11067,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         </div>
       )}
 
+      {/* Numeric rotation field for a single selected image */}
+      <ImageRotationField />
+
       {/* Floating operation HUD — shows live numeric values near cursor during operations */}
       {hud && (
         <div
@@ -11125,14 +11326,50 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">
-                {label.kind === 'BEARING' ? 'Bearing' : label.kind === 'DISTANCE' ? 'Distance' : label.kind} Label
+                {label.kind === 'BEARING' ? 'Bearing'
+                  : label.kind === 'DISTANCE' ? 'Distance'
+                  : label.kind === 'POINT_NAME' ? 'Point Name'
+                  : label.kind === 'POINT_DESCRIPTION' ? 'Point Description'
+                  : label.kind} Label
               </span>
               <button
                 className="text-gray-500 hover:text-white text-xs p-0.5 rounded"
                 onClick={() => setLabelEditState(null)}
               >✕</button>
             </div>
-            <div className="text-[10px] text-gray-400 font-mono mb-2 truncate">{label.text}</div>
+            {(label.kind === 'POINT_NAME' || label.kind === 'POINT_DESCRIPTION') ? (
+              <div className="mb-2.5">
+                <label className="block text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">
+                  {label.kind === 'POINT_NAME' ? 'Point name' : 'Description'}
+                </label>
+                <input
+                  className="w-full bg-gray-700 text-white rounded px-1.5 py-1 text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.text}
+                  autoFocus
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // Persist to the point's property (survives label
+                    // regeneration) and update the on-canvas label text in
+                    // place — keeping the label id stable so this editor
+                    // stays open while typing.
+                    const f = drawingStore.getFeature(featureId);
+                    if (f) {
+                      const propKey = label.kind === 'POINT_NAME' ? 'name' : 'description';
+                      drawingStore.updateFeature(featureId, {
+                        properties: { ...f.properties, [propKey]: v },
+                      });
+                    }
+                    drawingStore.updateTextLabel(featureId, labelId, { text: v });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'Escape') setLabelEditState(null);
+                    e.stopPropagation();
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="text-[10px] text-gray-400 font-mono mb-2 truncate">{label.text}</div>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-gray-400 text-[10px] shrink-0">Font Size (pt)</span>
