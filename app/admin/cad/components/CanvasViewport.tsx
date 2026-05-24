@@ -10341,6 +10341,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // Ctrl+A → Delete can't quietly wipe the drawing.
     // Singletons skip the prompt — Ctrl+Z still works.
     const onDeleteSelection = async () => {
+      // During an in-flight polyline / polygon draw, Delete/Backspace
+      // pops the last placed vertex (AutoCAD/Carlson convention)
+      // instead of deleting features. This used to live in the legacy
+      // useKeyboard hook; it now rides the canonical edit.delete path.
+      const ts = useToolStore.getState();
+      if (
+        (ts.state.activeTool === 'DRAW_POLYLINE' || ts.state.activeTool === 'DRAW_POLYGON') &&
+        ts.state.drawingPoints.length > 0
+      ) {
+        ts.popDrawingPoint();
+        return;
+      }
       const ids = Array.from(useSelectionStore.getState().selectedIds);
       if (ids.length === 0) return;
       const { deleteSelection } = await import('@/lib/cad/operations');
