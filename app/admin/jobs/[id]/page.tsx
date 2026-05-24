@@ -11,6 +11,12 @@ import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import JobFileManager from '../../components/jobs/JobFileManager';
 import JobEquipmentList from '../../components/jobs/JobEquipmentList';
 import JobResearchPanel from '../../components/jobs/JobResearchPanel';
+import JobCadPanel from '../../components/jobs/JobCadPanel';
+import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
+import InlineEditField from '../../components/jobs/InlineEditField';
+import JobActivityFeed from '../../components/jobs/JobActivityFeed';
+import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
+import { exportJobPdf } from '../../components/jobs/jobPdf';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
@@ -61,9 +67,12 @@ interface Job {
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📋', tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
   { key: 'research', label: 'Research', icon: '🔍', tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
+  { key: 'cad', label: 'CAD', icon: '📐', tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
   { key: 'fieldwork', label: 'Field Work', icon: '🏗️', tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
-  { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, images, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
+  { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
+  { key: 'photos', label: 'Photos', icon: '📷', tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
   { key: 'financial', label: 'Financial', icon: '💰', tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
+  { key: 'activity', label: 'Activity', icon: '🕓', tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
   { key: 'messages', label: 'Messages', icon: '💬', tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
 ];
 
@@ -77,6 +86,11 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  // Live tab counts. CAD + Photos report theirs via onCountChange when
+  // their tab is opened (we avoid preloading photos — their data URLs
+  // are heavy). null = not yet known, so no badge shows.
+  const [cadCount, setCadCount] = useState<number | null>(null);
+  const [photoCount, setPhotoCount] = useState<number | null>(null);
   const [stageHistory, setStageHistory] = useState<{ from_stage?: string; to_stage: string; changed_by: string; notes?: string; created_at: string }[]>([]);
   const [files, setFiles] = useState<{ id: string; file_name: string; file_type: string; file_url?: string; file_size?: number; section: string; description?: string; uploaded_by: string; uploaded_at: string; is_backup: boolean }[]>([]);
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
@@ -99,6 +113,30 @@ export default function JobDetailPage() {
   }, [jobId, reportPageError]);
 
   useEffect(() => { loadJob(); }, [loadJob]);
+
+  // Inline-edit save: PUT the single changed field, then patch local
+  // state so the UI reflects it without a full reload. Throws on
+  // failure so InlineEditField can surface the message + roll back.
+  const saveField = useCallback(async (field: string, value: string) => {
+    // Coerce types the API expects.
+    let payloadValue: string | number | boolean | null = value;
+    if (field === 'acreage' || field === 'quote_amount') {
+      payloadValue = value.trim() === '' ? null : Number(value);
+      if (payloadValue !== null && !Number.isFinite(payloadValue)) throw new Error('Enter a number.');
+    } else if (field === 'is_priority') {
+      payloadValue = value === 'true';
+    } else if (value.trim() === '') {
+      payloadValue = null;
+    }
+    const res = await fetch('/api/admin/jobs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: jobId, [field]: payloadValue }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Save failed (${res.status})`);
+    setJob((prev) => (prev ? { ...prev, [field]: payloadValue as never } : prev));
+  }, [jobId]);
 
   // Load tab-specific data on tab change
   useEffect(() => {
@@ -296,6 +334,17 @@ export default function JobDetailPage() {
 
   const stageInfo = STAGE_CONFIG[job.stage] || STAGE_CONFIG.quote;
 
+  // Tab badge counts. Files always known (job.file_count); research +
+  // field work fill in once their tab loads; CAD + Photos report via
+  // onCountChange. undefined = no badge.
+  const tabCounts: Record<string, number | undefined> = {
+    research: research.length || undefined,
+    cad: cadCount ?? undefined,
+    fieldwork: fieldData.length || undefined,
+    files: job.file_count || undefined,
+    photos: photoCount ?? undefined,
+  };
+
   return (
     <>
       <UnderConstruction
@@ -353,6 +402,22 @@ export default function JobDetailPage() {
             <span className="job-detail__stage-badge" style={{ background: stageInfo.color + '20', color: stageInfo.color }}>
               {stageInfo.icon} {stageInfo.label}
             </span>
+            <button
+              className="jobs-page__btn jobs-page__btn--secondary"
+              onClick={() => exportJobPdf({
+                ...job,
+                counts: {
+                  files: job.file_count,
+                  photos: photoCount ?? undefined,
+                  drawings: cadCount ?? undefined,
+                  research: research.length || undefined,
+                  hours: job.total_hours,
+                },
+              })}
+              title="Download a one-page job summary PDF"
+            >
+              ⬇ Export PDF
+            </button>
             <JobResultControl
               jobId={job.id}
               currentResult={job.result ?? null}
@@ -412,66 +477,83 @@ export default function JobDetailPage() {
 
       {/* Tabs */}
       <div className="job-detail__tabs">
-        {TABS.map(tab => (
-          <Tooltip key={tab.key} text={tab.tip} position="bottom" delay={600}>
-            <button
-              className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              <span className="job-detail__tab-icon">{tab.icon}</span>
-              {tab.label}
-            </button>
-          </Tooltip>
-        ))}
+        {TABS.map(tab => {
+          const count = tabCounts[tab.key];
+          return (
+            <Tooltip key={tab.key} text={tab.tip} position="bottom" delay={600}>
+              <button
+                className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                <span className="job-detail__tab-icon">{tab.icon}</span>
+                {tab.label}
+                {typeof count === 'number' && count > 0 && (
+                  <span className="job-detail__tab-badge">{count}</span>
+                )}
+              </button>
+            </Tooltip>
+          );
+        })}
       </div>
 
       {/* Tab Content */}
       <div className="job-detail__content">
         {activeTab === 'overview' && (
           <div className="job-detail__overview">
+            {/* Quick actions — jump straight into the parts of the job */}
+            <div className="job-detail__quick-actions">
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('research')}>🔍 Add research</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('cad')}>📐 Start a drawing</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('files')}>📁 Add files</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('photos')}>📷 Add photos</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('fieldwork')}>🏗️ Field work</button>
+            </div>
             <div className="job-detail__overview-grid">
               <div className="job-detail__overview-main">
-                {/* Description */}
-                {job.description && (
-                  <div className="job-detail__section">
-                    <h3>Description</h3>
-                    <p>{job.description}</p>
-                  </div>
-                )}
+                {/* Description — click to edit */}
+                <div className="job-detail__section">
+                  <h3>Description</h3>
+                  <p>
+                    <InlineEditField value={job.description} type="textarea" ariaLabel="description"
+                      emptyLabel="Add a description…" onSave={(v) => saveField('description', v)} />
+                  </p>
+                </div>
 
-                {/* Property Details */}
+                {/* Property Details — click to edit */}
                 <div className="job-detail__section">
                   <h3>Property Details</h3>
                   <div className="job-detail__props">
-                    {job.address && <div className="job-detail__prop"><strong>Address:</strong> {job.address}{job.city && `, ${job.city}`}{job.state && `, ${job.state}`} {job.zip}</div>}
-                    {job.county && <div className="job-detail__prop"><strong>County:</strong> {job.county}</div>}
-                    {job.lot_number && <div className="job-detail__prop"><strong>Lot:</strong> {job.lot_number}</div>}
-                    {job.subdivision && <div className="job-detail__prop"><strong>Subdivision:</strong> {job.subdivision}</div>}
-                    {job.abstract_number && <div className="job-detail__prop"><strong>Abstract:</strong> {job.abstract_number}</div>}
-                    {job.acreage && <div className="job-detail__prop"><strong>Acreage:</strong> {job.acreage}</div>}
+                    <div className="job-detail__prop"><strong>Address:</strong> <InlineEditField value={job.address} ariaLabel="address" emptyLabel="Add address" onSave={(v) => saveField('address', v)} /></div>
+                    <div className="job-detail__prop"><strong>City:</strong> <InlineEditField value={job.city} ariaLabel="city" emptyLabel="Add city" onSave={(v) => saveField('city', v)} /></div>
+                    <div className="job-detail__prop"><strong>State:</strong> <InlineEditField value={job.state} ariaLabel="state" emptyLabel="Add state" onSave={(v) => saveField('state', v)} /></div>
+                    <div className="job-detail__prop"><strong>ZIP:</strong> <InlineEditField value={job.zip} ariaLabel="zip" emptyLabel="Add ZIP" onSave={(v) => saveField('zip', v)} /></div>
+                    <div className="job-detail__prop"><strong>County:</strong> <InlineEditField value={job.county} ariaLabel="county" emptyLabel="Add county" onSave={(v) => saveField('county', v)} /></div>
+                    <div className="job-detail__prop"><strong>Lot:</strong> <InlineEditField value={job.lot_number} ariaLabel="lot" emptyLabel="Add lot" onSave={(v) => saveField('lot_number', v)} /></div>
+                    <div className="job-detail__prop"><strong>Subdivision:</strong> <InlineEditField value={job.subdivision} ariaLabel="subdivision" emptyLabel="Add subdivision" onSave={(v) => saveField('subdivision', v)} /></div>
+                    <div className="job-detail__prop"><strong>Abstract:</strong> <InlineEditField value={job.abstract_number} ariaLabel="abstract" emptyLabel="Add abstract" onSave={(v) => saveField('abstract_number', v)} /></div>
+                    <div className="job-detail__prop"><strong>Acreage:</strong> <InlineEditField value={job.acreage} type="number" ariaLabel="acreage" emptyLabel="Add acreage" onSave={(v) => saveField('acreage', v)} /></div>
                   </div>
                 </div>
 
-                {/* Client */}
-                {job.client_name && (
-                  <div className="job-detail__section">
-                    <h3>Client</h3>
-                    <div className="job-detail__props">
-                      <div className="job-detail__prop"><strong>Name:</strong> {job.client_name}</div>
-                      {job.client_email && <div className="job-detail__prop"><strong>Email:</strong> {job.client_email}</div>}
-                      {job.client_phone && <div className="job-detail__prop"><strong>Phone:</strong> {job.client_phone}</div>}
-                      {job.client_company && <div className="job-detail__prop"><strong>Company:</strong> {job.client_company}</div>}
-                    </div>
+                {/* Client — click to edit */}
+                <div className="job-detail__section">
+                  <h3>Client</h3>
+                  <div className="job-detail__props">
+                    <div className="job-detail__prop"><strong>Name:</strong> <InlineEditField value={job.client_name} ariaLabel="client name" emptyLabel="Add client name" onSave={(v) => saveField('client_name', v)} /></div>
+                    <div className="job-detail__prop"><strong>Email:</strong> <InlineEditField value={job.client_email} type="email" ariaLabel="client email" emptyLabel="Add email" onSave={(v) => saveField('client_email', v)} /></div>
+                    <div className="job-detail__prop"><strong>Phone:</strong> <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} /></div>
+                    <div className="job-detail__prop"><strong>Company:</strong> <InlineEditField value={job.client_company} ariaLabel="client company" emptyLabel="Add company" onSave={(v) => saveField('client_company', v)} /></div>
                   </div>
-                )}
+                </div>
 
-                {/* Notes */}
-                {job.notes && (
-                  <div className="job-detail__section">
-                    <h3>Notes</h3>
-                    <p>{job.notes}</p>
-                  </div>
-                )}
+                {/* Notes — click to edit */}
+                <div className="job-detail__section">
+                  <h3>Notes</h3>
+                  <p>
+                    <InlineEditField value={job.notes} type="textarea" ariaLabel="notes"
+                      emptyLabel="Add notes…" onSave={(v) => saveField('notes', v)} />
+                  </p>
+                </div>
 
                 {/* Checklist */}
                 <JobChecklist
@@ -509,6 +591,10 @@ export default function JobDetailPage() {
           />
         )}
 
+        {activeTab === 'cad' && (
+          <JobCadPanel jobId={jobId} jobName={job.name} onCountChange={setCadCount} />
+        )}
+
         {activeTab === 'fieldwork' && (
           <FieldWorkView
             jobId={jobId}
@@ -541,6 +627,10 @@ export default function JobDetailPage() {
           />
         )}
 
+        {activeTab === 'photos' && (
+          <JobPhotoGallery jobId={jobId} onCountChange={setPhotoCount} />
+        )}
+
         {activeTab === 'financial' && (
           <div className="job-detail__financial">
             <JobQuoteBuilder
@@ -559,24 +649,12 @@ export default function JobDetailPage() {
           </div>
         )}
 
+        {activeTab === 'activity' && (
+          <JobActivityFeed jobId={jobId} />
+        )}
+
         {activeTab === 'messages' && (
-          <div className="job-detail__messages">
-            <div className="job-detail__section">
-              <h3>Job Thread</h3>
-              <p className="job-detail__section-desc">
-                This is a dedicated messaging thread for this job. All team members assigned to the job
-                can communicate, share updates, and coordinate field work here.
-              </p>
-              <div className="job-detail__messages-placeholder">
-                <span>💬</span>
-                <p>Job messaging thread will be connected to the internal messaging system.</p>
-                <p className="job-detail__field-data-sub">Each job gets its own conversation where team members can coordinate.</p>
-                <Link href="/admin/messages" className="jobs-page__btn jobs-page__btn--secondary">
-                  Go to Messages
-                </Link>
-              </div>
-            </div>
-          </div>
+          <JobMessagesPanel jobId={jobId} />
         )}
       </div>
 

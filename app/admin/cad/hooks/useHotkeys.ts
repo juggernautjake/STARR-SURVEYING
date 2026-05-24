@@ -30,6 +30,7 @@ import {
   useHotkeysStore,
   useSelectionStore,
   useToolStore,
+  useTransferStore,
   useUIStore,
   useUndoStore,
 } from '@/lib/cad/store';
@@ -166,10 +167,18 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
 
     const onBlur = () => engine.flushPending();
 
-    window.addEventListener('keydown', onKeyDown);
+    // Capture phase so this canonical engine is the FIRST responder
+    // for every keydown. When it handles a key it calls
+    // preventDefault(); the legacy useKeyboard hook (which mounts a
+    // separate bubble-phase listener inside CanvasViewport) bails on
+    // event.defaultPrevented, so a shared shortcut like Ctrl+Z fires
+    // exactly once instead of twice. Keys this engine doesn't own
+    // (arrow nudge, Ctrl+D duplicate, Enter confirm) fall through to
+    // useKeyboard untouched.
+    window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('blur', onBlur);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('blur', onBlur);
       engineRef.current = null;
     };
@@ -230,13 +239,23 @@ export function dispatchDefaultAction(action: BindableAction): void {
       return;
 
     // ── Edit ──────────────────────────────────────────
-    case 'edit.undo':
+    case 'edit.undo': {
+      // While the LayerTransferDialog is in Pick mode, Ctrl+Z walks
+      // the pick history instead of the document undo stack so a
+      // surveyor can roll back accidental picks without losing
+      // drawing edits (Phase 8 §11.7.12).
+      const tx = useTransferStore.getState();
+      if (tx.pickModeActive) { tx.undoPick(); return; }
       useUndoStore.getState().undo();
       return;
+    }
     case 'edit.redo':
-    case 'edit.redo2':
+    case 'edit.redo2': {
+      const tx = useTransferStore.getState();
+      if (tx.pickModeActive) { tx.redoPick(); return; }
       useUndoStore.getState().redo();
       return;
+    }
     case 'edit.deselect':
       useSelectionStore.getState().deselectAll();
       useToolStore.getState().resetToolState();

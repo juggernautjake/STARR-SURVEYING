@@ -99,6 +99,14 @@ export function useKeyboard() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // The canonical hotkey engine (useHotkeys, mounted in CADLayout)
+      // runs first in the capture phase and calls preventDefault() on
+      // every shortcut it owns. Bail here so a shared binding like
+      // Ctrl+Z isn't dispatched twice (which removed two features per
+      // undo). This hook now only handles keys useHotkeys doesn't:
+      // arrow-nudge, Ctrl+D duplicate, Enter confirm, bare +/- zoom.
+      if (e.defaultPrevented) return;
+
       // Don't fire shortcuts when typing in an input/textarea
       const target = e.target as HTMLElement;
       if (

@@ -71,6 +71,35 @@ export default function LayerTransferDialog({ onClose }: Props) {
   const clearPicks = useTransferStore((s) => s.clearPicks);
   const removePick = useTransferStore((s) => s.removePick);
 
+  // Inline "create + name a new layer" as the transfer target.
+  const [creatingLayer, setCreatingLayer] = useState(false);
+  const [newLayerName, setNewLayerName] = useState('');
+
+  function createTargetLayer() {
+    const name = newLayerName.trim();
+    if (!name) return;
+    const id = generateId();
+    drawingStore.addLayer({
+      id,
+      name,
+      visible: true,
+      locked: false,
+      frozen: false,
+      color: '#000000',
+      lineWeight: 0.5,
+      lineTypeId: 'SOLID',
+      opacity: 1,
+      groupId: null,
+      sortOrder: Object.keys(drawingStore.document.layers).length,
+      isDefault: false,
+      isProtected: false,
+      autoAssignCodes: [],
+    });
+    setOptions({ targetLayerId: id });
+    setCreatingLayer(false);
+    setNewLayerName('');
+  }
+
   // Default the layer dropdown to the active layer (skip the
   // source layer when every picked feature shares one) so
   // common workflows are one-click.
@@ -597,8 +626,16 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 )}
               </label>
               <select
-                value={options.targetLayerId ?? ''}
-                onChange={(e) => setOptions({ targetLayerId: e.target.value || null })}
+                value={creatingLayer ? '__new__' : (options.targetLayerId ?? '')}
+                onChange={(e) => {
+                  if (e.target.value === '__new__') {
+                    setCreatingLayer(true);
+                    setOptions({ targetLayerId: null });
+                  } else {
+                    setCreatingLayer(false);
+                    setOptions({ targetLayerId: e.target.value || null });
+                  }
+                }}
                 className="w-full bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
               >
                 <option value="">— select a layer —</option>
@@ -611,7 +648,29 @@ export default function LayerTransferDialog({ onClose }: Props) {
                     </option>
                   );
                 })}
+                <option value="__new__">+ Create new layer…</option>
               </select>
+              {creatingLayer && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newLayerName}
+                    onChange={(e) => setNewLayerName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createTargetLayer(); } }}
+                    placeholder="New layer name…"
+                    className="flex-1 bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={createTargetLayer}
+                    disabled={!newLayerName.trim()}
+                    className="px-2 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded"
+                  >
+                    Create
+                  </button>
+                </div>
+              )}
               {targetLocked && (
                 <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1.5">
                   <span>Target layer is locked.</span>

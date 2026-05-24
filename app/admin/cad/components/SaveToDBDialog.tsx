@@ -82,6 +82,14 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
       const featureCount = Object.keys(doc.features).length;
       const layerCount = Object.keys(doc.layers).length;
 
+      // Preserve the job link when the editor was opened in a job
+      // context (/admin/cad?job=<id> or after loading a job-linked
+      // drawing, which stamps the same param). Omitting job_id leaves
+      // any existing link untouched server-side.
+      const jobId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('job')
+        : null;
+
       const payload = {
         id: savedId ?? undefined,
         name: saveName.trim() || doc.name,
@@ -89,6 +97,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
         document: { version: '1.0', application: 'starr-cad', document: doc },
         feature_count: featureCount,
         layer_count: layerCount,
+        ...(jobId ? { job_id: jobId } : {}),
       };
 
       const res = await fetch('/api/admin/cad/drawings', {

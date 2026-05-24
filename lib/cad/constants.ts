@@ -22,11 +22,11 @@ export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
 
 export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   units: 'FEET',
-  gridVisible: true,
+  gridVisible: false,
   gridMajorSpacing: 100,
   gridMinorDivisions: 10,
   gridStyle: 'DOTS',
-  snapEnabled: true,
+  snapEnabled: false,
   snapTypes: ['ENDPOINT', 'MIDPOINT', 'INTERSECTION', 'NEAREST', 'GRID'],
   snapRadius: 15,
   backgroundColor: '#FFFFFF',

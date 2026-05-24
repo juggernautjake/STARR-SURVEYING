@@ -580,6 +580,9 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   const undoStore = useUndoStore();
   const [importResult, setImportResult] = useState<ReturnType<typeof processImport> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  // Default: import everything into one visible "Survey Points" layer.
+  // Opt-in: split into per-code layers (the old behaviour).
+  const [autoGenerateLayers, setAutoGenerateLayers] = useState(false);
 
   const canGoNext = () => {
     const { step, file, rawText } = importStore;
@@ -621,20 +624,48 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   const handleExecuteImport = () => {
     if (!importResult) return;
 
-    // Ensure all standard survey layers exist in the document (needed for blank documents)
+    // Layer setup. Default: one visible "Survey Points" layer holds
+    // every imported point + linework. Opt-in (autoGenerateLayers):
+    // split into the per-code default layers.
     const existingLayers = drawingStore.document.layers;
-    const existingLayerOrder = drawingStore.document.layerOrder;
-    // Add missing default layers (by their fixed IDs like 'BOUNDARY', 'MISC', etc.)
-    const missingLayers = PHASE3_DEFAULT_LAYERS.filter((l) => !existingLayers[l.id]);
-    if (missingLayers.length > 0) {
-      for (const layer of missingLayers) {
-        drawingStore.addLayer(layer);
-      }
-      // If no active layer was set yet, use the first default
-      if (!existingLayerOrder.length) {
-        drawingStore.setActiveLayer(PHASE3_DEFAULT_LAYERS[0].id);
-      }
+    const SINGLE_LAYER_ID = 'SURVEY-POINTS';
+
+    if (autoGenerateLayers) {
+      // Add only the default layers actually referenced by the import,
+      // plus MISC as a fallback — instead of all 23 unconditionally.
+      const referenced = new Set<string>(['MISC']);
+      for (const pt of importResult.points) referenced.add(pt.layerId);
+      const missingLayers = PHASE3_DEFAULT_LAYERS.filter(
+        (l) => referenced.has(l.id) && !existingLayers[l.id],
+      );
+      for (const layer of missingLayers) drawingStore.addLayer(layer);
+      drawingStore.setActiveLayer(
+        importResult.points[0]?.layerId && drawingStore.document.layers[importResult.points[0].layerId]
+          ? importResult.points[0].layerId
+          : 'MISC',
+      );
+    } else if (!existingLayers[SINGLE_LAYER_ID]) {
+      // Create the single target layer once.
+      drawingStore.addLayer({
+        id: SINGLE_LAYER_ID,
+        name: 'Survey Points',
+        visible: true,
+        locked: false,
+        frozen: false,
+        color: '#000000',
+        lineWeight: 0.5,
+        lineTypeId: 'SOLID',
+        opacity: 1,
+        groupId: null,
+        sortOrder: 0,
+        isDefault: false,
+        isProtected: false,
+        autoAssignCodes: [],
+      });
     }
+    // Where features land this import.
+    const targetLayerId = autoGenerateLayers ? null : SINGLE_LAYER_ID;
+    if (!autoGenerateLayers) drawingStore.setActiveLayer(SINGLE_LAYER_ID);
 
     // Add points to point store
     pointStore.importPoints(importResult);
@@ -651,7 +682,7 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
         id: generateId(),
         type: 'POINT',
         geometry: { type: 'POINT', point: { x: pt.easting, y: pt.northing } },
-        layerId: pt.layerId,
+        layerId: targetLayerId ?? pt.layerId,
         style: {
           ...DEFAULT_FEATURE_STYLE,
           color: pt.codeDefinition?.defaultColor ?? '#000000',
@@ -682,7 +713,7 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
           type: 'POLYLINE',
           vertices: pts.map(p => ({ x: p.easting, y: p.northing })),
         },
-        layerId: pts[0]?.layerId ?? 'MISC',
+        layerId: targetLayerId ?? pts[0]?.layerId ?? 'MISC',
         style: {
           ...DEFAULT_FEATURE_STYLE,
           color: codeDef?.defaultColor ?? '#000000',
@@ -735,6 +766,11 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
       }
     }
 
+    // Force the canvas to (re)render and frame the newly-added points.
+    // Without this the features are in the store but the view doesn't
+    // visibly update until the next pan/zoom.
+    setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 50);
+
     importStore.nextStep(); // → COMPLETE
     onImportComplete?.();
   };
@@ -779,6 +815,17 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
             </button>
 
             <div className="flex items-center gap-2">
+              {isLastDataStep && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer mr-1 select-none" title="On: split points into separate layers by survey code. Off (default): import everything into one 'Survey Points' layer.">
+                  <input
+                    type="checkbox"
+                    checked={autoGenerateLayers}
+                    onChange={(e) => setAutoGenerateLayers(e.target.checked)}
+                    className="accent-blue-500"
+                  />
+                  Auto-generate layers by code
+                </label>
+              )}
               {isLastDataStep && (
                 <button
                   onClick={handleExecuteImport}

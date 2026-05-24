@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 
 // ─── GET ────────────────────────────────────────────────────────────────────
 
@@ -37,12 +37,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ drawing: data });
   }
 
-  // Return list — only metadata columns, not the full document JSONB
-  const { data, error } = await supabaseAdmin
+  // Return list — only metadata columns, not the full document JSONB.
+  // Optionally scope to a single job (the job-detail CAD tab passes
+  // ?job_id= to show only that job's drawings).
+  const jobId = searchParams.get('job_id');
+  let query = supabaseAdmin
     .from('cad_drawings')
     .select('id, name, description, feature_count, layer_count, job_id, created_at, updated_at')
     .eq('created_by', session.user.email)
     .order('updated_at', { ascending: false });
+  if (jobId) query = query.eq('job_id', jobId);
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -77,7 +83,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Missing required field: document' }, { status: 400 });
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     created_by: session.user.email,
     name: body.name.trim(),
     description: body.description?.trim() ?? null,
@@ -86,8 +92,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     application: 'starr-cad',
     feature_count: body.feature_count ?? 0,
     layer_count: body.layer_count ?? 0,
-    job_id: body.job_id ?? null,
   };
+  // Only touch job_id when the caller explicitly sends it. Sending
+  // `null` clears the link; omitting it (undefined) preserves whatever
+  // is already stored — so re-saving a job-linked drawing from the
+  // generic CAD open dialog (which doesn't know the job) won't wipe
+  // the link.
+  if (body.job_id !== undefined) {
+    payload.job_id = body.job_id;
+  }
 
   if (body.id) {
     // Update existing
@@ -114,6 +127,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Log to the job's activity feed when the drawing is job-linked.
+  if (data?.job_id) {
+    await fireAndForget(supabaseAdmin.from('activity_log').insert({
+      user_email: session.user.email,
+      action: 'cad_drawing_saved',
+      entity_type: 'job',
+      entity_id: data.job_id,
+      details: { name: data.name, drawing_id: data.id },
+    }));
   }
 
   return NextResponse.json({ drawing: data }, { status: 201 });
