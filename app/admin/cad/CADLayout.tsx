@@ -828,8 +828,11 @@ export default function CADLayout() {
 
       {/* Main content area */}
       <div className="flex flex-1 min-h-0">
-        {/* Left sidebar: tools */}
-        <div className="flex flex-col bg-gray-800 border-r border-gray-700" style={{ width: 52 }}>
+        {/* Left sidebar: tools. overflow-y-auto + min-h-0 so the button
+            column scrolls within the available height instead of
+            spilling over the command bar / point table on short
+            viewports. */}
+        <div className="flex flex-col bg-gray-800 border-r border-gray-700 overflow-y-auto overflow-x-hidden min-h-0" style={{ width: 52 }}>
           <ToolBar />
         </div>
 

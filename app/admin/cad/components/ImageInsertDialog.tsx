@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { X, Upload, Clipboard, ImageIcon } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
-import { generateId } from '@/lib/cad/types';
+import { generateId, projectImageSrc } from '@/lib/cad/types';
 import type { ProjectImage } from '@/lib/cad/types';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -130,18 +130,36 @@ export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }:
     }
   }
 
-  function handleInsert() {
+  async function handleInsert() {
     if (!preview || !previewW || !previewH) return;
 
     const id = generateId();
-    const image: ProjectImage = {
-      id,
-      name: previewName || 'Untitled Image',
-      dataUrl: preview,
-      originalWidth: previewW,
-      originalHeight: previewH,
-      addedAt: new Date().toISOString(),
-    };
+    const name = previewName || 'Untitled Image';
+
+    // Upload the bytes to the cad-images bucket so the drawing stores
+    // only a small URL. If the upload fails (bucket not provisioned,
+    // offline, etc.) fall back to inlining the base64 so insert never
+    // breaks — older drawings work the same way.
+    let url: string | undefined;
+    let storagePath: string | undefined;
+    try {
+      const res = await fetch('/api/admin/cad/images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl: preview, name }),
+      });
+      if (res.ok) {
+        const d = await res.json() as { url?: string; storagePath?: string };
+        url = d.url;
+        storagePath = d.storagePath;
+      }
+    } catch {
+      /* fall back to inline data URL below */
+    }
+
+    const image: ProjectImage = url
+      ? { id, name, url, storagePath, originalWidth: previewW, originalHeight: previewH, addedAt: new Date().toISOString() }
+      : { id, name, dataUrl: preview, originalWidth: previewW, originalHeight: previewH, addedAt: new Date().toISOString() };
 
     // Default display size: scale so the image is 200 world-units wide (~ 4" at 1"=50')
     const drawingScale = drawingStore.document.settings.drawingScale ?? 50;
@@ -263,12 +281,12 @@ export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }:
                 {existingImages.map((img) => (
                   <button
                     key={img.id}
-                    onClick={() => processDataUrl(img.dataUrl, img.name)}
+                    onClick={() => processDataUrl(projectImageSrc(img), img.name)}
                     className="group relative rounded overflow-hidden bg-gray-700 border border-gray-600 hover:border-blue-400 aspect-square transition-colors"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={img.dataUrl}
+                      src={projectImageSrc(img)}
                       alt={img.name}
                       className="w-full h-full object-cover"
                     />

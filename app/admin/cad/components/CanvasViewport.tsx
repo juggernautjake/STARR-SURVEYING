@@ -644,6 +644,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Screen position of the last pointer-down, used to tell a click
   // (deselect) from a drag (pan) in the PAN tool.
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  // Tracks which document the image texture cache belongs to. When a
+  // different drawing is loaded we rebuild image textures from scratch
+  // so a stale/failed texture can't render as a "broken" image.
+  const imageCacheDocIdRef = useRef<string | null>(null);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
   // Phase 8 §11.6 — true while the IntersectDialog has a slot
@@ -1719,6 +1723,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const doc = useDrawingStore.getState().document;
     const { zoom } = useViewportStore.getState();
+
+    // On a document switch (open / load), drop every cached sprite +
+    // texture so images are rebuilt from THIS document's projectImages.
+    // Without this, a texture cached under an imageId from a previous
+    // document (or one that failed to decode mid-session) sticks around
+    // and renders as a broken image after reopening a saved survey.
+    if (imageCacheDocIdRef.current !== doc.id) {
+      for (const [, sprite] of pixi.imageSprites) {
+        sprite.parent?.removeChild(sprite);
+        sprite.destroy();
+      }
+      pixi.imageSprites.clear();
+      for (const [, tex] of pixi.imageTextures) {
+        try { tex.destroy(true); } catch { /* texture may be shared/already gone */ }
+      }
+      pixi.imageTextures.clear();
+      imageCacheDocIdRef.current = doc.id;
+    }
+
     const visibleFeatures = drawingStore.getVisibleFeatures().filter(
       (f) => f.geometry.type === 'IMAGE' && f.geometry.image,
     );
@@ -1737,10 +1760,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const projImg = (doc.projectImages ?? {})[img.imageId];
       if (!projImg) continue;
 
-      // Ensure texture exists (cached)
+      // Ensure texture exists (cached). Prefer the bucket URL; fall
+      // back to the inline data URL for legacy drawings.
       if (!pixi.imageTextures.has(img.imageId)) {
         try {
-          const tex = pixi.TextureClass.from(projImg.dataUrl);
+          const src = projImg.url ?? projImg.dataUrl;
+          if (!src) continue;
+          const tex = pixi.TextureClass.from(src);
           pixi.imageTextures.set(img.imageId, tex);
         } catch {
           continue;
@@ -1763,14 +1789,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const { sx, sy } = w2s(img.position.x, img.position.y);
       sprite.position.set(sx, sy);
 
-      // Scale: world dimensions → screen pixels
+      // Scale: world dimensions → screen pixels. With the bottom-left
+      // anchor (0,1) at the image's world bottom-left, a POSITIVE y
+      // scale draws the image upright extending UP from the anchor —
+      // i.e. occupying screen rows [sy - hPx, sy], exactly where the
+      // selection frame + grips are drawn. The previous -scaleY pushed
+      // the image one full height BELOW its frame (and flipped it).
       const wPx = img.width * zoom;
       const hPx = img.height * zoom;
       const scaleX = wPx / (texture.width || 1);
       const scaleY = hPx / (texture.height || 1);
       sprite.scale.set(
         img.mirrorX ? -scaleX : scaleX,
-        img.mirrorY ? scaleY : -scaleY, // y inverted because screen y is down, world y is up
+        img.mirrorY ? -scaleY : scaleY,
       );
 
       // Rotation: world CCW positive → screen CW positive (invert)
@@ -3333,6 +3364,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.drawRoundedRect(x, y, w, h, 4);
     g.lineStyle(4, tierColor, 0.25);
     g.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, 6);
+  }
+
+  // CSS resize cursor for an IMAGE grip by index (0=BL,1=BR,2=TR,3=TL,
+  // 4=Bottom-mid,5=Right-mid,6=Top-mid,7=Left-mid). World→screen flips
+  // Y, so BL/TR map to the NE-SW diagonal and BR/TL to the NW-SE one.
+  function imageGripCursor(idx: number): string {
+    switch (idx) {
+      case 0: case 2: return 'nesw-resize';
+      case 1: case 3: return 'nwse-resize';
+      case 4: case 6: return 'ns-resize';
+      case 5: case 7: return 'ew-resize';
+      default: return 'move';
+    }
   }
 
   function getFeatureVertices(feature: Feature): Point2D[] {
@@ -9359,7 +9403,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 const img = { ...geom.image };
                 const origRight = img.position.x + img.width;
                 const origTop = img.position.y + img.height;
-                // Shift-key constrains proportions (handled client side — check event modifier)
                 switch (vertexIndex) {
                   case 0: // BL — moves left and bottom
                     img.width = origRight - worldPt.x;
@@ -9398,6 +9441,39 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 // Enforce minimum size
                 img.width  = Math.max(img.width,  0.1);
                 img.height = Math.max(img.height, 0.1);
+
+                // Ctrl on a CORNER grip → uniform scale: lock to the
+                // original aspect ratio, keeping the opposite corner
+                // fixed. Without Ctrl the corners scale freely
+                // (non-uniform / disproportionate stretch).
+                const startImg = gripStartRef.current?.geometry.image;
+                const isCorner = vertexIndex >= 0 && vertexIndex <= 3;
+                if (e.ctrlKey && isCorner && startImg && startImg.height > 0) {
+                  const aspect = startImg.width / startImg.height; // w per h
+                  // Drive height off width (use the larger proposed
+                  // change so the dragged corner tracks the cursor).
+                  const wFromH = img.height * aspect;
+                  if (img.width >= wFromH) {
+                    img.height = img.width / aspect;
+                  } else {
+                    img.width = img.height * aspect;
+                  }
+                  // Re-anchor so the corner OPPOSITE the dragged one
+                  // stays put.
+                  switch (vertexIndex) {
+                    case 0: // BL fixed corner = TR (origRight, origTop)
+                      img.position = { x: origRight - img.width, y: origTop - img.height };
+                      break;
+                    case 1: // BR fixed corner = TL (position.x, origTop)
+                      img.position = { x: img.position.x, y: origTop - img.height };
+                      break;
+                    case 2: // TR fixed corner = BL (position stays)
+                      break;
+                    case 3: // TL fixed corner = BR (origRight, position.y)
+                      img.position = { x: origRight - img.width, y: img.position.y };
+                      break;
+                  }
+                }
                 geom.image = img;
               }
               break;
@@ -9510,7 +9586,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }
           }
           drawingStore.updateFeatureGeometry(featureId, geom);
+
+          // While resizing an image, float a hint at the cursor with
+          // the live size and the Ctrl=keep-aspect tip (corner grips).
+          if (geom.type === 'IMAGE' && geom.image) {
+            const isCorner = vertexIndex >= 0 && vertexIndex <= 3;
+            const lines = [`${geom.image.width.toFixed(1)} × ${geom.image.height.toFixed(1)} ft`];
+            if (isCorner) lines.push(e.ctrlKey ? 'Aspect locked (Ctrl)' : 'Hold Ctrl = keep aspect');
+            setHud({ sx: sx + 18, sy: sy - 10, lines });
+          }
         }
+        return; // actively dragging a grip — skip hover/move logic
       }
 
       // Element drag-to-move in SELECT mode
@@ -9574,7 +9660,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (!gripDragRef.current && !tbHover) {
             const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
             if (onGrip) {
-              setCursorStyle('move');
+              // Image grips get a directional resize cursor so the
+              // surveyor knows the corner/edge is draggable to resize.
+              const gripFeat = drawingStore.getFeature(onGrip.featureId);
+              setCursorStyle(
+                gripFeat?.geometry.type === 'IMAGE'
+                  ? imageGripCursor(onGrip.vertexIndex)
+                  : 'move',
+              );
             } else if (labelHover) {
               // Hovering over a label: show grab cursor
               setCursorStyle('grab');
@@ -9835,6 +9928,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         gripDragRef.current = null;
         gripStartRef.current = null;
+        setHud(null); // clear the image-resize size/Ctrl hint
         setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
         return;
       }

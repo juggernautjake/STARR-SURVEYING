@@ -111,7 +111,7 @@ export default function PointTablePanel({
 
   if (totalCount === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+      <div className="flex flex-col h-full bg-gray-800 items-center justify-center text-gray-500 text-sm">
         No points imported. Use File → Import to load field data.
       </div>
     );

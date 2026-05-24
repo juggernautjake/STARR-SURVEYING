@@ -63,10 +63,24 @@ export interface DisplayPreferences {
 export interface ProjectImage {
   id: string;
   name: string;           // Original filename or user label
-  dataUrl: string;        // Full-resolution base64 data URL
+  /** Public bucket URL (preferred). When set, the bytes live in the
+   *  cad-images storage bucket and the drawing stores only this URL,
+   *  keeping image-heavy surveys small to save/load. */
+  url?: string;
+  /** Storage path inside the bucket (used for deletion). */
+  storagePath?: string;
+  /** Full-resolution base64 data URL. Legacy / fallback used when the
+   *  bucket upload isn't available; older drawings store only this. */
+  dataUrl?: string;
   originalWidth: number;  // Native pixel width
   originalHeight: number; // Native pixel height
   addedAt: string;        // ISO 8601 timestamp
+}
+
+/** Renderable source for a project image: prefer the bucket URL, fall
+ *  back to the inline data URL (legacy drawings). */
+export function projectImageSrc(img: ProjectImage): string {
+  return img.url ?? img.dataUrl ?? '';
 }
 
 /**

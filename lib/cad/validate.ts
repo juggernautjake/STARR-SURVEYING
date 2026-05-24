@@ -6,7 +6,7 @@ import type { DrawingDocument } from './types';
 import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYERS, DEFAULT_DISPLAY_PREFERENCES } from './constants';
 import { generateId } from './types';
 import { cadLog } from './logger';
-import { DEFAULT_LAYER_GROUPS, getDefaultLayersRecord, getDefaultLayerOrder } from './styles/default-layers';
+import { DEFAULT_LAYER_GROUPS } from './styles/default-layers';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from './styles/types';
 
 /** Minimal structural check — throws a descriptive Error if critical fields are missing. */
@@ -144,18 +144,12 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
     ? (r.layerGroupOrder as string[])
     : DEFAULT_LAYER_GROUPS.map(g => g.id);
 
-  // ── Phase 3: merge default layers that are missing from the loaded document ─
-  // (ensures 22 default layers are always present when loading an older file)
-  const defaultLayers = getDefaultLayersRecord();
-  const defaultLayerOrder = getDefaultLayerOrder();
-  let layerOrderExtended = layerOrder;
-  for (const dlId of defaultLayerOrder) {
-    if (!layers[dlId]) {
-      // defaultLayers[dlId].id already equals dlId (static fixed IDs), but be explicit
-      (layers as Record<string, unknown>)[dlId] = { ...defaultLayers[dlId], id: dlId };
-      layerOrderExtended = [...layerOrderExtended, dlId];
-    }
-  }
+  // NOTE: we intentionally do NOT merge the full default-layer set into
+  // a loaded document. A survey must reopen with exactly the layers it
+  // was saved with — injecting the ~22 standard layers on every load
+  // resurrected "auto-generated" layers the user had removed and made a
+  // reopened drawing look unlike the saved one. The "guarantee at least
+  // one layer" check above already covers the degenerate empty case.
 
   return {
     id:               String(r.id),
@@ -165,7 +159,7 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
     author:           typeof r.author  === 'string' ? r.author  : '',
     features:         features    as DrawingDocument['features'],
     layers:           layers      as DrawingDocument['layers'],
-    layerOrder:       layerOrderExtended,
+    layerOrder:       layerOrder,
     layerGroups,
     layerGroupOrder,
     customSymbols:    Array.isArray(r.customSymbols)  ? (r.customSymbols  as DrawingDocument['customSymbols'])  : [],

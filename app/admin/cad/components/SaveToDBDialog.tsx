@@ -153,6 +153,51 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
     }
   }
 
+  // ── Rename handler (metadata-only PATCH) ──────────────────────────────
+  async function handleRename(id: string, currentName: string) {
+    const next = window.prompt('Rename drawing', currentName);
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === currentName) return;
+    try {
+      const res = await fetch('/api/admin/cad/drawings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name: trimmed }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error: ${res.status}`);
+      }
+      setDrawings((prev) => prev.map((d) => (d.id === id ? { ...d, name: trimmed } : d)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Rename failed');
+    }
+  }
+
+  // ── Export handler (download as a .starr file) ────────────────────────
+  async function handleExport(id: string, name: string) {
+    try {
+      const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(id)}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error: ${res.status}`);
+      }
+      const { drawing } = await res.json() as { drawing: { document: unknown } };
+      // drawing.document is the saved envelope { version, application, document }.
+      const blob = new Blob([JSON.stringify(drawing.document, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `${name.replace(/[^\w.-]+/g, '_') || 'drawing'}.starr`,
+      });
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Export failed');
+    }
+  }
+
   // ── Delete handler ────────────────────────────────────────────────────
   async function handleDelete(id: string, name: string) {
     if (!window.confirm(`Delete "${name}" from your saved drawings? This cannot be undone.`)) return;
@@ -178,7 +223,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <h2 className="text-base font-bold text-white">
-            {mode === 'save' ? 'Save Drawing' : 'Open Saved Drawing'}
+            {mode === 'save' ? 'Save Drawing' : 'Saved Drawings'}
           </h2>
           <DialogCloseButton onClick={onClose} />
         </div>
@@ -254,8 +299,23 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
                           disabled={opening}
                           onClick={() => handleOpen(d.id)}
                           className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs rounded transition-colors"
+                          title="Open this drawing"
                         >
                           {opening ? '…' : 'Open'}
+                        </button>
+                        <button
+                          onClick={() => handleExport(d.id, d.name)}
+                          className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded transition-colors"
+                          title="Export as .starr file"
+                        >
+                          ⤓
+                        </button>
+                        <button
+                          onClick={() => handleRename(d.id, d.name)}
+                          className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded transition-colors"
+                          title="Rename"
+                        >
+                          ✎
                         </button>
                         <button
                           onClick={() => handleDelete(d.id, d.name)}
