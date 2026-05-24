@@ -113,6 +113,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Let other surfaces (e.g. the startup New Drawing dialog) open the
+  // cloud Save/Open dialog without reaching into this component's state.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const mode = (e as CustomEvent<{ mode?: 'save' | 'open' }>).detail?.mode;
+      setDbDialog(mode === 'save' ? 'save' : 'open');
+    };
+    window.addEventListener('cad:openDbDialog', handler);
+    return () => window.removeEventListener('cad:openDbDialog', handler);
+  }, []);
+
   function openFileDialog() {
     const input = Object.assign(document.createElement('input'), {
       type: 'file',

@@ -9390,7 +9390,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 const img = { ...geom.image };
                 const origRight = img.position.x + img.width;
                 const origTop = img.position.y + img.height;
-                // Shift-key constrains proportions (handled client side — check event modifier)
                 switch (vertexIndex) {
                   case 0: // BL — moves left and bottom
                     img.width = origRight - worldPt.x;
@@ -9429,6 +9428,39 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 // Enforce minimum size
                 img.width  = Math.max(img.width,  0.1);
                 img.height = Math.max(img.height, 0.1);
+
+                // Ctrl on a CORNER grip → uniform scale: lock to the
+                // original aspect ratio, keeping the opposite corner
+                // fixed. Without Ctrl the corners scale freely
+                // (non-uniform / disproportionate stretch).
+                const startImg = gripStartRef.current?.geometry.image;
+                const isCorner = vertexIndex >= 0 && vertexIndex <= 3;
+                if (e.ctrlKey && isCorner && startImg && startImg.height > 0) {
+                  const aspect = startImg.width / startImg.height; // w per h
+                  // Drive height off width (use the larger proposed
+                  // change so the dragged corner tracks the cursor).
+                  const wFromH = img.height * aspect;
+                  if (img.width >= wFromH) {
+                    img.height = img.width / aspect;
+                  } else {
+                    img.width = img.height * aspect;
+                  }
+                  // Re-anchor so the corner OPPOSITE the dragged one
+                  // stays put.
+                  switch (vertexIndex) {
+                    case 0: // BL fixed corner = TR (origRight, origTop)
+                      img.position = { x: origRight - img.width, y: origTop - img.height };
+                      break;
+                    case 1: // BR fixed corner = TL (position.x, origTop)
+                      img.position = { x: img.position.x, y: origTop - img.height };
+                      break;
+                    case 2: // TR fixed corner = BL (position stays)
+                      break;
+                    case 3: // TL fixed corner = BR (origRight, position.y)
+                      img.position = { x: origRight - img.width, y: img.position.y };
+                      break;
+                  }
+                }
                 geom.image = img;
               }
               break;

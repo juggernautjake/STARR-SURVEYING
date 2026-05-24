@@ -4,7 +4,7 @@
 // or goes straight to importing survey data.
 
 import { useState, useRef } from 'react';
-import { FileText, Upload, X } from 'lucide-react';
+import { FileText, Upload, FolderOpen, X } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
@@ -172,7 +172,7 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-6 pt-2 flex gap-3">
+        <div className="px-6 pb-3 pt-2 flex gap-3">
           <button
             onClick={handleCreate}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition-colors"
@@ -186,6 +186,19 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
           >
             <Upload size={16} />
             Import Survey Data
+          </button>
+        </div>
+        {/* Open a previously-saved survey from the cloud */}
+        <div className="px-6 pb-6">
+          <button
+            onClick={() => {
+              onClose();
+              window.dispatchEvent(new CustomEvent('cad:openDbDialog', { detail: { mode: 'open' } }));
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-100 text-sm font-semibold rounded-lg transition-colors"
+          >
+            <FolderOpen size={16} />
+            Open a Saved Survey (Cloud)
           </button>
         </div>
       </div>
