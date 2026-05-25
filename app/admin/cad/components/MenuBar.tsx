@@ -30,7 +30,7 @@ import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, d
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
-import DialogCloseButton from './ui/DialogCloseButton';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface MenuItem {
   label: string;
@@ -844,16 +844,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
 
       {/* Keyboard Shortcuts modal */}
       {showShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]" onClick={() => setShowShortcuts(false)}>
-          <div
-            className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-6 max-w-lg w-full mx-4 text-xs text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-white">Keyboard Shortcuts</h2>
-              <DialogCloseButton onClick={() => setShowShortcuts(false)} />
-            </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 max-h-96 overflow-y-auto">
+        <ModalFrame
+          open
+          onClose={() => setShowShortcuts(false)}
+          title="Keyboard Shortcuts"
+          initialWidth={560}
+          initialHeight={560}
+          minWidth={400}
+          minHeight={320}
+        >
+          <div className="p-6 text-xs text-gray-200">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
               {[
                 ['File', null],
                 ['New Drawing', 'Ctrl+N'],
@@ -915,7 +916,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
               )}
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
 
