@@ -41,6 +41,7 @@ import type {
 } from '../ai-engine/types';
 import type { Feature } from '../types';
 import { useDrawingStore } from './drawing-store';
+import { fileToDataUrl, uploadProjectImage } from '../persistence/project-image';
 
 export type AIPipelineStatus = 'idle' | 'running' | 'done' | 'error';
 
@@ -157,6 +158,9 @@ interface AIStore {
    *  COPILOT cancels in-flight cards) and by `clearProposalQueue`
    *  in the test helpers. */
   clearProposalQueue: () => void;
+  /** Retarget the head proposal to a specific layer before the
+   *  surveyor accepts it (drives the review-time layer picker). */
+  setHeadProposalLayerId: (layerId: string) => void;
 
   /** True while a `proposeFromPrompt` POST is in flight. The
    *  chat sidebar / command palette wires a spinner off this. */
@@ -170,7 +174,7 @@ interface AIStore {
    *  on the proposal queue and stashes the narrative for the
    *  chat sidebar. Resolves once the proposals land or rejects
    *  with the route's error message. */
-  proposeFromPrompt: (prompt: string) => Promise<void>;
+  proposeFromPrompt: (prompt: string, images?: File[]) => Promise<void>;
   /** §32.13 Slice 11 — kick off an AUTO run. Builds the intake
    *  prompt from the current document + project context and
    *  fires it through `proposeFromPrompt`. The surveyor sees
@@ -460,6 +464,13 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     return head.id;
   },
   clearProposalQueue: () => set({ proposalQueue: [] }),
+  setHeadProposalLayerId: (layerId) =>
+    set((s) => {
+      const head = s.proposalQueue[0];
+      if (!head) return {};
+      const updated = { ...head, args: { ...(head.args as unknown as Record<string, unknown>), layerId } };
+      return { proposalQueue: [updated as unknown as typeof head, ...s.proposalQueue.slice(1)] };
+    }),
 
   isProposing: false,
   lastProposeNarrative: null,
@@ -559,11 +570,25 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     return { replayed, failed, aborted: false };
   },
 
-  proposeFromPrompt: async (prompt: string) => {
+  proposeFromPrompt: async (prompt: string, imageFiles?: File[]) => {
     const trimmed = prompt.trim();
-    if (trimmed.length === 0) return;
+    if (trimmed.length === 0 && (!imageFiles || imageFiles.length === 0)) return;
     const drawing = useDrawingStore.getState();
     const ai = get();
+    // Attached images: persist each to the project AND collect base64 for
+    // the vision request so the model can read the sketch.
+    const images: Array<{ base64: string; mediaType: string }> = [];
+    for (const file of imageFiles ?? []) {
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        const comma = dataUrl.indexOf(',');
+        images.push({ base64: comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl, mediaType: file.type || 'image/png' });
+        const projImg = await uploadProjectImage(file, file.name || 'attachment');
+        useDrawingStore.getState().addProjectImage(projImg);
+      } catch {
+        /* skip an unreadable image rather than fail the whole prompt */
+      }
+    }
     // Feed the existing points + lines so the model can resolve named
     // references ("500", "528") and compute new geometry from real
     // coordinates. Capped to keep the prompt bounded on large surveys.
@@ -611,7 +636,9 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     const userMsg: AICopilotMessage = {
       id: copilotMsgId(),
       role: 'USER',
-      content: trimmed,
+      content: images.length > 0
+        ? `${trimmed}${trimmed ? '\n' : ''}📎 ${images.length} image${images.length === 1 ? '' : 's'} attached`
+        : trimmed,
       ts: new Date().toISOString(),
     };
     set((s) => ({
@@ -622,7 +649,7 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
       const res = await fetch('/api/admin/cad/ai-propose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: trimmed, context }),
+        body: JSON.stringify({ prompt: trimmed, context, images }),
       });
       const json = (await res.json().catch(() => ({}))) as
         | {

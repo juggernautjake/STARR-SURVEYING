@@ -27,6 +27,7 @@ import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
 import AIProvenancePopup from './components/AIProvenancePopup';
 import CopilotCard from './components/CopilotCard';
+import InlineAIChat from './components/InlineAIChat';
 import AICopilotSidebar from './components/AICopilotSidebar';
 import AIAutoRunner from './components/AIAutoRunner';
 import ChordHUD from './components/ChordHUD';
@@ -994,6 +995,7 @@ export default function CADLayout() {
           the head of useAIStore.proposalQueue with Accept /
           Modify / Skip + ghost preview on the canvas. */}
       <CopilotCard />
+      <InlineAIChat />
 
       {/* Phase 6 §32 Slice 7 COMMAND-mode chat sidebar — input
           surface for proposeFromPrompt. Auto-opens on COPILOT /

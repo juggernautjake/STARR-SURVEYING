@@ -57,6 +57,10 @@ export interface ProposeFromPromptOptions {
   client?: ClaudeMessagesClient;
   /** Cancellation hook (forwarded to the SDK). */
   signal?: AbortSignal;
+  /** Images the surveyor attached for vision review (e.g. a hand
+   *  sketch of a building). Sent as image blocks on the first turn so
+   *  the model can read shape + dimensions and pair them to points. */
+  images?: Array<{ base64: string; mediaType: string }>;
   /** Override the batch id stamped on every proposal's provenance.
    *  Defaults to a fresh UUID per call so an undo-batch can be
    *  built from the surveyor's "this turn" decision. */
@@ -124,38 +128,80 @@ export async function proposeFromPrompt(
   }
 
   try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: MAX_TOKENS,
-      tools,
-      // ephemeral cache the system prompt — repeated proposals
-      // in the same session pay only the prompt tokens that
-      // change (mainly the user message).
-      system: [
-        {
-          type: 'text',
-          text: systemPrompt,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
-
     const proposals: AIProposal[] = [];
     const narrativeParts: string[] = [];
+    // Agentic tool loop: the model can call deterministic SOLVER tools
+    // (perpendicular foot, bearing/distance, intersection, fourth corner)
+    // — we run those server-side and feed the result back so it can chain
+    // a calculation into a placement. PLACEMENT tools (addPoint /
+    // drawLineBetween / drawPolylineThrough) become proposals for the
+    // surveyor to approve; we acknowledge them so the model can keep
+    // building (e.g. a whole wall or fence run across several tool calls).
+    // Attach any images on the first user turn (vision review).
+    const images = options.images ?? [];
+    const firstContent: Anthropic.Messages.MessageParam['content'] = images.length > 0
+      ? [
+          ...images.map((img) => ({
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: img.mediaType as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
+              data: img.base64,
+            },
+          })),
+          { type: 'text' as const, text: prompt },
+        ]
+      : prompt;
+    const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: firstContent }];
+    const MAX_ITERS = 6;
 
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        narrativeParts.push(block.text);
-      } else if (block.type === 'tool_use') {
-        const proposal = blockToProposal(block, batchId, promptHash);
-        if (proposal) proposals.push(proposal);
+    for (let iter = 0; iter < MAX_ITERS; iter += 1) {
+      const response = await client.messages.create({
+        model,
+        max_tokens: MAX_TOKENS,
+        tools,
+        // ephemeral cache the system prompt — repeated proposals in the
+        // same session pay only the prompt tokens that change.
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+        messages,
+      });
+
+      const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
+      for (const block of response.content) {
+        if (block.type === 'text') {
+          if (block.text.trim()) narrativeParts.push(block.text);
+        } else if (block.type === 'tool_use') {
+          if (isSolverTool(block.name)) {
+            // Deterministic calculator — run it and return the value.
+            let payload: string;
+            try {
+              const def = toolRegistry[block.name as ToolName];
+              payload = JSON.stringify(def.execute(block.input as never));
+            } catch (e) {
+              payload = JSON.stringify({ ok: false, reason: e instanceof Error ? e.message : 'solver error' });
+            }
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: payload });
+          } else {
+            const proposal = blockToProposal(block, batchId, promptHash);
+            if (proposal) proposals.push(proposal);
+            // Acknowledge so the model can continue building; the actual
+            // commit happens only when the surveyor approves the card.
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: block.id,
+              content: JSON.stringify({ ok: true, queuedForApproval: true }),
+            });
+          }
+        }
       }
+
+      // Continue only while the model paused for tool results.
+      if (response.stop_reason === 'tool_use' && toolResults.length > 0) {
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: toolResults });
+        continue;
+      }
+      break;
     }
 
     return {

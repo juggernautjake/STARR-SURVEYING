@@ -33,4 +33,11 @@ describe('AI system prompt — existing point/line data', () => {
     const prompt = buildSystemPrompt(base);
     expect(prompt).toMatch(/Existing survey points[\s\S]*\(none\)/);
   });
+
+  it('includes sketch/image review + edge-pairing guidance', () => {
+    const prompt = buildSystemPrompt(base);
+    expect(prompt).toContain('Reviewing an attached image');
+    expect(prompt.toLowerCase()).toContain('per-edge');
+    expect(prompt.toLowerCase()).toContain('did not shoot');
+  });
 });

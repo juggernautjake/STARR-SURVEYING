@@ -46,7 +46,9 @@ export default function AICopilotSidebar() {
   const [refsOpen, setRefsOpen] = useState(false);
 
   const [draft, setDraft] = useState('');
+  const [attachments, setAttachments] = useState<File[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
   // External surfaces (right-click, palette) seed the input
@@ -87,9 +89,17 @@ export default function AICopilotSidebar() {
   function handleSubmit(e?: React.FormEvent | React.KeyboardEvent) {
     e?.preventDefault?.();
     const text = draft.trim();
-    if (text.length === 0 || isProposing) return;
+    if ((text.length === 0 && attachments.length === 0) || isProposing) return;
+    const imgs = attachments;
     setDraft('');
-    propose(text);
+    setAttachments([]);
+    propose(text, imgs);
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'));
+    if (picked.length > 0) setAttachments((prev) => [...prev, ...picked].slice(0, 4));
+    e.target.value = ''; // allow re-selecting the same file
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -280,11 +290,47 @@ export default function AICopilotSidebar() {
           className="w-full bg-gray-800 text-gray-100 text-[12px] rounded px-2 py-1.5 border border-gray-700 focus:border-blue-500 focus:outline-none resize-none"
           disabled={mode === 'MANUAL'}
         />
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-gray-500">Ctrl+Enter sends</span>
+        {/* Attached-image chips */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {attachments.map((f, i) => (
+              <span key={`${f.name}-${i}`} className="flex items-center gap-1 max-w-full bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 text-[10px] text-gray-300">
+                <Paperclip size={10} className="text-blue-400 shrink-0" />
+                <span className="truncate max-w-[180px]">{f.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                  className="text-gray-500 hover:text-white shrink-0"
+                  aria-label="Remove image"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={onPickFiles}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={mode === 'MANUAL' || isProposing}
+            title="Attach an image (e.g. a building sketch) for the AI to review. Saved to the project."
+            className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-300 border border-gray-700 rounded hover:bg-gray-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Paperclip size={12} /> Image
+          </button>
+          <span className="text-[10px] text-gray-500 ml-auto mr-1">Ctrl+Enter sends</span>
           <button
             type="submit"
-            disabled={mode === 'MANUAL' || draft.trim().length === 0 || isProposing}
+            disabled={mode === 'MANUAL' || (draft.trim().length === 0 && attachments.length === 0) || isProposing}
             className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded transition-colors"
           >
             <Send size={12} /> Send
@@ -378,7 +424,7 @@ function MessageRow(props: { message: import('@/lib/cad/store').AICopilotMessage
   const isSystem = m.role === 'SYSTEM';
   return (
     <div
-      className={`rounded px-2 py-1.5 border whitespace-pre-wrap ${
+      className={`rounded px-2 py-1.5 border whitespace-pre-wrap select-text cursor-text ${
         isUser
           ? 'bg-blue-900/30 border-blue-800/60 text-blue-100'
           : isSystem

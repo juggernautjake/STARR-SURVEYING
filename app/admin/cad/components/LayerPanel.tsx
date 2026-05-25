@@ -2,7 +2,7 @@
 // app/admin/cad/components/LayerPanel.tsx — Layer list panel
 
 import { useState, useRef } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X, Send } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X, Send, Sparkles } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
@@ -715,6 +715,24 @@ export default function LayerPanel() {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 flex items-center gap-1.5 text-blue-300"
+            onClick={() => {
+              const layerName = doc.layers[contextMenu.layerId]?.name ?? 'this layer';
+              const count = Object.values(doc.features).filter((f) => f.layerId === contextMenu.layerId).length;
+              window.dispatchEvent(new CustomEvent('cad:openInlineAI', {
+                detail: {
+                  scope: `the layer “${layerName}” (${count} feature${count === 1 ? '' : 's'})`,
+                  x: contextMenu.x + 8,
+                  y: contextMenu.y,
+                },
+              }));
+              setContextMenu(null);
+            }}
+          >
+            <Sparkles size={12} /> Ask AI about this layer…
+          </button>
+          <div className="my-1 border-t border-gray-700" />
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => {
