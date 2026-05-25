@@ -97,10 +97,11 @@ viewport-clamped.
   cancel on right-click; old `case 'PERPENDICULAR'` + `dropPerpendicular` usage
   removed.
 - [x] Preview rendering for both states.
-- [ ] `OnLineOffsetPanel.tsx` floating numeric panel (length + angle/azimuth),
-  wired to live preview + commit/cancel. **(next slice — store already has
-  `perpAngleOffDeg`/`perpUseAzimuth`/`perpAzimuthDeg`/`perpLengthFeet` + setters,
-  and `computePerpEndpoint` already honors them.)**
+- [x] `OnLineOffsetPanel.tsx` floating numeric panel (length + angle-off-line /
+  absolute-azimuth toggle), writes to the tool-store + commit/cancel
+  (`commitPerp`). Placed bottom-left like the rotate/scale panel for
+  consistency. Note: live preview refreshes on the next cursor move; commit
+  always uses the typed values.
 - [ ] Far-endpoint snapping onto a second line while extending. **(next slice)**
 - [x] ToolOptionsBar: replaced the obsolete perpendicular options with the new
   workflow hint + a cancel button.

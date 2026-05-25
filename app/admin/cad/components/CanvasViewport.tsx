@@ -136,6 +136,7 @@ import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
 import PickModeContextMenu from './PickModeContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
+import OnLineOffsetPanel from './OnLineOffsetPanel';
 import ImageInsertDialog from './ImageInsertDialog';
 import TitleBlockEditorModal from './TitleBlockEditorModal';
 import ScaleBarEditorModal from './ScaleBarEditorModal';
@@ -7644,6 +7645,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return perpOffsetEndpoint(start, dir, length);
   }
 
+  /** Commit the offset line from the floating panel (uses the last cursor). */
+  function commitPerp() {
+    const st = useToolStore.getState().state;
+    if (!st.perpStartPoint) return;
+    const cursor = st.previewPoint ?? st.perpStartPoint;
+    const end = computePerpEndpoint(cursor);
+    if (!end) return;
+    finishFeature('LINE', [st.perpStartPoint, end]);
+    toolStore.clearPerp();
+    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+      detail: { text: 'PERPENDICULAR — line placed.' },
+    }));
+  }
+
   // ─────────────────────────────────────────────
   // Mouse event handlers
   // ─────────────────────────────────────────────
@@ -11417,6 +11432,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           onCancel={cancelInteractiveOp}
           onPreview={previewInteractiveOp}
         />
+      )}
+
+      {/* On-line offset (PERPENDICULAR) numeric panel */}
+      {toolStore.state.activeTool === 'PERPENDICULAR' && toolStore.state.perpStartPoint && (
+        <OnLineOffsetPanel onCommit={commitPerp} onCancel={() => toolStore.clearPerp()} />
       )}
 
       {/* Rich right-click context menu */}
