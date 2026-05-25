@@ -14,12 +14,11 @@
 // before the file goes downstream, and we want a clear audit
 // trail entry that includes that message.
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 
 import { useDrawingStore, useReviewWorkflowStore } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   open: boolean;
@@ -35,9 +34,6 @@ export default function RPLSSubmissionDialog({
   summary,
   onClose,
 }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const document = useDrawingStore((s) => s.document);
   const review = useReviewWorkflowStore();
 
@@ -89,26 +85,16 @@ export default function RPLSSubmissionDialog({
   }
 
   return (
-    <div ref={dialogRef} style={styles.backdrop} onClick={onClose}>
-      <div
-        style={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Submit for RPLS review"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header style={styles.header}>
-          <h2 style={styles.title}>Submit for RPLS Review</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            style={styles.close}
-            aria-label="Close"
-            disabled={submitting}
-          >
-            ✕
-          </button>
-        </header>
+    <ModalFrame
+      open
+      onClose={onClose}
+      title="Submit for RPLS Review"
+      initialWidth={520}
+      initialHeight={480}
+      minWidth={380}
+      minHeight={300}
+    >
+      <div style={{ color: '#e5e7eb' }}>
 
         <div style={styles.body}>
           {summary ? (
@@ -181,7 +167,7 @@ export default function RPLSSubmissionDialog({
           </button>
         </footer>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 
