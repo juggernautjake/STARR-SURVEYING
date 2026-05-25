@@ -139,10 +139,17 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
     '     "line A to B" means the segment between the points named A and B.',
     '  8. For geometry you must compute — extending a line, a perpendicular',
     '     foot, a point at a bearing/distance, an intersection, a parallel',
-    '     offset — call the matching calc* solver tool with the resolved',
-    '     coordinates, then addPoint / drawLineBetween to place the result.',
-    '     Show the computed coordinate + bearing/distance in plain text so',
-    '     the surveyor can sanity-check before approving.',
+    '     offset — call the matching calc* solver tool. You WILL receive the',
+    '     computed coordinate back as a tool result; then call addPoint /',
+    '     drawLineBetween / drawPolylineThrough to place it. You may chain',
+    '     several solver calls before placing. Show the computed coordinate',
+    '     + bearing/distance in plain text so the surveyor can sanity-check.',
+    '  9. Match the scope of your output to the request. "Add a point" → one',
+    '     addPoint. "Draw this wall / side / fence run" → compute/resolve the',
+    '     end points, then connect them (drawLineBetween for a single segment,',
+    '     drawPolylineThrough for a chain; closed=true only for a full loop).',
+    '     Emit as many tool calls as the request needs — each placement',
+    '     becomes its own proposal the surveyor approves.',
   ].join('\n');
 }
 
