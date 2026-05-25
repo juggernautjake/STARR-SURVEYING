@@ -1154,13 +1154,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
           const paperW = pw * (ds ?? 50);
           const paperH = ph * (ds ?? 50);
+          const ox = docSettings.paperOrigin?.x ?? 0;
+          const oy = docSettings.paperOrigin?.y ?? 0;
 
-          // Paper extends from (0,0) to (paperW, paperH) — center it
+          // Paper frame at its world origin — center the view on it.
           const paperBounds: import('@/lib/cad/types').BoundingBox = {
-            minX: 0,
-            minY: 0,
-            maxX: paperW,
-            maxY: paperH,
+            minX: ox,
+            minY: oy,
+            maxX: ox + paperW,
+            maxY: oy + paperH,
           };
           viewportStore.zoomToExtents(paperBounds, 0.05);
         }
@@ -1268,12 +1270,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   /** Get paper center in world coordinates. */
   function getPaperDimensions() {
     const doc = useDrawingStore.getState().document;
-    const { paperSize, paperOrientation, drawingScale } = doc.settings;
+    const { paperSize, paperOrientation, drawingScale, paperOrigin } = doc.settings;
     let [pw, ph] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
     if (paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
     const paperW = pw * (drawingScale ?? 50);
     const paperH = ph * (drawingScale ?? 50);
-    return { paperW, paperH };
+    // Paper frame position in world space (non-destructive — does not move
+    // any geometry). Defaults to the origin for legacy drawings.
+    const originX = paperOrigin?.x ?? 0;
+    const originY = paperOrigin?.y ?? 0;
+    return {
+      paperW, paperH, originX, originY,
+      cx: originX + paperW / 2,
+      cy: originY + paperH / 2,
+    };
   }
 
   /**
@@ -1286,9 +1296,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const doc = useDrawingStore.getState().document;
     const rotDeg = doc.settings.drawingRotationDeg ?? 0;
     const rotRad = (rotDeg * Math.PI) / 180;
-    const { paperW, paperH } = getPaperDimensions();
+    const { cx, cy } = getPaperDimensions();
     // Paper center in screen coordinates (no rotation applied — pure w2s)
-    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    const { sx: pcSx, sy: pcSy } = w2s(cx, cy);
     // Set pivot to paper center so rotation is around the paper center
     pixi.drawingRotContainer.pivot.set(pcSx, pcSy);
     pixi.drawingRotContainer.position.set(pcSx, pcSy);
@@ -1305,8 +1315,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const rotDeg = doc.settings.drawingRotationDeg ?? 0;
     if (rotDeg === 0) return s2w(sx, sy);
     // Inverse-rotate the screen point around the paper center first
-    const { paperW, paperH } = getPaperDimensions();
-    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    const { cx, cy } = getPaperDimensions();
+    const { sx: pcSx, sy: pcSy } = w2s(cx, cy);
     const rotRad = -(rotDeg * Math.PI) / 180; // inverse
     const dx = sx - pcSx;
     const dy = sy - pcSy;
@@ -1334,10 +1344,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (paperOrientation === 'LANDSCAPE') { [w, h] = [h, w]; }
     const paperW = w * (scale ?? 50);
     const paperH = h * (scale ?? 50);
+    const originX = doc.settings.paperOrigin?.x ?? 0;
+    const originY = doc.settings.paperOrigin?.y ?? 0;
 
-    // Paper corners in screen coords (world: (0,0) = bottom-left, (paperW,paperH) = top-right)
-    const tl = w2s(0, paperH);
-    const br = w2s(paperW, 0);
+    // Paper corners in screen coords (paper bottom-left = paperOrigin)
+    const tl = w2s(originX, originY + paperH);
+    const br = w2s(originX + paperW, originY);
     const pLeft = tl.sx;
     const pTop = tl.sy;
     const pWidth = br.sx - tl.sx;
@@ -1536,8 +1548,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // Update per-layer container rotations (paper-center pivot)
-    const { paperW, paperH } = getPaperDimensions();
-    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    const { cx, cy } = getPaperDimensions();
+    const { sx: pcSx, sy: pcSy } = w2s(cx, cy);
     for (const [layerId, lc] of layerContainers) {
       const layer = doc.layers[layerId];
       const layerRotDeg = layer?.rotationDeg ?? 0;
@@ -1990,11 +2002,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
     const paperW = pw * (drawingScale ?? 50);
     const paperH = ph * (drawingScale ?? 50);
+    const originX = doc.settings.paperOrigin?.x ?? 0;
+    const originY = doc.settings.paperOrigin?.y ?? 0;
     const { zoom } = useViewportStore.getState();
 
     // Paper corners in screen space (title block layer is NOT rotated)
-    const tl = w2s(0, paperH);   // paper top-left
-    const br = w2s(paperW, 0);   // paper bottom-right
+    const tl = w2s(originX, originY + paperH);   // paper top-left
+    const br = w2s(originX + paperW, originY);   // paper bottom-right
 
     const inchToPx = zoom * (drawingScale ?? 50); // screen pixels per paper inch
     const margin   = 0.1 * inchToPx;
@@ -10399,6 +10413,35 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       });
       if (allPts.length > 0) vpStore.zoomToExtents(computeBounds(allPts));
     };
+    // Fit the drawing to the page WITHOUT moving any geometry: pick a plot
+    // scale that frames the data, then position the paper sheet (paperOrigin)
+    // centered over it. Coordinates / distances / angles never change — only
+    // the paper frame + plot scale (and thus the graphic scale bar) move.
+    const onFitToPage = () => {
+      const dwgStore = useDrawingStore.getState();
+      const vpStore = useViewportStore.getState();
+      const b = computeFeaturesBounds(dwgStore.getAllFeatures());
+      if (!b) return;
+      const s = dwgStore.document.settings;
+      let [pw, ph] = PAPER_SIZE_MAP[s.paperSize ?? 'TABLOID'] ?? [11, 17];
+      if (s.paperOrientation === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
+      const dataW = Math.max(b.maxX - b.minX, 1e-6);
+      const dataH = Math.max(b.maxY - b.minY, 1e-6);
+      const usable = 0.85; // leave a margin around the data
+      const required = Math.max(dataW / (pw * usable), dataH / (ph * usable));
+      // Snap up to a standard engineering plot scale.
+      const STD = [10, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 600, 800, 1000];
+      const scale = STD.find((v) => v >= required) ?? Math.ceil(required / 100) * 100;
+      const paperW = pw * scale;
+      const paperH = ph * scale;
+      const originX = (b.minX + b.maxX) / 2 - paperW / 2;
+      const originY = (b.minY + b.maxY) / 2 - paperH / 2;
+      dwgStore.updateSettings({ drawingScale: scale, paperOrigin: { x: originX, y: originY } });
+      vpStore.zoomToExtents({ minX: originX, minY: originY, maxX: originX + paperW, maxY: originY + paperH }, 0.05);
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `Fit to page at 1"=${scale}'. Coordinates unchanged.` },
+      }));
+    };
     const onRotate = (e: Event) => {
       const { center, angleRad } = (e as CustomEvent).detail as {
         center: Point2D;
@@ -10474,6 +10517,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
+    window.addEventListener('cad:fitDrawingToPage', onFitToPage);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
     window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
@@ -10706,6 +10750,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
+      window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);

@@ -43,6 +43,7 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   paperSize: 'TABLOID',
   paperOrientation: 'LANDSCAPE',
   drawingScale: 50,
+  paperOrigin: { x: 0, y: 0 },
   codeDisplayMode: 'NUMERIC',
 
   // Interaction & Viewport

@@ -524,6 +524,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       label: 'View',
       items: [
         { label: 'Zoom Extents', shortcut: 'Z E', action: zoomToExtents },
+        {
+          label: 'Fit Drawing to Page',
+          action: () => { window.dispatchEvent(new CustomEvent('cad:fitDrawingToPage')); setOpenMenu(null); },
+        },
         { separator: true },
         {
           label: drawingStore.document.settings.gridVisible ? 'Hide Grid' : 'Show Grid',
