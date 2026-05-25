@@ -439,8 +439,40 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   ];
 
   // ── Build menu items ──────────────────────────────────────────────────────
+  // Human description of the right-clicked feature, used to scope an
+  // "Ask AI" conversation to exactly this element.
+  function featureScopeLabel(): string {
+    if (!feature) return '';
+    const g = feature.geometry;
+    const layerName = doc.layers[feature.layerId]?.name;
+    const onLayer = layerName ? ` on layer “${layerName}”` : '';
+    if (g.type === 'POINT' && g.point) {
+      const name = feature.properties.pointName ?? feature.properties.name ?? feature.properties.pointNumber;
+      const code = feature.properties.code;
+      return `point ${name ?? ''}${code ? ` (${code})` : ''} at (${g.point.x.toFixed(2)}, ${g.point.y.toFixed(2)})${onLayer}`.replace('point  ', 'point ');
+    }
+    if (g.type === 'LINE' && g.start && g.end) {
+      return `the line from (${g.start.x.toFixed(2)}, ${g.start.y.toFixed(2)}) to (${g.end.x.toFixed(2)}, ${g.end.y.toFixed(2)})${onLayer}`;
+    }
+    if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
+      return `this ${g.type.toLowerCase()} (${g.vertices.length} vertices)${onLayer}`;
+    }
+    return `this ${g.type.toLowerCase()}${onLayer}`;
+  }
+
   const featureSection: MenuDef[] = feature
     ? [
+        {
+          id: 'askAI',
+          label: 'Ask AI about this…',
+          icon: <Sparkles size={12} />,
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:openInlineAI', {
+              detail: { scope: featureScopeLabel(), x: x + 8, y },
+            }));
+          },
+        },
+        { separator: true, id: 'sAI' },
         {
           id: 'properties',
           label: 'Properties…',
