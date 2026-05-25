@@ -168,6 +168,20 @@ export function useKeyboard() {
           tx.undoPick();
           break;
         }
+        // Mid-draw (spline / curved line / polyline / polygon): pop the
+        // last placed point rather than undoing the whole in-flight curve.
+        const ts = toolStore.state;
+        if (
+          ts.drawingPoints.length > 0 &&
+          (ts.activeTool === 'DRAW_CURVED_LINE' ||
+            ts.activeTool === 'DRAW_SPLINE_FIT' ||
+            ts.activeTool === 'DRAW_SPLINE_CONTROL' ||
+            ts.activeTool === 'DRAW_POLYLINE' ||
+            ts.activeTool === 'DRAW_POLYGON')
+        ) {
+          toolStore.popDrawingPoint();
+          break;
+        }
         undoStore.undo();
         break;
       }
