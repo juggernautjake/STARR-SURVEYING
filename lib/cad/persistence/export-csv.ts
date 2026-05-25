@@ -206,6 +206,76 @@ export function rowsToCsv(result: BuildResult): string {
   return lines.join('\r\n');
 }
 
+// ────────────────────────────────────────────────────────────
+// Traverse PC ASCII (PNEZD) export
+//
+// Traverse PC imports flexible ASCII coordinate files. Its
+// default field order is PNEZD — Point, Northing, Easting,
+// Elevation, Description — comma-delimited, one point per line,
+// with no header row (a header would otherwise be read as a
+// bogus point). We fold the surveyor's point code into the
+// front of the description so Traverse PC's Field-to-Finish can
+// match codes and rebuild linework after import.
+// ────────────────────────────────────────────────────────────
+
+/** Build the PNEZD ASCII body Traverse PC expects (headerless). */
+export function buildPnezdAscii(doc: DrawingDocument): { text: string; rowCount: number } {
+  const displayPrefs = doc.settings.displayPreferences;
+  const originN = displayPrefs?.originNorthing ?? 0;
+  const originE = displayPrefs?.originEasting ?? 0;
+
+  const features = Object.values(doc.features);
+  features.sort((a, b) => {
+    const na = Number(a.properties?.pointNo ?? Infinity);
+    const nb = Number(b.properties?.pointNo ?? Infinity);
+    return na - nb;
+  });
+
+  const lines: string[] = [];
+  for (const feature of features) {
+    if (feature.hidden) continue;
+    const g = feature.geometry;
+    if (g.type !== 'POINT' || !g.point) continue;
+    if (feature.properties?.pointNo == null) continue;
+
+    const pointNo = String(feature.properties.pointNo);
+    const northing = (g.point.y + originN).toFixed(4);
+    const easting = (g.point.x + originE).toFixed(4);
+    const elevation = Number(feature.properties?.elevation ?? 0).toFixed(4);
+
+    const rawCode = String(feature.properties?.code ?? '').trim();
+    const desc = String(
+      feature.properties?.description ?? feature.properties?.name ?? ''
+    ).trim();
+    // Lead the description with the point code so Traverse PC's
+    // Field-to-Finish sees it, but avoid duplicating when the
+    // description already starts with the code.
+    const description =
+      rawCode && !desc.toUpperCase().startsWith(rawCode.toUpperCase())
+        ? [rawCode, desc].filter(Boolean).join(' ')
+        : desc || rawCode;
+
+    lines.push(
+      [pointNo, northing, easting, elevation, description].map(CSV_ESCAPE).join(',')
+    );
+  }
+
+  return { text: lines.join('\r\n'), rowCount: lines.length };
+}
+
+/** Trigger a Traverse PC PNEZD ASCII download in the browser. */
+export function downloadPnezd(doc: DrawingDocument): { rowCount: number; filename: string } {
+  const { text, rowCount } = buildPnezdAscii(doc);
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const baseName = doc.name.replace(/\.(csv|txt)$/i, '');
+  const filename = `${baseName}-traversepc.csv`;
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
+  return { rowCount, filename };
+}
+
 /** Generate a CSV file download in the browser. */
 export function downloadCsv(
   doc: DrawingDocument,

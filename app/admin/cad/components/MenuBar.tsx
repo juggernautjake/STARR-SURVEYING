@@ -23,7 +23,7 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
-import { downloadCsv } from '@/lib/cad/persistence/export-csv';
+import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
@@ -239,6 +239,16 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  function exportTraversePc() {
+    try {
+      const { rowCount, filename } = downloadPnezd(drawingStore.document);
+      cadLog.info('FileIO', `Exported ${rowCount} points as Traverse PC PNEZD → ${filename}`);
+    } catch (err) {
+      cadLog.error('FileIO', 'Traverse PC export failed', err);
+      alert('Failed to export Traverse PC file. Try again, or contact support if it keeps failing.');
+    }
+  }
+
   function exportDxf() {
     try {
       const annotations = useAnnotationStore.getState().annotations;
@@ -419,6 +429,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { separator: true },
         { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
         { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
+        { label: 'Export for Traverse PC (PNEZD)…', action: () => { exportTraversePc(); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
         { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
