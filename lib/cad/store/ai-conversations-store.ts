@@ -211,7 +211,7 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
           ...(attachments && attachments.length > 0
             ? { attachments: attachments.map((a) => ({ name: a.name, mediaType: a.mediaType, dataUrl: a.dataUrl })) }
             : {}),
-        } as DrawingChatMessage;
+        };
 
         set((s) => ({
           loading: true,

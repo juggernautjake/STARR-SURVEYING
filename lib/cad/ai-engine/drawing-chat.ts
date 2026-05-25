@@ -69,12 +69,21 @@ export interface DrawingChatAction {
   instruction?: string;
 }
 
+export interface DrawingChatAttachment {
+  name:      string;
+  mediaType: string;
+  /** base64 data URL, e.g. `data:image/png;base64,...`. */
+  dataUrl:   string;
+}
+
 export interface DrawingChatMessage {
-  id:        string;
-  role:      'USER' | 'AI';
-  content:   string;
-  timestamp: string;
-  action?:   DrawingChatAction;
+  id:          string;
+  role:        'USER' | 'AI';
+  content:     string;
+  timestamp:   string;
+  action?:     DrawingChatAction;
+  /** Images/files the surveyor attached to this turn for the model to analyze. */
+  attachments?: DrawingChatAttachment[];
 }
 
 export interface DrawingChatRequest {
@@ -233,22 +242,46 @@ export async function handleDrawingChat(
  */
 function buildMessages(
   history: DrawingChatMessage[]
-): Array<{ role: 'user' | 'assistant'; content: string }> {
+): Anthropic.MessageParam[] {
   let windowed = history.slice(-MAX_HISTORY_MESSAGES);
   while (windowed.length > 0 && windowed[0].role === 'AI') {
     windowed = windowed.slice(1);
   }
-  const messages = windowed
-    .filter((m) => m.content.trim().length > 0)
-    .map((m) => ({
-      role: m.role === 'USER' ? ('user' as const) : ('assistant' as const),
-      content: m.content,
-    }));
+  const messages: Anthropic.MessageParam[] = windowed
+    .filter((m) => m.content.trim().length > 0 || (m.attachments?.length ?? 0) > 0)
+    .map((m) => {
+      const role = m.role === 'USER' ? ('user' as const) : ('assistant' as const);
+      // Attach image blocks (vision) for user turns that carry images.
+      const images = (m.attachments ?? []).filter((a) => a.mediaType.startsWith('image/'));
+      if (role === 'user' && images.length > 0) {
+        const blocks: Anthropic.ContentBlockParam[] = images
+          .map((a) => parseDataUrl(a.dataUrl))
+          .filter((p): p is { mediaType: string; data: string } => p !== null)
+          .map((p) => ({
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: p.mediaType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+              data: p.data,
+            },
+          }));
+        blocks.push({ type: 'text', text: m.content || '(see attached image)' });
+        return { role, content: blocks };
+      }
+      return { role, content: m.content };
+    });
   // Defensive fallback: never send an empty conversation.
   if (messages.length === 0) {
     return [{ role: 'user', content: '(no message)' }];
   }
   return messages;
+}
+
+/** Split a `data:<media>;base64,<data>` URL into its parts, or null. */
+function parseDataUrl(dataUrl: string): { mediaType: string; data: string } | null {
+  const m = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
+  if (!m) return null;
+  return { mediaType: m[1], data: m[2] };
 }
 
 const ACTION_TYPES: ReadonlyArray<DrawingChatActionType> = [
