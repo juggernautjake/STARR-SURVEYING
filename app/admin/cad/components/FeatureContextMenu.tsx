@@ -149,6 +149,7 @@ function SubMenu({
   return (
     <div
       ref={ref}
+      data-cad-context-menu
       className="fixed z-[60] flex flex-col bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px] max-w-[260px] overflow-y-auto"
       style={{ left: pos.left, top: pos.top, maxHeight: pos.maxHeight }}
       onClick={(e) => e.stopPropagation()}
@@ -301,6 +302,33 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     }
     setPos({ left, top, maxHeight });
   }, [x, y]);
+
+  // Dismiss on an outside press or Escape. Listeners are registered on the
+  // next frame so the very right-click (and any trailing synthesized click,
+  // e.g. from a trackpad / ctrl-click) that opened the menu can't immediately
+  // close it. Presses inside the menu OR a portaled submenu are ignored.
+  // A right-press outside closes this menu and lets the canvas reopen one at
+  // the new spot, so every right-click reliably shows a fresh menu.
+  useEffect(() => {
+    let raf = 0;
+    function onOutside(e: PointerEvent) {
+      if (!(e.target as HTMLElement | null)?.closest('[data-cad-context-menu]')) {
+        onClose();
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    raf = requestAnimationFrame(() => {
+      window.addEventListener('pointerdown', onOutside, true);
+      window.addEventListener('keydown', onKey);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('pointerdown', onOutside, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
 
   // ── Helper: rotate by custom angle ───────────────────────────────────────
   function handleCustomRotate() {
@@ -1260,17 +1288,13 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
 
   return (
     <>
-      {/* Click-away overlay */}
-      <div
-        className="fixed inset-0 z-40"
-        onClick={onClose}
-        onContextMenu={(e) => { e.preventDefault(); onClose(); }}
-      />
       <div
         ref={menuRef}
+        data-cad-context-menu
         className="fixed z-50 flex flex-col bg-gray-800 border border-gray-600 rounded-lg shadow-2xl text-xs text-gray-200 min-w-[200px] max-w-[260px] overflow-hidden animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)]"
         style={{ top: pos.top, left: pos.left, maxHeight: pos.maxHeight }}
         onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {/* Header */}
         <div className="shrink-0 px-3 py-1.5 text-[10px] text-gray-500 font-semibold uppercase tracking-wider border-b border-gray-700">
