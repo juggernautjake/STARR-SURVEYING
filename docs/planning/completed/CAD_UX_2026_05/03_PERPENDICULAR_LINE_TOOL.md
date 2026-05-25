@@ -1,6 +1,9 @@
 # Perpendicular / On-Line Offset Line Tool
 
-**Status:** IN-PROGRESS
+**Status:** COMPLETE (2026-05-25) — all action items shipped. Behavior is
+verified by reasoning + typecheck/lint + the geometry unit tests; the canvas
+interaction itself still needs a manual browser pass (this environment can't
+drive a browser).
 **Goal:** A drawing tool that starts locked onto an existing line and extends a
 new line off it — perpendicular (90°) by default, or at a fixed angle measured
 off the base line, or at an absolute azimuth — with the length set by dragging
@@ -102,11 +105,13 @@ viewport-clamped.
   (`commitPerp`). Placed bottom-left like the rotate/scale panel for
   consistency. Note: live preview refreshes on the next cursor move; commit
   always uses the typed values.
-- [ ] Far-endpoint snapping onto a second line while extending. **(next slice)**
+- [x] Far-endpoint snapping onto a second line while extending
+  (`snapPerpEndpoint`: ray×segment intersection within tolerance, forward-only,
+  applied for cursor-driven length).
 - [x] ToolOptionsBar: replaced the obsolete perpendicular options with the new
   workflow hint + a cancel button.
-- [ ] Update Toolbar button copy/description + cursor + hotkey to the new
-  behavior. **(next slice)**
+- [x] Updated the Toolbar button description to the new behavior; cursor stays
+  `crosshair` (appropriate) and the `PR` hotkey is unchanged.
 - [x] Removed the dead `dropPerpendicular` helper (`lib/cad/operations.ts`).
 
 ---
