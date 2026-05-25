@@ -20,7 +20,8 @@
 //  shoot."  →  Method: PARALLEL.
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Sparkles, Calculator } from 'lucide-react';
+import { Sparkles, Calculator } from 'lucide-react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIStore, useDrawingStore, useSelectionStore, getSelectedFeatures } from '@/lib/cad/store';
 import type { Feature, Point2D } from '@/lib/cad/types';
 import {
@@ -124,18 +125,16 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-[480px] max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
-            <Calculator size={16} className="text-blue-500" />
-            <h2 className="text-sm font-semibold">Calc Point</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      title={<span className="flex items-center gap-2"><Calculator size={14} className="text-blue-500" />Calc Point</span>}
+      initialWidth={480}
+      initialHeight={520}
+      minWidth={360}
+      minHeight={300}
+    >
+      <div className="text-gray-200">
         <div className="p-4 space-y-3 text-xs">
           {/* Method picker */}
           <label className="block">
@@ -249,7 +248,7 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
           </div>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 

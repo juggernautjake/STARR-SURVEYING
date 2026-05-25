@@ -12,7 +12,9 @@
 // (so it inherits ghost-preview + Accept/Skip from CopilotCard).
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, RefreshCcw, Sparkles, AlertTriangle } from 'lucide-react';
+import { RefreshCcw, Sparkles, AlertTriangle } from 'lucide-react';
+
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIStore, useDrawingStore, useSelectionStore } from '@/lib/cad/store';
 import type { Point2D } from '@/lib/cad/types';
 import { vertexClosure, vertexBowditchAdjust } from '@/lib/cad/geometry/closure';
@@ -66,18 +68,16 @@ export default function CloseDrawingDialog({ onClose }: Props): React.ReactEleme
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-[520px] max-h-[90vh] overflow-y-auto" role="dialog" aria-label="Close Drawing">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
-            <RefreshCcw size={16} className="text-cyan-500" />
-            <h2 className="text-sm font-semibold">Close Drawing</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      title={<span className="flex items-center gap-2"><RefreshCcw size={14} className="text-cyan-500" />Close Drawing</span>}
+      initialWidth={520}
+      initialHeight={460}
+      minWidth={360}
+      minHeight={260}
+    >
+      <div className="text-gray-200">
         <div className="p-4 space-y-3 text-xs">
           {vertices.length < 2 && (
             <div className="rounded border border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 px-2 py-1 flex items-start gap-1.5">
@@ -147,7 +147,7 @@ export default function CloseDrawingDialog({ onClose }: Props): React.ReactEleme
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 
