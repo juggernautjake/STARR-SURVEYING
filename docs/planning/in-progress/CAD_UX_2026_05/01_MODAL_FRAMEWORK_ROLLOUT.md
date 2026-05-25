@@ -63,8 +63,9 @@ Keep `useFocusTrap` where dialogs already use it (wrap the frame body).
   (`scrollBody={false}`; sticky tab bar + footer, scrolling content;
   `storageKey="cad.settingsDialog"`; dropped its bespoke backdrop/header/X +
   `useEscapeToClose`).
-- [ ] **Shared confirms** — migrate CAD `ConfirmDialog` + `QuestionDialog`,
-  adding the missing X button.
+- [x] **Shared confirms** — migrated CAD `ConfirmDialog` (centered, transient)
+  + `QuestionDialog` (`closeOnBackdrop={false}`, persisted geometry) onto
+  `ModalFrame`; both now have the X button + drag/resize.
 - [ ] **Research dialogs** — `ConfirmDialog`, `DrawingSaveDialog` (+ X),
   `ErrorReportDialog` (+ X).
 - [ ] **CAD dialogs batch A** — AIDrawingDialog, ImportDialog,
