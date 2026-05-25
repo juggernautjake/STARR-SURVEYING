@@ -29,6 +29,9 @@ const DEFAULT_MODEL =
   process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 const MAX_TOKENS = 1024;
 const REQUEST_TIMEOUT_MS = 45_000;
+// Window long conversations to the most recent turns so the request stays
+// bounded. 40 messages ≈ 20 user/assistant exchanges.
+const MAX_HISTORY_MESSAGES = 40;
 
 export interface ElementChatRequest {
   feature: Feature;
@@ -117,18 +120,8 @@ export async function handleElementChat(
     req.signal.addEventListener('abort', () => timeoutController.abort());
   }
 
-  // Pull the latest user message off the history; everything
-  // before it becomes prior context for Claude.
-  const lastIndex = req.history.length - 1;
-  const userMessage =
-    lastIndex >= 0 && req.history[lastIndex].role === 'USER'
-      ? req.history[lastIndex].content
-      : '';
-  const priorTurns = req.history
-    .slice(0, lastIndex)
-    .map((m) => `${m.role === 'USER' ? 'User' : 'Assistant'}: ${m.content}`)
-    .join('\n');
-
+  // The element context rides in the system prompt so it's available on every
+  // turn without being flattened into the conversation history.
   const elementContext = JSON.stringify(
     {
       feature: req.feature,
@@ -137,25 +130,25 @@ export async function handleElementChat(
     null,
     2
   );
-
-  const userBody = [
-    'ELEMENT CONTEXT:',
+  const system = [
+    SYSTEM_PROMPT,
+    '',
+    'ELEMENT CONTEXT (the feature + explanation under discussion):',
     '```json',
     elementContext,
     '```',
-    '',
-    priorTurns ? `PRIOR CHAT:\n${priorTurns}\n` : '',
-    `USER: ${userMessage}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  ].join('\n');
+
+  // Send the transcript as a real multi-turn message array (windowed) so the
+  // model retains earlier context instead of receiving one flattened prompt.
+  const messages = buildMessages(req.history);
 
   try {
     const response = await client.messages.create({
       model,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userBody }],
+      system,
+      messages,
     });
 
     clearTimeout(timeoutId);
@@ -193,6 +186,30 @@ export async function handleElementChat(
 // ────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────
+
+/**
+ * Build the Anthropic message array from the transcript: window to the most
+ * recent turns, map roles, and drop any leading assistant turn so the array
+ * starts with a user message (the API requires user-first, alternating roles).
+ */
+function buildMessages(
+  history: ElementChatMessage[]
+): Array<{ role: 'user' | 'assistant'; content: string }> {
+  let windowed = history.slice(-MAX_HISTORY_MESSAGES);
+  while (windowed.length > 0 && windowed[0].role !== 'USER') {
+    windowed = windowed.slice(1);
+  }
+  const messages = windowed
+    .filter((m) => m.content.trim().length > 0)
+    .map((m) => ({
+      role: m.role === 'USER' ? ('user' as const) : ('assistant' as const),
+      content: m.content,
+    }));
+  if (messages.length === 0) {
+    return [{ role: 'user', content: '(no message)' }];
+  }
+  return messages;
+}
 
 const ACTION_TYPES: ReadonlyArray<ElementChatAction['type']> = [
   'REDRAW_ELEMENT',
