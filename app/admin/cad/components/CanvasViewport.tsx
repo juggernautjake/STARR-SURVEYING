@@ -10742,6 +10742,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
     window.addEventListener('cad:deleteSelection', onDeleteSelection);
 
+    // Clipboard (Ctrl+C / Ctrl+V / Ctrl+X). The hotkey engine dispatches
+    // these events; nothing was listening, so keyboard copy/paste did
+    // nothing. Wire them to the CAD clipboard ops. Paste lands near the
+    // cursor; copied features keep their source layer (switch the active
+    // layer, or use right-click → Copy to Layer, to land them elsewhere).
+    const onClipCopy = async () => {
+      const ops = await import('@/lib/cad/operations');
+      ops.copyCadSelection();
+    };
+    const onClipCut = async () => {
+      const ops = await import('@/lib/cad/operations');
+      ops.copyCadSelection();
+      ops.deleteSelection();
+    };
+    const onClipPaste = async () => {
+      const ops = await import('@/lib/cad/operations');
+      const { wx, wy } = screenToDrawingWorld(lastMouseRef.current.x, lastMouseRef.current.y);
+      ops.pasteCadClipboard(wx, wy);
+    };
+    window.addEventListener('cad:clipboardCopy', onClipCopy);
+    window.addEventListener('cad:clipboardCut', onClipCut);
+    window.addEventListener('cad:clipboardPaste', onClipPaste);
+
     window.addEventListener('cad:forwardPoint', onForwardPoint);
     window.addEventListener('cad:curbReturn', onCurbReturn);
 
@@ -10757,6 +10780,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
       window.removeEventListener('cad:deleteSelection', onDeleteSelection);
+      window.removeEventListener('cad:clipboardCopy', onClipCopy);
+      window.removeEventListener('cad:clipboardCut', onClipCut);
+      window.removeEventListener('cad:clipboardPaste', onClipPaste);
       window.removeEventListener('cad:forwardPoint', onForwardPoint);
       window.removeEventListener('cad:curbReturn', onCurbReturn);
     };
