@@ -252,6 +252,22 @@ export function dispatchDefaultAction(action: BindableAction): void {
       // drawing edits (Phase 8 §11.7.12).
       const tx = useTransferStore.getState();
       if (tx.pickModeActive) { tx.undoPick(); return; }
+      // During an in-progress multi-point draw (spline / curved line /
+      // polyline / polygon), Ctrl+Z removes just the LAST placed point
+      // instead of undoing the whole in-flight curve — so a mis-clicked
+      // anchor can be backed out one at a time.
+      const ts = useToolStore.getState();
+      if (
+        ts.state.drawingPoints.length > 0 &&
+        (ts.state.activeTool === 'DRAW_CURVED_LINE' ||
+          ts.state.activeTool === 'DRAW_SPLINE_FIT' ||
+          ts.state.activeTool === 'DRAW_SPLINE_CONTROL' ||
+          ts.state.activeTool === 'DRAW_POLYLINE' ||
+          ts.state.activeTool === 'DRAW_POLYGON')
+      ) {
+        ts.popDrawingPoint();
+        return;
+      }
       useUndoStore.getState().undo();
       return;
     }
