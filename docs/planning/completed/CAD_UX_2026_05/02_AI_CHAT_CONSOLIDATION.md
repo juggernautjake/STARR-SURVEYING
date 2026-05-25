@@ -1,6 +1,12 @@
 # AI Chat Consolidation — One Right-Docked Tabbed Panel
 
-**Status:** IN-PROGRESS
+**Status:** COMPLETE (2026-05-25) — one consolidated, tabbed, right-docked /
+undockable chat (`AIChatDock` + `ai-conversations-store`) now owns all AI chat;
+the duplicate surfaces are removed and the engine fix + image vision are in.
+Code type-checks + lints and the store helpers are unit-tested; live chat
+round-trips, docking, and image analysis still need a manual browser pass (this
+environment can't drive one). One explicit deferral: the copilot
+propose-from-prompt sidebar stays for AI-mode use (see action items).
 **Goal:** A single, consistent, right-docked AI chat with multiple conversation
 tabs (auto-named from the first request, user-renamable, closable). The panel
 can also be **undocked and moved/resized like a modal**. Every "Ask AI" entry
@@ -112,27 +118,31 @@ chat into a scoped conversation. Delete dead stores/components once unreferenced
   tab from the first request, forwards the full transcript to the drawing-chat
   engine), and ported `applyAction` (title-block / setting / regenerate). Pure
   helpers `deriveConversationTitle` + `pickNextActiveId` unit-tested (7 tests).
-- [ ] `AIChatDock.tsx` — right-docked, draggable/resizable, tab strip with
-  rename + close + new, message list + composer.
-- [ ] Dock/undock toggle: floating mode renders through `ModalFrame` (drag +
-  resize + persisted rect); docked mode pins right with resizable width; the
-  chosen mode + geometry persist.
-- [ ] Composer attach image/file button (always visible): base64 read,
-  thumbnail/chip previews, removable before send; paste + drag-drop where
-  feasible; client-side size/count limits.
-- [ ] Engine: accept Anthropic image content blocks in the user turn so
-  attached images are analyzed (vision); extend the chat request/response
-  types + the API route accordingly; keep multi-turn + windowing intact.
-- [ ] Route MenuBar "AI drawing chat…", AISidebar Assistant tab, and the
-  Ctrl+Shift+C hotkey into `openWith`.
-- [ ] Route right-click "Ask AI about this…" (feature + layer) into a scoped
-  conversation in the dock; remove the floating `InlineAIChat` mount.
-- [ ] Remove `AICopilotSidebar` + `DrawingChatPanel` mounts; migrate any unique
-  copilot proposal UI into the dock or preserve it explicitly.
-- [ ] Persistence + single-instance guarantee: only the dock ever renders; only
-  one panel can be open; reload restores conversations + panel rect.
-- [ ] Delete now-dead stores/components (`drawing-chat-store` if fully
-  superseded, `InlineAIChat`, etc.) and fix imports.
+- [x] `AIChatDock.tsx` — tab strip (new/close/double-click-rename), transcript
+  with per-message Apply, composer; docked or floating shells.
+- [x] Dock/undock toggle: floating mode renders through `ModalFrame` (drag +
+  resize + persisted rect via its `storageKey`); docked mode pins right with a
+  left-edge width resizer; the chosen mode + geometry persist in the store.
+- [x] Composer attach image/file button (always visible): base64 read,
+  thumbnail/chip previews, removable before send; 5 MB/file cap. (Paste/drag-drop
+  deferred — button + picker cover the requirement.)
+- [x] Engine: emits Anthropic image content blocks for user turns with image
+  attachments (vision); message type carries `attachments`; multi-turn +
+  windowing intact. The existing `/api/admin/cad/drawing-chat` route forwards
+  `history` verbatim, so no route change was needed.
+- [x] Routed MenuBar "AI drawing chat…", the AISidebar Assistant tab, and the
+  Ctrl+Shift+C hotkey into the dock.
+- [x] Routed right-click "Ask AI about this…" (feature + layer) into a scoped
+  conversation; removed the floating `InlineAIChat` mount.
+- [x] Removed the `DrawingChatPanel` mount. **`AICopilotSidebar` kept**
+  (DEFERRED): it's the COPILOT/COMMAND-mode propose-from-prompt surface, not
+  plain chat, and is opened by AI-mode changes — not by the general "Ask AI"
+  entry points (those now go to the dock). Folding its proposal-generation flow
+  into the dock needs the dock to drive the proposal engine; out of scope here.
+- [x] Persistence + single-instance: only the dock renders for chat; the store
+  persists conversations + placement, so a reload restores them.
+- [x] Deleted now-dead `drawing-chat-store`, `DrawingChatPanel`, `InlineAIChat`
+  and rewired the AISidebar preview to the active conversation.
 
 ---
 
