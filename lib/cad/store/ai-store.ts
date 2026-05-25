@@ -157,6 +157,9 @@ interface AIStore {
    *  COPILOT cancels in-flight cards) and by `clearProposalQueue`
    *  in the test helpers. */
   clearProposalQueue: () => void;
+  /** Retarget the head proposal to a specific layer before the
+   *  surveyor accepts it (drives the review-time layer picker). */
+  setHeadProposalLayerId: (layerId: string) => void;
 
   /** True while a `proposeFromPrompt` POST is in flight. The
    *  chat sidebar / command palette wires a spinner off this. */
@@ -460,6 +463,13 @@ export const useAIStore = create<AIStore>()(persist((set, get) => ({
     return head.id;
   },
   clearProposalQueue: () => set({ proposalQueue: [] }),
+  setHeadProposalLayerId: (layerId) =>
+    set((s) => {
+      const head = s.proposalQueue[0];
+      if (!head) return {};
+      const updated = { ...head, args: { ...(head.args as unknown as Record<string, unknown>), layerId } };
+      return { proposalQueue: [updated as unknown as typeof head, ...s.proposalQueue.slice(1)] };
+    }),
 
   isProposing: false,
   lastProposeNarrative: null,

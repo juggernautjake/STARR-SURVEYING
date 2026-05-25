@@ -19,13 +19,34 @@
 // dashed ghost.
 
 import { useEffect, useState } from 'react';
-import { Sparkles, X, Check, MessageSquare } from 'lucide-react';
+import { Sparkles, X, Check, MessageSquare, Loader2 } from 'lucide-react';
 import { useAIStore, useDrawingStore } from '@/lib/cad/store';
 import type {
   AddPointArgs,
   DrawLineBetweenArgs,
   DrawPolylineThroughArgs,
 } from '@/lib/cad/ai/tool-registry';
+
+/** Geometry proposals that land on a layer (get the layer picker). */
+const LAYER_TOOLS = new Set(['addPoint', 'drawLineBetween', 'drawPolylineThrough']);
+
+/** Human, specific "here's exactly what I did" line for the chat log. */
+function describeApplied(toolName: string, args: unknown, layerName: string): string {
+  if (toolName === 'addPoint') {
+    const a = args as AddPointArgs;
+    return `✓ Added a point at (${a.x.toFixed(2)}, ${a.y.toFixed(2)})${a.code ? ` coded ${a.code}` : ''} on layer “${layerName}”.`;
+  }
+  if (toolName === 'drawLineBetween') {
+    const a = args as DrawLineBetweenArgs;
+    const len = Math.hypot(a.to.x - a.from.x, a.to.y - a.from.y);
+    return `✓ Drew a line (${len.toFixed(2)} ft) from (${a.from.x.toFixed(2)}, ${a.from.y.toFixed(2)}) to (${a.to.x.toFixed(2)}, ${a.to.y.toFixed(2)}) on layer “${layerName}”.`;
+  }
+  if (toolName === 'drawPolylineThrough') {
+    const a = args as DrawPolylineThroughArgs;
+    return `✓ Drew a ${a.closed ? 'polygon' : 'polyline'} through ${a.points.length} vertices on layer “${layerName}”.`;
+  }
+  return `✓ Applied ${toolName}.`;
+}
 
 export default function CopilotCard() {
   const head = useAIStore((s) => s.proposalQueue[0] ?? null);
@@ -36,6 +57,13 @@ export default function CopilotCard() {
   // §32 Slice 13 — MANUAL hides every AI entry point, including
   // any card a stale queue might leave behind after a mode flip.
   const aiMode = useAIStore((s) => s.mode);
+  // Subscribe to the layer catalog so the picker + ghost color update live.
+  const layers = useDrawingStore((s) => s.document.layers);
+  const layerOrder = useDrawingStore((s) => s.document.layerOrder);
+  const activeLayerId = useDrawingStore((s) => s.activeLayerId);
+
+  // While a proposal is being applied, swap the buttons for a spinner.
+  const [isApplying, setIsApplying] = useState(false);
 
   // Per-card sandbox override. Reset whenever the head changes
   // so the surveyor's toggle on proposal A doesn't bleed into B.
@@ -70,12 +98,30 @@ export default function CopilotCard() {
         : 'text-red-300';
 
   function handleAccept() {
-    const result = accept(sandbox);
-    if (result && !result.ok) {
-      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-        detail: { text: `AI proposal failed: ${result.reason}` },
-      }));
-    }
+    if (isApplying || !head) return;
+    // Capture the details before the queue dequeues so the result
+    // message is accurate even as the next proposal slides in.
+    const proposal = head;
+    const targetLayerId = (proposal.args as { layerId?: string }).layerId ?? activeLayerId;
+    const layerName = layers[targetLayerId]?.name ?? 'active layer';
+    setIsApplying(true);
+    // Defer one frame so the spinner paints before the (synchronous) commit.
+    setTimeout(() => {
+      const result = accept(sandbox);
+      const ts = new Date().toISOString();
+      if (result && !result.ok) {
+        useAIStore.getState().appendCopilotMessage({
+          id: `m${Date.now().toString(36)}`, role: 'SYSTEM',
+          content: `⚠ Couldn't apply: ${result.reason}`, ts,
+        });
+      } else {
+        useAIStore.getState().appendCopilotMessage({
+          id: `m${Date.now().toString(36)}`, role: 'AI',
+          content: describeApplied(proposal.toolName, proposal.args, layerName), ts,
+        });
+      }
+      setIsApplying(false);
+    }, 220);
   }
 
   function handleSkip() {
@@ -134,6 +180,26 @@ export default function CopilotCard() {
           <p className="leading-snug">{head.description}</p>
           <ArgsSummary toolName={head.toolName} args={head.args} />
 
+          {/* Target-layer picker — choose where the suggested element
+              lands before accepting. */}
+          {LAYER_TOOLS.has(head.toolName) && (
+            <label className="flex items-center gap-2 text-[11px] text-gray-300">
+              <span className="text-gray-400 shrink-0">Add to layer</span>
+              <select
+                value={(head.args as { layerId?: string }).layerId ?? activeLayerId}
+                onChange={(e) => useAIStore.getState().setHeadProposalLayerId(e.target.value)}
+                disabled={isApplying}
+                className="flex-1 min-w-0 bg-gray-900 border border-gray-600 rounded px-1.5 py-1 text-[11px] text-white outline-none focus:border-blue-500"
+              >
+                {layerOrder.map((id) => {
+                  const l = layers[id];
+                  if (!l) return null;
+                  return <option key={id} value={id}>{l.name}</option>;
+                })}
+              </select>
+            </label>
+          )}
+
           {/* Sandbox toggle */}
           <label
             className="flex items-center gap-2 text-[11px] text-gray-400 select-none cursor-pointer hover:text-gray-200"
@@ -149,32 +215,40 @@ export default function CopilotCard() {
           </label>
         </div>
 
-        {/* Footer — Accept / Modify / Skip */}
+        {/* Footer — Accept / Modify / Skip, or a working spinner */}
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-gray-700 bg-gray-900/50">
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="px-3 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
-            title="Drop this proposal without executing (the next one in the queue, if any, shows up after)."
-          >
-            <X size={12} /> Skip
-          </button>
-          <button
-            type="button"
-            onClick={handleModify}
-            className="px-3 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
-            title="Skip this proposal and open the chat so you can ask the AI to revise it."
-          >
-            <MessageSquare size={12} /> Modify
-          </button>
-          <button
-            type="button"
-            onClick={handleAccept}
-            className="ml-auto px-3 py-1 text-[11px] bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors flex items-center gap-1 font-semibold"
-            title="Run the proposed tool call now."
-          >
-            <Check size={12} /> Accept
-          </button>
+          {isApplying ? (
+            <span className="flex items-center gap-2 text-[11px] text-blue-300 font-semibold mx-auto py-0.5">
+              <Loader2 size={13} className="animate-spin" /> Applying the change…
+            </span>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleSkip}
+                className="px-3 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
+                title="Drop this proposal without executing (the next one in the queue, if any, shows up after)."
+              >
+                <X size={12} /> Skip
+              </button>
+              <button
+                type="button"
+                onClick={handleModify}
+                className="px-3 py-1 text-[11px] bg-gray-800 border border-gray-600 text-gray-300 rounded hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
+                title="Skip this proposal and open the chat so you can ask the AI to revise it."
+              >
+                <MessageSquare size={12} /> Modify
+              </button>
+              <button
+                type="button"
+                onClick={handleAccept}
+                className="ml-auto px-3 py-1 text-[11px] bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors flex items-center gap-1 font-semibold"
+                title="Run the proposed tool call now."
+              >
+                <Check size={12} /> Apply
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -220,12 +294,13 @@ function ArgsSummary(props: { toolName: string; args: unknown }) {
 function buildPreviewDetail(toolName: string, args: unknown):
   | { kind: 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON'; point?: { x: number; y: number }; from?: { x: number; y: number }; to?: { x: number; y: number }; vertices?: { x: number; y: number }[]; color?: string }
   | null {
-  // We resolve a colour from the active layer so the ghost
-  // reads visually like the target layer (per §32.3 sandbox
-  // styling). Falls back to amber when none is set.
+  // Colour the ghost like its TARGET layer (the one chosen in the
+  // picker, stored on args.layerId) so it reads visually where it'll
+  // land. Falls back to the active layer, then amber.
   const drawing = useDrawingStore.getState();
-  const activeLayer = drawing.document.layers[drawing.activeLayerId];
-  const color = activeLayer?.color ?? '#fbbf24';
+  const targetLayerId = (args as { layerId?: string } | undefined)?.layerId ?? drawing.activeLayerId;
+  const targetLayer = drawing.document.layers[targetLayerId];
+  const color = targetLayer?.color ?? '#fbbf24';
 
   if (toolName === 'addPoint') {
     const a = args as AddPointArgs;
