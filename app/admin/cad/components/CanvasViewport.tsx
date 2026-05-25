@@ -31,7 +31,7 @@ import {
   type BoundingBox as LodBoundingBox,
 } from '@/lib/cad/geometry/lod';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
-import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
+import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
 import {
   unitVector as perpUnitVector,
@@ -7621,9 +7621,45 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   /**
+   * Snap a cursor-driven endpoint onto another line when the offset ray meets
+   * one near the current endpoint: returns the ray×segment intersection within
+   * tolerance (forward along `dir`, nearest to `rawEnd`), else `rawEnd`.
+   */
+  function snapPerpEndpoint(start: Point2D, dir: Point2D, rawEnd: Point2D): Point2D {
+    const drawing = useDrawingStore.getState();
+    const zoom = useViewportStore.getState().zoom;
+    const baseId = useToolStore.getState().state.perpBaseLineId;
+    const far = { x: start.x + dir.x * 1e6, y: start.y + dir.y * 1e6 };
+    let best = rawEnd;
+    let bestPx = 14;
+    for (const f of drawing.getVisibleFeatures()) {
+      if (f.id === baseId) continue;
+      const fg = f.geometry;
+      let chain: Point2D[] | null = null;
+      let isClosed = false;
+      if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+      else if ((fg.type === 'POLYLINE' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+      else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) { chain = fg.vertices; isClosed = true; }
+      if (!chain) continue;
+      const segCount = isClosed ? chain.length : chain.length - 1;
+      for (let i = 0; i < segCount; i += 1) {
+        const a = chain[i];
+        const b = chain[(i + 1) % chain.length];
+        const ix = segmentSegmentIntersection(start, far, a, b);
+        if (!ix) continue;
+        if ((ix.x - start.x) * dir.x + (ix.y - start.y) * dir.y <= 0) continue; // forward only
+        const dPx = Math.hypot(ix.x - rawEnd.x, ix.y - rawEnd.y) * zoom;
+        if (dPx < bestPx) { bestPx = dPx; best = ix; }
+      }
+    }
+    return best;
+  }
+
+  /**
    * Given the locked anchor + the current cursor, compute the offset line's
    * endpoint using the tool's angle/azimuth + numeric length (or the cursor
-   * drag). Returns null when the resulting length is effectively zero.
+   * drag). When dragging (no numeric length), the endpoint snaps onto another
+   * line it meets. Returns null when the resulting length is effectively zero.
    */
   function computePerpEndpoint(cursor: Point2D): Point2D | null {
     const ts = useToolStore.getState().state;
@@ -7634,15 +7670,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const dir = ts.perpUseAzimuth
       ? perpDirectionFromAzimuth(ts.perpAzimuthDeg)
       : perpOffsetDirection(baseDir, ts.perpAngleOffDeg, side);
-    let length: number;
     if (ts.perpLengthFeet != null && Number.isFinite(ts.perpLengthFeet)) {
-      length = ts.perpLengthFeet;
-    } else {
-      length = perpProjectedLength(start, dir, cursor);
-      if (length < 0) length = Math.abs(length); // dir already faces the cursor side
+      if (Math.abs(ts.perpLengthFeet) < 1e-6) return null;
+      return perpOffsetEndpoint(start, dir, ts.perpLengthFeet);
     }
-    if (Math.abs(length) < 1e-6) return null;
-    return perpOffsetEndpoint(start, dir, length);
+    let length = perpProjectedLength(start, dir, cursor);
+    if (length < 0) length = Math.abs(length); // dir already faces the cursor side
+    if (length < 1e-6) return null;
+    const rawEnd = perpOffsetEndpoint(start, dir, length);
+    return snapPerpEndpoint(start, dir, rawEnd);
   }
 
   /** Commit the offset line from the floating panel (uses the last cursor). */
