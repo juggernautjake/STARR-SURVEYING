@@ -796,6 +796,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
+  // "Move Page" mode: drag the white paper sheet to reposition the frame
+  // over the data (updates paperOrigin only — geometry never moves).
+  const paperMoveModeRef = useRef(false);
+  const [paperMoveMode, setPaperMoveMode] = useState(false);
+  const paperDragRef = useRef<{ startWx: number; startWy: number; originX: number; originY: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -1154,13 +1159,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
           const paperW = pw * (ds ?? 50);
           const paperH = ph * (ds ?? 50);
+          const ox = docSettings.paperOrigin?.x ?? 0;
+          const oy = docSettings.paperOrigin?.y ?? 0;
 
-          // Paper extends from (0,0) to (paperW, paperH) — center it
+          // Paper frame at its world origin — center the view on it.
           const paperBounds: import('@/lib/cad/types').BoundingBox = {
-            minX: 0,
-            minY: 0,
-            maxX: paperW,
-            maxY: paperH,
+            minX: ox,
+            minY: oy,
+            maxX: ox + paperW,
+            maxY: oy + paperH,
           };
           viewportStore.zoomToExtents(paperBounds, 0.05);
         }
@@ -1268,12 +1275,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   /** Get paper center in world coordinates. */
   function getPaperDimensions() {
     const doc = useDrawingStore.getState().document;
-    const { paperSize, paperOrientation, drawingScale } = doc.settings;
+    const { paperSize, paperOrientation, drawingScale, paperOrigin } = doc.settings;
     let [pw, ph] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
     if (paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
     const paperW = pw * (drawingScale ?? 50);
     const paperH = ph * (drawingScale ?? 50);
-    return { paperW, paperH };
+    // Paper frame position in world space (non-destructive — does not move
+    // any geometry). Defaults to the origin for legacy drawings.
+    const originX = paperOrigin?.x ?? 0;
+    const originY = paperOrigin?.y ?? 0;
+    return {
+      paperW, paperH, originX, originY,
+      cx: originX + paperW / 2,
+      cy: originY + paperH / 2,
+    };
   }
 
   /**
@@ -1286,9 +1301,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const doc = useDrawingStore.getState().document;
     const rotDeg = doc.settings.drawingRotationDeg ?? 0;
     const rotRad = (rotDeg * Math.PI) / 180;
-    const { paperW, paperH } = getPaperDimensions();
+    const { cx, cy } = getPaperDimensions();
     // Paper center in screen coordinates (no rotation applied — pure w2s)
-    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    const { sx: pcSx, sy: pcSy } = w2s(cx, cy);
     // Set pivot to paper center so rotation is around the paper center
     pixi.drawingRotContainer.pivot.set(pcSx, pcSy);
     pixi.drawingRotContainer.position.set(pcSx, pcSy);
@@ -1305,8 +1320,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const rotDeg = doc.settings.drawingRotationDeg ?? 0;
     if (rotDeg === 0) return s2w(sx, sy);
     // Inverse-rotate the screen point around the paper center first
-    const { paperW, paperH } = getPaperDimensions();
-    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    const { cx, cy } = getPaperDimensions();
+    const { sx: pcSx, sy: pcSy } = w2s(cx, cy);
     const rotRad = -(rotDeg * Math.PI) / 180; // inverse
     const dx = sx - pcSx;
     const dy = sy - pcSy;
@@ -1334,10 +1349,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (paperOrientation === 'LANDSCAPE') { [w, h] = [h, w]; }
     const paperW = w * (scale ?? 50);
     const paperH = h * (scale ?? 50);
+    const originX = doc.settings.paperOrigin?.x ?? 0;
+    const originY = doc.settings.paperOrigin?.y ?? 0;
 
-    // Paper corners in screen coords (world: (0,0) = bottom-left, (paperW,paperH) = top-right)
-    const tl = w2s(0, paperH);
-    const br = w2s(paperW, 0);
+    // Paper corners in screen coords (paper bottom-left = paperOrigin)
+    const tl = w2s(originX, originY + paperH);
+    const br = w2s(originX + paperW, originY);
     const pLeft = tl.sx;
     const pTop = tl.sy;
     const pWidth = br.sx - tl.sx;
@@ -1536,8 +1553,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // Update per-layer container rotations (paper-center pivot)
-    const { paperW, paperH } = getPaperDimensions();
-    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    const { cx, cy } = getPaperDimensions();
+    const { sx: pcSx, sy: pcSy } = w2s(cx, cy);
     for (const [layerId, lc] of layerContainers) {
       const layer = doc.layers[layerId];
       const layerRotDeg = layer?.rotationDeg ?? 0;
@@ -1990,11 +2007,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
     const paperW = pw * (drawingScale ?? 50);
     const paperH = ph * (drawingScale ?? 50);
+    const originX = doc.settings.paperOrigin?.x ?? 0;
+    const originY = doc.settings.paperOrigin?.y ?? 0;
     const { zoom } = useViewportStore.getState();
 
     // Paper corners in screen space (title block layer is NOT rotated)
-    const tl = w2s(0, paperH);   // paper top-left
-    const br = w2s(paperW, 0);   // paper bottom-right
+    const tl = w2s(originX, originY + paperH);   // paper top-left
+    const br = w2s(originX + paperW, originY);   // paper bottom-right
 
     const inchToPx = zoom * (drawingScale ?? 50); // screen pixels per paper inch
     const margin   = 0.1 * inchToPx;
@@ -3629,9 +3648,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.moveTo(bx - 5, by); g.lineTo(bx + 5, by);
       g.moveTo(bx, by - 5); g.lineTo(bx, by + 5);
 
-      // Ghost preview of the destination selection.
-      const dx = previewPoint.x - bp.x;
-      const dy = previewPoint.y - bp.y;
+      // Ghost preview of the destination selection — with the same
+      // endpoint-snap the commit applies (MOVE only), so the ghost lands
+      // exactly where the move will.
+      const rawDx = previewPoint.x - bp.x;
+      const rawDy = previewPoint.y - bp.y;
+      const snapped = activeTool === 'MOVE' ? endpointSnapDelta(rawDx, rawDy) : { dx: rawDx, dy: rawDy };
+      const dx = snapped.dx;
+      const dy = snapped.dy;
       if (dx !== 0 || dy !== 0) {
         const selIds = Array.from(useSelectionStore.getState().selectedIds);
         if (selIds.length > 0) {
@@ -7534,6 +7558,50 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return applyConstraints(cursor);
   }
 
+  // Endpoint-snap for moves: given a raw (dx,dy) translation of the
+  // current selection, if snap is on, nudge the delta so the selection's
+  // CLOSEST endpoint lands exactly on a nearby point / line-end of an
+  // unselected feature. The whole selection shifts by the same delta, so
+  // bearings, lengths, and angles are untouched — it just snaps the end.
+  function endpointSnapDelta(dx: number, dy: number): { dx: number; dy: number } {
+    const settings = drawingStore.document.settings;
+    if (!settings.snapEnabled) return { dx, dy };
+    const selectedIds = selectionStore.selectedIds;
+    if (selectedIds.size === 0) return { dx, dy };
+
+    const endpointsOf = (f: Feature): Point2D[] => {
+      const g = f.geometry;
+      if (g.type === 'POINT' && g.point) return [g.point];
+      if (g.type === 'LINE') return [g.start, g.end].filter(Boolean) as Point2D[];
+      if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) return g.vertices;
+      return [];
+    };
+
+    const moving: Point2D[] = [];
+    for (const id of selectedIds) {
+      const f = drawingStore.getFeature(id);
+      if (f) for (const p of endpointsOf(f)) moving.push({ x: p.x + dx, y: p.y + dy });
+    }
+    if (moving.length === 0) return { dx, dy };
+
+    const targets = drawingStore.getVisibleFeatures().filter((f) => !selectedIds.has(f.id));
+    if (targets.length === 0) return { dx, dy };
+    const zoom = Math.max(0.0001, viewportStore.zoom);
+    const worldRadius = settings.snapRadius / zoom;
+    const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
+
+    let best: { dx: number; dy: number; d: number } | null = null;
+    for (const mep of moving) {
+      const snap = findSnapPoint(mep, targets, settings.snapRadius, zoom, ['ENDPOINT'], grid);
+      if (!snap) continue;
+      const d = Math.hypot(snap.point.x - mep.x, snap.point.y - mep.y);
+      if (d <= worldRadius && (!best || d < best.d)) {
+        best = { dx: dx + (snap.point.x - mep.x), dy: dy + (snap.point.y - mep.y), d };
+      }
+    }
+    return best ? { dx: best.dx, dy: best.dy } : { dx, dy };
+  }
+
   // ─────────────────────────────────────────────
   // Grip hit testing
   // ─────────────────────────────────────────────
@@ -7597,6 +7665,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       if (e.button !== 0) return;
+
+      // "Move Page" mode: left-drag repositions the paper sheet. The paper
+      // is not affected by drawing rotation, so use plain screen→world.
+      if (paperMoveModeRef.current) {
+        const { wx, wy } = s2w(sx, sy);
+        const { originX, originY } = getPaperDimensions();
+        paperDragRef.current = { startWx: wx, startWy: wy, originX, originY };
+        setCursorStyle('grabbing');
+        return;
+      }
 
       const toolState = toolStore.state;
       const { activeTool } = toolState;
@@ -7874,9 +7952,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
-            // Captured BEFORE selection changes — drives the two-step
-            // grab for points below.
-            const hitWasSelected = selectionStore.selectedIds.has(hit);
             const hitFeature = drawingStore.getFeature(hit);
             const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
             const featureGid  = hitFeature?.featureGroupId ?? undefined;
@@ -7925,31 +8000,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               featureIds = [hit];
             }
 
-            // Two-step grab for POINTS: a first click only selects the
-            // point — you must click an ALREADY-selected point to grab and
-            // move it. This stops accidental nudges when clicking dense
-            // points (selecting a different point resets the gate). Point
-            // names / codes / descriptions (labels, handled above) and all
-            // other geometry keep one-click grab-to-move.
-            const isPoint = hitFeature?.geometry.type === 'POINT';
-            if (!isPoint || hitWasSelected) {
-              // Start drag-to-move: store original positions for undo
-              const startWorld = screenToDrawingWorld(sx, sy);
-              const originals = new Map<string, Feature>();
-              for (const id of featureIds) {
-                const f = drawingStore.getFeature(id);
-                if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
-              }
-              dragFeatureRef.current = {
-                featureIds,
-                startWorld: { x: startWorld.wx, y: startWorld.wy },
-                originals,
-              };
-              setCursorStyle('grabbing');
-            } else {
-              // Point newly selected — armed to grab on the next press.
-              setCursorStyle('grab');
-            }
+            // Click-drag NEVER moves geometry — it only selects. To move,
+            // select then use the Move tool (M). This prevents accidental
+            // nudges to real survey coordinates. (Point names / codes /
+            // descriptions are LABELS, handled above, and stay draggable;
+            // moving a point with the Move tool carries its labels along.)
+            setCursorStyle('pointer');
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
@@ -8279,8 +8335,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (!toolState.basePoint) {
             toolStore.setBasePoint(worldPt);
           } else {
-            const dx = worldPt.x - toolState.basePoint.x;
-            const dy = worldPt.y - toolState.basePoint.y;
+            const rawDx = worldPt.x - toolState.basePoint.x;
+            const rawDy = worldPt.y - toolState.basePoint.y;
+            // Snap the selection's nearest endpoint onto a point/line-end.
+            const { dx, dy } = endpointSnapDelta(rawDx, rawDy);
             const selectedIds = Array.from(selectionStore.selectedIds);
             if (selectedIds.length === 0) break;
             const ops = selectedIds.flatMap((id) => {
@@ -9526,6 +9584,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       lastMouseRef.current = { x: sx, y: sy };
 
+      // "Move Page" drag: shift the paper origin by the world delta.
+      if (paperDragRef.current) {
+        const { wx, wy } = s2w(sx, sy);
+        const pd = paperDragRef.current;
+        drawingStore.updateSettings({
+          paperOrigin: { x: pd.originX + (wx - pd.startWx), y: pd.originY + (wy - pd.startWy) },
+        });
+        return;
+      }
+      // In "Move Page" mode (not yet dragging): keep the move cursor and
+      // skip hover/snap work — the sheet is the only draggable thing.
+      if (paperMoveModeRef.current) {
+        setCursorStyle('move');
+        return;
+      }
+
       // Phase 8 §6 — feature-hover tooltip + bridge into
       // `useUIStore.hoveredFeatureId`. We hit-test the
       // cursor (lock-aware via the existing helper),
@@ -9913,8 +9987,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // Hovering over a label: show grab cursor
               setCursorStyle('grab');
             } else if (hit) {
-              // Hovering over an element: show grab cursor to indicate it can be dragged
-              setCursorStyle('grab');
+              // Hovering a selectable element. It's NOT drag-to-move
+              // (use the Move tool), so show a pointer, not a grab hand.
+              setCursorStyle('pointer');
             } else {
               // Hovering over empty canvas: default cursor
               setCursorStyle('default');
@@ -10049,6 +10124,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       if (e.button !== 0) return;
+
+      // End a "Move Page" drag (paperOrigin already updated live).
+      if (paperDragRef.current) {
+        paperDragRef.current = null;
+        setCursorStyle('move');
+        return;
+      }
 
       const toolState = toolStore.state;
       const rect = canvasRef.current!.getBoundingClientRect();
@@ -10334,6 +10416,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         isSpaceDownRef.current = true;
         setCursorStyle('grab');
       }
+      // Escape leaves "Move Page" mode.
+      if (e.key === 'Escape' && paperMoveModeRef.current) {
+        paperMoveModeRef.current = false;
+        paperDragRef.current = null;
+        setPaperMoveMode(false);
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
+        return;
+      }
       // Cancel interactive rotate/scale on Escape
       if (e.key === 'Escape' && interactiveOpRef.current) {
         const dwgStore = useDrawingStore.getState();
@@ -10420,6 +10510,35 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       });
       if (allPts.length > 0) vpStore.zoomToExtents(computeBounds(allPts));
     };
+    // Fit the drawing to the page WITHOUT moving any geometry: pick a plot
+    // scale that frames the data, then position the paper sheet (paperOrigin)
+    // centered over it. Coordinates / distances / angles never change — only
+    // the paper frame + plot scale (and thus the graphic scale bar) move.
+    const onFitToPage = () => {
+      const dwgStore = useDrawingStore.getState();
+      const vpStore = useViewportStore.getState();
+      const b = computeFeaturesBounds(dwgStore.getAllFeatures());
+      if (!b) return;
+      const s = dwgStore.document.settings;
+      let [pw, ph] = PAPER_SIZE_MAP[s.paperSize ?? 'TABLOID'] ?? [11, 17];
+      if (s.paperOrientation === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
+      const dataW = Math.max(b.maxX - b.minX, 1e-6);
+      const dataH = Math.max(b.maxY - b.minY, 1e-6);
+      const usable = 0.85; // leave a margin around the data
+      const required = Math.max(dataW / (pw * usable), dataH / (ph * usable));
+      // Snap up to a standard engineering plot scale.
+      const STD = [10, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 600, 800, 1000];
+      const scale = STD.find((v) => v >= required) ?? Math.ceil(required / 100) * 100;
+      const paperW = pw * scale;
+      const paperH = ph * scale;
+      const originX = (b.minX + b.maxX) / 2 - paperW / 2;
+      const originY = (b.minY + b.maxY) / 2 - paperH / 2;
+      dwgStore.updateSettings({ drawingScale: scale, paperOrigin: { x: originX, y: originY } });
+      vpStore.zoomToExtents({ minX: originX, minY: originY, maxX: originX + paperW, maxY: originY + paperH }, 0.05);
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `Fit to page at 1"=${scale}'. Coordinates unchanged.` },
+      }));
+    };
     const onRotate = (e: Event) => {
       const { center, angleRad } = (e as CustomEvent).detail as {
         center: Point2D;
@@ -10495,6 +10614,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
+    window.addEventListener('cad:fitDrawingToPage', onFitToPage);
+    const onMovePageMode = () => {
+      const next = !paperMoveModeRef.current;
+      paperMoveModeRef.current = next;
+      paperDragRef.current = null;
+      setPaperMoveMode(next);
+      setCursorStyle(next ? 'move' : (TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default'));
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: next ? 'Move Page: drag the sheet to reposition it (Esc to finish).' : 'Move Page off.' },
+      }));
+    };
+    window.addEventListener('cad:movePageMode', onMovePageMode);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
     window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
@@ -10719,6 +10850,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
     window.addEventListener('cad:deleteSelection', onDeleteSelection);
 
+    // Clipboard (Ctrl+C / Ctrl+V / Ctrl+X). The hotkey engine dispatches
+    // these events; nothing was listening, so keyboard copy/paste did
+    // nothing. Wire them to the CAD clipboard ops. Paste lands near the
+    // cursor; copied features keep their source layer (switch the active
+    // layer, or use right-click → Copy to Layer, to land them elsewhere).
+    const onClipCopy = async () => {
+      const ops = await import('@/lib/cad/operations');
+      ops.copyCadSelection();
+    };
+    const onClipCut = async () => {
+      const ops = await import('@/lib/cad/operations');
+      ops.copyCadSelection();
+      ops.deleteSelection();
+    };
+    const onClipPaste = async () => {
+      const ops = await import('@/lib/cad/operations');
+      const { wx, wy } = screenToDrawingWorld(lastMouseRef.current.x, lastMouseRef.current.y);
+      ops.pasteCadClipboard(wx, wy);
+    };
+    window.addEventListener('cad:clipboardCopy', onClipCopy);
+    window.addEventListener('cad:clipboardCut', onClipCut);
+    window.addEventListener('cad:clipboardPaste', onClipPaste);
+
     window.addEventListener('cad:forwardPoint', onForwardPoint);
     window.addEventListener('cad:curbReturn', onCurbReturn);
 
@@ -10727,12 +10881,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
+      window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
+      window.removeEventListener('cad:movePageMode', onMovePageMode);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
       window.removeEventListener('cad:deleteSelection', onDeleteSelection);
+      window.removeEventListener('cad:clipboardCopy', onClipCopy);
+      window.removeEventListener('cad:clipboardCut', onClipCut);
+      window.removeEventListener('cad:clipboardPaste', onClipPaste);
       window.removeEventListener('cad:forwardPoint', onForwardPoint);
       window.removeEventListener('cad:curbReturn', onCurbReturn);
     };
@@ -11109,6 +11268,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }}
         >
           {snapLabel.text}
+        </div>
+      )}
+
+      {paperMoveMode && (
+        <div
+          className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1 rounded text-xs font-medium shadow-lg"
+          style={{ background: 'rgba(37,99,235,0.95)', color: '#fff' }}
+        >
+          <span>Move Page — drag the sheet to reposition it. Coordinates won&apos;t change.</span>
+          <button
+            type="button"
+            className="pointer-events-auto underline underline-offset-2"
+            onClick={() => window.dispatchEvent(new CustomEvent('cad:movePageMode'))}
+          >
+            Done (Esc)
+          </button>
         </div>
       )}
 

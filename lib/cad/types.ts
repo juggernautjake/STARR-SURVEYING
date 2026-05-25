@@ -164,6 +164,11 @@ export interface DrawingSettings {
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';
   drawingScale: number; // e.g., 50 for 1"=50'
+  /** World-coordinate position of the paper sheet's bottom-left corner.
+   *  Lets the paper FRAME be positioned over the survey data without
+   *  moving any geometry (coordinates/distances never change). Default
+   *  {0,0} preserves legacy behavior. Set by "Fit drawing to page". */
+  paperOrigin?: { x: number; y: number };
   codeDisplayMode: 'ALPHA' | 'NUMERIC';
 
   // Interaction & Viewport
