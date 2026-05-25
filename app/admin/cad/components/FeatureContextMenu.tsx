@@ -2,7 +2,8 @@
 // app/admin/cad/components/FeatureContextMenu.tsx
 // Rich right-click context menu for canvas features and empty space.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Copy,
   Clipboard,
@@ -95,9 +96,65 @@ type MenuDef = MenuItemDef | SeparatorDef;
 type SubMenuDef = MenuItemDef | SeparatorDef;
 
 // ── Sub-menu component ───────────────────────────────────────────────────────
-function SubMenu({ items, onAction }: { items: SubMenuDef[]; onAction: () => void }) {
+// Rendered through a portal at the document body so it can escape the parent
+// menu's scroll container, then clamped to the viewport (flips left/up and
+// scrolls vertically when there isn't room).
+function SubMenu({
+  items,
+  anchor,
+  onAction,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  items: SubMenuDef[];
+  anchor: DOMRect;
+  onAction: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number }>({
+    left: anchor.right,
+    top: anchor.top,
+  });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const margin = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = el.offsetWidth;
+    const naturalH = el.offsetHeight;
+    const left = anchor.right + w > vw ? Math.max(margin, anchor.left - w) : anchor.right;
+    const spaceBelow = vh - anchor.top - margin;
+    const spaceAbove = anchor.bottom - margin;
+    let top: number;
+    let maxHeight: number;
+    if (naturalH <= spaceBelow) {
+      top = anchor.top;
+      maxHeight = spaceBelow;
+    } else if (naturalH <= spaceAbove) {
+      top = anchor.bottom - naturalH;
+      maxHeight = spaceAbove;
+    } else if (spaceBelow >= spaceAbove) {
+      top = anchor.top;
+      maxHeight = spaceBelow;
+    } else {
+      top = margin;
+      maxHeight = spaceAbove;
+    }
+    setPos({ left, top, maxHeight });
+  }, [anchor]);
+
   return (
-    <div className="absolute left-full top-0 z-60 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px]">
+    <div
+      ref={ref}
+      className="fixed z-[60] flex flex-col bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px] max-w-[260px] overflow-y-auto"
+      style={{ left: pos.left, top: pos.top, maxHeight: pos.maxHeight }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {items.map((item) => {
         if ('separator' in item && item.separator) {
           return <div key={item.id} className="my-1 border-t border-gray-700" />;
@@ -130,17 +187,32 @@ function SubMenu({ items, onAction }: { items: SubMenuDef[]; onAction: () => voi
 
 // ── Menu row ─────────────────────────────────────────────────────────────────
 function MenuRow({ item, onAction }: { item: MenuItemDef; onAction: () => void }) {
-  const [showSub, setShowSub] = useState(false);
-  const rowRef = useRef<HTMLDivElement>(null);
+  const [subAnchor, setSubAnchor] = useState<DOMRect | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function cancelClose() {
+    if (closeTimer.current !== null) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
+  function openSub() {
+    cancelClose();
+    if (item.submenu && btnRef.current) {
+      setSubAnchor(btnRef.current.getBoundingClientRect());
+    }
+  }
+  function scheduleClose() {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setSubAnchor(null), 140);
+  }
+  useEffect(() => () => cancelClose(), []);
 
   return (
-    <div
-      ref={rowRef}
-      className="relative"
-      onMouseEnter={() => item.submenu && setShowSub(true)}
-      onMouseLeave={() => setShowSub(false)}
-    >
+    <div className="relative" onMouseEnter={openSub} onMouseLeave={scheduleClose}>
       <button
+        ref={btnRef}
         disabled={item.disabled}
         className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-xs transition-colors gap-3
           ${item.disabled ? 'opacity-40 cursor-default' : item.danger ? 'hover:bg-red-900/40 text-red-400' : 'hover:bg-gray-700 text-gray-200'}`}
@@ -160,9 +232,17 @@ function MenuRow({ item, onAction }: { item: MenuItemDef; onAction: () => void }
           {item.submenu && <ChevronRight size={10} className="text-gray-500" />}
         </span>
       </button>
-      {showSub && item.submenu && (
-        <SubMenu items={item.submenu} onAction={onAction} />
-      )}
+      {subAnchor && item.submenu &&
+        createPortal(
+          <SubMenu
+            items={item.submenu}
+            anchor={subAnchor}
+            onAction={onAction}
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
@@ -184,18 +264,42 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
 
-  // Clamp menu position so it doesn't go off-screen
+  // Position the menu next to the cursor, but keep it on-screen: flip
+  // horizontally when it would overflow the right edge, prefer opening
+  // downward and fall back to upward (or whichever side has more room),
+  // and cap the height so the list scrolls instead of running off-screen.
   const menuRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: x, top: y });
-  useEffect(() => {
-    if (!menuRef.current) return;
-    const { offsetWidth, offsetHeight } = menuRef.current;
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number }>({
+    left: x,
+    top: y,
+  });
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const margin = 8;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    setPos({
-      left: x + offsetWidth > vw ? x - offsetWidth : x,
-      top: y + offsetHeight > vh ? y - offsetHeight : y,
-    });
+    const w = el.offsetWidth;
+    const naturalH = el.offsetHeight;
+    const left = x + w > vw ? Math.max(margin, x - w) : x;
+    const spaceBelow = vh - y - margin;
+    const spaceAbove = y - margin;
+    let top: number;
+    let maxHeight: number;
+    if (naturalH <= spaceBelow) {
+      top = y;
+      maxHeight = spaceBelow;
+    } else if (naturalH <= spaceAbove) {
+      top = y - naturalH;
+      maxHeight = spaceAbove;
+    } else if (spaceBelow >= spaceAbove) {
+      top = y;
+      maxHeight = spaceBelow;
+    } else {
+      top = margin;
+      maxHeight = spaceAbove;
+    }
+    setPos({ left, top, maxHeight });
   }, [x, y]);
 
   // ── Helper: rotate by custom angle ───────────────────────────────────────
@@ -1164,22 +1268,25 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       />
       <div
         ref={menuRef}
-        className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 text-xs text-gray-200 min-w-[200px] max-w-[260px] animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)]"
-        style={{ top: pos.top, left: pos.left }}
+        className="fixed z-50 flex flex-col bg-gray-800 border border-gray-600 rounded-lg shadow-2xl text-xs text-gray-200 min-w-[200px] max-w-[260px] overflow-hidden animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)]"
+        style={{ top: pos.top, left: pos.left, maxHeight: pos.maxHeight }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-3 py-1.5 text-[10px] text-gray-500 font-semibold uppercase tracking-wider border-b border-gray-700 mb-1">
+        <div className="shrink-0 px-3 py-1.5 text-[10px] text-gray-500 font-semibold uppercase tracking-wider border-b border-gray-700">
           {headerText}
         </div>
 
-        {items.map((item) => {
-          if ('separator' in item && item.separator) {
-            return <div key={item.id} className="my-1 border-t border-gray-700" />;
-          }
-          const menuItem = item as MenuItemDef;
-          return <MenuRow key={menuItem.id} item={menuItem} onAction={onClose} />;
-        })}
+        {/* Scrollable items */}
+        <div className="flex-1 overflow-y-auto py-1">
+          {items.map((item) => {
+            if ('separator' in item && item.separator) {
+              return <div key={item.id} className="my-1 border-t border-gray-700" />;
+            }
+            const menuItem = item as MenuItemDef;
+            return <MenuRow key={menuItem.id} item={menuItem} onAction={onClose} />;
+          })}
+        </div>
       </div>
     </>
   );
