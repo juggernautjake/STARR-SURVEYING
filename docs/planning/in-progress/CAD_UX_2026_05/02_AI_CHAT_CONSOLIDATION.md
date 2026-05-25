@@ -106,9 +106,12 @@ chat into a scoped conversation. Delete dead stores/components once unreferenced
 ## Action items
 
 - [x] Engine continuity fix (multi-turn messages + windowing).
-- [ ] `ai-conversations-store.ts` — persisted multi-conversation store with the
-  actions above + auto-title logic. Unit-test the reducer-ish helpers
-  (auto-title, open-or-focus, close-active-tab selection).
+- [x] `ai-conversations-store.ts` — persisted (zustand `persist`)
+  multi-conversation store: open/close/toggle, dock/undock + `panelRect` +
+  `dockedWidth`, `openWith`, new/close/rename/setActive, `send` (auto-titles the
+  tab from the first request, forwards the full transcript to the drawing-chat
+  engine), and ported `applyAction` (title-block / setting / regenerate). Pure
+  helpers `deriveConversationTitle` + `pickNextActiveId` unit-tested (7 tests).
 - [ ] `AIChatDock.tsx` — right-docked, draggable/resizable, tab strip with
   rename + close + new, message list + composer.
 - [ ] Dock/undock toggle: floating mode renders through `ModalFrame` (drag +
