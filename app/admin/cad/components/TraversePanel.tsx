@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useTraverseStore } from '@/lib/cad/store/traverse-store';
 import { usePointStore } from '@/lib/cad/store';
 import { createTraverse } from '@/lib/cad/geometry/traverse';
@@ -163,12 +164,18 @@ export default function TraversePanel() {
 
       {/* Legal Description Modal */}
       {showLegalDesc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-[fadeIn_150ms_ease-out]">
-          <div className="bg-white rounded-lg shadow-xl w-[600px] max-h-[80vh] flex flex-col animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold">Legal Description</h3>
-              <button onClick={() => setShowLegalDesc(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
-            </div>
+        <ModalFrame
+          open
+          onClose={() => setShowLegalDesc(false)}
+          scrollBody={false}
+          title="Legal Description"
+          bodyClassName="bg-white text-gray-900"
+          initialWidth={620}
+          initialHeight={520}
+          minWidth={420}
+          minHeight={300}
+        >
+          <div className="flex flex-col h-full min-h-0">
             <div className="flex-1 overflow-y-auto p-4">
               <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed">{legalDescText}</pre>
             </div>
@@ -187,7 +194,7 @@ export default function TraversePanel() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );
