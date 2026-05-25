@@ -22,6 +22,7 @@ import {
   BoxSelect,
   Slash,
   Sparkles,
+  FolderPlus,
 } from 'lucide-react';
 import {
   useDrawingStore,
@@ -348,10 +349,61 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // bring-along.
   function buildLayerTransferSubmenu(keepOriginals: boolean): SubMenuDef[] {
     const targets = layers.filter((l) => l && !l.locked);
+
+    // Create a fresh layer and transfer the selection onto it in one click
+    // (no dialog). The layer is auto-named "New Layer N"; rename it later in
+    // the Layer panel. Copy keeps the originals; Move reassigns them.
+    const transferToNewLayer = () => {
+      const ids = Array.from(selectionStore.selectedIds);
+      if (ids.length === 0) return;
+      const existingNames = new Set(layers.map((l) => l.name));
+      const base = Object.keys(drawingStore.document.layers).length + 1;
+      let n = base;
+      let name = `New Layer ${n}`;
+      while (existingNames.has(name)) name = `New Layer ${++n}`;
+      const id = generateId();
+      drawingStore.addLayer({
+        id,
+        name,
+        visible: true,
+        locked: false,
+        frozen: false,
+        color: '#000000',
+        lineWeight: 0.5,
+        lineTypeId: 'SOLID',
+        opacity: 1,
+        groupId: null,
+        sortOrder: Object.keys(drawingStore.document.layers).length,
+        isDefault: false,
+        isProtected: false,
+        autoAssignCodes: [],
+      });
+      transferSelectionToLayer(ids, id, {
+        keepOriginals,
+        renumberStart: null,
+        stripUnknownCodes: false,
+        codeMap: null,
+        targetTraverseId: null,
+        offset: null,
+        bringAlongLinkedGeometry: false,
+        transferOperationId: generateId(),
+      });
+    };
+
+    const newLayerItem: MenuItemDef = {
+      id: `${keepOriginals ? 'copy' : 'move'}-to-new-layer`,
+      label: 'New layer…',
+      icon: <FolderPlus size={12} />,
+      action: transferToNewLayer,
+    };
+
     if (targets.length === 0) {
-      return [{ id: 'no-target-layers', label: '(no unlocked layers)', disabled: true } as MenuItemDef];
+      return [newLayerItem];
     }
-    return targets.map((l) => ({
+    return [
+      newLayerItem,
+      { separator: true, id: `${keepOriginals ? 'copy' : 'move'}-newlayer-sep` },
+      ...targets.map((l) => ({
       id: `${keepOriginals ? 'copy' : 'move'}-to-${l.id}`,
       label: l.name,
       icon: <Layers size={12} />,
@@ -369,7 +421,8 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           transferOperationId: generateId(),
         });
       },
-    } as MenuItemDef));
+    } as MenuItemDef)),
+    ];
   }
 
   // ── Build "Modify" submenu ────────────────────────────────────────────────
