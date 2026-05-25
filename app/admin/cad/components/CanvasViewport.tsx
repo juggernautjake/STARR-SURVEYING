@@ -7874,9 +7874,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
-            // Captured BEFORE selection changes — drives the two-step
-            // grab for points below.
-            const hitWasSelected = selectionStore.selectedIds.has(hit);
             const hitFeature = drawingStore.getFeature(hit);
             const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
             const featureGid  = hitFeature?.featureGroupId ?? undefined;
@@ -7925,31 +7922,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               featureIds = [hit];
             }
 
-            // Two-step grab for POINTS: a first click only selects the
-            // point — you must click an ALREADY-selected point to grab and
-            // move it. This stops accidental nudges when clicking dense
-            // points (selecting a different point resets the gate). Point
-            // names / codes / descriptions (labels, handled above) and all
-            // other geometry keep one-click grab-to-move.
-            const isPoint = hitFeature?.geometry.type === 'POINT';
-            if (!isPoint || hitWasSelected) {
-              // Start drag-to-move: store original positions for undo
-              const startWorld = screenToDrawingWorld(sx, sy);
-              const originals = new Map<string, Feature>();
-              for (const id of featureIds) {
-                const f = drawingStore.getFeature(id);
-                if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
-              }
-              dragFeatureRef.current = {
-                featureIds,
-                startWorld: { x: startWorld.wx, y: startWorld.wy },
-                originals,
-              };
-              setCursorStyle('grabbing');
-            } else {
-              // Point newly selected — armed to grab on the next press.
-              setCursorStyle('grab');
-            }
+            // Click-drag NEVER moves geometry — it only selects. To move,
+            // select then use the Move tool (M). This prevents accidental
+            // nudges to real survey coordinates. (Point names / codes /
+            // descriptions are LABELS, handled above, and stay draggable;
+            // moving a point with the Move tool carries its labels along.)
+            setCursorStyle('pointer');
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
@@ -9913,8 +9891,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // Hovering over a label: show grab cursor
               setCursorStyle('grab');
             } else if (hit) {
-              // Hovering over an element: show grab cursor to indicate it can be dragged
-              setCursorStyle('grab');
+              // Hovering a selectable element. It's NOT drag-to-move
+              // (use the Move tool), so show a pointer, not a grab hand.
+              setCursorStyle('pointer');
             } else {
               // Hovering over empty canvas: default cursor
               setCursorStyle('default');
