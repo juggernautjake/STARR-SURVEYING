@@ -3,13 +3,12 @@
 // Startup dialog: user chooses paper size and creates a blank drawing
 // or goes straight to importing survey data.
 
-import { useState, useRef } from 'react';
-import { FileText, Upload, FolderOpen, X } from 'lucide-react';
+import { useState } from 'react';
+import { FileText, Upload, FolderOpen } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   onClose: () => void;
@@ -27,9 +26,6 @@ const PAPER_SIZES = [
 type PaperSize = (typeof PAPER_SIZES)[number]['value'];
 
 export default function NewDrawingDialog({ onClose, onImport }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const [drawingName, setDrawingName] = useState('Untitled Drawing');
   const [paperSize, setPaperSize] = useState<PaperSize>('TABLOID');
@@ -82,23 +78,21 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
   }
 
   return (
-    <div ref={dialogRef} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 animate-[fadeIn_150ms_ease-out]">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-        {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-700 flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-white">STARR CAD</h1>
-            <p className="text-gray-400 text-xs mt-1">
-              Start a new drawing or import existing survey data.
-            </p>
-          </div>
-          <button
-            onClick={handleCreate}
-            title="Done — use current settings and start drawing"
-            className="ml-4 p-1.5 rounded-lg border border-gray-600 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-          >
-            <X size={18} />
-          </button>
+    <ModalFrame
+      open
+      onClose={onClose}
+      title="STARR CAD — New Drawing"
+      initialWidth={560}
+      initialHeight={640}
+      minWidth={440}
+      minHeight={440}
+    >
+      <div className="text-sm text-gray-200">
+        {/* Intro */}
+        <div className="px-6 pt-5 pb-4 border-b border-gray-700">
+          <p className="text-gray-400 text-xs">
+            Start a new drawing or import existing survey data.
+          </p>
         </div>
 
         {/* Body */}
@@ -202,6 +196,6 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
