@@ -23,6 +23,7 @@ import {
   Slash,
   Sparkles,
   FolderPlus,
+  Magnet,
 } from 'lucide-react';
 import {
   useDrawingStore,
@@ -538,6 +539,50 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
             );
           },
         },
+        // Snap a point/vertex to another point — pick the vertex nearest the
+        // right-click, then choose to snap just that point or move the whole
+        // feature so the point lands on a chosen target point.
+        ...((feature.geometry.type === 'POINT' || feature.geometry.type === 'LINE' ||
+             feature.geometry.type === 'POLYLINE' || feature.geometry.type === 'POLYGON')
+          ? (() => {
+              const g = feature.geometry;
+              let vIndex = 0;
+              if (g.type === 'LINE' && g.start && g.end) {
+                const ds = (g.start.x - worldX) ** 2 + (g.start.y - worldY) ** 2;
+                const de = (g.end.x - worldX) ** 2 + (g.end.y - worldY) ** 2;
+                vIndex = de < ds ? 1 : 0;
+              } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
+                let bd = Infinity;
+                g.vertices.forEach((v, i) => {
+                  const d = (v.x - worldX) ** 2 + (v.y - worldY) ** 2;
+                  if (d < bd) { bd = d; vIndex = i; }
+                });
+              }
+              const begin = (moveWhole: boolean) => {
+                window.dispatchEvent(new CustomEvent('cad:beginSnapToPoint', {
+                  detail: { featureId: feature.id, vertexIndex: vIndex, moveWhole },
+                }));
+                onClose();
+              };
+              if (g.type === 'POINT') {
+                return [{
+                  id: 'snap-to-point',
+                  label: 'Snap to Point…',
+                  icon: <Magnet size={12} />,
+                  action: () => begin(false),
+                } as MenuItemDef];
+              }
+              return [{
+                id: 'snap-point-menu',
+                label: 'Snap Point to…',
+                icon: <Magnet size={12} />,
+                submenu: [
+                  { id: 'snap-point-only', label: 'Snap this point only', action: () => begin(false) },
+                  { id: 'snap-point-whole', label: 'Move whole feature to align', action: () => begin(true) },
+                ],
+              } as MenuItemDef];
+            })()
+          : []),
         // Add Inflection Point — only for SPLINE features
         ...(feature.geometry.type === 'SPLINE' && feature.geometry.spline && feature.geometry.spline.controlPoints.length >= 4
           ? [
