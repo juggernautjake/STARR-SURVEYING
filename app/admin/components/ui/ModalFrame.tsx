@@ -42,8 +42,14 @@ export interface ModalFrameProps {
   backdrop?: boolean;
   /** Close when the backdrop is clicked. Default true. */
   closeOnBackdrop?: boolean;
-  /** Extra classes for the scrollable body wrapper. */
+  /** Extra classes for the body wrapper. */
   bodyClassName?: string;
+  /**
+   * When true (default) the body scrolls (`overflow-auto`). Set false for
+   * dialogs that manage their own internal layout (e.g. a sticky tab bar +
+   * scrolling content + sticky footer) — the body becomes a flex column.
+   */
+  scrollBody?: boolean;
   /** z-index for the portal layer. Default 1000. */
   zIndex?: number;
 }
@@ -103,6 +109,7 @@ export default function ModalFrame({
   backdrop = true,
   closeOnBackdrop = true,
   bodyClassName = '',
+  scrollBody = true,
   zIndex = 1000,
 }: ModalFrameProps) {
   const [mounted, setMounted] = useState(false);
@@ -311,7 +318,11 @@ export default function ModalFrame({
         </div>
 
         {/* Body */}
-        <div className={`flex-1 overflow-auto ${bodyClassName}`}>{children}</div>
+        <div
+          className={`flex-1 min-h-0 ${scrollBody ? 'overflow-auto' : 'flex flex-col'} ${bodyClassName}`}
+        >
+          {children}
+        </div>
 
         {/* Resize handles */}
         {handles.map((h) => (

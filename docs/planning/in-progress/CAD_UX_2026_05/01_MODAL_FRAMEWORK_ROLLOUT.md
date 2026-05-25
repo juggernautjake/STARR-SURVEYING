@@ -58,8 +58,11 @@ Keep `useFocusTrap` where dialogs already use it (wrap the frame body).
 ## Action items
 
 - [x] Build the shared `ModalFrame` shell (drag + resize + X + persistence).
-- [ ] **Settings/preferences** — migrate `SettingsDialog` onto `ModalFrame`
-  (highest traffic; verify tab content scrolls inside the resizable body).
+  Added a `scrollBody` opt-out for dialogs with their own sticky layout.
+- [x] **Settings/preferences** — migrated `SettingsDialog` onto `ModalFrame`
+  (`scrollBody={false}`; sticky tab bar + footer, scrolling content;
+  `storageKey="cad.settingsDialog"`; dropped its bespoke backdrop/header/X +
+  `useEscapeToClose`).
 - [ ] **Shared confirms** — migrate CAD `ConfirmDialog` + `QuestionDialog`,
   adding the missing X button.
 - [ ] **Research dialogs** — `ConfirmDialog`, `DrawingSaveDialog` (+ X),

@@ -3,7 +3,7 @@
 // Comprehensive settings dialog covering all configurable options.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair, Keyboard } from 'lucide-react';
+import { Grid, Sliders, Palette, MousePointer2, Eye, Save, FileText, Crosshair, Keyboard } from 'lucide-react';
 import { useDrawingStore, useHotkeysStore, useUIStore } from '@/lib/cad/store';
 import type { SnapType } from '@/lib/cad/types';
 import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
@@ -14,8 +14,8 @@ import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import { normalizeKeyboardEvent } from '@/lib/cad/hotkeys/key-format';
 import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
 import Tooltip from './Tooltip';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   onClose: () => void;
@@ -214,7 +214,6 @@ function ButtonGroup<T extends string>({
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function SettingsDialog({ onClose }: Props) {
-  useEscapeToClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
@@ -231,26 +230,23 @@ export default function SettingsDialog({ onClose }: Props) {
   }
 
   return (
-    <div
-      ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]"
-      onClick={onClose}
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      storageKey="cad.settingsDialog"
+      initialWidth={560}
+      initialHeight={640}
+      minWidth={420}
+      minHeight={380}
+      title={
+        <span className="flex items-center gap-2">
+          <Sliders size={14} className="text-blue-400" />
+          Settings &amp; Preferences
+        </span>
+      }
     >
-      <div
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[540px] max-h-[85vh] flex flex-col text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 shrink-0">
-          <div className="flex items-center gap-2">
-            <Sliders size={16} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Settings &amp; Preferences</h2>
-          </div>
-          <button className="text-gray-400 hover:text-white transition-colors" onClick={onClose}>
-            <X size={16} />
-          </button>
-        </div>
-
+      <div ref={dialogRef} className="flex flex-col h-full min-h-0 text-sm text-gray-200">
         {/* Tab bar — scrollable for many tabs */}
         <div className="flex border-b border-gray-700 shrink-0 text-xs overflow-x-auto">
           {TABS.map((tab) => (
@@ -1031,7 +1027,7 @@ export default function SettingsDialog({ onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 
