@@ -1,11 +1,9 @@
 'use client';
 // app/admin/cad/components/PrintDialog.tsx — Print / export settings modal
 
-import { useRef } from 'react';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import type { PaperSize } from '@/lib/cad/templates/types';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   onClose: () => void;
@@ -21,9 +19,6 @@ const PAPER_SIZE_LABELS: Record<PaperSize, string> = {
 };
 
 export default function PrintDialog({ onClose }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const store = useTemplateStore();
   const cfg = store.printConfig;
 
@@ -38,26 +33,16 @@ export default function PrintDialog({ onClose }: Props) {
   const checkClass = 'flex items-center gap-2 cursor-pointer';
 
   return (
-    <div
-      ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Print Settings"
+    <ModalFrame
+      open
+      onClose={onClose}
+      title="Print / Export"
+      initialWidth={520}
+      initialHeight={560}
+      minWidth={360}
+      minHeight={320}
     >
-      <div className="bg-gray-800 text-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden">
-        {/* Title bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
-          <span className="font-semibold text-sm">Print / Export</span>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors text-lg leading-none"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-
+      <div className="text-white">
         {/* Body */}
         <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
           {/* Paper size */}
@@ -224,6 +209,6 @@ export default function PrintDialog({ onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
