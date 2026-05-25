@@ -22,7 +22,7 @@
 //   Method B — Enter two point coordinates + deed bearing
 //   Method C — AI deed import (Phase 6 scaffold)
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import {
   RotateCcw, RotateCw, Compass, Info, ChevronDown, ChevronUp,
   Search, CheckCircle2,
@@ -39,9 +39,7 @@ import type { ReferenceLine, BearingCandidate } from '@/lib/cad/geometry/orient'
 import { parseBearing, formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
-import DialogCloseButton from './ui/DialogCloseButton';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   onClose: () => void;
@@ -141,9 +139,6 @@ function ConfBar({ value }: { value: number }) {
 // Main dialog
 // ─────────────────────────────────────────────────────────────────────────────
 export default function OrientationDialog({ onClose }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
 
@@ -293,24 +288,17 @@ export default function OrientationDialog({ onClose }: Props) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div
-      ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]"
-      onClick={onClose}
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title={<span className="flex items-center gap-2"><Compass size={14} className="text-blue-400" />Survey Orientation Adjustment</span>}
+      initialWidth={600}
+      initialHeight={620}
+      minWidth={420}
+      minHeight={360}
     >
-      <div
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[600px] max-h-[92vh] flex flex-col text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 shrink-0">
-          <div className="flex items-center gap-2">
-            <Compass size={16} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Survey Orientation Adjustment</h2>
-          </div>
-          <DialogCloseButton onClick={onClose} />
-        </div>
-
+      <div className="flex flex-col h-full min-h-0 text-sm text-gray-200">
         {/* Body */}
         <div className="overflow-y-auto flex-1 p-4 space-y-4 text-xs">
 
@@ -644,6 +632,6 @@ export default function OrientationDialog({ onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
