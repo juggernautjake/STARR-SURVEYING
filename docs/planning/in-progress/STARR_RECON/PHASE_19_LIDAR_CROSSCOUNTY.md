@@ -1,5 +1,19 @@
 # Phase 19 — TNRIS LiDAR & Cross-County Research
 
+> **Status (2026-05-25): SHIPPED.** All action items below are implemented
+> and verified by `__tests__/recon/phase19-lidar-crosscounty.test.ts`
+> (55/55 passing) — `TNRISLiDARClient`, `CrossCountyResolver`, the
+> `lidar_data_cache` / `cross_county_properties` schema, and the
+> `/research/lidar/*` + `/research/cross-county/*` worker routes.
+>
+> **Why this doc stays in `in-progress/` (not moved to `completed/`):** the
+> test suite hard-codes this exact path
+> (`docs/planning/in-progress/STARR_RECON/PHASE_19_LIDAR_CROSSCOUNTY.md`,
+> tests 49–52) as the live spec for the feature. Moving the file would
+> re-break CI. Per `docs/planning/README.md` this is the "live spec
+> referenced by working code" → IN-PROGRESS case. Relocate only in a
+> change that also updates the test's `SPEC_PATH`.
+
 ## Purpose
 Phase 19 adds LiDAR-backed elevation research and cross-county property
 detection to the STARR Recon research pipeline. It lets a research plan
