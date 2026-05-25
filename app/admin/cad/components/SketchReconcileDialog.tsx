@@ -15,6 +15,7 @@ import { X, Upload, Sparkles, AlertTriangle } from 'lucide-react';
 import { useAIStore, useDrawingStore } from '@/lib/cad/store';
 import { buildSolverPolylineProposal } from '@/lib/cad/ai/solver-proposal';
 import { collectedPoints } from '@/lib/cad/ai/selection-points';
+import { uploadProjectImage } from '@/lib/cad/persistence/project-image';
 import type { Feature } from '@/lib/cad/types';
 
 interface Props { onClose: () => void }
@@ -51,6 +52,13 @@ export default function SketchReconcileDialog({ onClose }: Props): React.ReactEl
     setError(null);
     setResult(null);
     try {
+      // Persist the reviewed image to the project so it survives reloads
+      // and is available for reference. Non-fatal if it fails.
+      try {
+        const projImg = await uploadProjectImage(file, file.name || 'sketch');
+        useDrawingStore.getState().addProjectImage(projImg);
+      } catch { /* keep going — analysis doesn't depend on persistence */ }
+
       const body = new FormData();
       body.append('sketch', file);
       body.append('collectedPoints', JSON.stringify(collected));
