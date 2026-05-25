@@ -2,14 +2,12 @@
 // app/admin/cad/components/DrawingRotationDialog.tsx
 // Dialog for rotating the drawing view (visual only — does not alter survey data).
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { RotateCcw, RotateCw, Compass, RefreshCw } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
-import DialogCloseButton from './ui/DialogCloseButton';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   onClose: () => void;
@@ -18,9 +16,6 @@ interface Props {
 const QUICK_ANGLES = [0, 15, 30, 45, 60, 90, 180, 270];
 
 export default function DrawingRotationDialog({ onClose }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const currentDeg = drawingStore.document.settings.drawingRotationDeg ?? 0;
   // Live azimuth tracked here; UnitInput parses + canonicalises before
@@ -42,17 +37,16 @@ export default function DrawingRotationDialog({ onClose }: Props) {
   }
 
   return (
-    <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[420px] text-sm text-gray-200 overflow-hidden animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
-          <div className="flex items-center gap-2">
-            <Compass size={16} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Rotate Drawing View</h2>
-          </div>
-          <DialogCloseButton onClick={onClose} />
-        </div>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      title={<span className="flex items-center gap-2"><Compass size={14} className="text-blue-400" />Rotate Drawing View</span>}
+      initialWidth={420}
+      initialHeight={420}
+      minWidth={340}
+      minHeight={280}
+    >
+      <div className="text-sm text-gray-200">
         {/* Body */}
         <div className="p-4 space-y-4">
           <p className="text-xs text-gray-400 leading-relaxed">
@@ -158,6 +152,6 @@ export default function DrawingRotationDialog({ onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
