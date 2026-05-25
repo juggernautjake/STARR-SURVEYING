@@ -36,6 +36,18 @@ export function feetToLinearUnit(feet: number, prefs: DisplayPreferences): numbe
   }
 }
 
+/** Inverse of feetToLinearUnit — convert a value in the display unit to feet. */
+export function linearUnitToFeet(value: number, prefs: DisplayPreferences): number {
+  switch (prefs.linearUnit) {
+    case 'IN':   return value / FT_TO_IN;
+    case 'MILE': return value / FT_TO_MILE;
+    case 'M':    return value / FT_TO_M;
+    case 'CM':   return value / FT_TO_CM;
+    case 'MM':   return value / FT_TO_MM;
+    default:     return value; // FT
+  }
+}
+
 /** Abbreviated unit label (e.g. "ft", "m") */
 export function linearUnitLabel(prefs: DisplayPreferences): string {
   switch (prefs.linearUnit) {

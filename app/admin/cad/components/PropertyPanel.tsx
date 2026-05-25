@@ -6,8 +6,8 @@ import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/stor
 import { generateId } from '@/lib/cad/types';
 import type { Feature } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
-import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
-import { formatDistance } from '@/lib/cad/geometry/units';
+import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
+import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 import SymbolPicker, { SymbolThumbnail } from './SymbolPicker';
 import LineTypePicker, { LineTypePreview } from './LineTypePicker';
@@ -64,6 +64,37 @@ function CoordInput({
 
 function toHex(value: string): string {
   return value.startsWith('#') ? value : `#${value}`;
+}
+
+// ── Inline editable text field for line length / bearing / azimuth ──────────
+// Commits the raw string on Enter / blur; the parent parses and applies it.
+// Invalid input leaves the geometry untouched and the field snaps back.
+function LineDimField({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (raw: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => setLocal(value), [value]);
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-gray-500 shrink-0 text-[10px]">{label}</span>
+      <input
+        className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none font-mono text-[10px] min-w-0"
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={() => { onCommit(local); setLocal(value); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') { setLocal(value); e.currentTarget.blur(); }
+        }}
+      />
+    </div>
+  );
 }
 
 export default function PropertyPanel() {
@@ -204,6 +235,16 @@ export default function PropertyPanel() {
       timestamp: Date.now(),
       operations: [{ type: 'MODIFY_FEATURE', data: { id: snap.id, before: snap.before, after } }],
     });
+  }
+
+  // Move a LINE's END point (start stays fixed) and record one undo step.
+  // Used by the editable length / bearing / azimuth fields so changing a
+  // line's dimension recomputes the far end without touching the anchor.
+  function applyLineEnd(newEnd: { x: number; y: number }) {
+    if (!single) return;
+    updateCoord(1, 'x', newEnd.x);
+    updateCoord(1, 'y', newEnd.y);
+    commitCoordEdit();
   }
 
   const { document: doc } = drawingStore;
@@ -496,21 +537,40 @@ export default function PropertyPanel() {
                 );
               })()}
               {(() => {
-                const { azimuth, distance } = inverseBearingDistance(geom.start, geom.end);
+                const start = geom.start!;
+                const end = geom.end!;
+                const { azimuth, distance } = inverseBearingDistance(start, end);
+                const lenStr = feetToLinearUnit(distance, displayPrefs).toFixed(displayPrefs.linearDecimalPlaces);
                 return (
-                  <div className="space-y-0.5 pt-0.5 border-t border-gray-700">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-gray-500">Bearing</span>
-                      <span className="font-mono text-blue-300">{formatBearing(azimuth)}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-gray-500">Azimuth</span>
-                      <span className="font-mono text-gray-300">{formatAzimuth(azimuth)}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-gray-500">Distance</span>
-                      <span className="font-mono text-gray-300">{formatDistance(distance, displayPrefs)}</span>
-                    </div>
+                  <div className="space-y-1 pt-1 border-t border-gray-700">
+                    <div className="text-gray-500 text-[9px] uppercase">Dimensions</div>
+                    <LineDimField
+                      label="Bearing"
+                      value={formatBearing(azimuth)}
+                      onCommit={(raw) => {
+                        const az = parseBearing(raw);
+                        if (az == null) return;
+                        applyLineEnd(forwardPoint(start, az, distance));
+                      }}
+                    />
+                    <LineDimField
+                      label="Azimuth"
+                      value={formatAzimuth(azimuth)}
+                      onCommit={(raw) => {
+                        const az = parseBearing(raw);
+                        if (az == null) return;
+                        applyLineEnd(forwardPoint(start, az, distance));
+                      }}
+                    />
+                    <LineDimField
+                      label={`Length (${linearUnitLabel(displayPrefs)})`}
+                      value={lenStr}
+                      onCommit={(raw) => {
+                        const v = parseFloat(raw);
+                        if (isNaN(v) || v <= 0) return;
+                        applyLineEnd(forwardPoint(start, azimuth, linearUnitToFeet(v, displayPrefs)));
+                      }}
+                    />
                   </div>
                 );
               })()}

@@ -801,6 +801,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const paperMoveModeRef = useRef(false);
   const [paperMoveMode, setPaperMoveMode] = useState(false);
   const paperDragRef = useRef<{ startWx: number; startWy: number; originX: number; originY: number } | null>(null);
+  // "Snap point to another point" pick mode (from the right-click menu): the
+  // next click chooses the target point; we then either move just this vertex
+  // or translate the whole feature so the vertex lands on the target.
+  const snapPickRef = useRef<{ featureId: string; vertexIndex: number; moveWhole: boolean } | null>(null);
+  const [snapPickMode, setSnapPickMode] = useState(false);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -7676,6 +7681,68 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // "Snap point to another point" pick: the click picks the target.
+      if (snapPickRef.current) {
+        const pick = snapPickRef.current;
+        const f = drawingStore.getFeature(pick.featureId);
+        if (f) {
+          // Resolve the target point: snap to a nearby point / endpoint of
+          // ANOTHER feature, else use the raw clicked location.
+          const settings = drawingStore.document.settings;
+          const zoom = Math.max(0.0001, viewportStore.zoom);
+          const raw = screenToDrawingWorld(sx, sy);
+          const targets = drawingStore.getVisibleFeatures().filter((t) => t.id !== pick.featureId);
+          const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
+          const snap = findSnapPoint(
+            { x: raw.wx, y: raw.wy }, targets,
+            Math.max(settings.snapRadius, 20), zoom, ['ENDPOINT'], grid,
+          );
+          const target = snap ? snap.point : { x: raw.wx, y: raw.wy };
+
+          // Current position of the chosen vertex.
+          const g = f.geometry;
+          const cur =
+            g.type === 'POINT' ? g.point :
+            g.type === 'LINE' ? (pick.vertexIndex === 0 ? g.start : g.end) :
+            (g.vertices ? g.vertices[pick.vertexIndex] : null);
+
+          if (cur) {
+            const before = JSON.parse(JSON.stringify(f));
+            if (pick.moveWhole) {
+              // Translate the whole feature so the vertex lands on target.
+              const dx = target.x - cur.x;
+              const dy = target.y - cur.y;
+              const moved = transformFeature(f, (p) => translate(p, dx, dy));
+              drawingStore.updateFeature(f.id, { geometry: moved.geometry });
+            } else {
+              // Move just this vertex onto the target.
+              const ng = { ...g };
+              if (ng.type === 'POINT') ng.point = { ...target };
+              else if (ng.type === 'LINE') {
+                if (pick.vertexIndex === 0) ng.start = { ...target };
+                else ng.end = { ...target };
+              } else if (ng.vertices) {
+                const verts = [...ng.vertices];
+                verts[pick.vertexIndex] = { ...target };
+                ng.vertices = verts;
+              }
+              drawingStore.updateFeatureGeometry(f.id, ng);
+            }
+            const after = drawingStore.getFeature(f.id);
+            if (after) {
+              undoStore.pushUndo(makeBatchEntry(
+                pick.moveWhole ? 'Snap feature to point' : 'Snap point',
+                [{ type: 'MODIFY_FEATURE', data: { id: f.id, before, after } }],
+              ));
+            }
+          }
+        }
+        snapPickRef.current = null;
+        setSnapPickMode(false);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        return;
+      }
+
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
@@ -9599,6 +9666,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         setCursorStyle('move');
         return;
       }
+      // Snap-to-point pick: show a snap marker at the cursor's nearest target.
+      if (snapPickRef.current) {
+        getSnappedWorld(sx, sy); // updates snapResultRef → snap marker draws
+        setCursorStyle('crosshair');
+        return;
+      }
 
       // Phase 8 §6 — feature-hover tooltip + bridge into
       // `useUIStore.hoveredFeatureId`. We hit-test the
@@ -10416,6 +10489,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         isSpaceDownRef.current = true;
         setCursorStyle('grab');
       }
+      // Escape cancels a "snap point to point" pick.
+      if (e.key === 'Escape' && snapPickRef.current) {
+        snapPickRef.current = null;
+        setSnapPickMode(false);
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
+        return;
+      }
       // Escape leaves "Move Page" mode.
       if (e.key === 'Escape' && paperMoveModeRef.current) {
         paperMoveModeRef.current = false;
@@ -10626,6 +10706,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }));
     };
     window.addEventListener('cad:movePageMode', onMovePageMode);
+    const onBeginSnapToPoint = (e: Event) => {
+      const d = (e as CustomEvent).detail as { featureId: string; vertexIndex: number; moveWhole: boolean } | undefined;
+      if (!d?.featureId) return;
+      snapPickRef.current = { featureId: d.featureId, vertexIndex: d.vertexIndex ?? 0, moveWhole: !!d.moveWhole };
+      setSnapPickMode(true);
+      setCursorStyle('crosshair');
+    };
+    window.addEventListener('cad:beginSnapToPoint', onBeginSnapToPoint);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
     window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
@@ -10883,6 +10971,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
       window.removeEventListener('cad:movePageMode', onMovePageMode);
+      window.removeEventListener('cad:beginSnapToPoint', onBeginSnapToPoint);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
@@ -11284,6 +11373,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           >
             Done (Esc)
           </button>
+        </div>
+      )}
+
+      {snapPickMode && (
+        <div
+          className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1 rounded text-xs font-medium shadow-lg"
+          style={{ background: 'rgba(16,185,129,0.95)', color: '#fff' }}
+        >
+          <span>Click the target point to snap to (Esc to cancel).</span>
         </div>
       )}
 
