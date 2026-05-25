@@ -1,6 +1,9 @@
 # Modal Framework Rollout — Drag, Resize, Close
 
-**Status:** IN-PROGRESS
+**Status:** COMPLETE (2026-05-25) — every centered modal/dialog now uses the
+shared draggable + resizable `ModalFrame` with an X close button. Code
+type-checks + lints; visual QA in a browser still recommended (this
+environment can't drive one).
 **Goal:** Every modal/dialog in the app can be dragged and resized, and has a
 consistent X close button.
 
@@ -70,14 +73,26 @@ Keep `useFocusTrap` where dialogs already use it (wrap the frame body).
   `DrawingSaveDialog`, and `ErrorReportDialog` onto `ModalFrame` (all now
   drag/resize + X). Their inner content keeps its existing CSS classes inside
   the frame's dark panel — worth a visual QA pass for theme contrast.
-- [ ] **CAD dialogs batch A** — AIDrawingDialog, ImportDialog,
-  LayerTransferDialog, IntersectDialog, OrientationDialog (large; migrate
-  carefully, one commit each).
-- [ ] **CAD dialogs batch B** — the remaining ~15 smaller dialogs
-  (NewDrawingDialog, PrintDialog, ScaleBarEditorModal, TitleBlockEditorModal,
-  CalcPointDialog, ImageInsertDialog, FeaturePropertiesDialog, etc.).
-- [ ] Audit pass: every dialog opens centered/persisted, drags, resizes, has an
-  X, and Escape/click-away still work; remove now-dead bespoke backdrop code.
+- [x] **CAD dialogs batch A** — AIDrawingDialog, ImportDialog,
+  LayerTransferDialog (non-blocking; pick-mode Esc preserved), IntersectDialog
+  (non-blocking), OrientationDialog — all migrated.
+- [x] **CAD dialogs batch B** — NewDrawingDialog, PrintDialog,
+  ScaleBarEditorModal, TitleBlockEditorModal, CalcPointDialog, ImageInsertDialog,
+  FeaturePropertiesDialog (dropped bespoke drag), CloseDrawingDialog,
+  SketchReconcileDialog, RecentRecoveriesDialog, RPLSSubmissionDialog,
+  AIProvenancePopup, DrawingRotationDialog, SaveToDBDialog — all migrated.
+- [x] **Modals the initial inventory missed** — also migrated LineTypePicker,
+  SymbolPicker, CurveCalculator (light theme via `bodyClassName`), CodeStylePanel
+  (nested pickers in a fragment), TraversePanel's Legal Description sub-modal,
+  KeyboardShortcutOverlay, and the MenuBar keyboard-shortcuts modal.
+- [x] Audit pass: every centered modal now drags/resizes with an X and keeps
+  Escape/click-away. Intentional exclusions (NOT user-movable modals):
+  `CommandPalette` (transient top-anchored launcher), the MenuBar full-screen
+  file-loading spinner, and dropdown/click-away overlays in MenuBar / ToolBar /
+  CanvasViewport. **Deferred follow-up:** the calculator's own `CalculatorModal`
+  keeps its bespoke drag (resize intentionally deferred there per its own spec)
+  — not worth churning onto `ModalFrame` now. Visual theme-contrast QA on the
+  research/light dialogs still recommended (can't drive a browser here).
 
 ---
 
