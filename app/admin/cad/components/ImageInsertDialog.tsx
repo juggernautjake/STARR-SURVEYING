@@ -4,12 +4,11 @@
 // Supports paste from clipboard, drag-and-drop, and file picker.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { X, Upload, Clipboard, ImageIcon } from 'lucide-react';
+import { Upload, Clipboard, ImageIcon } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId, projectImageSrc } from '@/lib/cad/types';
 import type { ProjectImage } from '@/lib/cad/types';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
 
@@ -45,9 +44,6 @@ function sanitizeName(raw: string): string {
 }
 
 export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -174,19 +170,17 @@ export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }:
   const existingImages = drawingStore.getAllProjectImages();
 
   return (
-    <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[480px] max-h-[85vh] flex flex-col text-sm text-gray-200 overflow-hidden animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 shrink-0">
-          <div className="flex items-center gap-2">
-            <ImageIcon size={15} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Insert Image</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X size={15} />
-          </button>
-        </div>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title={<span className="flex items-center gap-2"><ImageIcon size={14} className="text-blue-400" />Insert Image</span>}
+      initialWidth={480}
+      initialHeight={560}
+      minWidth={360}
+      minHeight={320}
+    >
+      <div className="flex flex-col h-full min-h-0 text-sm text-gray-200">
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Drop zone */}
           {!preview && (
@@ -319,6 +313,6 @@ export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }:
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
