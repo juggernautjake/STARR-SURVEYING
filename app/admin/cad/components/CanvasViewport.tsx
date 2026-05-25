@@ -796,6 +796,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
+  // "Move Page" mode: drag the white paper sheet to reposition the frame
+  // over the data (updates paperOrigin only — geometry never moves).
+  const paperMoveModeRef = useRef(false);
+  const [paperMoveMode, setPaperMoveMode] = useState(false);
+  const paperDragRef = useRef<{ startWx: number; startWy: number; originX: number; originY: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -7661,6 +7666,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       if (e.button !== 0) return;
 
+      // "Move Page" mode: left-drag repositions the paper sheet. The paper
+      // is not affected by drawing rotation, so use plain screen→world.
+      if (paperMoveModeRef.current) {
+        const { wx, wy } = s2w(sx, sy);
+        const { originX, originY } = getPaperDimensions();
+        paperDragRef.current = { startWx: wx, startWy: wy, originX, originY };
+        setCursorStyle('grabbing');
+        return;
+      }
+
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
@@ -9569,6 +9584,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       lastMouseRef.current = { x: sx, y: sy };
 
+      // "Move Page" drag: shift the paper origin by the world delta.
+      if (paperDragRef.current) {
+        const { wx, wy } = s2w(sx, sy);
+        const pd = paperDragRef.current;
+        drawingStore.updateSettings({
+          paperOrigin: { x: pd.originX + (wx - pd.startWx), y: pd.originY + (wy - pd.startWy) },
+        });
+        return;
+      }
+      // In "Move Page" mode (not yet dragging): keep the move cursor and
+      // skip hover/snap work — the sheet is the only draggable thing.
+      if (paperMoveModeRef.current) {
+        setCursorStyle('move');
+        return;
+      }
+
       // Phase 8 §6 — feature-hover tooltip + bridge into
       // `useUIStore.hoveredFeatureId`. We hit-test the
       // cursor (lock-aware via the existing helper),
@@ -10094,6 +10125,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       if (e.button !== 0) return;
 
+      // End a "Move Page" drag (paperOrigin already updated live).
+      if (paperDragRef.current) {
+        paperDragRef.current = null;
+        setCursorStyle('move');
+        return;
+      }
+
       const toolState = toolStore.state;
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
@@ -10378,6 +10416,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         isSpaceDownRef.current = true;
         setCursorStyle('grab');
       }
+      // Escape leaves "Move Page" mode.
+      if (e.key === 'Escape' && paperMoveModeRef.current) {
+        paperMoveModeRef.current = false;
+        paperDragRef.current = null;
+        setPaperMoveMode(false);
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
+        return;
+      }
       // Cancel interactive rotate/scale on Escape
       if (e.key === 'Escape' && interactiveOpRef.current) {
         const dwgStore = useDrawingStore.getState();
@@ -10569,6 +10615,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:fitDrawingToPage', onFitToPage);
+    const onMovePageMode = () => {
+      const next = !paperMoveModeRef.current;
+      paperMoveModeRef.current = next;
+      paperDragRef.current = null;
+      setPaperMoveMode(next);
+      setCursorStyle(next ? 'move' : (TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default'));
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: next ? 'Move Page: drag the sheet to reposition it (Esc to finish).' : 'Move Page off.' },
+      }));
+    };
+    window.addEventListener('cad:movePageMode', onMovePageMode);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
     window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
@@ -10825,6 +10882,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
+      window.removeEventListener('cad:movePageMode', onMovePageMode);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
@@ -11210,6 +11268,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }}
         >
           {snapLabel.text}
+        </div>
+      )}
+
+      {paperMoveMode && (
+        <div
+          className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1 rounded text-xs font-medium shadow-lg"
+          style={{ background: 'rgba(37,99,235,0.95)', color: '#fff' }}
+        >
+          <span>Move Page — drag the sheet to reposition it. Coordinates won&apos;t change.</span>
+          <button
+            type="button"
+            className="pointer-events-auto underline underline-offset-2"
+            onClick={() => window.dispatchEvent(new CustomEvent('cad:movePageMode'))}
+          >
+            Done (Esc)
+          </button>
         </div>
       )}
 
