@@ -25,7 +25,7 @@ import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
-import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
+import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
@@ -265,6 +265,30 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  function exportLandXml() {
+    try {
+      const { byteSize, filename } = downloadLandXML(drawingStore.document);
+      cadLog.info('FileIO', `Exported drawing as LandXML: ${filename} (${byteSize} bytes)`);
+    } catch (err) {
+      cadLog.error('FileIO', 'LandXML export failed', err);
+      alert('Failed to export LandXML. Try again, or contact support if it keeps failing.');
+    }
+  }
+
+  async function exportTraversePcBundle() {
+    try {
+      const annotations = useAnnotationStore.getState().annotations;
+      const { filename, pointCount } = await downloadTraversePcBundle({
+        doc: drawingStore.document,
+        annotations,
+      });
+      cadLog.info('FileIO', `Exported Traverse PC bundle (${pointCount} points) → ${filename}`);
+    } catch (err) {
+      cadLog.error('FileIO', 'Traverse PC bundle export failed', err);
+      alert('Failed to export Traverse PC bundle. Try again, or contact support if it keeps failing.');
+    }
+  }
+
   async function openGeoJson() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -430,7 +454,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
         { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
         { label: 'Export for Traverse PC (PNEZD)…', action: () => { exportTraversePc(); setOpenMenu(null); } },
+        { label: '📦 Export Traverse PC bundle (zip)…', action: () => { void exportTraversePcBundle(); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
+        { label: 'Export as LandXML…', action: () => { exportLandXml(); setOpenMenu(null); } },
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
         { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
         { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
