@@ -34,18 +34,13 @@ import type { Point2D } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
 import { confirmAction } from './ConfirmDialog';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   onClose: () => void;
 }
 
 export default function LayerTransferDialog({ onClose }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
-
   const drawingStore = useDrawingStore();
   const layers = drawingStore.document.layers;
   const layerOrder = drawingStore.document.layerOrder;
@@ -403,27 +398,20 @@ export default function LayerTransferDialog({ onClose }: Props) {
   }
 
   return (
-    <div
-      ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-end sm:justify-center pointer-events-none"
+    <>
+    <ModalFrame
+      open
+      onClose={onClose}
+      backdrop={false}
+      scrollBody={false}
+      title={<span className="flex items-center gap-2"><Layers size={14} className="text-blue-400" />Send to Layer</span>}
+      initialPlacement="top-right"
+      initialWidth={460}
+      initialHeight={620}
+      minWidth={360}
+      minHeight={360}
     >
-      {/* Floating panel — non-modal so the surveyor can pan /
-          zoom / pick on the canvas while it stays open. */}
-      <div
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[440px] m-4 max-h-[calc(100vh-2rem)] flex flex-col text-sm text-gray-200 overflow-hidden pointer-events-auto animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
-          <div className="flex items-center gap-2">
-            <Layers size={16} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Send to Layer</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
+      <div className="flex flex-col h-full min-h-0 text-sm text-gray-200">
         {/* Body */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           {/* Operation picker */}
@@ -748,6 +736,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
           </div>
         </div>
       </div>
+    </ModalFrame>
 
       {/* Phase 8 §11.7 Slice 18 — source-list right-click
           context menu. Positioned at the click coords;
@@ -761,7 +750,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
           onClose={() => setSourceListMenu(null)}
         />
       )}
-    </div>
+    </>
   );
 }
 
