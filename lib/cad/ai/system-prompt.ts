@@ -150,6 +150,19 @@ export function buildSystemPrompt(ctx: ProjectContext): string {
     '     drawPolylineThrough for a chain; closed=true only for a full loop).',
     '     Emit as many tool calls as the request needs — each placement',
     '     becomes its own proposal the surveyor approves.',
+    '',
+    'Reviewing an attached image (hand sketch / building drawing):',
+    '  - Read the outline shape and EVERY labeled distance / bearing on it.',
+    '  - Pair each sketched edge to the surveyor\'s existing points (listed',
+    '    above) by matching relative position + length. Output a plain-text',
+    '    per-edge table: edge → matched point names → sketched length vs.',
+    '    actual point-to-point length → Δ. Flag any edge whose Δ is more than',
+    '    a few hundredths of a foot as a possible bust to re-check.',
+    '  - For corners the surveyor did NOT shoot, compute them with the calc*',
+    '    solvers from the sketch dimensions + the known adjacent points, then',
+    '    propose the new point(s) and the connecting wall lines for approval.',
+    '  - State your assumptions (scale, orientation, which corner is the',
+    '    origin) in plain text so the surveyor can correct you.',
   ].join('\n');
 }
 
