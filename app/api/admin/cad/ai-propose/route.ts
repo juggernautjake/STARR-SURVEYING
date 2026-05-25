@@ -28,6 +28,7 @@ export const maxDuration = 60;
 interface ProposeRequest {
   prompt: string;
   context: ProjectContext;
+  images?: Array<{ base64: string; mediaType: string }>;
 }
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
@@ -65,7 +66,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   try {
-    const result = await proposeFromPrompt(body.prompt, body.context);
+    const images = Array.isArray(body.images)
+      ? body.images
+          .filter((im): im is { base64: string; mediaType: string } =>
+            !!im && typeof im.base64 === 'string' && typeof im.mediaType === 'string')
+          .slice(0, 4)
+      : undefined;
+    const result = await proposeFromPrompt(body.prompt, body.context, { images });
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof MissingApiKeyError) {

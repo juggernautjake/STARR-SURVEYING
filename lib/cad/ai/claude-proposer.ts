@@ -57,6 +57,10 @@ export interface ProposeFromPromptOptions {
   client?: ClaudeMessagesClient;
   /** Cancellation hook (forwarded to the SDK). */
   signal?: AbortSignal;
+  /** Images the surveyor attached for vision review (e.g. a hand
+   *  sketch of a building). Sent as image blocks on the first turn so
+   *  the model can read shape + dimensions and pair them to points. */
+  images?: Array<{ base64: string; mediaType: string }>;
   /** Override the batch id stamped on every proposal's provenance.
    *  Defaults to a fresh UUID per call so an undo-batch can be
    *  built from the surveyor's "this turn" decision. */
@@ -133,7 +137,22 @@ export async function proposeFromPrompt(
     // drawLineBetween / drawPolylineThrough) become proposals for the
     // surveyor to approve; we acknowledge them so the model can keep
     // building (e.g. a whole wall or fence run across several tool calls).
-    const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: prompt }];
+    // Attach any images on the first user turn (vision review).
+    const images = options.images ?? [];
+    const firstContent: Anthropic.Messages.MessageParam['content'] = images.length > 0
+      ? [
+          ...images.map((img) => ({
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: img.mediaType as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
+              data: img.base64,
+            },
+          })),
+          { type: 'text' as const, text: prompt },
+        ]
+      : prompt;
+    const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: firstContent }];
     const MAX_ITERS = 6;
 
     for (let iter = 0; iter < MAX_ITERS; iter += 1) {
