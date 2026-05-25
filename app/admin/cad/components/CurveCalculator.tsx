@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { computeCurve, crossValidateCurve } from '@/lib/cad/geometry/curve';
 import type { CurveInput } from '@/lib/cad/geometry/curve';
 import type { CurveParameters } from '@/lib/cad/types';
@@ -109,14 +110,17 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-[fadeIn_150ms_ease-out]">
-      <div className="bg-white rounded-lg shadow-xl w-[700px] max-h-[90vh] overflow-y-auto animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">Curve Calculator</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
-        </div>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      title="Curve Calculator"
+      bodyClassName="bg-white text-gray-900"
+      initialWidth={720}
+      initialHeight={620}
+      minWidth={460}
+      minHeight={360}
+    >
+      <div>
         <div className="p-4 space-y-4">
           {/* Method selector */}
           <div>
@@ -310,6 +314,6 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

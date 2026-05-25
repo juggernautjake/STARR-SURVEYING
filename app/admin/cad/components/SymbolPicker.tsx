@@ -14,7 +14,8 @@
 // which the renderer below walks once.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import type { SymbolDefinition, SymbolPath } from '@/lib/cad/styles/types';
 import { BUILTIN_SYMBOLS } from '@/lib/cad/styles/symbol-library';
 
@@ -197,17 +198,18 @@ export default function SymbolPicker(props: SymbolPickerProps) {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title="Symbols"
+      initialWidth={760}
+      initialHeight={580}
+      minWidth={440}
+      minHeight={340}
     >
-      <div
-        className="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Pick symbol"
-      >
-        {/* Header */}
+      <div className="flex flex-col h-full min-h-0">
+        {/* Search */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
           <Search size={14} className="text-gray-400" />
           <input
@@ -218,14 +220,6 @@ export default function SymbolPicker(props: SymbolPickerProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-            aria-label="Close"
-          >
-            <X size={14} />
-          </button>
         </div>
 
         {/* Grid */}
@@ -281,6 +275,6 @@ export default function SymbolPicker(props: SymbolPickerProps) {
           <span>Esc to close · Click a symbol to assign</span>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
