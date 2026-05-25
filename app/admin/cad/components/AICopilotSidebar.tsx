@@ -378,7 +378,7 @@ function MessageRow(props: { message: import('@/lib/cad/store').AICopilotMessage
   const isSystem = m.role === 'SYSTEM';
   return (
     <div
-      className={`rounded px-2 py-1.5 border whitespace-pre-wrap ${
+      className={`rounded px-2 py-1.5 border whitespace-pre-wrap select-text cursor-text ${
         isUser
           ? 'bg-blue-900/30 border-blue-800/60 text-blue-100'
           : isSystem
