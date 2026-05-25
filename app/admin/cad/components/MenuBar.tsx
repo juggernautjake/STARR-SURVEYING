@@ -6,7 +6,6 @@ import { Settings as SettingsIcon, Keyboard as KeyboardIcon } from 'lucide-react
 import {
   useAnnotationStore,
   useDeliveryStore,
-  useDrawingChatStore,
   useDrawingStore,
   useReviewWorkflowStore,
   useSelectionStore,
@@ -31,6 +30,7 @@ import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 
 interface MenuItem {
   label: string;
@@ -70,8 +70,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const aiQuestionsAvailable = useAIStore(
     (s) => (s.result?.deliberationResult?.questions.length ?? 0) > 0
   );
-  const drawingChatOpen = useDrawingChatStore((s) => s.isOpen);
-  const toggleDrawingChat = useDrawingChatStore((s) => s.toggle);
+  const drawingChatOpen = useAIConversationsStore((s) => s.isOpen);
+  const toggleDrawingChat = useAIConversationsStore((s) => s.toggle);
   const aiSidebarOpen = useUIStore((s) => s.showAISidebar);
   const toggleAISidebar = useUIStore((s) => s.toggleAISidebar);
   // Phase 6 §AI-mode-framework — surface the four AI modes here so

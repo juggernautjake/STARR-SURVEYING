@@ -27,8 +27,9 @@ import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
 import AIProvenancePopup from './components/AIProvenancePopup';
 import CopilotCard from './components/CopilotCard';
-import InlineAIChat from './components/InlineAIChat';
 import AICopilotSidebar from './components/AICopilotSidebar';
+import AIChatDock from './components/AIChatDock';
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import AIAutoRunner from './components/AIAutoRunner';
 import ChordHUD from './components/ChordHUD';
 import CompletenessPanel from './components/CompletenessPanel';
@@ -38,7 +39,6 @@ import SealHashBanner from './components/SealHashBanner';
 import { TooltipProvider } from './components/TooltipProvider';
 import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
-import DrawingChatPanel from './components/DrawingChatPanel';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
 import CodeStylePanel from './components/CodeStylePanel';
 import AISidebar from './components/AISidebar';
@@ -63,7 +63,6 @@ import {
   useUndoStore,
   useAIStore,
   useDeliveryStore,
-  useDrawingChatStore,
   useReviewWorkflowStore,
   useTransferStore,
 } from '@/lib/cad/store';
@@ -995,7 +994,6 @@ export default function CADLayout() {
           the head of useAIStore.proposalQueue with Accept /
           Modify / Skip + ghost preview on the canvas. */}
       <CopilotCard />
-      <InlineAIChat />
 
       {/* Phase 6 §32 Slice 7 COMMAND-mode chat sidebar — input
           surface for proposeFromPrompt. Auto-opens on COPILOT /
@@ -1064,9 +1062,10 @@ export default function CADLayout() {
         onClose={() => setShowDescriptionPanel(false)}
       />
 
-      {/* Phase 7 §4 drawing chat panel — Claude-backed
-          assistant for whole-drawing Q&A and actions */}
-      <DrawingChatPanel />
+      {/* CAD_UX_2026_05 §02 — consolidated AI chat (tabbed,
+          right-docked / undockable). Replaces the drawing chat
+          panel + inline "Ask AI" popup. */}
+      <AIChatDock />
 
       {/* Phase 7 §16 recent crash recoveries — picker over
           all per-doc autosave slots so dropped tabs don't
@@ -1087,7 +1086,7 @@ export default function CADLayout() {
           panels. Visibility tracked in `useUIStore`. */}
       <AISidebar
         onOpenReviewPanel={() => useAIStore.getState().openQueuePanel()}
-        onOpenAssistantPanel={() => useDrawingChatStore.getState().open()}
+        onOpenAssistantPanel={() => useAIConversationsStore.getState().open()}
         onOpenCompletenessPanel={() => setShowCompletenessPanel(true)}
       />
 

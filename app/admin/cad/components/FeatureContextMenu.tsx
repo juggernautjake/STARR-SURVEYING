@@ -37,6 +37,7 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { hasProvenance } from '@/lib/cad/ai/provenance';
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import {
   copyToClipboard,
   pasteCadClipboard,
@@ -653,9 +654,8 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           label: 'Ask AI about this…',
           icon: <Sparkles size={12} />,
           action: () => {
-            window.dispatchEvent(new CustomEvent('cad:openInlineAI', {
-              detail: { scope: featureScopeLabel(), x: x + 8, y },
-            }));
+            useAIConversationsStore.getState().openWith({ scope: featureScopeLabel() });
+            onClose();
           },
         },
         { separator: true, id: 'sAI' },
@@ -1218,7 +1218,13 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       id: 'askAi',
       label: 'Ask AI about this…',
       icon: <Sparkles size={12} />,
-      action: () => useAIStore.getState().openCopilotWithPrompt(composed),
+      action: () => {
+        useAIConversationsStore.getState().openWith({
+          scope: feature ? `${feature.type}` : null,
+          seedPrompt: composed,
+        });
+        onClose();
+      },
     };
     // Insert right after the "Why did AI draw this?" row when
     // present, else at the top.
