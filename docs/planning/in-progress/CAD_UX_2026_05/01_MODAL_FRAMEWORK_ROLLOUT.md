@@ -66,8 +66,10 @@ Keep `useFocusTrap` where dialogs already use it (wrap the frame body).
 - [x] **Shared confirms** — migrated CAD `ConfirmDialog` (centered, transient)
   + `QuestionDialog` (`closeOnBackdrop={false}`, persisted geometry) onto
   `ModalFrame`; both now have the X button + drag/resize.
-- [ ] **Research dialogs** — `ConfirmDialog`, `DrawingSaveDialog` (+ X),
-  `ErrorReportDialog` (+ X).
+- [x] **Research dialogs** — migrated research `ConfirmDialog`,
+  `DrawingSaveDialog`, and `ErrorReportDialog` onto `ModalFrame` (all now
+  drag/resize + X). Their inner content keeps its existing CSS classes inside
+  the frame's dark panel — worth a visual QA pass for theme contrast.
 - [ ] **CAD dialogs batch A** — AIDrawingDialog, ImportDialog,
   LayerTransferDialog, IntersectDialog, OrientationDialog (large; migrate
   carefully, one commit each).

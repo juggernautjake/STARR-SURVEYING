@@ -26,6 +26,8 @@
 
 import { useEffect, useState } from 'react';
 
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+
 export interface ConfirmRequest {
   title: string;
   body?: string;
@@ -107,17 +109,17 @@ export function ConfirmDialogHost() {
   if (!active) return null;
 
   return (
-    <div
-      className="research-modal-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) close(false); }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="research-confirm-title"
+    <ModalFrame
+      open
+      onClose={() => close(false)}
+      title={active.title}
+      zIndex={1000}
+      initialWidth={440}
+      initialHeight={210}
+      minWidth={300}
+      minHeight={150}
     >
-      <div className="research-modal research-confirm">
-        <h2 id="research-confirm-title" className="research-confirm__title">
-          {active.title}
-        </h2>
+      <div className="research-confirm" style={{ padding: '16px' }}>
         {active.body && <p className="research-confirm__body">{active.body}</p>}
         <div className="research-modal__actions research-confirm__actions">
           <button
@@ -138,6 +140,6 @@ export function ConfirmDialogHost() {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

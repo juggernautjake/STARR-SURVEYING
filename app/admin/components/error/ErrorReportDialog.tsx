@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import type { ErrorReport } from '@/lib/errorHandler';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface ErrorReportDialogProps {
   errorMessage: string;
@@ -60,18 +61,22 @@ export default function ErrorReportDialog({
   }
 
   return (
-    <div className="err-dialog-overlay" onClick={onDismiss}>
-      <div className="err-dialog" onClick={e => e.stopPropagation()}>
-        {/* Header */}
+    <ModalFrame
+      open
+      onClose={onDismiss}
+      title="Something went wrong"
+      initialWidth={520}
+      initialHeight={560}
+      minWidth={360}
+      minHeight={320}
+    >
+      <div className="err-dialog" style={{ padding: '16px' }}>
+        {/* Type badge */}
         <div className="err-dialog__header">
           <div className="err-dialog__header-left">
             <span className="err-dialog__icon">{typeInfo.icon}</span>
-            <div>
-              <h3 className="err-dialog__title">Something went wrong</h3>
-              <span className="err-dialog__type" style={{ color: typeInfo.color }}>{typeInfo.label}</span>
-            </div>
+            <span className="err-dialog__type" style={{ color: typeInfo.color }}>{typeInfo.label}</span>
           </div>
-          <button className="err-dialog__close" onClick={onDismiss} title="Dismiss">✕</button>
         </div>
 
         {/* Error summary */}
@@ -186,6 +191,6 @@ export default function ErrorReportDialog({
           Error reports include technical details (browser info, page URL) to help troubleshoot the issue.
         </p>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

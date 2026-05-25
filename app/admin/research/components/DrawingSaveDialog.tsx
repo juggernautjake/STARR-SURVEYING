@@ -3,6 +3,8 @@
 
 import { useEffect, useState } from 'react';
 
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+
 interface DrawingSaveDialogProps {
   isOpen: boolean;
   mode: 'save' | 'export';
@@ -30,19 +32,16 @@ export default function DrawingSaveDialog({
   const isValid = name.trim().length > 0;
 
   return (
-    <div
-      className="research-save-dialog__overlay"
-      onClick={onCancel}
-      onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={mode === 'save' ? 'Save Drawing' : 'Export Drawing'}
+    <ModalFrame
+      open
+      onClose={onCancel}
+      title={mode === 'save' ? 'Save Drawing' : 'Export Drawing'}
+      initialWidth={460}
+      initialHeight={300}
+      minWidth={320}
+      minHeight={220}
     >
-      <div className="research-save-dialog" onClick={e => e.stopPropagation()}>
-        <h3 className="research-save-dialog__title">
-          {mode === 'save' ? 'Save Drawing' : 'Export Drawing'}
-        </h3>
-
+      <div className="research-save-dialog" style={{ padding: '16px' }}>
         <div className="research-save-dialog__field">
           <label className="research-save-dialog__label" htmlFor="drawing-name-input">
             {mode === 'save' ? 'Drawing Name' : 'File Name'}
@@ -93,6 +92,6 @@ export default function DrawingSaveDialog({
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
