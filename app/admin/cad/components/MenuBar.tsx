@@ -6,7 +6,6 @@ import { Settings as SettingsIcon, Keyboard as KeyboardIcon } from 'lucide-react
 import {
   useAnnotationStore,
   useDeliveryStore,
-  useDrawingChatStore,
   useDrawingStore,
   useReviewWorkflowStore,
   useSelectionStore,
@@ -24,13 +23,14 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
-import { downloadCsv } from '@/lib/cad/persistence/export-csv';
+import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
-import DialogCloseButton from './ui/DialogCloseButton';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 
 interface MenuItem {
   label: string;
@@ -70,8 +70,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const aiQuestionsAvailable = useAIStore(
     (s) => (s.result?.deliberationResult?.questions.length ?? 0) > 0
   );
-  const drawingChatOpen = useDrawingChatStore((s) => s.isOpen);
-  const toggleDrawingChat = useDrawingChatStore((s) => s.toggle);
+  const drawingChatOpen = useAIConversationsStore((s) => s.isOpen);
+  const toggleDrawingChat = useAIConversationsStore((s) => s.toggle);
   const aiSidebarOpen = useUIStore((s) => s.showAISidebar);
   const toggleAISidebar = useUIStore((s) => s.toggleAISidebar);
   // Phase 6 §AI-mode-framework — surface the four AI modes here so
@@ -236,6 +236,16 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     } catch (err) {
       cadLog.error('FileIO', 'CSV export failed', err);
       alert('Failed to export CSV. Try again, or contact support if it keeps failing.');
+    }
+  }
+
+  function exportTraversePc() {
+    try {
+      const { rowCount, filename } = downloadPnezd(drawingStore.document);
+      cadLog.info('FileIO', `Exported ${rowCount} points as Traverse PC PNEZD → ${filename}`);
+    } catch (err) {
+      cadLog.error('FileIO', 'Traverse PC export failed', err);
+      alert('Failed to export Traverse PC file. Try again, or contact support if it keeps failing.');
     }
   }
 
@@ -419,6 +429,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { separator: true },
         { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
         { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
+        { label: 'Export for Traverse PC (PNEZD)…', action: () => { exportTraversePc(); setOpenMenu(null); } },
         { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
         { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
         { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
@@ -844,16 +855,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
 
       {/* Keyboard Shortcuts modal */}
       {showShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]" onClick={() => setShowShortcuts(false)}>
-          <div
-            className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-6 max-w-lg w-full mx-4 text-xs text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-white">Keyboard Shortcuts</h2>
-              <DialogCloseButton onClick={() => setShowShortcuts(false)} />
-            </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 max-h-96 overflow-y-auto">
+        <ModalFrame
+          open
+          onClose={() => setShowShortcuts(false)}
+          title="Keyboard Shortcuts"
+          initialWidth={560}
+          initialHeight={560}
+          minWidth={400}
+          minHeight={320}
+        >
+          <div className="p-6 text-xs text-gray-200">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
               {[
                 ['File', null],
                 ['New Drawing', 'Ctrl+N'],
@@ -915,7 +927,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
               )}
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
 

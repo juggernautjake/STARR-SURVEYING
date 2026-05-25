@@ -9,6 +9,7 @@
 // as the command palette so idle cost is zero.
 
 import { useEffect, useMemo, useState } from 'react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
 import { findHotkeyConflicts, findConflictForAction } from '@/lib/cad/hotkeys/conflicts';
 import { useHotkeysStore } from '@/lib/cad/store';
@@ -100,14 +101,17 @@ export default function KeyboardShortcutOverlay() {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[205] flex items-center justify-center bg-black/60 animate-[fadeIn_120ms_ease-out] p-6"
-      onClick={() => setOpen(false)}
+    <ModalFrame
+      open
+      onClose={() => setOpen(false)}
+      scrollBody={false}
+      title="Keyboard Shortcuts"
+      initialWidth={880}
+      initialHeight={620}
+      minWidth={480}
+      minHeight={360}
     >
-      <div
-        className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-[860px] max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col animate-[scaleIn_150ms_cubic-bezier(0.16,1,0.3,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex flex-col h-full min-h-0">
         <div className="px-4 py-2.5 border-b border-gray-700 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h2 className="text-sm text-white font-semibold">Keyboard Shortcuts</h2>
@@ -175,7 +179,7 @@ export default function KeyboardShortcutOverlay() {
           <span>{userBindings.length > 0 ? `${userBindings.length} custom binding${userBindings.length === 1 ? '' : 's'}` : 'Defaults'}</span>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 

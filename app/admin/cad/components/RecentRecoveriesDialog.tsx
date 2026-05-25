@@ -9,7 +9,7 @@
 // reopened drawing A" case where another job's autosave is
 // still sitting around.
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   clearAutosave,
@@ -20,8 +20,7 @@ import {
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   open: boolean;
@@ -29,9 +28,6 @@ interface Props {
 }
 
 export default function RecentRecoveriesDialog({ open, onClose }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -117,26 +113,16 @@ export default function RecentRecoveriesDialog({ open, onClose }: Props) {
   }
 
   return (
-    <div ref={dialogRef} style={styles.backdrop} onClick={onClose}>
-      <div
-        style={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Recent crash recoveries"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header style={styles.header}>
-          <h2 style={styles.title}>Recent Crash Recoveries</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            style={styles.close}
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </header>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      title="Recent Crash Recoveries"
+      initialWidth={560}
+      initialHeight={520}
+      minWidth={380}
+      minHeight={300}
+    >
+      <div style={{ color: '#e5e7eb' }}>
         <div style={styles.body}>
           {error ? <div style={styles.error}>{error}</div> : null}
 
@@ -191,7 +177,7 @@ export default function RecentRecoveriesDialog({ open, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 

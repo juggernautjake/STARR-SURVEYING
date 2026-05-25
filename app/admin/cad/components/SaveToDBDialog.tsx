@@ -8,9 +8,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore, useSaveTargetStore } from '@/lib/cad/store';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
-import DialogCloseButton from './ui/DialogCloseButton';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface SavedDrawingMeta {
   id: string;
@@ -29,9 +27,6 @@ interface Props {
 }
 
 export default function SaveToDBDialog({ mode, onClose }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -229,20 +224,16 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
   }
 
   return (
-    <div
-      ref={dialogRef}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <ModalFrame
+      open
+      onClose={onClose}
+      title={mode === 'save' ? 'Save Drawing' : 'Saved Drawings'}
+      initialWidth={520}
+      initialHeight={520}
+      minWidth={380}
+      minHeight={320}
     >
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-base font-bold text-white">
-            {mode === 'save' ? 'Save Drawing' : 'Saved Drawings'}
-          </h2>
-          <DialogCloseButton onClick={onClose} />
-        </div>
-
+      <div className="text-sm text-gray-200">
         {/* Body */}
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {mode === 'save' ? (
@@ -370,6 +361,6 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

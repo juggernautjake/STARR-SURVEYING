@@ -11,7 +11,8 @@
 // surveyor accepts (commits) or skips (clears).
 
 import { useMemo, useRef, useState } from 'react';
-import { X, Upload, Sparkles, AlertTriangle } from 'lucide-react';
+import { Upload, Sparkles, AlertTriangle } from 'lucide-react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIStore, useDrawingStore } from '@/lib/cad/store';
 import { buildSolverPolylineProposal } from '@/lib/cad/ai/solver-proposal';
 import { collectedPoints } from '@/lib/cad/ai/selection-points';
@@ -89,18 +90,16 @@ export default function SketchReconcileDialog({ onClose }: Props): React.ReactEl
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-[600px] max-h-[90vh] overflow-y-auto" role="dialog" aria-label="Sketch reconciliation">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
-            <Upload size={16} className="text-purple-500" />
-            <h2 className="text-sm font-semibold">Reconcile Hand Sketch</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      title={<span className="flex items-center gap-2"><Upload size={14} className="text-purple-500" />Reconcile Hand Sketch</span>}
+      initialWidth={600}
+      initialHeight={520}
+      minWidth={380}
+      minHeight={300}
+    >
+      <div className="text-gray-200">
         <div className="p-4 space-y-3 text-xs">
           <div className="rounded border border-blue-300 dark:border-blue-700/50 bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-200 px-2 py-1.5">
             Upload a photo of your field sketch (PNG / JPEG / WebP, ≤ 8 MB). The AI reads the drawn outline + any written measurements and proposes a closed polygon anchored against the <strong>{collected.length}</strong> point{collected.length === 1 ? '' : 's'} currently in this drawing. The proposal is rendered as a ghost — nothing persists until you accept it on the AI Proposal card.
@@ -184,6 +183,6 @@ export default function SketchReconcileDialog({ onClose }: Props): React.ReactEl
           </div>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

@@ -21,6 +21,7 @@
 
 import { useMemo, useState } from 'react';
 
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIStore } from '@/lib/cad/store';
 import type {
   ClarifyingQuestion,
@@ -72,13 +73,18 @@ export default function QuestionDialog() {
         : 'Draw Now';
 
   return (
-    <div style={styles.backdrop}>
-      <div
-        style={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="AI clarifying questions"
-      >
+    <ModalFrame
+      open
+      onClose={close}
+      closeOnBackdrop={false}
+      title="AI Drawing Questions"
+      storageKey="cad.questionDialog"
+      initialWidth={560}
+      initialHeight={560}
+      minWidth={420}
+      minHeight={360}
+    >
+      <div style={{ color: '#e5e7eb' }}>
         <header style={styles.header}>
           <div>
             <h2 style={styles.title}>AI Drawing Questions</h2>
@@ -202,7 +208,7 @@ export default function QuestionDialog() {
           </button>
         </footer>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 

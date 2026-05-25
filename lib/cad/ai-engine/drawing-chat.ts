@@ -38,6 +38,9 @@ const DEFAULT_MODEL =
   process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 const MAX_TOKENS = 1024;
 const REQUEST_TIMEOUT_MS = 45_000;
+// Keep the most recent turns so a long conversation doesn't grow the
+// request without bound. 40 messages ≈ 20 user/assistant exchanges.
+const MAX_HISTORY_MESSAGES = 40;
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -66,12 +69,21 @@ export interface DrawingChatAction {
   instruction?: string;
 }
 
+export interface DrawingChatAttachment {
+  name:      string;
+  mediaType: string;
+  /** base64 data URL, e.g. `data:image/png;base64,...`. */
+  dataUrl:   string;
+}
+
 export interface DrawingChatMessage {
-  id:        string;
-  role:      'USER' | 'AI';
-  content:   string;
-  timestamp: string;
-  action?:   DrawingChatAction;
+  id:          string;
+  role:        'USER' | 'AI';
+  content:     string;
+  timestamp:   string;
+  action?:     DrawingChatAction;
+  /** Images/files the surveyor attached to this turn for the model to analyze. */
+  attachments?: DrawingChatAttachment[];
 }
 
 export interface DrawingChatRequest {
@@ -161,35 +173,30 @@ export async function handleDrawingChat(
     req.signal.addEventListener('abort', () => timeoutController.abort());
   }
 
-  const lastIndex = req.history.length - 1;
-  const userMessage =
-    lastIndex >= 0 && req.history[lastIndex].role === 'USER'
-      ? req.history[lastIndex].content
-      : '';
-  const priorTurns = req.history
-    .slice(0, lastIndex)
-    .map((m) => `${m.role === 'USER' ? 'User' : 'Assistant'}: ${m.content}`)
-    .join('\n');
+  // The live drawing snapshot rides in the system prompt so it reflects the
+  // current document on every turn without bloating the conversation history.
   const snapshot = buildSnapshot(req.doc);
-
-  const userBody = [
-    'DRAWING SNAPSHOT:',
+  const system = [
+    SYSTEM_PROMPT,
+    '',
+    'CURRENT DRAWING SNAPSHOT (always reflects the live document; earlier',
+    'turns in the conversation may describe an older state):',
     '```json',
     JSON.stringify(snapshot, null, 2),
     '```',
-    '',
-    priorTurns ? `PRIOR CHAT:\n${priorTurns}\n` : '',
-    `USER: ${userMessage}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  ].join('\n');
+
+  // Send the conversation as a real multi-turn message array (windowed to
+  // the most recent turns) so the model retains earlier context instead of
+  // receiving everything flattened into one prompt.
+  const messages = buildMessages(req.history);
 
   try {
     const response = await client.messages.create({
       model,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userBody }],
+      system,
+      messages,
     });
     clearTimeout(timeoutId);
     const block = response.content[0];
@@ -226,6 +233,56 @@ export async function handleDrawingChat(
 // ────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────
+
+/**
+ * Build the Anthropic message array from the chat transcript: window to the
+ * most recent turns, map roles, and drop any leading assistant turn so the
+ * array starts with a user message (the API requires user-first, alternating
+ * roles). The transcript already alternates user/AI, so no merging is needed.
+ */
+function buildMessages(
+  history: DrawingChatMessage[]
+): Anthropic.MessageParam[] {
+  let windowed = history.slice(-MAX_HISTORY_MESSAGES);
+  while (windowed.length > 0 && windowed[0].role === 'AI') {
+    windowed = windowed.slice(1);
+  }
+  const messages: Anthropic.MessageParam[] = windowed
+    .filter((m) => m.content.trim().length > 0 || (m.attachments?.length ?? 0) > 0)
+    .map((m) => {
+      const role = m.role === 'USER' ? ('user' as const) : ('assistant' as const);
+      // Attach image blocks (vision) for user turns that carry images.
+      const images = (m.attachments ?? []).filter((a) => a.mediaType.startsWith('image/'));
+      if (role === 'user' && images.length > 0) {
+        const blocks: Anthropic.ContentBlockParam[] = images
+          .map((a) => parseDataUrl(a.dataUrl))
+          .filter((p): p is { mediaType: string; data: string } => p !== null)
+          .map((p) => ({
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: p.mediaType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+              data: p.data,
+            },
+          }));
+        blocks.push({ type: 'text', text: m.content || '(see attached image)' });
+        return { role, content: blocks };
+      }
+      return { role, content: m.content };
+    });
+  // Defensive fallback: never send an empty conversation.
+  if (messages.length === 0) {
+    return [{ role: 'user', content: '(no message)' }];
+  }
+  return messages;
+}
+
+/** Split a `data:<media>;base64,<data>` URL into its parts, or null. */
+function parseDataUrl(dataUrl: string): { mediaType: string; data: string } | null {
+  const m = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
+  if (!m) return null;
+  return { mediaType: m[1], data: m[2] };
+}
 
 const ACTION_TYPES: ReadonlyArray<DrawingChatActionType> = [
   'NO_ACTION',

@@ -15,7 +15,7 @@
 //   CIRCLE or ARC features when the matching method is
 //   selected; circle ghost preview when picking a CIRCLE.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Crosshair, MousePointerClick } from 'lucide-react';
 import {
   useDrawingStore,
@@ -41,8 +41,7 @@ import {
   rayCircleIntersections,
   rayArcIntersections,
 } from '@/lib/cad/geometry/intersection';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import UnitInput from './UnitInput';
 import DialogCloseButton from './ui/DialogCloseButton';
 
@@ -128,9 +127,6 @@ function sourceBKinds(method: IntersectMethod): PickedSource['kind'][] {
 }
 
 export default function IntersectDialog({ onClose }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
 
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
@@ -499,23 +495,18 @@ export default function IntersectDialog({ onClose }: Props) {
   const bKindsLabel = sourceBKinds(method).join(' / ');
 
   return (
-    <div
-      ref={dialogRef}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-end sm:justify-center pointer-events-none"
+    <ModalFrame
+      open
+      onClose={onClose}
+      backdrop={false}
+      title={<span className="flex items-center gap-2"><Crosshair size={14} className="text-blue-400" />Intersect</span>}
+      initialPlacement="top-right"
+      initialWidth={460}
+      initialHeight={520}
+      minWidth={360}
+      minHeight={300}
     >
-      <div
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[440px] m-4 text-sm text-gray-200 overflow-hidden pointer-events-auto animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
-          <div className="flex items-center gap-2">
-            <Crosshair size={16} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Intersect</h2>
-          </div>
-          <DialogCloseButton onClick={onClose} />
-        </div>
-
+      <div className="text-sm text-gray-200">
         {/* Body */}
         <div className="p-4 space-y-3">
           {/* Method picker */}
@@ -676,7 +667,7 @@ export default function IntersectDialog({ onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 

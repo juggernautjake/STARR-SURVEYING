@@ -23,6 +23,7 @@ import { getLineTypeById } from '@/lib/cad/styles/linetype-library';
 import { SymbolThumbnail } from './SymbolPicker';
 import SymbolPicker from './SymbolPicker';
 import LineTypePicker, { LineTypePreview } from './LineTypePicker';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import type { CodeStyleOverride } from '@/lib/cad/store';
 
 interface CodeStylePanelProps {
@@ -58,16 +59,18 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+    <>
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title="Code-to-Style Mapping"
+      initialWidth={1000}
+      initialHeight={640}
+      minWidth={520}
+      minHeight={360}
     >
-      <div
-        className="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Code style mapping"
-      >
+      <div className="flex flex-col h-full min-h-0">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-700">
           <h2 className="text-white text-sm font-semibold">Code-to-Style Mapping</h2>
@@ -242,6 +245,7 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
           </button>
         </div>
       </div>
+    </ModalFrame>
 
       {/* Pickers — single pair for the whole panel, opened via the
           per-cell buttons by setting the target code alpha. */}
@@ -269,6 +273,6 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
         }}
         onClose={() => setLineTypePickerFor(null)}
       />
-    </div>
+    </>
   );
 }

@@ -23,6 +23,7 @@ import {
   type HotkeyEngine,
 } from '@/lib/cad/hotkeys';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { undoMostRecentAIBatch } from '@/lib/cad/ai/undo-batch';
 import {
   useAIStore,
@@ -397,11 +398,8 @@ export function dispatchDefaultAction(action: BindableAction): void {
       window.dispatchEvent(new CustomEvent('cad:openAIDrawingDialog'));
       return;
     case 'ai.chat':
-      // Phase 6 §32 Slice 7 — focus the COPILOT sidebar. The
-      // listener inside AICopilotSidebar opens the panel if
-      // closed + focuses the prompt textarea.
-      useAIStore.getState().openCopilotSidebar();
-      window.dispatchEvent(new CustomEvent('cad:focusAICopilot'));
+      // CAD_UX_2026_05 §02 — open the consolidated AI chat dock.
+      useAIConversationsStore.getState().open();
       return;
     case 'ai.cycleMode': {
       const aiStore = useAIStore.getState();

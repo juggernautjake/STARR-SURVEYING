@@ -1,6 +1,6 @@
 // __tests__/cad/persistence/export-csv.test.ts — Unit tests for CSV export
 import { describe, it, expect } from 'vitest';
-import { buildCsvRows, rowsToCsv } from '@/lib/cad/persistence/export-csv';
+import { buildCsvRows, rowsToCsv, buildPnezdAscii } from '@/lib/cad/persistence/export-csv';
 import type { DrawingDocument } from '@/lib/cad/types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -344,5 +344,62 @@ describe('rowsToCsv (full)', () => {
     expect(lines[0]).toContain('Raw Code');
     expect(lines[0]).toContain('Monument Action');
     expect(lines[1]).toContain(',87,4,');
+  });
+});
+
+// ── buildPnezdAscii (Traverse PC) ────────────────────────────────────────────
+
+describe('buildPnezdAscii (Traverse PC PNEZD)', () => {
+  it('emits headerless P,N,E,Z,D rows with the code folded into the description', () => {
+    const doc = makeMinimalDoc({
+      features: {
+        'f1': {
+          id: 'f1',
+          type: 'POINT',
+          geometry: { type: 'POINT', point: { x: 100, y: 200 } },
+          layerId: 'layer-1',
+          style: BASE_STYLE,
+          properties: { pointNo: 1, code: 'IP', description: 'Iron Pin', elevation: 350 },
+        },
+      },
+    });
+    const { text, rowCount } = buildPnezdAscii(doc);
+    expect(rowCount).toBe(1);
+    // No header line — first line is the point itself.
+    expect(text.split('\r\n')[0]).toBe('1,200.0000,100.0000,350.0000,IP Iron Pin');
+  });
+
+  it('does not duplicate the code when the description already starts with it', () => {
+    const doc = makeMinimalDoc({
+      features: {
+        'f1': {
+          id: 'f1',
+          type: 'POINT',
+          geometry: { type: 'POINT', point: { x: 0, y: 0 } },
+          layerId: 'layer-1',
+          style: BASE_STYLE,
+          properties: { pointNo: 5, code: 'IP', description: 'IP found' },
+        },
+      },
+    });
+    expect(buildPnezdAscii(doc).text).toBe('5,0.0000,0.0000,0.0000,IP found');
+  });
+
+  it('applies origin offset and emits only numbered POINT features, sorted', () => {
+    const doc = makeMinimalDoc({
+      features: {
+        'f2': { id: 'f2', type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 2 } }, layerId: 'layer-1', style: BASE_STYLE, properties: { pointNo: 2 } },
+        'f1': { id: 'f1', type: 'POINT', geometry: { type: 'POINT', point: { x: 50, y: 75 } }, layerId: 'layer-1', style: BASE_STYLE, properties: { pointNo: 1 } },
+        'line': { id: 'line', type: 'LINE', geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 1, y: 1 } }, layerId: 'layer-1', style: BASE_STYLE, properties: { pointNo: 9 } },
+        'noNum': { id: 'noNum', type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 0 } }, layerId: 'layer-1', style: BASE_STYLE, properties: {} },
+      },
+    });
+    doc.settings.displayPreferences.originNorthing = 10000;
+    doc.settings.displayPreferences.originEasting = 5000;
+    const { text, rowCount } = buildPnezdAscii(doc);
+    const lines = text.split('\r\n');
+    expect(rowCount).toBe(2); // LINE + unnumbered point excluded
+    expect(lines[0]).toBe('1,10075.0000,5050.0000,0.0000,');
+    expect(lines[1]).toBe('2,10002.0000,5000.0000,0.0000,');
   });
 });

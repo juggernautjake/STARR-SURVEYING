@@ -3,7 +3,8 @@
 // Robust editor for the graphic scale bar with immediate canvas preview.
 
 import { useEffect } from 'react';
-import { X, Ruler, ZoomIn, RotateCw, Eye, EyeOff } from 'lucide-react';
+import { Ruler, ZoomIn, RotateCw, Eye, EyeOff } from 'lucide-react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useDrawingStore } from '@/lib/cad/store';
 import type { TitleBlockConfig } from '@/lib/cad/types';
 import { TB_ELEM_SCALE_MIN, TB_ELEM_SCALE_MAX } from './TitleBlockEditorModal';
@@ -113,24 +114,19 @@ export default function ScaleBarEditorModal({ onClose }: Props) {
   }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title={<span className="flex items-center gap-2"><Ruler size={14} className="text-blue-400" />Scale Bar Editor</span>}
+      initialWidth={480}
+      initialHeight={520}
+      minWidth={360}
+      minHeight={300}
     >
-      <div className="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[480px] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 shrink-0">
-          <div className="flex items-center gap-2">
-            <Ruler size={15} className="text-blue-400" />
-            <span className="text-sm font-semibold text-white">Scale Bar Editor</span>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X size={15} />
-          </button>
-        </div>
-
+      <div className="flex flex-col h-full min-h-0 text-white">
         {/* Body */}
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-3 flex-1 overflow-y-auto">
 
           {/* Visibility */}
           <FieldRow label="Visibility">
@@ -257,6 +253,6 @@ export default function ScaleBarEditorModal({ onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

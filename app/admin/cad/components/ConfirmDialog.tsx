@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 export interface ConfirmOpts {
   /** Short title at the top of the modal. */
@@ -102,24 +103,18 @@ export default function ConfirmDialog() {
     : 'bg-blue-700 border-blue-600 hover:bg-blue-600';
 
   return (
-    <div
-      ref={dialogRef}
-      className="fixed inset-0 z-[210] flex items-center justify-center bg-black/60 animate-[fadeIn_120ms_ease-out]"
-      onClick={cancel}
+    <ModalFrame
+      open
+      onClose={cancel}
+      title={state.title}
+      zIndex={210}
+      initialWidth={420}
+      initialHeight={210}
+      minWidth={300}
+      minHeight={150}
     >
-      <div
-        className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-[420px] max-w-[90vw] overflow-hidden animate-[scaleIn_150ms_cubic-bezier(0.16,1,0.3,1)]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-      >
-        <div className="px-4 py-3 border-b border-gray-700">
-          <h2 id="confirm-dialog-title" className="text-sm text-white font-semibold">
-            {state.title}
-          </h2>
-        </div>
-        <div className="px-4 py-3 text-xs text-gray-300 leading-relaxed">
+      <div ref={dialogRef} className="flex flex-col h-full">
+        <div className="px-4 py-3 text-xs text-gray-300 leading-relaxed flex-1">
           {state.message}
         </div>
         <div className="px-4 py-3 flex items-center justify-end gap-2 border-t border-gray-700 bg-gray-900/50">
@@ -141,6 +136,6 @@ export default function ConfirmDialog() {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

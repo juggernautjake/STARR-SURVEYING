@@ -5,6 +5,7 @@ import { useState, useRef } from 'react';
 import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X, Send, Sparkles } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
@@ -720,13 +721,9 @@ export default function LayerPanel() {
             onClick={() => {
               const layerName = doc.layers[contextMenu.layerId]?.name ?? 'this layer';
               const count = Object.values(doc.features).filter((f) => f.layerId === contextMenu.layerId).length;
-              window.dispatchEvent(new CustomEvent('cad:openInlineAI', {
-                detail: {
-                  scope: `the layer “${layerName}” (${count} feature${count === 1 ? '' : 's'})`,
-                  x: contextMenu.x + 8,
-                  y: contextMenu.y,
-                },
-              }));
+              useAIConversationsStore.getState().openWith({
+                scope: `Layer “${layerName}” (${count} feature${count === 1 ? '' : 's'})`,
+              });
               setContextMenu(null);
             }}
           >

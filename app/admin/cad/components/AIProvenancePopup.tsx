@@ -17,7 +17,8 @@
 // click menu doesn't need to know which one will mount.
 
 import { useEffect } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIStore, useDrawingStore } from '@/lib/cad/store';
 import { readProvenance } from '@/lib/cad/ai/provenance';
 
@@ -57,28 +58,16 @@ export default function AIProvenancePopup() {
       : provenance.aiBatchId;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={close}
+    <ModalFrame
+      open
+      onClose={close}
+      title={<span className="flex items-center gap-2"><Sparkles size={14} className="text-purple-300" />Why did AI draw this?</span>}
+      initialWidth={440}
+      initialHeight={400}
+      minWidth={340}
+      minHeight={240}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="AI feature provenance"
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[440px] m-4 text-sm text-gray-200 overflow-hidden animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-600 bg-gray-750">
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-purple-300" />
-            <h2 className="font-semibold text-white">Why did AI draw this?</h2>
-          </div>
-          <button onClick={close} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
+      <div className="text-sm text-gray-200">
         {/* Body */}
         <div className="p-4 space-y-3 text-[12px]">
           <Row label="Origin" value={provenance.aiOrigin} mono />
@@ -118,7 +107,7 @@ export default function AIProvenancePopup() {
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
 

@@ -13,8 +13,7 @@ import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/
 import { setImageRotationAroundCenter } from '@/lib/cad/geometry/image';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { parseLength } from '@/lib/cad/units';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
   featureId: string;
@@ -100,21 +99,10 @@ function CoordInput({
 }
 
 export default function FeaturePropertiesDialog({ featureId, onClose, initialX, initialY }: Props) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const drawingStore = useDrawingStore();
   const undoStore = useUndoStore();
-
-  // Dragging — `dialogRef` is shared with `useFocusTrap` above
-  // so the same element drives both behaviours.
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
-  const [pos, setPos] = useState(() => {
-    // Place dialog so it doesn't go off screen
-    const x = Math.min(Math.max(initialX + 16, 8), window.innerWidth - DIALOG_WIDTH - 8);
-    const y = Math.min(Math.max(initialY - 20, 8), window.innerHeight - DIALOG_HEIGHT - 8);
-    return { x, y };
-  });
+  void initialX;
+  void initialY;
 
   // Collapsible sections
   const [showGeom, setShowGeom] = useState(true);
@@ -276,26 +264,6 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
     }
   }
 
-  // ── Drag title bar ───────────────────────────────────────────────────────
-  function handleTitleMouseDown(e: React.MouseEvent) {
-    e.preventDefault();
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
-    function onMove(me: MouseEvent) {
-      if (!dragRef.current) return;
-      setPos({
-        x: dragRef.current.origX + me.clientX - dragRef.current.startX,
-        y: dragRef.current.origY + me.clientY - dragRef.current.startY,
-      });
-    }
-    function onUp() {
-      dragRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }
-
   // ── Derived values ───────────────────────────────────────────────────────
   function getLength(): number {
     if (!feature) return 0;
@@ -412,43 +380,32 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   const propEntries = Object.entries(feature.properties);
 
   return (
-    <div
-      ref={dialogRef}
-      className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl text-xs text-gray-200 select-none animate-[scaleIn_150ms_cubic-bezier(0.16,1,0.3,1)]"
-      style={{ left: pos.x, top: pos.y, width: DIALOG_WIDTH, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
-      onClick={(e) => e.stopPropagation()}
+    <ModalFrame
+      open
+      onClose={handleClose}
+      scrollBody={false}
+      title={`${feature.type} Properties`}
+      storageKey="cad.featurePropertiesDialog"
+      initialPlacement="top-right"
+      initialWidth={DIALOG_WIDTH + 40}
+      initialHeight={DIALOG_HEIGHT}
+      minWidth={260}
+      minHeight={300}
+      headerActions={
+        <button
+          className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+            useNE
+              ? 'bg-blue-700 border-blue-500 text-white'
+              : 'bg-gray-700 border-gray-500 text-gray-400 hover:text-white'
+          }`}
+          title={useNE ? 'Showing Northing/Easting — click for X/Y' : 'Showing X/Y — click for N/E'}
+          onClick={() => setUseNE((v) => !v)}
+        >
+          {useNE ? 'N/E' : 'X/Y'}
+        </button>
+      }
     >
-      {/* Title bar */}
-      <div
-        className="flex items-center justify-between px-3 py-2 bg-gray-700 rounded-t-lg cursor-move border-b border-gray-600 shrink-0"
-        onMouseDown={handleTitleMouseDown}
-      >
-        <span className="font-semibold text-white text-xs tracking-wide">
-          {feature.type} Properties
-        </span>
-        <div className="flex items-center gap-1.5 ml-2">
-          {/* N/E ↔ X/Y toggle */}
-          <button
-            className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
-              useNE
-                ? 'bg-blue-700 border-blue-500 text-white'
-                : 'bg-gray-700 border-gray-500 text-gray-400 hover:text-white'
-            }`}
-            title={useNE ? 'Showing Northing/Easting — click for X/Y' : 'Showing X/Y — click for N/E'}
-            onClick={() => setUseNE((v) => !v)}
-          >
-            {useNE ? 'N/E' : 'X/Y'}
-          </button>
-          <button
-            className="text-gray-400 hover:text-white transition-colors"
-            onClick={handleClose}
-            title="Close (changes are applied in real-time)"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-
+      <div className="flex flex-col h-full min-h-0 text-xs text-gray-200">
       <div className="overflow-y-auto flex-1 p-2 space-y-2">
 
         {/* Object info */}
@@ -806,6 +763,7 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
       <div className="px-3 py-1.5 border-t border-gray-700 text-gray-500 text-[10px] shrink-0">
         Changes apply immediately · Close to record undo
       </div>
-    </div>
+      </div>
+    </ModalFrame>
   );
 }

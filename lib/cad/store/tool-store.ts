@@ -52,7 +52,12 @@ interface ToolStore {
   setMatchPropertiesSourceId: (id: string | null) => void;
   setPointAtDistanceValue: (v: number) => void;
   setPointAtDistanceFromEnd: (v: boolean) => void;
-  setPerpendicularSourcePoint: (p: Point2D | null) => void;
+  setPerpAnchor: (baseLineId: string, startPoint: Point2D, baseDir: Point2D) => void;
+  setPerpAngleOffDeg: (deg: number) => void;
+  setPerpUseAzimuth: (v: boolean) => void;
+  setPerpAzimuthDeg: (deg: number) => void;
+  setPerpLengthFeet: (feet: number | null) => void;
+  clearPerp: () => void;
   setSimplifyTolerance: (v: number) => void;
   resetToolState: () => void;
 }
@@ -115,7 +120,13 @@ const defaultToolState: ToolState = {
   matchPropertiesSourceId: null,
   pointAtDistanceValue: 50,
   pointAtDistanceFromEnd: false,
-  perpendicularSourcePoint: null,
+  perpBaseLineId: null,
+  perpStartPoint: null,
+  perpBaseDir: null,
+  perpAngleOffDeg: 90,
+  perpUseAzimuth: false,
+  perpAzimuthDeg: 0,
+  perpLengthFeet: null,
   simplifyTolerance: 0.5,
 };
 
@@ -166,7 +177,12 @@ export const useToolStore = create<ToolStore>((set) => ({
         // matchPropertiesSourceId resets on tool switch — bound to a single pick session.
         pointAtDistanceValue: s.state.pointAtDistanceValue,
         pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
-        // perpendicularSourcePoint resets on tool switch.
+        // Perp anchor (baseLineId/startPoint/baseDir) resets on tool switch;
+        // numeric prefs persist like other tool options.
+        perpAngleOffDeg: s.state.perpAngleOffDeg,
+        perpUseAzimuth: s.state.perpUseAzimuth,
+        perpAzimuthDeg: s.state.perpAzimuthDeg,
+        perpLengthFeet: s.state.perpLengthFeet,
         simplifyTolerance: s.state.simplifyTolerance,
       },
     })),
@@ -406,8 +422,22 @@ export const useToolStore = create<ToolStore>((set) => ({
   setPointAtDistanceFromEnd: (v) =>
     set((s) => ({ state: { ...s.state, pointAtDistanceFromEnd: v } })),
 
-  setPerpendicularSourcePoint: (p) =>
-    set((s) => ({ state: { ...s.state, perpendicularSourcePoint: p } })),
+  setPerpAnchor: (baseLineId, startPoint, baseDir) =>
+    set((s) => ({
+      state: { ...s.state, perpBaseLineId: baseLineId, perpStartPoint: startPoint, perpBaseDir: baseDir },
+    })),
+  setPerpAngleOffDeg: (deg) =>
+    set((s) => ({ state: { ...s.state, perpAngleOffDeg: deg } })),
+  setPerpUseAzimuth: (v) =>
+    set((s) => ({ state: { ...s.state, perpUseAzimuth: v } })),
+  setPerpAzimuthDeg: (deg) =>
+    set((s) => ({ state: { ...s.state, perpAzimuthDeg: deg } })),
+  setPerpLengthFeet: (feet) =>
+    set((s) => ({ state: { ...s.state, perpLengthFeet: feet } })),
+  clearPerp: () =>
+    set((s) => ({
+      state: { ...s.state, perpBaseLineId: null, perpStartPoint: null, perpBaseDir: null, perpLengthFeet: null },
+    })),
 
   setSimplifyTolerance: (v) =>
     set((s) => ({
@@ -460,7 +490,13 @@ export const useToolStore = create<ToolStore>((set) => ({
         matchPropertiesSourceId: null,
         pointAtDistanceValue: s.state.pointAtDistanceValue,
         pointAtDistanceFromEnd: s.state.pointAtDistanceFromEnd,
-        perpendicularSourcePoint: null,
+        perpBaseLineId: null,
+        perpStartPoint: null,
+        perpBaseDir: null,
+        perpAngleOffDeg: s.state.perpAngleOffDeg,
+        perpUseAzimuth: s.state.perpUseAzimuth,
+        perpAzimuthDeg: s.state.perpAzimuthDeg,
+        perpLengthFeet: s.state.perpLengthFeet,
         simplifyTolerance: s.state.simplifyTolerance,
       },
     })),

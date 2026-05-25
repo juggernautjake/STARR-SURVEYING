@@ -3,11 +3,11 @@
 // Full-featured editor for all title block properties: field values, custom labels,
 // per-element scale and rotation.
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { RotateCw, ZoomIn, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import type { TitleBlockConfig } from '@/lib/cad/types';
-import DialogCloseButton from './ui/DialogCloseButton';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 /** Min/max scale factor for all survey-info elements. */
 export const TB_ELEM_SCALE_MIN = 0.5;
@@ -140,32 +140,18 @@ export default function TitleBlockEditorModal({ focusElement, onClose }: Props) 
     [tb.fieldLabels],
   );
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      const isInput = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable;
-      if (e.key === 'Escape' && !isInput) onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title={<span className="flex items-center gap-2"><FileText size={14} className="text-blue-400" />Title Block Editor</span>}
+      initialWidth={540}
+      initialHeight={600}
+      minWidth={400}
+      minHeight={340}
     >
-      <div className="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[540px] max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 shrink-0">
-          <div className="flex items-center gap-2">
-            <FileText size={15} className="text-blue-400" />
-            <span className="text-sm font-semibold text-white">Title Block Editor</span>
-          </div>
-          <DialogCloseButton onClick={onClose} />
-        </div>
-
+      <div className="flex flex-col h-full min-h-0 text-gray-200">
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
@@ -331,6 +317,6 @@ export default function TitleBlockEditorModal({ focusElement, onClose }: Props) 
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

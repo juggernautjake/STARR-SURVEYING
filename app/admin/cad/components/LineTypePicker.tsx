@@ -8,7 +8,8 @@
 // surface.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import type { LineTypeDefinition } from '@/lib/cad/styles/types';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 
@@ -125,16 +126,17 @@ export default function LineTypePicker(props: LineTypePickerProps) {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title="Line Types"
+      initialWidth={680}
+      initialHeight={560}
+      minWidth={420}
+      minHeight={320}
     >
-      <div
-        className="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Pick line type"
-      >
+      <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
           <Search size={14} className="text-gray-400" />
           <input
@@ -145,14 +147,6 @@ export default function LineTypePicker(props: LineTypePickerProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-            aria-label="Close"
-          >
-            <X size={14} />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
@@ -215,6 +209,6 @@ export default function LineTypePicker(props: LineTypePickerProps) {
           <span>Esc to close · Click a row to assign</span>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }
