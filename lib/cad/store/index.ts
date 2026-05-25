@@ -18,7 +18,7 @@ export type { AIPipelineStatus, AIMode, AICopilotMessage, AIReferenceDoc, AIBatc
 export type { AIProposal } from '../ai/proposals';
 export { useReviewWorkflowStore } from './review-workflow-store';
 export { useDeliveryStore } from './delivery-store';
-export { useDrawingChatStore } from './drawing-chat-store';
+export { useAIConversationsStore } from './ai-conversations-store';
 export { useHotkeysStore } from './hotkeys-store';
 export { useTransferStore } from './transfer-store';
 export { useCodeStyleStore, getEffectiveCodeStyleMap, resolveCodeStyleMapping } from './code-style-store';

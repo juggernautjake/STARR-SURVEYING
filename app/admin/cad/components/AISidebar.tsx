@@ -16,10 +16,10 @@
 
 import { useMemo, useState } from 'react';
 
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import {
   useAIStore,
   useDeliveryStore,
-  useDrawingChatStore,
   useReviewWorkflowStore,
   useUIStore,
   type AISidebarTab,
@@ -504,7 +504,9 @@ function AssistantTab({
 }: {
   onOpenAssistantPanel?: () => void;
 }) {
-  const history = useDrawingChatStore((s) => s.history);
+  const conversations = useAIConversationsStore((s) => s.conversations);
+  const activeId = useAIConversationsStore((s) => s.activeId);
+  const history = conversations.find((c) => c.id === activeId)?.messages ?? [];
   const last = history[history.length - 1];
   return (
     <div style={styles.column}>
