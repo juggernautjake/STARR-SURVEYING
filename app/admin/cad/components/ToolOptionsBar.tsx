@@ -895,23 +895,23 @@ export default function ToolOptionsBar() {
         </>
       )}
 
-      {/* ── PERPENDICULAR tool options ─────────────────────────────────────── */}
+      {/* ── PERPENDICULAR (on-line offset) tool options ───────────────────── */}
       {showPerpendicular && (
         <>
           <Sep />
-          {ts.perpendicularSourcePoint && (
+          {ts.perpStartPoint && (
             <button
               className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
-              onClick={() => toolStore.setPerpendicularSourcePoint(null)}
-              title="Clear source — restart point picking"
+              onClick={() => toolStore.clearPerp()}
+              title="Cancel — restart the line"
             >
               ✕
             </button>
           )}
           <span className="text-[11px] text-gray-400 italic whitespace-nowrap">
-            {!ts.perpendicularSourcePoint
-              ? 'Click the source point — snaps to an existing POINT feature when one is in range, otherwise uses the clicked world position.'
-              : 'Click a LINE / POLYLINE / POLYGON — the cyan dashed line shows the perpendicular foot on the hovered segment.'}
+            {!ts.perpStartPoint
+              ? 'Hover an existing line to lock the start point, then click to anchor it.'
+              : 'Drag away from the line (90° by default) and click to set length, or type length / bearing in the floating panel.'}
           </span>
         </>
       )}

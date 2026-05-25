@@ -32,7 +32,15 @@ import {
 } from '@/lib/cad/geometry/lod';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
-import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
+import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
+import {
+  unitVector as perpUnitVector,
+  offsetDirection as perpOffsetDirection,
+  offsetEndpoint as perpOffsetEndpoint,
+  projectedLength as perpProjectedLength,
+  cursorSide as perpCursorSide,
+  directionFromAzimuth as perpDirectionFromAzimuth,
+} from '@/lib/cad/geometry/perpendicular-line';
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
 import {
   imageCenter,
@@ -92,7 +100,6 @@ import {
   reverseFeature,
   matchPropertiesTo,
   pointAtDistanceAlong,
-  dropPerpendicular,
   smoothPolyline,
   simplifyPolylineFeature,
   insertVertexAt,
@@ -4982,152 +4989,67 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
-    // For PERPENDICULAR: phase 1 marks a candidate source
-    // point at the cursor (filled cyan dot); phase 2 ghosts
-    // the perpendicular line from the locked-in source to
-    // the foot on whichever line is under the cursor.
+    // On-line offset (PERPENDICULAR) tool preview:
+    //  • before the start is locked, highlight the line under the cursor and
+    //    mark the point the start will lock to;
+    //  • after it's locked, ghost the new line from the start toward the
+    //    cursor (90° by default, or the panel's angle/azimuth + length).
     if (activeTool === 'PERPENDICULAR') {
-      const drawing = useDrawingStore.getState();
       const ts = useToolStore.getState().state;
 
-      if (!ts.perpendicularSourcePoint) {
-        // Phase 1 — show candidate source dot at the cursor
-        // (snapping to a hovered POINT feature when one is in
-        // range so the surveyor can see the snap).
-        let snappedSrc: Point2D = previewPoint;
-        const hitId = (() => {
-          const all = drawing.getAllFeatures();
-          let bestId: string | null = null;
-          let bestDist = Infinity;
-          for (const f of all) {
-            if (f.geometry.type !== 'POINT' || !f.geometry.point) continue;
-            const d = Math.hypot(previewPoint.x - f.geometry.point.x, previewPoint.y - f.geometry.point.y);
-            const dPx = d * useViewportStore.getState().zoom;
-            if (dPx < bestDist && dPx < 14) {
-              bestDist = dPx;
-              bestId = f.id;
-            }
-          }
-          return bestId;
-        })();
-        const hitFeat = hitId ? drawing.getFeature(hitId) : null;
-        if (hitFeat && hitFeat.geometry.type === 'POINT' && hitFeat.geometry.point) {
-          snappedSrc = hitFeat.geometry.point;
+      if (!ts.perpStartPoint || !ts.perpBaseDir) {
+        const anchor = findBaseLineAnchor(previewPoint);
+        if (!anchor) {
+          const cs = w2s(previewPoint.x, previewPoint.y);
+          g.lineStyle(1.5, 0x888888, 0.7);
+          g.drawCircle(cs.sx, cs.sy, 5);
+          return;
         }
-        const sp = w2s(snappedSrc.x, snappedSrc.y);
+        const feat = useDrawingStore.getState().getFeature(anchor.id);
+        // Highlight the locked-onto base line in lime.
+        if (feat) {
+          const fg = feat.geometry;
+          let chain: Point2D[] | null = null;
+          let isClosed = false;
+          if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+          else if ((fg.type === 'POLYLINE' || fg.type === 'MIXED_GEOMETRY') && fg.vertices) chain = fg.vertices;
+          else if (fg.type === 'POLYGON' && fg.vertices) { chain = fg.vertices; isClosed = true; }
+          if (chain && chain.length >= 2) {
+            g.lineStyle(2.5, 0x99ff44, 0.55);
+            const c0 = w2s(chain[0].x, chain[0].y);
+            g.moveTo(c0.sx, c0.sy);
+            for (let i = 1; i < chain.length; i += 1) {
+              const cp = w2s(chain[i].x, chain[i].y);
+              g.lineTo(cp.sx, cp.sy);
+            }
+            if (isClosed) g.lineTo(c0.sx, c0.sy);
+          }
+        }
+        const ap = w2s(anchor.point.x, anchor.point.y);
         g.lineStyle(2, 0x44ddff, 0.95);
         g.beginFill(0x44ddff, 0.95);
-        g.drawCircle(sp.sx, sp.sy, 5);
+        g.drawCircle(ap.sx, ap.sy, 5);
         g.endFill();
         return;
       }
 
-      // Phase 2 — source locked in. Find the line under the
-      // cursor; project the source perpendicular onto it.
-      const all = drawing.getAllFeatures();
-      let bestId: string | null = null;
-      let bestChain: Point2D[] | null = null;
-      let bestIsClosed = false;
-      let bestDist = Infinity;
-      for (const f of all) {
-        const fg = f.geometry;
-        let chain: Point2D[] | null = null;
-        let isClosed = false;
-        if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
-        else if ((fg.type === 'POLYLINE' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
-        else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) {
-          chain = fg.vertices;
-          isClosed = true;
-        }
-        if (!chain) continue;
-        const segCount = isClosed ? chain.length : chain.length - 1;
-        for (let i = 0; i < segCount; i += 1) {
-          const a = chain[i];
-          const b = chain[(i + 1) % chain.length];
-          const dxAB = b.x - a.x;
-          const dyAB = b.y - a.y;
-          const len2 = dxAB * dxAB + dyAB * dyAB;
-          if (len2 < 1e-20) continue;
-          let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
-          t = Math.max(0, Math.min(1, t));
-          const px = a.x + t * dxAB;
-          const py = a.y + t * dyAB;
-          const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
-          const dPx = d * useViewportStore.getState().zoom;
-          if (dPx < bestDist && dPx < 14) {
-            bestDist = dPx;
-            bestId = f.id;
-            bestChain = chain;
-            bestIsClosed = isClosed;
-          }
-        }
-      }
-      // Always render the source dot regardless of hover
-      const src = ts.perpendicularSourcePoint;
-      const srcS = w2s(src.x, src.y);
+      // Start locked — ghost the offset line toward the cursor.
+      const start = ts.perpStartPoint;
+      const end = computePerpEndpoint(previewPoint);
+      const startS = w2s(start.x, start.y);
       g.lineStyle(2, 0x44ddff, 0.95);
       g.beginFill(0x44ddff, 0.95);
-      g.drawCircle(srcS.sx, srcS.sy, 5);
+      g.drawCircle(startS.sx, startS.sy, 4);
       g.endFill();
-
-      if (!bestId || !bestChain) {
-        // No valid target — hint to the surveyor by drawing
-        // an open ring at the cursor.
-        const cs = w2s(previewPoint.x, previewPoint.y);
-        g.lineStyle(1.5, 0x888888, 0.7);
-        g.drawCircle(cs.sx, cs.sy, 5);
-        return;
+      if (end) {
+        const endS = w2s(end.x, end.y);
+        g.lineStyle(2, 0x44ddff, 0.95);
+        g.moveTo(startS.sx, startS.sy);
+        g.lineTo(endS.sx, endS.sy);
+        g.beginFill(0x44ddff, 0.95);
+        g.drawCircle(endS.sx, endS.sy, 4);
+        g.endFill();
       }
-      // Highlight the hovered target chain in lime
-      g.lineStyle(2.5, 0x99ff44, 0.55);
-      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
-      g.moveTo(sp0.sx, sp0.sy);
-      for (let i = 1; i < bestChain.length; i += 1) {
-        const sp = w2s(bestChain[i].x, bestChain[i].y);
-        g.lineTo(sp.sx, sp.sy);
-      }
-      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
-
-      // Find the foot of perpendicular by projecting source
-      // onto the closest segment.
-      const segCount = bestIsClosed ? bestChain.length : bestChain.length - 1;
-      let bestSegIdx = 0;
-      let bestSegDist = Infinity;
-      for (let i = 0; i < segCount; i += 1) {
-        const a = bestChain[i];
-        const b = bestChain[(i + 1) % bestChain.length];
-        const dxAB = b.x - a.x;
-        const dyAB = b.y - a.y;
-        const len2 = dxAB * dxAB + dyAB * dyAB;
-        if (len2 < 1e-20) continue;
-        let t = ((previewPoint.x - a.x) * dxAB + (previewPoint.y - a.y) * dyAB) / len2;
-        t = Math.max(0, Math.min(1, t));
-        const px = a.x + t * dxAB;
-        const py = a.y + t * dyAB;
-        const d = Math.hypot(previewPoint.x - px, previewPoint.y - py);
-        if (d < bestSegDist) {
-          bestSegDist = d;
-          bestSegIdx = i;
-        }
-      }
-      const segA = bestChain[bestSegIdx];
-      const segB = bestChain[(bestSegIdx + 1) % bestChain.length];
-      const dxAB = segB.x - segA.x;
-      const dyAB = segB.y - segA.y;
-      const len2 = dxAB * dxAB + dyAB * dyAB;
-      if (len2 < 1e-20) return;
-      const tParam = ((src.x - segA.x) * dxAB + (src.y - segA.y) * dyAB) / len2;
-      const footX = segA.x + tParam * dxAB;
-      const footY = segA.y + tParam * dyAB;
-      const footS = w2s(footX, footY);
-      // Draw the perpendicular line in cyan
-      g.lineStyle(2, 0x44ddff, 0.95);
-      g.moveTo(srcS.sx, srcS.sy);
-      g.lineTo(footS.sx, footS.sy);
-      // Foot marker — small filled circle + tiny perpendicular tick
-      g.beginFill(0x44ddff, 0.95);
-      g.drawCircle(footS.sx, footS.sy, 4);
-      g.endFill();
       return;
     }
 
@@ -7651,6 +7573,78 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   // ─────────────────────────────────────────────
+  // On-line offset (PERPENDICULAR) tool helpers
+  // ─────────────────────────────────────────────
+
+  /**
+   * Find the existing line under the cursor and the point locked onto it.
+   * Slides along the nearest segment (foot of cursor); if that foot is within
+   * a few pixels of a chain vertex, anchors to the vertex instead. Returns the
+   * base feature id, the locked point, and the base segment's unit direction.
+   */
+  function findBaseLineAnchor(
+    cursor: Point2D,
+  ): { id: string; point: Point2D; dir: Point2D } | null {
+    const drawing = useDrawingStore.getState();
+    const zoom = useViewportStore.getState().zoom;
+    const all = drawing.getVisibleFeatures();
+    let best: { id: string; point: Point2D; dir: Point2D } | null = null;
+    let bestPx = Infinity;
+    for (const f of all) {
+      const fg = f.geometry;
+      let chain: Point2D[] | null = null;
+      let isClosed = false;
+      if (fg.type === 'LINE' && fg.start && fg.end) chain = [fg.start, fg.end];
+      else if ((fg.type === 'POLYLINE' || fg.type === 'MIXED_GEOMETRY') && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
+      else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 2) { chain = fg.vertices; isClosed = true; }
+      if (!chain) continue;
+      const segCount = isClosed ? chain.length : chain.length - 1;
+      for (let i = 0; i < segCount; i += 1) {
+        const a = chain[i];
+        const b = chain[(i + 1) % chain.length];
+        const dir = perpUnitVector(a, b);
+        if (!dir) continue;
+        const { point } = closestPointOnSegment(cursor, a, b);
+        const dPx = Math.hypot(cursor.x - point.x, cursor.y - point.y) * zoom;
+        if (dPx < bestPx && dPx < 14) {
+          // Snap to a nearby vertex when the foot lands close to one.
+          let anchor = point;
+          if (Math.hypot(point.x - a.x, point.y - a.y) * zoom < 8) anchor = a;
+          else if (Math.hypot(point.x - b.x, point.y - b.y) * zoom < 8) anchor = b;
+          bestPx = dPx;
+          best = { id: f.id, point: anchor, dir };
+        }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Given the locked anchor + the current cursor, compute the offset line's
+   * endpoint using the tool's angle/azimuth + numeric length (or the cursor
+   * drag). Returns null when the resulting length is effectively zero.
+   */
+  function computePerpEndpoint(cursor: Point2D): Point2D | null {
+    const ts = useToolStore.getState().state;
+    const start = ts.perpStartPoint;
+    const baseDir = ts.perpBaseDir;
+    if (!start || !baseDir) return null;
+    const side = perpCursorSide(start, baseDir, cursor);
+    const dir = ts.perpUseAzimuth
+      ? perpDirectionFromAzimuth(ts.perpAzimuthDeg)
+      : perpOffsetDirection(baseDir, ts.perpAngleOffDeg, side);
+    let length: number;
+    if (ts.perpLengthFeet != null && Number.isFinite(ts.perpLengthFeet)) {
+      length = ts.perpLengthFeet;
+    } else {
+      length = perpProjectedLength(start, dir, cursor);
+      if (length < 0) length = Math.abs(length); // dir already faces the cursor side
+    }
+    if (Math.abs(length) < 1e-6) return null;
+    return perpOffsetEndpoint(start, dir, length);
+  }
+
+  // ─────────────────────────────────────────────
   // Mouse event handlers
   // ─────────────────────────────────────────────
   const handleMouseDown = useCallback(
@@ -8991,43 +8985,38 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'PERPENDICULAR': {
-          // PERPENDICULAR: first click sets the source point
-          // (snapping to a clicked POINT feature when one is
-          // hit, otherwise to the world cursor). Second click
-          // picks a target line; we drop a perpendicular LINE
-          // from the source to the foot of perpendicular on
-          // that line.
-          if (!toolState.perpendicularSourcePoint) {
-            const hit = hitTest(sx, sy);
-            const f = hit ? drawingStore.getFeature(hit) : null;
-            const src: Point2D =
-              f && f.geometry.type === 'POINT' && f.geometry.point
-                ? { ...f.geometry.point }
-                : { ...worldPt };
-            toolStore.setPerpendicularSourcePoint(src);
+          // On-line offset line. First click locks the start point onto an
+          // existing line (sliding foot, or a snapped vertex) and records the
+          // base direction. Second click commits the new line — perpendicular
+          // (90°) by default, or at the angle/azimuth + length from the
+          // floating panel — extending toward the cursor.
+          if (!toolState.perpStartPoint || !toolState.perpBaseDir) {
+            const anchor = findBaseLineAnchor(worldPt);
+            if (!anchor) {
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: 'PERPENDICULAR — hover an existing line to lock the start point, then click.' },
+              }));
+              break;
+            }
+            toolStore.setPerpAnchor(anchor.id, anchor.point, anchor.dir);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'PERPENDICULAR — source set. Click a line / polyline / polygon to drop the perpendicular.' },
+              detail: { text: 'PERPENDICULAR — start locked. Drag away from the line (90° by default) and click to set the length, or type length/bearing.' },
             }));
             break;
           }
-          const hit = hitTest(sx, sy);
-          if (!hit) {
+          const start = toolState.perpStartPoint;
+          const end = computePerpEndpoint(worldPt);
+          if (!end) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'PERPENDICULAR — pick a LINE / POLYLINE / POLYGON for the target.' },
+              detail: { text: 'PERPENDICULAR — drag farther from the line to set a length.' },
             }));
             break;
           }
-          const ok = dropPerpendicular(toolState.perpendicularSourcePoint, hit, worldPt);
-          if (!ok) {
-            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'PERPENDICULAR — target must be a vertex-chain feature; source must not lie on the line.' },
-            }));
-          } else {
-            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'PERPENDICULAR — line placed.' },
-            }));
-          }
-          toolStore.setPerpendicularSourcePoint(null);
+          finishFeature('LINE', [start, end]);
+          toolStore.clearPerp();
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: 'PERPENDICULAR — line placed.' },
+          }));
           break;
         }
 
@@ -11131,6 +11120,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Right-click during an interactive op: cancel the op, do not open context menu
       if (interactiveOpRef.current) {
         cancelInteractiveOp();
+        return;
+      }
+
+      // On-line offset tool: right-click cancels the in-progress anchor
+      // (or exits cleanly when idle) instead of opening the context menu.
+      if (activeTool === 'PERPENDICULAR' && toolStore.state.perpStartPoint) {
+        toolStore.clearPerp();
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'PERPENDICULAR — cancelled.' },
+        }));
         return;
       }
 

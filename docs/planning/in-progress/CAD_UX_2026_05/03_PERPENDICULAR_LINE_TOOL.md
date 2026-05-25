@@ -84,25 +84,29 @@ viewport-clamped.
 ## Action items
 
 - [x] Geometry core + unit tests (`perpendicular-line.ts`).
-- [ ] Tool-store: replace `perpendicularSourcePoint` with the new state
-  (`baseLineId`, `startPoint`, `baseDir`, `angleOffDeg`, `useAzimuth`,
-  `lengthFeet`, `side`) + setters + reset; update `defaultToolState`.
-- [ ] `types.ts`: update the `ToolState` fields and doc comments for the
-  replaced tool.
-- [ ] CanvasViewport `IDLE` hover: base-line locking + endpoint anchoring +
-  preview highlight (replace the old source-point hover).
-- [ ] CanvasViewport `EXTENDING`: perpendicular-by-default drag-to-length,
-  cursor-side, commit on click, cancel on Esc/right-click (replace the old
-  `case 'PERPENDICULAR'` + remove `dropPerpendicular` usage).
-- [ ] Preview rendering in `renderToolPreview()` for both states.
+- [x] Tool-store: replaced `perpendicularSourcePoint` with the new state
+  (`perpBaseLineId`, `perpStartPoint`, `perpBaseDir`, `perpAngleOffDeg`,
+  `perpUseAzimuth`, `perpAzimuthDeg`, `perpLengthFeet`) + `setPerpAnchor` /
+  numeric setters / `clearPerp`; updated `defaultToolState` and tool-switch +
+  reset preservation.
+- [x] `types.ts`: updated the `ToolState` fields and doc comments.
+- [x] CanvasViewport `IDLE` hover: base-line locking via `findBaseLineAnchor`
+  (sliding foot + vertex snap) + lime base-line highlight + lock marker.
+- [x] CanvasViewport `EXTENDING`: perpendicular-by-default drag-to-length via
+  `computePerpEndpoint`, cursor-side, commit on click (`finishFeature('LINE')`),
+  cancel on right-click; old `case 'PERPENDICULAR'` + `dropPerpendicular` usage
+  removed.
+- [x] Preview rendering for both states.
 - [ ] `OnLineOffsetPanel.tsx` floating numeric panel (length + angle/azimuth),
-  wired to live preview + commit/cancel.
-- [ ] Far-endpoint snapping onto a second line while extending.
-- [ ] ToolOptionsBar: remove the now-obsolete perpendicular options (inputs
-  moved to the floating panel); keep the tool label.
+  wired to live preview + commit/cancel. **(next slice — store already has
+  `perpAngleOffDeg`/`perpUseAzimuth`/`perpAzimuthDeg`/`perpLengthFeet` + setters,
+  and `computePerpEndpoint` already honors them.)**
+- [ ] Far-endpoint snapping onto a second line while extending. **(next slice)**
+- [x] ToolOptionsBar: replaced the obsolete perpendicular options with the new
+  workflow hint + a cancel button.
 - [ ] Update Toolbar button copy/description + cursor + hotkey to the new
-  behavior.
-- [ ] Remove the dead `dropPerpendicular` helper if nothing else uses it.
+  behavior. **(next slice)**
+- [x] Removed the dead `dropPerpendicular` helper (`lib/cad/operations.ts`).
 
 ---
 

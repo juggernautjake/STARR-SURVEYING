@@ -739,14 +739,24 @@ export interface ToolState {
    */
   pointAtDistanceFromEnd: boolean;
 
-  // ── PERPENDICULAR tool ──
-  /**
-   * The source point of the perpendicular drop. Set on the
-   * first click (either an explicit world coordinate or the
-   * snapped position of a clicked POINT feature). Cleared on
-   * tool reset.
-   */
-  perpendicularSourcePoint: Point2D | null;
+  // ── PERPENDICULAR (on-line offset line) tool ──
+  // Start the line locked onto an existing line, then extend off it —
+  // perpendicular (90°) by default, at a fixed angle off the base line, or at
+  // an absolute azimuth — with length set by drag or numeric entry.
+  /** Base feature (LINE/POLYLINE/POLYGON) the start point is locked onto. */
+  perpBaseLineId: string | null;
+  /** Locked start point on the base line (foot of cursor, or a snapped vertex). */
+  perpStartPoint: Point2D | null;
+  /** Unit direction of the base segment at the start point. */
+  perpBaseDir: Point2D | null;
+  /** Angle (deg) of the new line measured off the base line. Default 90. */
+  perpAngleOffDeg: number;
+  /** When true, interpret the angle field as an absolute azimuth instead. */
+  perpUseAzimuth: boolean;
+  /** Absolute azimuth (deg clockwise from North) when perpUseAzimuth. */
+  perpAzimuthDeg: number;
+  /** Numeric length override in feet; null = follow the cursor drag. */
+  perpLengthFeet: number | null;
 
   // ── SIMPLIFY_POLYLINE tool ──
   /**
