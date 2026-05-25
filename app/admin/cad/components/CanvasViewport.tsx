@@ -3643,9 +3643,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.moveTo(bx - 5, by); g.lineTo(bx + 5, by);
       g.moveTo(bx, by - 5); g.lineTo(bx, by + 5);
 
-      // Ghost preview of the destination selection.
-      const dx = previewPoint.x - bp.x;
-      const dy = previewPoint.y - bp.y;
+      // Ghost preview of the destination selection — with the same
+      // endpoint-snap the commit applies (MOVE only), so the ghost lands
+      // exactly where the move will.
+      const rawDx = previewPoint.x - bp.x;
+      const rawDy = previewPoint.y - bp.y;
+      const snapped = activeTool === 'MOVE' ? endpointSnapDelta(rawDx, rawDy) : { dx: rawDx, dy: rawDy };
+      const dx = snapped.dx;
+      const dy = snapped.dy;
       if (dx !== 0 || dy !== 0) {
         const selIds = Array.from(useSelectionStore.getState().selectedIds);
         if (selIds.length > 0) {
@@ -7548,6 +7553,50 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return applyConstraints(cursor);
   }
 
+  // Endpoint-snap for moves: given a raw (dx,dy) translation of the
+  // current selection, if snap is on, nudge the delta so the selection's
+  // CLOSEST endpoint lands exactly on a nearby point / line-end of an
+  // unselected feature. The whole selection shifts by the same delta, so
+  // bearings, lengths, and angles are untouched — it just snaps the end.
+  function endpointSnapDelta(dx: number, dy: number): { dx: number; dy: number } {
+    const settings = drawingStore.document.settings;
+    if (!settings.snapEnabled) return { dx, dy };
+    const selectedIds = selectionStore.selectedIds;
+    if (selectedIds.size === 0) return { dx, dy };
+
+    const endpointsOf = (f: Feature): Point2D[] => {
+      const g = f.geometry;
+      if (g.type === 'POINT' && g.point) return [g.point];
+      if (g.type === 'LINE') return [g.start, g.end].filter(Boolean) as Point2D[];
+      if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) return g.vertices;
+      return [];
+    };
+
+    const moving: Point2D[] = [];
+    for (const id of selectedIds) {
+      const f = drawingStore.getFeature(id);
+      if (f) for (const p of endpointsOf(f)) moving.push({ x: p.x + dx, y: p.y + dy });
+    }
+    if (moving.length === 0) return { dx, dy };
+
+    const targets = drawingStore.getVisibleFeatures().filter((f) => !selectedIds.has(f.id));
+    if (targets.length === 0) return { dx, dy };
+    const zoom = Math.max(0.0001, viewportStore.zoom);
+    const worldRadius = settings.snapRadius / zoom;
+    const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
+
+    let best: { dx: number; dy: number; d: number } | null = null;
+    for (const mep of moving) {
+      const snap = findSnapPoint(mep, targets, settings.snapRadius, zoom, ['ENDPOINT'], grid);
+      if (!snap) continue;
+      const d = Math.hypot(snap.point.x - mep.x, snap.point.y - mep.y);
+      if (d <= worldRadius && (!best || d < best.d)) {
+        best = { dx: dx + (snap.point.x - mep.x), dy: dy + (snap.point.y - mep.y), d };
+      }
+    }
+    return best ? { dx: best.dx, dy: best.dy } : { dx, dy };
+  }
+
   // ─────────────────────────────────────────────
   // Grip hit testing
   // ─────────────────────────────────────────────
@@ -8271,8 +8320,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (!toolState.basePoint) {
             toolStore.setBasePoint(worldPt);
           } else {
-            const dx = worldPt.x - toolState.basePoint.x;
-            const dy = worldPt.y - toolState.basePoint.y;
+            const rawDx = worldPt.x - toolState.basePoint.x;
+            const rawDy = worldPt.y - toolState.basePoint.y;
+            // Snap the selection's nearest endpoint onto a point/line-end.
+            const { dx, dy } = endpointSnapDelta(rawDx, rawDy);
             const selectedIds = Array.from(selectionStore.selectedIds);
             if (selectedIds.length === 0) break;
             const ops = selectedIds.flatMap((id) => {
