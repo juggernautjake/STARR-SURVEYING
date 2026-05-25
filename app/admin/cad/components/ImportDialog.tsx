@@ -28,8 +28,7 @@ import type { Feature, UndoOperation } from '@/lib/cad/types';
 import { generateId } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
-import { useEscapeToClose } from '../hooks/useEscapeToClose';
-import { useFocusTrap } from '../hooks/useFocusTrap';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface ImportDialogProps {
   onClose: () => void;
@@ -571,9 +570,6 @@ function CompleteStep({ result, onViewPoints }: { result: ReturnType<typeof proc
 
 // ─── Main Dialog ───
 export default function ImportDialog({ onClose, onImportComplete }: ImportDialogProps) {
-  useEscapeToClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef);
   const importStore = useImportStore();
   const pointStore = usePointStore();
   const drawingStore = useDrawingStore();
@@ -795,19 +791,17 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   const isLastDataStep = importStore.step === 'VALIDATION';
 
   return (
-    <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]">
-      <div className="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 w-full max-w-2xl mx-4 flex flex-col max-h-[90vh] animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700 shrink-0">
-          <div>
-            <h2 className="text-gray-100 font-semibold text-base">Import Field Data</h2>
-            <p className="text-gray-400 text-xs mt-0.5">Load survey points from CSV, RW5, or JobXML files</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors">
-            <X size={16} />
-          </button>
-        </div>
-
+    <ModalFrame
+      open
+      onClose={onClose}
+      scrollBody={false}
+      title="Import Field Data"
+      initialWidth={680}
+      initialHeight={620}
+      minWidth={440}
+      minHeight={360}
+    >
+      <div className="flex flex-col h-full min-h-0 text-gray-200">
         {/* Body */}
         <div className="flex-1 overflow-auto px-5 py-4">
           <StepIndicator current={importStore.step} />
@@ -867,6 +861,6 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
           </div>
         )}
       </div>
-    </div>
+    </ModalFrame>
   );
 }
