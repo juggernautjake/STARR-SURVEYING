@@ -50,6 +50,8 @@ import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
 import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
 import FullscreenToggle from './components/FullscreenToggle';
+import ResizeHandle from './components/ResizeHandle';
+import { usePanelSize } from './hooks/usePanelSize';
 import OrientationDialog from './components/OrientationDialog';
 import DrawingRotationDialog from './components/DrawingRotationDialog';
 import TitleBlockPanel from './components/TitleBlockPanel';
@@ -119,6 +121,7 @@ const AUTOSAVE_DEBOUNCE_MS = 5_000;
 
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
+  const [layerPanelWidth, setLayerPanelWidth] = usePanelSize('layer', 192, 160, 480);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -838,11 +841,25 @@ export default function CADLayout() {
           <ToolBar />
         </div>
 
-        {/* Layer panel (toggleable) */}
+        {/* Layer panel (toggleable, resizable) */}
         {showLayerPanel && (
-          <div className="flex flex-col bg-gray-800 border-r border-gray-700 w-48 cad-slide-left">
-            <LayerPanel />
-          </div>
+          <>
+            <div
+              className="flex flex-col bg-gray-800 border-r border-gray-700 cad-slide-left shrink-0"
+              style={{ width: layerPanelWidth }}
+            >
+              <LayerPanel />
+            </div>
+            <ResizeHandle
+              axis="x"
+              sign={1}
+              size={layerPanelWidth}
+              min={160}
+              max={480}
+              onResize={setLayerPanelWidth}
+              ariaLabel="Resize layer panel"
+            />
+          </>
         )}
 
         {/* Canvas fills remaining space */}
