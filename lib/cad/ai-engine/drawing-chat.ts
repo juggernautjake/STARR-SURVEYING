@@ -128,8 +128,10 @@ export interface ChatFitSpec {
   closed?:      boolean;      // CURVE → smooth closed loop
   layerName?:   string;
   color?:       string;
+  fill?:        string;
   opacity?:     number;
   lineWeight?:  number;
+  lineType?:    string;
   deleteSource?: boolean;     // remove fromIds after fitting
 }
 
@@ -668,8 +670,10 @@ function parseEditFields(a: Record<string, unknown>): EditFields {
         ...(o.closed === true ? { closed: true } : {}),
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
+        ...(typeof o.fill === 'string' ? { fill: o.fill } : {}),
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
         ...(o.deleteSource === true ? { deleteSource: true } : {}),
       });
     }

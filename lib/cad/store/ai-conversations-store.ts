@@ -550,6 +550,8 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       ...(spec.color ? { color: spec.color } : {}),
       ...(spec.opacity != null ? { opacity: Math.max(0, Math.min(1, spec.opacity)) } : {}),
       ...(spec.lineWeight != null ? { lineWeight: spec.lineWeight } : {}),
+      ...(spec.lineType ? { lineTypeId: spec.lineType } : {}),
+      ...(spec.fill ? { fillColor: spec.fill } : {}),
     };
     const feature: Feature = {
       id: generateId(), type, geometry,

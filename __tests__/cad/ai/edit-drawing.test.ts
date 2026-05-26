@@ -474,6 +474,20 @@ describe('applyEditDrawing', () => {
     expect(c.radius).toBeCloseTo(10, 6); // doubled about its own center
   });
 
+  it('applies fill + lineType when fitting a shape', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'fit styled',
+      fit: [{ shape: 'RECTANGLE', fill: '#222222', lineType: 'DASHED', points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 10 },
+        { northing: 8, easting: 10 }, { northing: 8, easting: 0 },
+      ] }],
+    });
+    const f = useDrawingStore.getState().getAllFeatures()[0];
+    expect(f.type).toBe('POLYGON');
+    expect(f.style.fillColor).toBe('#222222');
+    expect(f.style.lineTypeId).toBe('DASHED');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
