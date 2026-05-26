@@ -954,3 +954,7 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   derived/LandXML), point-identity end-to-end, both editable viewers +
   undo, CommandBar, StatusBar toggles, delete+undo, motion entry/exit,
   zoom sizing. All green.
+- 2026-05-26 16:0x CDT — Audit (no bug): selecting a feature then
+  switching to ROTATE preserves the selection (no "Select features
+  first") — the earlier hint in rotate-inspect was a test artifact
+  (Ctrl+A focus), not a product issue. `rotate-selection.spec` confirms.
