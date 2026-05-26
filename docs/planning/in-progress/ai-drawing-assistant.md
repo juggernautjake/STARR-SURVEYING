@@ -159,10 +159,13 @@ canvas, and check it behaved as expected; feed failures back into the plan.
 - Never mutate on the model's word alone — the user clicks Apply.
 
 ## 7. Testing strategy
-- Pure executor tests (done): NE→world, each shape, transform, delete.
-- Add: fit-helper math, composite recipes, validation rejections.
-- Prompt/parse tests: malformed action JSON is parsed safely (no throws).
-- Manual: browser run-through per phase (can't drive Pixi in CI).
+- Pure executor tests (done): NE→world, each shape, transform, delete, fit,
+  degenerate-skip, layer create, line-type, label, auto-select.
+- Fit-helper math (done): min-area rect / circle / line / hull.
+- Parse-safety (done): malformed/hallucinated action JSON never throws and
+  sub-fields are sanitized (`parse-action.test.ts`).
+- Manual / Playwright: browser run-through per phase (can't drive Pixi/OCR in
+  this env — Phase 7, locally runnable via the existing e2e harness).
 
 ## 8. Risk register
 - **Coordinate-frame drift** — mitigated by a single NE↔world contract + tests.

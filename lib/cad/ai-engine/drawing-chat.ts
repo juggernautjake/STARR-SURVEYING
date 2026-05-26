@@ -625,7 +625,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
   return out;
 }
 
-function parseAction(raw: unknown): DrawingChatAction | null {
+export function parseAction(raw: unknown): DrawingChatAction | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Record<string, unknown>;
   const type = a.type;
