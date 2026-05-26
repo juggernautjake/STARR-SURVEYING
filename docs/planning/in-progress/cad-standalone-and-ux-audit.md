@@ -255,8 +255,13 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   empty state. Toggled from View ▸ "Point Data Viewer (editable)" in a
   resizable bottom dock. VERIFIED via harness screenshot. Name edits
   route to an interim confirm-based rename; rich dialog = 10d.
-- [ ] **10d. rename confirmation dialog**: warn + "duplicate instead" +
-  "remember my choice".
+- [x] **10d. rename confirmation dialog** — `RenameConfirmDialog.tsx`:
+  warns with blast radius (linework refs, `:N` derivatives, export
+  impact, name-collision), offers "Rename everywhere" vs "Duplicate
+  instead" vs Cancel, and a "remember my choice" checkbox persisted to
+  localStorage (skips the dialog next time). Wired into CADLayout via the
+  viewer's name edits. Logic unit-tested (10b); live trigger needs a
+  seeded named point (canvas-draw flaky) so verified by unit+types.
 - [ ] **10e. Traverse Viewer**: computed line/curve columns (bearing /
   azimuth / distance / chord / radius / delta / arc length), customizable.
 
@@ -558,3 +563,9 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   empty state. Name editing uses an interim confirm-based rename (warns +
   rebases refs); the rich dialog (duplicate option + remember-choice) is
   10d. Next: 10d rename dialog, then 10e Traverse Viewer.
+- 2026-05-26 10:5x CDT — Slice 10d DONE. Replaced the interim confirm
+  with `RenameConfirmDialog`: warns (references / derivatives / export
+  impact / collision), offers Rename-everywhere vs Duplicate-instead vs
+  Cancel, and remembers the choice (localStorage) so bulk renames aren't
+  nagged. CADLayout reads the remembered strategy and only opens the
+  dialog when 'ASK'. Next: 10e Traverse Viewer.

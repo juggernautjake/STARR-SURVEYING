@@ -53,6 +53,7 @@ import FullscreenToggle from './components/FullscreenToggle';
 import ResizeHandle from './components/ResizeHandle';
 import { usePanelSize } from './hooks/usePanelSize';
 import PointDataViewer from './components/PointDataViewer';
+import RenameConfirmDialog, { type RenameDialogData } from './components/RenameConfirmDialog';
 import { findNameReferences, planRename, planDuplicate, nameIsTaken } from '@/lib/cad/points/point-rename';
 import { makeBatchEntry } from '@/lib/cad/store';
 import OrientationDialog from './components/OrientationDialog';
@@ -129,6 +130,7 @@ export default function CADLayout() {
   const [pointTableHeight, setPointTableHeight] = usePanelSize('pointTable', 192, 120, 520);
   const [pointViewerHeight, setPointViewerHeight] = usePanelSize('pointViewer', 240, 140, 600);
   const [showPointViewer, setShowPointViewer] = useState(false);
+  const [renameDialog, setRenameDialog] = useState<RenameDialogData | null>(null);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -613,27 +615,11 @@ export default function CADLayout() {
     return unsubscribe;
   }, []);
 
-  // §10.3 interim rename handler — warns with the blast radius, then
-  // renames in place (rebasing references) in one undo batch. The rich
-  // dialog (duplicate option + remember-choice) lands in slice 10d.
-  function handlePointRename(featureId: string, oldName: string, newName: string) {
+  // §10.3/§10.4 — guarded point-name change. Opens the rename dialog
+  // unless the user previously chose to remember a strategy.
+  const RENAME_PREF_KEY = 'starr-cad-rename-strategy';
+  function applyRenameInPlace(featureId: string, oldName: string, newName: string) {
     const doc = drawingStore.document;
-    if (nameIsTaken(doc, newName, featureId)) {
-      const dup = planDuplicate(doc, featureId, newName);
-      window.alert(`Point name "${newName}" is already in use. Choose a different name.`);
-      void dup; // duplicate path handled by the 10d dialog
-      return;
-    }
-    const refs = findNameReferences(doc, oldName);
-    const refCount = refs.linework.length;
-    const msg =
-      `Rename point "${oldName}" → "${newName}"?\n\n` +
-      (refCount > 0
-        ? `${refCount} line/shape feature(s) reference this point and will be updated to match. `
-        : 'No linework references this point. ') +
-      `Exports key on the point name, so downstream files will use the new name.\n\n` +
-      `OK = rename everywhere · Cancel = leave unchanged.`;
-    if (!window.confirm(msg)) return;
     const updates = planRename(doc, oldName, newName);
     const ops = updates.map((u) => {
       const f = drawingStore.getFeature(u.featureId);
@@ -644,6 +630,30 @@ export default function CADLayout() {
     });
     updates.forEach((u) => drawingStore.updateFeature(u.featureId, { properties: u.properties }));
     if (ops.length > 0) undoStore.pushUndo(makeBatchEntry(`Rename point ${oldName} → ${newName}`, ops));
+  }
+  function applyDuplicate(featureId: string, newName: string) {
+    const dup = planDuplicate(drawingStore.document, featureId, newName);
+    if (!dup) return;
+    drawingStore.addFeature(dup);
+    undoStore.pushUndo(makeBatchEntry(`Duplicate point as ${newName}`, [
+      { type: 'ADD_FEATURE', data: dup },
+    ]));
+  }
+  function handlePointRename(featureId: string, oldName: string, newName: string) {
+    const doc = drawingStore.document;
+    const refs = findNameReferences(doc, oldName);
+    const taken = nameIsTaken(doc, newName, featureId);
+    const remembered = (typeof window !== 'undefined' && window.localStorage.getItem(RENAME_PREF_KEY)) || 'ASK';
+    if (remembered === 'RENAME' && !taken) { applyRenameInPlace(featureId, oldName, newName); return; }
+    if (remembered === 'DUPLICATE') { applyDuplicate(featureId, newName); return; }
+    setRenameDialog({
+      featureId,
+      oldName,
+      newName,
+      referenceCount: refs.linework.length,
+      derivatives: refs.derivatives,
+      nameTaken: taken,
+    });
   }
 
   // ─── Autosave helpers ────────────────────────────────────────────────────────
@@ -1041,6 +1051,25 @@ export default function CADLayout() {
           initialX={featureDialog.x}
           initialY={featureDialog.y}
           onClose={() => setFeatureDialog(null)}
+        />
+      )}
+
+      {/* §10.4 guarded point-rename dialog */}
+      {renameDialog && (
+        <RenameConfirmDialog
+          data={renameDialog}
+          onCancel={() => setRenameDialog(null)}
+          onChoose={(strategy, remember) => {
+            if (remember && typeof window !== 'undefined') {
+              window.localStorage.setItem('starr-cad-rename-strategy', strategy);
+            }
+            if (strategy === 'RENAME') {
+              applyRenameInPlace(renameDialog.featureId, renameDialog.oldName, renameDialog.newName);
+            } else {
+              applyDuplicate(renameDialog.featureId, renameDialog.newName);
+            }
+            setRenameDialog(null);
+          }}
         />
       )}
 
