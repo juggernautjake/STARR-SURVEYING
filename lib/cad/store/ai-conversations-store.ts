@@ -608,7 +608,12 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       ? Array.from(useSelectionStore.getState().selectedIds)
       : t.ids;
     const feats = ids.map((id) => drawing.getFeature(id)).filter((f): f is Feature => !!f);
-    if (feats.length > 0) {
+    const dxq = t.translate?.east ?? 0;
+    const dyq = t.translate?.north ?? 0;
+    const radq = t.rotateDeg ? (t.rotateDeg * Math.PI) / 180 : 0;
+    const scq = t.scale ?? 1;
+    const isIdentity = dxq === 0 && dyq === 0 && radq === 0 && scq === 1;
+    if (feats.length > 0 && !isIdentity) {
       let pivot: Point2D;
       if (t.about && t.about !== 'CENTROID') {
         pivot = toWorld(t.about);
@@ -620,15 +625,11 @@ export function applyEditDrawing(action: DrawingChatAction): string {
         }
         pivot = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
       }
-      const dx = t.translate?.east ?? 0;
-      const dy = t.translate?.north ?? 0;
-      const rad = t.rotateDeg ? (t.rotateDeg * Math.PI) / 180 : 0;
-      const sc = t.scale ?? 1;
       const fn = (p: Point2D): Point2D => {
         let q = p;
-        if (sc !== 1) q = scale(q, pivot, sc);
-        if (rad !== 0) q = rotate(q, pivot, rad);
-        if (dx !== 0 || dy !== 0) q = translate(q, dx, dy);
+        if (scq !== 1) q = scale(q, pivot, scq);
+        if (radq !== 0) q = rotate(q, pivot, radq);
+        if (dxq !== 0 || dyq !== 0) q = translate(q, dxq, dyq);
         return q;
       };
       let transformed = 0;

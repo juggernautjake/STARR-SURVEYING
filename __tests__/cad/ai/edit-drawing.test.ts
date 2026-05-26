@@ -285,6 +285,16 @@ describe('applyEditDrawing', () => {
     expect(useDrawingStore.getState().getFeature(id)!.style.symbolId).toBe('VEG_TREE_DECID');
   });
 
+  it('skips a no-op (identity) transform without touching the feature', () => {
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 7, easting: 8 }] }] });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    const before = JSON.stringify(useDrawingStore.getState().getFeature(id)!.geometry);
+    useUndoStore.getState().clear();
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'noop', transform: { ids: [id] } });
+    expect(JSON.stringify(useDrawingStore.getState().getFeature(id)!.geometry)).toBe(before);
+    expect(useUndoStore.getState().canUndo()).toBe(false); // no junk undo entry
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
