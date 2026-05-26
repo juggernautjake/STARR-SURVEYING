@@ -842,6 +842,12 @@ export interface SelectionItem {
   pointNumber?: string;
   code?:        string;
   description?: string;
+  /** Style overrides on the feature (only present when set), so the AI can
+   *  match/echo existing color/line style/fill. */
+  color?:       string;
+  fill?:        string;
+  lineType?:    string;
+  opacity?:     number;
   northing?:    number;
   easting?:     number;
   elevation?:   number;
@@ -902,6 +908,13 @@ export function buildSelectionDigest(
     if (code) item.code = code;
     const desc = pointDescriptionOf(f);
     if (desc) item.description = desc;
+
+    // Style overrides (only when explicitly set on the feature).
+    const st = f.style;
+    if (st?.color) item.color = st.color;
+    if (st?.fillColor) item.fill = st.fillColor;
+    if (st?.lineTypeId && st.lineTypeId !== 'SOLID') item.lineType = st.lineTypeId;
+    if (typeof st?.opacity === 'number' && st.opacity < 1) item.opacity = round(st.opacity);
 
     const ne = (p: { x: number; y: number }): NE => ({
       n: round(p.y + originN),

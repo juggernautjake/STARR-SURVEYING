@@ -79,6 +79,21 @@ describe('buildSelectionDigest', () => {
     expect(it0.areaSqFt).toBe(100);  // 10×10
   });
 
+  it('reports style overrides (color/fill/lineType/opacity) when set', () => {
+    const f = {
+      id: 'g1', type: 'POLYGON',
+      geometry: { type: 'POLYGON', vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] },
+      layerId: 'L',
+      style: { ...STYLE, color: '#ff0000', fillColor: '#00ff00', lineTypeId: 'DASHED', opacity: 0.5 },
+      properties: {},
+    } as unknown as Feature;
+    const it0 = buildSelectionDigest(doc({ g1: f }), ['g1']).items[0];
+    expect(it0.color).toBe('#ff0000');
+    expect(it0.fill).toBe('#00ff00');
+    expect(it0.lineType).toBe('DASHED');
+    expect(it0.opacity).toBe(0.5);
+  });
+
   it('counts by type and ignores ids that are not in the document', () => {
     const d = doc({ p1: pt('p1', 0, 0), p2: pt('p2', 1, 1) });
     const dig = buildSelectionDigest(d, ['p1', 'p2', 'ghost']);
