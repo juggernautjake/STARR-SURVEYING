@@ -142,9 +142,10 @@ Goal: the model can reason about geometry it didn't select.
       shapes are unchanged.)
 - [x] Iterative refine loop — AI-created features auto-select, so "make the
       cowl sharper" operates on the prior ids (Phase 5).
-- [ ] Circle/ellipse/closed-spline fill rendering (polygon shipped; extend
-      next) + DXF/PDF solid-hatch export (defer — export hatch is a separate
-      sizeable change; on-screen fill covers the design need first).
+- [x] Circle/ellipse/closed-spline fill rendering (now filled under the
+      stroke, guarded by fillColor).
+- [ ] DXF/PDF solid-hatch export of fills (defer — export hatch is a
+      separate sizeable change; on-screen fill covers the design need first).
 - [ ] Scratch area + scale normalization (defer — the AI controls absolute
       coordinates already; add only if art lands off-view in practice).
 - Acceptance: a recognizable, stylized illustration from a single prompt.

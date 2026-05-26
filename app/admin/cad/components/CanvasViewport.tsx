@@ -1736,6 +1736,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         ? parseInt(lineType.color.replace('#', ''), 16)
         : color;
 
+    // Fill a closed curve (circle/ellipse/closed spline) under its stroke
+    // when the style carries a fillColor. No-op (and zero overhead) for
+    // unfilled shapes, so existing rendering is untouched.
+    const fillClosed = (drawFn: () => void) => {
+      const fc = feature.style.fillColor;
+      if (!fc) return;
+      const fi = parseInt(fc.replace('#', ''), 16);
+      if (!Number.isFinite(fi)) return;
+      g.lineStyle(0);
+      g.beginFill(fi, feature.style.fillOpacity ?? alpha);
+      drawFn();
+      g.endFill();
+    };
+
     switch (geom.type) {
       case 'POINT': {
         const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -1804,6 +1818,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       case 'CIRCLE': {
         if (geom.circle) {
+          fillClosed(() => drawCircleCurve(g as unknown as GraphicsLike, geom.circle!, w2s, zoom));
           g.lineStyle(weight, color, alpha);
           drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, zoom);
         }
@@ -1811,6 +1826,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       case 'ELLIPSE': {
         if (geom.ellipse) {
+          fillClosed(() => drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse!, w2s, zoom));
           g.lineStyle(weight, color, alpha);
           drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, zoom);
         }
@@ -1825,6 +1841,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       case 'SPLINE': {
         if (geom.spline) {
+          if (geom.spline.isClosed) {
+            fillClosed(() => drawSplineCurve(g as unknown as GraphicsLike, geom.spline!, w2s));
+          }
           g.lineStyle(weight, color, alpha);
           drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
         }
