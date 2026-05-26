@@ -925,3 +925,8 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   (POINT editable / derived non-editable; includeDerived toggle) + live-
   verified (drawn line's 2 vertices appear in the viewer). Also added
   POLYGON-naming + hidden-feature unit coverage. tsc/lint clean.
+- 2026-05-26 15:2x CDT — Data-integrity audit: verified Point Viewer
+  coordinate edits are undoable (Ctrl+Z reverts the moved point) — the
+  `commitEdit` undo batch works end-to-end (`point-edit-undo.spec`). (Test
+  initially exposed a test-only flaw — an undo keypress with the Point
+  tool active drew a point; fixed by switching to SELECT first.)
