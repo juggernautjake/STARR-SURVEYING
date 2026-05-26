@@ -8041,6 +8041,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         case 'SELECT': {
           // We've confirmed no TB element was hit (those return early above), so clear TB selection
           selectionStore.setSelectedTBElem(null);
+          // Ctrl/Cmd (or Shift) make a click additive: toggle the hit
+          // feature into/out of the current multi-selection instead of
+          // replacing it. Ctrl is the common surveyor habit for picking
+          // several points one-by-one.
+          const additive = e.shiftKey || e.ctrlKey || e.metaKey;
           // Check label hit first — labels are on top of features visually
           const labelHit = hitTestLabel(sx, sy);
           if (labelHit) {
@@ -8048,7 +8053,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // TEXT feature — select it and start drag-to-move
               const textFeature = drawingStore.getFeature(labelHit.featureId);
               if (textFeature) {
-                selectionStore.select(labelHit.featureId, e.shiftKey ? 'TOGGLE' : 'REPLACE');
+                selectionStore.select(labelHit.featureId, additive ? 'TOGGLE' : 'REPLACE');
                 const startWorld = screenToDrawingWorld(sx, sy);
                 const originals = new Map<string, Feature>();
                 originals.set(labelHit.featureId, JSON.parse(JSON.stringify(textFeature)));
@@ -8087,7 +8092,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const groupMode = drawingStore.document.settings.groupSelectMode ?? 'GROUP_FIRST';
             let featureIds: string[];
 
-            if (polylineGid && !e.shiftKey) {
+            if (polylineGid && !additive) {
               if (groupMode === 'GROUP_FIRST') {
                 // GROUP_FIRST: first click selects entire group.
                 // If the group is already selected, clicking a specific segment
@@ -8106,11 +8111,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               } else {
                 // ELEMENT_FIRST: first click selects individual segment only.
                 // User can right-click > "Select Group" to get the whole group.
-                const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
+                const mode = additive ? 'TOGGLE' : 'REPLACE';
                 selectionStore.select(hit, mode);
                 featureIds = [hit];
               }
-            } else if (featureGid && !e.shiftKey && groupMode === 'GROUP_FIRST') {
+            } else if (featureGid && !additive && groupMode === 'GROUP_FIRST') {
               // Feature group (named group): same GROUP_FIRST drill-down behavior.
               const group = drawingStore.getFeatureGroup(featureGid);
               const groupMemberIds = group?.featureIds ?? [];
@@ -8124,7 +8129,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 selectionStore.selectMultiple(featureIds, 'REPLACE');
               }
             } else {
-              const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
+              const mode = additive ? 'TOGGLE' : 'REPLACE';
               selectionStore.select(hit, mode);
               featureIds = [hit];
             }
@@ -10357,9 +10362,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (selectPanRef.current) {
         selectPanRef.current = false;
         isPanningRef.current = false;
-        // If it was a short click (no drag), deselect
+        // If it was a short click (no drag), deselect — unless an additive
+        // modifier is held (the surveyor is mid multi-pick and just missed).
         const dragDist = Math.hypot(sx - lastMouseRef.current.x, sy - lastMouseRef.current.y);
-        if (dragDist < 3 && !e.shiftKey) {
+        if (dragDist < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
           selectionStore.deselectAll();
         }
         setCursorStyle('default');
@@ -10427,8 +10433,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const threshold = drawingStore.document.settings.dragThreshold ?? 5;
         if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
-          selectionStore.selectMultiple(ids, e.shiftKey ? 'ADD' : 'REPLACE');
-        } else if (!clickHitFeatureRef.current && !e.shiftKey) {
+          selectionStore.selectMultiple(ids, (e.shiftKey || e.ctrlKey || e.metaKey) ? 'ADD' : 'REPLACE');
+        } else if (!clickHitFeatureRef.current && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
           selectionStore.deselectAll();
         }
         toolStore.setBoxSelect(null, null, false);
