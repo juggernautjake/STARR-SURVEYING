@@ -11,6 +11,7 @@ import type { Layer } from '@/lib/cad/types';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
+import NewLayerDialog from './NewLayerDialog';
 
 // Accessible palette for new layers — visually distinct, good contrast
 const LAYER_COLOR_PALETTE = [
@@ -39,6 +40,7 @@ export default function LayerPanel() {
   const { document: doc, activeLayerId } = store;
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
+  const [newLayerDefaults, setNewLayerDefaults] = useState<{ name: string; color: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef<HTMLInputElement>(null);
@@ -94,16 +96,23 @@ export default function LayerPanel() {
     store.setActiveLayer(layerId);
   }
 
+  // Opening the New Layer modal (§11). The actual layer is created in
+  // `createLayerFromDialog` once the surveyor confirms.
   function handleNewLayer() {
+    setPanelMenu(null);
+    setNewLayerDefaults({ name: `Layer ${doc.layerOrder.length + 1}`, color: nextLayerColor() });
+  }
+
+  function createLayerFromDialog(result: { name: string; color: string; description: string; pointIds: string[] }) {
     const id = generateId();
     const existingCount = doc.layerOrder.length;
     store.addLayer({
       id,
-      name: `Layer ${existingCount + 1}`,
+      name: result.name,
       visible: true,
       locked: false,
       frozen: false,
-      color: nextLayerColor(),
+      color: result.color,
       lineWeight: 0.75,
       lineTypeId: 'SOLID',
       opacity: 1,
@@ -112,8 +121,12 @@ export default function LayerPanel() {
       isDefault: false,
       isProtected: false,
       autoAssignCodes: [],
+      description: result.description || undefined,
     });
+    // Move the chosen points onto the new layer.
+    for (const pid of result.pointIds) store.updateFeature(pid, { layerId: id });
     store.setActiveLayer(id);
+    setNewLayerDefaults(null);
   }
 
   function handleContextMenu(e: React.MouseEvent, layerId: string) {
@@ -934,6 +947,16 @@ export default function LayerPanel() {
             <Send size={12} /> Export layers…
           </button>
         </div>
+      )}
+
+      {/* New-layer creation modal (§11). */}
+      {newLayerDefaults && (
+        <NewLayerDialog
+          defaultName={newLayerDefaults.name}
+          defaultColor={newLayerDefaults.color}
+          onCreate={createLayerFromDialog}
+          onClose={() => setNewLayerDefaults(null)}
+        />
       )}
     </div>
   );

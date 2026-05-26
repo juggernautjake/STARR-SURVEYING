@@ -455,6 +455,9 @@ export interface Layer {
   autoAssignCodes: string[];
   featureCount?: number;
 
+  /** Optional free-text description of the layer's purpose/contents. */
+  description?: string;
+
   /** Per-layer view rotation in degrees (CW on screen). null = use drawing-level rotation. */
   rotationDeg?: number | null;
 

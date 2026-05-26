@@ -655,3 +655,14 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   menu) and Settings (Help) both open cleanly (`dialogs-smoke.spec.ts`).
   New user request logged: new-layer creation modal (name / pick points /
   describe). See §11.
+
+---
+
+## 11. New-layer creation modal (user request 2026-05-26)
+
+Creating a layer now opens `NewLayerDialog` instead of silently adding
+"Layer N": fields for **name**, **color**, **description** (new optional
+`Layer.description`), and a checklist to **move existing points into the
+layer** on creation. Wired to both the footer "New Layer" button and the
+layers-panel right-click "New Layer". VERIFIED live (`new-layer-dialog.spec.ts`):
+modal shows all fields; creating "Boundary" adds it to the panel.
