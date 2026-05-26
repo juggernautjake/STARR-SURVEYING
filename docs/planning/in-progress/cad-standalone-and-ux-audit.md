@@ -948,3 +948,9 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   (`command-bar.spec`). Confirms the command-input vocabulary dispatch.
 - 2026-05-26 15:5x CDT — Audit (untouched surface): StatusBar Snap/Grid
   toggles flip state correctly (`status-toggles.spec`).
+- 2026-05-26 15:5x CDT — Audit: select-all → Delete → undo restores
+  points (`delete-undo.spec`) — core edit/undo integrity confirmed.
+  Reopened-session audit sweep now covers: exports (selection/layers/
+  derived/LandXML), point-identity end-to-end, both editable viewers +
+  undo, CommandBar, StatusBar toggles, delete+undo, motion entry/exit,
+  zoom sizing. All green.
