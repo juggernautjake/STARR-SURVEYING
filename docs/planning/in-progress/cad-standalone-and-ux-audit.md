@@ -200,10 +200,11 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   "stable", and a synthetic click appears to submit a form/navigate —
   see the type="button" item below), so live verification stopped at the
   Validate step (confirmed 5 points parse end-to-end via screenshot).
-- [ ] **Import dialog button type** (latent, discovered while verifying):
-  the green "Import (N)" button likely lacks `type="button"`; a
-  programmatic click navigated the page (form submit). Audit dialog
-  buttons for missing `type` to prevent accidental submits.
+- [~] **Import dialog button type** (investigated — not a bug): neither
+  ImportDialog nor ModalFrame wraps content in a `<form>`, so a type-less
+  button cannot submit/navigate. The page "navigation" seen while driving
+  the import via a synthetic DOM click was a test-harness artifact, not a
+  product issue. No change needed.
 
 ### Menu / dropdown consolidation
 - [ ] **MenuBar audit** — group long menus into logical submenus, remove
@@ -279,7 +280,11 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   VERIFIED via harness screenshot (`layer-panel-menu.png`).
 
 ### Per-surface functional audit (expand as discovered)
-- [ ] **ToolBar** — every tool button activates the right tool; tooltips
+- [x] **ToolBar** — added accessible names (`aria-label`/`title`) +
+  `aria-pressed` to the icon-only tool buttons (they had NO accessible
+  name — an a11y gap). VERIFIED: harness sweep finds Select/Point/Line/
+  Polyline/Polygon/Move by name and confirms activation toggles
+  aria-pressed. (orig note) every tool button activates the right tool; tooltips
   correct; active state visible.
 - [ ] **ToolOptionsBar** — options reflect the active tool.
 - [ ] **LayerPanel** — add/rename/delete/visibility/lock all work.
@@ -610,3 +615,10 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   the two distinct). Export reuses ExportLayersDialog via a window event.
   Harness screenshot confirms. Next: per-surface audits / menu
   consolidation / 10f.
+- 2026-05-26 11:3x CDT — ToolBar a11y + activation audit DONE. The
+  icon-only tool buttons had no accessible name (screen-reader gap, and
+  untestable); added `aria-label`/`title`/`aria-pressed`. Harness sweep
+  confirms all surveyed tools are reachable by name and activation
+  toggles the pressed state. Also reclassified the "import button type"
+  item as not-a-bug (no <form> wrapper exists). Next: menu consolidation
+  / remaining per-surface audits / 10f.
