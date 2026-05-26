@@ -634,3 +634,10 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   10c loop beyond the earlier shell check): drew a point, edited its
   Northing cell to 1234.5 → cell shows 1234.500 (point moved via
   updateFeature). Added `point-viewer-edit.spec.ts`.
+- 2026-05-26 11:5x CDT — Verified the rename dialog (10d) LIVE: drew a
+  point (auto-named "1"), edited its Name to "500" in the viewer → the
+  guarded dialog appears with the blast-radius warnings, export note,
+  "Remember my choice", and Rename-everywhere / Duplicate-instead /
+  Cancel. Added `rename-dialog.spec.ts`. The full point-identity feature
+  (naming engine → draw wire-up → editable viewer → traverse viewer →
+  guarded rename) is now end-to-end verified.
