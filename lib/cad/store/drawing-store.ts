@@ -60,6 +60,11 @@ interface DrawingStore {
   updateGlobalStyleConfig: (config: Partial<import('../styles/types').GlobalStyleConfig>) => void;
   markClean: () => void;
 
+  // Custom line type actions
+  addCustomLineType: (lineType: import('../styles/types').LineTypeDefinition) => void;
+  updateCustomLineType: (id: string, updates: Partial<import('../styles/types').LineTypeDefinition>) => void;
+  removeCustomLineType: (id: string) => void;
+
   // Layer display preferences
   updateLayerDisplayPreferences: (layerId: string, prefs: Partial<LayerDisplayPreferences>) => void;
 
@@ -286,6 +291,41 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
   updateDocumentAuthor: (author) =>
     set((state) => ({
       document: { ...state.document, author, modified: new Date().toISOString() },
+      isDirty: true,
+    })),
+
+  addCustomLineType: (lineType) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        customLineTypes: [
+          ...state.document.customLineTypes.filter((lt) => lt.id !== lineType.id),
+          { ...lineType, category: 'CUSTOM', isBuiltIn: false, isEditable: true },
+        ],
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
+
+  updateCustomLineType: (id, updates) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        customLineTypes: state.document.customLineTypes.map((lt) =>
+          lt.id === id ? { ...lt, ...updates, id, isBuiltIn: false } : lt
+        ),
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
+
+  removeCustomLineType: (id) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        customLineTypes: state.document.customLineTypes.filter((lt) => lt.id !== id),
+        modified: new Date().toISOString(),
+      },
       isDirty: true,
     })),
 

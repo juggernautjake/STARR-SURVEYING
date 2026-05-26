@@ -45,7 +45,7 @@ describe('exportToDxf — style fidelity', () => {
     expect(dxf).toMatch(/\r\n49\r\n-6(\.0+)?\r\n/);  // gap element
   });
 
-  it('writes layer linetype (code 6) and lineweight (code 370)', () => {
+  it('writes the layer linetype reference (code 6)', () => {
     const doc = makeDoc(
       { f1: { id: 'f1', type: 'LINE', geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 1, y: 1 } }, layerId: 'EASEMENT', style: STYLE, properties: {} } },
       { EASEMENT: layer('EASEMENT', { lineTypeId: 'DASHED', lineWeight: 0.5 }) }
@@ -53,20 +53,32 @@ describe('exportToDxf — style fidelity', () => {
     const dxf = exportToDxf(doc);
     // layer references the DASHED linetype
     expect(dxf).toContain('\r\nDASHED\r\n');
-    // 0.5mm → 50 (1/100 mm) lineweight
-    expect(dxf).toMatch(/\r\n370\r\n50\r\n/);
   });
 
-  it('emits the standard symbol tables readers expect (VPORT/APPID/BLOCK_RECORD)', () => {
+  it('targets R12 (AC1009) and omits R13+ lineweight/true-color codes', () => {
     const doc = makeDoc(
-      { f1: { id: 'f1', type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 0 } }, layerId: 'L', style: STYLE, properties: {} } },
+      { f1: { id: 'f1', type: 'LINE', geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 1, y: 1 } }, layerId: 'L', style: STYLE, properties: {} } },
       { L: layer('L') }
     );
     const dxf = exportToDxf(doc);
+    expect(dxf).toContain('\r\nAC1009\r\n');
     expect(dxf).toContain('\r\nVPORT\r\n');
-    expect(dxf).toContain('\r\nAPPID\r\n');
-    expect(dxf).toContain('\r\nBLOCK_RECORD\r\n');
-    expect(dxf).toContain('\r\n*Model_Space\r\n');
+    // R13+ constructs must not appear — they crash older readers.
+    expect(dxf).not.toContain('BLOCK_RECORD');
+    expect(dxf).not.toMatch(/\r\n370\r\n/); // lineweight
+    expect(dxf).not.toMatch(/\r\n420\r\n/); // true color
+  });
+
+  it('emits polylines as R12 POLYLINE/VERTEX/SEQEND (no LWPOLYLINE)', () => {
+    const doc = makeDoc(
+      { f1: { id: 'f1', type: 'POLYLINE', geometry: { type: 'POLYLINE', vertices: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }] }, layerId: 'L', style: STYLE, properties: {} } },
+      { L: layer('L') }
+    );
+    const dxf = exportToDxf(doc);
+    expect(dxf).not.toContain('LWPOLYLINE');
+    expect(dxf).toContain('\r\nPOLYLINE\r\n');
+    expect(dxf).toContain('\r\nVERTEX\r\n');
+    expect(dxf).toContain('\r\nSEQEND\r\n');
   });
 
   it('always emits a STYLE table with STANDARD', () => {
@@ -79,13 +91,13 @@ describe('exportToDxf — style fidelity', () => {
     expect(dxf).toContain('\r\nSTANDARD\r\n');
   });
 
-  it('emits entity-level color override (codes 62 + 420)', () => {
+  it('emits entity-level ACI color override (code 62)', () => {
     const doc = makeDoc(
       { f1: { id: 'f1', type: 'LINE', geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 1, y: 1 } }, layerId: 'L', style: { ...STYLE, color: '#00FF00' }, properties: {} } },
       { L: layer('L') }
     );
     const dxf = exportToDxf(doc);
-    expect(dxf).toMatch(/\r\n420\r\n65280\r\n/); // 0x00FF00 = 65280 true color
+    expect(dxf).toMatch(/\r\n62\r\n3\r\n/); // 0x00FF00 → ACI 3 (green)
   });
 
   it('emits a true ARC entity preserving radius', () => {

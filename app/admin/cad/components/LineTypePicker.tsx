@@ -8,10 +8,12 @@
 // surface.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2 } from 'lucide-react';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import type { LineTypeDefinition } from '@/lib/cad/styles/types';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
+import { useDrawingStore } from '@/lib/cad/store';
+import LineTypeEditor from './LineTypeEditor';
 
 interface LineTypePickerProps {
   open: boolean;
@@ -79,7 +81,15 @@ export function LineTypePreview({
 export default function LineTypePicker(props: LineTypePickerProps) {
   const { open, selectedLineTypeId, onSelect, onClose, customLineTypes = [] } = props;
   const [query, setQuery] = useState('');
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorInitial, setEditorInitial] = useState<LineTypeDefinition | null>(null);
+  const removeCustomLineType = useDrawingStore((s) => s.removeCustomLineType);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function openEditor(initial: LineTypeDefinition | null) {
+    setEditorInitial(initial);
+    setEditorOpen(true);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -165,34 +175,55 @@ export default function LineTypePicker(props: LineTypePickerProps) {
                     const isActive = lt.id === selectedLineTypeId;
                     const hasInline = lt.inlineSymbols.length > 0;
                     return (
-                      <button
+                      <div
                         key={lt.id}
-                        type="button"
-                        onClick={() => {
-                          onSelect(lt.id);
-                          onClose();
-                        }}
                         className={
-                          'w-full flex items-center gap-3 px-2 py-1.5 rounded transition-colors text-left ' +
+                          'group w-full flex items-center gap-2 pl-2 pr-1 py-1.5 rounded transition-colors ' +
                           (isActive
                             ? 'bg-blue-600 ring-1 ring-blue-400'
                             : 'bg-gray-700 hover:bg-gray-600')
                         }
-                        title={lt.assignedCodes.length > 0 ? `Codes: ${lt.assignedCodes.join(', ')}` : lt.id}
                       >
-                        <LineTypePreview lineType={lt} />
-                        <span className="flex-1 text-[11px] text-white truncate">{lt.name}</span>
-                        {hasInline && (
-                          <span className="text-[9px] text-amber-300 uppercase">
-                            inline
-                          </span>
+                        <button
+                          type="button"
+                          onClick={() => { onSelect(lt.id); onClose(); }}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                          title={lt.assignedCodes.length > 0 ? `Codes: ${lt.assignedCodes.join(', ')}` : lt.id}
+                        >
+                          <LineTypePreview lineType={lt} />
+                          <span className="flex-1 text-[11px] text-white truncate">{lt.name}</span>
+                          {hasInline && (
+                            <span className="text-[9px] text-amber-300 uppercase">inline</span>
+                          )}
+                          {lt.specialRenderer !== 'NONE' && (
+                            <span className="text-[9px] text-purple-300 uppercase">{lt.specialRenderer}</span>
+                          )}
+                        </button>
+                        {/* Edit (custom) or duplicate-to-edit (built-in) */}
+                        <button
+                          type="button"
+                          title={lt.isBuiltIn ? 'Duplicate & edit' : 'Edit'}
+                          onClick={(e) => { e.stopPropagation(); openEditor(lt); }}
+                          className="p-1 rounded text-gray-300 hover:text-white hover:bg-gray-500/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        {!lt.isBuiltIn && (
+                          <button
+                            type="button"
+                            title="Delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Delete custom line type "${lt.name}"?`)) {
+                                removeCustomLineType(lt.id);
+                              }
+                            }}
+                            className="p-1 rounded text-gray-300 hover:text-white hover:bg-red-600/60 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         )}
-                        {lt.specialRenderer !== 'NONE' && (
-                          <span className="text-[9px] text-purple-300 uppercase">
-                            {lt.specialRenderer}
-                          </span>
-                        )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -206,11 +237,26 @@ export default function LineTypePicker(props: LineTypePickerProps) {
           )}
         </div>
 
-        <div className="px-4 py-2 border-t border-gray-700 text-[10px] text-gray-500 flex items-center justify-between">
-          <span>{filtered.length} line type{filtered.length === 1 ? '' : 's'}</span>
-          <span>Esc to close · Click a row to assign</span>
+        <div className="px-4 py-2 border-t border-gray-700 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => openEditor(null)}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[11px] rounded transition-colors"
+          >
+            <Plus size={13} /> New custom line type
+          </button>
+          <span className="text-[10px] text-gray-500">
+            {filtered.length} type{filtered.length === 1 ? '' : 's'} · hover a row to edit
+          </span>
         </div>
       </div>
+
+      <LineTypeEditor
+        open={editorOpen}
+        initial={editorInitial}
+        onClose={() => setEditorOpen(false)}
+        onSaved={(id) => { setEditorOpen(false); onSelect(id); }}
+      />
     </ModalFrame>
   );
 }
