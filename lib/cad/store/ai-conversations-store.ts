@@ -22,6 +22,7 @@ import type {
 import type { AIJobPayload, AIJobResult } from '../ai-engine/types';
 import { useAIStore } from './ai-store';
 import { useDrawingStore } from './drawing-store';
+import { useSelectionStore } from './selection-store';
 
 export type ChatDock = 'right' | 'float';
 
@@ -229,11 +230,14 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
 
         const doc = useDrawingStore.getState().document;
         const history = get().conversations.find((c) => c.id === activeId)?.messages ?? [];
+        // Send the live canvas selection so the model can answer about
+        // exactly what the user has highlighted ("these points", etc.).
+        const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
         try {
           const res = await fetch('/api/admin/cad/drawing-chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ doc, history }),
+            body: JSON.stringify({ doc, history, selectedIds }),
           });
           const json = (await res.json().catch(() => ({}))) as {
             reply?: string;

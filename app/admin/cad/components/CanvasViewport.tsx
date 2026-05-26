@@ -814,7 +814,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // "Snap point to another point" pick mode (from the right-click menu): the
   // next click chooses the target point; we then either move just this vertex
   // or translate the whole feature so the vertex lands on the target.
-  const snapPickRef = useRef<{ featureId: string; vertexIndex: number; moveWhole: boolean } | null>(null);
+  const snapPickRef = useRef<{ featureId: string; vertexIndex: number; moveWhole: boolean; selectionIds: string[] } | null>(null);
   const [snapPickMode, setSnapPickMode] = useState(false);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
@@ -3480,6 +3480,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {
     const hoveredId = useUIStore.getState().hoveredFeatureId;
     if (!hoveredId) return;
+    // When the cursor is hovering this feature ON THE CANVAS, the
+    // geometry-traced hover glow already outlines its edges — drawing the
+    // bounding-box ring on top is the "weird box" we want to avoid. The
+    // ring is only for hovers that originate in the AI sidebar (where there
+    // is no canvas hover to show the shape's edges).
+    if (hoveredIdRef.current === hoveredId) return;
     const cache = featureIndexCacheRef.current;
     const bbox = cache?.bboxByFeatureId.get(hoveredId);
     if (!bbox) return;
@@ -7770,10 +7776,39 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
           if (cur) {
             const before = JSON.parse(JSON.stringify(f));
+            // Features to move: the whole multi-selection when more than one
+            // element is selected (rigid translate keeps their relative
+            // positions), otherwise just the right-clicked feature.
+            const groupIds = (pick.selectionIds ?? []).filter((id) => drawingStore.getFeature(id));
+            const multi = groupIds.length > 1;
+            const dx = target.x - cur.x;
+            const dy = target.y - cur.y;
+
+            if (multi) {
+              // Rigid-translate every selected feature by the same delta so
+              // the picked reference point lands on the target and all
+              // proportions/relationships are preserved.
+              const ops: Parameters<typeof makeBatchEntry>[1] = [];
+              for (const id of groupIds) {
+                const ff = drawingStore.getFeature(id);
+                if (!ff) continue;
+                const b = JSON.parse(JSON.stringify(ff));
+                const moved = transformFeature(ff, (p) => translate(p, dx, dy));
+                drawingStore.updateFeature(id, { geometry: moved.geometry });
+                const a = drawingStore.getFeature(id);
+                if (a) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: b, after: a } });
+              }
+              if (ops.length > 0) {
+                undoStore.pushUndo(makeBatchEntry(`Snap ${ops.length} elements to point`, ops));
+              }
+              snapPickRef.current = null;
+              setSnapPickMode(false);
+              setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+              return;
+            }
+
             if (pick.moveWhole) {
               // Translate the whole feature so the vertex lands on target.
-              const dx = target.x - cur.x;
-              const dy = target.y - cur.y;
               const moved = transformFeature(f, (p) => translate(p, dx, dy));
               drawingStore.updateFeature(f.id, { geometry: moved.geometry });
             } else {
@@ -10770,9 +10805,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
     window.addEventListener('cad:movePageMode', onMovePageMode);
     const onBeginSnapToPoint = (e: Event) => {
-      const d = (e as CustomEvent).detail as { featureId: string; vertexIndex: number; moveWhole: boolean } | undefined;
+      const d = (e as CustomEvent).detail as { featureId: string; vertexIndex: number; moveWhole: boolean; selectionIds?: string[] } | undefined;
       if (!d?.featureId) return;
-      snapPickRef.current = { featureId: d.featureId, vertexIndex: d.vertexIndex ?? 0, moveWhole: !!d.moveWhole };
+      snapPickRef.current = {
+        featureId: d.featureId,
+        vertexIndex: d.vertexIndex ?? 0,
+        moveWhole: !!d.moveWhole,
+        selectionIds: Array.isArray(d.selectionIds) ? d.selectionIds : [],
+      };
       setSnapPickMode(true);
       setCursorStyle('crosshair');
     };

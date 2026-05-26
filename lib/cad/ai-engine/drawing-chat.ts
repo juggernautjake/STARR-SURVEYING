@@ -33,6 +33,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import type { DrawingDocument } from '../types';
 import { MissingApiKeyError } from './claude-deed-parser';
+import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
 
 const DEFAULT_MODEL =
   process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
@@ -89,6 +90,10 @@ export interface DrawingChatMessage {
 export interface DrawingChatRequest {
   doc:     DrawingDocument;
   history: DrawingChatMessage[];
+  /** IDs of the features the user currently has selected on the canvas,
+   *  so questions like "what are these points?" resolve to the actual
+   *  selection. */
+  selectedIds?: string[];
   signal?: AbortSignal;
 }
 
@@ -110,6 +115,13 @@ You receive:
 * A snapshot of the active drawing — feature counts by type,
   layer table, title-block values, scale + paper size, sealing
   status, and a digest of any prior chat turns.
+* The CURRENT SELECTION — the exact features the user has
+  highlighted on the canvas (with point numbers, codes,
+  descriptions, and northing/easting). When the user says
+  "these", "the selected points", "this point", or asks to
+  edit/measure/describe what they've picked, answer about the
+  features in CURRENT SELECTION. If they ask about the selection
+  but it is empty, say so and ask them to select something.
 
 Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fence:
 
@@ -176,6 +188,7 @@ export async function handleDrawingChat(
   // The live drawing snapshot rides in the system prompt so it reflects the
   // current document on every turn without bloating the conversation history.
   const snapshot = buildSnapshot(req.doc);
+  const selection = buildSelectionDigest(req.doc, req.selectedIds ?? []);
   const system = [
     SYSTEM_PROMPT,
     '',
@@ -183,6 +196,13 @@ export async function handleDrawingChat(
     'turns in the conversation may describe an older state):',
     '```json',
     JSON.stringify(snapshot, null, 2),
+    '```',
+    '',
+    'CURRENT SELECTION (the features the user has selected on the canvas',
+    'right now — when they say "these", "the selected points", "this", etc.,',
+    'they mean exactly these; if empty, nothing is selected):',
+    '```json',
+    JSON.stringify(selection, null, 2),
     '```',
   ].join('\n');
 
@@ -408,4 +428,75 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
       surveyType: tb.surveyType ?? '',
     },
   };
+}
+
+/** Max selected features to describe individually before summarising. */
+const MAX_SELECTION_DETAIL = 150;
+
+export interface SelectionItem {
+  id:           string;
+  type:         string;
+  layer:        string;
+  pointNumber?: string;
+  code?:        string;
+  description?: string;
+  northing?:    number;
+  easting?:     number;
+  elevation?:   number;
+  vertices?:    number;
+}
+
+export interface SelectionDigest {
+  count:    number;
+  byType:   Record<string, number>;
+  /** Detailed per-feature info, capped at MAX_SELECTION_DETAIL. */
+  items:    SelectionItem[];
+  /** True when more features are selected than are detailed in `items`. */
+  truncated: boolean;
+}
+
+export function buildSelectionDigest(
+  doc: DrawingDocument,
+  selectedIds: string[]
+): SelectionDigest {
+  const originN = doc.settings.displayPreferences?.originNorthing ?? 0;
+  const originE = doc.settings.displayPreferences?.originEasting ?? 0;
+  const byType: Record<string, number> = {};
+  const items: SelectionItem[] = [];
+  let count = 0;
+
+  for (const id of selectedIds) {
+    const f = doc.features[id];
+    if (!f) continue;
+    count += 1;
+    byType[f.type] = (byType[f.type] ?? 0) + 1;
+    if (items.length >= MAX_SELECTION_DETAIL) continue;
+
+    const layer = doc.layers[f.layerId]?.name ?? f.layerId;
+    const g = f.geometry;
+    const item: SelectionItem = { id, type: f.type, layer };
+
+    const num = pointNumberOf(f);
+    if (num) item.pointNumber = num;
+    const code = pointCodeOf(f);
+    if (code) item.code = code;
+    const desc = pointDescriptionOf(f);
+    if (desc) item.description = desc;
+
+    const anchor = g.point ?? g.start ?? g.vertices?.[0] ?? g.circle?.center ?? g.arc?.center;
+    if (anchor) {
+      item.northing = round(anchor.y + originN);
+      item.easting = round(anchor.x + originE);
+    }
+    if (f.properties?.elevation != null) item.elevation = Number(f.properties.elevation);
+    if (g.vertices) item.vertices = g.vertices.length;
+
+    items.push(item);
+  }
+
+  return { count, byType, items, truncated: count > items.length };
+}
+
+function round(n: number): number {
+  return Math.round(n * 1e4) / 1e4;
 }

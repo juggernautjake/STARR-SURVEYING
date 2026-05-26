@@ -488,6 +488,7 @@ export default function LayerPanel() {
                 ) : (
                   <span
                     className={`flex-1 truncate ${activeLayerId === layer.id ? 'font-bold text-white' : ''} ${isHighlighted ? 'text-blue-300' : ''}`}
+                    title={layer.name}
                     onDoubleClick={() => startRename(layer.id)}
                   >
                     {layer.name}

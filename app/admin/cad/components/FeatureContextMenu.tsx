@@ -630,6 +630,18 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // "Ask AI" conversation to exactly this element.
   function featureScopeLabel(): string {
     if (!feature) return '';
+    // When several elements are selected, scope the conversation to the
+    // whole selection — the chat backend receives the selected IDs and can
+    // answer about exactly these features.
+    if (selCount > 1) {
+      const types = new Map<string, number>();
+      for (const id of selIds) {
+        const t = drawingStore.getFeature(id)?.type;
+        if (t) types.set(t, (types.get(t) ?? 0) + 1);
+      }
+      const parts = Array.from(types.entries()).map(([t, n]) => `${n} ${t.toLowerCase()}${n === 1 ? '' : 's'}`);
+      return `the ${selCount} selected elements (${parts.join(', ')})`;
+    }
     const g = feature.geometry;
     const layerName = doc.layers[feature.layerId]?.name;
     const onLayer = layerName ? ` on layer “${layerName}”` : '';
@@ -692,10 +704,26 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
               }
               const begin = (moveWhole: boolean) => {
                 window.dispatchEvent(new CustomEvent('cad:beginSnapToPoint', {
-                  detail: { featureId: feature.id, vertexIndex: vIndex, moveWhole },
+                  detail: {
+                    featureId: feature.id,
+                    vertexIndex: vIndex,
+                    moveWhole,
+                    selectionIds: Array.from(selectionStore.selectedIds),
+                  },
                 }));
                 onClose();
               };
+              // With several elements selected, snapping translates the whole
+              // selection so the picked point lands on the target while every
+              // element keeps its position relative to the others.
+              if (selCount > 1) {
+                return [{
+                  id: 'snap-selection-to-point',
+                  label: `Snap selection (${selCount}) to point…`,
+                  icon: <Magnet size={12} />,
+                  action: () => begin(true),
+                } as MenuItemDef];
+              }
               if (g.type === 'POINT') {
                 return [{
                   id: 'snap-to-point',
