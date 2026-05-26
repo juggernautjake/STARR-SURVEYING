@@ -287,6 +287,24 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   helper has 4 unit tests; LIVE-VERIFIED (drew a line, set distance 321.5
   → End E recomputed, `traverse-edit.png`).
 
+### Polish & interaction wave 2 (user request 2026-05-26 — see §12–§15)
+- [ ] **12. Smoother UI motion** — consistent enter/exit transitions for
+  popups, menus, panels, dialogs (fade/scale in AND out); smoother
+  loading states. Avoid abrupt mount/unmount.
+- [ ] **13. Zoom/scale-aware text + line widths** — audit how default
+  font sizes and line weights scale with zoom; line thicknesses can be
+  too thin and labels too large/cluttered. Define sensible min/max screen
+  sizes so labels stay legible without overwhelming the drawing.
+- [ ] **14. Grouped point labels** — when both point name and code/desc
+  are toggled on, render them together (name on top, code/desc just
+  below); moving one moves+highlights both. A setting toggles
+  grouped-vs-independent; default = grouped when both are on.
+- [ ] **15. Unified rotation UX** — refactor rotation for all
+  shapes/lines to match the image-rotation handle: a bounding box with a
+  grab node, an editable angle field (relative to current), a ghost of
+  the target position with the original drawn solid, and a live angle
+  readout that updates as the user drags (and is editable in the field).
+
 ### Layers panel control (user request 2026-05-26)
 - [x] **Panel right-click menu** — right-clicking the layer-list
   background opens a bulk-action menu: New Layer, Reveal all, Hide all,
@@ -709,3 +727,53 @@ modal shows all fields; creating "Boundary" adds it to the panel.
   unit tests green, tsc clean. Holding for the 2:00 PM finalization per
   the time-box; will run a full harness regression then move the doc to
   completed/.
+
+---
+
+## 12. Smoother UI motion (user request 2026-05-26)
+
+Make popups/menus/panels/dialogs **render and destruct smoothly**.
+Today many mount/unmount abruptly (conditional `&&` with no exit anim).
+- Add a small reusable mount/unmount transition wrapper (or use the
+  existing `cad-slide-*`/`animate-[...]` keyframes consistently) so
+  overlays fade/scale in on open AND out on close (brief, ~120–180ms).
+- Apply to: context menus, the new dialogs (NewLayer, Rename, Export
+  Layers), the Point/Traverse viewers, and panel docks.
+- Keep it subtle and fast; respect `prefers-reduced-motion`.
+
+## 13. Zoom/scale-aware text + line widths (user request 2026-05-26)
+
+Audit `CanvasViewport` label font sizing + stroke widths vs. zoom.
+- Symptom: at some zooms line strokes are hairline-thin and labels are
+  oversized/cluttered.
+- Define screen-space clamps: label font size clamped to a legible
+  px range regardless of zoom; line weights given a minimum on-screen px
+  so they never vanish, and a sensible cap. Verify across a few zoom
+  levels in the harness (draw a line + a labelled point, zoom in/out,
+  screenshot).
+
+## 14. Grouped point labels (user request 2026-05-26)
+
+When a point shows BOTH its name and its code/description:
+- Render them stacked: **name on top, code/desc directly below**.
+- Treat them as a unit: clicking/grabbing one highlights and moves both.
+- Setting `pointLabelGrouping: 'GROUPED' | 'INDEPENDENT'` (default
+  GROUPED when both are toggled on); INDEPENDENT lets each be dragged
+  separately.
+- Lives in label generation/layout (`lib/cad/labels`) + the canvas label
+  hit-testing/drag in `CanvasViewport`.
+
+## 15. Unified rotation UX (user request 2026-05-26)
+
+Refactor rotation for all features to mirror the existing IMAGE rotate
+handle:
+- On a rotatable selection, draw a **bounding box** with a single
+  **rotation node** (grab + drag).
+- A **ghost** preview of the rotated result renders while the original
+  stays solid; the angle updates **live** as the user drags.
+- An **editable angle field** (degrees from the current orientation)
+  reflects the live angle and accepts typed input.
+- Reuse the existing `rotateSelection(angleDeg, center)` op
+  (lib/cad/operations) for the commit; the new work is the interactive
+  handle + ghost + readout (largely in `CanvasViewport`, which already
+  has image-rotation handle code to generalize).
