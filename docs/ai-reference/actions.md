@@ -29,6 +29,22 @@ northing/easting (feet). Combine fields freely.
 - `hideIds[]` / `unhideIds[]` — non-destructive show/hide.
 - `deleteIds[]` — remove features by id.
 
+## Quick decision guide (pick the right field)
+- "Make a square/rectangle/circle/line/curve from these points" → `fit`
+  (with `fromIds`, usually `deleteSource:true`). Don't hand-compute corners.
+- "Draw a fence/road/boundary/free-form line/shape" → `add` (POLYLINE/
+  POLYGON/SPLINE), styling via color/fill/lineType.
+- "Move / rotate / scale these" → `transform` (never re-`add`).
+- "Recolor / fill / make dashed / change weight / move to layer X" →
+  `modify` (restyle/re-layer in place).
+- "Renumber / recode / set elevation / re-describe a point" → `modify`
+  (pointNumber/code/description/elevation).
+- "Label the bearing/distance/area" → compute from the selection digest,
+  place as `add` TEXT at the midpoint/centroid.
+- "Hide / show these" → `hideIds`/`unhideIds` (not delete).
+- "Delete these" → `deleteIds`.
+- "Reshape this exact feature" → `modify` with new `points`.
+
 ## Worked examples
 Fit squares to selected pillar shots (ids 200,201,202 / 196), replacing them:
 ```json
