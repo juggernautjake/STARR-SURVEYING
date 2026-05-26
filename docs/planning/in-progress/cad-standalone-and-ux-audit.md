@@ -262,8 +262,12 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   localStorage (skips the dialog next time). Wired into CADLayout via the
   viewer's name edits. Logic unit-tested (10b); live trigger needs a
   seeded named point (canvas-draw flaky) so verified by unit+types.
-- [ ] **10e. Traverse Viewer**: computed line/curve columns (bearing /
-  azimuth / distance / chord / radius / delta / arc length), customizable.
+- [x] **10e. Traverse Viewer** — `traverse-rows.ts` (pure, 5 tests:
+  distance/azimuth/bearing/polyline-length/arc radius-delta-arclen-chord)
+  + `TraverseViewer.tsx` (computed columns, customizable show/hide, layer
+  filter, View-menu toggle, resizable dock). VERIFIED via screenshot.
+- [ ] **10f. Traverse editing**: edit distance/bearing to drive geometry
+  (read-only today; maps back to start/end is a follow-up).
 
 ### Per-surface functional audit (expand as discovered)
 - [ ] **ToolBar** — every tool button activates the right tool; tooltips
@@ -569,3 +573,10 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   Cancel, and remembers the choice (localStorage) so bulk renames aren't
   nagged. CADLayout reads the remembered strategy and only opens the
   dialog when 'ASK'. Next: 10e Traverse Viewer.
+- 2026-05-26 11:0x CDT — Slice 10e DONE. `traverse-rows.ts` computes
+  per-feature line/curve metrics (distance, azimuth, quadrant bearing;
+  arc radius/delta/arc-length/chord; polyline total length; origin-applied
+  N/E), 5 unit tests. `TraverseViewer` shows them with customizable
+  columns + layer filter, toggled from View menu in a resizable dock;
+  screenshot confirms. Editing courses → geometry deferred as 10f. This
+  completes the §10 viewers' read path; both viewers ship.

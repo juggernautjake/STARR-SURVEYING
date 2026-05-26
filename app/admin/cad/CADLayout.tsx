@@ -54,6 +54,7 @@ import ResizeHandle from './components/ResizeHandle';
 import { usePanelSize } from './hooks/usePanelSize';
 import PointDataViewer from './components/PointDataViewer';
 import RenameConfirmDialog, { type RenameDialogData } from './components/RenameConfirmDialog';
+import TraverseViewer from './components/TraverseViewer';
 import { findNameReferences, planRename, planDuplicate, nameIsTaken } from '@/lib/cad/points/point-rename';
 import { makeBatchEntry } from '@/lib/cad/store';
 import OrientationDialog from './components/OrientationDialog';
@@ -131,6 +132,8 @@ export default function CADLayout() {
   const [pointViewerHeight, setPointViewerHeight] = usePanelSize('pointViewer', 240, 140, 600);
   const [showPointViewer, setShowPointViewer] = useState(false);
   const [renameDialog, setRenameDialog] = useState<RenameDialogData | null>(null);
+  const [traverseViewerHeight, setTraverseViewerHeight] = usePanelSize('traverseViewer', 240, 140, 600);
+  const [showTraverseViewer, setShowTraverseViewer] = useState(false);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -484,6 +487,13 @@ export default function CADLayout() {
     const handler = () => setShowPointViewer((v) => !v);
     window.addEventListener('cad:togglePointDataViewer', handler);
     return () => window.removeEventListener('cad:togglePointDataViewer', handler);
+  }, []);
+
+  // Traverse Viewer toggle (§10e)
+  useEffect(() => {
+    const handler = () => setShowTraverseViewer((v) => !v);
+    window.addEventListener('cad:toggleTraverseViewer', handler);
+    return () => window.removeEventListener('cad:toggleTraverseViewer', handler);
   }, []);
 
   // Phase 8 §2.3 — bridge hotkey-only events into local UI
@@ -1039,6 +1049,22 @@ export default function CADLayout() {
             onClose={() => setShowPointViewer(false)}
             onRenameRequest={handlePointRename}
           />
+        </div>
+        </>
+      )}
+      {showTraverseViewer && (
+        <>
+        <ResizeHandle
+          axis="y"
+          sign={-1}
+          size={traverseViewerHeight}
+          min={140}
+          max={600}
+          onResize={setTraverseViewerHeight}
+          ariaLabel="Resize traverse viewer"
+        />
+        <div className="border-t border-gray-700 shrink-0" style={{ height: traverseViewerHeight }}>
+          <TraverseViewer open={showTraverseViewer} onClose={() => setShowTraverseViewer(false)} />
         </div>
         </>
       )}

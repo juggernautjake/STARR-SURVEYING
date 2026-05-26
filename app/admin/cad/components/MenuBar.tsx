@@ -658,6 +658,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           action: () => { window.dispatchEvent(new CustomEvent('cad:togglePointDataViewer')); setOpenMenu(null); },
         },
         {
+          label: 'Traverse Viewer (line/curve data)',
+          action: () => { window.dispatchEvent(new CustomEvent('cad:toggleTraverseViewer')); setOpenMenu(null); },
+        },
+        {
           label: 'Toggle Traverse Panel',
           action: () => { onToggleTraversePanel?.(); setOpenMenu(null); },
         },
