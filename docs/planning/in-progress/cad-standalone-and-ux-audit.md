@@ -930,3 +930,7 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   `commitEdit` undo batch works end-to-end (`point-edit-undo.spec`). (Test
   initially exposed a test-only flaw — an undo keypress with the Point
   tool active drew a point; fixed by switching to SELECT first.)
+- 2026-05-26 15:2x CDT — Cross-format consistency: LandXML CgPoints now
+  also include derived (vertex-ref) created points, matching CSV/PNEZD
+  (DXF stays linework-focused — vertices are carried by the geometry). 7
+  landxml tests green. Continuing audit/refactor/test toward 5 PM.

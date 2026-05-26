@@ -26,6 +26,7 @@ import type {
   SplineGeometry,
 } from '../types';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
+import { collectDerivedPoints } from '../points/derived-points';
 
 export interface LandXmlExportOptions {
   /** Sample density for SPLINE / ELLIPSE → polyline conversion.
@@ -109,6 +110,16 @@ export function exportToLandXML(
           `${fixed(N(p))} ${fixed(E(p))} ${fixed(elev)}</CgPoint>`
       );
     }
+  }
+  // §17b — also emit created points that live only as linework vertex
+  // refs (minted vertex names + cross-layer `:N`), so LandXML carries
+  // every created point like CSV/PNEZD. northing/easting are already
+  // origin-applied by collectDerivedPoints.
+  for (const dpt of collectDerivedPoints(doc)) {
+    cgLines.push(
+      `    <CgPoint name="${xmlAttr(dpt.name)}">` +
+        `${fixed(dpt.northing)} ${fixed(dpt.easting)} ${fixed(0)}</CgPoint>`
+    );
   }
 
   // ── Linework → Alignments (open) + Parcels (closed) ─────────
