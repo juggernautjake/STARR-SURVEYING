@@ -459,6 +459,21 @@ describe('applyEditDrawing', () => {
     expect(f.geometry.vertices).toHaveLength(3);
   });
 
+  it('transforms a circle: translate moves center, keeps radius; scale grows radius', () => {
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'c',
+      add: [{ shape: 'CIRCLE', points: [{ northing: 10, easting: 10 }], radius: 5 }] });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'mv',
+      transform: { ids: [id], translate: { north: 5, east: 3 } } });
+    let c = useDrawingStore.getState().getFeature(id)!.geometry.circle!;
+    expect(c.center).toEqual({ x: 13, y: 15 });
+    expect(c.radius).toBeCloseTo(5, 6);
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'scale',
+      transform: { ids: [id], scale: 2, about: { northing: 15, easting: 13 } } });
+    c = useDrawingStore.getState().getFeature(id)!.geometry.circle!;
+    expect(c.radius).toBeCloseTo(10, 6); // doubled about its own center
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
