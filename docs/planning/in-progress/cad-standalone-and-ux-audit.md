@@ -311,11 +311,18 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   + a `pointLabelGrouping: GROUPED|INDEPENDENT` setting (default GROUPED).
   tsc/lint clean; live drag-verify constrained (needs a coded point) so
   rests on code-correctness + the existing stacking screenshot.
-- [ ] **15. Unified rotation UX** — refactor rotation for all
-  shapes/lines to match the image-rotation handle: a bounding box with a
-  grab node, an editable angle field (relative to current), a ghost of
-  the target position with the original drawn solid, and a live angle
-  readout that updates as the user drags (and is editable in the field).
+- [~] **15. Unified rotation UX** (partial — handle refactor deferred):
+  Rotation is already functional and much of the requested UX exists:
+  the **ROTATE tool + `InteractiveOpPanel`** already show a LIVE,
+  EDITABLE angle field that updates as you drag (`currentAngleDeg` +
+  `inputStr`), and the **image-style grab-node handle** exists for
+  images (`imageRotateHandleScreen`/`IMAGE_ROTATE_GRIP`). REMAINING:
+  generalize that grab-node bounding-box + a ghost preview to ALL feature
+  types. DEFERRED — this is a substantial, regression-prone refactor of
+  the 11k-line `CanvasViewport` (box hit-testing + ghost rendering for
+  arbitrary geometry) that can't be implemented safely and verified in
+  the remaining time before the 2 PM stop. Capability is present today;
+  design fully captured in §15 for a dedicated session.
 
 ### Layers panel control (user request 2026-05-26)
 - [x] **Panel right-click menu** — right-clicking the layer-list
@@ -802,3 +809,10 @@ handle:
   highlight-together were already present; added move-together drag
   (grouped siblings shift by the same delta) and a pointLabelGrouping
   setting (default GROUPED). Next: §15 rotation UX (assess vs. 2pm stop).
+- 2026-05-26 13:2x CDT — §15 (rotation UX) deferred with rationale: the
+  live editable angle field (InteractiveOpPanel ROTATE) and image-style
+  grab handle already exist; generalizing the grab-node box + ghost to
+  all features is a large, regression-prone canvas refactor not safely
+  doable before the 2 PM stop. All wave-2 items now shipped (§12 entry,
+  §13, §14) or deferred (§12-exit, §15) with reasons. Running a full
+  harness regression as the end-state gate, then finalizing at 2 PM.
