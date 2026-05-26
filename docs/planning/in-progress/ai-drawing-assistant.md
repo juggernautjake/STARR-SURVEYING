@@ -87,7 +87,8 @@ Goal: the model can reason about geometry it didn't select.
       (least-squares), LINE (total-least-squares), computed client-side from
       real coords. `fromIds` + `deleteSource` covers the pillar→square case.
       (`lib/cad/geometry/fit.ts`, tested in `fit.test.ts`.)
-- [ ] `FIT_CURVE` (best-fit smooth spline through a point set).
+- [x] `FIT_CURVE` (best-fit smooth spline through a point set; `closed` for
+      pond/lake loops) — `fit` shape "CURVE".
 - [ ] Line-type / symbol assignment via EDIT_DRAWING (dashed, fence, etc.).
 - [ ] Text/label creation + bearing/distance/area annotations.
 - [ ] Layer creation + assignment from the AI.

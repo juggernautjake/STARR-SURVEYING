@@ -99,6 +99,20 @@ describe('applyEditDrawing', () => {
     expect(feats[0].geometry.vertices).toHaveLength(4);
   });
 
+  it('fits a smooth closed CURVE through a point set', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'pond',
+      fit: [{ shape: 'CURVE', closed: true, points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 10 },
+        { northing: 10, easting: 10 }, { northing: 10, easting: 0 },
+      ] }],
+    });
+    const f = useDrawingStore.getState().getAllFeatures()[0];
+    expect(f.type).toBe('SPLINE');
+    expect(f.geometry.spline?.isClosed).toBe(true);
+    expect(f.geometry.spline?.controlPoints).toHaveLength(13); // 1 + 3*4
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

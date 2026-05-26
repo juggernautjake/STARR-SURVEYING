@@ -101,9 +101,10 @@ export interface ChatModifySpec {
  *  precision). Source points come from `fromIds` features and/or explicit
  *  `points`. */
 export interface ChatFitSpec {
-  shape:        'RECTANGLE' | 'CIRCLE' | 'LINE';
+  shape:        'RECTANGLE' | 'CIRCLE' | 'LINE' | 'CURVE';
   fromIds?:     string[];
   points?:      ChatCoord[];
+  closed?:      boolean;      // CURVE → smooth closed loop
   layerName?:   string;
   color?:       string;
   opacity?:     number;
@@ -210,7 +211,7 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "deleteIds": [ "<featureId>", ... ],
     "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm> } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
-    "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ]
+    "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ]
   }
 }
 
@@ -245,9 +246,11 @@ Action selection rules:
   - "fit" computes an EXACT best-fit shape from a point set on the client
     (precise, not eyeballed): RECTANGLE = minimum-area bounding rectangle
     (recovers true orientation of a rotated square), CIRCLE = least-squares
-    circle, LINE = total-least-squares line. PREFER "fit" with the selected
-    point ids in "fromIds" for "make a best-fit square/rectangle/circle/line
-    from these points"; set "deleteSource": true to replace the shots.
+    circle, LINE = total-least-squares line, CURVE = smooth best-fit spline
+    through the points in order ("closed": true for a pond/lake loop).
+    PREFER "fit" with the selected point ids in "fromIds" for "make a best-fit
+    square/rectangle/circle/line/curve from these points"; set
+    "deleteSource": true to replace the shots.
   - Prefer EDIT_DRAWING over REGENERATE_PIPELINE for surgical edits to
     specific selected features.
 * REGENERATE_PIPELINE — re-run the full AI pipeline with the
@@ -560,7 +563,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
     for (const s of a.fit) {
       if (!s || typeof s !== 'object') continue;
       const o = s as Record<string, unknown>;
-      if (o.shape !== 'RECTANGLE' && o.shape !== 'CIRCLE' && o.shape !== 'LINE') continue;
+      if (o.shape !== 'RECTANGLE' && o.shape !== 'CIRCLE' && o.shape !== 'LINE' && o.shape !== 'CURVE') continue;
       const fromIds = Array.isArray(o.fromIds) ? o.fromIds.filter((x): x is string => typeof x === 'string') : undefined;
       const points = parseCoords(o.points);
       if ((!fromIds || fromIds.length === 0) && points.length === 0) continue;
@@ -570,6 +573,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         shape: o.shape,
         ...(fromIds && fromIds.length > 0 ? { fromIds } : {}),
         ...(points.length > 0 ? { points } : {}),
+        ...(o.closed === true ? { closed: true } : {}),
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
         ...(opacity !== null ? { opacity } : {}),

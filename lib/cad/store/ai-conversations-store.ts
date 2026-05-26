@@ -497,6 +497,9 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     } else if (spec.shape === 'LINE') {
       const l = fitLine(srcPts);
       if (l) { geometry = { type: 'LINE', start: l.start, end: l.end }; type = 'LINE'; }
+    } else if (spec.shape === 'CURVE') {
+      geometry = { type: 'SPLINE', spline: { controlPoints: fitPointsToBezier(srcPts, !!spec.closed), isClosed: !!spec.closed } };
+      type = 'SPLINE';
     }
     if (!geometry) continue;
 
