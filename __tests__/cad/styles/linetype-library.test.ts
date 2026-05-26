@@ -90,7 +90,7 @@ describe('linetype-library', () => {
       for (const sym of lt.inlineSymbols) {
         expect(sym.interval,   `${lt.id} interval`).toBeGreaterThan(0);
         expect(sym.symbolSize, `${lt.id} symbolSize`).toBeGreaterThan(0);
-        expect(['FIXED', 'SCALE_DEPENDENT']).toContain(sym.intervalMode);
+        expect(['FIXED', 'SCALE_DEPENDENT', 'AT_VERTICES']).toContain(sym.intervalMode);
         expect(['ALONG_LINE', 'FIXED', 'PERPENDICULAR']).toContain(sym.symbolRotation);
         expect(['LEFT', 'RIGHT', 'CENTER', 'BOTH']).toContain(sym.side);
       }

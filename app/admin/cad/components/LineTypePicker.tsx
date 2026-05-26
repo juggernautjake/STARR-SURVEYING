@@ -23,6 +23,7 @@ interface LineTypePickerProps {
 
 const CATEGORY_LABEL: Record<LineTypeDefinition['category'], string> = {
   BASIC: 'Basic Patterns',
+  PATTERN: 'Symbol Patterns',
   FENCE: 'Fences',
   UTILITY: 'Utilities',
   SPECIALTY: 'Specialty',
@@ -31,6 +32,7 @@ const CATEGORY_LABEL: Record<LineTypeDefinition['category'], string> = {
 
 const CATEGORY_ORDER: LineTypeDefinition['category'][] = [
   'BASIC',
+  'PATTERN',
   'FENCE',
   'UTILITY',
   'SPECIALTY',

@@ -43,7 +43,10 @@ export interface SymbolDefinition {
 export interface InlineSymbolConfig {
   symbolId: string;
   interval: number;
-  intervalMode: 'FIXED' | 'SCALE_DEPENDENT';
+  /** FIXED: every `interval` feet. SCALE_DEPENDENT: spacing derived
+   *  from the plot scale. AT_VERTICES: one symbol on every line
+   *  vertex (e.g. fence shots, telephone poles at each shot). */
+  intervalMode: 'FIXED' | 'SCALE_DEPENDENT' | 'AT_VERTICES';
   scaleReferenceInterval: number;
   scaleReferenceScale: number;
   symbolSize: number;
@@ -55,8 +58,13 @@ export interface InlineSymbolConfig {
 export interface LineTypeDefinition {
   id: string;
   name: string;
-  category: 'BASIC' | 'FENCE' | 'UTILITY' | 'SPECIALTY' | 'CUSTOM';
+  category: 'BASIC' | 'FENCE' | 'UTILITY' | 'SPECIALTY' | 'PATTERN' | 'CUSTOM';
   dashPattern: number[];
+  /** Optional plotted line weight in mm; null/undefined inherits the
+   *  layer/feature weight. Lets a line type carry its own thickness. */
+  lineWeight?: number | null;
+  /** Optional fixed stroke color (hex). null/undefined inherits. */
+  color?: string | null;
   inlineSymbols: InlineSymbolConfig[];
   specialRenderer: 'NONE' | 'WAVY' | 'ZIGZAG';
   isBuiltIn: boolean;

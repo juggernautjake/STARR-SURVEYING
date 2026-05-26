@@ -40,7 +40,7 @@ export function renderLineWithType(
     renderWavyLine(g, validPoints, color, safeWeight, safeOpacity);
   } else {
     if (lineType.dashPattern.length > 0) {
-      renderDashedLine(g, validPoints, lineType.dashPattern, color, safeWeight, safeOpacity, zoom);
+      renderDashedLine(g, validPoints, lineType.dashPattern, color, safeWeight, safeOpacity, drawingScale, zoom);
     } else {
       g.lineStyle(safeWeight, color, safeOpacity);
       g.moveTo(validPoints[0].x, validPoints[0].y);
@@ -64,16 +64,32 @@ function renderDashedLine(
   color: number,
   weight: number,
   opacity: number,
+  drawingScale: number,
   zoom: number,
 ): void {
   if (pattern.length === 0) return;
 
-  // Convert mm dash-pattern values to screen pixels using zoom-aware scaling.
-  // At zoom=1 (100%), 1 unit = 1 screen pixel; MM_TO_PX converts mm → px.
-  // Clamp to a minimum of 1px per dash so the line is always visible.
-  const scale = Math.max(zoom * MM_TO_PX, 0.1);
-  const screenPattern = pattern.map(v => Math.max(v * scale, 1));
   g.lineStyle(weight, color, opacity);
+
+  // Dash-pattern values are authored in WORLD FEET so the gaps stay
+  // anchored to the ground and scale naturally with zoom. screen px =
+  // feet × zoom (zoom is screen-pixels-per-world-foot). We also fold in
+  // the drawing scale so a coarser plot scale stretches the pattern the
+  // way it would on paper.
+  const scaleFactor = Math.max(Math.abs(drawingScale), 1) / 50;
+  const screenPattern = pattern.map(v =>
+    Math.max(v * scaleFactor * Math.max(zoom, 1e-6), 0.5)
+  );
+  const totalLen = screenPattern.reduce((a, b) => a + b, 0);
+
+  // When the whole pattern collapses below a few pixels the dashes can't
+  // be resolved — draw a clean solid line instead of a shimmering blur
+  // (this is what previously made dashed/dotted lines look solid).
+  if (totalLen < 4) {
+    g.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) g.lineTo(points[i].x, points[i].y);
+    return;
+  }
 
   let patternIdx = 0;
   let patternProgress = 0;
@@ -139,6 +155,22 @@ function renderInlineSymbols(
 
   const symbolDef = getSymbolById(config.symbolId);
   if (!symbolDef) return;
+
+  // AT_VERTICES: drop one symbol on every line vertex (fence shots,
+  // telephone poles, etc.) regardless of spacing.
+  if (config.intervalMode === 'AT_VERTICES') {
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      // Orient to the adjacent segment when the symbol is directional.
+      const ref = points[i + 1] ?? points[i - 1] ?? p;
+      const angle = Math.atan2(ref.y - p.y, ref.x - p.x);
+      let rotation = 0;
+      if (config.symbolRotation === 'ALONG_LINE') rotation = (angle * 180) / Math.PI;
+      else if (config.symbolRotation === 'PERPENDICULAR') rotation = (angle * 180) / Math.PI + 90;
+      renderSymbol(g, symbolDef, p.x, p.y, sizePx, rotation, lineColor, opacity);
+    }
+    return;
+  }
 
   // Start half an interval in so symbols are centred along the line
   let distAccum = intervalPx / 2;

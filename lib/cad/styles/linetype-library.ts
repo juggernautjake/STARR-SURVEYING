@@ -1,16 +1,48 @@
 // lib/cad/styles/linetype-library.ts — Built-in line type library
-import type { LineTypeDefinition } from './types';
+import type { LineTypeDefinition, InlineSymbolConfig } from './types';
+
+/** Inline-symbol config helper to keep the library readable. */
+function sym(
+  symbolId: string,
+  opts: Partial<InlineSymbolConfig> = {}
+): InlineSymbolConfig {
+  return {
+    symbolId,
+    interval: 40,
+    intervalMode: 'FIXED',
+    scaleReferenceInterval: 40,
+    scaleReferenceScale: 50,
+    symbolSize: 2.5,
+    symbolRotation: 'FIXED',
+    offset: 0,
+    side: 'CENTER',
+    ...opts,
+  };
+}
 
 export const BUILTIN_LINE_TYPES: LineTypeDefinition[] = [
-  // ── Basic ──
+  // ── Basic ── (dash values are WORLD FEET; gaps are deliberately
+  //   generous so dashed/dotted lines read as dashed at survey zoom.)
   { id: 'SOLID',        name: 'Solid',         category: 'BASIC', dashPattern: [],                       inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
-  { id: 'DASHED',       name: 'Dashed',        category: 'BASIC', dashPattern: [6, 3],                   inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
-  { id: 'DASHED_HEAVY', name: 'Dashed Heavy',  category: 'BASIC', dashPattern: [10, 4],                  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
-  { id: 'DOTTED',       name: 'Dotted',        category: 'BASIC', dashPattern: [1, 2],                   inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
-  { id: 'DASH_DOT',     name: 'Dash-Dot',      category: 'BASIC', dashPattern: [8, 2, 1.5, 2],           inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
-  { id: 'DASH_DOT_DOT', name: 'Dash-Dot-Dot',  category: 'BASIC', dashPattern: [8, 2, 1.5, 2, 1.5, 2],  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
-  { id: 'CENTER',       name: 'Center',        category: 'BASIC', dashPattern: [12, 2, 4, 2],            inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
-  { id: 'PHANTOM',      name: 'Phantom',       category: 'BASIC', dashPattern: [12, 2, 2, 2, 2, 2],      inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'DASHED',       name: 'Dashed',        category: 'BASIC', dashPattern: [10, 6],                  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'DASHED_HEAVY', name: 'Dashed Heavy',  category: 'BASIC', dashPattern: [18, 9],                  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'LONG_DASH',    name: 'Long Dash',     category: 'BASIC', dashPattern: [34, 14],                 inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'DOTTED',       name: 'Dotted',        category: 'BASIC', dashPattern: [1.5, 7],                 inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'DASH_DOT',     name: 'Dash-Dot',      category: 'BASIC', dashPattern: [18, 7, 1.5, 7],          inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'DASH_DOT_DOT', name: 'Dash-Dot-Dot',  category: 'BASIC', dashPattern: [18, 7, 1.5, 7, 1.5, 7],  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'CENTER',       name: 'Center',        category: 'BASIC', dashPattern: [26, 7, 8, 7],            inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+  { id: 'PHANTOM',      name: 'Phantom',       category: 'BASIC', dashPattern: [26, 7, 7, 7, 7, 7],      inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [] },
+
+  // ── Symbol-in-line patterns (dashes interrupted by a glyph) ──
+  { id: 'DASH_X',        name: 'Dash · X · Dash  (–  –  X  –  –)',       category: 'PATTERN', dashPattern: [8, 6],  specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('FENCE_BARB_X',      { interval: 44, symbolSize: 2.6 })] },
+  { id: 'DASH_CIRCLE',   name: 'Dash · O · Dash  (–  –  O  –  –)',       category: 'PATTERN', dashPattern: [8, 6],  specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_CIRCLE_O',   { interval: 44, symbolSize: 2.6 })] },
+  { id: 'DASH_CIRCLE_SM', name: 'Dash · o · Dash  (small circle)',      category: 'PATTERN', dashPattern: [8, 6],  specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_CIRCLE_O',   { interval: 30, symbolSize: 1.6 })] },
+  { id: 'DASH_SQUARE',   name: 'Dash · □ · Dash',                       category: 'PATTERN', dashPattern: [8, 6],  specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_SQUARE_O',   { interval: 44, symbolSize: 2.4 })] },
+  { id: 'DASH_TRIANGLE', name: 'Dash · △ · Dash',                       category: 'PATTERN', dashPattern: [8, 6],  specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_TRIANGLE_O', { interval: 44, symbolSize: 2.4 })] },
+  { id: 'DASH_INFINITY', name: 'Dash · ∞ · Dash  (---∞---∞)',           category: 'PATTERN', dashPattern: [10, 8], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_INFINITY',   { interval: 48, symbolSize: 3.0 })] },
+  { id: 'LONGDASH_X',    name: 'Long-dash · x  (___x___x)',             category: 'PATTERN', dashPattern: [24, 8], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('FENCE_BARB_X',      { interval: 32, symbolSize: 2.2 })] },
+  { id: 'LONGDASH_CIRCLE', name: 'Long-dash · o  (___o___o)',           category: 'PATTERN', dashPattern: [24, 8], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_CIRCLE_O',   { interval: 32, symbolSize: 2.2 })] },
+  { id: 'TICK_LINE',     name: 'Tick Marks  (┼┼┼┼)',                    category: 'PATTERN', dashPattern: [],      specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_TICK', { interval: 20, symbolSize: 2.5, symbolRotation: 'PERPENDICULAR' })] },
 
   // ── Fences (12 types) ──
   { id: 'FENCE_BARBED_WIRE', name: 'Barbed Wire',   category: 'FENCE', dashPattern: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['FN01', '740'],
@@ -37,6 +69,13 @@ export const BUILTIN_LINE_TYPES: LineTypeDefinition[] = [
     inlineSymbols: [{ symbolId: 'FENCE_BARB_X',       interval: 25, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 25, scaleReferenceScale: 50, symbolSize: 2.0, symbolRotation: 'FIXED',        offset: 0, side: 'CENTER' }] },
   { id: 'FENCE_GUARDRAIL',    name: 'Guardrail',    category: 'FENCE', dashPattern: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['FN12', '751'],
     inlineSymbols: [{ symbolId: 'FENCE_BOARD_TICK',   interval: 12, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 12, scaleReferenceScale: 50, symbolSize: 2.0, symbolRotation: 'ALONG_LINE',   offset: 0, side: 'CENTER' }] },
+
+  // ── Utility (symbols placed on every vertex / shot) ──
+  { id: 'UTIL_POLE_LINE',    name: 'Utility Poles (at each shot)',  category: 'UTILITY', dashPattern: [],      specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('UTIL_POLE',     { intervalMode: 'AT_VERTICES', symbolSize: 2.5 })] },
+  { id: 'UTIL_POLE_SPACED',  name: 'Utility Poles (spaced)',        category: 'UTILITY', dashPattern: [],      specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('UTIL_POLE',     { interval: 60, symbolSize: 2.5 })] },
+  { id: 'OVERHEAD_UTILITY',  name: 'Overhead Utility (–/–)',        category: 'UTILITY', dashPattern: [10, 5], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('UTIL_POLE',     { interval: 80, symbolSize: 2.2 })] },
+  { id: 'FENCE_SHOTS_X',     name: 'Fence Shots (X at each shot)',  category: 'UTILITY', dashPattern: [],      specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('FENCE_BARB_X',  { intervalMode: 'AT_VERTICES', symbolSize: 2.4 })] },
+  { id: 'SHOT_DOTS',         name: 'Shot Dots (dot at each shot)',  category: 'UTILITY', dashPattern: [],      specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: [], inlineSymbols: [sym('GENERIC_DOT',   { intervalMode: 'AT_VERTICES', symbolSize: 1.8 })] },
 
   // ── Specialty ──
   { id: 'RETAINING_WALL', name: 'Retaining Wall', category: 'SPECIALTY', dashPattern: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['FN13', '752', 'ST08', '507'],

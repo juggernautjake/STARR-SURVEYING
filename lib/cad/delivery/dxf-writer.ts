@@ -91,9 +91,11 @@ export function exportToDxf(
   const usedStyles = collectUsedTextStyles(features, annotations);
   const extents = computeExtents(features);
 
+  const blockNames = Array.from(usedSymbols.values()).map((b) => b.blockName);
+
   const lines: string[] = [];
   emitHeader(lines, extents);
-  emitTables(lines, layers, usedLineTypes, usedStyles);
+  emitTables(lines, layers, usedLineTypes, usedStyles, blockNames);
   emitBlocks(lines, usedSymbols);
   emitEntities(lines, features, doc, splineSamples, annotations);
   emitEof(lines);
@@ -172,10 +174,23 @@ function emitTables(
   lines: string[],
   layers: Layer[],
   usedLineTypes: Map<string, LineTypeDefinition>,
-  usedStyles: Map<string, string>
+  usedStyles: Map<string, string>,
+  blockNames: string[]
 ): void {
   push(lines, 0, 'SECTION');
   push(lines, 2, 'TABLES');
+
+  // ── VPORT table ───────────────────────────────────────────
+  // Some readers (incl. Traverse PC) report "Missing Symbol Table"
+  // when the standard symbol tables are absent. Emit a minimal but
+  // complete set: VPORT, LTYPE, LAYER, STYLE, APPID, BLOCK_RECORD.
+  push(lines, 0, 'TABLE');
+  push(lines, 2, 'VPORT');
+  push(lines, 70, 1);
+  push(lines, 0, 'VPORT');
+  push(lines, 2, '*ACTIVE');
+  push(lines, 70, 0);
+  push(lines, 0, 'ENDTAB');
 
   // ── LTYPE table ───────────────────────────────────────────
   // Linetypes must precede the LAYER table since layers reference
@@ -217,6 +232,28 @@ function emitTables(
   for (const [styleName, fontFile] of usedStyles) {
     if (styleName === 'STANDARD') continue;
     emitStyleRow(lines, styleName, fontFile);
+  }
+  push(lines, 0, 'ENDTAB');
+
+  // ── APPID table ───────────────────────────────────────────
+  push(lines, 0, 'TABLE');
+  push(lines, 2, 'APPID');
+  push(lines, 70, 1);
+  push(lines, 0, 'APPID');
+  push(lines, 2, 'ACAD');
+  push(lines, 70, 0);
+  push(lines, 0, 'ENDTAB');
+
+  // ── BLOCK_RECORD table ────────────────────────────────────
+  // Required so every BLOCK in the BLOCKS section resolves. The two
+  // model/paper records are always present; symbol blocks add theirs.
+  push(lines, 0, 'TABLE');
+  push(lines, 2, 'BLOCK_RECORD');
+  push(lines, 70, blockNames.length + 2);
+  for (const name of ['*Model_Space', '*Paper_Space', ...blockNames]) {
+    push(lines, 0, 'BLOCK_RECORD');
+    push(lines, 2, name);
+    push(lines, 70, 0);
   }
   push(lines, 0, 'ENDTAB');
 

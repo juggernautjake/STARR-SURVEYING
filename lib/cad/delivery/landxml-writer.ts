@@ -25,6 +25,7 @@ import type {
   Point2D,
   SplineGeometry,
 } from '../types';
+import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
 
 export interface LandXmlExportOptions {
   /** Sample density for SPLINE / ELLIPSE → polyline conversion.
@@ -81,20 +82,22 @@ export function exportToLandXML(
   const pointFeatures = features
     .filter((f) => f.geometry.type === 'POINT' && f.geometry.point)
     .sort((a, b) => {
-      const na = Number(a.properties?.pointNo ?? Infinity);
-      const nb = Number(b.properties?.pointNo ?? Infinity);
+      const na = Number(pointNumberOf(a) ?? Infinity);
+      const nb = Number(pointNumberOf(b) ?? Infinity);
       return na - nb;
     });
 
   if (pointFeatures.length > 0) {
     lines.push('  <CgPoints>');
+    let autoNo = 0;
     for (const f of pointFeatures) {
       const p = f.geometry.point!;
-      const name = String(f.properties?.pointNo ?? f.id);
-      const code = String(f.properties?.code ?? '').trim();
-      const desc = String(
-        f.properties?.description ?? f.properties?.name ?? ''
-      ).trim();
+      // Never emit the internal UUID as a point name — fall back to a
+      // sequential number so COGO points stay usable in Traverse PC.
+      autoNo += 1;
+      const name = pointNumberOf(f) ?? String(autoNo);
+      const code = pointCodeOf(f);
+      const desc = pointDescriptionOf(f);
       const elev = Number(f.properties?.elevation ?? 0);
       const attrs = [`name="${xmlAttr(name)}"`];
       if (code) attrs.push(`code="${xmlAttr(code)}"`);

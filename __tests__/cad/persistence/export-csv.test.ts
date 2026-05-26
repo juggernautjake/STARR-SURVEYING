@@ -398,8 +398,11 @@ describe('buildPnezdAscii (Traverse PC PNEZD)', () => {
     doc.settings.displayPreferences.originEasting = 5000;
     const { text, rowCount } = buildPnezdAscii(doc);
     const lines = text.split('\r\n');
-    expect(rowCount).toBe(2); // LINE + unnumbered point excluded
+    // LINE excluded; both numbered points plus the unnumbered point
+    // (which now gets a sequential fallback number) are emitted.
+    expect(rowCount).toBe(3);
     expect(lines[0]).toBe('1,10075.0000,5050.0000,0.0000,');
     expect(lines[1]).toBe('2,10002.0000,5000.0000,0.0000,');
+    expect(lines[2]).toBe('3,10000.0000,5000.0000,0.0000,');
   });
 });
