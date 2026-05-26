@@ -429,6 +429,11 @@ export interface FeatureStyle {
   labelFormat: string | null;
   labelOffset: { x: number; y: number };
   isOverride: boolean;
+
+  /** Optional area fill for closed shapes (polygon/circle/ellipse/closed
+   *  spline). null/undefined = no fill (stroke only, current behavior). */
+  fillColor?: string | null;
+  fillOpacity?: number;       // 0–1, defaults to opacity when omitted
 }
 
 // --- LAYERS ---

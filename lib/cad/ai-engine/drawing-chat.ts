@@ -34,6 +34,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { DrawingDocument } from '../types';
 import { MissingApiKeyError } from './claude-deed-parser';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
+import { inverseBearingDistance, formatBearing } from '../geometry/bearing';
 
 const DEFAULT_MODEL =
   process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
@@ -62,9 +63,15 @@ export interface ChatCoord {
   easting:  number;
 }
 
+/** Create (or recolor) a named layer the AI can draw onto. */
+export interface ChatLayerSpec {
+  name:   string;
+  color?: string;   // hex
+}
+
 export type ChatShape =
   | 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON'
-  | 'SPLINE' | 'CIRCLE' | 'ELLIPSE' | 'ARC';
+  | 'SPLINE' | 'CIRCLE' | 'ELLIPSE' | 'ARC' | 'TEXT';
 
 /** A new feature the model wants to create. */
 export interface ChatFeatureSpec {
@@ -74,6 +81,7 @@ export interface ChatFeatureSpec {
    *  ARC [start,mid,end]; CIRCLE [center] (+radius) or [center,edge];
    *  ELLIPSE [center] (+radiusX/Y). */
   points:       ChatCoord[];
+  text?:        string;       // TEXT content (placed at points[0])
   closed?:      boolean;      // SPLINE / POLYLINE → close the loop smoothly
   radius?:      number;       // CIRCLE (feet)
   radiusX?:     number;       // ELLIPSE (feet)
@@ -81,9 +89,13 @@ export interface ChatFeatureSpec {
   rotationDeg?: number;       // ELLIPSE orientation (CCW)
   layerName?:   string;
   color?:       string;       // hex stroke color
+  fill?:        string;       // hex area fill (closed shapes)
   opacity?:     number;       // 0–1
   lineWeight?:  number;       // mm
+  lineType?:    string;       // line-type id (e.g. DASHED, FENCE_BARBED_WIRE)
+  symbol?:      string;       // symbol id to render at a POINT (e.g. UTIL_POLE)
   pointNumber?: string;       // POINT only
+  elevation?:   number;       // POINT Z (feet)
   code?:        string;
   description?: string;
 }
@@ -93,8 +105,34 @@ export interface ChatModifySpec {
   id:          string;
   points?:     ChatCoord[];   // new geometry vertices (optional)
   color?:      string;
+  fill?:       string;
   opacity?:    number;
   lineWeight?: number;
+  lineType?:   string;
+  symbol?:     string;
+  layerName?:  string;        // move the feature to this layer (auto-created)
+  // Survey attribute edits (POINT):
+  pointNumber?: string;
+  code?:        string;
+  description?: string;
+  elevation?:   number;
+}
+
+/** Fit an exact best-fit shape to a point set (computed client-side for
+ *  precision). Source points come from `fromIds` features and/or explicit
+ *  `points`. */
+export interface ChatFitSpec {
+  shape:        'RECTANGLE' | 'CIRCLE' | 'LINE' | 'CURVE';
+  fromIds?:     string[];
+  points?:      ChatCoord[];
+  closed?:      boolean;      // CURVE → smooth closed loop
+  layerName?:   string;
+  color?:       string;
+  fill?:        string;
+  opacity?:     number;
+  lineWeight?:  number;
+  lineType?:    string;
+  deleteSource?: boolean;     // remove fromIds after fitting
 }
 
 /** Translate / rotate / scale a set of features (or the live selection). */
@@ -122,10 +160,14 @@ export interface DrawingChatAction {
   instruction?: string;
   /** EDIT_DRAWING — programmatic geometry edits the client applies
    *  directly (as one undoable batch). Any combination may be set. */
-  add?:        ChatFeatureSpec[];
-  deleteIds?:  string[];
-  modify?:     ChatModifySpec[];
-  transform?:  ChatTransformSpec;
+  add?:         ChatFeatureSpec[];
+  deleteIds?:   string[];
+  modify?:      ChatModifySpec[];
+  transform?:   ChatTransformSpec;
+  fit?:         ChatFitSpec[];
+  createLayers?: ChatLayerSpec[];
+  hideIds?:     string[];
+  unhideIds?:   string[];
 }
 
 export interface DrawingChatAttachment {
@@ -152,6 +194,9 @@ export interface DrawingChatRequest {
    *  so questions like "what are these points?" resolve to the actual
    *  selection. */
   selectedIds?: string[];
+  /** Name of the active (default) layer new geometry lands on when no
+   *  layerName is given. */
+  activeLayerName?: string;
   signal?: AbortSignal;
 }
 
@@ -172,7 +217,9 @@ const SYSTEM_PROMPT = `You are an expert Texas land surveyor AI assistant. The u
 You receive:
 * A snapshot of the active drawing — feature counts by type,
   layer table, title-block values, scale + paper size, sealing
-  status, and a digest of any prior chat turns.
+  status, the point codes in use, and a "linework" catalog of
+  non-point features (id, type, layer, center, length/area) so you
+  can target shapes by id even when they aren't selected.
 * The CURRENT SELECTION — the exact features the user has
   highlighted on the canvas (with point numbers, codes,
   descriptions, and northing/easting). When the user says
@@ -191,10 +238,13 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "patch": { "<field>": "<newValue>", ... },
     "layerName": "<layer name>",
     "instruction": "<re-run prompt>",
-    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC", "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
+    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "fill": "<#hex area fill, closed shapes>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<DASHED|DOTTED|CENTER|FENCE_BARBED_WIRE|…>", "symbol": "<POINT glyph: UTIL_POLE|VEG_TREE_DECID|MON_*>", "layerName": "<optional>", "pointNumber": "<POINT only>", "elevation": "<POINT Z, ft>", "code": "<optional>", "description": "<optional>" } ],
     "deleteIds": [ "<featureId>", ... ],
-    "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm> } ],
-    "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } }
+    "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "fill": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<id>", "symbol": "<id>", "layerName": "<move to layer>", "pointNumber": "<renumber>", "code": "<recode>", "description": "<redesc>", "elevation": <ft> } ],
+    "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
+    "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ],
+    "createLayers": [ { "name": "<layer>", "color": "<#hex optional>" } ],
+    "hideIds": [ "<featureId>", ... ], "unhideIds": [ "<featureId>", ... ]
   }
 }
 
@@ -226,6 +276,33 @@ Action selection rules:
     (houses, fences, roads, boundaries, or arbitrary stylized art) by
     emitting many shapes in one "add" array, using "color"/"opacity"/
     "lineWeight" for styling and "transform" to rotate/scale/move groups.
+  - "fit" computes an EXACT best-fit shape from a point set on the client
+    (precise, not eyeballed): RECTANGLE = minimum-area bounding rectangle
+    (recovers true orientation of a rotated square), CIRCLE = least-squares
+    circle, LINE = total-least-squares line, CURVE = smooth best-fit spline
+    through the points in order ("closed": true for a pond/lake loop).
+    PREFER "fit" with the selected point ids in "fromIds" for "make a best-fit
+    square/rectangle/circle/line/curve from these points"; set
+    "deleteSource": true to replace the shots.
+  - "fill" gives a closed shape (polygon/circle/ellipse/closed spline) a
+    solid area color — use it for filled/stylized art and shaded regions;
+    combine with "opacity" for translucency and layers for z-order.
+  - "symbol" renders a glyph at a POINT (e.g. UTIL_POLE, GENERIC_DOT,
+    VEG_TREE_DECID, monument symbols MON_*). Use for poles/trees/monuments.
+  - TEXT places a label at points[0] (use "rotationDeg" to angle it). To label
+    a bearing/distance/area, COMPUTE the value from CURRENT SELECTION coords
+    (azimuth = atan2(Δeast, Δnorth); distance = hypot; area = shoelace) and
+    place the formatted string as a TEXT at the segment midpoint / centroid.
+  - "lineType" sets a line style on a created/modified feature. Common ids:
+    SOLID, DASHED, DOTTED, DASH_DOT, CENTER, PHANTOM, LONG_DASH;
+    fences FENCE_BARBED_WIRE / FENCE_CHAIN_LINK / FENCE_WOOD_PRIVACY;
+    UTIL_POLE_LINE; pattern DASH_X / DASH_CIRCLE. Use a fence line type for
+    fence lines, dashed for easements/setbacks, etc.
+  - Layers: set "layerName" on add/fit to place geometry on a layer; if the
+    layer doesn't exist it is created automatically. Use "createLayers" to
+    pre-create named/colored layers (e.g. STRUCTURES, FENCE, ROW, BOUNDARY).
+  - hideIds / unhideIds hide or show features non-destructively (declutter
+    or isolate) — prefer over deleteIds when the surveyor may want them back.
   - Prefer EDIT_DRAWING over REGENERATE_PIPELINE for surgical edits to
     specific selected features.
 * REGENERATE_PIPELINE — re-run the full AI pipeline with the
@@ -250,6 +327,34 @@ Output rules:
 * Omit fields that don't apply (don't ship empty strings).
 * If the request is unclear or the data isn't enough to act,
   use NO_ACTION and ask a clarifying question in "reply".`;
+
+// Condensed digest of docs/ai-reference/* injected into every prompt so the
+// model computes the way the app does instead of hallucinating procedures.
+// Keep terse; the full references live in docs/ai-reference/.
+const REFERENCE_DIGEST = `REFERENCE (authoritative — follow exactly):
+* Coordinates: emit survey northing/easting in feet (same frame as the
+  snapshot/selection). World is x=easting, y=northing; the client converts.
+* Angles in actions: degrees CCW. Azimuth is clockwise from north =
+  atan2(Δeasting, Δnorthing) normalized 0–360.
+* Distance = hypot(Δe, Δn). Polygon area = ½|Σ(xi·y(i+1) − x(i+1)·yi)|.
+* Curve (R, Δ rad): L=R·Δ, C=2R·sin(Δ/2), T=R·tan(Δ/2).
+* Best-fit: square/rectangle from corner shots → use fit RECTANGLE
+  (min-area bounding rect; keeps rotation). Circle → fit CIRCLE. Line →
+  fit LINE. Smooth loop (pond) → SPLINE closed:true.
+* To turn selected points into a shape, prefer "fit" with their ids in
+  fromIds (+deleteSource:true to replace the shots). fit shapes:
+  RECTANGLE/CIRCLE/LINE/CURVE.
+* Styling on add/modify: color (stroke), fill (area, closed shapes),
+  opacity, lineWeight (mm), lineType (DASHED/FENCE_*/…), symbol (glyph at a
+  POINT: UTIL_POLE/VEG_TREE_DECID/MON_*). Layers: layerName auto-creates;
+  createLayers pre-makes named/colored layers (STRUCTURES/FENCE/ROW/…).
+* You also get a "linework" catalog in the snapshot — target unselected
+  shapes by their id. The snapshot's "activeLayer" is the default layer
+  (omit layerName to use it) and "extents" is the NE bounding box of the
+  drawing — size/place new geometry relative to it. CURRENT SELECTION items
+  carry each feature's color/fill/lineType/opacity so you can match them.
+* Never move existing shots unless asked; keep new geometry on a sensible
+  layer and reuse the existing point-code scheme.`;
 
 // ────────────────────────────────────────────────────────────
 // Public API
@@ -277,10 +382,12 @@ export async function handleDrawingChat(
 
   // The live drawing snapshot rides in the system prompt so it reflects the
   // current document on every turn without bloating the conversation history.
-  const snapshot = buildSnapshot(req.doc);
+  const snapshot = buildSnapshot(req.doc, req.activeLayerName);
   const selection = buildSelectionDigest(req.doc, req.selectedIds ?? []);
   const system = [
     SYSTEM_PROMPT,
+    '',
+    REFERENCE_DIGEST,
     '',
     'CURRENT DRAWING SNAPSHOT (always reflects the live document; earlier',
     'turns in the conversation may describe an older state):',
@@ -421,10 +528,25 @@ function parseCoords(raw: unknown): ChatCoord[] {
   return out;
 }
 
-function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform'> {
-  const out: Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform'> = {};
+type EditFields = Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit' | 'createLayers' | 'hideIds' | 'unhideIds'>;
+function parseEditFields(a: Record<string, unknown>): EditFields {
+  const out: EditFields = {};
+  const strArr = (v: unknown) => Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
+  const hideIds = strArr(a.hideIds); if (hideIds.length) out.hideIds = hideIds;
+  const unhideIds = strArr(a.unhideIds); if (unhideIds.length) out.unhideIds = unhideIds;
 
-  const SHAPES = ['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'SPLINE', 'CIRCLE', 'ELLIPSE', 'ARC'];
+  if (Array.isArray(a.createLayers)) {
+    const layers: ChatLayerSpec[] = [];
+    for (const l of a.createLayers) {
+      if (!l || typeof l !== 'object') continue;
+      const o = l as Record<string, unknown>;
+      if (typeof o.name !== 'string' || o.name.trim().length === 0) continue;
+      layers.push({ name: o.name.trim(), ...(typeof o.color === 'string' ? { color: o.color } : {}) });
+    }
+    if (layers.length > 0) out.createLayers = layers;
+  }
+
+  const SHAPES = ['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'SPLINE', 'CIRCLE', 'ELLIPSE', 'ARC', 'TEXT'];
   if (Array.isArray(a.add)) {
     const add: ChatFeatureSpec[] = [];
     for (const s of a.add) {
@@ -440,6 +562,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
       const rotationDeg = num(o.rotationDeg);
       const opacity = num(o.opacity);
       const lineWeight = num(o.lineWeight);
+      const elevation = num(o.elevation);
       add.push({
         shape: shape as ChatShape,
         points,
@@ -450,9 +573,14 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         ...(rotationDeg !== null ? { rotationDeg } : {}),
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
+        ...(typeof o.symbol === 'string' ? { symbol: o.symbol } : {}),
+        ...(typeof o.fill === 'string' ? { fill: o.fill } : {}),
+        ...(typeof o.text === 'string' ? { text: o.text } : {}),
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
         ...(typeof o.pointNumber === 'string' ? { pointNumber: o.pointNumber } : {}),
+        ...(elevation !== null ? { elevation } : {}),
         ...(typeof o.code === 'string' ? { code: o.code } : {}),
         ...(typeof o.description === 'string' ? { description: o.description } : {}),
       });
@@ -474,14 +602,25 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
       const points = parseCoords(o.points);
       const opacity = num(o.opacity);
       const lineWeight = num(o.lineWeight);
-      const hasStyle = typeof o.color === 'string' || opacity !== null || lineWeight !== null;
-      if (points.length === 0 && !hasStyle) continue;
+      const elevation = num(o.elevation);
+      const hasStyle = typeof o.color === 'string' || typeof o.fill === 'string' || opacity !== null || lineWeight !== null || typeof o.lineType === 'string' || typeof o.symbol === 'string';
+      const hasLayer = typeof o.layerName === 'string' && o.layerName.length > 0;
+      const hasAttr = typeof o.pointNumber === 'string' || typeof o.code === 'string' || typeof o.description === 'string' || elevation !== null;
+      if (points.length === 0 && !hasStyle && !hasLayer && !hasAttr) continue;
       modify.push({
         id: o.id,
         ...(points.length > 0 ? { points } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
+        ...(typeof o.fill === 'string' ? { fill: o.fill } : {}),
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
+        ...(typeof o.symbol === 'string' ? { symbol: o.symbol } : {}),
+        ...(hasLayer ? { layerName: o.layerName as string } : {}),
+        ...(typeof o.pointNumber === 'string' ? { pointNumber: o.pointNumber } : {}),
+        ...(typeof o.code === 'string' ? { code: o.code } : {}),
+        ...(typeof o.description === 'string' ? { description: o.description } : {}),
+        ...(elevation !== null ? { elevation } : {}),
       });
     }
     if (modify.length > 0) out.modify = modify;
@@ -513,10 +652,38 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
     }
   }
 
+  if (Array.isArray(a.fit)) {
+    const fit: ChatFitSpec[] = [];
+    for (const s of a.fit) {
+      if (!s || typeof s !== 'object') continue;
+      const o = s as Record<string, unknown>;
+      if (o.shape !== 'RECTANGLE' && o.shape !== 'CIRCLE' && o.shape !== 'LINE' && o.shape !== 'CURVE') continue;
+      const fromIds = Array.isArray(o.fromIds) ? o.fromIds.filter((x): x is string => typeof x === 'string') : undefined;
+      const points = parseCoords(o.points);
+      if ((!fromIds || fromIds.length === 0) && points.length === 0) continue;
+      const opacity = num(o.opacity);
+      const lineWeight = num(o.lineWeight);
+      fit.push({
+        shape: o.shape,
+        ...(fromIds && fromIds.length > 0 ? { fromIds } : {}),
+        ...(points.length > 0 ? { points } : {}),
+        ...(o.closed === true ? { closed: true } : {}),
+        ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
+        ...(typeof o.color === 'string' ? { color: o.color } : {}),
+        ...(typeof o.fill === 'string' ? { fill: o.fill } : {}),
+        ...(opacity !== null ? { opacity } : {}),
+        ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
+        ...(o.deleteSource === true ? { deleteSource: true } : {}),
+      });
+    }
+    if (fit.length > 0) out.fit = fit;
+  }
+
   return out;
 }
 
-function parseAction(raw: unknown): DrawingChatAction | null {
+export function parseAction(raw: unknown): DrawingChatAction | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Record<string, unknown>;
   const type = a.type;
@@ -579,10 +746,18 @@ interface DocSnapshot {
   /** Distinct point codes present in the drawing (capped), so the model can
    *  reuse the surveyor's coding scheme when building from coded points. */
   codesInUse:       string[];
+  /** Active layer new geometry defaults to (when no layerName is given). */
+  activeLayer:      string | null;
+  /** NE bounding box of all visible features (null when empty) — lets the AI
+   *  place/scale new geometry relative to the existing drawing. */
+  extents:          { minNorthing: number; minEasting: number; maxNorthing: number; maxEasting: number } | null;
+  /** Compact catalog of non-point linework (capped) so the AI can target
+   *  features it didn't select, by id. */
+  linework:         { id: string; type: string; layer: string; center: NE; lengthFt?: number; areaSqFt?: number }[];
   titleBlock:       Record<string, string>;
 }
 
-function buildSnapshot(doc: DrawingDocument): DocSnapshot {
+export function buildSnapshot(doc: DrawingDocument, activeLayerName?: string): DocSnapshot {
   const settings = doc.settings;
   const tb = settings.titleBlock;
   const layerNameById = new Map<string, string>();
@@ -591,11 +766,29 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     layerNameById.set(l.id, l.name);
     layerColorById.set(l.id, l.color);
   }
+  const originN = settings.displayPreferences?.originNorthing ?? 0;
+  const originE = settings.displayPreferences?.originEasting ?? 0;
   const featureCounts: Record<string, number> = {};
   const layerFeatureCounts = new Map<string, number>();
   const codes = new Set<string>();
+  const linework: DocSnapshot['linework'] = [];
+  const MAX_LINEWORK = 60;
+  let exMinX = Infinity, exMinY = Infinity, exMaxX = -Infinity, exMaxY = -Infinity;
   for (const f of Object.values(doc.features)) {
     if (f.hidden) continue;
+    {
+      const g = f.geometry;
+      const pp: { x: number; y: number }[] = [];
+      if (g.point) pp.push(g.point);
+      if (g.start) pp.push(g.start);
+      if (g.end) pp.push(g.end);
+      if (g.vertices) pp.push(...g.vertices);
+      if (g.circle) { pp.push({ x: g.circle.center.x - g.circle.radius, y: g.circle.center.y - g.circle.radius }, { x: g.circle.center.x + g.circle.radius, y: g.circle.center.y + g.circle.radius }); }
+      if (g.arc) pp.push(g.arc.center);
+      if (g.ellipse) pp.push(g.ellipse.center);
+      if (g.spline) pp.push(...g.spline.controlPoints);
+      for (const p of pp) { exMinX = Math.min(exMinX, p.x); exMinY = Math.min(exMinY, p.y); exMaxX = Math.max(exMaxX, p.x); exMaxY = Math.max(exMaxY, p.y); }
+    }
     featureCounts[f.type] = (featureCounts[f.type] ?? 0) + 1;
     layerFeatureCounts.set(
       f.layerId,
@@ -603,6 +796,12 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     );
     const code = pointCodeOf(f);
     if (code && codes.size < 60) codes.add(code);
+
+    // Catalog non-point linework so the AI can reference unselected shapes.
+    if (f.type !== 'POINT' && f.type !== 'TEXT' && f.type !== 'IMAGE' && linework.length < MAX_LINEWORK) {
+      const entry = lineworkEntry(f, originN, originE, layerNameById.get(f.layerId) ?? f.layerId);
+      if (entry) linework.push(entry);
+    }
   }
   const layers = Array.from(layerNameById.entries())
     .map(([id, name]) => ({
@@ -625,6 +824,11 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     featureCounts,
     layers,
     codesInUse: Array.from(codes),
+    activeLayer: activeLayerName ?? null,
+    extents: Number.isFinite(exMinX)
+      ? { minNorthing: round(exMinY + originN), minEasting: round(exMinX + originE), maxNorthing: round(exMaxY + originN), maxEasting: round(exMaxX + originE) }
+      : null,
+    linework,
     titleBlock: {
       firmName: tb.firmName,
       surveyorName: tb.surveyorName,
@@ -642,6 +846,46 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
   };
 }
 
+/** Compact catalog entry for one non-point feature (for the snapshot). */
+function lineworkEntry(
+  f: DrawingDocument['features'][string],
+  originN: number,
+  originE: number,
+  layer: string,
+): DocSnapshot['linework'][number] | null {
+  const g = f.geometry;
+  const pts: { x: number; y: number }[] = [];
+  if (g.start) pts.push(g.start);
+  if (g.end) pts.push(g.end);
+  if (g.vertices) pts.push(...g.vertices);
+  if (g.circle) pts.push(g.circle.center);
+  if (g.ellipse) pts.push(g.ellipse.center);
+  if (g.arc) pts.push(g.arc.center);
+  if (g.spline) pts.push(...g.spline.controlPoints);
+  if (pts.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+  const center: NE = { n: round((minY + maxY) / 2 + originN), e: round((minX + maxX) / 2 + originE) };
+  const out: DocSnapshot['linework'][number] = { id: f.id, type: f.type, layer, center };
+  if (g.type === 'LINE' && g.start && g.end) {
+    out.lengthFt = round(Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y));
+  } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+    const vs = g.vertices;
+    let len = 0;
+    for (let i = 0; i < vs.length - 1; i += 1) len += Math.hypot(vs[i + 1].x - vs[i].x, vs[i + 1].y - vs[i].y);
+    if (g.type === 'POLYGON' && vs.length >= 3) {
+      len += Math.hypot(vs[0].x - vs[vs.length - 1].x, vs[0].y - vs[vs.length - 1].y);
+      let a = 0;
+      for (let i = 0; i < vs.length; i += 1) { const p = vs[i], q = vs[(i + 1) % vs.length]; a += p.x * q.y - q.x * p.y; }
+      out.areaSqFt = round(Math.abs(a) / 2);
+    }
+    out.lengthFt = round(len);
+  } else if (g.type === 'CIRCLE' && g.circle) {
+    out.areaSqFt = round(Math.PI * g.circle.radius * g.circle.radius);
+  }
+  return out;
+}
+
 /** Max selected features to describe individually before summarising. */
 const MAX_SELECTION_DETAIL = 150;
 
@@ -654,6 +898,12 @@ export interface SelectionItem {
   pointNumber?: string;
   code?:        string;
   description?: string;
+  /** Style overrides on the feature (only present when set), so the AI can
+   *  match/echo existing color/line style/fill. */
+  color?:       string;
+  fill?:        string;
+  lineType?:    string;
+  opacity?:     number;
   northing?:    number;
   easting?:     number;
   elevation?:   number;
@@ -661,6 +911,10 @@ export interface SelectionItem {
   start?:       NE;
   end?:         NE;
   midpoint?:    NE;
+  /** LINE bearing in the app's quadrant format (e.g. N45°00'00"E) and
+   *  azimuth degrees — so labels match the software exactly. */
+  bearing?:     string;
+  azimuthDeg?:  number;
   /** CIRCLE/ELLIPSE/ARC center; CIRCLE/ARC radius. */
   center?:      NE;
   radius?:      number;
@@ -711,6 +965,13 @@ export function buildSelectionDigest(
     const desc = pointDescriptionOf(f);
     if (desc) item.description = desc;
 
+    // Style overrides (only when explicitly set on the feature).
+    const st = f.style;
+    if (st?.color) item.color = st.color;
+    if (st?.fillColor) item.fill = st.fillColor;
+    if (st?.lineTypeId && st.lineTypeId !== 'SOLID') item.lineType = st.lineTypeId;
+    if (typeof st?.opacity === 'number' && st.opacity < 1) item.opacity = round(st.opacity);
+
     const ne = (p: { x: number; y: number }): NE => ({
       n: round(p.y + originN),
       e: round(p.x + originE),
@@ -729,7 +990,10 @@ export function buildSelectionDigest(
       item.start = ne(g.start);
       item.end = ne(g.end);
       item.midpoint = ne({ x: (g.start.x + g.end.x) / 2, y: (g.start.y + g.end.y) / 2 });
-      item.lengthFt = round(Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y));
+      const inv = inverseBearingDistance(g.start, g.end);
+      item.lengthFt = round(inv.distance);
+      item.bearing = formatBearing(inv.azimuth);
+      item.azimuthDeg = round(inv.azimuth);
     } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length > 0) {
       const vs = g.vertices;
       item.vertexCount = vs.length;

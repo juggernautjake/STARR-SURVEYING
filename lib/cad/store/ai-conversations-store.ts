@@ -26,6 +26,7 @@ import { generateId } from '../types';
 import { DEFAULT_FEATURE_STYLE } from '../constants';
 import { transformFeature, translate, rotate, scale } from '../geometry/transform';
 import { fitPointsToBezier, arcFrom3Points } from '../geometry/curve-render';
+import { fitOrientedRectangle, fitCircle, fitLine } from '../geometry/fit';
 import { useAIStore } from './ai-store';
 import { useDrawingStore } from './drawing-store';
 import { useSelectionStore } from './selection-store';
@@ -240,11 +241,13 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
         // Send the live canvas selection so the model can answer about
         // exactly what the user has highlighted ("these points", etc.).
         const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
+        const drawState = useDrawingStore.getState();
+        const activeLayerName = drawState.document.layers[drawState.activeLayerId]?.name;
         try {
           const res = await fetch('/api/admin/cad/drawing-chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ doc, history, selectedIds }),
+            body: JSON.stringify({ doc, history, selectedIds, activeLayerName }),
           });
           const json = (await res.json().catch(() => ({}))) as {
             reply?: string;
@@ -411,16 +414,43 @@ export function applyEditDrawing(action: DrawingChatAction): string {
 
   const ops: UndoOperation[] = [];
   const notes: string[] = [];
+  const createdIds: string[] = [];
+  let skipped = 0;
 
-  const layerIdByName = (name?: string): string => {
-    if (name) {
-      const match = Object.values(doc.layers).find(
+  // Find a layer by (case-insensitive) name, creating it if missing so the
+  // AI can place geometry on STRUCTURES/FENCE/etc. without a separate step.
+  const ensureLayer = (name?: string, color?: string): string => {
+    if (name && name.trim()) {
+      const match = Object.values(useDrawingStore.getState().document.layers).find(
         (l) => l.name.toLowerCase() === name.toLowerCase(),
       );
-      if (match) return match.id;
+      if (match) {
+        if (color && match.color !== color) drawing.updateLayer(match.id, { color });
+        return match.id;
+      }
+      const id = generateId();
+      const order = Object.keys(useDrawingStore.getState().document.layers).length;
+      drawing.addLayer({
+        id, name: name.trim(), visible: true, locked: false, frozen: false,
+        color: color ?? '#000000', lineWeight: 0.5, lineTypeId: 'SOLID',
+        opacity: 1, groupId: null, sortOrder: order, isDefault: false,
+        isProtected: false, autoAssignCodes: [],
+      });
+      return id;
     }
     return drawing.activeLayerId || Object.keys(doc.layers)[0] || '';
   };
+  const layerIdByName = (name?: string): string => ensureLayer(name);
+
+  // ── createLayers (explicit) ──
+  let layersCreated = 0;
+  for (const spec of action.createLayers ?? []) {
+    const existed = Object.values(useDrawingStore.getState().document.layers)
+      .some((l) => l.name.toLowerCase() === spec.name.toLowerCase());
+    ensureLayer(spec.name, spec.color);
+    if (!existed) layersCreated += 1;
+  }
+  if (layersCreated) notes.push(`created ${layersCreated} layer${layersCreated === 1 ? '' : 's'}`);
 
   // ── add ──
   let added = 0;
@@ -431,7 +461,11 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     switch (spec.shape) {
       case 'POINT': if (pts[0]) { geometry = { type: 'POINT', point: pts[0] }; type = 'POINT'; } break;
       case 'LINE': if (pts.length >= 2) { geometry = { type: 'LINE', start: pts[0], end: pts[1] }; type = 'LINE'; } break;
-      case 'POLYLINE': if (pts.length >= 2) { geometry = { type: 'POLYLINE', vertices: pts }; type = 'POLYLINE'; } break;
+      case 'POLYLINE':
+        // A closed polyline is just a polygon — honor the documented `closed`.
+        if (spec.closed && pts.length >= 3) { geometry = { type: 'POLYGON', vertices: pts }; type = 'POLYGON'; }
+        else if (pts.length >= 2) { geometry = { type: 'POLYLINE', vertices: pts }; type = 'POLYLINE'; }
+        break;
       case 'POLYGON': if (pts.length >= 3) { geometry = { type: 'POLYGON', vertices: pts }; type = 'POLYGON'; } break;
       case 'SPLINE': if (pts.length >= 2) { geometry = { type: 'SPLINE', spline: { controlPoints: fitPointsToBezier(pts, !!spec.closed), isClosed: !!spec.closed } }; type = 'SPLINE'; } break;
       case 'CIRCLE': {
@@ -447,14 +481,19 @@ export function applyEditDrawing(action: DrawingChatAction): string {
         break;
       }
       case 'ARC': if (pts.length >= 3) { const arc = arcFrom3Points(pts[0], pts[1], pts[2]); if (arc) { geometry = { type: 'ARC', arc }; type = 'ARC'; } } break;
+      case 'TEXT': if (pts[0] && spec.text && spec.text.trim()) { geometry = { type: 'TEXT', point: pts[0], textContent: spec.text, textRotation: ((spec.rotationDeg ?? 0) * Math.PI) / 180 }; type = 'TEXT'; } break;
     }
-    if (!geometry) continue;
+    if (!geometry) { skipped += 1; continue; }
+    if (isDegenerateGeometry(geometry)) { skipped += 1; continue; }
     const baseStyle = { ...DEFAULT_FEATURE_STYLE, ...drawing.getActiveLayerStyle() };
     const style = {
       ...baseStyle,
       ...(spec.color ? { color: spec.color } : {}),
       ...(spec.opacity != null ? { opacity: Math.max(0, Math.min(1, spec.opacity)) } : {}),
       ...(spec.lineWeight != null ? { lineWeight: spec.lineWeight } : {}),
+      ...(spec.lineType ? { lineTypeId: spec.lineType } : {}),
+      ...(spec.symbol ? { symbolId: spec.symbol } : {}),
+      ...(spec.fill ? { fillColor: spec.fill } : {}),
     };
     const feature: Feature = {
       id: generateId(),
@@ -464,15 +503,79 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       style,
       properties: {
         ...(spec.pointNumber ? { pointNumber: spec.pointNumber } : {}),
+        ...(spec.elevation != null ? { elevation: spec.elevation } : {}),
         ...(spec.code ? { code: spec.code } : {}),
         ...(spec.description ? { description: spec.description } : {}),
       },
     };
     drawing.addFeature(feature);
     ops.push({ type: 'ADD_FEATURE', data: feature });
+    createdIds.push(feature.id);
     added += 1;
   }
   if (added) notes.push(`added ${added} feature${added === 1 ? '' : 's'}`);
+
+  // ── fit (exact best-fit shape from a point set) ──
+  let fitted = 0;
+  for (const spec of action.fit ?? []) {
+    const srcPts: Point2D[] = [];
+    for (const id of spec.fromIds ?? []) {
+      const f = drawing.getFeature(id);
+      if (f) srcPts.push(...featurePoints(f));
+    }
+    for (const c of spec.points ?? []) srcPts.push(toWorld(c));
+    if (srcPts.length < 2) { skipped += 1; continue; }
+
+    let geometry: FeatureGeometry | null = null;
+    let type: Feature['type'] = 'POLYGON';
+    if (spec.shape === 'RECTANGLE') {
+      const corners = fitOrientedRectangle(srcPts);
+      if (corners) { geometry = { type: 'POLYGON', vertices: corners }; type = 'POLYGON'; }
+    } else if (spec.shape === 'CIRCLE') {
+      const c = fitCircle(srcPts);
+      if (c && c.radius > 0) { geometry = { type: 'CIRCLE', circle: c }; type = 'CIRCLE'; }
+    } else if (spec.shape === 'LINE') {
+      const l = fitLine(srcPts);
+      if (l) { geometry = { type: 'LINE', start: l.start, end: l.end }; type = 'LINE'; }
+    } else if (spec.shape === 'CURVE') {
+      geometry = { type: 'SPLINE', spline: { controlPoints: fitPointsToBezier(srcPts, !!spec.closed), isClosed: !!spec.closed } };
+      type = 'SPLINE';
+    }
+    if (!geometry) { skipped += 1; continue; }
+    if (isDegenerateGeometry(geometry)) { skipped += 1; continue; }
+
+    const baseStyle = { ...DEFAULT_FEATURE_STYLE, ...drawing.getActiveLayerStyle() };
+    const style = {
+      ...baseStyle,
+      ...(spec.color ? { color: spec.color } : {}),
+      ...(spec.opacity != null ? { opacity: Math.max(0, Math.min(1, spec.opacity)) } : {}),
+      ...(spec.lineWeight != null ? { lineWeight: spec.lineWeight } : {}),
+      ...(spec.lineType ? { lineTypeId: spec.lineType } : {}),
+      ...(spec.fill ? { fillColor: spec.fill } : {}),
+    };
+    const feature: Feature = {
+      id: generateId(), type, geometry,
+      layerId: layerIdByName(spec.layerName),
+      style, properties: {},
+    };
+    drawing.addFeature(feature);
+    ops.push({ type: 'ADD_FEATURE', data: feature });
+    createdIds.push(feature.id);
+    fitted += 1;
+
+    if (spec.deleteSource) {
+      const sel = useSelectionStore.getState();
+      for (const id of spec.fromIds ?? []) {
+        const f = drawing.getFeature(id);
+        if (!f) continue;
+        const snap = JSON.parse(JSON.stringify(f)) as Feature;
+        drawing.removeFeature(id);
+        sel.select(id, 'REMOVE');
+        ops.push({ type: 'REMOVE_FEATURE', data: snap });
+      }
+    }
+  }
+  if (fitted) notes.push(`fit ${fitted} shape${fitted === 1 ? '' : 's'}`);
 
   // ── modify (geometry and/or style) ──
   let modified = 0;
@@ -489,13 +592,31 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       else if (g.type === 'SPLINE' && g.spline && pts.length >= 2) g.spline = { ...g.spline, controlPoints: fitPointsToBezier(pts, g.spline.isClosed) };
       drawing.updateFeatureGeometry(m.id, g);
     }
-    if (m.color || m.opacity != null || m.lineWeight != null) {
+    if (m.layerName) {
+      drawing.updateFeature(m.id, { layerId: ensureLayer(m.layerName) });
+    }
+    if (m.pointNumber != null || m.code != null || m.description != null || m.elevation != null) {
+      const cur = drawing.getFeature(m.id)!;
+      drawing.updateFeature(m.id, {
+        properties: {
+          ...cur.properties,
+          ...(m.pointNumber != null ? { pointNumber: m.pointNumber } : {}),
+          ...(m.code != null ? { code: m.code } : {}),
+          ...(m.description != null ? { description: m.description } : {}),
+          ...(m.elevation != null ? { elevation: m.elevation } : {}),
+        },
+      });
+    }
+    if (m.color || m.fill || m.opacity != null || m.lineWeight != null || m.lineType || m.symbol) {
       drawing.updateFeature(m.id, {
         style: {
           ...drawing.getFeature(m.id)!.style,
           ...(m.color ? { color: m.color } : {}),
+          ...(m.fill ? { fillColor: m.fill } : {}),
           ...(m.opacity != null ? { opacity: Math.max(0, Math.min(1, m.opacity)) } : {}),
           ...(m.lineWeight != null ? { lineWeight: m.lineWeight } : {}),
+          ...(m.lineType ? { lineTypeId: m.lineType } : {}),
+          ...(m.symbol ? { symbolId: m.symbol } : {}),
         },
       });
     }
@@ -511,7 +632,12 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       ? Array.from(useSelectionStore.getState().selectedIds)
       : t.ids;
     const feats = ids.map((id) => drawing.getFeature(id)).filter((f): f is Feature => !!f);
-    if (feats.length > 0) {
+    const dxq = t.translate?.east ?? 0;
+    const dyq = t.translate?.north ?? 0;
+    const radq = t.rotateDeg ? (t.rotateDeg * Math.PI) / 180 : 0;
+    const scq = t.scale ?? 1;
+    const isIdentity = dxq === 0 && dyq === 0 && radq === 0 && scq === 1;
+    if (feats.length > 0 && !isIdentity) {
       let pivot: Point2D;
       if (t.about && t.about !== 'CENTROID') {
         pivot = toWorld(t.about);
@@ -523,15 +649,11 @@ export function applyEditDrawing(action: DrawingChatAction): string {
         }
         pivot = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
       }
-      const dx = t.translate?.east ?? 0;
-      const dy = t.translate?.north ?? 0;
-      const rad = t.rotateDeg ? (t.rotateDeg * Math.PI) / 180 : 0;
-      const sc = t.scale ?? 1;
       const fn = (p: Point2D): Point2D => {
         let q = p;
-        if (sc !== 1) q = scale(q, pivot, sc);
-        if (rad !== 0) q = rotate(q, pivot, rad);
-        if (dx !== 0 || dy !== 0) q = translate(q, dx, dy);
+        if (scq !== 1) q = scale(q, pivot, scq);
+        if (radq !== 0) q = rotate(q, pivot, radq);
+        if (dxq !== 0 || dyq !== 0) q = translate(q, dxq, dyq);
         return q;
       };
       let transformed = 0;
@@ -545,6 +667,28 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       if (transformed) notes.push(`transformed ${transformed}`);
     }
   }
+
+  // ── hide / unhide (non-destructive; undoable via MODIFY) ──
+  const setHidden = (ids: string[] | undefined, hidden: boolean): number => {
+    let n = 0;
+    for (const id of ids ?? []) {
+      const f = drawing.getFeature(id);
+      if (!f || !!f.hidden === hidden) continue;
+      // Record `hidden` explicitly on both sides so undo restores it —
+      // a cloned snapshot would omit an absent `hidden` key and the
+      // shallow-merge updateFeature could not clear it back to false.
+      const before = { ...JSON.parse(JSON.stringify(f)), hidden: !!f.hidden } as Feature;
+      if (hidden) drawing.hideFeature(id); else drawing.unhideFeature(id);
+      const after = { ...JSON.parse(JSON.stringify(drawing.getFeature(id))), hidden } as Feature;
+      ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
+      n += 1;
+    }
+    return n;
+  };
+  const hid = setHidden(action.hideIds, true);
+  if (hid) notes.push(`hid ${hid}`);
+  const shown = setHidden(action.unhideIds, false);
+  if (shown) notes.push(`showed ${shown}`);
 
   // ── delete (last, so added/modified ids stay valid above) ──
   let deleted = 0;
@@ -560,9 +704,55 @@ export function applyEditDrawing(action: DrawingChatAction): string {
   }
   if (deleted) notes.push(`deleted ${deleted}`);
 
-  if (ops.length === 0) return '⚠ No valid geometry edits in the action.';
-  useUndoStore.getState().pushUndo(makeBatchEntry(action.description || 'AI drawing edit', ops));
+  if (skipped > 0) notes.push(`skipped ${skipped} invalid/degenerate`);
+  // Select what the AI just created so the next turn's selection digest
+  // carries its exact geometry — enabling iterative "refine this" follow-ups.
+  if (createdIds.length > 0) {
+    useSelectionStore.getState().selectMultiple(createdIds, 'REPLACE');
+  }
+  if (ops.length === 0 && notes.length === 0) return '⚠ No valid geometry edits in the action.';
+  // Layer creation isn't a feature op; only push undo when geometry changed.
+  if (ops.length > 0) {
+    useUndoStore.getState().pushUndo(makeBatchEntry(action.description || 'AI drawing edit', ops));
+  }
   return `✓ ${notes.join(', ')}.`;
+}
+
+/** Reject geometry that would render as nothing — non-finite coords, a
+ *  zero-length line, a zero-area polygon, a sub-epsilon radius, etc. — so
+ *  the AI can't litter the drawing with invisible/degenerate features. */
+function isDegenerateGeometry(g: FeatureGeometry): boolean {
+  const EPS = 1e-6;
+  const finite = (p?: Point2D) => !!p && Number.isFinite(p.x) && Number.isFinite(p.y);
+  const len = (a: Point2D, b: Point2D) => Math.hypot(b.x - a.x, b.y - a.y);
+  const polyArea = (vs: Point2D[]) => {
+    let a = 0;
+    for (let i = 0; i < vs.length; i += 1) { const p = vs[i], q = vs[(i + 1) % vs.length]; a += p.x * q.y - q.x * p.y; }
+    return Math.abs(a) / 2;
+  };
+  switch (g.type) {
+    case 'POINT': return !finite(g.point);
+    case 'TEXT': return !finite(g.point) || !((g.textContent ?? '').trim().length > 0);
+    case 'LINE': return !finite(g.start) || !finite(g.end) || len(g.start!, g.end!) < EPS;
+    case 'POLYLINE': {
+      const vs = g.vertices ?? [];
+      if (vs.length < 2 || !vs.every(finite)) return true;
+      let total = 0; for (let i = 0; i < vs.length - 1; i += 1) total += len(vs[i], vs[i + 1]);
+      return total < EPS;
+    }
+    case 'POLYGON': {
+      const vs = g.vertices ?? [];
+      return vs.length < 3 || !vs.every(finite) || polyArea(vs) < EPS;
+    }
+    case 'CIRCLE': return !g.circle || !finite(g.circle.center) || g.circle.radius < EPS;
+    case 'ELLIPSE': return !g.ellipse || !finite(g.ellipse.center) || g.ellipse.radiusX < EPS || g.ellipse.radiusY < EPS;
+    case 'ARC': return !g.arc || !finite(g.arc.center) || g.arc.radius < EPS;
+    case 'SPLINE': {
+      const cps = g.spline?.controlPoints ?? [];
+      return cps.length < 4 || !cps.every(finite);
+    }
+    default: return false;
+  }
 }
 
 function featurePoints(f: Feature): Point2D[] {

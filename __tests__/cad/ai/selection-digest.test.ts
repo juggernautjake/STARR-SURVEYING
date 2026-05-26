@@ -58,6 +58,9 @@ describe('buildSelectionDigest', () => {
     expect(it0.end).toEqual({ n: 40, e: 30 });
     expect(it0.midpoint).toEqual({ n: 20, e: 15 });
     expect(it0.lengthFt).toBe(50); // 3-4-5 → 50
+    // azimuth of (Δe=30, Δn=40) = atan2(30,40) ≈ 36.87°, quadrant N..E
+    expect(it0.azimuthDeg).toBeCloseTo(36.8699, 2);
+    expect(it0.bearing).toMatch(/^N.*E$/);
   });
 
   it('derives polygon centroid, perimeter, and area', () => {
@@ -74,6 +77,21 @@ describe('buildSelectionDigest', () => {
     expect(it0.centroid).toEqual({ n: 5, e: 5 });
     expect(it0.lengthFt).toBe(40);   // perimeter of 10×10
     expect(it0.areaSqFt).toBe(100);  // 10×10
+  });
+
+  it('reports style overrides (color/fill/lineType/opacity) when set', () => {
+    const f = {
+      id: 'g1', type: 'POLYGON',
+      geometry: { type: 'POLYGON', vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] },
+      layerId: 'L',
+      style: { ...STYLE, color: '#ff0000', fillColor: '#00ff00', lineTypeId: 'DASHED', opacity: 0.5 },
+      properties: {},
+    } as unknown as Feature;
+    const it0 = buildSelectionDigest(doc({ g1: f }), ['g1']).items[0];
+    expect(it0.color).toBe('#ff0000');
+    expect(it0.fill).toBe('#00ff00');
+    expect(it0.lineType).toBe('DASHED');
+    expect(it0.opacity).toBe(0.5);
   });
 
   it('counts by type and ignores ids that are not in the document', () => {

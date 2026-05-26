@@ -75,6 +75,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       doc: body.doc,
       history: body.history,
       selectedIds: Array.isArray(body.selectedIds) ? body.selectedIds : [],
+      activeLayerName: typeof body.activeLayerName === 'string' ? body.activeLayerName : undefined,
     });
     console.log('[admin/cad/drawing-chat] ok', {
       doc_id: body.doc.id,

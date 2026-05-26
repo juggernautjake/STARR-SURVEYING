@@ -1039,6 +1039,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       prevPoints = state.state.drawingPoints;
     });
     return unsub;
+    // finishFitSpline is a stable useCallback; the subscription is set up
+    // once on mount intentionally (re-subscribing each render would drop
+    // in-flight drawing points).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─────────────────────────────────────────────
@@ -1732,6 +1736,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         ? parseInt(lineType.color.replace('#', ''), 16)
         : color;
 
+    // Fill a closed curve (circle/ellipse/closed spline) under its stroke
+    // when the style carries a fillColor. No-op (and zero overhead) for
+    // unfilled shapes, so existing rendering is untouched.
+    const fillClosed = (drawFn: () => void) => {
+      const fc = feature.style.fillColor;
+      if (!fc) return;
+      const fi = parseInt(fc.replace('#', ''), 16);
+      if (!Number.isFinite(fi)) return;
+      g.lineStyle(0);
+      g.beginFill(fi, Math.max(0, Math.min(1, feature.style.fillOpacity ?? alpha)));
+      drawFn();
+      g.endFill();
+    };
+
     switch (geom.type) {
       case 'POINT': {
         const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -1782,6 +1800,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const p = w2s(v.x, v.y);
           return { x: p.sx, y: p.sy };
         });
+        // Optional area fill (under the stroke) when the style sets fillColor.
+        if (feature.style.fillColor) {
+          const fillInt = parseInt(feature.style.fillColor.replace('#', ''), 16);
+          if (Number.isFinite(fillInt)) {
+            g.beginFill(fillInt, Math.max(0, Math.min(1, feature.style.fillOpacity ?? alpha)));
+            g.moveTo(screenPts[0].x, screenPts[0].y);
+            for (let i = 1; i < screenPts.length; i++) g.lineTo(screenPts[i].x, screenPts[i].y);
+            g.closePath();
+            g.endFill();
+          }
+        }
         // Close the ring so the pattern wraps the final edge.
         screenPts.push(screenPts[0]);
         renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
@@ -1789,6 +1818,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       case 'CIRCLE': {
         if (geom.circle) {
+          fillClosed(() => drawCircleCurve(g as unknown as GraphicsLike, geom.circle!, w2s, zoom));
           g.lineStyle(weight, color, alpha);
           drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, zoom);
         }
@@ -1796,6 +1826,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       case 'ELLIPSE': {
         if (geom.ellipse) {
+          fillClosed(() => drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse!, w2s, zoom));
           g.lineStyle(weight, color, alpha);
           drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, zoom);
         }
@@ -1810,6 +1841,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       case 'SPLINE': {
         if (geom.spline) {
+          if (geom.spline.isClosed) {
+            fillClosed(() => drawSplineCurve(g as unknown as GraphicsLike, geom.spline!, w2s));
+          }
           g.lineStyle(weight, color, alpha);
           drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
         }

@@ -59,6 +59,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
   const [fileLoading, setFileLoading] = useState(false);
+  // Submenu (Export/Import flyout) open/close with a short grace delay so a
+  // diagonal cursor move from the parent row to the flyout doesn't drop it.
+  const submenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openSub = (label: string) => {
+    if (submenuCloseTimer.current) { clearTimeout(submenuCloseTimer.current); submenuCloseTimer.current = null; }
+    setOpenSubmenu(label);
+  };
+  const scheduleCloseSub = () => {
+    if (submenuCloseTimer.current) clearTimeout(submenuCloseTimer.current);
+    submenuCloseTimer.current = setTimeout(() => setOpenSubmenu(null), 180);
+  };
   const [dbDialog, setDbDialog] = useState<'save' | 'open' | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const drawingStore = useDrawingStore();
@@ -772,7 +783,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
 
       {/* Menu items */}
       {menus.map((menu) => (
-        <div key={menu.label} className="relative">
+        // z-50 keeps the buttons above the click-away overlay (z-40) so
+        // hovering across menus and clicking items always registers.
+        <div key={menu.label} className="relative z-50">
           <button
             className={`px-3 py-1.5 hover:bg-gray-700 transition-colors ${openMenu === menu.label ? 'bg-gray-700' : ''}`}
             onClick={() => { setOpenMenu(openMenu === menu.label ? null : menu.label); setOpenSubmenu(null); }}
@@ -782,9 +795,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           </button>
 
           {openMenu === menu.label && (
+            // Stays open until an item is chosen or the user clicks away
+            // (handled by the overlay) — it no longer vanishes when the
+            // cursor merely leaves the menu, which felt flaky.
             <div
               className="absolute top-full left-0 z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px] animate-[slideInDown_150ms_cubic-bezier(0.16,1,0.3,1)]"
-              onMouseLeave={() => { setOpenMenu(null); setOpenSubmenu(null); }}
             >
               {menu.items.map((item, idx) => {
                 if ('separator' in item && item.separator) {
@@ -796,8 +811,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
                     <div
                       key={idx}
                       className="relative"
-                      onMouseEnter={() => setOpenSubmenu(mi.label)}
-                      onMouseLeave={() => setOpenSubmenu(null)}
+                      onMouseEnter={() => openSub(mi.label)}
+                      onMouseLeave={scheduleCloseSub}
                     >
                       <button
                         className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition-colors duration-100 hover:bg-gray-700 hover:text-white ${
@@ -808,7 +823,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
                         <span className="text-gray-400 text-[10px] ml-4">▸</span>
                       </button>
                       {openSubmenu === mi.label && (
-                        <div className="absolute top-0 left-full -ml-px z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[240px] animate-[slideInDown_120ms_cubic-bezier(0.16,1,0.3,1)]">
+                        <div
+                          className="absolute top-0 left-full -ml-px z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[240px] animate-[slideInDown_120ms_cubic-bezier(0.16,1,0.3,1)]"
+                          onMouseEnter={() => openSub(mi.label)}
+                          onMouseLeave={scheduleCloseSub}
+                        >
                           {mi.submenu.map((sub, sidx) =>
                             'separator' in sub && sub.separator ? (
                               <div key={sidx} className="my-1 border-t border-gray-600" />

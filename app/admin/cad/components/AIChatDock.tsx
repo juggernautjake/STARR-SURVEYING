@@ -307,6 +307,9 @@ function ChatBubble({
   const isUser = message.role === 'USER';
   const action = message.action;
   const showApply = !!action && action.type !== 'NO_ACTION';
+  // Guard against double-applying the same action (which would duplicate
+  // geometry / re-run the edit). Once applied, the button locks to "Applied".
+  const [applied, setApplied] = useState(false);
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-xs leading-relaxed ${
@@ -330,11 +333,11 @@ function ChatBubble({
             <span><strong>Action:</strong> {action.type}{action.description ? ` — ${action.description}` : ''}</span>
             {showApply ? (
               <button
-                onClick={() => onApplyAction(action)}
-                disabled={applyDisabled}
+                onClick={() => { onApplyAction(action); setApplied(true); }}
+                disabled={applyDisabled || applied}
                 className="ml-auto bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded px-2 py-0.5 text-[10px] font-semibold"
               >
-                Apply
+                {applied ? 'Applied ✓' : 'Apply'}
               </button>
             ) : null}
           </div>
