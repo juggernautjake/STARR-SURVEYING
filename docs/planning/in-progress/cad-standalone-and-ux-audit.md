@@ -291,10 +291,12 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
 - [ ] **12. Smoother UI motion** — consistent enter/exit transitions for
   popups, menus, panels, dialogs (fade/scale in AND out); smoother
   loading states. Avoid abrupt mount/unmount.
-- [ ] **13. Zoom/scale-aware text + line widths** — audit how default
-  font sizes and line weights scale with zoom; line thicknesses can be
-  too thin and labels too large/cluttered. Define sensible min/max screen
-  sizes so labels stay legible without overwhelming the drawing.
+- [x] **13. Zoom/scale-aware text + line widths** — auto-labels now
+  clamp to [4, 26]px on screen (was unbounded → ballooned when zoomed
+  in); feature strokes get a `MIN_FEATURE_LINE_PX` (1.1px) floor so thin
+  weights stay visible (they draw in screen px). VERIFIED at 661% zoom:
+  line stays a clean visible stroke, no label clutter
+  (`zoom-sizing.spec.ts`). User TEXT features left uncapped (intentional).
 - [ ] **14. Grouped point labels** — when both point name and code/desc
   are toggled on, render them together (name on top, code/desc just
   below); moving one moves+highlights both. A setting toggles
@@ -777,3 +779,8 @@ handle:
   (lib/cad/operations) for the commit; the new work is the interactive
   handle + ghost + readout (largely in `CanvasViewport`, which already
   has image-rotation handle code to generalize).
+- 2026-05-26 13:0x CDT — Slice 13 DONE. Clamped auto-label font to a
+  [4,26]px on-screen range (fixes "labels too big/cluttered" when zoomed)
+  and floored feature stroke width at 1.1px (fixes "lines too thin" —
+  they render in screen px). Verified at 661% zoom. (Container restarted
+  mid-session; rebooted the harness dev server.)

@@ -246,6 +246,13 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
 };
 
 const MIN_LABEL_FONT_SIZE_PX = 4;
+// §13 — labels scale with zoom × drawingScale; without an upper bound they
+// balloon when zoomed in and clutter the drawing. Cap the on-screen size.
+const MAX_LABEL_FONT_SIZE_PX = 26;
+// §13 — feature strokes are drawn in screen px from `lineWeight`; thin
+// weights (e.g. 0.75) render as near-invisible hairlines. Floor the
+// on-screen stroke so lines stay legible (never caps bold weights).
+const MIN_FEATURE_LINE_PX = 1.1;
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -1725,7 +1732,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         : baseColor;
     const aiWeightMultiplier =
       aiTier === 4 ? 1.4 : aiTier === 3 ? 1.6 : aiTier === 2 ? 2.0 : aiTier === 1 ? 2.4 : 1;
-    const weight = (feature.style.lineWeight ?? 0.75) * aiWeightMultiplier;
+    // §13 — floor the on-screen stroke so thin weights stay legible
+    // (features draw in screen px, so a raw 0.75 is a near-invisible
+    // hairline). Never caps bold weights.
+    const weight = Math.max(
+      MIN_FEATURE_LINE_PX,
+      (feature.style.lineWeight ?? 0.75) * aiWeightMultiplier,
+    );
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
     const { zoom } = useViewportStore.getState();
@@ -1739,8 +1752,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const drawingScale = doc.settings.drawingScale ?? 50;
     // A line type may carry its own thickness/color; honor it when the
     // feature isn't being AI-tinted (tier overrides win for review).
-    const ltWeight =
-      aiTier == null && lineType.lineWeight != null ? lineType.lineWeight : weight;
+    const ltWeight = Math.max(
+      MIN_FEATURE_LINE_PX,
+      aiTier == null && lineType.lineWeight != null ? lineType.lineWeight : weight,
+    );
     const ltColor =
       aiTier == null && lineType.color
         ? parseInt(lineType.color.replace('#', ''), 16)
@@ -3019,7 +3034,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
         const drawingScale = doc.settings.drawingScale ?? 50;
         const fontSizeWorld = (label.style.fontSize / 72) * drawingScale * scale;
-        const fontSize = Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom);
+        const fontSize = Math.min(
+          MAX_LABEL_FONT_SIZE_PX,
+          Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom),
+        );
 
         if (!textObj) {
           const style = new pixi.TextStyleClass({
