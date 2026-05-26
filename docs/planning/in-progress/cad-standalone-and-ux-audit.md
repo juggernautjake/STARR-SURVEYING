@@ -228,8 +228,14 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   stamp names into `properties` (POINT→`pointName`, linework→JSON
   `pointRefs`); 3 more unit tests (11 total in the registry suite). The
   draw-path wire-up is now a safe one-liner per call site.
-- [ ] **8c. Export inclusion**: every named point (incl. `:N` and
-  auto-minted vertex points) appears in CSV/PNEZD/DXF/LandXML.
+- [x] **8c. Export inclusion** (created points): drawn standalone points
+  are POINT features carrying `pointName`, which the CSV/PNEZD/DXF/LandXML
+  writers already enumerate via `pointNumberOf` — so auto-named created
+  points export automatically. 2 unit tests confirm. (`:N` vertex refs on
+  linework are metadata, not separate POINT records; materializing them
+  as exported points is a follow-up — 8c-deriv.)
+- [ ] **8c-deriv**: optionally materialize cross-layer `:N` vertex refs
+  as exportable point records.
 - [ ] **8d. Duplication/copy semantics**: copy across layers →
   `base:N`; copy within a layer → fresh number; integrate with
   LayerTransferDialog.
