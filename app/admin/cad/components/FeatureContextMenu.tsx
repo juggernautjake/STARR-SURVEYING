@@ -692,10 +692,26 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
               }
               const begin = (moveWhole: boolean) => {
                 window.dispatchEvent(new CustomEvent('cad:beginSnapToPoint', {
-                  detail: { featureId: feature.id, vertexIndex: vIndex, moveWhole },
+                  detail: {
+                    featureId: feature.id,
+                    vertexIndex: vIndex,
+                    moveWhole,
+                    selectionIds: Array.from(selectionStore.selectedIds),
+                  },
                 }));
                 onClose();
               };
+              // With several elements selected, snapping translates the whole
+              // selection so the picked point lands on the target while every
+              // element keeps its position relative to the others.
+              if (selCount > 1) {
+                return [{
+                  id: 'snap-selection-to-point',
+                  label: `Snap selection (${selCount}) to point…`,
+                  icon: <Magnet size={12} />,
+                  action: () => begin(true),
+                } as MenuItemDef];
+              }
               if (g.type === 'POINT') {
                 return [{
                   id: 'snap-to-point',
