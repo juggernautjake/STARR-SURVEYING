@@ -426,6 +426,27 @@ describe('applyEditDrawing', () => {
     expect(p.description).toBe('iron pin');
   });
 
+  it('reverts a multi-aspect modify (attrs + layer) in one undo', () => {
+    useUndoStore.getState().clear();
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'pt',
+      add: [{ shape: 'POINT', points: [{ northing: 1, easting: 1 }], code: 'TMP' }] });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    const origLayer = useDrawingStore.getState().getFeature(id)!.layerId;
+    useUndoStore.getState().clear();
+
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'edit',
+      modify: [{ id, code: 'IP', elevation: 642, layerName: 'CONTROL' }] });
+    const mid = useDrawingStore.getState().getFeature(id)!;
+    expect(mid.properties.code).toBe('IP');
+    expect(mid.layerId).not.toBe(origLayer);
+
+    useUndoStore.getState().undo();
+    const back = useDrawingStore.getState().getFeature(id)!;
+    expect(back.properties.code).toBe('TMP');
+    expect(back.properties.elevation).toBeUndefined();
+    expect(back.layerId).toBe(origLayer);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
