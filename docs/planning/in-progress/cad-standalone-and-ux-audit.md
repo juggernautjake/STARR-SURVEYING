@@ -934,3 +934,6 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   also include derived (vertex-ref) created points, matching CSV/PNEZD
   (DXF stays linework-focused — vertices are carried by the geometry). 7
   landxml tests green. Continuing audit/refactor/test toward 5 PM.
+- 2026-05-26 15:3x CDT — Data-integrity audit: Traverse Viewer course
+  edits (distance) are undoable too (Ctrl+Z reverts) — `traverse-edit-undo`
+  spec. Both editable viewers (point + traverse) now have verified undo.
