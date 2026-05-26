@@ -122,6 +122,8 @@ const AUTOSAVE_DEBOUNCE_MS = 5_000;
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
   const [layerPanelWidth, setLayerPanelWidth] = usePanelSize('layer', 192, 160, 480);
+  const [rightDockWidth, setRightDockWidth] = usePanelSize('right', 192, 160, 520);
+  const [pointTableHeight, setPointTableHeight] = usePanelSize('pointTable', 192, 120, 520);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -901,9 +903,22 @@ export default function CADLayout() {
           />
         </div>
 
-        {/* Right sidebar: property panel + traverse panel + image panel (toggleable) */}
+        {/* Right sidebar: property panel + traverse panel + image panel (toggleable, resizable) */}
         {(showPropertyPanel || showTraversePanel || showImagePanel) && (
-          <div className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right w-48">
+          <>
+          <ResizeHandle
+            axis="x"
+            sign={-1}
+            size={rightDockWidth}
+            min={160}
+            max={520}
+            onResize={setRightDockWidth}
+            ariaLabel="Resize properties panel"
+          />
+          <div
+            className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right"
+            style={{ width: rightDockWidth }}
+          >
             <div className="flex flex-col flex-1 min-w-0">
               {showPropertyPanel && <PropertyPanel />}
               {showTraversePanel && (
@@ -924,18 +939,33 @@ export default function CADLayout() {
               )}
             </div>
           </div>
+          </>
         )}
       </div>
 
       {/* Bottom area: command bar + optional point table + status bar */}
       <CommandBar />
       {showPointTable && (
-        <div className="h-48 border-t border-gray-700 shrink-0 animate-[slideInUp_200ms_cubic-bezier(0.16,1,0.3,1)]">
+        <>
+        <ResizeHandle
+          axis="y"
+          sign={-1}
+          size={pointTableHeight}
+          min={120}
+          max={520}
+          onResize={setPointTableHeight}
+          ariaLabel="Resize point table"
+        />
+        <div
+          className="border-t border-gray-700 shrink-0 animate-[slideInUp_200ms_cubic-bezier(0.16,1,0.3,1)]"
+          style={{ height: pointTableHeight }}
+        >
           <PointTablePanel
             codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'NUMERIC'}
             onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}
           />
         </div>
+        </>
       )}
       <StatusBar onOpenRecentRecoveries={() => setShowRecentRecoveries(true)} />
 

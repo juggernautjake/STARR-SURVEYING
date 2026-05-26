@@ -170,11 +170,12 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
 - [x] **Layer panel** (was `w-48` fixed) — now draggable [160,480]px,
   persisted under `starr-cad-panel:layer`. VERIFIED via drag spec +
   screenshot (`layer-panel-resized.png`).
-- [ ] **Right dock** (property/traverse/image, `w-48`, fixed) — draggable
-  splitter (handle on LEFT edge, sign -1), persisted size; ensure the
-  three panels stack/scroll well.
-- [ ] **Bottom point table** (`h-48`, fixed) — draggable horizontal
-  splitter (handle on TOP edge, axis y, sign -1), persisted height.
+- [x] **Right dock** (property/traverse/image) — draggable [160,520]px
+  (handle on LEFT edge, sign -1), persisted under `…:right`. VERIFIED via
+  drag spec + screenshot.
+- [x] **Bottom point table** — draggable [120,520]px (handle on TOP edge,
+  axis y, sign -1), persisted under `…:pointTable`. VERIFIED via drag
+  spec + screenshot (`point-table-resized.png`).
 - [ ] **Canvas re-fit on panel resize** — screenshot after a layer-panel
   drag showed a gray band atop the canvas, suggesting the Pixi renderer
   may not re-fit when its container width changes. Verify CanvasViewport
@@ -371,3 +372,10 @@ assignNames(newGeometry, layerId, registry, tol):
   registry builder + on rename.
 - Undo: naming happens inside the same batch as geometry creation so one
   undo reverts both.
+- 2026-05-26 10:2x CDT — Slice 4 DONE. Right dock + bottom point table
+  now resizable (drag specs + screenshots confirm). The screenshots make
+  the canvas re-fit bug obvious: gray letterbox bands appear around the
+  white sheet whenever the layout reflows — the Pixi renderer isn't
+  resizing its drawing buffer to the new container size. Next: fix canvas
+  re-fit (CanvasViewport ResizeObserver), which now clearly affects every
+  resize/toggle.
