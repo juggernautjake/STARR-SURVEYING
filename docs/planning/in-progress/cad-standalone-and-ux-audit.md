@@ -630,3 +630,7 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   Both verified via harness. Shortens the two longest menus per the
   original consolidation request. Next: remaining per-surface audits /
   10f.
+- 2026-05-26 11:4x CDT — Verified Point Viewer EDITING live (closes the
+  10c loop beyond the earlier shell check): drew a point, edited its
+  Northing cell to 1234.5 → cell shows 1234.500 (point moved via
+  updateFeature). Added `point-viewer-edit.spec.ts`.
