@@ -960,3 +960,8 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   (Ctrl+A focus), not a product issue. `rotate-selection.spec` confirms.
 - 2026-05-26 16:0x CDT — Audit (untouched tool): COPY duplicates a
   selected point (base→dest → 2 pts) — `copy-tool.spec`.
+- 2026-05-26 16:0x CDT — Audit: toolbar Undo button reverts the last edit
+  (`undo-button.spec`). Reopened-session audit sweep is now broad: core
+  tools (Point/Line/Polygon/Copy/Rotate/Delete), CommandBar, StatusBar,
+  toolbar undo, both editable viewers + undo, exports, point-identity,
+  motion. All green; 1281 unit tests; tsc clean.
