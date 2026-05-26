@@ -1,12 +1,13 @@
 # CAD Standalone Window & UX Audit — Self-Updating Master Plan
 
-Status: **in progress (reopened)** · Owner: CAD/UX · Last audit: 2026-05-26 14:38 CDT
-Time-box: **extended by the user to 5:00 PM CDT (17:00), 2026-05-26.**
-(2:00 PM → 4:00 PM → 5:00 PM.) From 5:00 PM, stop starting new work;
-finish whatever remains in this doc, then move it to `completed/` and
-stop. On every resume: check the clock — if ≥ 17:00 CDT, wrap up per §7
-and move this doc back to `completed/`; otherwise keep auditing/
-refactoring/testing the §17 backlog below.
+Status: **completed** · Owner: CAD/UX · Finalized: 2026-05-26 16:31 CDT
+Time-box: 5:00 PM CDT (2:00 PM → 4:00 PM → 5:00 PM). Finalized at 16:31
+CDT — every open backlog item in §5 and §17 is done or carries an inline
+deferral note, the tree is green (1281 unit tests, tsc clean, all e2e
+specs pass individually), so the loop has no remaining in-scope work.
+Moved to `completed/` per §7. Deferred-with-rationale items (§17c
+rotation grab-node/ghost, §17e AI naming advisor, DXF derived-points)
+are documented in place for a future engagement.
 
 ---
 
@@ -965,3 +966,24 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   tools (Point/Line/Polygon/Copy/Rotate/Delete), CommandBar, StatusBar,
   toolbar undo, both editable viewers + undo, exports, point-identity,
   motion. All green; 1281 unit tests; tsc clean.
+- 2026-05-26 16:31 CDT — **Finalization.** All §5 and §17 backlog items
+  are `[x]`/`[~]` with inline deferral notes; no open `[ ]` remain. The
+  reopened-session audit sweep surfaced no product bugs — only test
+  artifacts (rotate-selection focus, point-edit-undo tool-state) which
+  were corrected in the specs. Shipped across the full engagement:
+  standalone full-screen CAD window (chrome suppressed); resizable
+  panels; export by scope (selection / layer / derived) to CSV/PNEZD/
+  LandXML; import centering + zoom-to-fit; full point-identity system
+  (deterministic naming engine, draw wire-up, cross-layer `base:N`,
+  export across CSV/PNEZD/LandXML, derived-point materialization);
+  editable Point Data Viewer + Traverse Viewer (both with verified
+  undo); rename confirmation dialog with remembered strategy; layers
+  panel right-click menu + new-layer modal; menu consolidation;
+  toolbar a11y; zoom-aware line/font sizing; grouped point labels;
+  entry+exit motion on popups/menus/panels. Deferred (documented in
+  place, out of scope for this engagement): §17c unified rotation
+  grab-node/ghost UX, §17e AI naming advisor, DXF derived-points.
+  Tree green at finalization: 1281 unit tests, tsc clean, every e2e
+  spec passes individually. Status flipped to **completed**; `Spec:`
+  refs repointed to `completed/`; doc moved to `completed/`. The
+  in-progress folder is now empty (only `.gitkeep`); the loop stops.

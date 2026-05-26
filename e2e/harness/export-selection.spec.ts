@@ -1,6 +1,6 @@
 // e2e/harness/export-selection.spec.ts — Slice 7: scoped-export menu items.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';

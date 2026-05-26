@@ -7,7 +7,7 @@
 // `onClose` after `ms`. Honor prefers-reduced-motion by closing
 // immediately.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §12/§17a
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §12/§17a
 
 import { useCallback, useState } from 'react';
 

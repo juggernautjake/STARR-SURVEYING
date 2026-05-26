@@ -7,7 +7,7 @@
 //   • rename-in-place (updates the point + every reference, one batch)
 //   • duplicate (new point with the new name, original untouched)
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10.3
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10.3
 
 import type { DrawingDocument, Feature } from '../types';
 import { generateId } from '../types';

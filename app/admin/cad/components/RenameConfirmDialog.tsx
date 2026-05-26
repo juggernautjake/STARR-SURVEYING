@@ -6,7 +6,7 @@
 // the new name" alternative, lets the user proceed anyway, and can
 // remember the choice so power users renaming many points aren't nagged.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
 
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';

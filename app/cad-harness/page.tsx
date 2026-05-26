@@ -5,7 +5,7 @@
 // middleware's auth gate doesn't redirect it, and it 404s unless
 // NEXT_PUBLIC_E2E_HARNESS === '1' so it can never appear in production.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §2
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §2
 
 import { notFound } from 'next/navigation';
 import CADLayout from '@/app/admin/cad/CADLayout';

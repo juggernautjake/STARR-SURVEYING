@@ -5,7 +5,7 @@
 // give it a color + description, and optionally move existing points
 // into it on creation.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §11
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §11
 
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';

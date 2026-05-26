@@ -1,7 +1,7 @@
 // e2e/harness/resize-dock-table.spec.ts — Slice 4: right dock + point
 // table resize.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';

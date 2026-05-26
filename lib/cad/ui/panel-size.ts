@@ -4,7 +4,7 @@
 // persistence. Kept framework-free so the clamp logic is unit-testable
 // without a DOM.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 
 export function clampPanelSize(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min;

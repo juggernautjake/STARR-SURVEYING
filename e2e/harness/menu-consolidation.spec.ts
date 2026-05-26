@@ -1,6 +1,6 @@
 // e2e/harness/menu-consolidation.spec.ts — consolidated submenus.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 // (menu / dropdown consolidation)
 
 import { test, expect } from '@playwright/test';

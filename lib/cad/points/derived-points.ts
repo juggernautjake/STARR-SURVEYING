@@ -9,7 +9,7 @@
 //
 // Pure + framework-free; unit-tested.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §17b
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §17b
 
 import type { DrawingDocument } from '../types';
 import { pointNumberOf } from '../feature-fields';

@@ -10,7 +10,7 @@
 // (and, for a layer scope, `layerOrder`/`layers`) are narrowed so the
 // output still carries the styling context the features reference.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §5
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §5
 // (export by scope)
 
 import type { DrawingDocument, Feature } from '../types';

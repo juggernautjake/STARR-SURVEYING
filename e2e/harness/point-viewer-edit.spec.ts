@@ -1,6 +1,6 @@
 // e2e/harness/point-viewer-edit.spec.ts — editing a coordinate moves the point.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10c
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10c
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';
