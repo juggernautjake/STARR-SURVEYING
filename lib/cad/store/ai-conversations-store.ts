@@ -647,6 +647,24 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     }
   }
 
+  // ── hide / unhide (non-destructive; undoable via MODIFY) ──
+  const setHidden = (ids: string[] | undefined, hidden: boolean): number => {
+    let n = 0;
+    for (const id of ids ?? []) {
+      const f = drawing.getFeature(id);
+      if (!f || !!f.hidden === hidden) continue;
+      const before = JSON.parse(JSON.stringify(f)) as Feature;
+      if (hidden) drawing.hideFeature(id); else drawing.unhideFeature(id);
+      const after = drawing.getFeature(id);
+      if (after) { ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } }); n += 1; }
+    }
+    return n;
+  };
+  const hid = setHidden(action.hideIds, true);
+  if (hid) notes.push(`hid ${hid}`);
+  const shown = setHidden(action.unhideIds, false);
+  if (shown) notes.push(`showed ${shown}`);
+
   // ── delete (last, so added/modified ids stay valid above) ──
   let deleted = 0;
   const sel = useSelectionStore.getState();

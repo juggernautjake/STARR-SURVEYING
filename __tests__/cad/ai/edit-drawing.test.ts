@@ -322,6 +322,15 @@ describe('applyEditDrawing', () => {
     expect(useDrawingStore.getState().getFeature(id)!.layerId).toBe(target!.id);
   });
 
+  it('hides and unhides features non-destructively', () => {
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 1, easting: 1 }] }] });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'hide', hideIds: [id] });
+    expect(useDrawingStore.getState().getFeature(id)!.hidden).toBe(true);
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'show', unhideIds: [id] });
+    expect(useDrawingStore.getState().getFeature(id)!.hidden).toBe(false);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

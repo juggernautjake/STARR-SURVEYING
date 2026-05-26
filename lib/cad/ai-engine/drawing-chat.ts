@@ -158,6 +158,8 @@ export interface DrawingChatAction {
   transform?:   ChatTransformSpec;
   fit?:         ChatFitSpec[];
   createLayers?: ChatLayerSpec[];
+  hideIds?:     string[];
+  unhideIds?:   string[];
 }
 
 export interface DrawingChatAttachment {
@@ -230,7 +232,8 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "fill": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<id>", "symbol": "<id>", "layerName": "<move to layer>" } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
     "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ],
-    "createLayers": [ { "name": "<layer>", "color": "<#hex optional>" } ]
+    "createLayers": [ { "name": "<layer>", "color": "<#hex optional>" } ],
+    "hideIds": [ "<featureId>", ... ], "unhideIds": [ "<featureId>", ... ]
   }
 }
 
@@ -287,6 +290,8 @@ Action selection rules:
   - Layers: set "layerName" on add/fit to place geometry on a layer; if the
     layer doesn't exist it is created automatically. Use "createLayers" to
     pre-create named/colored layers (e.g. STRUCTURES, FENCE, ROW, BOUNDARY).
+  - hideIds / unhideIds hide or show features non-destructively (declutter
+    or isolate) — prefer over deleteIds when the surveyor may want them back.
   - Prefer EDIT_DRAWING over REGENERATE_PIPELINE for surgical edits to
     specific selected features.
 * REGENERATE_PIPELINE — re-run the full AI pipeline with the
@@ -509,8 +514,12 @@ function parseCoords(raw: unknown): ChatCoord[] {
   return out;
 }
 
-function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit' | 'createLayers'> {
-  const out: Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit' | 'createLayers'> = {};
+type EditFields = Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit' | 'createLayers' | 'hideIds' | 'unhideIds'>;
+function parseEditFields(a: Record<string, unknown>): EditFields {
+  const out: EditFields = {};
+  const strArr = (v: unknown) => Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
+  const hideIds = strArr(a.hideIds); if (hideIds.length) out.hideIds = hideIds;
+  const unhideIds = strArr(a.unhideIds); if (unhideIds.length) out.unhideIds = unhideIds;
 
   if (Array.isArray(a.createLayers)) {
     const layers: ChatLayerSpec[] = [];
