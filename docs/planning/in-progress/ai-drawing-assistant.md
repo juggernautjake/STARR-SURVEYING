@@ -212,6 +212,8 @@ it; only improvise for genuinely novel requests.
 - 2026-05-26 03:0x CDT — Phase 3 COMPLETE: FIT_CURVE, TEXT labels, layer
   create/assign, and lineType assignment all shipped + tested. Also a UX
   fix outside this doc: dropdown menus stay open until click-away (MenuBar).
-  Next: Phase 5 validation/preview + Phase 4 semantic builders; Phase 7
-  Playwright/OCR is environment-limited here (documented).
+- 2026-05-26 03:1x CDT — Phase 5 (degenerate-skip + auto-select created),
+  Phase 4 (line bearing/azimuth in digest), parse-safety tests, and a
+  locally-runnable Playwright spec (menu smoothness + AI chat). Hardened
+  coverage: transform-about-pivot, scale-about-centroid, spline reshape.
 </content>

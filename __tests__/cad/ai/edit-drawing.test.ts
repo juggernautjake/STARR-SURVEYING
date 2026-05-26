@@ -191,6 +191,51 @@ describe('applyEditDrawing', () => {
     for (const id of ids) expect(sel.has(id)).toBe(true);
   });
 
+  it('rotates 90° CCW about an explicit pivot', () => {
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 10 }] }] });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'rot',
+      transform: { ids: [id], rotateDeg: 90, about: { northing: 0, easting: 0 } },
+    });
+    const f = useDrawingStore.getState().getFeature(id)!;
+    // world {x:10,y:0} rotated +90° about origin → {x:0,y:10}
+    expect(f.geometry.point!.x).toBeCloseTo(0, 6);
+    expect(f.geometry.point!.y).toBeCloseTo(10, 6);
+  });
+
+  it('scales 2× about the selection centroid', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'line',
+      add: [{ shape: 'LINE', points: [{ northing: 0, easting: 0 }, { northing: 0, easting: 10 }] }],
+    });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'scale', transform: { ids: [id], scale: 2, about: 'CENTROID' } });
+    const g = useDrawingStore.getState().getFeature(id)!.geometry;
+    // centroid x=5; start 0→-5, end 10→15
+    expect(g.start!.x).toBeCloseTo(-5, 6);
+    expect(g.end!.x).toBeCloseTo(15, 6);
+  });
+
+  it('reshapes a spline via modify (control points recomputed)', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 's',
+      add: [{ shape: 'SPLINE', points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 10 }, { northing: 5, easting: 5 },
+      ] }],
+    });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    expect(useDrawingStore.getState().getFeature(id)!.geometry.spline!.controlPoints).toHaveLength(7); // 1 + 3*2
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'reshape',
+      modify: [{ id, points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 10 },
+        { northing: 10, easting: 10 }, { northing: 10, easting: 0 },
+      ] }],
+    });
+    expect(useDrawingStore.getState().getFeature(id)!.geometry.spline!.controlPoints).toHaveLength(10); // 1 + 3*3
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
