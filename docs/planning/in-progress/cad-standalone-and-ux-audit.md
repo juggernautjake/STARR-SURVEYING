@@ -213,10 +213,11 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   consistency, no-vanish-on-mouse-off behavior, every entry works.
 
 ### Point identity & auto-naming (user request 2026-05-26 — see §8)
-- [ ] **8a. Deterministic naming core** (`lib/cad/points/point-naming.ts`):
-  `nextPointName(existing)`, `coincidentPoint(coord, registry, tol)`,
-  `derivedName(base, registry)` → `base:N`. Pure, unit-tested. No AI
-  dependency for correctness.
+- [x] **8a. Deterministic naming core** (`lib/cad/points/point-naming.ts`):
+  `parsePointName`, `nextPointName` (numeric→max+1, then `P#`, collision-
+  safe), `derivedName`→`base:N`, `coincidentName`, and `resolveVertexName`
+  (reuse / derive / mint per §8 rules). Pure, 13 unit tests. No AI
+  dependency.
 - [ ] **8b. Assign-on-create**: when a POINT / LINE / POLYLINE / POLYGON
   is created, name each vertex per §8 rules (reuse same-layer existing
   point; mint new; or `base:N` for cross-layer references).
@@ -428,3 +429,9 @@ assignNames(newGeometry, layerId, registry, tol):
   confirms. Layer-scoped export deferred to a follow-up (helper already
   supports it; needs a layer-picker UI). Next: point-identity epic §8
   (start with 8a deterministic naming core).
+- 2026-05-26 10:1x CDT — Slice 8a DONE. Built the deterministic point-
+  naming core (`lib/cad/points/point-naming.ts`): parse/next/derived/
+  coincident + `resolveVertexName` returning reuse|derive|mint per the §8
+  rules (same-layer reuse, cross-layer `base:N`, else mint max+1). 13 unit
+  tests. Next: 8b — wire assign-on-create into geometry creation so new
+  POINT/LINE/POLYLINE/POLYGON vertices get names.
