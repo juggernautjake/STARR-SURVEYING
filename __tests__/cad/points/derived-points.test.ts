@@ -84,3 +84,22 @@ describe('export inclusion of derived points (§17b)', () => {
     expect(nums).toContain('256:1');
   });
 });
+
+describe('collectDerivedPoints — hidden features', () => {
+  it('skips hidden linework so its vertex refs are not exported', () => {
+    const A = { x: 0, y: 0 }, B = { x: 5, y: 0 };
+    const fmap: Record<string, Feature> = {};
+    const hiddenLine = {
+      id: 'h', type: 'LINE', geometry: { type: 'LINE', start: A, end: B },
+      layerId: 'BOUNDARY', style: {} as Feature['style'],
+      properties: { pointRefs: JSON.stringify(['400', '401']) }, hidden: true,
+    } as Feature;
+    fmap['h'] = hiddenLine;
+    const d = {
+      features: fmap,
+      layers: { BOUNDARY: { id: 'BOUNDARY', name: 'B' } },
+      settings: { displayPreferences: { originNorthing: 0, originEasting: 0 } },
+    } as unknown as DrawingDocument;
+    expect(collectDerivedPoints(d)).toHaveLength(0);
+  });
+});
