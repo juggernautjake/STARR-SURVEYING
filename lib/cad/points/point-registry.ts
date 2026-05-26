@@ -138,3 +138,38 @@ export function assignNamesForNewFeatures(
 
   return assignments;
 }
+
+/** Apply a name assignment to a feature, returning a new feature with
+ *  the name(s) stamped into `properties`. POINT → `pointName` (only when
+ *  the feature isn't already named); linework → JSON `pointRefs`. */
+export function applyAssignment(
+  feature: Feature,
+  assignment: FeatureNameAssignment,
+): Feature {
+  const properties = { ...(feature.properties ?? {}) };
+  if (assignment.kind === 'POINT') {
+    if (!pointNumberOf(feature)) properties.pointName = assignment.name;
+  } else {
+    properties[POINT_REFS_KEY] = encodePointRefs(assignment.refs);
+  }
+  return { ...feature, properties };
+}
+
+/**
+ * Convenience for the draw-tool commit path: given the current document
+ * and a freshly-drawn (not-yet-added) feature, return a copy of the
+ * feature with auto-assigned point name(s) stamped in. The caller then
+ * adds the returned feature to the store as usual.
+ */
+export function nameDrawnFeature(
+  doc: DrawingDocument,
+  feature: Feature,
+  tol: number = DEFAULT_COINCIDENCE_TOL,
+): Feature {
+  const transient: DrawingDocument = {
+    ...doc,
+    features: { ...doc.features, [feature.id]: feature },
+  };
+  const [assignment] = assignNamesForNewFeatures(transient, [feature.id], tol);
+  return assignment ? applyAssignment(feature, assignment) : feature;
+}

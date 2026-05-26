@@ -228,6 +228,10 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   same undo batch — deferred from this slice because `addFeature` is a
   shared low-level mutation (import/AI/intersect) and naming must hook
   only manual creation to avoid double-naming the import flow.
+- [x] **8b-apply**: `applyAssignment` + `nameDrawnFeature(doc, feature)`
+  stamp names into `properties` (POINT→`pointName`, linework→JSON
+  `pointRefs`); 3 more unit tests (11 total in the registry suite). The
+  draw-path wire-up is now a safe one-liner per call site.
 - [ ] **8c. Export inclusion**: every named point (incl. `:N` and
   auto-minted vertex points) appears in CSV/PNEZD/DXF/LandXML.
 - [ ] **8d. Duplication/copy semantics**: copy across layers →

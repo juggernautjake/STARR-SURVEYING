@@ -5,6 +5,7 @@ import {
   collectExistingNames,
   buildPointRegistry,
   assignNamesForNewFeatures,
+  nameDrawnFeature,
 } from '@/lib/cad/points/point-registry';
 import type { DrawingDocument, Feature } from '@/lib/cad/types';
 
@@ -110,3 +111,29 @@ describe('assignNamesForNewFeatures — §8 rules', () => {
     expect(out[1]).toEqual({ featureId: 'L2', kind: 'VERTICES', refs: ['257', '259'] });
   });
 });
+
+describe('applyAssignment + nameDrawnFeature', () => {
+  const base = [pt('a', 'BOUNDARY', 0, 0, '255'), pt('b', 'BOUNDARY', 100, 0, '256')];
+
+  it('stamps pointRefs on a freshly-drawn cross-layer line', () => {
+    const drawn = line('NEW', 'FENCE', { x: 0, y: 0 }, { x: 100, y: 0 });
+    const d = doc(base); // drawn not yet added
+    const named = nameDrawnFeature(d, drawn);
+    expect(named.properties).toMatchObject({ pointRefs: JSON.stringify(['255:1', '256:1']) });
+  });
+
+  it('stamps a minted pointName on a new standalone point', () => {
+    const drawn = pt('NEW', 'BOUNDARY', 50, 50, '');
+    drawn.properties = {};
+    const d = doc(base);
+    const named = nameDrawnFeature(d, drawn);
+    expect(named.properties.pointName).toBe('257');
+  });
+
+  it('does not overwrite an already-named point', () => {
+    const drawn = pt('NEW', 'BOUNDARY', 50, 50, '999');
+    const d = doc(base);
+    const named = nameDrawnFeature(d, drawn);
+    expect(named.properties.pointName).toBe('999');
+  });
+})
