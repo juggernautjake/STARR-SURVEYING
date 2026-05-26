@@ -413,15 +413,40 @@ export function applyEditDrawing(action: DrawingChatAction): string {
   const ops: UndoOperation[] = [];
   const notes: string[] = [];
 
-  const layerIdByName = (name?: string): string => {
-    if (name) {
-      const match = Object.values(doc.layers).find(
+  // Find a layer by (case-insensitive) name, creating it if missing so the
+  // AI can place geometry on STRUCTURES/FENCE/etc. without a separate step.
+  const ensureLayer = (name?: string, color?: string): string => {
+    if (name && name.trim()) {
+      const match = Object.values(useDrawingStore.getState().document.layers).find(
         (l) => l.name.toLowerCase() === name.toLowerCase(),
       );
-      if (match) return match.id;
+      if (match) {
+        if (color && match.color !== color) drawing.updateLayer(match.id, { color });
+        return match.id;
+      }
+      const id = generateId();
+      const order = Object.keys(useDrawingStore.getState().document.layers).length;
+      drawing.addLayer({
+        id, name: name.trim(), visible: true, locked: false, frozen: false,
+        color: color ?? '#000000', lineWeight: 0.5, lineTypeId: 'SOLID',
+        opacity: 1, groupId: null, sortOrder: order, isDefault: false,
+        isProtected: false, autoAssignCodes: [],
+      });
+      return id;
     }
     return drawing.activeLayerId || Object.keys(doc.layers)[0] || '';
   };
+  const layerIdByName = (name?: string): string => ensureLayer(name);
+
+  // ── createLayers (explicit) ──
+  let layersCreated = 0;
+  for (const spec of action.createLayers ?? []) {
+    const existed = Object.values(useDrawingStore.getState().document.layers)
+      .some((l) => l.name.toLowerCase() === spec.name.toLowerCase());
+    ensureLayer(spec.name, spec.color);
+    if (!existed) layersCreated += 1;
+  }
+  if (layersCreated) notes.push(`created ${layersCreated} layer${layersCreated === 1 ? '' : 's'}`);
 
   // ── add ──
   let added = 0;
@@ -619,8 +644,11 @@ export function applyEditDrawing(action: DrawingChatAction): string {
   }
   if (deleted) notes.push(`deleted ${deleted}`);
 
-  if (ops.length === 0) return '⚠ No valid geometry edits in the action.';
-  useUndoStore.getState().pushUndo(makeBatchEntry(action.description || 'AI drawing edit', ops));
+  if (ops.length === 0 && notes.length === 0) return '⚠ No valid geometry edits in the action.';
+  // Layer creation isn't a feature op; only push undo when geometry changed.
+  if (ops.length > 0) {
+    useUndoStore.getState().pushUndo(makeBatchEntry(action.description || 'AI drawing edit', ops));
+  }
   return `✓ ${notes.join(', ')}.`;
 }
 

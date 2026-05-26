@@ -91,7 +91,9 @@ Goal: the model can reason about geometry it didn't select.
       pond/lake loops) — `fit` shape "CURVE".
 - [ ] Line-type / symbol assignment via EDIT_DRAWING (dashed, fence, etc.).
 - [ ] Text/label creation + bearing/distance/area annotations.
-- [ ] Layer creation + assignment from the AI.
+- [x] Layer creation + assignment from the AI: `layerName` on add/fit
+      auto-creates the layer if missing; `createLayers` pre-creates
+      named/colored layers.
 - Acceptance: AI fits exact shapes (not eyeballed) and styles them correctly.
 
 ### Phase 4 — Semantic / composite builders (point-code driven)

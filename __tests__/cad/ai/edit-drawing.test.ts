@@ -113,6 +113,30 @@ describe('applyEditDrawing', () => {
     expect(f.geometry.spline?.controlPoints).toHaveLength(13); // 1 + 3*4
   });
 
+  it('auto-creates a layer named on add and places the feature there', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'house',
+      add: [{ shape: 'POLYGON', layerName: 'STRUCTURES', points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 5 }, { northing: 5, easting: 5 },
+      ] }],
+    });
+    const doc = useDrawingStore.getState().document;
+    const layer = Object.values(doc.layers).find((l) => l.name === 'STRUCTURES');
+    expect(layer).toBeDefined();
+    const f = useDrawingStore.getState().getAllFeatures()[0];
+    expect(f.layerId).toBe(layer!.id);
+  });
+
+  it('creates explicit layers with color', () => {
+    const summary = applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'layers',
+      createLayers: [{ name: 'FENCE', color: '#E67E22' }],
+    });
+    const layer = Object.values(useDrawingStore.getState().document.layers).find((l) => l.name === 'FENCE');
+    expect(layer?.color).toBe('#E67E22');
+    expect(summary).toContain('created 1 layer');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

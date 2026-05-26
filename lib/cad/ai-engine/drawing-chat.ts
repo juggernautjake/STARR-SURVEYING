@@ -62,6 +62,12 @@ export interface ChatCoord {
   easting:  number;
 }
 
+/** Create (or recolor) a named layer the AI can draw onto. */
+export interface ChatLayerSpec {
+  name:   string;
+  color?: string;   // hex
+}
+
 export type ChatShape =
   | 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON'
   | 'SPLINE' | 'CIRCLE' | 'ELLIPSE' | 'ARC';
@@ -137,11 +143,12 @@ export interface DrawingChatAction {
   instruction?: string;
   /** EDIT_DRAWING — programmatic geometry edits the client applies
    *  directly (as one undoable batch). Any combination may be set. */
-  add?:        ChatFeatureSpec[];
-  deleteIds?:  string[];
-  modify?:     ChatModifySpec[];
-  transform?:  ChatTransformSpec;
-  fit?:        ChatFitSpec[];
+  add?:         ChatFeatureSpec[];
+  deleteIds?:   string[];
+  modify?:      ChatModifySpec[];
+  transform?:   ChatTransformSpec;
+  fit?:         ChatFitSpec[];
+  createLayers?: ChatLayerSpec[];
 }
 
 export interface DrawingChatAttachment {
@@ -211,7 +218,8 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "deleteIds": [ "<featureId>", ... ],
     "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm> } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
-    "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ]
+    "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ],
+    "createLayers": [ { "name": "<layer>", "color": "<#hex optional>" } ]
   }
 }
 
@@ -251,6 +259,9 @@ Action selection rules:
     PREFER "fit" with the selected point ids in "fromIds" for "make a best-fit
     square/rectangle/circle/line/curve from these points"; set
     "deleteSource": true to replace the shots.
+  - Layers: set "layerName" on add/fit to place geometry on a layer; if the
+    layer doesn't exist it is created automatically. Use "createLayers" to
+    pre-create named/colored layers (e.g. STRUCTURES, FENCE, ROW, BOUNDARY).
   - Prefer EDIT_DRAWING over REGENERATE_PIPELINE for surgical edits to
     specific selected features.
 * REGENERATE_PIPELINE — re-run the full AI pipeline with the
@@ -466,8 +477,19 @@ function parseCoords(raw: unknown): ChatCoord[] {
   return out;
 }
 
-function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit'> {
-  const out: Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit'> = {};
+function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit' | 'createLayers'> {
+  const out: Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit' | 'createLayers'> = {};
+
+  if (Array.isArray(a.createLayers)) {
+    const layers: ChatLayerSpec[] = [];
+    for (const l of a.createLayers) {
+      if (!l || typeof l !== 'object') continue;
+      const o = l as Record<string, unknown>;
+      if (typeof o.name !== 'string' || o.name.trim().length === 0) continue;
+      layers.push({ name: o.name.trim(), ...(typeof o.color === 'string' ? { color: o.color } : {}) });
+    }
+    if (layers.length > 0) out.createLayers = layers;
+  }
 
   const SHAPES = ['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'SPLINE', 'CIRCLE', 'ELLIPSE', 'ARC'];
   if (Array.isArray(a.add)) {
