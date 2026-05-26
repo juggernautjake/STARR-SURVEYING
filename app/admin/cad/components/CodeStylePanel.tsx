@@ -38,6 +38,7 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
   const resetAll = useCodeStyleStore((s) => s.resetAll);
   const layers = useDrawingStore((s) => s.document.layerOrder);
   const layerById = useDrawingStore((s) => s.document.layers);
+  const customLineTypes = useDrawingStore((s) => s.document.customLineTypes);
 
   const [query, setQuery] = useState('');
   const [symbolPickerFor, setSymbolPickerFor] = useState<string | null>(null);
@@ -268,6 +269,7 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
             ? (rows.find((r) => r.codeAlpha === lineTypePickerFor)?.lineTypeId ?? null)
             : null
         }
+        customLineTypes={customLineTypes}
         onSelect={(lineTypeId) => {
           if (lineTypePickerFor) setOverride(lineTypePickerFor, 'lineTypeId', lineTypeId);
         }}

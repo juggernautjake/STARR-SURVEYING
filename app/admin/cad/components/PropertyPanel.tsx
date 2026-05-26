@@ -842,6 +842,7 @@ export default function PropertyPanel() {
           (single.type === 'LINE' || single.type === 'POLYLINE' || single.type === 'POLYGON')
         }
         selectedLineTypeId={single?.style.lineTypeId ?? null}
+        customLineTypes={drawingStore.document.customLineTypes}
         onSelect={(lineTypeId) => {
           if (!single) return;
           const before = drawingStore.getFeature(single.id)!;
