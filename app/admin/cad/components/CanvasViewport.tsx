@@ -3480,6 +3480,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {
     const hoveredId = useUIStore.getState().hoveredFeatureId;
     if (!hoveredId) return;
+    // When the cursor is hovering this feature ON THE CANVAS, the
+    // geometry-traced hover glow already outlines its edges — drawing the
+    // bounding-box ring on top is the "weird box" we want to avoid. The
+    // ring is only for hovers that originate in the AI sidebar (where there
+    // is no canvas hover to show the shape's edges).
+    if (hoveredIdRef.current === hoveredId) return;
     const cache = featureIndexCacheRef.current;
     const bbox = cache?.bboxByFeatureId.get(hoveredId);
     if (!bbox) return;
