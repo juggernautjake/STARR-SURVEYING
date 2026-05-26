@@ -4,6 +4,7 @@ import { useDrawingStore } from '@/lib/cad/store/drawing-store';
 import { useSelectionStore } from '@/lib/cad/store/selection-store';
 import { useUndoStore } from '@/lib/cad/store/undo-store';
 import { applyEditDrawing } from '@/lib/cad/store/ai-conversations-store';
+import { parseAction } from '@/lib/cad/ai-engine/drawing-chat';
 import type { Layer } from '@/lib/cad/types';
 
 function addLayer(id: string) {
@@ -365,6 +366,37 @@ describe('applyEditDrawing', () => {
     expect(after.getAllFeatures().some((f) => f.type === 'POLYGON')).toBe(false);
     expect(after.getFeature(delId)).toBeDefined();
     expect(after.getFeature(keepId)!.hidden).toBe(false);
+  });
+
+  it('end-to-end: raw model JSON → parseAction → applyEditDrawing', () => {
+    // Exactly what the model emits (untyped JSON), through the real parse +
+    // execute path (no network).
+    const raw = {
+      type: 'EDIT_DRAWING',
+      description: 'house from corners',
+      createLayers: [{ name: 'STRUCTURES', color: '#7F8C8D' }],
+      add: [{
+        shape: 'POLYGON', layerName: 'STRUCTURES', fill: '#dddddd',
+        points: [
+          { northing: 0, easting: 0 }, { northing: 0, easting: 20 },
+          { northing: 15, easting: 20 }, { northing: 15, easting: 0 },
+          // a bogus coord that the parser must drop:
+          { northing: 'x', easting: 1 },
+        ],
+      }],
+      // unknown junk fields the parser must ignore:
+      nonsense: true,
+    };
+    const action = parseAction(raw);
+    expect(action).not.toBeNull();
+    const summary = applyEditDrawing(action!);
+    expect(summary).toContain('added 1');
+    const doc = useDrawingStore.getState().document;
+    const layer = Object.values(doc.layers).find((l) => l.name === 'STRUCTURES');
+    const poly = useDrawingStore.getState().getAllFeatures().find((f) => f.type === 'POLYGON')!;
+    expect(poly.layerId).toBe(layer!.id);
+    expect(poly.style.fillColor).toBe('#dddddd');
+    expect(poly.geometry.vertices).toHaveLength(4); // bogus coord dropped
   });
 
   it('translates a feature by north/east feet', () => {
