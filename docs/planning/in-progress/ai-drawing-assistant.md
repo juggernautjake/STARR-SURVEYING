@@ -278,4 +278,12 @@ it; only improvise for genuinely novel requests.
   integrity test, Phase 6 area fills (polygon + circle/ellipse/closed
   spline), point-symbol assignment, and reference/digest sync to the full
   capability set (fill/symbol/lineType/createLayers/FIT_CURVE/linework).
+- 2026-05-26 03:5x–04:1x CDT — edit surface rounded out: move-to-layer +
+  POINT survey-attr edits (number/code/desc/elevation) via modify,
+  hide/unhide, point elevation on add, point symbols; awareness: active
+  layer + drawing extents + selection style in snapshot/digest. Safety:
+  no-op transform skip, fixed undo-of-hide, double-apply guard in chat UI,
+  multi-aspect modify undo test. Hygiene: vitest excludes nested
+  node_modules. Docs: context.md + worked recipe JSON; reference/digest
+  kept in sync. Full AI/geometry/persistence/styles suites green (811).
 </content>
