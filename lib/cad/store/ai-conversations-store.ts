@@ -653,10 +653,14 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     for (const id of ids ?? []) {
       const f = drawing.getFeature(id);
       if (!f || !!f.hidden === hidden) continue;
-      const before = JSON.parse(JSON.stringify(f)) as Feature;
+      // Record `hidden` explicitly on both sides so undo restores it —
+      // a cloned snapshot would omit an absent `hidden` key and the
+      // shallow-merge updateFeature could not clear it back to false.
+      const before = { ...JSON.parse(JSON.stringify(f)), hidden: !!f.hidden } as Feature;
       if (hidden) drawing.hideFeature(id); else drawing.unhideFeature(id);
-      const after = drawing.getFeature(id);
-      if (after) { ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } }); n += 1; }
+      const after = { ...JSON.parse(JSON.stringify(drawing.getFeature(id))), hidden } as Feature;
+      ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
+      n += 1;
     }
     return n;
   };

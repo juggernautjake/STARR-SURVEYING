@@ -331,6 +331,42 @@ describe('applyEditDrawing', () => {
     expect(useDrawingStore.getState().getFeature(id)!.hidden).toBe(false);
   });
 
+  it('applies a complex multi-op action atomically with one undo', () => {
+    useUndoStore.getState().clear();
+    // Seed two points: one to keep+hide, one to delete.
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'seed', add: [
+      { shape: 'POINT', points: [{ northing: 1, easting: 1 }] },
+      { shape: 'POINT', points: [{ northing: 2, easting: 2 }] },
+    ] });
+    const [keepId, delId] = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+    useUndoStore.getState().clear();
+
+    const summary = applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'complex',
+      createLayers: [{ name: 'FENCE', color: '#E67E22' }],
+      add: [{ shape: 'POLYGON', layerName: 'FENCE', points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 5 }, { northing: 5, easting: 5 },
+      ] }],
+      hideIds: [keepId],
+      deleteIds: [delId],
+    });
+
+    const ds = useDrawingStore.getState();
+    expect(summary).toMatch(/added 1/);
+    expect(Object.values(ds.document.layers).some((l) => l.name === 'FENCE')).toBe(true);
+    expect(ds.getFeature(keepId)!.hidden).toBe(true);
+    expect(ds.getFeature(delId)).toBeUndefined();
+    expect(ds.getAllFeatures().some((f) => f.type === 'POLYGON')).toBe(true);
+
+    // One undo reverts the geometry ops (polygon gone, deleted point back,
+    // hidden point shown). The layer is non-undoable and remains.
+    useUndoStore.getState().undo();
+    const after = useDrawingStore.getState();
+    expect(after.getAllFeatures().some((f) => f.type === 'POLYGON')).toBe(false);
+    expect(after.getFeature(delId)).toBeDefined();
+    expect(after.getFeature(keepId)!.hidden).toBe(false);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
