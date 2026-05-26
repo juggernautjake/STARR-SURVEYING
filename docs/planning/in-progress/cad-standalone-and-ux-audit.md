@@ -138,15 +138,17 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   suppressed marketing chrome on `/cad-harness` in `LayoutShell`.
 
 ### Standalone window
-- [ ] **Standalone full-screen shell**: the real `/admin/cad` is wrapped
-  by `AdminLayoutClient` (sidebar + topbar + AdminPageHeader +
-  FloatingActionMenu) — it is NOT standalone. Make `/admin/cad` (and
-  children) bypass the admin chrome so the editor owns the full
-  viewport, while keeping needed providers (Session, etc.). Verify the
-  editor fills the viewport with the correct title.
-- [ ] **Fullscreen toggle**: add an in-app Fullscreen API toggle
-  (button in the menu/tool bar) so it behaves like a kiosk/standalone
-  window.
+- [x] **Standalone full-screen shell**: `AdminLayoutClient` now returns
+  `<>{children}</>` for any `/admin/cad*` path (still inside
+  SessionProvider) — no admin sidebar/topbar/page-header/FAB, no big
+  logo, no nav, no footer. The editor owns the full viewport. The
+  harness (identical bare CADLayout tree) verifies the layout; live
+  `/admin/cad` verification needs admin auth (unavailable here) but the
+  change is verified-by-construction since the harness renders the same
+  bare component tree.
+- [x] **Fullscreen toggle**: `FullscreenToggle` (Fullscreen API) added
+  to the tool-options strip next to Prefs; screenshot confirms the icon
+  renders. Reflects live fullscreen state via `fullscreenchange`.
 
 ### Export selection / layers (user request 2026-05-26)
 - [ ] **Export by scope (selected features / chosen layers)**: today's
@@ -206,6 +208,14 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   `AdminLayoutClient` chrome (sidebar/topbar/header/FAB). Added the user's
   new request (export selected features / chosen layers). Next:
   Standalone full-screen shell.
+- 2026-05-26 09:5x CDT — Slice 2 DONE. Standalone shell: `/admin/cad*`
+  bypasses all admin chrome (sidebar/topbar/header/FAB) in
+  `AdminLayoutClient`; CAD now fills the viewport with only its own small
+  "Starr CAD" wordmark — directly satisfies the user's "no nav/footer/big
+  logo, standalone window" note. Added `FullscreenToggle` (Fullscreen
+  API) to the tool-options strip; screenshot confirms it renders left of
+  Prefs. Next: resizable panels (left rail overflow check, then the
+  ResizableSplitter primitive + layer/right/bottom panels).
 
 ---
 

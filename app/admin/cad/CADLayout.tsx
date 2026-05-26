@@ -49,6 +49,7 @@ import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
 import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
+import FullscreenToggle from './components/FullscreenToggle';
 import OrientationDialog from './components/OrientationDialog';
 import DrawingRotationDialog from './components/DrawingRotationDialog';
 import TitleBlockPanel from './components/TitleBlockPanel';
@@ -814,11 +815,12 @@ export default function CADLayout() {
         <div className="flex-1 min-w-0">
           <ToolOptionsBar />
         </div>
-        {/* Display Preferences toggle button — always visible at right end of toolbar */}
+        {/* Display Preferences toggle + Fullscreen — always visible at right end of toolbar */}
         <div
-          className="flex items-center px-2 border-b border-l border-gray-700 shrink-0"
+          className="flex items-center gap-1 px-2 border-b border-l border-gray-700 shrink-0"
           style={{ backgroundColor: '#1a1f2e' }}
         >
+          <FullscreenToggle />
           <DisplayPrefsToggleButton
             open={showDisplayPrefs}
             onToggle={() => setShowDisplayPrefs((v) => !v)}
