@@ -58,6 +58,7 @@ import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } fro
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
+import { nameDrawnFeature } from '@/lib/cad/points/point-registry';
 import { cadLog } from '@/lib/cad/logger';
 import {
   computeSideFromCursor,
@@ -7298,12 +7299,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   function withAutoLabels(feature: Feature): Feature {
     const doc = useDrawingStore.getState().document;
-    const layer = doc.layers[feature.layerId];
-    if (!layer) return feature;
+    // §8b — auto-assign point names/refs to newly-drawn geometry before
+    // labelling. This is the single chokepoint every manual draw-tool
+    // commit passes through (import/AI use their own paths), so naming
+    // hooks here without touching ~15 call sites. POINT → pointName;
+    // LINE/POLYLINE/POLYGON vertices → pointRefs (reuse / base:N / mint).
+    const named = nameDrawnFeature(doc, feature);
+    const layer = doc.layers[named.layerId];
+    if (!layer) return named;
     const displayPrefs = doc.settings.displayPreferences;
-    const labels = generateLabelsForFeature(feature, layer, displayPrefs);
-    if (labels.length === 0) return feature;
-    return { ...feature, textLabels: labels };
+    const labels = generateLabelsForFeature(named, layer, displayPrefs);
+    if (labels.length === 0) return named;
+    return { ...named, textLabels: labels };
   }
 
   // ─────────────────────────────────────────────

@@ -218,16 +218,12 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   safe), `derivedName`→`base:N`, `coincidentName`, and `resolveVertexName`
   (reuse / derive / mint per §8 rules). Pure, 13 unit tests. No AI
   dependency.
-- [~] **8b. Assign-on-create**: ENGINE DONE — `point-registry.ts`
-  (`buildPointRegistry`, `collectExistingNames`, `assignNamesForNewFeatures`
-  returning per-feature `POINT name` / `VERTICES refs`, + `encode/
-  parsePointRefs` for JSON storage in `properties`). 8 unit tests cover
-  the exact user scenarios (same-layer reuse, cross-layer `255:1`→`:2`,
-  mint, shared-mint-in-batch). REMAINING (8b-wire): call the engine from
-  the manual draw-tool completion path and apply assignments inside the
-  same undo batch — deferred from this slice because `addFeature` is a
-  shared low-level mutation (import/AI/intersect) and naming must hook
-  only manual creation to avoid double-naming the import flow.
+- [x] **8b. Assign-on-create** — ENGINE (`point-registry.ts`, 11 tests)
+  + WIRED: `CanvasViewport.withAutoLabels` (the single chokepoint every
+  manual draw-tool commit passes through; import/AI use other paths) now
+  runs `nameDrawnFeature` before labelling. LIVE-VERIFIED: drawing two
+  points in the harness yields auto-named points "1" and "2" in the Point
+  Data Viewer with correct coordinates (`point-naming.png`).
 - [x] **8b-apply**: `applyAssignment` + `nameDrawnFeature(doc, feature)`
   stamp names into `properties` (POINT→`pointName`, linework→JSON
   `pointRefs`); 3 more unit tests (11 total in the registry suite). The
@@ -587,3 +583,10 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   request (selection done in slice 7, layers now). 1259 CAD unit tests
   still green. Next options: menu consolidation, left-rail audit, or the
   8b draw-path wire-up.
+- 2026-05-26 11:1x CDT — Slice 8b-wire DONE (headline feature live!).
+  Hooked `nameDrawnFeature` into `withAutoLabels` — the one chokepoint all
+  manual draw commits share — so created POINT/LINE/POLYLINE/POLYGON
+  geometry is auto-named. Verified end-to-end: drew 2 points in the
+  harness → Point Data Viewer shows them named "1"/"2" with real N/E.
+  Import/AI paths untouched (separate code paths). Full point-identity
+  feature (8a/8b/8b-apply + viewer + rename) now works together.
