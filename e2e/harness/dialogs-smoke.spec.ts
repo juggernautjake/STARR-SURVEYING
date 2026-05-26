@@ -1,6 +1,6 @@
 // e2e/harness/dialogs-smoke.spec.ts — key dialogs open without error.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 // (per-surface audit: dialogs sweep)
 
 import { test, expect } from '@playwright/test';

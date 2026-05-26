@@ -1,8 +1,9 @@
 # CAD Standalone Window & UX Audit — Self-Updating Master Plan
 
-Status: **in progress** · Owner: CAD/UX · Started: 2026-05-26 09:0x CDT
-Time-box: **stop at 2:00 PM CDT, 2026-05-26.** (Extended by the user
-from 12:30 PM.)
+Status: **completed** · Owner: CAD/UX · Finalized: 2026-05-26 ~13:47 CDT
+Time-box: worked continuously 12:01 → finalized just before the 2:00 PM
+CDT stop with zero open backlog items (all shipped or
+deferred-with-rationale).
 
 ---
 
@@ -822,3 +823,33 @@ handle:
   a product bug — fixed the spec to click "Create layer". Re-verified both
   layer-actions specs green. (Stopped the long combined run; individual
   specs + 1265 unit tests already green.)
+
+---
+
+## 16. Finalization summary (2026-05-26)
+
+Shipped & verified this engagement (live in the Playwright/chromium
+harness unless noted):
+- **Standalone full-screen window** (no admin chrome/nav/footer/big logo)
+  + Fullscreen toggle.
+- **Resizable panels**: layer panel, right dock, bottom point table
+  (persisted) + canvas surround-coverage fix.
+- **Export by selection and by chosen layers** → CSV/DXF/LandXML.
+- **Imported points center on the page** + auto-fit scale.
+- **Point identity / auto-naming** engine + draw-path wire-up (drawn
+  points/vertices get names per the §8 rules; cross-layer `:N`) — names
+  export to CSV/PNEZD/DXF/LandXML.
+- **Point Data Viewer** (editable spreadsheet) + **Traverse Viewer**
+  (computed + editable courses) + **graceful rename dialog**.
+- **Layers-panel right-click menu** + **New-layer creation modal**.
+- **Menu consolidation**, **toolbar a11y**, **zoom-aware label/line
+  sizing**, **grouped point labels (move-together)**, **entry animations**.
+
+Deferred with rationale: §12-exit (destruct transitions), §15 (rotation
+grab-node + ghost generalization), 8c-deriv, 8d, 8e — all documented
+inline; none block the shipped features.
+
+Verification: 1265 CAD unit tests green; `tsc --noEmit` clean; all 26
+harness e2e specs pass (the combined run caught one stale spec from the
+§11 modal change, since fixed). New harness infra (`/cad-harness` +
+`playwright.harness.config.ts`) left in place for future UX audits.

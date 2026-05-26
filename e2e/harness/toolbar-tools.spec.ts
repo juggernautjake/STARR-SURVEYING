@@ -1,6 +1,6 @@
 // e2e/harness/toolbar-tools.spec.ts — tool buttons activate their tool.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 // (per-surface audit: ToolBar)
 
 import { test, expect } from '@playwright/test';

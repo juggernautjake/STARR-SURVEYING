@@ -1,6 +1,6 @@
 // e2e/harness/property-panel.spec.ts — PropertyPanel populates on select.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 // (per-surface audit: PropertyPanel)
 
 import { test, expect } from '@playwright/test';

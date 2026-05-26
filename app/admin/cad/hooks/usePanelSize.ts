@@ -4,7 +4,7 @@
 // Stateful wrapper over lib/cad/ui/panel-size: a panel dimension (px)
 // that clamps to [min,max] and persists to localStorage under `key`.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 
 import { useCallback, useState } from 'react';
 import { clampPanelSize, readPanelSize, writePanelSize } from '@/lib/cad/ui/panel-size';

@@ -1,6 +1,6 @@
 // e2e/harness/layer-actions.spec.ts — layer panel bulk actions function.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 // (layers panel control)
 
 import { test, expect } from '@playwright/test';

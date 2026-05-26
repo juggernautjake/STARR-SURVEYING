@@ -1,6 +1,6 @@
 // e2e/harness/tool-rail-short.spec.ts — left tool rail on a short viewport.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 // (resizable panels: left tool rail overflow)
 
 import { test, expect } from '@playwright/test';

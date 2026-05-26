@@ -12,7 +12,7 @@
 //      gets `<base>:<N>` (the same physical point, referenced on another
 //      layer). N increments per base.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §8
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §8
 
 export interface NamedCoord {
   name: string;

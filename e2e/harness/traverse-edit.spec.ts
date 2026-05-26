@@ -1,6 +1,6 @@
 // e2e/harness/traverse-edit.spec.ts — §10f editing a course distance.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';

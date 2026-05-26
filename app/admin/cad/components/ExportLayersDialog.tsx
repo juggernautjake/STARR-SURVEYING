@@ -5,7 +5,7 @@
 // (plan §5 "Export by chosen layers"). Uses scopeDocument({kind:'LAYERS'})
 // so the existing CSV/DXF/LandXML writers work unchanged.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §5
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §5
 
 import { useState } from 'react';
 import { X } from 'lucide-react';

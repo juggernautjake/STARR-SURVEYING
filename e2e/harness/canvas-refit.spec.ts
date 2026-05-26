@@ -1,7 +1,7 @@
 // e2e/harness/canvas-refit.spec.ts — Slice 5: does the Pixi canvas
 // re-fit after a panel resize settles? (gray-band investigation)
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
 
 import { test } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';

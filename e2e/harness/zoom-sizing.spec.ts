@@ -1,6 +1,6 @@
 // e2e/harness/zoom-sizing.spec.ts — §13 labels stay bounded, lines visible.
 //
-// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §13
+// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §13
 
 import { test } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';
