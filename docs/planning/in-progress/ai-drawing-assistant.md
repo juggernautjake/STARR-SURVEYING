@@ -154,12 +154,13 @@ Authoritative, version-controlled references the AI consults so it computes
 the way the app does and doesn't invent procedures. Lives in
 `docs/ai-reference/`. When a user request matches a documented method, follow
 it; only improvise for genuinely novel requests.
-- [ ] `coordinates.md` — NE↔world contract, units, angle conventions.
-- [ ] `calculations.md` — bearing/azimuth, inverse, area (shoelace), curve
+- [x] `coordinates.md` — NE↔world contract, units, angle conventions.
+- [x] `calculations.md` — bearing/azimuth, inverse, area (shoelace), curve
       formulas (R/Δ/L/T/chord), best-fit methods used by `fit.ts`.
-- [ ] `actions.md` — EDIT_DRAWING schema with worked examples per intent.
-- [ ] `recipes.md` — house/fence/road/boundary builders from coded points.
-- [ ] A condensed digest of these is injected into the system prompt.
+- [x] `actions.md` — EDIT_DRAWING schema with worked examples per intent.
+- [x] `recipes.md` — house/fence/road/boundary builders from coded points.
+- [x] A condensed digest of these is injected into the system prompt
+      (`REFERENCE_DIGEST` in drawing-chat.ts).
 
 ## 11. Working agreement (this build window)
 - Iterate via the stop hook: plan → build → test → review → refine → repeat.
@@ -177,4 +178,8 @@ it; only improvise for genuinely novel requests.
   fit.ts` + wired into EDIT_DRAWING; tested. Added Phase 7 (Playwright/OCR
   verification) and the AI reference library plan. Next: AI reference docs +
   inject digest into the prompt, then FIT_CURVE / labels / layer creation.
+- 2026-05-26 02:50 CDT — AI reference library shipped (`docs/ai-reference/`:
+  coordinates, calculations, actions, recipes) + condensed `REFERENCE_DIGEST`
+  injected into the system prompt. Next: FIT_CURVE + label/layer creation,
+  then the Playwright/OCR verification harness.
 </content>

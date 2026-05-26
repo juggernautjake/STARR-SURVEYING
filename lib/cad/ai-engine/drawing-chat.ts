@@ -273,6 +273,24 @@ Output rules:
 * If the request is unclear or the data isn't enough to act,
   use NO_ACTION and ask a clarifying question in "reply".`;
 
+// Condensed digest of docs/ai-reference/* injected into every prompt so the
+// model computes the way the app does instead of hallucinating procedures.
+// Keep terse; the full references live in docs/ai-reference/.
+const REFERENCE_DIGEST = `REFERENCE (authoritative — follow exactly):
+* Coordinates: emit survey northing/easting in feet (same frame as the
+  snapshot/selection). World is x=easting, y=northing; the client converts.
+* Angles in actions: degrees CCW. Azimuth is clockwise from north =
+  atan2(Δeasting, Δnorthing) normalized 0–360.
+* Distance = hypot(Δe, Δn). Polygon area = ½|Σ(xi·y(i+1) − x(i+1)·yi)|.
+* Curve (R, Δ rad): L=R·Δ, C=2R·sin(Δ/2), T=R·tan(Δ/2).
+* Best-fit: square/rectangle from corner shots → use fit RECTANGLE
+  (min-area bounding rect; keeps rotation). Circle → fit CIRCLE. Line →
+  fit LINE. Smooth loop (pond) → SPLINE closed:true.
+* To turn selected points into a shape, prefer "fit" with their ids in
+  fromIds (+deleteSource:true to replace the shots).
+* Never move existing shots unless asked; keep new geometry on a sensible
+  layer and reuse the existing point-code scheme.`;
+
 // ────────────────────────────────────────────────────────────
 // Public API
 // ────────────────────────────────────────────────────────────
@@ -303,6 +321,8 @@ export async function handleDrawingChat(
   const selection = buildSelectionDigest(req.doc, req.selectedIds ?? []);
   const system = [
     SYSTEM_PROMPT,
+    '',
+    REFERENCE_DIGEST,
     '',
     'CURRENT DRAWING SNAPSHOT (always reflects the live document; earlier',
     'turns in the conversation may describe an older state):',
