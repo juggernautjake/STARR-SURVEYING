@@ -772,7 +772,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
 
       {/* Menu items */}
       {menus.map((menu) => (
-        <div key={menu.label} className="relative">
+        // z-50 keeps the buttons above the click-away overlay (z-40) so
+        // hovering across menus and clicking items always registers.
+        <div key={menu.label} className="relative z-50">
           <button
             className={`px-3 py-1.5 hover:bg-gray-700 transition-colors ${openMenu === menu.label ? 'bg-gray-700' : ''}`}
             onClick={() => { setOpenMenu(openMenu === menu.label ? null : menu.label); setOpenSubmenu(null); }}
@@ -782,9 +784,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           </button>
 
           {openMenu === menu.label && (
+            // Stays open until an item is chosen or the user clicks away
+            // (handled by the overlay) — it no longer vanishes when the
+            // cursor merely leaves the menu, which felt flaky.
             <div
               className="absolute top-full left-0 z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px] animate-[slideInDown_150ms_cubic-bezier(0.16,1,0.3,1)]"
-              onMouseLeave={() => { setOpenMenu(null); setOpenSubmenu(null); }}
             >
               {menu.items.map((item, idx) => {
                 if ('separator' in item && item.separator) {
