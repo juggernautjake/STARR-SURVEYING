@@ -16,10 +16,12 @@ test('New Layer from the panel menu adds a layer', async ({ page }) => {
   await page.mouse.click(box!.x + 40, box!.y + 220, { button: 'right' });
 
   // Two "New Layer" buttons exist (footer + this menu); the menu's is
-  // last in the DOM.
+  // last in the DOM. It now opens the New Layer modal (§11).
   await page.getByRole('button', { name: 'New Layer', exact: true }).last().click();
 
-  // Default new-layer name is "Layer 3" (2 existing layers).
+  // Confirm the modal, then the layer (default name "Layer 3") appears.
+  await expect(page.getByRole('heading', { name: 'New layer' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create layer' }).click();
   await expect(page.getByText('Layer 3', { exact: true }).first()).toBeVisible();
 });
 

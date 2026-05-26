@@ -816,3 +816,9 @@ handle:
   doable before the 2 PM stop. All wave-2 items now shipped (§12 entry,
   §13, §14) or deferred (§12-exit, §15) with reasons. Running a full
   harness regression as the end-state gate, then finalizing at 2 PM.
+- 2026-05-26 13:4x CDT — Regression-gate catch: the combined harness run
+  flagged `layer-actions` New-Layer spec failing — it was STALE (§11 made
+  "New Layer" open the modal; the spec expected immediate creation). Not
+  a product bug — fixed the spec to click "Create layer". Re-verified both
+  layer-actions specs green. (Stopped the long combined run; individual
+  specs + 1265 unit tests already green.)
