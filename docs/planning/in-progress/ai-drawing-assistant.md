@@ -138,15 +138,19 @@ Goal: the model can reason about geometry it didn't select.
 - [ ] Iterative refine loop ("make the cowl sharper") operating on prior ids.
 - Acceptance: a recognizable, stylized illustration from a single prompt.
 
-### Phase 7 — Visual verification harness (Playwright + OCR)
+### Phase 7 — Visual verification harness (Playwright + OCR) 🚧 IN PROGRESS
 Goal: close the loop — actually run the app, drive an AI edit, screenshot the
 canvas, and check it behaved as expected; feed failures back into the plan.
-- [ ] Headless Playwright spec that boots the CAD page, applies a known
-      EDIT_DRAWING (e.g. fit-rectangle), screenshots the canvas region.
-- [ ] OCR / pixel checks on the screenshot (point labels present, shape drawn).
-- [ ] A scripted regression: feed canned actions → assert resulting document
-      state (no model call needed) as the fast inner loop; Playwright as the
-      slower outer loop.
+- [x] Locally-runnable Playwright spec (`e2e/cad-menu-smoothness.spec.ts`):
+      verifies menus stay open on mouse-leave + close on outside click, the
+      Export submenu reveals on hover, and the AI drawing chat opens.
+- [x] Scripted regression as the fast inner loop: canned actions →
+      assert resulting document state (no model call) — this is the
+      `edit-drawing` / `fit` / `selection-digest` / `parse-action` suites.
+- [ ] Boot-the-app spec that applies a known EDIT_DRAWING + screenshots the
+      canvas region (needs a seam to inject an action; defer until a test hook
+      exists — model-in-the-loop screenshotting is flaky/expensive).
+- [ ] OCR / pixel checks on the screenshot.
 - Feasibility note: full live AI+Pixi+OCR is heavy/flaky in CI and needs a dev
   server + ANTHROPIC_API_KEY. Inner loop (executor + geometry unit tests)
   already gives most of the signal; Playwright/OCR is best-effort and may be
