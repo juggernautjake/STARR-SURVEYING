@@ -380,6 +380,51 @@ export const BUILTIN_SYMBOLS: SymbolDefinition[] = [
     colorMode: 'FIXED', fixedColor: '#FF0000', defaultRotation: 0, rotatable: false,
     isBuiltIn: true, isEditable: false, assignedCodes: [],
   },
+  {
+    id: 'GENERIC_CIRCLE_O', name: 'Open Circle (O)', category: 'GENERIC',
+    paths: [{ type: 'CIRCLE', cx: 0, cy: 0, r: 2.5, fill: 'NONE', stroke: 'INHERIT', strokeWidth: 0.5 }],
+    insertionPoint: { x: 0, y: 0 }, defaultSize: 2.5, minSize: 0.5, maxSize: 6,
+    colorMode: 'LAYER', fixedColor: null, defaultRotation: 0, rotatable: false,
+    isBuiltIn: true, isEditable: false, assignedCodes: [],
+  },
+  {
+    id: 'GENERIC_SQUARE_O', name: 'Open Square', category: 'GENERIC',
+    paths: [{ type: 'PATH', d: 'M -2.2 -2.2 L 2.2 -2.2 L 2.2 2.2 L -2.2 2.2 Z', fill: 'NONE', stroke: 'INHERIT', strokeWidth: 0.5 }],
+    insertionPoint: { x: 0, y: 0 }, defaultSize: 2.5, minSize: 0.5, maxSize: 6,
+    colorMode: 'LAYER', fixedColor: null, defaultRotation: 0, rotatable: false,
+    isBuiltIn: true, isEditable: false, assignedCodes: [],
+  },
+  {
+    id: 'GENERIC_TRIANGLE_O', name: 'Open Triangle', category: 'GENERIC',
+    paths: [{ type: 'PATH', d: 'M 0 -2.6 L 2.4 2 L -2.4 2 Z', fill: 'NONE', stroke: 'INHERIT', strokeWidth: 0.5 }],
+    insertionPoint: { x: 0, y: 0 }, defaultSize: 2.5, minSize: 0.5, maxSize: 6,
+    colorMode: 'LAYER', fixedColor: null, defaultRotation: 0, rotatable: false,
+    isBuiltIn: true, isEditable: false, assignedCodes: [],
+  },
+  {
+    id: 'GENERIC_INFINITY', name: 'Infinity', category: 'GENERIC',
+    paths: [{ type: 'PATH', d: 'M -1 0 C -1 -1.4 -3 -1.4 -3 0 C -3 1.4 -1 1.4 -1 0 C -1 -1.4 1 -1.4 1 0 C 1 1.4 3 1.4 3 0 C 3 -1.4 1 -1.4 1 0 C 1 1.4 -1 1.4 -1 0 Z', fill: 'NONE', stroke: 'INHERIT', strokeWidth: 0.5 }],
+    insertionPoint: { x: 0, y: 0 }, defaultSize: 3.0, minSize: 1, maxSize: 7,
+    colorMode: 'LAYER', fixedColor: null, defaultRotation: 0, rotatable: false,
+    isBuiltIn: true, isEditable: false, assignedCodes: [],
+  },
+  {
+    id: 'GENERIC_TICK', name: 'Perpendicular Tick', category: 'GENERIC',
+    paths: [{ type: 'PATH', d: 'M 0 -3 L 0 3', fill: 'NONE', stroke: 'INHERIT', strokeWidth: 0.6 }],
+    insertionPoint: { x: 0, y: 0 }, defaultSize: 2.5, minSize: 0.5, maxSize: 6,
+    colorMode: 'LAYER', fixedColor: null, defaultRotation: 0, rotatable: false,
+    isBuiltIn: true, isEditable: false, assignedCodes: [],
+  },
+  {
+    id: 'UTIL_POLE', name: 'Utility/Telephone Pole', category: 'UTILITY',
+    paths: [
+      { type: 'CIRCLE', cx: 0, cy: 0, r: 1.6, fill: 'NONE', stroke: 'INHERIT', strokeWidth: 0.5 },
+      { type: 'CIRCLE', cx: 0, cy: 0, r: 0.4, fill: 'INHERIT', stroke: 'NONE', strokeWidth: 0 },
+    ],
+    insertionPoint: { x: 0, y: 0 }, defaultSize: 2.5, minSize: 0.5, maxSize: 6,
+    colorMode: 'LAYER', fixedColor: null, defaultRotation: 0, rotatable: false,
+    isBuiltIn: true, isEditable: false, assignedCodes: [],
+  },
 ];
 
 /** Look up a symbol definition by ID */

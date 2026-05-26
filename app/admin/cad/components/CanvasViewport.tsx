@@ -131,6 +131,8 @@ import {
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
+import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
+import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -1702,6 +1704,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const geom = feature.geometry;
     const { zoom } = useViewportStore.getState();
 
+    // Resolve the effective line type (feature override → layer → SOLID)
+    // so dashed/dotted/symbol patterns actually render on the canvas.
+    const doc = useDrawingStore.getState().document;
+    const resolvedLineTypeId =
+      feature.style.lineTypeId ?? doc.layers[feature.layerId]?.lineTypeId ?? 'SOLID';
+    const lineType = resolveLineTypeWithFallback(resolvedLineTypeId, doc.customLineTypes);
+    const drawingScale = doc.settings.drawingScale ?? 50;
+    // A line type may carry its own thickness/color; honor it when the
+    // feature isn't being AI-tinted (tier overrides win for review).
+    const ltWeight =
+      aiTier == null && lineType.lineWeight != null ? lineType.lineWeight : weight;
+    const ltColor =
+      aiTier == null && lineType.color
+        ? parseInt(lineType.color.replace('#', ''), 16)
+        : color;
+
     switch (geom.type) {
       case 'POINT': {
         const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -1716,9 +1734,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       case 'LINE': {
         const s = w2s(geom.start!.x, geom.start!.y);
         const e = w2s(geom.end!.x, geom.end!.y);
-        g.lineStyle(weight, color, alpha);
-        g.moveTo(s.sx, s.sy);
-        g.lineTo(e.sx, e.sy);
+        renderLineWithType(
+          g, lineType,
+          [{ x: s.sx, y: s.sy }, { x: e.sx, y: e.sy }],
+          ltColor, ltWeight, alpha, drawingScale, zoom,
+        );
         break;
       }
       case 'POLYLINE': {
@@ -1731,13 +1751,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           simplifyEpsilon > 0 && rawVerts.length > 4
             ? simplifyPolyline(rawVerts, simplifyEpsilon)
             : rawVerts;
-        g.lineStyle(weight, color, alpha);
-        const first = w2s(verts[0].x, verts[0].y);
-        g.moveTo(first.sx, first.sy);
-        for (let i = 1; i < verts.length; i++) {
-          const v = w2s(verts[i].x, verts[i].y);
-          g.lineTo(v.sx, v.sy);
-        }
+        const screenPts = verts.map((v) => {
+          const p = w2s(v.x, v.y);
+          return { x: p.sx, y: p.sy };
+        });
+        renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
         break;
       }
       case 'POLYGON': {
@@ -1748,14 +1766,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             ? simplifyPolyline(rawVerts, simplifyEpsilon)
             : rawVerts;
         if (verts.length < 3) break;
-        g.lineStyle(weight, color, alpha);
-        const first = w2s(verts[0].x, verts[0].y);
-        g.moveTo(first.sx, first.sy);
-        for (let i = 1; i < verts.length; i++) {
-          const v = w2s(verts[i].x, verts[i].y);
-          g.lineTo(v.sx, v.sy);
-        }
-        g.closePath();
+        const screenPts = verts.map((v) => {
+          const p = w2s(v.x, v.y);
+          return { x: p.sx, y: p.sy };
+        });
+        // Close the ring so the pattern wraps the final edge.
+        screenPts.push(screenPts[0]);
+        renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
         break;
       }
       case 'CIRCLE': {

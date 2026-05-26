@@ -28,7 +28,7 @@ function makeDoc(features: Record<string, Feature>, layers: Record<string, unkno
     customSymbols: [], customLineTypes: [],
     codeStyleOverrides: {}, globalStyleConfig: {} as DrawingDocument['globalStyleConfig'],
     settings: { drawingScale: 50, displayPreferences: { originNorthing: 0, originEasting: 0 } } as DrawingDocument['settings'],
-  } as DrawingDocument;
+  } as unknown as DrawingDocument;
 }
 
 describe('exportToDxf — style fidelity', () => {
