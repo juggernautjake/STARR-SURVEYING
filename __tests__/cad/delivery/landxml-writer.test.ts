@@ -59,7 +59,7 @@ describe('exportToLandXML', () => {
     );
   });
 
-  it('emits a LINE as a Line plan feature', () => {
+  it('emits an open LINE as an Alignment with a Line segment', () => {
     const doc = makeDoc({
       features: {
         f1: {
@@ -70,8 +70,24 @@ describe('exportToLandXML', () => {
       },
     });
     const xml = exportToLandXML(doc);
-    expect(xml).toContain('<PlanFeatures>');
+    expect(xml).toContain('<Alignments>');
+    expect(xml).toContain('<Alignment ');
     expect(xml).toContain('<Line><Start>0.0000 0.0000</Start><End>20.0000 10.0000</End></Line>');
+  });
+
+  it('emits a closed POLYGON as a Parcel with computed area', () => {
+    const doc = makeDoc({
+      features: {
+        f1: {
+          id: 'f1', type: 'POLYGON',
+          geometry: { type: 'POLYGON', vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }] },
+          layerId: 'layer-1', style: STYLE, properties: {},
+        },
+      },
+    });
+    const xml = exportToLandXML(doc);
+    expect(xml).toContain('<Parcels>');
+    expect(xml).toContain('area="100.00"'); // 10×10 square
   });
 
   it('emits an ARC as a true Curve with radius + rotation, not chords', () => {

@@ -89,8 +89,8 @@ export function exportToLandXML(
       return na - nb;
     });
 
+  const cgLines: string[] = [];
   if (pointFeatures.length > 0) {
-    lines.push('  <CgPoints>');
     let autoNo = 0;
     for (const f of pointFeatures) {
       const p = f.geometry.point!;
@@ -104,35 +104,62 @@ export function exportToLandXML(
       const attrs = [`name="${xmlAttr(name)}"`];
       if (code) attrs.push(`code="${xmlAttr(code)}"`);
       if (desc) attrs.push(`desc="${xmlAttr(desc)}"`);
-      lines.push(
+      cgLines.push(
         `    <CgPoint ${attrs.join(' ')}>` +
           `${fixed(N(p))} ${fixed(E(p))} ${fixed(elev)}</CgPoint>`
       );
     }
-    lines.push('  </CgPoints>');
   }
 
-  // ── PlanFeatures (linework) ─────────────────────────────────
-  const geomLines: string[] = [];
-  let planIndex = 0;
+  // ── Linework → Alignments (open) + Parcels (closed) ─────────
+  // Traverse PC's LandXML importer recognises Parcels and Alignments
+  // (and Points/Surfaces) but NOT generic PlanFeatures, so closed
+  // shapes ship as <Parcel> (with computed area) and open lines as
+  // <Alignment> (with computed length). This is also the form Civil
+  // 3D / Carlson expect, so linework actually imports everywhere.
+  const alignmentLines: string[] = [];
+  const parcelLines: string[] = [];
+  let lwIndex = 0;
   for (const f of features) {
     const coordGeom = buildCoordGeom(f, N, E, samples);
     if (!coordGeom.length) continue;
-    planIndex += 1;
-    const layerName =
-      doc.layers[f.layerId]?.name ?? f.layerId ?? 'linework';
-    const fname = `${xmlAttr(layerName)}-${planIndex}`;
-    geomLines.push(`    <PlanFeature name="${fname}">`);
-    geomLines.push('      <CoordGeom>');
-    for (const seg of coordGeom) geomLines.push(`        ${seg}`);
-    geomLines.push('      </CoordGeom>');
-    geomLines.push('    </PlanFeature>');
+    lwIndex += 1;
+    const layerName = doc.layers[f.layerId]?.name ?? f.layerId ?? 'linework';
+    const nm = `${xmlAttr(layerName)}-${lwIndex}`;
+    if (isClosedFeature(f)) {
+      parcelLines.push(
+        `    <Parcel name="${nm}" area="${featureArea(f).toFixed(2)}" desc="${xmlAttr(layerName)}">`
+      );
+      parcelLines.push('      <CoordGeom>');
+      for (const seg of coordGeom) parcelLines.push(`        ${seg}`);
+      parcelLines.push('      </CoordGeom>');
+      parcelLines.push('    </Parcel>');
+    } else {
+      alignmentLines.push(
+        `    <Alignment name="${nm}" length="${featureLength(f).toFixed(2)}" staStart="0.0000">`
+      );
+      alignmentLines.push('      <CoordGeom>');
+      for (const seg of coordGeom) alignmentLines.push(`        ${seg}`);
+      alignmentLines.push('      </CoordGeom>');
+      alignmentLines.push('    </Alignment>');
+    }
   }
 
-  if (geomLines.length > 0) {
-    lines.push('  <PlanFeatures>');
-    lines.push(...geomLines);
-    lines.push('  </PlanFeatures>');
+  // Emit in LandXML 1.2 schema order: Alignments, CgPoints, Parcels.
+  if (alignmentLines.length > 0) {
+    lines.push('  <Alignments>');
+    lines.push(...alignmentLines);
+    lines.push('  </Alignments>');
+  }
+  if (cgLines.length > 0) {
+    lines.push('  <CgPoints>');
+    lines.push(...cgLines);
+    lines.push('  </CgPoints>');
+  }
+  if (parcelLines.length > 0) {
+    lines.push('  <Parcels>');
+    lines.push(...parcelLines);
+    lines.push('  </Parcels>');
   }
 
   lines.push('</LandXML>');
@@ -192,6 +219,47 @@ function buildCoordGeom(
     default:
       return [];
   }
+}
+
+/** Whether a feature is a closed shape (→ Parcel) vs open (→ Alignment). */
+function isClosedFeature(f: Feature): boolean {
+  if (f.type === 'POLYGON' || f.type === 'CIRCLE' || f.type === 'ELLIPSE') return true;
+  if (f.type === 'SPLINE') return !!f.geometry.spline?.isClosed;
+  return false;
+}
+
+/** Total length of an open feature's geometry, in feet. */
+function featureLength(f: Feature): number {
+  const g = f.geometry;
+  const dist = (a: Point2D, b: Point2D) => Math.hypot(b.x - a.x, b.y - a.y);
+  const chain = (verts: Point2D[]) => {
+    let s = 0;
+    for (let i = 0; i < verts.length - 1; i += 1) s += dist(verts[i], verts[i + 1]);
+    return s;
+  };
+  if (g.type === 'LINE' && g.start && g.end) return dist(g.start, g.end);
+  if (g.arc) return g.arc.radius * Math.abs(g.arc.endAngle - g.arc.startAngle);
+  if (g.vertices) return chain(g.vertices);
+  if (g.spline) return chain(g.spline.controlPoints);
+  return 0;
+}
+
+/** Enclosed area of a closed feature, in square feet (shoelace / πr²). */
+function featureArea(f: Feature): number {
+  const g = f.geometry;
+  if (g.circle) return Math.PI * g.circle.radius * g.circle.radius;
+  if (g.ellipse) return Math.PI * g.ellipse.radiusX * g.ellipse.radiusY;
+  const verts = g.vertices ?? g.spline?.controlPoints;
+  if (verts && verts.length >= 3) {
+    let a = 0;
+    for (let i = 0; i < verts.length; i += 1) {
+      const p = verts[i];
+      const q = verts[(i + 1) % verts.length];
+      a += p.x * q.y - q.x * p.y;
+    }
+    return Math.abs(a) / 2;
+  }
+  return 0;
 }
 
 /** A single ARC → LandXML <Curve> with rotation + radius. */
