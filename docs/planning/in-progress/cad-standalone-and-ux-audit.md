@@ -245,8 +245,10 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   `buildPointRows` (origin-applied N/E), `rowToWorldPoint`,
   `rowEditToFeatureUpdate` (coords move the point; code/desc/elev →
   properties; validates). 9 unit tests.
-- [ ] **10b. rename-impact + strategy logic**: `findNameReferences`,
-  rename-in-place vs duplicate appliers, `renameStrategy` preference.
+- [x] **10b. rename-impact + strategy logic** — `point-rename.ts`:
+  `findNameReferences` (point + linework refs + `:N` derivatives),
+  `planRename` (rebases derivatives), `planDuplicate`, `nameIsTaken`,
+  `RenameStrategy` type. 6 unit tests. (UI/preference wiring in 10d.)
 - [ ] **10c. editable Point Viewer UI**: inline-edit grid (coords move the
   point; code/desc/elev edit), column show/hide, layer filter, search.
 - [ ] **10d. rename confirmation dialog**: warn + "duplicate instead" +
@@ -539,3 +541,8 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   `rowEditToFeatureUpdate` — coords move the point, code/desc/elev edit),
   9 unit tests. Next: 10b rename-impact + strategy logic, then the
   editable viewer UI (10c) and rename dialog (10d).
+- 2026-05-26 10:3x CDT — Slice 10b DONE. `point-rename.ts` pure logic for
+  graceful renames: blast-radius report, rename-in-place (rebasing :N
+  derivatives), duplicate-with-new-name, name-collision check. 6 unit
+  tests. Next: 10c editable Point Viewer UI (build on point-rows model) +
+  10d rename dialog wiring the strategy/preference.
