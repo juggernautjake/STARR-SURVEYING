@@ -18,6 +18,7 @@
 
 import type { DrawingDocument } from '../types';
 import { parseCodeWithSuffix } from '../codes/code-suffix-parser';
+import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
 
 export type CsvFlavor = 'simplified' | 'full';
 
@@ -80,8 +81,8 @@ export function buildCsvRows(doc: DrawingDocument, opts: BuildOptions = {}): Bui
 
   const features = Object.values(doc.features);
   features.sort((a, b) => {
-    const na = Number(a.properties?.pointNo ?? Infinity);
-    const nb = Number(b.properties?.pointNo ?? Infinity);
+    const na = Number(pointNumberOf(a) ?? Infinity);
+    const nb = Number(pointNumberOf(b) ?? Infinity);
     return na - nb;
   });
 
@@ -95,16 +96,14 @@ export function buildCsvRows(doc: DrawingDocument, opts: BuildOptions = {}): Bui
 
     const layer = doc.layers[feature.layerId]?.name ?? feature.layerId;
     const layerColor = doc.layers[feature.layerId]?.color ?? '';
-    const rawCode = String(feature.properties?.code ?? '');
+    const rawCode = pointCodeOf(feature);
     const parsed = rawCode ? parseCodeWithSuffix(rawCode) : null;
     const baseCode = parsed?.baseCode ?? rawCode;
     const suffix = parsed?.suffix ?? '';
-    const description = String(
-      feature.properties?.description ?? feature.properties?.name ?? ''
-    );
+    const description = pointDescriptionOf(feature);
 
     const base: CsvSimplifiedRow = {
-      pointNo: feature.properties?.pointNo != null ? String(feature.properties.pointNo) : '',
+      pointNo: pointNumberOf(feature) ?? '',
       northing: g.point.y + originN,
       easting:  g.point.x + originE,
       elevation: Number(feature.properties?.elevation ?? 0),
@@ -226,27 +225,28 @@ export function buildPnezdAscii(doc: DrawingDocument): { text: string; rowCount:
 
   const features = Object.values(doc.features);
   features.sort((a, b) => {
-    const na = Number(a.properties?.pointNo ?? Infinity);
-    const nb = Number(b.properties?.pointNo ?? Infinity);
+    const na = Number(pointNumberOf(a) ?? Infinity);
+    const nb = Number(pointNumberOf(b) ?? Infinity);
     return na - nb;
   });
 
   const lines: string[] = [];
+  let autoNo = 0;
   for (const feature of features) {
     if (feature.hidden) continue;
     const g = feature.geometry;
     if (g.type !== 'POINT' || !g.point) continue;
-    if (feature.properties?.pointNo == null) continue;
 
-    const pointNo = String(feature.properties.pointNo);
+    // Use the real point number from any of the historical property
+    // keys; fall back to a sequential number so no point is dropped.
+    autoNo += 1;
+    const pointNo = pointNumberOf(feature) ?? String(autoNo);
     const northing = (g.point.y + originN).toFixed(4);
     const easting = (g.point.x + originE).toFixed(4);
     const elevation = Number(feature.properties?.elevation ?? 0).toFixed(4);
 
-    const rawCode = String(feature.properties?.code ?? '').trim();
-    const desc = String(
-      feature.properties?.description ?? feature.properties?.name ?? ''
-    ).trim();
+    const rawCode = pointCodeOf(feature);
+    const desc = pointDescriptionOf(feature);
     // Lead the description with the point code so Traverse PC's
     // Field-to-Finish sees it, but avoid duplicating when the
     // description already starts with the code.

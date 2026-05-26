@@ -39,10 +39,10 @@ describe('exportToDxf — style fidelity', () => {
     );
     const dxf = exportToDxf(doc);
     expect(dxf).toContain('LTYPE');
-    // DASHED pattern is [6,3] → dash +6, gap -3
+    // DASHED pattern is [10,6] → dash +10, gap -6
     expect(dxf).toContain('\r\nDASHED\r\n');
-    expect(dxf).toMatch(/\r\n49\r\n6(\.0+)?\r\n/);   // dash element
-    expect(dxf).toMatch(/\r\n49\r\n-3(\.0+)?\r\n/);  // gap element
+    expect(dxf).toMatch(/\r\n49\r\n10(\.0+)?\r\n/);  // dash element
+    expect(dxf).toMatch(/\r\n49\r\n-6(\.0+)?\r\n/);  // gap element
   });
 
   it('writes layer linetype (code 6) and lineweight (code 370)', () => {
@@ -55,6 +55,18 @@ describe('exportToDxf — style fidelity', () => {
     expect(dxf).toContain('\r\nDASHED\r\n');
     // 0.5mm → 50 (1/100 mm) lineweight
     expect(dxf).toMatch(/\r\n370\r\n50\r\n/);
+  });
+
+  it('emits the standard symbol tables readers expect (VPORT/APPID/BLOCK_RECORD)', () => {
+    const doc = makeDoc(
+      { f1: { id: 'f1', type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 0 } }, layerId: 'L', style: STYLE, properties: {} } },
+      { L: layer('L') }
+    );
+    const dxf = exportToDxf(doc);
+    expect(dxf).toContain('\r\nVPORT\r\n');
+    expect(dxf).toContain('\r\nAPPID\r\n');
+    expect(dxf).toContain('\r\nBLOCK_RECORD\r\n');
+    expect(dxf).toContain('\r\n*Model_Space\r\n');
   });
 
   it('always emits a STYLE table with STANDARD', () => {

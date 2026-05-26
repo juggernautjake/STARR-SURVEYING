@@ -17,22 +17,22 @@ describe('LineTypePreview SVG renderer', () => {
     expect(html).not.toContain('stroke-dasharray');
   });
 
-  it('renders DASHED with stroke-dasharray "6 3"', () => {
+  it('renders DASHED with its dash pattern', () => {
     const lt = getLineTypeById('DASHED')!;
     const html = ReactDOMServer.renderToStaticMarkup(<LineTypePreview lineType={lt} />);
-    expect(html).toContain('stroke-dasharray="6 3"');
+    expect(html).toContain(`stroke-dasharray="${lt.dashPattern.join(' ')}"`);
   });
 
-  it('renders DOTTED with stroke-dasharray "1 2"', () => {
+  it('renders DOTTED with its dash pattern', () => {
     const lt = getLineTypeById('DOTTED')!;
     const html = ReactDOMServer.renderToStaticMarkup(<LineTypePreview lineType={lt} />);
-    expect(html).toContain('stroke-dasharray="1 2"');
+    expect(html).toContain(`stroke-dasharray="${lt.dashPattern.join(' ')}"`);
   });
 
   it('renders DASH_DOT with the full pattern', () => {
     const lt = getLineTypeById('DASH_DOT')!;
     const html = ReactDOMServer.renderToStaticMarkup(<LineTypePreview lineType={lt} />);
-    expect(html).toContain('stroke-dasharray="8 2 1.5 2"');
+    expect(html).toContain(`stroke-dasharray="${lt.dashPattern.join(' ')}"`);
   });
 
   it('renders every BUILTIN_LINE_TYPES entry without crashing', () => {
