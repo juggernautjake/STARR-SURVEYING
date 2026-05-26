@@ -6,22 +6,25 @@ northing/easting (feet). Combine fields freely.
 
 ## Fields
 - `add[]` — create features. `shape`:
-  `POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC`.
+  `POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT`.
   - POINT `points:[pt]`; LINE `[a,b]`; POLYLINE/POLYGON `[verts…]`
     (polygon auto-closes — list corners once);
   - SPLINE `[verts…]` + `closed`; ARC `[start,mid,end]`;
   - CIRCLE `points:[center]` + `radius`; ELLIPSE `[center]` +
-    `radiusX/radiusY` (+`rotationDeg`).
-  - Styling: `color` (#hex), `opacity` (0–1), `lineWeight` (mm),
-    `layerName`. POINT may carry `pointNumber`, `code`, `description`.
+    `radiusX/radiusY` (+`rotationDeg`); TEXT `points:[anchor]` + `text`.
+  - Styling: `color` (stroke #hex), `fill` (area #hex, closed shapes),
+    `opacity` (0–1), `lineWeight` (mm), `lineType` (DASHED/FENCE_*/…),
+    `symbol` (glyph at a POINT: UTIL_POLE/VEG_TREE_DECID/MON_*), `layerName`
+    (auto-creates if missing). POINT may carry `pointNumber`/`code`/`description`.
 - `fit[]` — exact best-fit shape from a point set:
-  `{ shape:"RECTANGLE|CIRCLE|LINE", fromIds:[…], points:[…],
-     deleteSource:true, color, opacity, lineWeight, layerName }`.
-  Prefer this for "make a best-fit square/circle/line from these points".
-- `modify[]` — `{ id, points?, color?, opacity?, lineWeight? }` (replace
-  vertices and/or restyle an existing feature).
+  `{ shape:"RECTANGLE|CIRCLE|LINE|CURVE", fromIds:[…], points:[…],
+     closed (CURVE), deleteSource:true, color, fill, opacity, lineWeight,
+     layerName }`. Prefer this for "best-fit square/circle/line/curve".
+- `modify[]` — `{ id, points?, color?, fill?, opacity?, lineWeight?,
+  lineType?, symbol? }` (replace vertices and/or restyle).
 - `transform` — `{ ids:"SELECTION"|[…], translate:{north,east},
   rotateDeg, scale, about:"CENTROID"|{northing,easting} }`.
+- `createLayers[]` — `{ name, color? }` pre-create named layers.
 - `deleteIds[]` — remove features by id.
 
 ## Worked examples

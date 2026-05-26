@@ -325,7 +325,14 @@ const REFERENCE_DIGEST = `REFERENCE (authoritative — follow exactly):
   (min-area bounding rect; keeps rotation). Circle → fit CIRCLE. Line →
   fit LINE. Smooth loop (pond) → SPLINE closed:true.
 * To turn selected points into a shape, prefer "fit" with their ids in
-  fromIds (+deleteSource:true to replace the shots).
+  fromIds (+deleteSource:true to replace the shots). fit shapes:
+  RECTANGLE/CIRCLE/LINE/CURVE.
+* Styling on add/modify: color (stroke), fill (area, closed shapes),
+  opacity, lineWeight (mm), lineType (DASHED/FENCE_*/…), symbol (glyph at a
+  POINT: UTIL_POLE/VEG_TREE_DECID/MON_*). Layers: layerName auto-creates;
+  createLayers pre-makes named/colored layers (STRUCTURES/FENCE/ROW/…).
+* You also get a "linework" catalog in the snapshot — target unselected
+  shapes by their id.
 * Never move existing shots unless asked; keep new geometry on a sensible
   layer and reuse the existing point-code scheme.`;
 

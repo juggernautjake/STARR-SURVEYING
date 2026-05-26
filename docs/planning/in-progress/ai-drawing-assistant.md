@@ -230,4 +230,8 @@ it; only improvise for genuinely novel requests.
   Phase 4 (line bearing/azimuth in digest), parse-safety tests, and a
   locally-runnable Playwright spec (menu smoothness + AI chat). Hardened
   coverage: transform-about-pivot, scale-about-centroid, spline reshape.
+- 2026-05-26 03:2x–3x CDT — Phase 2 DONE (linework catalog), batch-undo
+  integrity test, Phase 6 area fills (polygon + circle/ellipse/closed
+  spline), point-symbol assignment, and reference/digest sync to the full
+  capability set (fill/symbol/lineType/createLayers/FIT_CURVE/linework).
 </content>
