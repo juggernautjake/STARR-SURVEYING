@@ -131,15 +131,31 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
 (with inline reason).
 
 ### Infrastructure
-- [ ] **Slice 1 — Verification harness**: env-gated `/cad-harness`
+- [x] **Slice 1 — Verification harness**: env-gated `/cad-harness`
   route, `playwright.harness.config.ts` with a `webServer`, one audit
-  spec that screenshots the CAD shell; confirm chromium renders it.
+  spec that screenshots the CAD shell. VERIFIED — chromium renders the
+  bare full-screen editor (`test-results/audit/shell.png`). Also
+  suppressed marketing chrome on `/cad-harness` in `LayoutShell`.
 
 ### Standalone window
-- [ ] **Standalone full-screen shell**: ensure no admin chrome leaks
-  into `/admin/cad`; add an in-app **Fullscreen toggle** (Fullscreen
-  API) + a "pop out to standalone window" affordance; verify the editor
-  fills the viewport with correct title.
+- [ ] **Standalone full-screen shell**: the real `/admin/cad` is wrapped
+  by `AdminLayoutClient` (sidebar + topbar + AdminPageHeader +
+  FloatingActionMenu) — it is NOT standalone. Make `/admin/cad` (and
+  children) bypass the admin chrome so the editor owns the full
+  viewport, while keeping needed providers (Session, etc.). Verify the
+  editor fills the viewport with the correct title.
+- [ ] **Fullscreen toggle**: add an in-app Fullscreen API toggle
+  (button in the menu/tool bar) so it behaves like a kiosk/standalone
+  window.
+
+### Export selection / layers (user request 2026-05-26)
+- [ ] **Export by scope (selected features / chosen layers)**: today's
+  exporters (CSV, PNEZD, DXF, LandXML, GeoJSON) emit the whole document.
+  Add a scope chooser so the user can export only the current selection
+  or a chosen set of layers to CSV / DXF / XML (LandXML). (DWG: there is
+  no DWG writer — only DXF; note DXF is the importable equivalent for
+  Traverse PC and most CAD. Flag DWG as out-of-scope unless a writer is
+  added.)
 
 ### Resizable panels (the headline complaint)
 - [ ] **Left tool rail** (`width:52`, fixed) — keep icon rail fixed but
@@ -179,6 +195,17 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   iteration; chromium installed (`/opt/pw-browsers`), network works;
   `/admin/cad` is auth-gated (no creds) → will use an env-gated harness
   route for live verification. Next: Slice 1 (verification harness).
+- 2026-05-26 09:3x CDT — Slice 1 DONE + verified. Added `/cad-harness`
+  (env-gated, 404 unless `NEXT_PUBLIC_E2E_HARNESS=1`),
+  `playwright.harness.config.ts` (webServer boots next dev on :3100),
+  `e2e/harness/{_harness.ts,shell.spec.ts}`, `testIgnore` for harness in
+  the main e2e config, and suppressed marketing chrome on `/cad-harness`
+  in `LayoutShell`. Screenshot confirms the bare full-screen editor.
+  A persistent dev server runs on :3100 for fast screenshot iteration.
+  Discovered: real `/admin/cad` is NOT standalone — wrapped by
+  `AdminLayoutClient` chrome (sidebar/topbar/header/FAB). Added the user's
+  new request (export selected features / chosen layers). Next:
+  Standalone full-screen shell.
 
 ---
 
