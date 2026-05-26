@@ -70,7 +70,7 @@ export interface ChatLayerSpec {
 
 export type ChatShape =
   | 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON'
-  | 'SPLINE' | 'CIRCLE' | 'ELLIPSE' | 'ARC';
+  | 'SPLINE' | 'CIRCLE' | 'ELLIPSE' | 'ARC' | 'TEXT';
 
 /** A new feature the model wants to create. */
 export interface ChatFeatureSpec {
@@ -80,6 +80,7 @@ export interface ChatFeatureSpec {
    *  ARC [start,mid,end]; CIRCLE [center] (+radius) or [center,edge];
    *  ELLIPSE [center] (+radiusX/Y). */
   points:       ChatCoord[];
+  text?:        string;       // TEXT content (placed at points[0])
   closed?:      boolean;      // SPLINE / POLYLINE → close the loop smoothly
   radius?:      number;       // CIRCLE (feet)
   radiusX?:     number;       // ELLIPSE (feet)
@@ -214,7 +215,7 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "patch": { "<field>": "<newValue>", ... },
     "layerName": "<layer name>",
     "instruction": "<re-run prompt>",
-    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC", "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
+    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
     "deleteIds": [ "<featureId>", ... ],
     "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm> } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
@@ -259,6 +260,10 @@ Action selection rules:
     PREFER "fit" with the selected point ids in "fromIds" for "make a best-fit
     square/rectangle/circle/line/curve from these points"; set
     "deleteSource": true to replace the shots.
+  - TEXT places a label at points[0] (use "rotationDeg" to angle it). To label
+    a bearing/distance/area, COMPUTE the value from CURRENT SELECTION coords
+    (azimuth = atan2(Δeast, Δnorth); distance = hypot; area = shoelace) and
+    place the formatted string as a TEXT at the segment midpoint / centroid.
   - Layers: set "layerName" on add/fit to place geometry on a layer; if the
     layer doesn't exist it is created automatically. Use "createLayers" to
     pre-create named/colored layers (e.g. STRUCTURES, FENCE, ROW, BOUNDARY).
@@ -491,7 +496,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
     if (layers.length > 0) out.createLayers = layers;
   }
 
-  const SHAPES = ['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'SPLINE', 'CIRCLE', 'ELLIPSE', 'ARC'];
+  const SHAPES = ['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'SPLINE', 'CIRCLE', 'ELLIPSE', 'ARC', 'TEXT'];
   if (Array.isArray(a.add)) {
     const add: ChatFeatureSpec[] = [];
     for (const s of a.add) {
@@ -517,6 +522,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         ...(rotationDeg !== null ? { rotationDeg } : {}),
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.text === 'string' ? { text: o.text } : {}),
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
         ...(typeof o.pointNumber === 'string' ? { pointNumber: o.pointNumber } : {}),

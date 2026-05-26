@@ -473,6 +473,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
         break;
       }
       case 'ARC': if (pts.length >= 3) { const arc = arcFrom3Points(pts[0], pts[1], pts[2]); if (arc) { geometry = { type: 'ARC', arc }; type = 'ARC'; } } break;
+      case 'TEXT': if (pts[0] && spec.text && spec.text.trim()) { geometry = { type: 'TEXT', point: pts[0], textContent: spec.text, textRotation: ((spec.rotationDeg ?? 0) * Math.PI) / 180 }; type = 'TEXT'; } break;
     }
     if (!geometry) continue;
     const baseStyle = { ...DEFAULT_FEATURE_STYLE, ...drawing.getActiveLayerStyle() };

@@ -137,6 +137,17 @@ describe('applyEditDrawing', () => {
     expect(summary).toContain('created 1 layer');
   });
 
+  it('places a TEXT label at a point', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'label',
+      add: [{ shape: 'TEXT', text: 'N 45°00\'00" E  50.00\'', points: [{ northing: 20, easting: 15 }] }],
+    });
+    const f = useDrawingStore.getState().getAllFeatures()[0];
+    expect(f.type).toBe('TEXT');
+    expect(f.geometry.textContent).toContain('50.00');
+    expect(f.geometry.point).toEqual({ x: 15, y: 20 });
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

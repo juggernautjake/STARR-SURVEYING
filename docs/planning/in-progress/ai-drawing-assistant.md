@@ -89,8 +89,12 @@ Goal: the model can reason about geometry it didn't select.
       (`lib/cad/geometry/fit.ts`, tested in `fit.test.ts`.)
 - [x] `FIT_CURVE` (best-fit smooth spline through a point set; `closed` for
       pond/lake loops) — `fit` shape "CURVE".
+- [x] Text/label creation: `add` shape "TEXT" places a label (with
+      rotation). Bearing/distance/area labels = AI computes the value from the
+      selection digest and places it as TEXT. (Dedicated dimension-annotation
+      objects deferred — separate annotation store, not undoable via the
+      feature batch; a computed TEXT label covers the practical need.)
 - [ ] Line-type / symbol assignment via EDIT_DRAWING (dashed, fence, etc.).
-- [ ] Text/label creation + bearing/distance/area annotations.
 - [x] Layer creation + assignment from the AI: `layerName` on add/fit
       auto-creates the layer if missing; `createLayers` pre-creates
       named/colored layers.
