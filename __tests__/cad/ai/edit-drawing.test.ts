@@ -447,6 +447,18 @@ describe('applyEditDrawing', () => {
     expect(back.layerId).toBe(origLayer);
   });
 
+  it('treats a closed POLYLINE as a POLYGON', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'closed',
+      add: [{ shape: 'POLYLINE', closed: true, points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 10 }, { northing: 10, easting: 5 },
+      ] }],
+    });
+    const f = useDrawingStore.getState().getAllFeatures()[0];
+    expect(f.type).toBe('POLYGON');
+    expect(f.geometry.vertices).toHaveLength(3);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

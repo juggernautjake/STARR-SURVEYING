@@ -461,7 +461,11 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     switch (spec.shape) {
       case 'POINT': if (pts[0]) { geometry = { type: 'POINT', point: pts[0] }; type = 'POINT'; } break;
       case 'LINE': if (pts.length >= 2) { geometry = { type: 'LINE', start: pts[0], end: pts[1] }; type = 'LINE'; } break;
-      case 'POLYLINE': if (pts.length >= 2) { geometry = { type: 'POLYLINE', vertices: pts }; type = 'POLYLINE'; } break;
+      case 'POLYLINE':
+        // A closed polyline is just a polygon — honor the documented `closed`.
+        if (spec.closed && pts.length >= 3) { geometry = { type: 'POLYGON', vertices: pts }; type = 'POLYGON'; }
+        else if (pts.length >= 2) { geometry = { type: 'POLYLINE', vertices: pts }; type = 'POLYLINE'; }
+        break;
       case 'POLYGON': if (pts.length >= 3) { geometry = { type: 'POLYGON', vertices: pts }; type = 'POLYGON'; } break;
       case 'SPLINE': if (pts.length >= 2) { geometry = { type: 'SPLINE', spline: { controlPoints: fitPointsToBezier(pts, !!spec.closed), isClosed: !!spec.closed } }; type = 'SPLINE'; } break;
       case 'CIRCLE': {
