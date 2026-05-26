@@ -958,3 +958,5 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   switching to ROTATE preserves the selection (no "Select features
   first") — the earlier hint in rotate-inspect was a test artifact
   (Ctrl+A focus), not a product issue. `rotate-selection.spec` confirms.
+- 2026-05-26 16:0x CDT — Audit (untouched tool): COPY duplicates a
+  selected point (base→dest → 2 pts) — `copy-tool.spec`.
