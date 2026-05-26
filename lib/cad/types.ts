@@ -170,6 +170,9 @@ export interface DrawingSettings {
    *  {0,0} preserves legacy behavior. Set by "Fit drawing to page". */
   paperOrigin?: { x: number; y: number };
   codeDisplayMode: 'ALPHA' | 'NUMERIC';
+  /** §14 — whether a point's stacked labels (name/code/elevation) move as
+   *  a unit when dragged. Default GROUPED when absent. */
+  pointLabelGrouping?: 'GROUPED' | 'INDEPENDENT';
 
   // Interaction & Viewport
   zoomSpeed: number;           // Multiplier for scroll zoom (0.5=slow, 1.0=default, 2.0=fast)

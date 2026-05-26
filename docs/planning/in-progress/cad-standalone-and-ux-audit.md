@@ -304,10 +304,13 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   weights stay visible (they draw in screen px). VERIFIED at 661% zoom:
   line stays a clean visible stroke, no label clutter
   (`zoom-sizing.spec.ts`). User TEXT features left uncapped (intentional).
-- [ ] **14. Grouped point labels** — when both point name and code/desc
-  are toggled on, render them together (name on top, code/desc just
-  below); moving one moves+highlights both. A setting toggles
-  grouped-vs-independent; default = grouped when both are on.
+- [x] **14. Grouped point labels** — stacking (name on top, code/desc
+  below) + highlight-together already existed in `generate-labels` +
+  CanvasViewport hover. ADDED: move-together drag (dragging one point
+  label moves its sibling name/code/elevation labels by the same delta)
+  + a `pointLabelGrouping: GROUPED|INDEPENDENT` setting (default GROUPED).
+  tsc/lint clean; live drag-verify constrained (needs a coded point) so
+  rests on code-correctness + the existing stacking screenshot.
 - [ ] **15. Unified rotation UX** — refactor rotation for all
   shapes/lines to match the image-rotation handle: a bounding box with a
   grab node, an editable angle field (relative to current), a ghost of
@@ -795,3 +798,7 @@ handle:
   the new dialogs, slide-up to the bottom-dock viewers, scale-in to the
   layers-panel menu, all respecting prefers-reduced-motion. Exit
   transitions deferred (delayed-unmount wrapper) as lower-value polish.
+- 2026-05-26 13:2x CDT — Slice 14 DONE. Point label stacking +
+  highlight-together were already present; added move-together drag
+  (grouped siblings shift by the same delta) and a pointLabelGrouping
+  setting (default GROUPED). Next: §15 rotation UX (assess vs. 2pm stop).

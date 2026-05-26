@@ -801,6 +801,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     labelId: string;
     startWorld: Point2D;
     startOffset: Point2D;
+    // §14 — when point labels are GROUPED, sibling point labels (name +
+    // code/desc + elevation) move together; captured at grab time.
+    siblings?: { labelId: string; startOffset: Point2D }[];
   } | null>(null);
   // Interactive rotate/scale mode — driven by cursor position
   const interactiveOpRef = useRef<{
@@ -8186,11 +8189,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
               if (feature && label) {
                 const { wx, wy } = screenToDrawingWorld(sx, sy);
+                // §14 — group point name/code/elevation labels so dragging
+                // one moves the stack together (unless set to INDEPENDENT).
+                const POINT_LABEL_KINDS = ['POINT_NAME', 'POINT_DESCRIPTION', 'POINT_ELEVATION'];
+                const grouping = useDrawingStore.getState().document.settings.pointLabelGrouping ?? 'GROUPED';
+                let siblings: { labelId: string; startOffset: Point2D }[] | undefined;
+                if (grouping === 'GROUPED' && POINT_LABEL_KINDS.includes(label.kind)) {
+                  siblings = (feature.textLabels ?? [])
+                    .filter((l) => l.id !== label.id && POINT_LABEL_KINDS.includes(l.kind))
+                    .map((l) => ({ labelId: l.id, startOffset: { ...l.offset } }));
+                }
                 labelDragRef.current = {
                   featureId: labelHit.featureId,
                   labelId: labelHit.labelId,
                   startWorld: { x: wx, y: wy },
                   startOffset: { ...label.offset },
+                  siblings,
                 };
                 setCursorStyle('grabbing');
                 return;
@@ -9877,7 +9891,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Label drag update
       if (labelDragRef.current) {
-        const { featureId, labelId, startWorld, startOffset } = labelDragRef.current;
+        const { featureId, labelId, startWorld, startOffset, siblings } = labelDragRef.current;
         const { wx, wy } = screenToDrawingWorld(sx, sy);
         const dx = wx - startWorld.x;
         const dy = wy - startWorld.y;
@@ -9885,6 +9899,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           offset: { x: startOffset.x + dx, y: startOffset.y + dy },
           userPositioned: true,
         });
+        // §14 — move grouped sibling labels by the same delta.
+        if (siblings) {
+          for (const sib of siblings) {
+            drawingStore.updateTextLabel(featureId, sib.labelId, {
+              offset: { x: sib.startOffset.x + dx, y: sib.startOffset.y + dy },
+              userPositioned: true,
+            });
+          }
+        }
         return;
       }
 
