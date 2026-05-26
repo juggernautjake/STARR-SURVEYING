@@ -76,6 +76,29 @@ describe('applyEditDrawing', () => {
     expect(useSelectionStore.getState().selectedIds.has(id)).toBe(false);
   });
 
+  it('fits a best-fit rectangle to selected pillar points and deletes the shots', () => {
+    // Three shots roughly on a rotated square corner set.
+    const shots = [
+      { northing: 0, easting: 0 },
+      { northing: 0, easting: 8 },
+      { northing: 8, easting: 8 },
+    ];
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'shots',
+      add: shots.map((s) => ({ shape: 'POINT' as const, points: [s] })),
+    });
+    const ids = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'fit square',
+      fit: [{ shape: 'RECTANGLE', fromIds: ids, deleteSource: true }],
+    });
+    const feats = useDrawingStore.getState().getAllFeatures();
+    // The 3 points are gone, replaced by one polygon rectangle.
+    expect(feats).toHaveLength(1);
+    expect(feats[0].type).toBe('POLYGON');
+    expect(feats[0].geometry.vertices).toHaveLength(4);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

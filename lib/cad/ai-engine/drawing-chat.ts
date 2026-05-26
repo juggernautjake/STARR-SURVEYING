@@ -97,6 +97,20 @@ export interface ChatModifySpec {
   lineWeight?: number;
 }
 
+/** Fit an exact best-fit shape to a point set (computed client-side for
+ *  precision). Source points come from `fromIds` features and/or explicit
+ *  `points`. */
+export interface ChatFitSpec {
+  shape:        'RECTANGLE' | 'CIRCLE' | 'LINE';
+  fromIds?:     string[];
+  points?:      ChatCoord[];
+  layerName?:   string;
+  color?:       string;
+  opacity?:     number;
+  lineWeight?:  number;
+  deleteSource?: boolean;     // remove fromIds after fitting
+}
+
 /** Translate / rotate / scale a set of features (or the live selection). */
 export interface ChatTransformSpec {
   ids:        string[] | 'SELECTION';
@@ -126,6 +140,7 @@ export interface DrawingChatAction {
   deleteIds?:  string[];
   modify?:     ChatModifySpec[];
   transform?:  ChatTransformSpec;
+  fit?:        ChatFitSpec[];
 }
 
 export interface DrawingChatAttachment {
@@ -194,7 +209,8 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC", "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
     "deleteIds": [ "<featureId>", ... ],
     "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm> } ],
-    "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } }
+    "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
+    "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ]
   }
 }
 
@@ -226,6 +242,12 @@ Action selection rules:
     (houses, fences, roads, boundaries, or arbitrary stylized art) by
     emitting many shapes in one "add" array, using "color"/"opacity"/
     "lineWeight" for styling and "transform" to rotate/scale/move groups.
+  - "fit" computes an EXACT best-fit shape from a point set on the client
+    (precise, not eyeballed): RECTANGLE = minimum-area bounding rectangle
+    (recovers true orientation of a rotated square), CIRCLE = least-squares
+    circle, LINE = total-least-squares line. PREFER "fit" with the selected
+    point ids in "fromIds" for "make a best-fit square/rectangle/circle/line
+    from these points"; set "deleteSource": true to replace the shots.
   - Prefer EDIT_DRAWING over REGENERATE_PIPELINE for surgical edits to
     specific selected features.
 * REGENERATE_PIPELINE — re-run the full AI pipeline with the
@@ -421,8 +443,8 @@ function parseCoords(raw: unknown): ChatCoord[] {
   return out;
 }
 
-function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform'> {
-  const out: Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform'> = {};
+function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit'> {
+  const out: Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform' | 'fit'> = {};
 
   const SHAPES = ['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'SPLINE', 'CIRCLE', 'ELLIPSE', 'ARC'];
   if (Array.isArray(a.add)) {
@@ -511,6 +533,31 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
       }
       out.transform = t;
     }
+  }
+
+  if (Array.isArray(a.fit)) {
+    const fit: ChatFitSpec[] = [];
+    for (const s of a.fit) {
+      if (!s || typeof s !== 'object') continue;
+      const o = s as Record<string, unknown>;
+      if (o.shape !== 'RECTANGLE' && o.shape !== 'CIRCLE' && o.shape !== 'LINE') continue;
+      const fromIds = Array.isArray(o.fromIds) ? o.fromIds.filter((x): x is string => typeof x === 'string') : undefined;
+      const points = parseCoords(o.points);
+      if ((!fromIds || fromIds.length === 0) && points.length === 0) continue;
+      const opacity = num(o.opacity);
+      const lineWeight = num(o.lineWeight);
+      fit.push({
+        shape: o.shape,
+        ...(fromIds && fromIds.length > 0 ? { fromIds } : {}),
+        ...(points.length > 0 ? { points } : {}),
+        ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
+        ...(typeof o.color === 'string' ? { color: o.color } : {}),
+        ...(opacity !== null ? { opacity } : {}),
+        ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(o.deleteSource === true ? { deleteSource: true } : {}),
+      });
+    }
+    if (fit.length > 0) out.fit = fit;
   }
 
   return out;

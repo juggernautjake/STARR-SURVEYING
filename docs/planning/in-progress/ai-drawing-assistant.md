@@ -81,10 +81,13 @@ Goal: the model can reason about geometry it didn't select.
 - Acceptance: "label the midpoint of each boundary line" / "put a point at the
   centroid of these" works without the user pre-selecting every vertex.
 
-### Phase 3 — Tool mastery & fidelity
-- [ ] Best-fit helpers the model can request by intent (not raw coords):
-      `FIT_RECTANGLE`, `FIT_CIRCLE`, `FIT_LINE`, `FIT_CURVE` over a point set,
-      computed client-side from real coordinates for precision.
+### Phase 3 — Tool mastery & fidelity 🚧 IN PROGRESS
+- [x] Best-fit helpers by intent (`fit` on EDIT_DRAWING): RECTANGLE
+      (min-area bounding rect — recovers rotated-square orientation), CIRCLE
+      (least-squares), LINE (total-least-squares), computed client-side from
+      real coords. `fromIds` + `deleteSource` covers the pillar→square case.
+      (`lib/cad/geometry/fit.ts`, tested in `fit.test.ts`.)
+- [ ] `FIT_CURVE` (best-fit smooth spline through a point set).
 - [ ] Line-type / symbol assignment via EDIT_DRAWING (dashed, fence, etc.).
 - [ ] Text/label creation + bearing/distance/area annotations.
 - [ ] Layer creation + assignment from the AI.
@@ -114,6 +117,20 @@ Goal: the model can reason about geometry it didn't select.
 - [ ] Iterative refine loop ("make the cowl sharper") operating on prior ids.
 - Acceptance: a recognizable, stylized illustration from a single prompt.
 
+### Phase 7 — Visual verification harness (Playwright + OCR)
+Goal: close the loop — actually run the app, drive an AI edit, screenshot the
+canvas, and check it behaved as expected; feed failures back into the plan.
+- [ ] Headless Playwright spec that boots the CAD page, applies a known
+      EDIT_DRAWING (e.g. fit-rectangle), screenshots the canvas region.
+- [ ] OCR / pixel checks on the screenshot (point labels present, shape drawn).
+- [ ] A scripted regression: feed canned actions → assert resulting document
+      state (no model call needed) as the fast inner loop; Playwright as the
+      slower outer loop.
+- Feasibility note: full live AI+Pixi+OCR is heavy/flaky in CI and needs a dev
+  server + ANTHROPIC_API_KEY. Inner loop (executor + geometry unit tests)
+  already gives most of the signal; Playwright/OCR is best-effort and may be
+  partially deferred if the dev-server boot proves too costly here.
+
 ## 6. Safety, validation, UX
 - Every AI edit is **Apply-gated** and a **single undo step**.
 - Client validates coordinates (finite), shape arity, and clamps opacity.
@@ -132,10 +149,32 @@ Goal: the model can reason about geometry it didn't select.
 - **Model hallucinating ids/coords** — parser validates; unknown ids skipped.
 - **Destructive edits** — Apply gate + batch undo + selection-scoped defaults.
 
+## 10. AI reference library (anti-hallucination)
+Authoritative, version-controlled references the AI consults so it computes
+the way the app does and doesn't invent procedures. Lives in
+`docs/ai-reference/`. When a user request matches a documented method, follow
+it; only improvise for genuinely novel requests.
+- [ ] `coordinates.md` — NE↔world contract, units, angle conventions.
+- [ ] `calculations.md` — bearing/azimuth, inverse, area (shoelace), curve
+      formulas (R/Δ/L/T/chord), best-fit methods used by `fit.ts`.
+- [ ] `actions.md` — EDIT_DRAWING schema with worked examples per intent.
+- [ ] `recipes.md` — house/fence/road/boundary builders from coded points.
+- [ ] A condensed digest of these is injected into the system prompt.
+
+## 11. Working agreement (this build window)
+- Iterate via the stop hook: plan → build → test → review → refine → repeat.
+- Active dev window until **4:30 AM CDT, 2026-05-26**; check the clock each
+  session. After 4:30 AM: final adjustments + ensure a working state, then
+  (once satisfied) complete the doc and move it to `completed/`.
+- **Hard stop: no development past 5:00 AM CDT.**
+
 ## 9. Audit log
 - 2026-05-26 — Phase 1 shipped (EDIT_DRAWING + selection digest).
 - 2026-05-26 — Phase 2 (partial): derived geometry in the selection digest
-  (endpoints/midpoints/centroids/centers/length/area) + layers & codes in the
-  snapshot. Next: derived geometry for relevant non-selected features with
-  summarization, then Phase 3 fit-helpers (FIT_RECTANGLE/CIRCLE/LINE/CURVE).
+  (endpoints/midpoints/centroids/centers/length/area) + layers & codes.
+- 2026-05-26 02:5x CDT — Phase 3 (partial): `fit` helpers shipped
+  (min-area RECTANGLE, least-squares CIRCLE, TLS LINE) in `lib/cad/geometry/
+  fit.ts` + wired into EDIT_DRAWING; tested. Added Phase 7 (Playwright/OCR
+  verification) and the AI reference library plan. Next: AI reference docs +
+  inject digest into the prompt, then FIT_CURVE / labels / layer creation.
 </content>

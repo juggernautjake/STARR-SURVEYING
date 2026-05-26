@@ -26,6 +26,7 @@ import { generateId } from '../types';
 import { DEFAULT_FEATURE_STYLE } from '../constants';
 import { transformFeature, translate, rotate, scale } from '../geometry/transform';
 import { fitPointsToBezier, arcFrom3Points } from '../geometry/curve-render';
+import { fitOrientedRectangle, fitCircle, fitLine } from '../geometry/fit';
 import { useAIStore } from './ai-store';
 import { useDrawingStore } from './drawing-store';
 import { useSelectionStore } from './selection-store';
@@ -473,6 +474,61 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     added += 1;
   }
   if (added) notes.push(`added ${added} feature${added === 1 ? '' : 's'}`);
+
+  // ── fit (exact best-fit shape from a point set) ──
+  let fitted = 0;
+  for (const spec of action.fit ?? []) {
+    const srcPts: Point2D[] = [];
+    for (const id of spec.fromIds ?? []) {
+      const f = drawing.getFeature(id);
+      if (f) srcPts.push(...featurePoints(f));
+    }
+    for (const c of spec.points ?? []) srcPts.push(toWorld(c));
+    if (srcPts.length < 2) continue;
+
+    let geometry: FeatureGeometry | null = null;
+    let type: Feature['type'] = 'POLYGON';
+    if (spec.shape === 'RECTANGLE') {
+      const corners = fitOrientedRectangle(srcPts);
+      if (corners) { geometry = { type: 'POLYGON', vertices: corners }; type = 'POLYGON'; }
+    } else if (spec.shape === 'CIRCLE') {
+      const c = fitCircle(srcPts);
+      if (c && c.radius > 0) { geometry = { type: 'CIRCLE', circle: c }; type = 'CIRCLE'; }
+    } else if (spec.shape === 'LINE') {
+      const l = fitLine(srcPts);
+      if (l) { geometry = { type: 'LINE', start: l.start, end: l.end }; type = 'LINE'; }
+    }
+    if (!geometry) continue;
+
+    const baseStyle = { ...DEFAULT_FEATURE_STYLE, ...drawing.getActiveLayerStyle() };
+    const style = {
+      ...baseStyle,
+      ...(spec.color ? { color: spec.color } : {}),
+      ...(spec.opacity != null ? { opacity: Math.max(0, Math.min(1, spec.opacity)) } : {}),
+      ...(spec.lineWeight != null ? { lineWeight: spec.lineWeight } : {}),
+    };
+    const feature: Feature = {
+      id: generateId(), type, geometry,
+      layerId: layerIdByName(spec.layerName),
+      style, properties: {},
+    };
+    drawing.addFeature(feature);
+    ops.push({ type: 'ADD_FEATURE', data: feature });
+    fitted += 1;
+
+    if (spec.deleteSource) {
+      const sel = useSelectionStore.getState();
+      for (const id of spec.fromIds ?? []) {
+        const f = drawing.getFeature(id);
+        if (!f) continue;
+        const snap = JSON.parse(JSON.stringify(f)) as Feature;
+        drawing.removeFeature(id);
+        sel.select(id, 'REMOVE');
+        ops.push({ type: 'REMOVE_FEATURE', data: snap });
+      }
+    }
+  }
+  if (fitted) notes.push(`fit ${fitted} shape${fitted === 1 ? '' : 's'}`);
 
   // ── modify (geometry and/or style) ──
   let modified = 0;
