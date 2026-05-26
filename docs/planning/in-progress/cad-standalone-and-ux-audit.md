@@ -651,3 +651,7 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   run without error and the panel still lists layers
   (`layer-actions.spec.ts`). Removed the throwaway `canvas-measure`
   diagnostic spec.
+- 2026-05-26 12:0x CDT — Dialog spot-check: Curve Calculator (Survey
+  menu) and Settings (Help) both open cleanly (`dialogs-smoke.spec.ts`).
+  New user request logged: new-layer creation modal (name / pick points /
+  describe). See §11.
