@@ -946,3 +946,5 @@ Newly-discovered items get appended here as `[ ]` during the loop.
 - 2026-05-26 15:4x CDT — Audit (untouched surface): CommandBar typed
   commands work — typing "line"/"p" activates the Line/Point tools
   (`command-bar.spec`). Confirms the command-input vocabulary dispatch.
+- 2026-05-26 15:5x CDT — Audit (untouched surface): StatusBar Snap/Grid
+  toggles flip state correctly (`status-toggles.spec`).
