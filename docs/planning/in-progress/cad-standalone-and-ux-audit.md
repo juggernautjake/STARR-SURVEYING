@@ -240,6 +240,20 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
 - [ ] **8e. AI naming advisor (enhancement)**: infer the file's naming
   scheme + suggest codes; never block on it.
 
+### Point & Traverse data viewers (user request 2026-05-26 — see §10)
+- [x] **10a. point-rows model** — `lib/cad/points/point-rows.ts`:
+  `buildPointRows` (origin-applied N/E), `rowToWorldPoint`,
+  `rowEditToFeatureUpdate` (coords move the point; code/desc/elev →
+  properties; validates). 9 unit tests.
+- [ ] **10b. rename-impact + strategy logic**: `findNameReferences`,
+  rename-in-place vs duplicate appliers, `renameStrategy` preference.
+- [ ] **10c. editable Point Viewer UI**: inline-edit grid (coords move the
+  point; code/desc/elev edit), column show/hide, layer filter, search.
+- [ ] **10d. rename confirmation dialog**: warn + "duplicate instead" +
+  "remember my choice".
+- [ ] **10e. Traverse Viewer**: computed line/curve columns (bearing /
+  azimuth / distance / chord / radius / delta / arc length), customizable.
+
 ### Per-surface functional audit (expand as discovered)
 - [ ] **ToolBar** — every tool button activates the right tool; tooltips
   correct; active state visible.
@@ -454,3 +468,74 @@ assignNames(newGeometry, layerId, registry, tol):
   the live draw-tool path deferred (addFeature is shared; must hook only
   manual creation). Next: 8b-wire OR continue with menu consolidation /
   per-surface audits depending on risk/time.
+
+---
+
+## 10. Point Data Viewer & Traverse Viewer (user request 2026-05-26)
+
+User intent: a dedicated, spreadsheet-like **Point Data Viewer** over the
+whole project (including auto-created points) and filterable per layer.
+Every coordinate / elevation / code / description field is editable;
+editing a coordinate moves the point on the drawing. **Point name** edits
+are special — they can break references (linework `pointRefs`, labels,
+exports), so a rename must warn the user, offer a safer "duplicate with a
+new name" alternative, still allow the rename if they insist, and offer
+"remember this choice for all future renames." Columns are customizable
+(show/hide). Also a **Traverse Viewer**: per-layer line/curve data —
+coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
+— viewable and (where meaningful) editable, with customizable columns.
+
+### 10.1 Data model
+- **Source of truth = drawing-store POINT features** (these are what's
+  drawn/exported, and include created points). Each row:
+  `{ id, name, northing, easting, elevation, code, description, layerId }`.
+  Display↔world via settings origin: `northing = worldY + originNorthing`,
+  `easting = worldX + originEasting` (geometry stores world x/y).
+- A pure `lib/cad/points/point-rows.ts`: `buildPointRows(doc)`,
+  `rowToGeometry(row, settings)` (edited N/E → world `point`), and field
+  validators. Unit-tested.
+
+### 10.2 Editing semantics
+- **Coordinates** → `updateFeature(id, { geometry })`; the point moves.
+- **Code / description / elevation** → update `properties`.
+- **Point name** → guarded (see §10.3). All edits are undoable.
+
+### 10.3 Rename handling (graceful)
+- `findNameReferences(doc, name)` (pure): linework whose `pointRefs`
+  include the name, `:N` derivatives, labels — so we can tell the user the
+  blast radius.
+- Rename dialog options:
+  1. **Rename in place** — updates the point + every reference
+     (`pointRefs`, derivatives' base) atomically in one undo batch.
+  2. **Create a duplicate** with the new name (same coords/attrs), leaving
+     the original + its references intact.
+  3. Cancel.
+- "**Remember my choice for future point-name changes**" → a session/
+  document preference (`renameStrategy: 'ASK' | 'RENAME' | 'DUPLICATE'`)
+  so power users aren't nagged.
+- Warnings shown: which lines/labels reference the name; that exports key
+  on the name; that duplicates add a row.
+
+### 10.4 UI
+- Reuse/extend `PointTablePanel` into an editable grid (inline-edit cells,
+  per-column show/hide menu, layer filter incl. "All layers" + per-layer,
+  sort, search). Keep it in the resizable bottom dock.
+- **TraverseViewer**: a sibling tab/panel listing linework with computed
+  bearing/azimuth/distance/chord/radius/delta/arc-length columns (reuse
+  `lib/cad/geometry` + selection-digest math), column show/hide, layer
+  filter; edit distance/bearing where it maps back to geometry.
+
+### 10.5 Backlog (added to §5)
+- [ ] **10a. point-rows model** (`point-rows.ts` + tests).
+- [ ] **10b. rename-impact + strategy logic** (`findNameReferences`,
+  rename/duplicate appliers, preference) + tests.
+- [ ] **10c. editable Point Viewer UI** (inline edit, columns, layer
+  filter) wired to the store; live-verify.
+- [ ] **10d. rename confirmation dialog** (warn + duplicate + remember).
+- [ ] **10e. Traverse Viewer** (computed line/curve columns, customizable).
+- 2026-05-26 10:2x CDT — Added §10 (Point Data Viewer + Traverse Viewer)
+  design + backlog 10a–10e per the new user request. Shipped 10a: pure
+  `point-rows.ts` model (`buildPointRows`, `rowToWorldPoint`,
+  `rowEditToFeatureUpdate` — coords move the point, code/desc/elev edit),
+  9 unit tests. Next: 10b rename-impact + strategy logic, then the
+  editable viewer UI (10c) and rename dialog (10d).
