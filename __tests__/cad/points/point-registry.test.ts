@@ -167,3 +167,25 @@ describe('nameDrawnFeature — POLYGON / POLYLINE coverage', () => {
     expect(refs.slice(1)).toEqual(['256', '257']); // minted after max(255)
   });
 });
+
+describe('nameDrawnFeature — non-point/line features untouched', () => {
+  it('leaves a TEXT feature unchanged (no pointRefs/pointName)', () => {
+    const txt = {
+      id: 'T', type: 'TEXT',
+      geometry: { type: 'TEXT', point: { x: 1, y: 1 }, textContent: 'hi' },
+      layerId: 'BOUNDARY', style: {} as Feature['style'], properties: {},
+    } as Feature;
+    const named = nameDrawnFeature(doc([txt]), txt);
+    expect(named.properties.pointRefs).toBeUndefined();
+    expect(named.properties.pointName).toBeUndefined();
+  });
+  it('leaves an ARC feature unchanged', () => {
+    const arc = {
+      id: 'A', type: 'ARC',
+      geometry: { type: 'ARC', arc: { center: { x: 0, y: 0 }, radius: 10, startAngle: 0, endAngle: 1, anticlockwise: false } },
+      layerId: 'BOUNDARY', style: {} as Feature['style'], properties: {},
+    } as Feature;
+    const named = nameDrawnFeature(doc([arc]), arc);
+    expect(named.properties.pointRefs).toBeUndefined();
+  });
+});
