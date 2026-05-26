@@ -261,6 +261,19 @@ describe('applyEditDrawing', () => {
     expect(feats[0].type).toBe('POINT');
   });
 
+  it('sets an area fill on a closed shape (add) and via modify', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'filled',
+      add: [{ shape: 'POLYGON', fill: '#000000', points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 10 }, { northing: 10, easting: 5 },
+      ] }],
+    });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    expect(useDrawingStore.getState().getFeature(id)!.style.fillColor).toBe('#000000');
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'recolor', modify: [{ id, fill: '#ffcc00' }] });
+    expect(useDrawingStore.getState().getFeature(id)!.style.fillColor).toBe('#ffcc00');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

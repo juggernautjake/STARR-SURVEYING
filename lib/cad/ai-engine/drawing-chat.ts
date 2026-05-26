@@ -89,6 +89,7 @@ export interface ChatFeatureSpec {
   rotationDeg?: number;       // ELLIPSE orientation (CCW)
   layerName?:   string;
   color?:       string;       // hex stroke color
+  fill?:        string;       // hex area fill (closed shapes)
   opacity?:     number;       // 0–1
   lineWeight?:  number;       // mm
   lineType?:    string;       // line-type id (e.g. DASHED, FENCE_BARBED_WIRE)
@@ -102,6 +103,7 @@ export interface ChatModifySpec {
   id:          string;
   points?:     ChatCoord[];   // new geometry vertices (optional)
   color?:      string;
+  fill?:       string;
   opacity?:    number;
   lineWeight?: number;
   lineType?:   string;
@@ -220,7 +222,7 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "patch": { "<field>": "<newValue>", ... },
     "layerName": "<layer name>",
     "instruction": "<re-run prompt>",
-    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<DASHED|DOTTED|CENTER|FENCE_BARBED_WIRE|…>", "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
+    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "fill": "<#hex area fill, closed shapes>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<DASHED|DOTTED|CENTER|FENCE_BARBED_WIRE|…>", "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
     "deleteIds": [ "<featureId>", ... ],
     "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<id>" } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
@@ -265,6 +267,9 @@ Action selection rules:
     PREFER "fit" with the selected point ids in "fromIds" for "make a best-fit
     square/rectangle/circle/line/curve from these points"; set
     "deleteSource": true to replace the shots.
+  - "fill" gives a closed shape (polygon/circle/ellipse/closed spline) a
+    solid area color — use it for filled/stylized art and shaded regions;
+    combine with "opacity" for translucency and layers for z-order.
   - TEXT places a label at points[0] (use "rotationDeg" to angle it). To label
     a bearing/distance/area, COMPUTE the value from CURRENT SELECTION coords
     (azimuth = atan2(Δeast, Δnorth); distance = hypot; area = shoelace) and
@@ -533,6 +538,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
         ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
+        ...(typeof o.fill === 'string' ? { fill: o.fill } : {}),
         ...(typeof o.text === 'string' ? { text: o.text } : {}),
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
@@ -558,12 +564,13 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
       const points = parseCoords(o.points);
       const opacity = num(o.opacity);
       const lineWeight = num(o.lineWeight);
-      const hasStyle = typeof o.color === 'string' || opacity !== null || lineWeight !== null || typeof o.lineType === 'string';
+      const hasStyle = typeof o.color === 'string' || typeof o.fill === 'string' || opacity !== null || lineWeight !== null || typeof o.lineType === 'string';
       if (points.length === 0 && !hasStyle) continue;
       modify.push({
         id: o.id,
         ...(points.length > 0 ? { points } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
+        ...(typeof o.fill === 'string' ? { fill: o.fill } : {}),
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
         ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),

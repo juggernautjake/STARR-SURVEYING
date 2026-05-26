@@ -1039,6 +1039,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       prevPoints = state.state.drawingPoints;
     });
     return unsub;
+    // finishFitSpline is a stable useCallback; the subscription is set up
+    // once on mount intentionally (re-subscribing each render would drop
+    // in-flight drawing points).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─────────────────────────────────────────────
@@ -1782,6 +1786,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const p = w2s(v.x, v.y);
           return { x: p.sx, y: p.sy };
         });
+        // Optional area fill (under the stroke) when the style sets fillColor.
+        if (feature.style.fillColor) {
+          const fillInt = parseInt(feature.style.fillColor.replace('#', ''), 16);
+          if (Number.isFinite(fillInt)) {
+            g.beginFill(fillInt, feature.style.fillOpacity ?? alpha);
+            g.moveTo(screenPts[0].x, screenPts[0].y);
+            for (let i = 1; i < screenPts.length; i++) g.lineTo(screenPts[i].x, screenPts[i].y);
+            g.closePath();
+            g.endFill();
+          }
+        }
         // Close the ring so the pattern wraps the final edge.
         screenPts.push(screenPts[0]);
         renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);

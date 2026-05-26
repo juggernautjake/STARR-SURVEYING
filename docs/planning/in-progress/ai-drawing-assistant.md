@@ -134,10 +134,19 @@ Goal: the model can reason about geometry it didn't select.
 - Acceptance: complex multi-shape drawings render correctly; bad outputs are
   caught before they hit the canvas.
 
-### Phase 6 — Free-form illustration ("draw Batman")
-- [ ] Stylization vocabulary: fills, layering/z-order, opacity, color palettes.
-- [ ] A scratch/working area + scale normalization so art lands at a sane size.
-- [ ] Iterative refine loop ("make the cowl sharper") operating on prior ids.
+### Phase 6 — Free-form illustration ("draw Batman") 🚧 IN PROGRESS
+- [x] Stylization vocabulary: **area fills** (`fill` on add/modify →
+      `style.fillColor`, rendered under the stroke for polygons),
+      opacity, stroke color/weight, line types, and **z-order via layers**.
+      (Canvas fill needs a browser visual check — code is guarded so unfilled
+      shapes are unchanged.)
+- [x] Iterative refine loop — AI-created features auto-select, so "make the
+      cowl sharper" operates on the prior ids (Phase 5).
+- [ ] Circle/ellipse/closed-spline fill rendering (polygon shipped; extend
+      next) + DXF/PDF solid-hatch export (defer — export hatch is a separate
+      sizeable change; on-screen fill covers the design need first).
+- [ ] Scratch area + scale normalization (defer — the AI controls absolute
+      coordinates already; add only if art lands off-view in practice).
 - Acceptance: a recognizable, stylized illustration from a single prompt.
 
 ### Phase 7 — Visual verification harness (Playwright + OCR) 🚧 IN PROGRESS
