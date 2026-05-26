@@ -1,6 +1,6 @@
 // __tests__/cad/points/traverse-rows.test.ts
 import { describe, it, expect } from 'vitest';
-import { buildTraverseRows } from '@/lib/cad/points/traverse-rows';
+import { buildTraverseRows, traverseEditToGeometry } from '@/lib/cad/points/traverse-rows';
 import type { DrawingDocument, Feature } from '@/lib/cad/types';
 
 function doc(fs: Feature[], oN = 0, oE = 0): DrawingDocument {
@@ -69,5 +69,40 @@ describe('buildTraverseRows', () => {
   it('ignores points and text', () => {
     const pt = { id: 'pt', type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 0 } }, layerId: 'L', properties: {} } as unknown as Feature;
     expect(buildTraverseRows(doc([pt]))).toHaveLength(0);
+  });
+});
+
+describe('traverseEditToGeometry (§10f)', () => {
+  const line = {
+    id: 'l', type: 'LINE',
+    geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 100, y: 0 } }, // due east, 100
+    layerId: 'L1', properties: {},
+  } as unknown as import('@/lib/cad/types').Feature;
+
+  it('editing distance moves the end along the current azimuth', () => {
+    const upd = traverseEditToGeometry(line, 'distance', '250');
+    // due east (az 90) → end at x=250, y=0
+    expect(upd?.geometry?.end?.x).toBeCloseTo(250, 6);
+    expect(upd?.geometry?.end?.y).toBeCloseTo(0, 6);
+  });
+
+  it('editing azimuth rotates the end around the start (keeps distance)', () => {
+    const upd = traverseEditToGeometry(line, 'azimuth', '0'); // due north, dist 100
+    expect(upd?.geometry?.end?.x).toBeCloseTo(0, 6);
+    expect(upd?.geometry?.end?.y).toBeCloseTo(100, 6);
+  });
+
+  it('editing a quadrant bearing works', () => {
+    // N 45°00'00" E → azimuth 45, distance 100.
+    const upd = traverseEditToGeometry(line, 'bearing', 'N 45 00 00 E');
+    expect(upd?.geometry?.end?.x).toBeCloseTo(100 * Math.sin(Math.PI / 4), 4);
+    expect(upd?.geometry?.end?.y).toBeCloseTo(100 * Math.cos(Math.PI / 4), 4);
+  });
+
+  it('rejects invalid input and non-lines', () => {
+    expect(traverseEditToGeometry(line, 'distance', 'abc')).toBeNull();
+    expect(traverseEditToGeometry(line, 'distance', '-5')).toBeNull();
+    const poly = { ...line, type: 'POLYLINE' } as typeof line;
+    expect(traverseEditToGeometry(poly, 'distance', '50')).toBeNull();
   });
 });

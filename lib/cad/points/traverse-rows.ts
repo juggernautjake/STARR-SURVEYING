@@ -8,7 +8,7 @@
 // Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10
 
 import type { DrawingDocument, Feature, DrawingSettings, Point2D } from '../types';
-import { inverseBearingDistance, formatBearing } from '../geometry/bearing';
+import { inverseBearingDistance, formatBearing, forwardPoint, parseBearing } from '../geometry/bearing';
 
 export interface TraverseRow {
   id: string;
@@ -119,6 +119,40 @@ function arcRow(f: Feature, oN: number, oE: number): TraverseRow | null {
 
 function formatBearingSafe(azimuth: number): string {
   return formatBearing(azimuth);
+}
+
+export type TraverseEditField = 'distance' | 'azimuth' | 'bearing';
+
+/**
+ * §10f — editing a LINE course's distance / azimuth / quadrant bearing
+ * moves its end point (keeping the start fixed). Returns a geometry
+ * update, or null for invalid input or non-LINE features.
+ */
+export function traverseEditToGeometry(
+  feature: Feature,
+  field: TraverseEditField,
+  rawValue: string,
+): Partial<Feature> | null {
+  if (feature.type !== 'LINE') return null;
+  const { start, end } = feature.geometry;
+  if (!start || !end) return null;
+  const cur = inverseBearingDistance(start, end);
+
+  let newEnd: Point2D | null = null;
+  if (field === 'distance') {
+    const d = Number(rawValue);
+    if (rawValue.trim() === '' || Number.isNaN(d) || d <= 0) return null;
+    newEnd = forwardPoint(start, cur.azimuth, d);
+  } else if (field === 'azimuth') {
+    const az = Number(rawValue);
+    if (rawValue.trim() === '' || Number.isNaN(az)) return null;
+    newEnd = forwardPoint(start, az, cur.distance);
+  } else {
+    const az = parseBearing(rawValue);
+    if (az == null) return null;
+    newEnd = forwardPoint(start, az, cur.distance);
+  }
+  return { geometry: { ...feature.geometry, end: newEnd } };
 }
 
 /** Build traverse rows for all line/curve features in the document. */

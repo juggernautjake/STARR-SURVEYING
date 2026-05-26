@@ -11,8 +11,13 @@
 
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { useDrawingStore } from '@/lib/cad/store';
-import { buildTraverseRows, type TraverseRow } from '@/lib/cad/points/traverse-rows';
+import { useDrawingStore, useUndoStore, makeBatchEntry } from '@/lib/cad/store';
+import {
+  buildTraverseRows,
+  traverseEditToGeometry,
+  type TraverseRow,
+  type TraverseEditField,
+} from '@/lib/cad/points/traverse-rows';
 
 type ColKey =
   | 'kind' | 'startN' | 'startE' | 'endN' | 'endE'
@@ -50,9 +55,34 @@ function loadColVis(): Record<ColKey, boolean> {
 
 export default function TraverseViewer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const document = useDrawingStore((s) => s.document);
+  const updateFeature = useDrawingStore((s) => s.updateFeature);
+  const getFeature = useDrawingStore((s) => s.getFeature);
+  const pushUndo = useUndoStore((s) => s.pushUndo);
   const [layerFilter, setLayerFilter] = useState('ALL');
   const [colVis, setColVis] = useState<Record<ColKey, boolean>>(loadColVis);
   const [colMenuOpen, setColMenuOpen] = useState(false);
+  const [edit, setEdit] = useState<{ id: string; field: TraverseEditField } | null>(null);
+
+  const EDITABLE: Partial<Record<ColKey, TraverseEditField>> = {
+    distance: 'distance',
+    azimuth: 'azimuth',
+    bearing: 'bearing',
+  };
+
+  function commitEdit(row: TraverseRow, field: TraverseEditField, raw: string) {
+    setEdit(null);
+    const feature = getFeature(row.id);
+    if (!feature) return;
+    const update = traverseEditToGeometry(feature, field, raw);
+    if (!update) return;
+    const before = { geometry: feature.geometry };
+    updateFeature(row.id, update);
+    pushUndo(
+      makeBatchEntry(`Edit course ${field}`, [
+        { type: 'MODIFY_FEATURE', data: { id: row.id, before, after: update } },
+      ]),
+    );
+  }
 
   const rows = useMemo(() => buildTraverseRows(document), [document]);
   const layers = useMemo(() => {
@@ -141,9 +171,32 @@ export default function TraverseViewer({ open, onClose }: { open: boolean; onClo
           <tbody>
             {filtered.map((row) => (
               <tr key={row.id} className="hover:bg-gray-800/60">
-                {visibleCols.map((c) => (
-                  <td key={c.key} className="px-2 py-0.5 border-b border-gray-800 whitespace-nowrap">{cell(row, c.key)}</td>
-                ))}
+                {visibleCols.map((c) => {
+                  const editField = row.kind === 'LINE' ? EDITABLE[c.key] : undefined;
+                  const editing = !!editField && edit?.id === row.id && edit.field === editField;
+                  return (
+                    <td
+                      key={c.key}
+                      className="px-2 py-0.5 border-b border-gray-800 whitespace-nowrap"
+                      onClick={editField ? () => setEdit({ id: row.id, field: editField }) : undefined}
+                    >
+                      {editing ? (
+                        <input
+                          autoFocus
+                          defaultValue={cell(row, c.key).replace('°', '')}
+                          onBlur={(e) => commitEdit(row, editField!, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            if (e.key === 'Escape') setEdit(null);
+                          }}
+                          className="w-24 bg-gray-700 border border-blue-500 rounded px-1 outline-none"
+                        />
+                      ) : (
+                        <span className={editField ? 'cursor-text' : undefined}>{cell(row, c.key)}</span>
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {filtered.length === 0 && (

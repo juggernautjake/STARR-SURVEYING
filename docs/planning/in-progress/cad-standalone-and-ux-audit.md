@@ -273,8 +273,11 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   distance/azimuth/bearing/polyline-length/arc radius-delta-arclen-chord)
   + `TraverseViewer.tsx` (computed columns, customizable show/hide, layer
   filter, View-menu toggle, resizable dock). VERIFIED via screenshot.
-- [ ] **10f. Traverse editing**: edit distance/bearing to drive geometry
-  (read-only today; maps back to start/end is a follow-up).
+- [x] **10f. Traverse editing** — LINE courses are now editable in the
+  Traverse Viewer: editing distance / azimuth / quadrant bearing moves the
+  end point via `traverseEditToGeometry` (forwardPoint), undoable. Pure
+  helper has 4 unit tests; LIVE-VERIFIED (drew a line, set distance 321.5
+  → End E recomputed, `traverse-edit.png`).
 
 ### Layers panel control (user request 2026-05-26)
 - [x] **Panel right-click menu** — right-clicking the layer-list
@@ -676,3 +679,8 @@ modal shows all fields; creating "Boundary" adds it to the panel.
   Full regression: 1261 CAD unit tests green, tsc clean.
 - 2026-05-26 12:3x CDT — Left tool rail audited on a short (600px)
   viewport: it scrolls so lower tools stay reachable — no fix needed.
+- 2026-05-26 12:4x CDT — Slice 10f DONE. Traverse Viewer LINE courses are
+  editable: distance/azimuth/bearing edits move the endpoint
+  (`traverseEditToGeometry` + forwardPoint, undoable). 4 unit tests +
+  live verification (distance 321.5 → endpoint moved). This makes the
+  traverse data "viewable AND editable" per the user request.
