@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useExitTransition } from '../hooks/useExitTransition';
 
 export interface RenameDialogData {
   featureId: string;
@@ -33,11 +34,12 @@ export default function RenameConfirmDialog({
   onCancel: () => void;
 }) {
   const [remember, setRemember] = useState(false);
+  const { closing, requestClose } = useExitTransition(onCancel);
   const { oldName, newName, referenceCount, derivatives, nameTaken } = data;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out] motion-reduce:animate-none">
-      <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-md text-sm text-gray-200 animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none">
+    <div className={`fixed inset-0 z-[120] flex items-center justify-center bg-black/60 ${closing ? 'opacity-0 transition-opacity duration-150' : 'animate-[fadeIn_150ms_ease-out] motion-reduce:animate-none'}`}>
+      <div className={`bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-md text-sm text-gray-200 ${closing ? 'opacity-0 scale-95 transition-all duration-150' : 'animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none'}`}>
         <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-700">
           <AlertTriangle size={18} className="text-amber-400" />
           <h2 className="font-semibold text-white">Change point name?</h2>
@@ -82,7 +84,7 @@ export default function RenameConfirmDialog({
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-700">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={requestClose}
             className="px-3 py-1.5 text-gray-300 hover:bg-gray-700 rounded"
           >
             Cancel

@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { buildPointRows } from '@/lib/cad/points/point-rows';
+import { useExitTransition } from '../hooks/useExitTransition';
 
 export interface NewLayerResult {
   name: string;
@@ -31,6 +32,7 @@ export default function NewLayerDialog({
   onClose: () => void;
 }) {
   const doc = useDrawingStore((s) => s.document);
+  const { closing, requestClose } = useExitTransition(onClose);
   const [name, setName] = useState(defaultName);
   const [color, setColor] = useState(defaultColor);
   const [description, setDescription] = useState('');
@@ -52,11 +54,11 @@ export default function NewLayerDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out] motion-reduce:animate-none">
-      <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-md text-sm text-gray-200 animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none">
+    <div className={`fixed inset-0 z-[120] flex items-center justify-center bg-black/60 ${closing ? 'opacity-0 transition-opacity duration-150' : 'animate-[fadeIn_150ms_ease-out] motion-reduce:animate-none'}`}>
+      <div className={`bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-md text-sm text-gray-200 ${closing ? 'opacity-0 scale-95 transition-all duration-150' : 'animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none'}`}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700">
           <h2 className="font-semibold text-white">New layer</h2>
-          <button type="button" onClick={onClose} className="p-1 hover:bg-gray-700 rounded" aria-label="Close">
+          <button type="button" onClick={requestClose} className="p-1 hover:bg-gray-700 rounded" aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -139,7 +141,7 @@ export default function NewLayerDialog({
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-700">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-gray-300 hover:bg-gray-700 rounded">Cancel</button>
+          <button type="button" onClick={requestClose} className="px-3 py-1.5 text-gray-300 hover:bg-gray-700 rounded">Cancel</button>
           <button type="button" onClick={submit} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium">
             Create layer
           </button>

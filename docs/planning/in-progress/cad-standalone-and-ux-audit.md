@@ -1,11 +1,12 @@
 # CAD Standalone Window & UX Audit — Self-Updating Master Plan
 
 Status: **in progress (reopened)** · Owner: CAD/UX · Last audit: 2026-05-26 14:38 CDT
-Time-box: **extended by the user to stop at 4:00 PM CDT (16:00),
-2026-05-26.** (Originally 2:00 PM; reopened to work the deferred items.)
-On every resume: check the clock — if ≥ 16:00 CDT, finalize per §7 and
-move this doc back to `completed/`; otherwise keep auditing/refactoring/
-testing the §17 backlog below.
+Time-box: **extended by the user to 5:00 PM CDT (17:00), 2026-05-26.**
+(2:00 PM → 4:00 PM → 5:00 PM.) From 5:00 PM, stop starting new work;
+finish whatever remains in this doc, then move it to `completed/` and
+stop. On every resume: check the clock — if ≥ 17:00 CDT, wrap up per §7
+and move this doc back to `completed/`; otherwise keep auditing/
+refactoring/testing the §17 backlog below.
 
 ---
 
@@ -19,13 +20,13 @@ means **moving this file to `completed/` is the only clean way to stop.**
 ### 0.1 On EVERY resume, do these in order
 
 1. **Check the clock**: run `TZ="America/Chicago" date "+%H:%M"`.
-   - **If it is 2:00 PM CDT (14:00) or later** → go to §7 "Finalization"
+   - **If it is 5:00 PM CDT (17:00) or later** → go to §7 "Finalization"
      and STOP. Do not start a new audit slice.
    - Otherwise continue.
 2. Read the **Audit Log (§6)** bottom entry to see where the last slice
    stopped and what is next.
-3. Read the **Audit Backlog (§5)**. Pick the **single highest-priority
-   open `[ ]` target** (top-down order is the priority order).
+3. Work the **§17 Reopened backlog** (top = next), then any remaining
+   open `[ ]` in §5. Pick the single highest-priority open target.
 4. Run **one full audit cycle (§3)** on that one target. Keep the slice
    small — one target, one commit.
 5. Append a dated entry to the Audit Log (§6) describing what changed,
@@ -864,10 +865,11 @@ User reopened the doc to work the previously-deferred items. Priority
 order (top = next); same audit cycle (§3): inspect → fix → typecheck +
 lint + test → live-verify in the harness → record → commit.
 
-- [ ] **17a. §12-exit — smooth destruct transitions**: dialogs/menus
-  fade/scale OUT on close (not just abrupt unmount). Add a small
-  `useExitTransition` hook and route the new dialogs' close paths through
-  it.
+- [x] **17a. §12-exit — smooth destruct transitions** — `useExitTransition`
+  hook (fade/scale-out then unmount, reduced-motion-safe) wired into the
+  New Layer / Export Layers / Rename dialogs' dismiss paths. VERIFIED:
+  dialogs still open/operate and Cancel closes after the transition
+  (`new-layer-dialog.spec` Cancel test).
 - [ ] **17b. 8c-deriv — export cross-layer `:N` points**: optionally
   materialize `:N` vertex refs as exportable point records so they land
   in CSV/PNEZD alongside their base points. Pure helper + tests + an
@@ -881,3 +883,7 @@ lint + test → live-verify in the harness → record → commit.
   naming scheme + suggest codes; never block on it.
 
 Newly-discovered items get appended here as `[ ]` during the loop.
+- 2026-05-26 14:4x CDT — Reopened (time-box → 5:00 PM per user). Slice 17a
+  DONE: `useExitTransition` gives the New Layer/Export Layers/Rename
+  dialogs a fade+scale exit on dismiss (reduced-motion falls back to
+  instant). Verified open + Cancel-closes. Next: 17b (export `:N` points).
