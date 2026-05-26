@@ -943,3 +943,6 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   Viewer, and the per-layer label toggle; defaulting on would contradict
   the §13 anti-clutter work and the user's "labels too big/clutter"
   complaint. The on-canvas display stays opt-in per layer.
+- 2026-05-26 15:4x CDT — Audit (untouched surface): CommandBar typed
+  commands work — typing "line"/"p" activates the Line/Point tools
+  (`command-bar.spec`). Confirms the command-input vocabulary dispatch.
