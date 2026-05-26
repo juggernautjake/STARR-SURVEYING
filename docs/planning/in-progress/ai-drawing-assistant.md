@@ -245,6 +245,8 @@ it; only improvise for genuinely novel requests.
 - [x] `recipes.md` includes worked EDIT_DRAWING JSON per structure
       (pillar/fence/boundary+label/pond/poles) so the AI has concrete,
       copy-shaped references and doesn't guess the schema.
+- [x] `context.md` documents the snapshot + selection-digest fields the AI
+      receives (awareness surface) for the AI and maintainers.
 
 ## 11. Working agreement (this build window)
 - Iterate via the stop hook: plan → build → test → review → refine → repeat.
