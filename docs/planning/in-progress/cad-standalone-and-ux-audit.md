@@ -870,10 +870,12 @@ lint + test → live-verify in the harness → record → commit.
   New Layer / Export Layers / Rename dialogs' dismiss paths. VERIFIED:
   dialogs still open/operate and Cancel closes after the transition
   (`new-layer-dialog.spec` Cancel test).
-- [ ] **17b. 8c-deriv — export cross-layer `:N` points**: optionally
-  materialize `:N` vertex refs as exportable point records so they land
-  in CSV/PNEZD alongside their base points. Pure helper + tests + an
-  export toggle.
+- [x] **17b. Export ALL created points** — `collectDerivedPoints`
+  materializes created points that live only as linework vertex refs
+  (minted vertex names + cross-layer `:N`) into CSV/PNEZD output; base
+  POINT features still export directly, names de-duped. 5 unit tests;
+  existing 37 export tests still green. Now every created point lands in
+  the export, per the original §8 intent.
 - [ ] **17c. §15 — unified rotation UX**: generalize the image-style
   grab-node rotation handle (box + node + ghost + live editable angle)
   to all feature types. Large canvas work; do incrementally and verify.
@@ -887,3 +889,8 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   DONE: `useExitTransition` gives the New Layer/Export Layers/Rename
   dialogs a fade+scale exit on dismiss (reduced-motion falls back to
   instant). Verified open + Cancel-closes. Next: 17b (export `:N` points).
+- 2026-05-26 14:5x CDT — Slice 17b DONE. `collectDerivedPoints` +
+  CSV/PNEZD integration: created points that exist only as vertex
+  pointRefs (minted + `:N`) now export alongside POINT features. 5 unit
+  tests; no regression in the 37 existing export tests. Next: 17c unified
+  rotation UX.
