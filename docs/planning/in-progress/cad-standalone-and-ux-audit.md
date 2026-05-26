@@ -218,9 +218,16 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   safe), `derivedName`→`base:N`, `coincidentName`, and `resolveVertexName`
   (reuse / derive / mint per §8 rules). Pure, 13 unit tests. No AI
   dependency.
-- [ ] **8b. Assign-on-create**: when a POINT / LINE / POLYLINE / POLYGON
-  is created, name each vertex per §8 rules (reuse same-layer existing
-  point; mint new; or `base:N` for cross-layer references).
+- [~] **8b. Assign-on-create**: ENGINE DONE — `point-registry.ts`
+  (`buildPointRegistry`, `collectExistingNames`, `assignNamesForNewFeatures`
+  returning per-feature `POINT name` / `VERTICES refs`, + `encode/
+  parsePointRefs` for JSON storage in `properties`). 8 unit tests cover
+  the exact user scenarios (same-layer reuse, cross-layer `255:1`→`:2`,
+  mint, shared-mint-in-batch). REMAINING (8b-wire): call the engine from
+  the manual draw-tool completion path and apply assignments inside the
+  same undo batch — deferred from this slice because `addFeature` is a
+  shared low-level mutation (import/AI/intersect) and naming must hook
+  only manual creation to avoid double-naming the import flow.
 - [ ] **8c. Export inclusion**: every named point (incl. `:N` and
   auto-minted vertex points) appears in CSV/PNEZD/DXF/LandXML.
 - [ ] **8d. Duplication/copy semantics**: copy across layers →
@@ -435,3 +442,11 @@ assignNames(newGeometry, layerId, registry, tol):
   rules (same-layer reuse, cross-layer `base:N`, else mint max+1). 13 unit
   tests. Next: 8b — wire assign-on-create into geometry creation so new
   POINT/LINE/POLYLINE/POLYGON vertices get names.
+- 2026-05-26 10:1x CDT — Slice 8b-engine DONE. `point-registry.ts`:
+  registry builder + `assignNamesForNewFeatures` implementing the full §8
+  rule set, plus JSON `pointRefs` storage helpers (Feature.properties only
+  holds primitives, so refs are JSON-encoded). 8 unit tests pass incl. the
+  user's 255/256 → 255:1/256:1 → :2 cross-layer scenarios. Wire-up into
+  the live draw-tool path deferred (addFeature is shared; must hook only
+  manual creation). Next: 8b-wire OR continue with menu consolidation /
+  per-surface audits depending on risk/time.
