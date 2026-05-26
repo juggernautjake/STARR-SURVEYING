@@ -157,10 +157,10 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   the current selection (layers/settings preserved); File ▸ Export now
   has "Export selection as CSV / DXF / LandXML" (disabled when nothing is
   selected). VERIFIED via menu screenshot (`export-selection-menu.png`).
-- [ ] **Export by chosen layers** — the `scopeDocument` helper already
-  supports `{kind:'LAYERS'}`; needs a small layer-picker dialog to choose
-  which layers, then CSV/DXF/LandXML. (DWG: no DWG writer exists — DXF is
-  the interchange equivalent; DWG out-of-scope unless a writer is added.)
+- [x] **Export by chosen layers** — `ExportLayersDialog` (layer
+  checkboxes + All/None + CSV/DXF/LandXML) via File ▸ Export ▸ "Export
+  layers…", using `scopeDocument({kind:'LAYERS'})`. VERIFIED via
+  screenshot. (DWG out-of-scope — no DWG writer; DXF is the equivalent.)
 
 ### Resizable panels (the headline complaint)
 - [ ] **Left tool rail** (`width:52`, fixed) — keep icon rail fixed but
@@ -580,3 +580,10 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   columns + layer filter, toggled from View menu in a resizable dock;
   screenshot confirms. Editing courses → geometry deferred as 10f. This
   completes the §10 viewers' read path; both viewers ship.
+- 2026-05-26 11:1x CDT — Export-by-layers DONE. `ExportLayersDialog`
+  (per-layer checkboxes, All/None, CSV/DXF/LandXML) wired into File ▸
+  Export, reusing `scopeDocument({kind:'LAYERS'})`. Screenshot confirms.
+  This completes the user's "export specific layers or selected points"
+  request (selection done in slice 7, layers now). 1259 CAD unit tests
+  still green. Next options: menu consolidation, left-rail audit, or the
+  8b draw-path wire-up.

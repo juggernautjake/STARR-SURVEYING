@@ -29,6 +29,7 @@ import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
+import ExportLayersDialog from './ExportLayersDialog';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 
@@ -71,6 +72,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     submenuCloseTimer.current = setTimeout(() => setOpenSubmenu(null), 180);
   };
   const [dbDialog, setDbDialog] = useState<'save' | 'open' | null>(null);
+  const [exportLayersOpen, setExportLayersOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
@@ -514,6 +516,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
             { label: 'Export selection as CSV…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('CSV'); setOpenMenu(null); } },
             { label: 'Export selection as DXF…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('DXF'); setOpenMenu(null); } },
             { label: 'Export selection as LandXML…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('LANDXML'); setOpenMenu(null); } },
+            { label: 'Export layers…', action: () => { setExportLayersOpen(true); setOpenMenu(null); } },
           ],
         },
         {
@@ -1096,6 +1099,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     {/* Save/Open from Database dialogs */}
     {dbDialog && (
       <SaveToDBDialog mode={dbDialog} onClose={() => setDbDialog(null)} />
+    )}
+    {exportLayersOpen && (
+      <ExportLayersDialog onClose={() => setExportLayersOpen(false)} />
     )}
   </>
   );
