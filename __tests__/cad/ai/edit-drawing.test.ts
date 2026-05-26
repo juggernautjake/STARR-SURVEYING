@@ -176,6 +176,21 @@ describe('applyEditDrawing', () => {
     expect(summary).toContain('skipped 2');
   });
 
+  it('selects the features it just created (for iterative refinement)', () => {
+    useSelectionStore.getState().deselectAll();
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'two',
+      add: [
+        { shape: 'POINT', points: [{ northing: 1, easting: 1 }] },
+        { shape: 'POINT', points: [{ northing: 2, easting: 2 }] },
+      ],
+    });
+    const ids = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+    const sel = useSelectionStore.getState().selectedIds;
+    expect(sel.size).toBe(2);
+    for (const id of ids) expect(sel.has(id)).toBe(true);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

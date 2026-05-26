@@ -412,6 +412,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
 
   const ops: UndoOperation[] = [];
   const notes: string[] = [];
+  const createdIds: string[] = [];
   let skipped = 0;
 
   // Find a layer by (case-insensitive) name, creating it if missing so the
@@ -500,6 +501,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     };
     drawing.addFeature(feature);
     ops.push({ type: 'ADD_FEATURE', data: feature });
+    createdIds.push(feature.id);
     added += 1;
   }
   if (added) notes.push(`added ${added} feature${added === 1 ? '' : 's'}`);
@@ -547,6 +549,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     };
     drawing.addFeature(feature);
     ops.push({ type: 'ADD_FEATURE', data: feature });
+    createdIds.push(feature.id);
     fitted += 1;
 
     if (spec.deleteSource) {
@@ -651,6 +654,11 @@ export function applyEditDrawing(action: DrawingChatAction): string {
   if (deleted) notes.push(`deleted ${deleted}`);
 
   if (skipped > 0) notes.push(`skipped ${skipped} invalid/degenerate`);
+  // Select what the AI just created so the next turn's selection digest
+  // carries its exact geometry — enabling iterative "refine this" follow-ups.
+  if (createdIds.length > 0) {
+    useSelectionStore.getState().selectMultiple(createdIds, 'REPLACE');
+  }
   if (ops.length === 0 && notes.length === 0) return '⚠ No valid geometry edits in the action.';
   // Layer creation isn't a feature op; only push undo when geometry changed.
   if (ops.length > 0) {

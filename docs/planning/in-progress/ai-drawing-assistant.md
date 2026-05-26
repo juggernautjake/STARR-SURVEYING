@@ -111,8 +111,9 @@ Goal: the model can reason about geometry it didn't select.
   layered, styled building.
 
 ### Phase 5 — Verification & self-correction loop 🚧 IN PROGRESS
-- [ ] After Apply, feed the model a post-edit digest (what now exists) so it can
-      verify and propose corrections.
+- [x] After Apply, the just-created features are auto-selected, so the next
+      turn's selection digest carries their exact geometry — the model can
+      verify/refine its own output ("make the cowl sharper") on prior ids.
 - [x] Pre-Apply **validation**: degenerate geometry (non-finite coords,
       zero-length lines, zero-area polygons, sub-epsilon radii, <4-pt splines)
       is rejected by `isDegenerateGeometry` and reported as "skipped N" in the
