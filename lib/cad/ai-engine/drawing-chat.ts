@@ -52,7 +52,59 @@ export type DrawingChatActionType =
   | 'REGENERATE_PIPELINE'
   | 'UPDATE_TITLE_BLOCK'
   | 'UPDATE_SETTING'
-  | 'REDRAW_LAYER';
+  | 'REDRAW_LAYER'
+  | 'EDIT_DRAWING';
+
+/** A coordinate the model emits, in survey northing/easting (matching the
+ *  selection digest the model is shown). The client converts to world. */
+export interface ChatCoord {
+  northing: number;
+  easting:  number;
+}
+
+export type ChatShape =
+  | 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON'
+  | 'SPLINE' | 'CIRCLE' | 'ELLIPSE' | 'ARC';
+
+/** A new feature the model wants to create. */
+export interface ChatFeatureSpec {
+  shape:        ChatShape;
+  /** Coordinates whose meaning depends on shape:
+   *  POINT [pt]; LINE [a,b]; POLYLINE/POLYGON/SPLINE [verts…];
+   *  ARC [start,mid,end]; CIRCLE [center] (+radius) or [center,edge];
+   *  ELLIPSE [center] (+radiusX/Y). */
+  points:       ChatCoord[];
+  closed?:      boolean;      // SPLINE / POLYLINE → close the loop smoothly
+  radius?:      number;       // CIRCLE (feet)
+  radiusX?:     number;       // ELLIPSE (feet)
+  radiusY?:     number;       // ELLIPSE (feet)
+  rotationDeg?: number;       // ELLIPSE orientation (CCW)
+  layerName?:   string;
+  color?:       string;       // hex stroke color
+  opacity?:     number;       // 0–1
+  lineWeight?:  number;       // mm
+  pointNumber?: string;       // POINT only
+  code?:        string;
+  description?: string;
+}
+
+/** Edit an existing feature: replace its vertices and/or restyle it. */
+export interface ChatModifySpec {
+  id:          string;
+  points?:     ChatCoord[];   // new geometry vertices (optional)
+  color?:      string;
+  opacity?:    number;
+  lineWeight?: number;
+}
+
+/** Translate / rotate / scale a set of features (or the live selection). */
+export interface ChatTransformSpec {
+  ids:        string[] | 'SELECTION';
+  translate?: { north: number; east: number };  // feet
+  rotateDeg?: number;                            // CCW degrees
+  scale?:     number;                            // uniform factor
+  about?:     'CENTROID' | ChatCoord;            // pivot, default CENTROID
+}
 
 export interface DrawingChatAction {
   type:        DrawingChatActionType;
@@ -68,6 +120,12 @@ export interface DrawingChatAction {
    *  `userPrompt` for the next pipeline run. Falls back to
    *  the assistant's reply text when omitted. */
   instruction?: string;
+  /** EDIT_DRAWING — programmatic geometry edits the client applies
+   *  directly (as one undoable batch). Any combination may be set. */
+  add?:        ChatFeatureSpec[];
+  deleteIds?:  string[];
+  modify?:     ChatModifySpec[];
+  transform?:  ChatTransformSpec;
 }
 
 export interface DrawingChatAttachment {
@@ -128,16 +186,48 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
 {
   "reply": "<full sentences, plain text>",
   "action": null | {
-    "type": "NO_ACTION" | "REGENERATE_PIPELINE" | "UPDATE_TITLE_BLOCK" | "UPDATE_SETTING" | "REDRAW_LAYER",
+    "type": "NO_ACTION" | "EDIT_DRAWING" | "REGENERATE_PIPELINE" | "UPDATE_TITLE_BLOCK" | "UPDATE_SETTING" | "REDRAW_LAYER",
     "description": "<one-line summary>",
     "patch": { "<field>": "<newValue>", ... },
     "layerName": "<layer name>",
-    "instruction": "<re-run prompt>"
+    "instruction": "<re-run prompt>",
+    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC", "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
+    "deleteIds": [ "<featureId>", ... ],
+    "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm> } ],
+    "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } }
   }
 }
 
 Action selection rules:
 * NO_ACTION — pure Q&A, no drawing change required.
+* EDIT_DRAWING — DIRECTLY build or change geometry. Use this to create
+  points/lines/polylines/polygons, delete features, replace a feature's
+  vertices, or translate/rotate/scale features. ALL coordinates you emit
+  are survey northing/easting in feet — the SAME values shown in the
+  snapshot and CURRENT SELECTION (do not invent a different frame). You
+  may combine "add", "deleteIds", "modify", and "transform" in one action;
+  the client applies them as a single undoable step.
+  - To turn the selected points into best-fit squares: read the selected
+    points' northing/easting from CURRENT SELECTION, compute each square's
+    center, side length, and rotation, emit the 4 corner coordinates per
+    square as an "add" POLYGON, and (if the points should be replaced) list
+    their ids in "deleteIds". Keep position, size, and orientation faithful
+    to the shot points.
+  - A POLYGON is auto-closed; list its corners once (do not repeat the
+    first point). Use the selected features' layer unless told otherwise.
+  - SPLINE fits a smooth best-fit curve through its points; set
+    "closed": true to smoothly reconnect the last point to the first
+    (e.g. a pond/lake outline or a round figure). CIRCLE takes a center
+    point + "radius"; ELLIPSE a center + "radiusX"/"radiusY" (+rotationDeg);
+    ARC takes [start, mid, end] points.
+  - You know every selected feature's coordinates from CURRENT SELECTION;
+    derive midpoints, endpoints, centers, spacing, and angles from those
+    numbers to place and orient new geometry. Build composite objects
+    (houses, fences, roads, boundaries, or arbitrary stylized art) by
+    emitting many shapes in one "add" array, using "color"/"opacity"/
+    "lineWeight" for styling and "transform" to rotate/scale/move groups.
+  - Prefer EDIT_DRAWING over REGENERATE_PIPELINE for surgical edits to
+    specific selected features.
 * REGENERATE_PIPELINE — re-run the full AI pipeline with the
   user's instruction folded into the user prompt. Populate
   "instruction" with a concise paraphrase of the change.
@@ -310,7 +400,121 @@ const ACTION_TYPES: ReadonlyArray<DrawingChatActionType> = [
   'UPDATE_TITLE_BLOCK',
   'UPDATE_SETTING',
   'REDRAW_LAYER',
+  'EDIT_DRAWING',
 ];
+
+function num(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function parseCoords(raw: unknown): ChatCoord[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ChatCoord[] = [];
+  for (const c of raw) {
+    if (!c || typeof c !== 'object') continue;
+    const o = c as Record<string, unknown>;
+    const n = num(o.northing);
+    const e = num(o.easting);
+    if (n === null || e === null) continue;
+    out.push({ northing: n, easting: e });
+  }
+  return out;
+}
+
+function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform'> {
+  const out: Pick<DrawingChatAction, 'add' | 'deleteIds' | 'modify' | 'transform'> = {};
+
+  const SHAPES = ['POINT', 'LINE', 'POLYLINE', 'POLYGON', 'SPLINE', 'CIRCLE', 'ELLIPSE', 'ARC'];
+  if (Array.isArray(a.add)) {
+    const add: ChatFeatureSpec[] = [];
+    for (const s of a.add) {
+      if (!s || typeof s !== 'object') continue;
+      const o = s as Record<string, unknown>;
+      const shape = o.shape;
+      if (typeof shape !== 'string' || !SHAPES.includes(shape)) continue;
+      const points = parseCoords(o.points);
+      if (points.length === 0) continue;
+      const radius = num(o.radius);
+      const radiusX = num(o.radiusX);
+      const radiusY = num(o.radiusY);
+      const rotationDeg = num(o.rotationDeg);
+      const opacity = num(o.opacity);
+      const lineWeight = num(o.lineWeight);
+      add.push({
+        shape: shape as ChatShape,
+        points,
+        ...(o.closed === true ? { closed: true } : {}),
+        ...(radius !== null ? { radius } : {}),
+        ...(radiusX !== null ? { radiusX } : {}),
+        ...(radiusY !== null ? { radiusY } : {}),
+        ...(rotationDeg !== null ? { rotationDeg } : {}),
+        ...(opacity !== null ? { opacity } : {}),
+        ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
+        ...(typeof o.color === 'string' ? { color: o.color } : {}),
+        ...(typeof o.pointNumber === 'string' ? { pointNumber: o.pointNumber } : {}),
+        ...(typeof o.code === 'string' ? { code: o.code } : {}),
+        ...(typeof o.description === 'string' ? { description: o.description } : {}),
+      });
+    }
+    if (add.length > 0) out.add = add;
+  }
+
+  if (Array.isArray(a.deleteIds)) {
+    const ids = a.deleteIds.filter((x): x is string => typeof x === 'string' && x.length > 0);
+    if (ids.length > 0) out.deleteIds = ids;
+  }
+
+  if (Array.isArray(a.modify)) {
+    const modify: ChatModifySpec[] = [];
+    for (const m of a.modify) {
+      if (!m || typeof m !== 'object') continue;
+      const o = m as Record<string, unknown>;
+      if (typeof o.id !== 'string') continue;
+      const points = parseCoords(o.points);
+      const opacity = num(o.opacity);
+      const lineWeight = num(o.lineWeight);
+      const hasStyle = typeof o.color === 'string' || opacity !== null || lineWeight !== null;
+      if (points.length === 0 && !hasStyle) continue;
+      modify.push({
+        id: o.id,
+        ...(points.length > 0 ? { points } : {}),
+        ...(typeof o.color === 'string' ? { color: o.color } : {}),
+        ...(opacity !== null ? { opacity } : {}),
+        ...(lineWeight !== null ? { lineWeight } : {}),
+      });
+    }
+    if (modify.length > 0) out.modify = modify;
+  }
+
+  if (a.transform && typeof a.transform === 'object') {
+    const o = a.transform as Record<string, unknown>;
+    const ids = o.ids === 'SELECTION'
+      ? 'SELECTION' as const
+      : Array.isArray(o.ids)
+        ? o.ids.filter((x): x is string => typeof x === 'string')
+        : null;
+    if (ids && (ids === 'SELECTION' || ids.length > 0)) {
+      const t: ChatTransformSpec = { ids };
+      if (o.translate && typeof o.translate === 'object') {
+        const tr = o.translate as Record<string, unknown>;
+        const n = num(tr.north); const e = num(tr.east);
+        if (n !== null || e !== null) t.translate = { north: n ?? 0, east: e ?? 0 };
+      }
+      const rot = num(o.rotateDeg); if (rot !== null) t.rotateDeg = rot;
+      const sc = num(o.scale); if (sc !== null && sc > 0) t.scale = sc;
+      if (o.about === 'CENTROID') t.about = 'CENTROID';
+      else if (o.about && typeof o.about === 'object') {
+        const ab = o.about as Record<string, unknown>;
+        const n = num(ab.northing); const e = num(ab.easting);
+        if (n !== null && e !== null) t.about = { northing: n, easting: e };
+      }
+      out.transform = t;
+    }
+  }
+
+  return out;
+}
 
 function parseAction(raw: unknown): DrawingChatAction | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -342,6 +546,7 @@ function parseAction(raw: unknown): DrawingChatAction | null {
     ...(typeof a.instruction === 'string' && a.instruction.length > 0
       ? { instruction: a.instruction }
       : {}),
+    ...(type === 'EDIT_DRAWING' ? parseEditFields(a) : {}),
   };
 }
 

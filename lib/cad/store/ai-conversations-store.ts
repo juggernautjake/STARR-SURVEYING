@@ -18,11 +18,18 @@ import { persist } from 'zustand/middleware';
 import type {
   DrawingChatAction,
   DrawingChatMessage,
+  ChatCoord,
 } from '../ai-engine/drawing-chat';
 import type { AIJobPayload, AIJobResult } from '../ai-engine/types';
+import type { Feature, FeatureGeometry, Point2D, UndoOperation } from '../types';
+import { generateId } from '../types';
+import { DEFAULT_FEATURE_STYLE } from '../constants';
+import { transformFeature, translate, rotate, scale } from '../geometry/transform';
+import { fitPointsToBezier, arcFrom3Points } from '../geometry/curve-render';
 import { useAIStore } from './ai-store';
 import { useDrawingStore } from './drawing-store';
 import { useSelectionStore } from './selection-store';
+import { useUndoStore, makeBatchEntry } from './undo-store';
 
 export type ChatDock = 'right' | 'float';
 
@@ -300,6 +307,12 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
           return;
         }
 
+        if (action.type === 'EDIT_DRAWING') {
+          const summary = applyEditDrawing(action);
+          appendAi(set, activeId, summary);
+          return;
+        }
+
         if (action.type === 'REGENERATE_PIPELINE') {
           const lastPayload = useAIStore.getState().lastPayload;
           if (!lastPayload) {
@@ -381,4 +394,187 @@ function appendAi(set: SetFn, conversationId: string, text: string, action?: Dra
       c.id === conversationId ? { ...c, messages: [...c.messages, message] } : c,
     ),
   }));
+}
+
+// ────────────────────────────────────────────────────────────
+// EDIT_DRAWING executor — applies the model's programmatic geometry
+// edits (add / modify / transform / delete) as one undoable batch.
+// All incoming coordinates are survey northing/easting (the frame the
+// model is shown); converted to world here.
+// ────────────────────────────────────────────────────────────
+export function applyEditDrawing(action: DrawingChatAction): string {
+  const drawing = useDrawingStore.getState();
+  const doc = drawing.document;
+  const originN = doc.settings.displayPreferences?.originNorthing ?? 0;
+  const originE = doc.settings.displayPreferences?.originEasting ?? 0;
+  const toWorld = (c: ChatCoord): Point2D => ({ x: c.easting - originE, y: c.northing - originN });
+
+  const ops: UndoOperation[] = [];
+  const notes: string[] = [];
+
+  const layerIdByName = (name?: string): string => {
+    if (name) {
+      const match = Object.values(doc.layers).find(
+        (l) => l.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (match) return match.id;
+    }
+    return drawing.activeLayerId || Object.keys(doc.layers)[0] || '';
+  };
+
+  // ── add ──
+  let added = 0;
+  for (const spec of action.add ?? []) {
+    const pts = spec.points.map(toWorld);
+    let geometry: FeatureGeometry | null = null;
+    let type: Feature['type'] = 'POINT';
+    switch (spec.shape) {
+      case 'POINT': if (pts[0]) { geometry = { type: 'POINT', point: pts[0] }; type = 'POINT'; } break;
+      case 'LINE': if (pts.length >= 2) { geometry = { type: 'LINE', start: pts[0], end: pts[1] }; type = 'LINE'; } break;
+      case 'POLYLINE': if (pts.length >= 2) { geometry = { type: 'POLYLINE', vertices: pts }; type = 'POLYLINE'; } break;
+      case 'POLYGON': if (pts.length >= 3) { geometry = { type: 'POLYGON', vertices: pts }; type = 'POLYGON'; } break;
+      case 'SPLINE': if (pts.length >= 2) { geometry = { type: 'SPLINE', spline: { controlPoints: fitPointsToBezier(pts, !!spec.closed), isClosed: !!spec.closed } }; type = 'SPLINE'; } break;
+      case 'CIRCLE': {
+        const center = pts[0];
+        const radius = spec.radius != null ? spec.radius : (pts[1] ? Math.hypot(pts[1].x - center.x, pts[1].y - center.y) : 0);
+        if (center && radius > 0) { geometry = { type: 'CIRCLE', circle: { center, radius } }; type = 'CIRCLE'; }
+        break;
+      }
+      case 'ELLIPSE': {
+        const center = pts[0];
+        const rx = spec.radiusX ?? 0; const ry = spec.radiusY ?? 0;
+        if (center && rx > 0 && ry > 0) { geometry = { type: 'ELLIPSE', ellipse: { center, radiusX: rx, radiusY: ry, rotation: ((spec.rotationDeg ?? 0) * Math.PI) / 180 } }; type = 'ELLIPSE'; }
+        break;
+      }
+      case 'ARC': if (pts.length >= 3) { const arc = arcFrom3Points(pts[0], pts[1], pts[2]); if (arc) { geometry = { type: 'ARC', arc }; type = 'ARC'; } } break;
+    }
+    if (!geometry) continue;
+    const baseStyle = { ...DEFAULT_FEATURE_STYLE, ...drawing.getActiveLayerStyle() };
+    const style = {
+      ...baseStyle,
+      ...(spec.color ? { color: spec.color } : {}),
+      ...(spec.opacity != null ? { opacity: Math.max(0, Math.min(1, spec.opacity)) } : {}),
+      ...(spec.lineWeight != null ? { lineWeight: spec.lineWeight } : {}),
+    };
+    const feature: Feature = {
+      id: generateId(),
+      type,
+      geometry,
+      layerId: layerIdByName(spec.layerName),
+      style,
+      properties: {
+        ...(spec.pointNumber ? { pointNumber: spec.pointNumber } : {}),
+        ...(spec.code ? { code: spec.code } : {}),
+        ...(spec.description ? { description: spec.description } : {}),
+      },
+    };
+    drawing.addFeature(feature);
+    ops.push({ type: 'ADD_FEATURE', data: feature });
+    added += 1;
+  }
+  if (added) notes.push(`added ${added} feature${added === 1 ? '' : 's'}`);
+
+  // ── modify (geometry and/or style) ──
+  let modified = 0;
+  for (const m of action.modify ?? []) {
+    const before = drawing.getFeature(m.id);
+    if (!before) continue;
+    const beforeSnap = JSON.parse(JSON.stringify(before)) as Feature;
+    if (m.points && m.points.length > 0) {
+      const pts = m.points.map(toWorld);
+      const g = { ...before.geometry } as FeatureGeometry;
+      if (g.type === 'POINT' && pts[0]) g.point = pts[0];
+      else if (g.type === 'LINE' && pts.length >= 2) { g.start = pts[0]; g.end = pts[1]; }
+      else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && pts.length >= 2) g.vertices = pts;
+      else if (g.type === 'SPLINE' && g.spline && pts.length >= 2) g.spline = { ...g.spline, controlPoints: fitPointsToBezier(pts, g.spline.isClosed) };
+      drawing.updateFeatureGeometry(m.id, g);
+    }
+    if (m.color || m.opacity != null || m.lineWeight != null) {
+      drawing.updateFeature(m.id, {
+        style: {
+          ...drawing.getFeature(m.id)!.style,
+          ...(m.color ? { color: m.color } : {}),
+          ...(m.opacity != null ? { opacity: Math.max(0, Math.min(1, m.opacity)) } : {}),
+          ...(m.lineWeight != null ? { lineWeight: m.lineWeight } : {}),
+        },
+      });
+    }
+    const after = drawing.getFeature(m.id);
+    if (after) { ops.push({ type: 'MODIFY_FEATURE', data: { id: m.id, before: beforeSnap, after } }); modified += 1; }
+  }
+  if (modified) notes.push(`edited ${modified}`);
+
+  // ── transform (translate / rotate / scale) ──
+  if (action.transform) {
+    const t = action.transform;
+    const ids = t.ids === 'SELECTION'
+      ? Array.from(useSelectionStore.getState().selectedIds)
+      : t.ids;
+    const feats = ids.map((id) => drawing.getFeature(id)).filter((f): f is Feature => !!f);
+    if (feats.length > 0) {
+      let pivot: Point2D;
+      if (t.about && t.about !== 'CENTROID') {
+        pivot = toWorld(t.about);
+      } else {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const f of feats) for (const p of featurePoints(f)) {
+          minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+        }
+        pivot = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+      }
+      const dx = t.translate?.east ?? 0;
+      const dy = t.translate?.north ?? 0;
+      const rad = t.rotateDeg ? (t.rotateDeg * Math.PI) / 180 : 0;
+      const sc = t.scale ?? 1;
+      const fn = (p: Point2D): Point2D => {
+        let q = p;
+        if (sc !== 1) q = scale(q, pivot, sc);
+        if (rad !== 0) q = rotate(q, pivot, rad);
+        if (dx !== 0 || dy !== 0) q = translate(q, dx, dy);
+        return q;
+      };
+      let transformed = 0;
+      for (const f of feats) {
+        const beforeSnap = JSON.parse(JSON.stringify(f)) as Feature;
+        const moved = transformFeature(f, fn);
+        drawing.updateFeature(f.id, { geometry: moved.geometry });
+        const after = drawing.getFeature(f.id);
+        if (after) { ops.push({ type: 'MODIFY_FEATURE', data: { id: f.id, before: beforeSnap, after } }); transformed += 1; }
+      }
+      if (transformed) notes.push(`transformed ${transformed}`);
+    }
+  }
+
+  // ── delete (last, so added/modified ids stay valid above) ──
+  let deleted = 0;
+  const sel = useSelectionStore.getState();
+  for (const id of action.deleteIds ?? []) {
+    const f = drawing.getFeature(id);
+    if (!f) continue;
+    const snap = JSON.parse(JSON.stringify(f)) as Feature;
+    drawing.removeFeature(id);
+    sel.select(id, 'REMOVE');
+    ops.push({ type: 'REMOVE_FEATURE', data: snap });
+    deleted += 1;
+  }
+  if (deleted) notes.push(`deleted ${deleted}`);
+
+  if (ops.length === 0) return '⚠ No valid geometry edits in the action.';
+  useUndoStore.getState().pushUndo(makeBatchEntry(action.description || 'AI drawing edit', ops));
+  return `✓ ${notes.join(', ')}.`;
+}
+
+function featurePoints(f: Feature): Point2D[] {
+  const g = f.geometry;
+  const out: Point2D[] = [];
+  if (g.point) out.push(g.point);
+  if (g.start) out.push(g.start);
+  if (g.end) out.push(g.end);
+  if (g.vertices) out.push(...g.vertices);
+  if (g.circle) out.push(g.circle.center);
+  if (g.arc) out.push(g.arc.center);
+  if (g.ellipse) out.push(g.ellipse.center);
+  if (g.spline) out.push(...g.spline.controlPoints);
+  return out;
 }
