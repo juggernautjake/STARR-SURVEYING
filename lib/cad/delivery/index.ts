@@ -55,6 +55,9 @@ export type { DxfImportResult } from './dxf-reader';
 export { exportToGeoJSON, downloadGeoJSON } from './geojson-writer';
 export type { GeoJsonExportOptions } from './geojson-writer';
 
+export { scopeDocument, scopedFeatureCount } from './scope-document';
+export type { ExportScope } from './scope-document';
+
 export { importFromGeoJSON } from './geojson-reader';
 export type { GeoJsonImportResult } from './geojson-reader';
 

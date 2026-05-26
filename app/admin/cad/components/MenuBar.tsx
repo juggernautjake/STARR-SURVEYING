@@ -25,7 +25,7 @@ import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
-import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
+import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
@@ -290,6 +290,35 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     }
   }
 
+  // ── Selection-scoped exports ────────────────
+  // Export only the currently-selected features. `scopeDocument`
+  // returns a doc clone narrowed to the selection (layers/settings
+  // preserved) so the existing writers work unchanged.
+  function exportSelection(format: 'CSV' | 'DXF' | 'LANDXML') {
+    const ids = Array.from(selectionStore.selectedIds);
+    if (ids.length === 0) {
+      alert('Select one or more features first, then choose Export selection.');
+      return;
+    }
+    try {
+      const scoped = scopeDocument(drawingStore.document, { kind: 'SELECTION', featureIds: ids });
+      if (format === 'CSV') {
+        const { rowCount, filename } = downloadCsv(scoped, { flavor: 'full' });
+        cadLog.info('FileIO', `Exported ${rowCount} selected points as CSV → ${filename}`);
+      } else if (format === 'DXF') {
+        const annotations = useAnnotationStore.getState().annotations;
+        const { filename } = downloadDxf(scoped, { annotations });
+        cadLog.info('FileIO', `Exported selection as DXF → ${filename}`);
+      } else {
+        const { filename } = downloadLandXML(scoped);
+        cadLog.info('FileIO', `Exported selection as LandXML → ${filename}`);
+      }
+    } catch (err) {
+      cadLog.error('FileIO', `Selection export (${format}) failed`, err);
+      alert(`Failed to export the selection as ${format}. Try again, or contact support if it keeps failing.`);
+    }
+  }
+
   async function exportTraversePcBundle() {
     try {
       const annotations = useAnnotationStore.getState().annotations;
@@ -481,6 +510,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
             { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
             { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
             { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
+            { separator: true },
+            { label: 'Export selection as CSV…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('CSV'); setOpenMenu(null); } },
+            { label: 'Export selection as DXF…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('DXF'); setOpenMenu(null); } },
+            { label: 'Export selection as LandXML…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('LANDXML'); setOpenMenu(null); } },
           ],
         },
         {

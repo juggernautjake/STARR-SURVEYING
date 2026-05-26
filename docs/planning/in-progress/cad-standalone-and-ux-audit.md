@@ -152,13 +152,15 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   renders. Reflects live fullscreen state via `fullscreenchange`.
 
 ### Export selection / layers (user request 2026-05-26)
-- [ ] **Export by scope (selected features / chosen layers)**: today's
-  exporters (CSV, PNEZD, DXF, LandXML, GeoJSON) emit the whole document.
-  Add a scope chooser so the user can export only the current selection
-  or a chosen set of layers to CSV / DXF / XML (LandXML). (DWG: there is
-  no DWG writer — only DXF; note DXF is the importable equivalent for
-  Traverse PC and most CAD. Flag DWG as out-of-scope unless a writer is
-  added.)
+- [x] **Export by selection** — `lib/cad/delivery/scope-document.ts`
+  (`scopeDocument`/`scopedFeatureCount`, 6 unit tests) narrows the doc to
+  the current selection (layers/settings preserved); File ▸ Export now
+  has "Export selection as CSV / DXF / LandXML" (disabled when nothing is
+  selected). VERIFIED via menu screenshot (`export-selection-menu.png`).
+- [ ] **Export by chosen layers** — the `scopeDocument` helper already
+  supports `{kind:'LAYERS'}`; needs a small layer-picker dialog to choose
+  which layers, then CSV/DXF/LandXML. (DWG: no DWG writer exists — DXF is
+  the interchange equivalent; DWG out-of-scope unless a writer is added.)
 
 ### Resizable panels (the headline complaint)
 - [ ] **Left tool rail** (`width:52`, fixed) — keep icon rail fixed but
@@ -420,3 +422,9 @@ assignNames(newGeometry, layerId, registry, tol):
   click) — removed the flaky spec; placement math is unit-verified.
   Logged a latent `type="button"` dialog-button bug for a later slice.
   Next: export-by-scope (selected/layers), then the point-identity epic.
+- 2026-05-26 11:3x CDT — Slice 7 DONE. Export-by-selection: new
+  `scopeDocument` helper (6 unit tests) + File ▸ Export "Export selection
+  as CSV/DXF/LandXML" items, disabled with no selection. Menu screenshot
+  confirms. Layer-scoped export deferred to a follow-up (helper already
+  supports it; needs a layer-picker UI). Next: point-identity epic §8
+  (start with 8a deterministic naming core).
