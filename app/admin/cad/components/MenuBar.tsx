@@ -537,16 +537,12 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         },
         { separator: true },
         {
-          label: '📜 Survey description…',
-          action: () => { onToggleDescriptionPanel?.(); setOpenMenu(null); },
-        },
-        {
-          label: '✓ Drawing completeness…',
-          action: () => { onToggleCompletenessPanel?.(); setOpenMenu(null); },
-        },
-        {
-          label: '🪪 RPLS review mode…',
-          action: () => { onToggleReviewModePanel?.(); setOpenMenu(null); },
+          label: 'Review & Delivery',
+          submenu: [
+            { label: '📜 Survey description…', action: () => { onToggleDescriptionPanel?.(); setOpenMenu(null); } },
+            { label: '✓ Drawing completeness…', action: () => { onToggleCompletenessPanel?.(); setOpenMenu(null); } },
+            { label: '🪪 RPLS review mode…', action: () => { onToggleReviewModePanel?.(); setOpenMenu(null); } },
+          ],
         },
       ],
     },
@@ -661,20 +657,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         },
         { separator: true },
         {
-          label: 'Toggle Point Table',
-          action: () => { onTogglePointTable?.(); setOpenMenu(null); },
-        },
-        {
-          label: 'Point Data Viewer (editable)',
-          action: () => { window.dispatchEvent(new CustomEvent('cad:togglePointDataViewer')); setOpenMenu(null); },
-        },
-        {
-          label: 'Traverse Viewer (line/curve data)',
-          action: () => { window.dispatchEvent(new CustomEvent('cad:toggleTraverseViewer')); setOpenMenu(null); },
-        },
-        {
-          label: 'Toggle Traverse Panel',
-          action: () => { onToggleTraversePanel?.(); setOpenMenu(null); },
+          label: 'Data tables & viewers',
+          submenu: [
+            { label: 'Point Data Viewer (editable)', action: () => { window.dispatchEvent(new CustomEvent('cad:togglePointDataViewer')); setOpenMenu(null); } },
+            { label: 'Traverse Viewer (line/curve data)', action: () => { window.dispatchEvent(new CustomEvent('cad:toggleTraverseViewer')); setOpenMenu(null); } },
+            { separator: true },
+            { label: 'Toggle Point Table', action: () => { onTogglePointTable?.(); setOpenMenu(null); } },
+            { label: 'Toggle Traverse Panel', action: () => { onToggleTraversePanel?.(); setOpenMenu(null); } },
+          ],
         },
         {
           label: 'Project Images…',

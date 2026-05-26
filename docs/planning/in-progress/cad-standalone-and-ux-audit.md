@@ -207,9 +207,11 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   product issue. No change needed.
 
 ### Menu / dropdown consolidation
-- [ ] **MenuBar audit** — group long menus into logical submenus, remove
-  redundant entries, ensure consistent labeling (drop emoji noise or use
-  consistently), verify every action fires.
+- [x] **MenuBar consolidation (pass 1)** — File: grouped Survey
+  description / Drawing completeness / RPLS review mode under a "Review &
+  Delivery" submenu. View: grouped the 4 table/viewer toggles under a
+  "Data tables & viewers" submenu. VERIFIED via harness screenshots. (More
+  consolidation possible but these were the longest menus.)
 - [ ] **Context menus** (`FeatureContextMenu`, `PickModeContextMenu`) —
   consistency, no-vanish-on-mouse-off behavior, every entry works.
 
@@ -622,3 +624,9 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   toggles the pressed state. Also reclassified the "import button type"
   item as not-a-bug (no <form> wrapper exists). Next: menu consolidation
   / remaining per-surface audits / 10f.
+- 2026-05-26 11:4x CDT — Menu consolidation pass 1 DONE. File menu's
+  three review/delivery entries → "Review & Delivery" submenu; View
+  menu's four table/viewer toggles → "Data tables & viewers" submenu.
+  Both verified via harness. Shortens the two longest menus per the
+  original consolidation request. Next: remaining per-surface audits /
+  10f.
