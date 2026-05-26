@@ -247,6 +247,49 @@ export default function PropertyPanel() {
     commitCoordEdit();
   }
 
+  // Replace a feature's geometry wholesale and record one undo step.
+  // Used by the editable shape-dimension fields (rectangle width/length,
+  // circle diameter, ellipse width/length).
+  function applyGeometry(
+    newGeom: import('@/lib/cad/types').FeatureGeometry,
+    description: string,
+  ) {
+    if (!single) return;
+    const before = JSON.parse(JSON.stringify(drawingStore.getFeature(single.id)!));
+    drawingStore.updateFeatureGeometry(single.id, newGeom);
+    const after = drawingStore.getFeature(single.id);
+    if (!after) return;
+    if (JSON.stringify(before.geometry) === JSON.stringify(after.geometry)) return;
+    undoStore.pushUndo({
+      id: generateId(),
+      description,
+      timestamp: Date.now(),
+      operations: [{ type: 'MODIFY_FEATURE', data: { id: single.id, before, after } }],
+    });
+  }
+
+  // Resize an axis-or-rotated rectangle (4-vertex POLYGON) by its two edge
+  // lengths, anchoring the first corner and preserving any rotation. v0 is
+  // kept fixed; the width edge (v0→v1) and length edge (v1→v2) are rescaled
+  // along their current directions.
+  function resizeRectVertices(
+    verts: { x: number; y: number }[],
+    newWidthFt: number,
+    newLengthFt: number,
+  ): { x: number; y: number }[] {
+    const v0 = verts[0];
+    const e0 = { x: verts[1].x - v0.x, y: verts[1].y - v0.y };
+    const e1 = { x: verts[2].x - verts[1].x, y: verts[2].y - verts[1].y };
+    const w0 = Math.hypot(e0.x, e0.y) || 1;
+    const l0 = Math.hypot(e1.x, e1.y) || 1;
+    const wd = { x: e0.x / w0, y: e0.y / w0 };
+    const ld = { x: e1.x / l0, y: e1.y / l0 };
+    const nv1 = { x: v0.x + wd.x * newWidthFt, y: v0.y + wd.y * newWidthFt };
+    const nv2 = { x: nv1.x + ld.x * newLengthFt, y: nv1.y + ld.y * newLengthFt };
+    const nv3 = { x: v0.x + ld.x * newLengthFt, y: v0.y + ld.y * newLengthFt };
+    return [{ ...v0 }, nv1, nv2, nv3];
+  }
+
   const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
   const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
@@ -501,6 +544,99 @@ export default function PropertyPanel() {
         {/* Geometry — editable coordinates update canvas in real time */}
         <div className="space-y-1 border-t border-gray-700 pt-2">
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Geometry</div>
+
+          {/* Editable Width / Length for a rectangle (4-vertex POLYGON). */}
+          {geom.type === 'POLYGON' && feature.properties?.shapeType === 'RECTANGLE' && geom.vertices && geom.vertices.length === 4 && (() => {
+            const verts = geom.vertices;
+            const widthFt = Math.hypot(verts[1].x - verts[0].x, verts[1].y - verts[0].y);
+            const lengthFt = Math.hypot(verts[2].x - verts[1].x, verts[2].y - verts[1].y);
+            const unit = linearUnitLabel(displayPrefs);
+            const dp = displayPrefs.linearDecimalPlaces;
+            return (
+              <div className="space-y-1 pb-1">
+                <div className="text-gray-500 text-[9px] uppercase">Dimensions</div>
+                <LineDimField
+                  label={`Width (${unit})`}
+                  value={feetToLinearUnit(widthFt, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    applyGeometry({ ...geom, vertices: resizeRectVertices(verts, linearUnitToFeet(v, displayPrefs), lengthFt) }, 'Edit rectangle width');
+                  }}
+                />
+                <LineDimField
+                  label={`Length (${unit})`}
+                  value={feetToLinearUnit(lengthFt, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    applyGeometry({ ...geom, vertices: resizeRectVertices(verts, widthFt, linearUnitToFeet(v, displayPrefs)) }, 'Edit rectangle length');
+                  }}
+                />
+              </div>
+            );
+          })()}
+
+          {/* Editable Radius / Diameter for a circle. */}
+          {geom.type === 'CIRCLE' && geom.circle && (() => {
+            const r = geom.circle.radius;
+            const unit = linearUnitLabel(displayPrefs);
+            const dp = displayPrefs.linearDecimalPlaces;
+            return (
+              <div className="space-y-1">
+                <div className="text-gray-500 text-[9px] uppercase">Dimensions</div>
+                <LineDimField
+                  label={`Radius (${unit})`}
+                  value={feetToLinearUnit(r, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    applyGeometry({ ...geom, circle: { ...geom.circle!, radius: linearUnitToFeet(v, displayPrefs) } }, 'Edit circle radius');
+                  }}
+                />
+                <LineDimField
+                  label={`Diameter (${unit})`}
+                  value={feetToLinearUnit(r * 2, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    applyGeometry({ ...geom, circle: { ...geom.circle!, radius: linearUnitToFeet(v, displayPrefs) / 2 } }, 'Edit circle diameter');
+                  }}
+                />
+              </div>
+            );
+          })()}
+
+          {/* Editable Width / Length for an ellipse. */}
+          {geom.type === 'ELLIPSE' && geom.ellipse && (() => {
+            const { radiusX, radiusY } = geom.ellipse;
+            const unit = linearUnitLabel(displayPrefs);
+            const dp = displayPrefs.linearDecimalPlaces;
+            return (
+              <div className="space-y-1">
+                <div className="text-gray-500 text-[9px] uppercase">Dimensions</div>
+                <LineDimField
+                  label={`Width (${unit})`}
+                  value={feetToLinearUnit(radiusX * 2, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    applyGeometry({ ...geom, ellipse: { ...geom.ellipse!, radiusX: linearUnitToFeet(v, displayPrefs) / 2 } }, 'Edit ellipse width');
+                  }}
+                />
+                <LineDimField
+                  label={`Length (${unit})`}
+                  value={feetToLinearUnit(radiusY * 2, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    applyGeometry({ ...geom, ellipse: { ...geom.ellipse!, radiusY: linearUnitToFeet(v, displayPrefs) / 2 } }, 'Edit ellipse length');
+                  }}
+                />
+              </div>
+            );
+          })()}
+
           {geom.type === 'POINT' && geom.point && (
             <div className="space-y-1">
               {(() => {
