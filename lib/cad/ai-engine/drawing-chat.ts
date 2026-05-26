@@ -199,7 +199,9 @@ const SYSTEM_PROMPT = `You are an expert Texas land surveyor AI assistant. The u
 You receive:
 * A snapshot of the active drawing — feature counts by type,
   layer table, title-block values, scale + paper size, sealing
-  status, and a digest of any prior chat turns.
+  status, the point codes in use, and a "linework" catalog of
+  non-point features (id, type, layer, center, length/area) so you
+  can target shapes by id even when they aren't selected.
 * The CURRENT SELECTION — the exact features the user has
   highlighted on the canvas (with point numbers, codes,
   descriptions, and northing/easting). When the user says
@@ -688,10 +690,13 @@ interface DocSnapshot {
   /** Distinct point codes present in the drawing (capped), so the model can
    *  reuse the surveyor's coding scheme when building from coded points. */
   codesInUse:       string[];
+  /** Compact catalog of non-point linework (capped) so the AI can target
+   *  features it didn't select, by id. */
+  linework:         { id: string; type: string; layer: string; center: NE; lengthFt?: number; areaSqFt?: number }[];
   titleBlock:       Record<string, string>;
 }
 
-function buildSnapshot(doc: DrawingDocument): DocSnapshot {
+export function buildSnapshot(doc: DrawingDocument): DocSnapshot {
   const settings = doc.settings;
   const tb = settings.titleBlock;
   const layerNameById = new Map<string, string>();
@@ -700,9 +705,13 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     layerNameById.set(l.id, l.name);
     layerColorById.set(l.id, l.color);
   }
+  const originN = settings.displayPreferences?.originNorthing ?? 0;
+  const originE = settings.displayPreferences?.originEasting ?? 0;
   const featureCounts: Record<string, number> = {};
   const layerFeatureCounts = new Map<string, number>();
   const codes = new Set<string>();
+  const linework: DocSnapshot['linework'] = [];
+  const MAX_LINEWORK = 60;
   for (const f of Object.values(doc.features)) {
     if (f.hidden) continue;
     featureCounts[f.type] = (featureCounts[f.type] ?? 0) + 1;
@@ -712,6 +721,12 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     );
     const code = pointCodeOf(f);
     if (code && codes.size < 60) codes.add(code);
+
+    // Catalog non-point linework so the AI can reference unselected shapes.
+    if (f.type !== 'POINT' && f.type !== 'TEXT' && f.type !== 'IMAGE' && linework.length < MAX_LINEWORK) {
+      const entry = lineworkEntry(f, originN, originE, layerNameById.get(f.layerId) ?? f.layerId);
+      if (entry) linework.push(entry);
+    }
   }
   const layers = Array.from(layerNameById.entries())
     .map(([id, name]) => ({
@@ -734,6 +749,7 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     featureCounts,
     layers,
     codesInUse: Array.from(codes),
+    linework,
     titleBlock: {
       firmName: tb.firmName,
       surveyorName: tb.surveyorName,
@@ -749,6 +765,46 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
       surveyType: tb.surveyType ?? '',
     },
   };
+}
+
+/** Compact catalog entry for one non-point feature (for the snapshot). */
+function lineworkEntry(
+  f: DrawingDocument['features'][string],
+  originN: number,
+  originE: number,
+  layer: string,
+): DocSnapshot['linework'][number] | null {
+  const g = f.geometry;
+  const pts: { x: number; y: number }[] = [];
+  if (g.start) pts.push(g.start);
+  if (g.end) pts.push(g.end);
+  if (g.vertices) pts.push(...g.vertices);
+  if (g.circle) pts.push(g.circle.center);
+  if (g.ellipse) pts.push(g.ellipse.center);
+  if (g.arc) pts.push(g.arc.center);
+  if (g.spline) pts.push(...g.spline.controlPoints);
+  if (pts.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+  const center: NE = { n: round((minY + maxY) / 2 + originN), e: round((minX + maxX) / 2 + originE) };
+  const out: DocSnapshot['linework'][number] = { id: f.id, type: f.type, layer, center };
+  if (g.type === 'LINE' && g.start && g.end) {
+    out.lengthFt = round(Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y));
+  } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+    const vs = g.vertices;
+    let len = 0;
+    for (let i = 0; i < vs.length - 1; i += 1) len += Math.hypot(vs[i + 1].x - vs[i].x, vs[i + 1].y - vs[i].y);
+    if (g.type === 'POLYGON' && vs.length >= 3) {
+      len += Math.hypot(vs[0].x - vs[vs.length - 1].x, vs[0].y - vs[vs.length - 1].y);
+      let a = 0;
+      for (let i = 0; i < vs.length; i += 1) { const p = vs[i], q = vs[(i + 1) % vs.length]; a += p.x * q.y - q.x * p.y; }
+      out.areaSqFt = round(Math.abs(a) / 2);
+    }
+    out.lengthFt = round(len);
+  } else if (g.type === 'CIRCLE' && g.circle) {
+    out.areaSqFt = round(Math.PI * g.circle.radius * g.circle.radius);
+  }
+  return out;
 }
 
 /** Max selected features to describe individually before summarising. */

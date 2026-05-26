@@ -69,15 +69,17 @@ Executed as a single undoable batch; returns a human summary.
 - [x] One-batch undo, selection cleanup on delete, NE→world conversion.
 - [x] Unit tests (`edit-drawing.test.ts`, `selection-digest.test.ts`).
 
-### Phase 2 — Full situational awareness (context enrichment) 🚧 IN PROGRESS
+### Phase 2 — Full situational awareness (context enrichment) ✅ DONE
 Goal: the model can reason about geometry it didn't select.
 - [x] Selection digest now carries **derived geometry**: line endpoints +
       midpoint + length; polyline/polygon vertices (capped 48) + centroid +
       perimeter + area; circle/ellipse/arc center + radius + area.
 - [x] Snapshot exposes **layers** (names/colors) and **point codes in use**.
-- [ ] Extend derived geometry to NON-selected but relevant features
-      (proximity / same-layer set) with summarization + token caps.
-- [ ] Prompt vocabulary for offset/intersection helpers.
+- [x] Non-selected features are now catalogued in the snapshot: a
+      `linework` list (id, type, layer, center, length/area; capped 60) lets
+      the AI target unselected shapes by id without pre-selection.
+- [ ] Prompt vocabulary for offset/intersection helpers (defer — offset
+      already available via transform/translate; intersection is niche).
 - Acceptance: "label the midpoint of each boundary line" / "put a point at the
   centroid of these" works without the user pre-selecting every vertex.
 
