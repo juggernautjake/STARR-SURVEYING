@@ -202,14 +202,19 @@ export default function PointDataViewer({
           </thead>
           <tbody>
             {filtered.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-800/60">
+              <tr
+                key={row.id}
+                className={`hover:bg-gray-800/60 ${row.editable ? '' : 'text-gray-400 italic'}`}
+                title={row.editable ? undefined : 'Derived point (line vertex) — read-only here; edit the line geometry instead'}
+              >
                 {visibleCols.map((c) => {
+                  const cellEditable = c.editable && row.editable;
                   const editing = edit?.id === row.id && edit.field === c.key;
                   return (
                     <td
                       key={c.key}
                       className="px-2 py-0.5 border-b border-gray-800 whitespace-nowrap"
-                      onClick={() => c.editable && setEdit({ id: row.id, field: c.key })}
+                      onClick={() => cellEditable && setEdit({ id: row.id, field: c.key })}
                     >
                       {editing ? (
                         <input
@@ -223,7 +228,7 @@ export default function PointDataViewer({
                           className="w-full bg-gray-700 border border-blue-500 rounded px-1 outline-none"
                         />
                       ) : (
-                        <span className={c.editable ? 'cursor-text' : 'text-gray-400'}>
+                        <span className={cellEditable ? 'cursor-text' : 'text-gray-400'}>
                           {cell(row, c.key) || (c.editable ? '—' : '')}
                         </span>
                       )}

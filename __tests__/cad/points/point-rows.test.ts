@@ -99,3 +99,36 @@ describe('rowEditToFeatureUpdate', () => {
     expect(upd?.properties && 'elevation' in upd.properties).toBe(false);
   });
 });
+
+describe('buildPointRows — derived points (read-only)', () => {
+  it('includes derived vertex points as non-editable rows', () => {
+    const p = pt('a', 0, 0, { pointName: '255' }); // existing POINT
+    const ln = {
+      id: 'L', type: 'LINE',
+      geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 100, y: 0 } },
+      layerId: 'FENCE', style: {} as Feature['style'],
+      properties: { pointRefs: JSON.stringify(['255:1', '256:1']) },
+    } as Feature;
+    const fmap: Record<string, Feature> = { a: p, L: ln };
+    const doc = {
+      features: fmap,
+      settings: { displayPreferences: { originNorthing: 0, originEasting: 0 } },
+    } as unknown as DrawingDocument;
+    const rows = buildPointRows(doc);
+    const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+    expect(byName['255'].editable).toBe(true);    // standalone POINT
+    expect(byName['255:1'].editable).toBe(false);  // derived
+    expect(byName['256:1'].editable).toBe(false);
+  });
+  it('can exclude derived rows', () => {
+    const ln = {
+      id: 'L', type: 'LINE',
+      geometry: { type: 'LINE', start: { x: 1, y: 1 }, end: { x: 2, y: 2 } },
+      layerId: 'FENCE', style: {} as Feature['style'],
+      properties: { pointRefs: JSON.stringify(['300', '301']) },
+    } as Feature;
+    const doc = { features: { L: ln }, settings: { displayPreferences: {} } } as unknown as DrawingDocument;
+    expect(buildPointRows(doc, false)).toHaveLength(0);
+    expect(buildPointRows(doc, true)).toHaveLength(2);
+  });
+});

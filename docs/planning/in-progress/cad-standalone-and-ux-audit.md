@@ -916,3 +916,12 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   3 unit tests; 1273 CAD tests green. Recorded 17c accurately (rotation
   functionally present; grab-node visual deferred). Next: 17e (AI naming
   advisor) — assess vs. value/time, then finalize toward 5 PM.
+- 2026-05-26 15:1x CDT — Audit fix (discovered while testing): the Point
+  Data Viewer only showed standalone POINT features, so created vertex
+  points (minted line/polygon vertices + `:N`) — which DO export (§17b) —
+  were invisible there, contradicting "viewer shows all created points."
+  `buildPointRows` now appends derived points as READ-ONLY rows
+  (italic/gray; line vertices aren't independently editable). Unit-tested
+  (POINT editable / derived non-editable; includeDerived toggle) + live-
+  verified (drawn line's 2 vertices appear in the viewer). Also added
+  POLYGON-naming + hidden-feature unit coverage. tsc/lint clean.

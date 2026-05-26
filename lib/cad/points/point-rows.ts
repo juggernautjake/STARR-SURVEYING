@@ -15,6 +15,7 @@
 
 import type { DrawingDocument, Feature, DrawingSettings } from '../types';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
+import { collectDerivedPoints } from './derived-points';
 
 export interface PointRow {
   id: string;
@@ -25,6 +26,9 @@ export interface PointRow {
   code: string;
   description: string;
   layerId: string;
+  /** false for derived (vertex-ref) points — shown read-only since they
+   *  are line vertices, not standalone editable POINT features. */
+  editable: boolean;
 }
 
 function origin(settings: DrawingSettings): { n: number; e: number } {
@@ -40,8 +44,13 @@ function elevationOf(f: Feature): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-/** Build editable rows from every POINT feature in the document. */
-export function buildPointRows(doc: DrawingDocument): PointRow[] {
+/**
+ * Build rows for the Point Data Viewer: editable rows from every POINT
+ * feature, plus (when `includeDerived`) read-only rows for "created
+ * points" that live only as linework vertex refs (minted vertex names +
+ * cross-layer `:N`) so the viewer shows ALL created points.
+ */
+export function buildPointRows(doc: DrawingDocument, includeDerived = true): PointRow[] {
   const { n: oN, e: oE } = origin(doc.settings);
   const rows: PointRow[] = [];
   for (const f of Object.values(doc.features)) {
@@ -55,7 +64,23 @@ export function buildPointRows(doc: DrawingDocument): PointRow[] {
       code: pointCodeOf(f),
       description: pointDescriptionOf(f),
       layerId: f.layerId,
+      editable: true,
     });
+  }
+  if (includeDerived) {
+    for (const dpt of collectDerivedPoints(doc)) {
+      rows.push({
+        id: `derived:${dpt.name}`,
+        name: dpt.name,
+        northing: dpt.northing,
+        easting: dpt.easting,
+        elevation: null,
+        code: '',
+        description: '',
+        layerId: dpt.layerId,
+        editable: false,
+      });
+    }
   }
   return rows;
 }
