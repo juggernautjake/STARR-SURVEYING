@@ -876,11 +876,23 @@ lint + test → live-verify in the harness → record → commit.
   POINT features still export directly, names de-duped. 5 unit tests;
   existing 37 export tests still green. Now every created point lands in
   the export, per the original §8 intent.
-- [ ] **17c. §15 — unified rotation UX**: generalize the image-style
-  grab-node rotation handle (box + node + ghost + live editable angle)
-  to all feature types. Large canvas work; do incrementally and verify.
-- [ ] **17d. 8d — cross-layer copy `:N` semantics**: wire `planDuplicate`
-  / `base:N` into the LayerTransferDialog copy-to-layer path.
+- [~] **17c. §15 — unified rotation UX** (substantially present; visual
+  affordance deferred): VERIFIED via inspection that the ROTATE tool
+  already works for ALL feature types with the requested core — an
+  **editable angle field** + **preset angles** (−90/+45/+90/+180) +
+  **pivot options** (Center of Mass / Center of Page) + Apply, and the
+  selection **rotates live as you drag** with a **dynamic angle readout**
+  (`InteractiveOpPanel` + `interactiveOpRef`, applying `transformFeature`/
+  `rotate` per move). REMAINING (deferred — large interactive change): the
+  image-style **grab-node bounding box** affordance and the **ghost-vs-
+  solid** preview model (today the real geometry live-transforms instead
+  of ghosting). The functional ask is met; the grab-node visual is polish
+  on working rotation.
+- [x] **17d. 8d — cross-layer copy `:N` semantics** — `transferSelectionToLayer`
+  now names a POINT copied to a DIFFERENT layer (no explicit renumber)
+  as `base:N` (255 → 255:1 → 255:2), via `derivedName` + a per-batch name
+  set; explicit renumber still overrides. 3 store-level unit tests; full
+  CAD suite green (1273).
 - [ ] **17e. 8e — AI naming advisor (enhancement)**: infer the file's
   naming scheme + suggest codes; never block on it.
 
@@ -894,3 +906,9 @@ Newly-discovered items get appended here as `[ ]` during the loop.
   pointRefs (minted + `:N`) now export alongside POINT features. 5 unit
   tests; no regression in the 37 existing export tests. Next: 17c unified
   rotation UX.
+- 2026-05-26 15:0x CDT — Slice 17d DONE. Cross-layer point copy now
+  yields `base:N` names (LayerTransferDialog duplicate path), preserving
+  uniqueness + the cross-layer relationship; explicit renumber overrides.
+  3 unit tests; 1273 CAD tests green. Recorded 17c accurately (rotation
+  functionally present; grab-node visual deferred). Next: 17e (AI naming
+  advisor) — assess vs. value/time, then finalize toward 5 PM.
