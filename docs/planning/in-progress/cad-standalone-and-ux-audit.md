@@ -290,7 +290,10 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   correct; active state visible.
 - [ ] **ToolOptionsBar** — options reflect the active tool.
 - [ ] **LayerPanel** — add/rename/delete/visibility/lock all work.
-- [ ] **PropertyPanel** — edits apply to selection; geometry fields work.
+- [x] **PropertyPanel** — VERIFIED: selecting a drawn point populates the
+  panel (OBJECT type, LAYER dropdown, STYLE color/symbol/weight/opacity,
+  editable GEOMETRY N/E); also confirms the auto-named point shows Name
+  "1". (`property-panel.spec.ts`)
 - [ ] **StatusBar / CommandBar** — coordinate readout, command input.
 - [ ] **Dialogs sweep** — each dialog in `CADLayout` opens, is usable,
   closes cleanly (sample, don't exhaustively grind).
@@ -666,3 +669,6 @@ Creating a layer now opens `NewLayerDialog` instead of silently adding
 layer** on creation. Wired to both the footer "New Layer" button and the
 layers-panel right-click "New Layer". VERIFIED live (`new-layer-dialog.spec.ts`):
 modal shows all fields; creating "Boundary" adds it to the panel.
+- 2026-05-26 12:2x CDT — Verified PropertyPanel populates on selection
+  (object/layer/style/geometry fields) and the new-layer modal end-to-end.
+  Full regression: 1261 CAD unit tests green, tsc clean.
