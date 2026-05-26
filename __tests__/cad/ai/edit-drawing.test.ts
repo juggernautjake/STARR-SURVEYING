@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useDrawingStore } from '@/lib/cad/store/drawing-store';
 import { useSelectionStore } from '@/lib/cad/store/selection-store';
+import { useUndoStore } from '@/lib/cad/store/undo-store';
 import { applyEditDrawing } from '@/lib/cad/store/ai-conversations-store';
 import type { Layer } from '@/lib/cad/types';
 
@@ -234,6 +235,30 @@ describe('applyEditDrawing', () => {
       ] }],
     });
     expect(useDrawingStore.getState().getFeature(id)!.geometry.spline!.controlPoints).toHaveLength(10); // 1 + 3*3
+  });
+
+  it('applies add+delete as ONE undoable batch that fully reverts', () => {
+    useUndoStore.getState().clear();
+    // Seed a point directly (not via AI) so it pre-exists.
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'seed', add: [{ shape: 'POINT', points: [{ northing: 1, easting: 1 }] }] });
+    const seedId = useDrawingStore.getState().getAllFeatures()[0].id;
+
+    // One AI action: add a polygon AND delete the seed point.
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'swap',
+      add: [{ shape: 'POLYGON', points: [{ northing: 0, easting: 0 }, { northing: 0, easting: 5 }, { northing: 5, easting: 5 }] }],
+      deleteIds: [seedId],
+    });
+    let feats = useDrawingStore.getState().getAllFeatures();
+    expect(feats).toHaveLength(1);
+    expect(feats[0].type).toBe('POLYGON');
+
+    // A single undo restores the seed point and removes the polygon.
+    useUndoStore.getState().undo();
+    feats = useDrawingStore.getState().getAllFeatures();
+    expect(feats).toHaveLength(1);
+    expect(feats[0].id).toBe(seedId);
+    expect(feats[0].type).toBe('POINT');
   });
 
   it('translates a feature by north/east feet', () => {

@@ -159,7 +159,8 @@ canvas, and check it behaved as expected; feed failures back into the plan.
   partially deferred if the dev-server boot proves too costly here.
 
 ## 6. Safety, validation, UX
-- Every AI edit is **Apply-gated** and a **single undo step**.
+- Every AI edit is **Apply-gated** and a **single undo step** (verified: an
+  add+delete batch fully reverts on one undo — `edit-drawing.test.ts`).
 - Client validates coordinates (finite), shape arity, and clamps opacity.
 - Summaries report exactly what changed; failures explain why.
 - Never mutate on the model's word alone — the user clicks Apply.
