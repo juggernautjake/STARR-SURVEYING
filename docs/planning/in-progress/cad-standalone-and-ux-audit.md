@@ -176,10 +176,23 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
 - [x] **Bottom point table** — draggable [120,520]px (handle on TOP edge,
   axis y, sign -1), persisted under `…:pointTable`. VERIFIED via drag
   spec + screenshot (`point-table-resized.png`).
-- [ ] **Canvas re-fit on panel resize** — screenshot after a layer-panel
-  drag showed a gray band atop the canvas, suggesting the Pixi renderer
-  may not re-fit when its container width changes. Verify CanvasViewport
-  has a ResizeObserver and resizes the Pixi renderer; fix if not.
+- [x] **Canvas surround coverage on resize** — root cause: the canvas
+  has a ResizeObserver that resizes the renderer correctly (canvas always
+  == container, measured), but `renderPaper` drew the grey surround using
+  the viewport store's `screenWidth/Height`, which the RO only updates on
+  a deferred frame. Stale dims left the renderer clear-color showing as
+  bands. Fixed by drawing the surround from the LIVE renderer size
+  (oversized). Surround now uniformly covers on initial render and after
+  resize. VERIFIED via screenshots.
+
+### Import placement (user request 2026-05-26)
+- [ ] **Imported points render off-page (up/right) instead of on the
+  template**: survey points carry state-plane N/E (large coords) while
+  the paper sits at world origin, so imports land far off the sheet.
+  After an import, reposition the paper under the points' bounding box
+  (set `paperOrigin`/scale so points sit on the sheet) AND zoom-to-fit
+  so they're visible immediately. Verify with a CSV import in the
+  harness.
 
 ### Menu / dropdown consolidation
 - [ ] **MenuBar audit** — group long menus into logical submenus, remove
@@ -379,3 +392,12 @@ assignNames(newGeometry, layerId, registry, tol):
   resizing its drawing buffer to the new container size. Next: fix canvas
   re-fit (CanvasViewport ResizeObserver), which now clearly affects every
   resize/toggle.
+- 2026-05-26 10:5x CDT — Slice 5 DONE. Fixed canvas surround coverage:
+  `renderPaper` now sizes the grey surround from the live renderer
+  dimensions (not the deferred viewport-store size), so it fully covers
+  on initial render and after any resize — eliminating the inconsistent
+  clear-color bands. Measured canvas==container to rule out a CSS sizing
+  mismatch first. Two new user requests added to the backlog: imported
+  points render off-page (centre on the sheet + zoom-to-fit), already
+  logged. Next: imported-point placement, then export-by-scope, then the
+  point-identity epic (§8).

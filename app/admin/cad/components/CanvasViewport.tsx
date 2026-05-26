@@ -1391,9 +1391,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pWidth = br.sx - tl.sx;
     const pHeight = br.sy - tl.sy;
 
-    // Grey background covering the whole viewport
+    // Grey background covering the whole viewport. Use the LIVE renderer
+    // size (not just the viewport-store screen size, which the resize
+    // observer only updates on a deferred frame) and oversize slightly so
+    // the surround always covers the canvas after a panel/window resize —
+    // otherwise stale dimensions leave uncovered bands at the edges.
+    const resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 1;
+    const liveW = pixi.app.renderer.width / resolution;
+    const liveH = pixi.app.renderer.height / resolution;
+    const surroundW = Math.max(screenWidth, liveW) + 40;
+    const surroundH = Math.max(screenHeight, liveH) + 40;
     g.beginFill(CANVAS_SURROUND_COLOR, 1);
-    g.drawRect(0, 0, screenWidth, screenHeight);
+    g.drawRect(-20, -20, surroundW, surroundH);
     g.endFill();
 
     // White paper rectangle
