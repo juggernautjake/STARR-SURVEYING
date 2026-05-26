@@ -137,3 +137,33 @@ describe('applyAssignment + nameDrawnFeature', () => {
     expect(named.properties.pointName).toBe('999');
   });
 })
+
+describe('nameDrawnFeature — POLYGON / POLYLINE coverage', () => {
+  function poly(id: string, layerId: string, verts: { x: number; y: number }[]): Feature {
+    return {
+      id, type: 'POLYGON',
+      geometry: { type: 'POLYGON', vertices: verts },
+      layerId, style: {} as Feature['style'], properties: {},
+    } as Feature;
+  }
+  it('mints a name for every new polygon vertex', () => {
+    const drawn = poly('PG', 'BOUNDARY', [
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 },
+    ]);
+    const d = doc([drawn]);
+    const named = nameDrawnFeature(d, drawn);
+    const refs = JSON.parse(String(named.properties.pointRefs));
+    expect(refs).toEqual(['1', '2', '3', '4']);
+  });
+  it('reuses an existing same-layer point for a coincident polygon vertex', () => {
+    const existing = pt('a', 'BOUNDARY', 0, 0, '255');
+    const drawn = poly('PG', 'BOUNDARY', [
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 9 },
+    ]);
+    const d = doc([existing, drawn]);
+    const named = nameDrawnFeature(d, drawn);
+    const refs = JSON.parse(String(named.properties.pointRefs));
+    expect(refs[0]).toBe('255');      // reused
+    expect(refs.slice(1)).toEqual(['256', '257']); // minted after max(255)
+  });
+});
