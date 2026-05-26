@@ -73,6 +73,8 @@ export function exportToLandXML(
     '  <CoordinateSystem epsgCode="2277" horizontalDatum="NAD83" ' +
       'desc="NAD83 Texas State Plane Central Zone 4203 (US Survey Feet)"/>'
   );
+  // Some LandXML importers require a <Project> element before the data.
+  lines.push(`  <Project name="${xmlAttr(doc.name || 'Survey')}"/>`);
   lines.push(
     `  <Application name="STARR Surveying" desc="CAD drawing export" ` +
       `version="1.2" manufacturer="STARR" timeStamp="${now.toISOString()}"/>`
