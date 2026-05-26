@@ -312,6 +312,16 @@ describe('applyEditDrawing', () => {
     expect(useDrawingStore.getState().getAllFeatures().filter((f) => f.type === 'POLYGON')).toHaveLength(0);
   });
 
+  it('moves a feature to another layer via modify', () => {
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 1, easting: 1 }] }] });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'move', modify: [{ id, layerName: 'CONTROL' }] });
+    const doc = useDrawingStore.getState().document;
+    const target = Object.values(doc.layers).find((l) => l.name === 'CONTROL');
+    expect(target).toBeDefined();
+    expect(useDrawingStore.getState().getFeature(id)!.layerId).toBe(target!.id);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

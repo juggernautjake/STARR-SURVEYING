@@ -583,6 +583,9 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       else if (g.type === 'SPLINE' && g.spline && pts.length >= 2) g.spline = { ...g.spline, controlPoints: fitPointsToBezier(pts, g.spline.isClosed) };
       drawing.updateFeatureGeometry(m.id, g);
     }
+    if (m.layerName) {
+      drawing.updateFeature(m.id, { layerId: ensureLayer(m.layerName) });
+    }
     if (m.color || m.fill || m.opacity != null || m.lineWeight != null || m.lineType || m.symbol) {
       drawing.updateFeature(m.id, {
         style: {
