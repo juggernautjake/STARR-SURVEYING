@@ -1,6 +1,10 @@
 // lib/cad/delivery/dxf-writer.ts
 //
-// Phase 7 §10 — minimal AutoCAD DXF (R2018 ASCII) writer.
+// AutoCAD R12 (AC1009) ASCII DXF writer. R12 is the most universally
+// importable DXF flavor — it needs no handles, CLASSES, OBJECTS, or
+// BLOCK_RECORD/APPID symbol tables, which is exactly what older survey
+// packages (e.g. Traverse PC) expect. Newer apps (Civil 3D, QGIS) read
+// it fine too. Trade-off: no true color or lineweight (ACI color only).
 //
 // Walks `DrawingDocument.features` + `DrawingDocument.layers`
 // and emits a self-contained DXF string the surveyor can hand
@@ -151,7 +155,7 @@ function emitHeader(
   push(lines, 0, 'SECTION');
   push(lines, 2, 'HEADER');
 
-  pushVar(lines, '$ACADVER', 1, 'AC1032'); // R2018
+  pushVar(lines, '$ACADVER', 1, 'AC1009'); // R12 — most compatible, no handles/objects required
   pushVar(lines, '$INSBASE', 10, 0);
   push(lines, 20, 0);
   push(lines, 30, 0);
@@ -165,7 +169,6 @@ function emitHeader(
   push(lines, 20, extents.min.y);
   pushVar(lines, '$LIMMAX', 10, extents.max.x);
   push(lines, 20, extents.max.y);
-  pushVar(lines, '$INSUNITS', 70, 2); // 2 = US Feet
 
   push(lines, 0, 'ENDSEC');
 }
@@ -235,29 +238,10 @@ function emitTables(
   }
   push(lines, 0, 'ENDTAB');
 
-  // ── APPID table ───────────────────────────────────────────
-  push(lines, 0, 'TABLE');
-  push(lines, 2, 'APPID');
-  push(lines, 70, 1);
-  push(lines, 0, 'APPID');
-  push(lines, 2, 'ACAD');
-  push(lines, 70, 0);
-  push(lines, 0, 'ENDTAB');
-
-  // ── BLOCK_RECORD table ────────────────────────────────────
-  // Required so every BLOCK in the BLOCKS section resolves. The two
-  // model/paper records are always present; symbol blocks add theirs.
-  push(lines, 0, 'TABLE');
-  push(lines, 2, 'BLOCK_RECORD');
-  push(lines, 70, blockNames.length + 2);
-  for (const name of ['*Model_Space', '*Paper_Space', ...blockNames]) {
-    push(lines, 0, 'BLOCK_RECORD');
-    push(lines, 2, name);
-    push(lines, 70, 0);
-  }
-  push(lines, 0, 'ENDTAB');
-
+  // R12 (AC1009) needs no APPID / BLOCK_RECORD symbol tables — they
+  // are R13+ constructs and including them can crash older readers.
   push(lines, 0, 'ENDSEC');
+  void blockNames;
 }
 
 function emitContinuousLType(lines: string[]): void {
@@ -313,10 +297,9 @@ function emitLayerRow(
   push(lines, 0, 'LAYER');
   push(lines, 2, name);
   push(lines, 70, 0); // flags: 0 = visible, unfrozen, unlocked
-  push(lines, 62, hexToAci(hexColor)); // legacy ACI fallback
+  push(lines, 62, hexToAci(hexColor)); // ACI color (R12 has no true color)
   push(lines, 6, lineTypeName); // line type
-  push(lines, 370, snapLineWeight(lineWeightMm)); // lineweight (1/100 mm)
-  push(lines, 420, hexToTrueColor(hexColor)); // 32-bit true color
+  void lineWeightMm; // R12 has no lineweight (group 370)
 }
 
 function emitEntities(
@@ -350,14 +333,13 @@ function emitEntities(
 
 interface EntityAttribs {
   lineType?: string;
-  lineWeight?: number; // 1/100 mm
   aci?: number;
-  trueColor?: number;
 }
 
 /** Resolve the group codes for a feature's style when it overrides
- *  its layer. Returns undefined codes for inherited (ByLayer) props
- *  so the layer table stays the single source of truth. */
+ *  its layer. R12 carries only ACI color (62) and linetype (6); true
+ *  color and lineweight are R2000+ and are intentionally omitted for
+ *  maximum reader compatibility. */
 function entityAttribsFor(f: Feature, doc: DrawingDocument): EntityAttribs {
   const layer = doc.layers[f.layerId];
   const s = f.style;
@@ -365,13 +347,7 @@ function entityAttribsFor(f: Feature, doc: DrawingDocument): EntityAttribs {
   if (s?.lineTypeId && s.lineTypeId !== layer?.lineTypeId) {
     out.lineType = dxfLineTypeName(s.lineTypeId);
   }
-  if (s?.lineWeight != null) {
-    out.lineWeight = snapLineWeight(s.lineWeight);
-  }
-  if (s?.color) {
-    out.aci = hexToAci(s.color);
-    out.trueColor = hexToTrueColor(s.color);
-  }
+  if (s?.color) out.aci = hexToAci(s.color);
   return out;
 }
 
@@ -380,10 +356,6 @@ function pushAttribs(lines: string[], attribs?: EntityAttribs): void {
   if (!attribs) return;
   if (attribs.lineType) push(lines, 6, attribs.lineType);
   if (attribs.aci != null) push(lines, 62, attribs.aci);
-  if (attribs.lineWeight != null && attribs.lineWeight >= 0) {
-    push(lines, 370, attribs.lineWeight);
-  }
-  if (attribs.trueColor != null) push(lines, 420, attribs.trueColor);
 }
 
 function emitEof(lines: string[]): void {
@@ -525,15 +497,24 @@ function emitLwPolyline(
   closed: boolean,
   attribs?: EntityAttribs
 ): void {
-  push(lines, 0, 'LWPOLYLINE');
+  // R12 has no LWPOLYLINE — use the old-style POLYLINE + VERTEX + SEQEND.
+  push(lines, 0, 'POLYLINE');
   push(lines, 8, layer);
   pushAttribs(lines, attribs);
-  push(lines, 90, vertices.length);
+  push(lines, 66, 1); // vertices-follow flag
   push(lines, 70, closed ? 1 : 0);
+  push(lines, 10, 0);
+  push(lines, 20, 0);
+  push(lines, 30, 0);
   for (const v of vertices) {
+    push(lines, 0, 'VERTEX');
+    push(lines, 8, layer);
     push(lines, 10, v.x);
     push(lines, 20, v.y);
+    push(lines, 30, 0);
   }
+  push(lines, 0, 'SEQEND');
+  push(lines, 8, layer);
 }
 
 function emitCircle(
@@ -557,25 +538,21 @@ function emitEllipse(
   e: EllipseGeometry,
   attribs?: EntityAttribs
 ): void {
-  // DXF ELLIPSE wants the major-axis end relative to center.
+  // R12 has no ELLIPSE entity — approximate as a closed polyline.
   const cosR = Math.cos(e.rotation);
   const sinR = Math.sin(e.rotation);
-  const majorEndX = e.radiusX * cosR;
-  const majorEndY = e.radiusX * sinR;
-  const ratio = e.radiusY / e.radiusX;
-
-  push(lines, 0, 'ELLIPSE');
-  push(lines, 8, layer);
-  pushAttribs(lines, attribs);
-  push(lines, 10, e.center.x);
-  push(lines, 20, e.center.y);
-  push(lines, 30, 0);
-  push(lines, 11, majorEndX);
-  push(lines, 21, majorEndY);
-  push(lines, 31, 0);
-  push(lines, 40, ratio);
-  push(lines, 41, 0); // start parameter
-  push(lines, 42, Math.PI * 2); // end parameter
+  const SEG = 64;
+  const verts: Point2D[] = [];
+  for (let i = 0; i < SEG; i += 1) {
+    const t = (i / SEG) * Math.PI * 2;
+    const x = e.radiusX * Math.cos(t);
+    const y = e.radiusY * Math.sin(t);
+    verts.push({
+      x: e.center.x + x * cosR - y * sinR,
+      y: e.center.y + x * sinR + y * cosR,
+    });
+  }
+  emitLwPolyline(lines, layer, verts, true, attribs);
 }
 
 function emitArc(
@@ -722,28 +699,6 @@ function collectUsedLineTypes(
   return out;
 }
 
-/** DXF lineweight enum values (in 1/100 mm). Group 370 must be one
- *  of these; we snap the nearest so AutoCAD/Traverse PC accept it. */
-const DXF_LINEWEIGHTS = [
-  0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90,
-  100, 106, 120, 140, 158, 200, 211,
-];
-
-function snapLineWeight(mm: number | null | undefined): number {
-  if (mm == null || !Number.isFinite(mm) || mm <= 0) return -1; // ByLayer/default
-  const hundredths = mm * 100;
-  let best = DXF_LINEWEIGHTS[0];
-  let bestErr = Infinity;
-  for (const v of DXF_LINEWEIGHTS) {
-    const err = Math.abs(v - hundredths);
-    if (err < bestErr) {
-      bestErr = err;
-      best = v;
-    }
-  }
-  return best;
-}
-
 /** Sanitised, unique DXF STYLE name for a font family. */
 function fontStyleName(font: string | null | undefined): string {
   const f = (font ?? '').trim();
@@ -787,26 +742,8 @@ function collectUsedTextStyles(
 // Color helpers
 // ────────────────────────────────────────────────────────────
 
-/** Pack #RRGGBB into a DXF 32-bit true color int (0xRRGGBB). */
-function hexToTrueColor(hex: string): number {
-  const cleaned = (hex ?? '').replace('#', '').trim();
-  if (cleaned.length !== 6) return 0xffffff;
-  const r = parseInt(cleaned.slice(0, 2), 16);
-  const g = parseInt(cleaned.slice(2, 4), 16);
-  const b = parseInt(cleaned.slice(4, 6), 16);
-  if (
-    !Number.isFinite(r) ||
-    !Number.isFinite(g) ||
-    !Number.isFinite(b)
-  ) {
-    return 0xffffff;
-  }
-  return (r << 16) | (g << 8) | b;
-}
-
-/** Map a hex color to the closest legacy AutoCAD Color Index.
- *  Coarse but good enough for layer-table fallback; downstream
- *  CAD applications honor the 420 true-color value when set. */
+/** Map a hex color to the closest legacy AutoCAD Color Index (ACI).
+ *  R12 carries color only as ACI, so this is the color path. */
 function hexToAci(hex: string): number {
   const cleaned = (hex ?? '').replace('#', '').trim();
   if (cleaned.length !== 6) return 7;
