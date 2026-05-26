@@ -231,6 +231,9 @@ it; only improvise for genuinely novel requests.
 - [x] `recipes.md` — house/fence/road/boundary builders from coded points.
 - [x] A condensed digest of these is injected into the system prompt
       (`REFERENCE_DIGEST` in drawing-chat.ts).
+- [x] `recipes.md` includes worked EDIT_DRAWING JSON per structure
+      (pillar/fence/boundary+label/pond/poles) so the AI has concrete,
+      copy-shaped references and doesn't guess the schema.
 
 ## 11. Working agreement (this build window)
 - Iterate via the stop hook: plan → build → test → review → refine → repeat.
