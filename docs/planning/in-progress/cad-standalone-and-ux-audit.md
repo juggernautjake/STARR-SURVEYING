@@ -646,3 +646,8 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   download fires (`export-download.spec.ts`). Confirms the whole
   scope-export path (selection → scopeDocument → writer → file), not just
   the menu wiring.
+- 2026-05-26 12:0x CDT — Verified layers-panel bulk actions FUNCTION
+  (not just render): New Layer adds "Layer 3"; Hide-all then Reveal-all
+  run without error and the panel still lists layers
+  (`layer-actions.spec.ts`). Removed the throwaway `canvas-measure`
+  diagnostic spec.
