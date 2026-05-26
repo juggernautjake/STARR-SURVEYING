@@ -984,6 +984,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
   }, [activeTool]);
 
+  // Build and commit a fit-point spline from the given fit points. When
+  // `isClosed` is true the tangents wrap around so the closing segment
+  // (last point → first point) is as smooth as every interior joint — a
+  // ring of points reads as a continuous curve (e.g. a square's corners
+  // smooth into a circle) instead of an abrupt snap back to the start.
+  const finishFitSpline = useCallback((points: Point2D[], isClosed: boolean) => {
+    if (points.length < 2) return;
+    const controlPoints = fitPointsToBezier(points, isClosed);
+    const dStore = useDrawingStore.getState();
+    const layerStyle = dStore.getActiveLayerStyle();
+    const feature: Feature = {
+      id: generateId(),
+      type: 'SPLINE',
+      geometry: { type: 'SPLINE', spline: { controlPoints, isClosed } },
+      layerId: dStore.activeLayerId,
+      style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+      properties: {},
+    };
+    dStore.addFeature(withAutoLabels(feature));
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+  }, []);
+
   // Subscribe to tool store to auto-finish curved line before drawingPoints are cleared
   useEffect(() => {
     let prevTool = useToolStore.getState().state.activeTool;
@@ -993,20 +1015,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const isFitTool = prevTool === 'DRAW_CURVED_LINE' || prevTool === 'DRAW_SPLINE_FIT';
       const isCtrlTool = prevTool === 'DRAW_SPLINE_CONTROL';
       if (isFitTool && curTool !== prevTool && prevPoints.length >= 2) {
-        // Finish the spline with the captured points before they were cleared
-        const controlPoints = fitPointsToBezier(prevPoints, false);
-        const dStore = useDrawingStore.getState();
-        const layerStyle = dStore.getActiveLayerStyle();
-        const feature: Feature = {
-          id: generateId(),
-          type: 'SPLINE',
-          geometry: { type: 'SPLINE', spline: { controlPoints, isClosed: false } },
-          layerId: dStore.activeLayerId,
-          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
-          properties: {},
-        };
-        dStore.addFeature(withAutoLabels(feature));
-        useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+        // Finish the (open) spline with the captured points before they
+        // were cleared. Closed splines are committed in the click handler
+        // the moment the user clicks back on the first point.
+        finishFitSpline(prevPoints, false);
       } else if (isCtrlTool && curTool !== prevTool && prevPoints.length >= 4) {
         const usable = Math.floor((prevPoints.length - 1) / 3) * 3 + 1;
         const controlPoints = prevPoints.slice(0, usable);
@@ -8430,6 +8442,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         case 'DRAW_SPLINE_FIT': {
           // Curved line / Spline fit-point tool: each click adds a fit point.
           // On finish, the fit points are converted to cubic bezier control points.
+          const splinePts = toolStore.state.drawingPoints;
+          // Closing the loop: clicking on (or snapping back to) the first
+          // fit point finishes the spline as a CLOSED curve, so it transitions
+          // smoothly through the start point instead of stopping abruptly.
+          if (splinePts.length >= 3) {
+            const first = splinePts[0];
+            const splineZoom = Math.max(useViewportStore.getState().zoom, 1e-6);
+            const closeWorld = 12 / splineZoom; // ~12 px grab radius
+            if (Math.hypot(worldPt.x - first.x, worldPt.y - first.y) <= closeWorld) {
+              finishFitSpline(splinePts, true);
+              toolStore.clearDrawingPoints();
+              break;
+            }
+          }
           toolStore.addDrawingPoint(worldPt);
           break;
         }
