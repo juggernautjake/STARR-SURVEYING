@@ -111,6 +111,11 @@ export interface ChatModifySpec {
   lineType?:   string;
   symbol?:     string;
   layerName?:  string;        // move the feature to this layer (auto-created)
+  // Survey attribute edits (POINT):
+  pointNumber?: string;
+  code?:        string;
+  description?: string;
+  elevation?:   number;
 }
 
 /** Fit an exact best-fit shape to a point set (computed client-side for
@@ -233,7 +238,7 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "instruction": "<re-run prompt>",
     "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "fill": "<#hex area fill, closed shapes>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<DASHED|DOTTED|CENTER|FENCE_BARBED_WIRE|…>", "layerName": "<optional>", "pointNumber": "<POINT only>", "elevation": "<POINT Z, ft>", "code": "<optional>", "description": "<optional>" } ],
     "deleteIds": [ "<featureId>", ... ],
-    "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "fill": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<id>", "symbol": "<id>", "layerName": "<move to layer>" } ],
+    "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "fill": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<id>", "symbol": "<id>", "layerName": "<move to layer>", "pointNumber": "<renumber>", "code": "<recode>", "description": "<redesc>", "elevation": <ft> } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
     "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ],
     "createLayers": [ { "name": "<layer>", "color": "<#hex optional>" } ],
@@ -595,9 +600,11 @@ function parseEditFields(a: Record<string, unknown>): EditFields {
       const points = parseCoords(o.points);
       const opacity = num(o.opacity);
       const lineWeight = num(o.lineWeight);
+      const elevation = num(o.elevation);
       const hasStyle = typeof o.color === 'string' || typeof o.fill === 'string' || opacity !== null || lineWeight !== null || typeof o.lineType === 'string' || typeof o.symbol === 'string';
       const hasLayer = typeof o.layerName === 'string' && o.layerName.length > 0;
-      if (points.length === 0 && !hasStyle && !hasLayer) continue;
+      const hasAttr = typeof o.pointNumber === 'string' || typeof o.code === 'string' || typeof o.description === 'string' || elevation !== null;
+      if (points.length === 0 && !hasStyle && !hasLayer && !hasAttr) continue;
       modify.push({
         id: o.id,
         ...(points.length > 0 ? { points } : {}),
@@ -608,6 +615,10 @@ function parseEditFields(a: Record<string, unknown>): EditFields {
         ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
         ...(typeof o.symbol === 'string' ? { symbol: o.symbol } : {}),
         ...(hasLayer ? { layerName: o.layerName as string } : {}),
+        ...(typeof o.pointNumber === 'string' ? { pointNumber: o.pointNumber } : {}),
+        ...(typeof o.code === 'string' ? { code: o.code } : {}),
+        ...(typeof o.description === 'string' ? { description: o.description } : {}),
+        ...(elevation !== null ? { elevation } : {}),
       });
     }
     if (modify.length > 0) out.modify = modify;

@@ -589,6 +589,18 @@ export function applyEditDrawing(action: DrawingChatAction): string {
     if (m.layerName) {
       drawing.updateFeature(m.id, { layerId: ensureLayer(m.layerName) });
     }
+    if (m.pointNumber != null || m.code != null || m.description != null || m.elevation != null) {
+      const cur = drawing.getFeature(m.id)!;
+      drawing.updateFeature(m.id, {
+        properties: {
+          ...cur.properties,
+          ...(m.pointNumber != null ? { pointNumber: m.pointNumber } : {}),
+          ...(m.code != null ? { code: m.code } : {}),
+          ...(m.description != null ? { description: m.description } : {}),
+          ...(m.elevation != null ? { elevation: m.elevation } : {}),
+        },
+      });
+    }
     if (m.color || m.fill || m.opacity != null || m.lineWeight != null || m.lineType || m.symbol) {
       drawing.updateFeature(m.id, {
         style: {

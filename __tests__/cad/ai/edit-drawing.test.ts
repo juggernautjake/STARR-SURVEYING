@@ -409,6 +409,23 @@ describe('applyEditDrawing', () => {
     expect(f.properties.pointNumber).toBe('10');
   });
 
+  it('edits point survey attributes via modify (recode + elevation + renumber)', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'pt',
+      add: [{ shape: 'POINT', points: [{ northing: 1, easting: 1 }], pointNumber: '12', code: 'TMP' }],
+    });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'recode',
+      modify: [{ id, code: 'IP', elevation: 642, pointNumber: '100', description: 'iron pin' }],
+    });
+    const p = useDrawingStore.getState().getFeature(id)!.properties;
+    expect(p.code).toBe('IP');
+    expect(p.elevation).toBe(642);
+    expect(p.pointNumber).toBe('100');
+    expect(p.description).toBe('iron pin');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
