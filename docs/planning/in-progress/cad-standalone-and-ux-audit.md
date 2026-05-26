@@ -271,6 +271,13 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
 - [ ] **10f. Traverse editing**: edit distance/bearing to drive geometry
   (read-only today; maps back to start/end is a follow-up).
 
+### Layers panel control (user request 2026-05-26)
+- [x] **Panel right-click menu** — right-clicking the layer-list
+  background opens a bulk-action menu: New Layer, Reveal all, Hide all,
+  Lock all, Unlock all, Duplicate active layer, Export layers… (reuses
+  ExportLayersDialog via `cad:openExportLayers`). Per-row menu unchanged.
+  VERIFIED via harness screenshot (`layer-panel-menu.png`).
+
 ### Per-surface functional audit (expand as discovered)
 - [ ] **ToolBar** — every tool button activates the right tool; tooltips
   correct; active state visible.
@@ -596,3 +603,10 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   harness → Point Data Viewer shows them named "1"/"2" with real N/E.
   Import/AI paths untouched (separate code paths). Full point-identity
   feature (8a/8b/8b-apply + viewer + rename) now works together.
+- 2026-05-26 11:2x CDT — Layers panel right-click menu DONE (user
+  request). Right-clicking the layer-list background opens bulk actions
+  (New Layer, Reveal/Hide all, Lock/Unlock all, Duplicate active layer,
+  Export layers…); the per-row menu still works (stopPropagation keeps
+  the two distinct). Export reuses ExportLayersDialog via a window event.
+  Harness screenshot confirms. Next: per-surface audits / menu
+  consolidation / 10f.

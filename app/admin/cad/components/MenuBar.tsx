@@ -183,6 +183,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     return () => window.removeEventListener('cad:openDbDialog', handler);
   }, []);
 
+  // Open the Export-layers dialog from elsewhere (e.g. the LayerPanel
+  // right-click menu).
+  useEffect(() => {
+    const handler = () => setExportLayersOpen(true);
+    window.addEventListener('cad:openExportLayers', handler);
+    return () => window.removeEventListener('cad:openExportLayers', handler);
+  }, []);
+
   function openFileDialog() {
     const input = Object.assign(document.createElement('input'), {
       type: 'file',
