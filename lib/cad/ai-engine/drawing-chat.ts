@@ -34,6 +34,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { DrawingDocument } from '../types';
 import { MissingApiKeyError } from './claude-deed-parser';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
+import { inverseBearingDistance, formatBearing } from '../geometry/bearing';
 
 const DEFAULT_MODEL =
   process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
@@ -769,6 +770,10 @@ export interface SelectionItem {
   start?:       NE;
   end?:         NE;
   midpoint?:    NE;
+  /** LINE bearing in the app's quadrant format (e.g. N45°00'00"E) and
+   *  azimuth degrees — so labels match the software exactly. */
+  bearing?:     string;
+  azimuthDeg?:  number;
   /** CIRCLE/ELLIPSE/ARC center; CIRCLE/ARC radius. */
   center?:      NE;
   radius?:      number;
@@ -837,7 +842,10 @@ export function buildSelectionDigest(
       item.start = ne(g.start);
       item.end = ne(g.end);
       item.midpoint = ne({ x: (g.start.x + g.end.x) / 2, y: (g.start.y + g.end.y) / 2 });
-      item.lengthFt = round(Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y));
+      const inv = inverseBearingDistance(g.start, g.end);
+      item.lengthFt = round(inv.distance);
+      item.bearing = formatBearing(inv.azimuth);
+      item.azimuthDeg = round(inv.azimuth);
     } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length > 0) {
       const vs = g.vertices;
       item.vertexCount = vs.length;

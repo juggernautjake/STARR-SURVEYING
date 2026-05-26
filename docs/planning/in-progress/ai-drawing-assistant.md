@@ -102,11 +102,19 @@ Goal: the model can reason about geometry it didn't select.
       named/colored layers.
 - Acceptance: AI fits exact shapes (not eyeballed) and styles them correctly.
 
-### Phase 4 — Semantic / composite builders (point-code driven)
-- [ ] Recipes that turn coded points into structures: house/building outline,
-      fence (line + inline symbol), road (dual edges + centerline), boundary
-      (closed polygon w/ bearings), driveway, utility runs.
-- [ ] Code-aware: read `code`/`description` to choose the recipe + layer.
+### Phase 4 — Semantic / composite builders (point-code driven) 🚧 IN PROGRESS
+- [x] Recipes documented (`docs/ai-reference/recipes.md`) and driven via the
+      EDIT_DRAWING primitives now in place (fit, POLYGON/POLYLINE/SPLINE,
+      line types incl. fence symbols, layers). The model composes
+      house/fence/road/boundary from the selection digest + recipes.
+- [x] Code-aware: snapshot exposes codes-in-use and each point's code/desc;
+      recipes map codes→layer+style.
+- [x] Label fidelity: LINE items in the digest now include `bearing`
+      (app quadrant format) + `azimuthDeg`, so boundary/leg labels match the
+      software exactly instead of being reformatted by the model.
+- [ ] Optional: dedicated server-side recipe helpers (deferred — the
+      primitives + prompt recipes already cover the cases; add only if real
+      drawings expose gaps).
 - Acceptance: "draw the house from these corner shots" yields a correct,
   layered, styled building.
 

@@ -58,6 +58,9 @@ describe('buildSelectionDigest', () => {
     expect(it0.end).toEqual({ n: 40, e: 30 });
     expect(it0.midpoint).toEqual({ n: 20, e: 15 });
     expect(it0.lengthFt).toBe(50); // 3-4-5 → 50
+    // azimuth of (Δe=30, Δn=40) = atan2(30,40) ≈ 36.87°, quadrant N..E
+    expect(it0.azimuthDeg).toBeCloseTo(36.8699, 2);
+    expect(it0.bearing).toMatch(/^N.*E$/);
   });
 
   it('derives polygon centroid, perimeter, and area', () => {
