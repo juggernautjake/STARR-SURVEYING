@@ -81,7 +81,7 @@ Goal: the model can reason about geometry it didn't select.
 - Acceptance: "label the midpoint of each boundary line" / "put a point at the
   centroid of these" works without the user pre-selecting every vertex.
 
-### Phase 3 — Tool mastery & fidelity 🚧 IN PROGRESS
+### Phase 3 — Tool mastery & fidelity ✅ DONE
 - [x] Best-fit helpers by intent (`fit` on EDIT_DRAWING): RECTANGLE
       (min-area bounding rect — recovers rotated-square orientation), CIRCLE
       (least-squares), LINE (total-least-squares), computed client-side from
@@ -94,7 +94,9 @@ Goal: the model can reason about geometry it didn't select.
       selection digest and places it as TEXT. (Dedicated dimension-annotation
       objects deferred — separate annotation store, not undoable via the
       feature batch; a computed TEXT label covers the practical need.)
-- [ ] Line-type / symbol assignment via EDIT_DRAWING (dashed, fence, etc.).
+- [x] Line-type / symbol assignment via EDIT_DRAWING: `lineType` on add/
+      modify (SOLID/DASHED/CENTER/FENCE_*/UTIL_POLE_LINE/…; fence types carry
+      their inline symbols).
 - [x] Layer creation + assignment from the AI: `layerName` on add/fit
       auto-creates the layer if missing; `createLayers` pre-creates
       named/colored layers.
@@ -187,6 +189,10 @@ it; only improvise for genuinely novel requests.
   inject digest into the prompt, then FIT_CURVE / labels / layer creation.
 - 2026-05-26 02:50 CDT — AI reference library shipped (`docs/ai-reference/`:
   coordinates, calculations, actions, recipes) + condensed `REFERENCE_DIGEST`
-  injected into the system prompt. Next: FIT_CURVE + label/layer creation,
-  then the Playwright/OCR verification harness.
+  injected into the system prompt.
+- 2026-05-26 03:0x CDT — Phase 3 COMPLETE: FIT_CURVE, TEXT labels, layer
+  create/assign, and lineType assignment all shipped + tested. Also a UX
+  fix outside this doc: dropdown menus stay open until click-away (MenuBar).
+  Next: Phase 5 validation/preview + Phase 4 semantic builders; Phase 7
+  Playwright/OCR is environment-limited here (documented).
 </content>

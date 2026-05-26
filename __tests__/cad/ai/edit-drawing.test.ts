@@ -148,6 +148,19 @@ describe('applyEditDrawing', () => {
     expect(f.geometry.point).toEqual({ x: 15, y: 20 });
   });
 
+  it('sets a line type on a created feature and on modify', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'fence',
+      add: [{ shape: 'POLYLINE', lineType: 'FENCE_BARBED_WIRE', points: [
+        { northing: 0, easting: 0 }, { northing: 0, easting: 20 },
+      ] }],
+    });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    expect(useDrawingStore.getState().getFeature(id)!.style.lineTypeId).toBe('FENCE_BARBED_WIRE');
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'restyle', modify: [{ id, lineType: 'DASHED' }] });
+    expect(useDrawingStore.getState().getFeature(id)!.style.lineTypeId).toBe('DASHED');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

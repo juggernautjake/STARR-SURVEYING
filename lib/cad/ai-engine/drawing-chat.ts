@@ -90,6 +90,7 @@ export interface ChatFeatureSpec {
   color?:       string;       // hex stroke color
   opacity?:     number;       // 0–1
   lineWeight?:  number;       // mm
+  lineType?:    string;       // line-type id (e.g. DASHED, FENCE_BARBED_WIRE)
   pointNumber?: string;       // POINT only
   code?:        string;
   description?: string;
@@ -102,6 +103,7 @@ export interface ChatModifySpec {
   color?:      string;
   opacity?:    number;
   lineWeight?: number;
+  lineType?:   string;
 }
 
 /** Fit an exact best-fit shape to a point set (computed client-side for
@@ -215,9 +217,9 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "patch": { "<field>": "<newValue>", ... },
     "layerName": "<layer name>",
     "instruction": "<re-run prompt>",
-    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
+    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<DASHED|DOTTED|CENTER|FENCE_BARBED_WIRE|…>", "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
     "deleteIds": [ "<featureId>", ... ],
-    "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm> } ],
+    "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<id>" } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
     "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ],
     "createLayers": [ { "name": "<layer>", "color": "<#hex optional>" } ]
@@ -264,6 +266,11 @@ Action selection rules:
     a bearing/distance/area, COMPUTE the value from CURRENT SELECTION coords
     (azimuth = atan2(Δeast, Δnorth); distance = hypot; area = shoelace) and
     place the formatted string as a TEXT at the segment midpoint / centroid.
+  - "lineType" sets a line style on a created/modified feature. Common ids:
+    SOLID, DASHED, DOTTED, DASH_DOT, CENTER, PHANTOM, LONG_DASH;
+    fences FENCE_BARBED_WIRE / FENCE_CHAIN_LINK / FENCE_WOOD_PRIVACY;
+    UTIL_POLE_LINE; pattern DASH_X / DASH_CIRCLE. Use a fence line type for
+    fence lines, dashed for easements/setbacks, etc.
   - Layers: set "layerName" on add/fit to place geometry on a layer; if the
     layer doesn't exist it is created automatically. Use "createLayers" to
     pre-create named/colored layers (e.g. STRUCTURES, FENCE, ROW, BOUNDARY).
@@ -522,6 +529,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         ...(rotationDeg !== null ? { rotationDeg } : {}),
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
         ...(typeof o.text === 'string' ? { text: o.text } : {}),
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
@@ -547,7 +555,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
       const points = parseCoords(o.points);
       const opacity = num(o.opacity);
       const lineWeight = num(o.lineWeight);
-      const hasStyle = typeof o.color === 'string' || opacity !== null || lineWeight !== null;
+      const hasStyle = typeof o.color === 'string' || opacity !== null || lineWeight !== null || typeof o.lineType === 'string';
       if (points.length === 0 && !hasStyle) continue;
       modify.push({
         id: o.id,
@@ -555,6 +563,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
+        ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
       });
     }
     if (modify.length > 0) out.modify = modify;
