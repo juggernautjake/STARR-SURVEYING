@@ -41,6 +41,11 @@ Shipped & unit-tested (1,180+ CAD tests green):
 Needs a live browser pass (can't drive Pixi/OCR in this env): on-canvas fill
 appearance, end-to-end AI chat → Apply, and the Playwright spec.
 
+Suite state: `tsc --noEmit` clean; `__tests__/` = 3,772 passing. The only
+failing file is `__tests__/recon/phase16-worker-sync.test.ts` (Supabase-mock
+harvest sync) — pre-existing and unrelated to this work (different domain,
+untouched here); out of scope for this doc.
+
 Deferred (rationale inline below): DXF/PDF solid-hatch export of fills,
 ghost preview, scratch/scale-normalization, OCR screenshot checks,
 server-side recipe helpers, formal multi-step planner.
