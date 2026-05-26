@@ -11131,32 +11131,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       let sx = e.clientX - rect.left;
       let sy = e.clientY - rect.top;
 
-      // If elements are selected, zoom toward the centroid of the selection
-      // unless the cursor is clearly aimed at a specific spot (within canvas)
-      const selectedIds = useSelectionStore.getState().selectedIds;
-      if (selectedIds.size > 0) {
-        const drawStore = useDrawingStore.getState();
-        const bounds = computeFeaturesBounds(
-          Array.from(selectedIds)
-            .map((id) => drawStore.getFeature(id))
-            .filter(Boolean) as Feature[],
-        );
-        if (bounds) {
-          const centroidWorld = {
-            x: (bounds.minX + bounds.maxX) / 2,
-            y: (bounds.minY + bounds.maxY) / 2,
-          };
-          const centroidScreen = useViewportStore.getState().worldToScreen(
-            centroidWorld.x,
-            centroidWorld.y,
-          );
-          // Blend: zoom toward a point between cursor and selection centroid
-          // (60% cursor, 40% selection) for a natural feel
-          sx = sx * 0.6 + centroidScreen.sx * 0.4;
-          sy = sy * 0.6 + centroidScreen.sy * 0.4;
-        }
-      }
-
       const zoomSettings = useDrawingStore.getState().document.settings;
       const speed = zoomSettings.zoomSpeed ?? 1.0;
       const invert = zoomSettings.invertScrollZoom ?? false;
@@ -11165,10 +11139,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const scrollUp = invert ? (e.deltaY > 0) : (e.deltaY < 0);
       const factor = scrollUp ? baseFactor : 1 / baseFactor;
       if (!zoomTowardCursor) {
+        // Cursor-focused zoom disabled in settings → zoom about the
+        // viewport center instead.
         const vp = useViewportStore.getState();
         sx = vp.screenWidth / 2;
         sy = vp.screenHeight / 2;
       }
+      // Anchor the world point under the cursor so the drawing moves
+      // toward the cursor on zoom-in and away on zoom-out, exactly
+      // tracking the cursor's offset from the screen center.
       useViewportStore.getState().zoomAt(sx, sy, factor);
     };
 
