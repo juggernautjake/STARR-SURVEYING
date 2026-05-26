@@ -730,6 +730,9 @@ interface DocSnapshot {
   codesInUse:       string[];
   /** Active layer new geometry defaults to (when no layerName is given). */
   activeLayer:      string | null;
+  /** NE bounding box of all visible features (null when empty) — lets the AI
+   *  place/scale new geometry relative to the existing drawing. */
+  extents:          { minNorthing: number; minEasting: number; maxNorthing: number; maxEasting: number } | null;
   /** Compact catalog of non-point linework (capped) so the AI can target
    *  features it didn't select, by id. */
   linework:         { id: string; type: string; layer: string; center: NE; lengthFt?: number; areaSqFt?: number }[];
@@ -752,8 +755,22 @@ export function buildSnapshot(doc: DrawingDocument, activeLayerName?: string): D
   const codes = new Set<string>();
   const linework: DocSnapshot['linework'] = [];
   const MAX_LINEWORK = 60;
+  let exMinX = Infinity, exMinY = Infinity, exMaxX = -Infinity, exMaxY = -Infinity;
   for (const f of Object.values(doc.features)) {
     if (f.hidden) continue;
+    {
+      const g = f.geometry;
+      const pp: { x: number; y: number }[] = [];
+      if (g.point) pp.push(g.point);
+      if (g.start) pp.push(g.start);
+      if (g.end) pp.push(g.end);
+      if (g.vertices) pp.push(...g.vertices);
+      if (g.circle) { pp.push({ x: g.circle.center.x - g.circle.radius, y: g.circle.center.y - g.circle.radius }, { x: g.circle.center.x + g.circle.radius, y: g.circle.center.y + g.circle.radius }); }
+      if (g.arc) pp.push(g.arc.center);
+      if (g.ellipse) pp.push(g.ellipse.center);
+      if (g.spline) pp.push(...g.spline.controlPoints);
+      for (const p of pp) { exMinX = Math.min(exMinX, p.x); exMinY = Math.min(exMinY, p.y); exMaxX = Math.max(exMaxX, p.x); exMaxY = Math.max(exMaxY, p.y); }
+    }
     featureCounts[f.type] = (featureCounts[f.type] ?? 0) + 1;
     layerFeatureCounts.set(
       f.layerId,
@@ -790,6 +807,9 @@ export function buildSnapshot(doc: DrawingDocument, activeLayerName?: string): D
     layers,
     codesInUse: Array.from(codes),
     activeLayer: activeLayerName ?? null,
+    extents: Number.isFinite(exMinX)
+      ? { minNorthing: round(exMinY + originN), minEasting: round(exMinX + originE), maxNorthing: round(exMaxY + originN), maxEasting: round(exMaxX + originE) }
+      : null,
     linework,
     titleBlock: {
       firmName: tb.firmName,

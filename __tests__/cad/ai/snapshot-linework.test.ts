@@ -41,4 +41,15 @@ describe('buildSnapshot linework catalog', () => {
     expect(snap.activeLayer).toBe('BOUNDARY');
     expect(buildSnapshot(doc({})).activeLayer).toBeNull();
   });
+
+  it('computes the NE extents of visible features (null when empty)', () => {
+    const features = {
+      g1: { id: 'g1', type: 'POLYGON', geometry: { type: 'POLYGON', vertices: [
+        { x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 15 }, { x: 0, y: 15 },
+      ] }, layerId: 'L', style: STYLE, properties: {} } as unknown as Feature,
+    };
+    const snap = buildSnapshot(doc(features));
+    expect(snap.extents).toEqual({ minNorthing: 0, minEasting: 0, maxNorthing: 15, maxEasting: 20 });
+    expect(buildSnapshot(doc({})).extents).toBeNull();
+  });
 });

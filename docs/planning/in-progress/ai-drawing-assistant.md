@@ -184,8 +184,10 @@ Goal: the model can reason about geometry it didn't select.
       stroke, guarded by fillColor).
 - [ ] DXF/PDF solid-hatch export of fills (defer — export hatch is a
       separate sizeable change; on-screen fill covers the design need first).
-- [ ] Scratch area + scale normalization (defer — the AI controls absolute
-      coordinates already; add only if art lands off-view in practice).
+- [x] Placement awareness: the snapshot now includes drawing `extents` (NE
+      bbox) so the AI can size/position art relative to the existing drawing.
+- [ ] Automatic scratch-area + scale normalization (defer — extents give the
+      model what it needs to self-place; auto-normalization adds little).
 - Acceptance: a recognizable, stylized illustration from a single prompt.
 
 ### Phase 7 — Visual verification harness (Playwright + OCR) 🚧 IN PROGRESS
