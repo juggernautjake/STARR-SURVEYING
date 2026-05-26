@@ -35,4 +35,10 @@ describe('buildSnapshot linework catalog', () => {
     expect(snap.linework[0].center).toEqual({ n: 5, e: 5 });
     expect(snap.linework[0].areaSqFt).toBe(100);
   });
+
+  it('reports the active layer name when provided', () => {
+    const snap = buildSnapshot(doc({}), 'BOUNDARY');
+    expect(snap.activeLayer).toBe('BOUNDARY');
+    expect(buildSnapshot(doc({})).activeLayer).toBeNull();
+  });
 });

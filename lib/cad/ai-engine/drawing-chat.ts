@@ -187,6 +187,9 @@ export interface DrawingChatRequest {
    *  so questions like "what are these points?" resolve to the actual
    *  selection. */
   selectedIds?: string[];
+  /** Name of the active (default) layer new geometry lands on when no
+   *  layerName is given. */
+  activeLayerName?: string;
   signal?: AbortSignal;
 }
 
@@ -369,7 +372,7 @@ export async function handleDrawingChat(
 
   // The live drawing snapshot rides in the system prompt so it reflects the
   // current document on every turn without bloating the conversation history.
-  const snapshot = buildSnapshot(req.doc);
+  const snapshot = buildSnapshot(req.doc, req.activeLayerName);
   const selection = buildSelectionDigest(req.doc, req.selectedIds ?? []);
   const system = [
     SYSTEM_PROMPT,
@@ -725,13 +728,15 @@ interface DocSnapshot {
   /** Distinct point codes present in the drawing (capped), so the model can
    *  reuse the surveyor's coding scheme when building from coded points. */
   codesInUse:       string[];
+  /** Active layer new geometry defaults to (when no layerName is given). */
+  activeLayer:      string | null;
   /** Compact catalog of non-point linework (capped) so the AI can target
    *  features it didn't select, by id. */
   linework:         { id: string; type: string; layer: string; center: NE; lengthFt?: number; areaSqFt?: number }[];
   titleBlock:       Record<string, string>;
 }
 
-export function buildSnapshot(doc: DrawingDocument): DocSnapshot {
+export function buildSnapshot(doc: DrawingDocument, activeLayerName?: string): DocSnapshot {
   const settings = doc.settings;
   const tb = settings.titleBlock;
   const layerNameById = new Map<string, string>();
@@ -784,6 +789,7 @@ export function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     featureCounts,
     layers,
     codesInUse: Array.from(codes),
+    activeLayer: activeLayerName ?? null,
     linework,
     titleBlock: {
       firmName: tb.firmName,

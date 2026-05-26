@@ -241,11 +241,13 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
         // Send the live canvas selection so the model can answer about
         // exactly what the user has highlighted ("these points", etc.).
         const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
+        const drawState = useDrawingStore.getState();
+        const activeLayerName = drawState.document.layers[drawState.activeLayerId]?.name;
         try {
           const res = await fetch('/api/admin/cad/drawing-chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ doc, history, selectedIds }),
+            body: JSON.stringify({ doc, history, selectedIds, activeLayerName }),
           });
           const json = (await res.json().catch(() => ({}))) as {
             reply?: string;
