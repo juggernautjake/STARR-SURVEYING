@@ -412,6 +412,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
 
   const ops: UndoOperation[] = [];
   const notes: string[] = [];
+  let skipped = 0;
 
   // Find a layer by (case-insensitive) name, creating it if missing so the
   // AI can place geometry on STRUCTURES/FENCE/etc. without a separate step.
@@ -475,7 +476,8 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       case 'ARC': if (pts.length >= 3) { const arc = arcFrom3Points(pts[0], pts[1], pts[2]); if (arc) { geometry = { type: 'ARC', arc }; type = 'ARC'; } } break;
       case 'TEXT': if (pts[0] && spec.text && spec.text.trim()) { geometry = { type: 'TEXT', point: pts[0], textContent: spec.text, textRotation: ((spec.rotationDeg ?? 0) * Math.PI) / 180 }; type = 'TEXT'; } break;
     }
-    if (!geometry) continue;
+    if (!geometry) { skipped += 1; continue; }
+    if (isDegenerateGeometry(geometry)) { skipped += 1; continue; }
     const baseStyle = { ...DEFAULT_FEATURE_STYLE, ...drawing.getActiveLayerStyle() };
     const style = {
       ...baseStyle,
@@ -528,7 +530,8 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       geometry = { type: 'SPLINE', spline: { controlPoints: fitPointsToBezier(srcPts, !!spec.closed), isClosed: !!spec.closed } };
       type = 'SPLINE';
     }
-    if (!geometry) continue;
+    if (!geometry) { skipped += 1; continue; }
+    if (isDegenerateGeometry(geometry)) { skipped += 1; continue; }
 
     const baseStyle = { ...DEFAULT_FEATURE_STYLE, ...drawing.getActiveLayerStyle() };
     const style = {
@@ -647,12 +650,50 @@ export function applyEditDrawing(action: DrawingChatAction): string {
   }
   if (deleted) notes.push(`deleted ${deleted}`);
 
+  if (skipped > 0) notes.push(`skipped ${skipped} invalid/degenerate`);
   if (ops.length === 0 && notes.length === 0) return '⚠ No valid geometry edits in the action.';
   // Layer creation isn't a feature op; only push undo when geometry changed.
   if (ops.length > 0) {
     useUndoStore.getState().pushUndo(makeBatchEntry(action.description || 'AI drawing edit', ops));
   }
   return `✓ ${notes.join(', ')}.`;
+}
+
+/** Reject geometry that would render as nothing — non-finite coords, a
+ *  zero-length line, a zero-area polygon, a sub-epsilon radius, etc. — so
+ *  the AI can't litter the drawing with invisible/degenerate features. */
+function isDegenerateGeometry(g: FeatureGeometry): boolean {
+  const EPS = 1e-6;
+  const finite = (p?: Point2D) => !!p && Number.isFinite(p.x) && Number.isFinite(p.y);
+  const len = (a: Point2D, b: Point2D) => Math.hypot(b.x - a.x, b.y - a.y);
+  const polyArea = (vs: Point2D[]) => {
+    let a = 0;
+    for (let i = 0; i < vs.length; i += 1) { const p = vs[i], q = vs[(i + 1) % vs.length]; a += p.x * q.y - q.x * p.y; }
+    return Math.abs(a) / 2;
+  };
+  switch (g.type) {
+    case 'POINT': return !finite(g.point);
+    case 'TEXT': return !finite(g.point) || !((g.textContent ?? '').trim().length > 0);
+    case 'LINE': return !finite(g.start) || !finite(g.end) || len(g.start!, g.end!) < EPS;
+    case 'POLYLINE': {
+      const vs = g.vertices ?? [];
+      if (vs.length < 2 || !vs.every(finite)) return true;
+      let total = 0; for (let i = 0; i < vs.length - 1; i += 1) total += len(vs[i], vs[i + 1]);
+      return total < EPS;
+    }
+    case 'POLYGON': {
+      const vs = g.vertices ?? [];
+      return vs.length < 3 || !vs.every(finite) || polyArea(vs) < EPS;
+    }
+    case 'CIRCLE': return !g.circle || !finite(g.circle.center) || g.circle.radius < EPS;
+    case 'ELLIPSE': return !g.ellipse || !finite(g.ellipse.center) || g.ellipse.radiusX < EPS || g.ellipse.radiusY < EPS;
+    case 'ARC': return !g.arc || !finite(g.arc.center) || g.arc.radius < EPS;
+    case 'SPLINE': {
+      const cps = g.spline?.controlPoints ?? [];
+      return cps.length < 4 || !cps.every(finite);
+    }
+    default: return false;
+  }
 }
 
 function featurePoints(f: Feature): Point2D[] {

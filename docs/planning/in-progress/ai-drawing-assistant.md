@@ -110,11 +110,14 @@ Goal: the model can reason about geometry it didn't select.
 - Acceptance: "draw the house from these corner shots" yields a correct,
   layered, styled building.
 
-### Phase 5 — Verification & self-correction loop
+### Phase 5 — Verification & self-correction loop 🚧 IN PROGRESS
 - [ ] After Apply, feed the model a post-edit digest (what now exists) so it can
       verify and propose corrections.
-- [ ] Pre-Apply **validation + preview**: reject NaN/degenerate geometry, warn
-      on huge/zero shapes, show a ghost preview before commit.
+- [x] Pre-Apply **validation**: degenerate geometry (non-finite coords,
+      zero-length lines, zero-area polygons, sub-epsilon radii, <4-pt splines)
+      is rejected by `isDegenerateGeometry` and reported as "skipped N" in the
+      action summary (parse layer already drops non-finite coords).
+- [ ] Ghost **preview** before commit (UI; defer — needs canvas wiring).
 - [ ] Multi-step planning: allow the model to emit a short ordered plan of
       EDIT_DRAWING steps for complex art (e.g. Batman), applied sequentially.
 - Acceptance: complex multi-shape drawings render correctly; bad outputs are

@@ -161,6 +161,21 @@ describe('applyEditDrawing', () => {
     expect(useDrawingStore.getState().getFeature(id)!.style.lineTypeId).toBe('DASHED');
   });
 
+  it('skips degenerate geometry (zero-length line, zero-area polygon) and reports it', () => {
+    const summary = applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'mixed',
+      add: [
+        { shape: 'LINE', points: [{ northing: 5, easting: 5 }, { northing: 5, easting: 5 }] }, // zero length
+        { shape: 'POLYGON', points: [{ northing: 0, easting: 0 }, { northing: 0, easting: 10 }, { northing: 0, easting: 20 }] }, // collinear → 0 area
+        { shape: 'LINE', points: [{ northing: 0, easting: 0 }, { northing: 0, easting: 10 }] }, // valid
+      ],
+    });
+    const feats = useDrawingStore.getState().getAllFeatures();
+    expect(feats).toHaveLength(1);           // only the valid line
+    expect(feats[0].type).toBe('LINE');
+    expect(summary).toContain('skipped 2');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
