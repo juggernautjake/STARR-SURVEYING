@@ -1745,7 +1745,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const fi = parseInt(fc.replace('#', ''), 16);
       if (!Number.isFinite(fi)) return;
       g.lineStyle(0);
-      g.beginFill(fi, feature.style.fillOpacity ?? alpha);
+      g.beginFill(fi, Math.max(0, Math.min(1, feature.style.fillOpacity ?? alpha)));
       drawFn();
       g.endFill();
     };
@@ -1804,7 +1804,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (feature.style.fillColor) {
           const fillInt = parseInt(feature.style.fillColor.replace('#', ''), 16);
           if (Number.isFinite(fillInt)) {
-            g.beginFill(fillInt, feature.style.fillOpacity ?? alpha);
+            g.beginFill(fillInt, Math.max(0, Math.min(1, feature.style.fillOpacity ?? alpha)));
             g.moveTo(screenPts[0].x, screenPts[0].y);
             for (let i = 1; i < screenPts.length; i++) g.lineTo(screenPts[i].x, screenPts[i].y);
             g.closePath();
