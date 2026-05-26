@@ -44,10 +44,12 @@ import type {
   Layer,
   Point2D,
   SplineGeometry,
+  TextLabel,
 } from '../types';
 import type { AnnotationBase } from '../labels/annotation-types';
-import type { SymbolDefinition } from '../styles/types';
+import type { LineTypeDefinition, SymbolDefinition } from '../styles/types';
 import { findSymbol } from '../styles/symbol-library';
+import { findLineType } from '../styles/linetype-library';
 
 // ────────────────────────────────────────────────────────────
 // Public API
@@ -85,11 +87,13 @@ export function exportToDxf(
   );
   const layers = Object.values(doc.layers);
   const usedSymbols = collectUsedSymbols(features, doc);
+  const usedLineTypes = collectUsedLineTypes(features, layers, doc);
+  const usedStyles = collectUsedTextStyles(features, annotations);
   const extents = computeExtents(features);
 
   const lines: string[] = [];
   emitHeader(lines, extents);
-  emitTables(lines, layers);
+  emitTables(lines, layers, usedLineTypes, usedStyles);
   emitBlocks(lines, usedSymbols);
   emitEntities(lines, features, doc, splineSamples, annotations);
   emitEof(lines);
@@ -164,9 +168,26 @@ function emitHeader(
   push(lines, 0, 'ENDSEC');
 }
 
-function emitTables(lines: string[], layers: Layer[]): void {
+function emitTables(
+  lines: string[],
+  layers: Layer[],
+  usedLineTypes: Map<string, LineTypeDefinition>,
+  usedStyles: Map<string, string>
+): void {
   push(lines, 0, 'SECTION');
   push(lines, 2, 'TABLES');
+
+  // ── LTYPE table ───────────────────────────────────────────
+  // Linetypes must precede the LAYER table since layers reference
+  // them by name. CONTINUOUS is always present; every dashed type
+  // a layer or entity uses is emitted with its dash pattern so the
+  // dashes survive the round-trip into Traverse PC / AutoCAD.
+  push(lines, 0, 'TABLE');
+  push(lines, 2, 'LTYPE');
+  push(lines, 70, usedLineTypes.size + 1);
+  emitContinuousLType(lines);
+  for (const lt of usedLineTypes.values()) emitLTypeRow(lines, lt);
+  push(lines, 0, 'ENDTAB');
 
   // ── LAYER table ───────────────────────────────────────────
   push(lines, 0, 'TABLE');
@@ -174,21 +195,90 @@ function emitTables(lines: string[], layers: Layer[]): void {
   push(lines, 70, layers.length + 1); // +1 for the always-present "0"
 
   // AutoCAD always expects a layer named "0".
-  emitLayerRow(lines, '0', '#FFFFFF');
+  emitLayerRow(lines, '0', '#FFFFFF', 'CONTINUOUS', 0.25);
   for (const layer of layers) {
-    emitLayerRow(lines, dxfSafeName(layer.name || layer.id), layer.color);
+    emitLayerRow(
+      lines,
+      dxfSafeName(layer.name || layer.id),
+      layer.color,
+      dxfLineTypeName(layer.lineTypeId),
+      layer.lineWeight
+    );
   }
-
   push(lines, 0, 'ENDTAB');
+
+  // ── STYLE table ───────────────────────────────────────────
+  // Text styles carry the font so labels render with the right
+  // typeface after import rather than falling back to the default.
+  push(lines, 0, 'TABLE');
+  push(lines, 2, 'STYLE');
+  push(lines, 70, usedStyles.size + 1);
+  emitStyleRow(lines, 'STANDARD', 'Arial.ttf');
+  for (const [styleName, fontFile] of usedStyles) {
+    if (styleName === 'STANDARD') continue;
+    emitStyleRow(lines, styleName, fontFile);
+  }
+  push(lines, 0, 'ENDTAB');
+
   push(lines, 0, 'ENDSEC');
 }
 
-function emitLayerRow(lines: string[], name: string, hexColor: string): void {
+function emitContinuousLType(lines: string[]): void {
+  push(lines, 0, 'LTYPE');
+  push(lines, 2, 'CONTINUOUS');
+  push(lines, 70, 0);
+  push(lines, 3, 'Solid line');
+  push(lines, 72, 65); // alignment code 'A'
+  push(lines, 73, 0); // dash element count
+  push(lines, 40, 0); // total pattern length
+}
+
+function emitLTypeRow(lines: string[], lt: LineTypeDefinition): void {
+  // DXF dash pattern: positive = dash (pen down), negative = gap
+  // (pen up). Our dashPattern alternates [dash, gap, dash, gap…].
+  const elements = lt.dashPattern.map((len, i) =>
+    i % 2 === 0 ? Math.abs(len) : -Math.abs(len)
+  );
+  const total = elements.reduce((s, e) => s + Math.abs(e), 0);
+  push(lines, 0, 'LTYPE');
+  push(lines, 2, dxfLineTypeName(lt.id));
+  push(lines, 70, 0);
+  push(lines, 3, lt.name);
+  push(lines, 72, 65); // 'A' alignment
+  push(lines, 73, elements.length);
+  push(lines, 40, total);
+  for (const e of elements) {
+    push(lines, 49, e);
+    push(lines, 74, 0);
+  }
+}
+
+function emitStyleRow(lines: string[], name: string, fontFile: string): void {
+  push(lines, 0, 'STYLE');
+  push(lines, 2, name);
+  push(lines, 70, 0);
+  push(lines, 40, 0); // non-fixed text height
+  push(lines, 41, 1); // width factor
+  push(lines, 50, 0); // oblique angle
+  push(lines, 71, 0);
+  push(lines, 42, 0.2); // last height used
+  push(lines, 3, fontFile); // primary font file (TrueType)
+  push(lines, 4, ''); // big font file
+}
+
+function emitLayerRow(
+  lines: string[],
+  name: string,
+  hexColor: string,
+  lineTypeName: string,
+  lineWeightMm: number
+): void {
   push(lines, 0, 'LAYER');
   push(lines, 2, name);
   push(lines, 70, 0); // flags: 0 = visible, unfrozen, unlocked
   push(lines, 62, hexToAci(hexColor)); // legacy ACI fallback
-  push(lines, 6, 'CONTINUOUS'); // line type
+  push(lines, 6, lineTypeName); // line type
+  push(lines, 370, snapLineWeight(lineWeightMm)); // lineweight (1/100 mm)
   push(lines, 420, hexToTrueColor(hexColor)); // 32-bit true color
 }
 
@@ -204,8 +294,10 @@ function emitEntities(
 
   for (const f of features) {
     const layerName = layerNameFor(f, doc);
-    emitFeature(lines, f, layerName, splineSamples);
+    const attribs = entityAttribsFor(f, doc);
+    emitFeature(lines, f, layerName, splineSamples, attribs);
     emitFeatureSymbol(lines, f, layerName, doc);
+    emitFeatureLabels(lines, f, doc);
   }
 
   for (const a of annotations) {
@@ -213,6 +305,48 @@ function emitEntities(
   }
 
   push(lines, 0, 'ENDSEC');
+}
+
+// ────────────────────────────────────────────────────────────
+// Per-entity style overrides (color / linetype / lineweight)
+// ────────────────────────────────────────────────────────────
+
+interface EntityAttribs {
+  lineType?: string;
+  lineWeight?: number; // 1/100 mm
+  aci?: number;
+  trueColor?: number;
+}
+
+/** Resolve the group codes for a feature's style when it overrides
+ *  its layer. Returns undefined codes for inherited (ByLayer) props
+ *  so the layer table stays the single source of truth. */
+function entityAttribsFor(f: Feature, doc: DrawingDocument): EntityAttribs {
+  const layer = doc.layers[f.layerId];
+  const s = f.style;
+  const out: EntityAttribs = {};
+  if (s?.lineTypeId && s.lineTypeId !== layer?.lineTypeId) {
+    out.lineType = dxfLineTypeName(s.lineTypeId);
+  }
+  if (s?.lineWeight != null) {
+    out.lineWeight = snapLineWeight(s.lineWeight);
+  }
+  if (s?.color) {
+    out.aci = hexToAci(s.color);
+    out.trueColor = hexToTrueColor(s.color);
+  }
+  return out;
+}
+
+/** Emit override group codes right after an entity's layer (8) code. */
+function pushAttribs(lines: string[], attribs?: EntityAttribs): void {
+  if (!attribs) return;
+  if (attribs.lineType) push(lines, 6, attribs.lineType);
+  if (attribs.aci != null) push(lines, 62, attribs.aci);
+  if (attribs.lineWeight != null && attribs.lineWeight >= 0) {
+    push(lines, 370, attribs.lineWeight);
+  }
+  if (attribs.trueColor != null) push(lines, 420, attribs.trueColor);
 }
 
 function emitEof(lines: string[]): void {
@@ -227,67 +361,103 @@ function emitFeature(
   lines: string[],
   f: Feature,
   layerName: string,
-  splineSamples: number
+  splineSamples: number,
+  attribs?: EntityAttribs
 ): void {
   const g = f.geometry;
   switch (f.type) {
     case 'POINT':
-      if (g.point) emitPoint(lines, layerName, g.point);
-      else if (g.start) emitPoint(lines, layerName, g.start);
+      if (g.point) emitPoint(lines, layerName, g.point, attribs);
+      else if (g.start) emitPoint(lines, layerName, g.start, attribs);
       return;
     case 'LINE':
-      if (g.start && g.end) emitLine(lines, layerName, g.start, g.end);
+      if (g.start && g.end) emitLine(lines, layerName, g.start, g.end, attribs);
       return;
     case 'POLYLINE':
       if (g.vertices && g.vertices.length >= 2) {
-        emitLwPolyline(lines, layerName, g.vertices, false);
+        emitLwPolyline(lines, layerName, g.vertices, false, attribs);
       }
       return;
     case 'POLYGON':
       // Polygons sometimes carry a `circle` (the renderer's
       // "round polygon" trick); emit as CIRCLE in that case.
       if (g.circle) {
-        emitCircle(lines, layerName, g.circle);
+        emitCircle(lines, layerName, g.circle, attribs);
       } else if (g.vertices && g.vertices.length >= 3) {
-        emitLwPolyline(lines, layerName, g.vertices, true);
+        emitLwPolyline(lines, layerName, g.vertices, true, attribs);
       }
       return;
     case 'CIRCLE':
-      if (g.circle) emitCircle(lines, layerName, g.circle);
+      if (g.circle) emitCircle(lines, layerName, g.circle, attribs);
       return;
     case 'ELLIPSE':
-      if (g.ellipse) emitEllipse(lines, layerName, g.ellipse);
+      if (g.ellipse) emitEllipse(lines, layerName, g.ellipse, attribs);
       return;
     case 'ARC':
-      if (g.arc) emitArc(lines, layerName, g.arc);
+      if (g.arc) emitArc(lines, layerName, g.arc, attribs);
       return;
     case 'SPLINE':
       if (g.spline) {
         const pts = sampleBezierSpline(g.spline, splineSamples);
         if (pts.length >= 2) {
-          emitLwPolyline(lines, layerName, pts, g.spline.isClosed);
+          emitLwPolyline(lines, layerName, pts, g.spline.isClosed, attribs);
         }
       }
       return;
     case 'MIXED_GEOMETRY':
       if (g.vertices && g.vertices.length >= 2) {
         for (let i = 0; i < g.vertices.length - 1; i += 1) {
-          emitLine(lines, layerName, g.vertices[i], g.vertices[i + 1]);
+          emitLine(lines, layerName, g.vertices[i], g.vertices[i + 1], attribs);
         }
       }
       return;
     case 'TEXT':
+      // Standalone text feature → TEXT entity at its anchor.
+      if (g.textContent) {
+        const pos = g.point ?? g.start ?? g.vertices?.[0];
+        if (pos) {
+          emitText(
+            lines,
+            layerName,
+            pos,
+            g.textContent,
+            textHeightFor(f),
+            ((g.textRotation ?? 0) * 180) / Math.PI,
+            0,
+            0
+          );
+        }
+      }
+      return;
     case 'IMAGE':
-      // §10.3 annotation slice — not in this slice.
       return;
     default:
       return;
   }
 }
 
-function emitPoint(lines: string[], layer: string, p: Point2D): void {
+/** World-unit text height for a standalone TEXT feature, derived
+ *  the same way the canvas sizes label text. */
+function textHeightFor(f: Feature): number {
+  const ptSize =
+    (f.properties?.fontSize as number | undefined) ??
+    (f.textLabels?.[0]?.style?.fontSize as number | undefined) ??
+    10;
+  // Without a drawing scale here we fall back to the point size in
+  // world units; standalone text features are rare and the surveyor
+  // can rescale on import.
+  return Math.max(0.01, ptSize);
+}
+
+function emitPoint(
+  lines: string[],
+  layer: string,
+  p: Point2D,
+  attribs?: EntityAttribs
+): void {
   push(lines, 0, 'POINT');
   push(lines, 8, layer);
+  pushAttribs(lines, attribs);
   push(lines, 10, p.x);
   push(lines, 20, p.y);
   push(lines, 30, 0);
@@ -297,10 +467,12 @@ function emitLine(
   lines: string[],
   layer: string,
   a: Point2D,
-  b: Point2D
+  b: Point2D,
+  attribs?: EntityAttribs
 ): void {
   push(lines, 0, 'LINE');
   push(lines, 8, layer);
+  pushAttribs(lines, attribs);
   push(lines, 10, a.x);
   push(lines, 20, a.y);
   push(lines, 30, 0);
@@ -313,10 +485,12 @@ function emitLwPolyline(
   lines: string[],
   layer: string,
   vertices: Point2D[],
-  closed: boolean
+  closed: boolean,
+  attribs?: EntityAttribs
 ): void {
   push(lines, 0, 'LWPOLYLINE');
   push(lines, 8, layer);
+  pushAttribs(lines, attribs);
   push(lines, 90, vertices.length);
   push(lines, 70, closed ? 1 : 0);
   for (const v of vertices) {
@@ -328,10 +502,12 @@ function emitLwPolyline(
 function emitCircle(
   lines: string[],
   layer: string,
-  c: CircleGeometry
+  c: CircleGeometry,
+  attribs?: EntityAttribs
 ): void {
   push(lines, 0, 'CIRCLE');
   push(lines, 8, layer);
+  pushAttribs(lines, attribs);
   push(lines, 10, c.center.x);
   push(lines, 20, c.center.y);
   push(lines, 30, 0);
@@ -341,7 +517,8 @@ function emitCircle(
 function emitEllipse(
   lines: string[],
   layer: string,
-  e: EllipseGeometry
+  e: EllipseGeometry,
+  attribs?: EntityAttribs
 ): void {
   // DXF ELLIPSE wants the major-axis end relative to center.
   const cosR = Math.cos(e.rotation);
@@ -352,6 +529,7 @@ function emitEllipse(
 
   push(lines, 0, 'ELLIPSE');
   push(lines, 8, layer);
+  pushAttribs(lines, attribs);
   push(lines, 10, e.center.x);
   push(lines, 20, e.center.y);
   push(lines, 30, 0);
@@ -363,7 +541,12 @@ function emitEllipse(
   push(lines, 42, Math.PI * 2); // end parameter
 }
 
-function emitArc(lines: string[], layer: string, a: ArcGeometry): void {
+function emitArc(
+  lines: string[],
+  layer: string,
+  a: ArcGeometry,
+  attribs?: EntityAttribs
+): void {
   // DXF ARC angles are in degrees, measured from east (X+),
   // CCW. Our internal angles use the same math convention but
   // are in radians, so convert. When the arc is clockwise we
@@ -374,6 +557,7 @@ function emitArc(lines: string[], layer: string, a: ArcGeometry): void {
   const [s, e] = a.anticlockwise ? [startDeg, endDeg] : [endDeg, startDeg];
   push(lines, 0, 'ARC');
   push(lines, 8, layer);
+  pushAttribs(lines, attribs);
   push(lines, 10, a.center.x);
   push(lines, 20, a.center.y);
   push(lines, 30, 0);
@@ -465,6 +649,101 @@ function walkPoints(g: FeatureGeometry, visit: (p: Point2D) => void): void {
     visit({ x: g.arc.center.x + g.arc.radius, y: g.arc.center.y + g.arc.radius });
   }
   if (g.spline) for (const v of g.spline.controlPoints) visit(v);
+}
+
+// ────────────────────────────────────────────────────────────
+// Linetype + lineweight + text-style helpers
+// ────────────────────────────────────────────────────────────
+
+/** Map an internal linetype id to a DXF linetype name. SOLID and
+ *  unknown ids collapse to CONTINUOUS (DXF's built-in solid). */
+function dxfLineTypeName(id: string | null | undefined): string {
+  if (!id || id === 'SOLID') return 'CONTINUOUS';
+  return dxfSafeName(id);
+}
+
+/** Gather every dashed linetype referenced by a used layer or by a
+ *  feature override, keyed by DXF name. Solid lines need no entry. */
+function collectUsedLineTypes(
+  features: Feature[],
+  layers: Layer[],
+  doc: DrawingDocument
+): Map<string, LineTypeDefinition> {
+  const out = new Map<string, LineTypeDefinition>();
+  const consider = (id: string | null | undefined) => {
+    if (!id || id === 'SOLID') return;
+    const name = dxfSafeName(id);
+    if (out.has(name)) return;
+    const def = findLineType(id, doc.customLineTypes ?? []);
+    // Only patterns with real dashes can be expressed as a DXF
+    // LTYPE; symbol/special-renderer linetypes fall back to solid
+    // (their geometry still ports, just without the inline glyphs).
+    if (def && def.dashPattern.length > 0) out.set(name, def);
+  };
+  for (const layer of layers) consider(layer.lineTypeId);
+  for (const f of features) consider(f.style?.lineTypeId);
+  return out;
+}
+
+/** DXF lineweight enum values (in 1/100 mm). Group 370 must be one
+ *  of these; we snap the nearest so AutoCAD/Traverse PC accept it. */
+const DXF_LINEWEIGHTS = [
+  0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90,
+  100, 106, 120, 140, 158, 200, 211,
+];
+
+function snapLineWeight(mm: number | null | undefined): number {
+  if (mm == null || !Number.isFinite(mm) || mm <= 0) return -1; // ByLayer/default
+  const hundredths = mm * 100;
+  let best = DXF_LINEWEIGHTS[0];
+  let bestErr = Infinity;
+  for (const v of DXF_LINEWEIGHTS) {
+    const err = Math.abs(v - hundredths);
+    if (err < bestErr) {
+      bestErr = err;
+      best = v;
+    }
+  }
+  return best;
+}
+
+/** Sanitised, unique DXF STYLE name for a font family. */
+function fontStyleName(font: string | null | undefined): string {
+  const f = (font ?? '').trim();
+  if (!f) return 'STANDARD';
+  return dxfSafeName(f.toUpperCase().replace(/\s+/g, '_'));
+}
+
+/** Map a font family to a TrueType file name for the STYLE table. */
+function fontFileFor(font: string | null | undefined): string {
+  const f = (font ?? '').trim();
+  if (!f) return 'Arial.ttf';
+  // Generic CSS families → a sensible TrueType default.
+  const lower = f.toLowerCase();
+  if (lower === 'serif') return 'Times New Roman.ttf';
+  if (lower === 'monospace') return 'Consolas.ttf';
+  if (lower === 'sans-serif') return 'Arial.ttf';
+  return `${f}.ttf`;
+}
+
+/** Collect the text styles used by annotations + feature labels. */
+function collectUsedTextStyles(
+  features: Feature[],
+  annotations: AnnotationBase[]
+): Map<string, string> {
+  const out = new Map<string, string>();
+  out.set('STANDARD', 'Arial.ttf');
+  const consider = (font: string | null | undefined) => {
+    const name = fontStyleName(font);
+    if (!out.has(name)) out.set(name, fontFileFor(font));
+  };
+  for (const a of annotations) {
+    consider((a as { font?: string }).font);
+  }
+  for (const f of features) {
+    for (const l of f.textLabels ?? []) consider(l.style?.fontFamily);
+  }
+  return out;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -693,6 +972,7 @@ function emitAnnotation(
   const layerName = a.layerId
     ? dxfSafeName(doc.layers[a.layerId]?.name ?? a.layerId)
     : 'ANNOTATIONS';
+  const styleName = fontStyleName((a as { font?: string }).font);
   switch (a.type) {
     case 'BEARING_DISTANCE': {
       const b = a as import('../labels/annotation-types').BearingDistanceDimension;
@@ -707,7 +987,7 @@ function emitAnnotation(
       const combined =
         [b.bearingText, b.distanceText].filter(Boolean).join('  ') ||
         `${b.bearing.toFixed(2)}°  ${b.distance.toFixed(2)}'`;
-      emitText(lines, layerName, mid, combined, b.fontSize, rotDeg, 1, 1);
+      emitText(lines, layerName, mid, combined, b.fontSize, rotDeg, 1, 1, styleName);
       return;
     }
     case 'CURVE_DATA': {
@@ -724,7 +1004,8 @@ function emitAnnotation(
           c.fontSize,
           0,
           0,
-          0
+          0,
+          styleName
         );
         cursorY -= c.fontSize * lineSpacing;
       }
@@ -742,7 +1023,8 @@ function emitAnnotation(
         m.fontSize,
         0,
         0,
-        0
+        0,
+        styleName
       );
       return;
     }
@@ -756,7 +1038,8 @@ function emitAnnotation(
         ar.fontSize,
         0,
         1,
-        1
+        1,
+        styleName
       );
       return;
     }
@@ -777,7 +1060,8 @@ function emitAnnotation(
         t.fontSize,
         (t.rotation * 180) / Math.PI,
         halign,
-        valign
+        valign,
+        styleName
       );
       return;
     }
@@ -797,13 +1081,105 @@ function emitAnnotation(
           l.fontSize,
           0,
           0,
-          0
+          0,
+          styleName
         );
       }
       return;
     }
     default:
       return;
+  }
+}
+
+/**
+ * Emit a feature's on-canvas text labels (point names, elevations,
+ * descriptions, segment bearings/distances, area/perimeter) as TEXT
+ * entities. World position + height mirror the canvas renderer so
+ * the labels land in the same place and size after import.
+ */
+function emitFeatureLabels(
+  lines: string[],
+  f: Feature,
+  doc: DrawingDocument
+): void {
+  const labels = f.textLabels;
+  if (!labels || labels.length === 0) return;
+  const layerName = layerNameFor(f, doc);
+  const drawingScale = doc.settings.drawingScale ?? 50;
+  const g = f.geometry;
+
+  const bearingLabels = labels.filter((l) => l.kind === 'BEARING');
+  const distLabels = labels.filter((l) => l.kind === 'DISTANCE');
+
+  for (const label of labels) {
+    if (!label.visible || !label.text) continue;
+
+    const anchor = labelAnchor(label, g, bearingLabels, distLabels);
+    if (!anchor) continue;
+
+    const scale = label.userPositioned ? 1 : label.scale;
+    let worldDx: number;
+    let worldDy: number;
+    if (label.rotation !== null && !label.userPositioned) {
+      // Line-relative: x runs along the line, y perpendicular.
+      const theta = label.rotation;
+      const along = label.offset.x * scale;
+      const perp = label.offset.y * scale;
+      worldDx = Math.cos(theta) * along - Math.sin(theta) * perp;
+      worldDy = Math.sin(theta) * along + Math.cos(theta) * perp;
+    } else {
+      worldDx = label.offset.x * scale;
+      worldDy = label.offset.y * scale;
+    }
+
+    const pos = { x: anchor.x + worldDx, y: anchor.y + worldDy };
+    const height = (label.style.fontSize / 72) * drawingScale * scale;
+    const rotDeg = label.rotation !== null ? (label.rotation * 180) / Math.PI : 0;
+    const styleName = fontStyleName(label.style.fontFamily);
+    emitText(lines, layerName, pos, label.text, height, rotDeg, 1, 2, styleName);
+  }
+}
+
+function labelAnchor(
+  label: TextLabel,
+  g: FeatureGeometry,
+  bearingLabels: TextLabel[],
+  distLabels: TextLabel[]
+): Point2D | null {
+  switch (label.kind) {
+    case 'POINT_NAME':
+    case 'POINT_DESCRIPTION':
+    case 'POINT_ELEVATION':
+    case 'POINT_COORDINATES':
+      return g.point ?? g.start ?? null;
+    case 'BEARING':
+    case 'DISTANCE': {
+      if (g.type === 'LINE' && g.start && g.end) return midpoint(g.start, g.end);
+      if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
+        const idx =
+          label.kind === 'BEARING'
+            ? bearingLabels.indexOf(label)
+            : distLabels.indexOf(label);
+        const verts = g.vertices;
+        const maxSeg = g.type === 'POLYGON' ? verts.length : verts.length - 1;
+        if (idx >= 0 && idx < maxSeg) {
+          return midpoint(verts[idx], verts[(idx + 1) % verts.length]);
+        }
+      }
+      return null;
+    }
+    case 'AREA':
+    case 'PERIMETER': {
+      if (g.vertices && g.vertices.length >= 3) {
+        const cx = g.vertices.reduce((s, v) => s + v.x, 0) / g.vertices.length;
+        const cy = g.vertices.reduce((s, v) => s + v.y, 0) / g.vertices.length;
+        return { x: cx, y: cy };
+      }
+      return null;
+    }
+    default:
+      return null;
   }
 }
 
@@ -815,7 +1191,8 @@ function emitText(
   height: number,
   rotationDeg: number,
   halign: number,
-  valign: number
+  valign: number,
+  styleName?: string
 ): void {
   push(lines, 0, 'TEXT');
   push(lines, 8, layer);
@@ -825,6 +1202,7 @@ function emitText(
   push(lines, 40, Math.max(0.01, height));
   push(lines, 1, text);
   push(lines, 50, normalizeDeg(rotationDeg));
+  if (styleName && styleName !== 'STANDARD') push(lines, 7, styleName);
   push(lines, 72, halign);
   push(lines, 73, valign);
   // When halign/valign are non-zero, AutoCAD reads the alignment

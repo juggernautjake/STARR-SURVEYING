@@ -73,7 +73,13 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
     setSaving(true);
     setSaveError(null);
     try {
-      const doc = drawingStore.document;
+      // Persist the chosen name onto the document itself so the
+      // title bar, title block, and saved envelope all reflect it —
+      // not just the cloud record's metadata row. Read the fresh
+      // document back so the saved payload carries the new name.
+      const finalName = saveName.trim() || drawingStore.document.name;
+      drawingStore.updateDocumentName(finalName);
+      const doc = useDrawingStore.getState().document;
       const featureCount = Object.keys(doc.features).length;
       const layerCount = Object.keys(doc.layers).length;
 
@@ -87,7 +93,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
 
       const payload = {
         id: savedId ?? undefined,
-        name: saveName.trim() || doc.name,
+        name: finalName,
         description: saveDesc.trim() || undefined,
         document: { version: '1.0', application: 'starr-cad', document: doc },
         feature_count: featureCount,
@@ -141,6 +147,11 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
       const body = await res.json() as { drawing: { document: unknown; name?: string; description?: string | null } };
       const payload = body.drawing.document as { document?: unknown };
       const doc = validateAndMigrateDocument(payload?.document ?? payload);
+      // The cloud record's name is the source of truth for the title
+      // (it can be renamed from the list without rewriting the stored
+      // document). Adopt it before loading so the title bar matches.
+      const recordName = body.drawing.name?.trim();
+      if (recordName) doc.name = recordName;
       drawingStore.loadDocument(doc);
       selectionStore.deselectAll();
       undoStore.clear();

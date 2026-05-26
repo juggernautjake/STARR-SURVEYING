@@ -2319,7 +2319,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const ds         = drawingScale ?? 50;
     const scaleLabel = tb.scaleLabel || `1" = ${ds}'`;
 
-    drawCell('PROJECT',        tb.projectName     || '', 'projectName',     tbScrLeft, dataTop,             halfTbW, rowH);
+    drawCell('PROJECT',        tb.projectName     || doc.name || '', 'projectName',     tbScrLeft, dataTop,             halfTbW, rowH);
     drawCell('JOB NO.',        tb.projectNumber   || '', 'projectNumber',   midX,      dataTop,             halfTbW, rowH);
     drawCell('CLIENT / OWNER', tb.clientName      || '', 'clientName',      tbScrLeft, dataTop + rowH,      halfTbW, rowH);
     drawCell('DATE',           tb.surveyDate      || '', 'surveyDate',      midX,      dataTop + rowH,      halfTbW, rowH);

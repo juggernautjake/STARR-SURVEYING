@@ -35,9 +35,12 @@ import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store'
 interface MenuItem {
   label: string;
   shortcut?: string;
-  action: () => void;
+  action?: () => void;
   separator?: false;
   disabled?: boolean;
+  /** When present, the item is a parent that reveals a flyout of
+   *  these entries on hover instead of firing an action. */
+  submenu?: MenuEntry[];
 }
 interface SeparatorItem {
   separator: true;
@@ -51,6 +54,7 @@ interface MenuDef {
 
 export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel, onOpenRecentRecoveries }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void; onOpenRecentRecoveries?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
@@ -451,20 +455,31 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'Save to Cloud…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
         { label: 'Save a copy (local .starr)…', action: () => { saveLocalCopy(); setOpenMenu(null); } },
         { separator: true },
-        { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
-        { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
-        { label: 'Export for Traverse PC (PNEZD)…', action: () => { exportTraversePc(); setOpenMenu(null); } },
-        { label: '📦 Export Traverse PC bundle (zip)…', action: () => { void exportTraversePcBundle(); setOpenMenu(null); } },
-        { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
-        { label: 'Export as LandXML…', action: () => { exportLandXml(); setOpenMenu(null); } },
-        { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
-        { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
-        { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
-        { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
-        { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
-        { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
-        { separator: true },
-        { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
+        {
+          label: 'Export',
+          submenu: [
+            { label: 'Export as CSV (simplified)…', action: () => { exportCsv('simplified'); setOpenMenu(null); } },
+            { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
+            { separator: true },
+            { label: 'Export for Traverse PC (PNEZD)…', action: () => { exportTraversePc(); setOpenMenu(null); } },
+            { label: '📦 Export Traverse PC bundle (zip)…', action: () => { void exportTraversePcBundle(); setOpenMenu(null); } },
+            { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
+            { label: 'Export as LandXML…', action: () => { exportLandXml(); setOpenMenu(null); } },
+            { separator: true },
+            { label: 'Export as PDF (sealed)…', action: () => { exportPdf(); setOpenMenu(null); } },
+            { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
+            { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
+            { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
+          ],
+        },
+        {
+          label: 'Import',
+          submenu: [
+            { label: 'Import Survey Data (CSV / RW5 / JobXML)…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
+            { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
+            { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
+          ],
+        },
         { separator: true },
         {
           label: '📜 Survey description…',
@@ -760,8 +775,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         <div key={menu.label} className="relative">
           <button
             className={`px-3 py-1.5 hover:bg-gray-700 transition-colors ${openMenu === menu.label ? 'bg-gray-700' : ''}`}
-            onClick={() => setOpenMenu(openMenu === menu.label ? null : menu.label)}
-            onMouseEnter={() => openMenu !== null && setOpenMenu(menu.label)}
+            onClick={() => { setOpenMenu(openMenu === menu.label ? null : menu.label); setOpenSubmenu(null); }}
+            onMouseEnter={() => { if (openMenu !== null) { setOpenMenu(menu.label); setOpenSubmenu(null); } }}
           >
             {menu.label}
           </button>
@@ -769,34 +784,86 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           {openMenu === menu.label && (
             <div
               className="absolute top-full left-0 z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px] animate-[slideInDown_150ms_cubic-bezier(0.16,1,0.3,1)]"
-              onMouseLeave={() => setOpenMenu(null)}
+              onMouseLeave={() => { setOpenMenu(null); setOpenSubmenu(null); }}
             >
-              {menu.items.map((item, idx) =>
-                'separator' in item && item.separator ? (
-                  <div key={idx} className="my-1 border-t border-gray-600" />
-                ) : (
+              {menu.items.map((item, idx) => {
+                if ('separator' in item && item.separator) {
+                  return <div key={idx} className="my-1 border-t border-gray-600" />;
+                }
+                const mi = item as MenuItem;
+                if (mi.submenu) {
+                  return (
+                    <div
+                      key={idx}
+                      className="relative"
+                      onMouseEnter={() => setOpenSubmenu(mi.label)}
+                      onMouseLeave={() => setOpenSubmenu(null)}
+                    >
+                      <button
+                        className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition-colors duration-100 hover:bg-gray-700 hover:text-white ${
+                          openSubmenu === mi.label ? 'bg-gray-700 text-white' : ''
+                        }`}
+                      >
+                        <span>{mi.label}</span>
+                        <span className="text-gray-400 text-[10px] ml-4">▸</span>
+                      </button>
+                      {openSubmenu === mi.label && (
+                        <div className="absolute top-0 left-full -ml-px z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[240px] animate-[slideInDown_120ms_cubic-bezier(0.16,1,0.3,1)]">
+                          {mi.submenu.map((sub, sidx) =>
+                            'separator' in sub && sub.separator ? (
+                              <div key={sidx} className="my-1 border-t border-gray-600" />
+                            ) : (
+                              <button
+                                key={sidx}
+                                className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition-colors duration-100 ${
+                                  (sub as MenuItem).disabled
+                                    ? 'opacity-40 cursor-default'
+                                    : 'hover:bg-gray-700 hover:text-white'
+                                }`}
+                                disabled={(sub as MenuItem).disabled}
+                                onClick={() => {
+                                  if (!(sub as MenuItem).disabled) {
+                                    (sub as MenuItem).action?.();
+                                    setOpenMenu(null);
+                                    setOpenSubmenu(null);
+                                  }
+                                }}
+                              >
+                                <span>{(sub as MenuItem).label}</span>
+                                {(sub as MenuItem).shortcut && (
+                                  <span className="text-gray-500 text-[10px] ml-4">{(sub as MenuItem).shortcut}</span>
+                                )}
+                              </button>
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                return (
                   <button
                     key={idx}
                     className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition-colors duration-100 ${
-                      (item as MenuItem).disabled
-                        ? 'opacity-40 cursor-default'
-                        : 'hover:bg-gray-700 hover:text-white'
+                      mi.disabled ? 'opacity-40 cursor-default' : 'hover:bg-gray-700 hover:text-white'
                     }`}
-                    disabled={(item as MenuItem).disabled}
+                    disabled={mi.disabled}
+                    onMouseEnter={() => setOpenSubmenu(null)}
                     onClick={() => {
-                      if (!(item as MenuItem).disabled) {
-                        (item as MenuItem).action();
+                      if (!mi.disabled) {
+                        mi.action?.();
                         setOpenMenu(null);
+                        setOpenSubmenu(null);
                       }
                     }}
                   >
-                    <span>{(item as MenuItem).label}</span>
-                    {(item as MenuItem).shortcut && (
-                      <span className="text-gray-500 text-[10px] ml-4">{(item as MenuItem).shortcut}</span>
+                    <span>{mi.label}</span>
+                    {mi.shortcut && (
+                      <span className="text-gray-500 text-[10px] ml-4">{mi.shortcut}</span>
                     )}
                   </button>
-                ),
-              )}
+                );
+              })}
             </div>
           )}
         </div>
@@ -875,7 +942,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
       {openMenu && (
         <div
           className="fixed inset-0 z-40 animate-[fadeIn_100ms_ease-out]"
-          onClick={() => setOpenMenu(null)}
+          onClick={() => { setOpenMenu(null); setOpenSubmenu(null); }}
         />
       )}
 
