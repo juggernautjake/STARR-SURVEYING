@@ -399,6 +399,16 @@ describe('applyEditDrawing', () => {
     expect(poly.geometry.vertices).toHaveLength(4); // bogus coord dropped
   });
 
+  it('sets elevation on a created point', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'pt',
+      add: [{ shape: 'POINT', points: [{ northing: 1, easting: 1 }], elevation: 642.5, pointNumber: '10' }],
+    });
+    const f = useDrawingStore.getState().getAllFeatures()[0];
+    expect(f.properties.elevation).toBe(642.5);
+    expect(f.properties.pointNumber).toBe('10');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

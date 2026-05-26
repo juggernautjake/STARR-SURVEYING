@@ -95,6 +95,7 @@ export interface ChatFeatureSpec {
   lineType?:    string;       // line-type id (e.g. DASHED, FENCE_BARBED_WIRE)
   symbol?:      string;       // symbol id to render at a POINT (e.g. UTIL_POLE)
   pointNumber?: string;       // POINT only
+  elevation?:   number;       // POINT Z (feet)
   code?:        string;
   description?: string;
 }
@@ -227,7 +228,7 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "patch": { "<field>": "<newValue>", ... },
     "layerName": "<layer name>",
     "instruction": "<re-run prompt>",
-    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "fill": "<#hex area fill, closed shapes>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<DASHED|DOTTED|CENTER|FENCE_BARBED_WIRE|…>", "layerName": "<optional>", "pointNumber": "<POINT only>", "code": "<optional>", "description": "<optional>" } ],
+    "add": [ { "shape": "POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT", "points": [ { "northing": <n>, "easting": <e> }, ... ], "text": "<TEXT content, placed at points[0]>", "closed": <bool, SPLINE/POLYLINE>, "radius": <ft, CIRCLE>, "radiusX": <ft, ELLIPSE>, "radiusY": <ft, ELLIPSE>, "rotationDeg": <ELLIPSE>, "color": "<#hex>", "fill": "<#hex area fill, closed shapes>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<DASHED|DOTTED|CENTER|FENCE_BARBED_WIRE|…>", "layerName": "<optional>", "pointNumber": "<POINT only>", "elevation": "<POINT Z, ft>", "code": "<optional>", "description": "<optional>" } ],
     "deleteIds": [ "<featureId>", ... ],
     "modify": [ { "id": "<featureId>", "points": [ { "northing": <n>, "easting": <e> }, ... ], "color": "<#hex>", "fill": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "lineType": "<id>", "symbol": "<id>", "layerName": "<move to layer>" } ],
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
@@ -548,6 +549,7 @@ function parseEditFields(a: Record<string, unknown>): EditFields {
       const rotationDeg = num(o.rotationDeg);
       const opacity = num(o.opacity);
       const lineWeight = num(o.lineWeight);
+      const elevation = num(o.elevation);
       add.push({
         shape: shape as ChatShape,
         points,
@@ -565,6 +567,7 @@ function parseEditFields(a: Record<string, unknown>): EditFields {
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
         ...(typeof o.color === 'string' ? { color: o.color } : {}),
         ...(typeof o.pointNumber === 'string' ? { pointNumber: o.pointNumber } : {}),
+        ...(elevation !== null ? { elevation } : {}),
         ...(typeof o.code === 'string' ? { code: o.code } : {}),
         ...(typeof o.description === 'string' ? { description: o.description } : {}),
       });

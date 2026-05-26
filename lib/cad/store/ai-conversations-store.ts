@@ -497,6 +497,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       style,
       properties: {
         ...(spec.pointNumber ? { pointNumber: spec.pointNumber } : {}),
+        ...(spec.elevation != null ? { elevation: spec.elevation } : {}),
         ...(spec.code ? { code: spec.code } : {}),
         ...(spec.description ? { description: spec.description } : {}),
       },
