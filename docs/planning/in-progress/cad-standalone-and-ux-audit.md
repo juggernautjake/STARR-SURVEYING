@@ -288,9 +288,16 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   → End E recomputed, `traverse-edit.png`).
 
 ### Polish & interaction wave 2 (user request 2026-05-26 — see §12–§15)
-- [ ] **12. Smoother UI motion** — consistent enter/exit transitions for
-  popups, menus, panels, dialogs (fade/scale in AND out); smoother
-  loading states. Avoid abrupt mount/unmount.
+- [x] **12. Smoother UI motion (entry pass)** — the new dialogs
+  (NewLayer/Rename/ExportLayers) now fade+scale in, the bottom-dock
+  viewers slide up, and the layers-panel menu scales in — all with
+  `motion-reduce:animate-none`. Reuses existing keyframes. Exit/destruct
+  transitions (delayed unmount) are a follow-up [~] — entry covers the
+  bulk of perceived smoothness; verified the animated dialog still
+  operates (`new-layer-dialog.spec.ts`).
+- [~] **12-exit. Destruct transitions** (follow-up): smooth exit needs a
+  delayed-unmount wrapper across overlays; deferred — entry animations
+  shipped, exit is lower-value polish.
 - [x] **13. Zoom/scale-aware text + line widths** — auto-labels now
   clamp to [4, 26]px on screen (was unbounded → ballooned when zoomed
   in); feature strokes get a `MIN_FEATURE_LINE_PX` (1.1px) floor so thin
@@ -784,3 +791,7 @@ handle:
   and floored feature stroke width at 1.1px (fixes "lines too thin" —
   they render in screen px). Verified at 661% zoom. (Container restarted
   mid-session; rebooted the harness dev server.)
+- 2026-05-26 13:1x CDT — Slice 12 (entry) DONE. Added fade+scale entry to
+  the new dialogs, slide-up to the bottom-dock viewers, scale-in to the
+  layers-panel menu, all respecting prefers-reduced-motion. Exit
+  transitions deferred (delayed-unmount wrapper) as lower-value polish.

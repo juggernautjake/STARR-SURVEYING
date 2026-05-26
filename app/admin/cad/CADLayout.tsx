@@ -1043,7 +1043,7 @@ export default function CADLayout() {
           onResize={setPointViewerHeight}
           ariaLabel="Resize point data viewer"
         />
-        <div className="border-t border-gray-700 shrink-0" style={{ height: pointViewerHeight }}>
+        <div className="border-t border-gray-700 shrink-0 animate-[slideInUp_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none" style={{ height: pointViewerHeight }}>
           <PointDataViewer
             open={showPointViewer}
             onClose={() => setShowPointViewer(false)}
@@ -1063,7 +1063,7 @@ export default function CADLayout() {
           onResize={setTraverseViewerHeight}
           ariaLabel="Resize traverse viewer"
         />
-        <div className="border-t border-gray-700 shrink-0" style={{ height: traverseViewerHeight }}>
+        <div className="border-t border-gray-700 shrink-0 animate-[slideInUp_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none" style={{ height: traverseViewerHeight }}>
           <TraverseViewer open={showTraverseViewer} onClose={() => setShowTraverseViewer(false)} />
         </div>
         </>

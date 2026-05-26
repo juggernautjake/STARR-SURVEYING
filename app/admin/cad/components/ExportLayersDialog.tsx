@@ -59,8 +59,8 @@ export default function ExportLayersDialog({ onClose }: { onClose: () => void })
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-sm text-sm text-gray-200">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out] motion-reduce:animate-none">
+      <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-sm text-sm text-gray-200 animate-[scaleIn_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700">
           <h2 className="font-semibold text-white">Export layers</h2>
           <button type="button" onClick={onClose} className="p-1 hover:bg-gray-700 rounded" aria-label="Close">

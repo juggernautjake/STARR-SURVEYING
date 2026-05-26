@@ -911,7 +911,7 @@ export default function LayerPanel() {
       {/* Panel-level (background) right-click menu — bulk layer actions. */}
       {panelMenu && (
         <div
-          className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-lg py-1 text-xs text-gray-200 min-w-[180px] animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)]"
+          className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-lg py-1 text-xs text-gray-200 min-w-[180px] animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none origin-top-left"
           style={{ top: panelMenu.y, left: panelMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
