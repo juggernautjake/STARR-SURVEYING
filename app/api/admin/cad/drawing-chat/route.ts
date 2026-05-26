@@ -74,6 +74,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const response = await handleDrawingChat({
       doc: body.doc,
       history: body.history,
+      selectedIds: Array.isArray(body.selectedIds) ? body.selectedIds : [],
     });
     console.log('[admin/cad/drawing-chat] ok', {
       doc_id: body.doc.id,
