@@ -163,8 +163,10 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   screenshot. (DWG out-of-scope — no DWG writer; DXF is the equivalent.)
 
 ### Resizable panels (the headline complaint)
-- [ ] **Left tool rail** (`width:52`, fixed) — keep icon rail fixed but
-  audit overflow on short viewports.
+- [x] **Left tool rail** (`width:52`, fixed) — VERIFIED on a 1280×600
+  viewport: the rail's `overflow-y-auto` lets lower tools (e.g. Text)
+  scroll into reach rather than clipping. No change needed.
+  (`tool-rail-short.spec.ts`)
 - [x] **Reusable resize primitive** — `lib/cad/ui/panel-size.ts` (pure
   clamp + localStorage, unit-tested), `usePanelSize` hook, and a
   keyboard-accessible `ResizeHandle` (`role="separator"`, arrow keys,
@@ -672,3 +674,5 @@ modal shows all fields; creating "Boundary" adds it to the panel.
 - 2026-05-26 12:2x CDT — Verified PropertyPanel populates on selection
   (object/layer/style/geometry fields) and the new-layer modal end-to-end.
   Full regression: 1261 CAD unit tests green, tsc clean.
+- 2026-05-26 12:3x CDT — Left tool rail audited on a short (600px)
+  viewport: it scrolls so lower tools stay reachable — no fix needed.
