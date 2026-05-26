@@ -76,14 +76,23 @@ Key files:
 ## 4. Action schema (EDIT_DRAWING) — shipped
 
 One action may combine all of:
-- `add[]` — `POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC` with
-  `points[]`, plus `closed`, `radius`, `radiusX/Y`, `rotationDeg`, `color`,
-  `opacity`, `lineWeight`, `layerName`, `pointNumber`, `code`, `description`.
-- `modify[]` — `{ id, points?, color?, opacity?, lineWeight? }`.
-- `transform` — `{ ids|'SELECTION', translate{north,east}, rotateDeg, scale, about }`.
+- `add[]` — `POINT|LINE|POLYLINE|POLYGON|SPLINE|CIRCLE|ELLIPSE|ARC|TEXT` with
+  `points[]`, plus `text`, `closed`, `radius`, `radiusX/Y`, `rotationDeg`,
+  `color`, `fill`, `opacity`, `lineWeight`, `lineType`, `symbol`, `layerName`,
+  `pointNumber`, `elevation`, `code`, `description`.
+- `fit[]` — `{ shape:RECTANGLE|CIRCLE|LINE|CURVE, fromIds[], points[], closed,
+  deleteSource, color, fill, opacity, lineWeight, layerName }`.
+- `modify[]` — `{ id, points?, color?, fill?, opacity?, lineWeight?, lineType?,
+  symbol?, layerName? }` (reshape / restyle / re-layer).
+- `transform` — `{ ids|'SELECTION', translate{north,east}, rotateDeg, scale,
+  about:'CENTROID'|{northing,easting} }` (no-op skipped).
+- `createLayers[]` — `{ name, color? }`.
+- `hideIds[]` / `unhideIds[]` — non-destructive visibility.
 - `deleteIds[]`.
 
-Executed as a single undoable batch; returns a human summary.
+Executed as a single undoable batch; degenerate geometry is rejected and
+reported; created features are auto-selected for iterative refinement.
+Returns a human summary.
 
 ## 5. Phase plan
 
