@@ -641,3 +641,8 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   Cancel. Added `rename-dialog.spec.ts`. The full point-identity feature
   (naming engine → draw wire-up → editable viewer → traverse viewer →
   guarded rename) is now end-to-end verified.
+- 2026-05-26 11:5x CDT — Verified export end-to-end: drew 2 points, Edit ▸
+  Select All, File ▸ Export ▸ "Export selection as CSV" → a real `.csv`
+  download fires (`export-download.spec.ts`). Confirms the whole
+  scope-export path (selection → scopeDocument → writer → file), not just
+  the menu wiring.
