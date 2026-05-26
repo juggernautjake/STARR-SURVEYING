@@ -46,6 +46,36 @@ describe('buildSelectionDigest', () => {
     });
   });
 
+  it('derives line endpoints, midpoint, and length', () => {
+    const line = {
+      id: 'l1', type: 'LINE',
+      geometry: { type: 'LINE', start: { x: 0, y: 0 }, end: { x: 30, y: 40 } },
+      layerId: 'L', style: STYLE, properties: {},
+    } as unknown as Feature;
+    const dig = buildSelectionDigest(doc({ l1: line }), ['l1']);
+    const it0 = dig.items[0];
+    expect(it0.start).toEqual({ n: 0, e: 0 });
+    expect(it0.end).toEqual({ n: 40, e: 30 });
+    expect(it0.midpoint).toEqual({ n: 20, e: 15 });
+    expect(it0.lengthFt).toBe(50); // 3-4-5 → 50
+  });
+
+  it('derives polygon centroid, perimeter, and area', () => {
+    const poly = {
+      id: 'g1', type: 'POLYGON',
+      geometry: { type: 'POLYGON', vertices: [
+        { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 },
+      ] },
+      layerId: 'L', style: STYLE, properties: {},
+    } as unknown as Feature;
+    const dig = buildSelectionDigest(doc({ g1: poly }), ['g1']);
+    const it0 = dig.items[0];
+    expect(it0.vertexCount).toBe(4);
+    expect(it0.centroid).toEqual({ n: 5, e: 5 });
+    expect(it0.lengthFt).toBe(40);   // perimeter of 10×10
+    expect(it0.areaSqFt).toBe(100);  // 10×10
+  });
+
   it('counts by type and ignores ids that are not in the document', () => {
     const d = doc({ p1: pt('p1', 0, 0), p2: pt('p2', 1, 1) });
     const dig = buildSelectionDigest(d, ['p1', 'p2', 'ghost']);

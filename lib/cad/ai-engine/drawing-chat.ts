@@ -576,6 +576,9 @@ interface DocSnapshot {
   sealHash:         string | null;
   featureCounts:    Record<string, number>;
   layers:           { name: string; color: string; featureCount: number }[];
+  /** Distinct point codes present in the drawing (capped), so the model can
+   *  reuse the surveyor's coding scheme when building from coded points. */
+  codesInUse:       string[];
   titleBlock:       Record<string, string>;
 }
 
@@ -590,6 +593,7 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
   }
   const featureCounts: Record<string, number> = {};
   const layerFeatureCounts = new Map<string, number>();
+  const codes = new Set<string>();
   for (const f of Object.values(doc.features)) {
     if (f.hidden) continue;
     featureCounts[f.type] = (featureCounts[f.type] ?? 0) + 1;
@@ -597,6 +601,8 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
       f.layerId,
       (layerFeatureCounts.get(f.layerId) ?? 0) + 1
     );
+    const code = pointCodeOf(f);
+    if (code && codes.size < 60) codes.add(code);
   }
   const layers = Array.from(layerNameById.entries())
     .map(([id, name]) => ({
@@ -618,6 +624,7 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
     sealHash: settings.sealData?.signatureHash ?? null,
     featureCounts,
     layers,
+    codesInUse: Array.from(codes),
     titleBlock: {
       firmName: tb.firmName,
       surveyorName: tb.surveyorName,
@@ -638,6 +645,8 @@ function buildSnapshot(doc: DrawingDocument): DocSnapshot {
 /** Max selected features to describe individually before summarising. */
 const MAX_SELECTION_DETAIL = 150;
 
+interface NE { n: number; e: number; }
+
 export interface SelectionItem {
   id:           string;
   type:         string;
@@ -648,7 +657,21 @@ export interface SelectionItem {
   northing?:    number;
   easting?:     number;
   elevation?:   number;
-  vertices?:    number;
+  /** LINE endpoints + midpoint (derived, so the model can target them). */
+  start?:       NE;
+  end?:         NE;
+  midpoint?:    NE;
+  /** CIRCLE/ELLIPSE/ARC center; CIRCLE/ARC radius. */
+  center?:      NE;
+  radius?:      number;
+  /** POLYLINE/POLYGON vertices (capped) + centroid. */
+  verts?:       NE[];
+  centroid?:    NE;
+  vertexCount?: number;
+  /** Length of a line/polyline or perimeter of a polygon (feet). */
+  lengthFt?:    number;
+  /** Enclosed area for closed shapes (square feet). */
+  areaSqFt?:    number;
 }
 
 export interface SelectionDigest {
@@ -688,13 +711,56 @@ export function buildSelectionDigest(
     const desc = pointDescriptionOf(f);
     if (desc) item.description = desc;
 
+    const ne = (p: { x: number; y: number }): NE => ({
+      n: round(p.y + originN),
+      e: round(p.x + originE),
+    });
+
     const anchor = g.point ?? g.start ?? g.vertices?.[0] ?? g.circle?.center ?? g.arc?.center;
     if (anchor) {
       item.northing = round(anchor.y + originN);
       item.easting = round(anchor.x + originE);
     }
     if (f.properties?.elevation != null) item.elevation = Number(f.properties.elevation);
-    if (g.vertices) item.vertices = g.vertices.length;
+
+    // Derived geometry so the model can target endpoints / midpoints /
+    // centers / centroids without the user pre-selecting every vertex.
+    if (g.type === 'LINE' && g.start && g.end) {
+      item.start = ne(g.start);
+      item.end = ne(g.end);
+      item.midpoint = ne({ x: (g.start.x + g.end.x) / 2, y: (g.start.y + g.end.y) / 2 });
+      item.lengthFt = round(Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y));
+    } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length > 0) {
+      const vs = g.vertices;
+      item.vertexCount = vs.length;
+      item.verts = vs.slice(0, 48).map(ne);
+      const cx = vs.reduce((s, v) => s + v.x, 0) / vs.length;
+      const cy = vs.reduce((s, v) => s + v.y, 0) / vs.length;
+      item.centroid = ne({ x: cx, y: cy });
+      const closed = g.type === 'POLYGON';
+      let len = 0;
+      for (let i = 0; i < vs.length - 1; i += 1) len += Math.hypot(vs[i + 1].x - vs[i].x, vs[i + 1].y - vs[i].y);
+      if (closed && vs.length >= 3) {
+        len += Math.hypot(vs[0].x - vs[vs.length - 1].x, vs[0].y - vs[vs.length - 1].y);
+        let a = 0;
+        for (let i = 0; i < vs.length; i += 1) {
+          const p = vs[i], q = vs[(i + 1) % vs.length];
+          a += p.x * q.y - q.x * p.y;
+        }
+        item.areaSqFt = round(Math.abs(a) / 2);
+      }
+      item.lengthFt = round(len);
+    } else if (g.type === 'CIRCLE' && g.circle) {
+      item.center = ne(g.circle.center);
+      item.radius = round(g.circle.radius);
+      item.areaSqFt = round(Math.PI * g.circle.radius * g.circle.radius);
+    } else if (g.type === 'ELLIPSE' && g.ellipse) {
+      item.center = ne(g.ellipse.center);
+      item.areaSqFt = round(Math.PI * g.ellipse.radiusX * g.ellipse.radiusY);
+    } else if (g.type === 'ARC' && g.arc) {
+      item.center = ne(g.arc.center);
+      item.radius = round(g.arc.radius);
+    }
 
     items.push(item);
   }
