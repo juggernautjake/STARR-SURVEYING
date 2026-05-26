@@ -93,6 +93,7 @@ export interface ChatFeatureSpec {
   opacity?:     number;       // 0–1
   lineWeight?:  number;       // mm
   lineType?:    string;       // line-type id (e.g. DASHED, FENCE_BARBED_WIRE)
+  symbol?:      string;       // symbol id to render at a POINT (e.g. UTIL_POLE)
   pointNumber?: string;       // POINT only
   code?:        string;
   description?: string;
@@ -107,6 +108,7 @@ export interface ChatModifySpec {
   opacity?:    number;
   lineWeight?: number;
   lineType?:   string;
+  symbol?:     string;
 }
 
 /** Fit an exact best-fit shape to a point set (computed client-side for
@@ -270,6 +272,8 @@ Action selection rules:
   - "fill" gives a closed shape (polygon/circle/ellipse/closed spline) a
     solid area color — use it for filled/stylized art and shaded regions;
     combine with "opacity" for translucency and layers for z-order.
+  - "symbol" renders a glyph at a POINT (e.g. UTIL_POLE, GENERIC_DOT,
+    VEG_TREE_DECID, monument symbols MON_*). Use for poles/trees/monuments.
   - TEXT places a label at points[0] (use "rotationDeg" to angle it). To label
     a bearing/distance/area, COMPUTE the value from CURRENT SELECTION coords
     (azimuth = atan2(Δeast, Δnorth); distance = hypot; area = shoelace) and
@@ -538,6 +542,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
         ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
+        ...(typeof o.symbol === 'string' ? { symbol: o.symbol } : {}),
         ...(typeof o.fill === 'string' ? { fill: o.fill } : {}),
         ...(typeof o.text === 'string' ? { text: o.text } : {}),
         ...(typeof o.layerName === 'string' ? { layerName: o.layerName } : {}),
@@ -564,7 +569,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
       const points = parseCoords(o.points);
       const opacity = num(o.opacity);
       const lineWeight = num(o.lineWeight);
-      const hasStyle = typeof o.color === 'string' || typeof o.fill === 'string' || opacity !== null || lineWeight !== null || typeof o.lineType === 'string';
+      const hasStyle = typeof o.color === 'string' || typeof o.fill === 'string' || opacity !== null || lineWeight !== null || typeof o.lineType === 'string' || typeof o.symbol === 'string';
       if (points.length === 0 && !hasStyle) continue;
       modify.push({
         id: o.id,
@@ -574,6 +579,7 @@ function parseEditFields(a: Record<string, unknown>): Pick<DrawingChatAction, 'a
         ...(opacity !== null ? { opacity } : {}),
         ...(lineWeight !== null ? { lineWeight } : {}),
         ...(typeof o.lineType === 'string' ? { lineType: o.lineType } : {}),
+        ...(typeof o.symbol === 'string' ? { symbol: o.symbol } : {}),
       });
     }
     if (modify.length > 0) out.modify = modify;

@@ -98,7 +98,8 @@ Goal: the model can reason about geometry it didn't select.
       feature batch; a computed TEXT label covers the practical need.)
 - [x] Line-type / symbol assignment via EDIT_DRAWING: `lineType` on add/
       modify (SOLID/DASHED/CENTER/FENCE_*/UTIL_POLE_LINE/…; fence types carry
-      their inline symbols).
+      their inline symbols). Per-point `symbol` assigns a glyph
+      (UTIL_POLE/VEG_TREE_DECID/MON_*/GENERIC_*) to a POINT.
 - [x] Layer creation + assignment from the AI: `layerName` on add/fit
       auto-creates the layer if missing; `createLayers` pre-creates
       named/colored layers.

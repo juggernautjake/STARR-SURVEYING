@@ -274,6 +274,17 @@ describe('applyEditDrawing', () => {
     expect(useDrawingStore.getState().getFeature(id)!.style.fillColor).toBe('#ffcc00');
   });
 
+  it('assigns a point symbol on add and via modify', () => {
+    applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'pole',
+      add: [{ shape: 'POINT', symbol: 'UTIL_POLE', points: [{ northing: 3, easting: 4 }] }],
+    });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    expect(useDrawingStore.getState().getFeature(id)!.style.symbolId).toBe('UTIL_POLE');
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'tree', modify: [{ id, symbol: 'VEG_TREE_DECID' }] });
+    expect(useDrawingStore.getState().getFeature(id)!.style.symbolId).toBe('VEG_TREE_DECID');
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;

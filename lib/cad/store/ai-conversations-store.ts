@@ -486,6 +486,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       ...(spec.opacity != null ? { opacity: Math.max(0, Math.min(1, spec.opacity)) } : {}),
       ...(spec.lineWeight != null ? { lineWeight: spec.lineWeight } : {}),
       ...(spec.lineType ? { lineTypeId: spec.lineType } : {}),
+      ...(spec.symbol ? { symbolId: spec.symbol } : {}),
       ...(spec.fill ? { fillColor: spec.fill } : {}),
     };
     const feature: Feature = {
@@ -582,7 +583,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       else if (g.type === 'SPLINE' && g.spline && pts.length >= 2) g.spline = { ...g.spline, controlPoints: fitPointsToBezier(pts, g.spline.isClosed) };
       drawing.updateFeatureGeometry(m.id, g);
     }
-    if (m.color || m.fill || m.opacity != null || m.lineWeight != null || m.lineType) {
+    if (m.color || m.fill || m.opacity != null || m.lineWeight != null || m.lineType || m.symbol) {
       drawing.updateFeature(m.id, {
         style: {
           ...drawing.getFeature(m.id)!.style,
@@ -591,6 +592,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
           ...(m.opacity != null ? { opacity: Math.max(0, Math.min(1, m.opacity)) } : {}),
           ...(m.lineWeight != null ? { lineWeight: m.lineWeight } : {}),
           ...(m.lineType ? { lineTypeId: m.lineType } : {}),
+          ...(m.symbol ? { symbolId: m.symbol } : {}),
         },
       });
     }
