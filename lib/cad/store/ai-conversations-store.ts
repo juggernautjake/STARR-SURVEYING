@@ -517,7 +517,7 @@ export function applyEditDrawing(action: DrawingChatAction): string {
       if (f) srcPts.push(...featurePoints(f));
     }
     for (const c of spec.points ?? []) srcPts.push(toWorld(c));
-    if (srcPts.length < 2) continue;
+    if (srcPts.length < 2) { skipped += 1; continue; }
 
     let geometry: FeatureGeometry | null = null;
     let type: Feature['type'] = 'POLYGON';

@@ -295,6 +295,23 @@ describe('applyEditDrawing', () => {
     expect(useUndoStore.getState().canUndo()).toBe(false); // no junk undo entry
   });
 
+  it('skips a fit when source points are coincident or insufficient', () => {
+    // Coincident points → degenerate LINE → skipped.
+    const s1 = applyEditDrawing({
+      type: 'EDIT_DRAWING', description: 'badline',
+      fit: [{ shape: 'LINE', points: [{ northing: 5, easting: 5 }, { northing: 5, easting: 5 }] }],
+    });
+    expect(useDrawingStore.getState().getAllFeatures()).toHaveLength(0);
+    expect(s1).toMatch(/No valid|skipped/);
+
+    // Single source point for a RECTANGLE → insufficient → skipped.
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 1, easting: 1 }] }] });
+    const id = useDrawingStore.getState().getAllFeatures()[0].id;
+    applyEditDrawing({ type: 'EDIT_DRAWING', description: 'badrect', fit: [{ shape: 'RECTANGLE', fromIds: [id] }] });
+    // still just the one point — no rectangle created
+    expect(useDrawingStore.getState().getAllFeatures().filter((f) => f.type === 'POLYGON')).toHaveLength(0);
+  });
+
   it('translates a feature by north/east feet', () => {
     applyEditDrawing({ type: 'EDIT_DRAWING', description: 'p', add: [{ shape: 'POINT', points: [{ northing: 0, easting: 0 }] }] });
     const id = useDrawingStore.getState().getAllFeatures()[0].id;
