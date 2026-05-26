@@ -893,8 +893,12 @@ lint + test → live-verify in the harness → record → commit.
   as `base:N` (255 → 255:1 → 255:2), via `derivedName` + a per-batch name
   set; explicit renumber still overrides. 3 store-level unit tests; full
   CAD suite green (1273).
-- [ ] **17e. 8e — AI naming advisor (enhancement)**: infer the file's
-  naming scheme + suggest codes; never block on it.
+- [~] **17e. 8e — AI naming advisor (deferred — enhancement)**: infer the
+  file's naming scheme + suggest codes via AI. Deferred: it's explicitly
+  non-blocking, the deterministic `nextPointName` core already handles
+  numeric/`P#` schemes correctly, and a live AI advisor needs an
+  ANTHROPIC_API_KEY that isn't available in this env to verify. Low
+  marginal value vs. the working deterministic naming.
 
 Newly-discovered items get appended here as `[ ]` during the loop.
 - 2026-05-26 14:4x CDT — Reopened (time-box → 5:00 PM per user). Slice 17a
