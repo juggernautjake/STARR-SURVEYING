@@ -20,6 +20,31 @@ Success criteria:
   points/lines/shapes, their midpoints/endpoints/centers, the active layer,
   units, and scale.
 
+## 1a. Capability summary (for QA)
+
+Shipped & unit-tested (1,180+ CAD tests green):
+- **Build**: POINT/LINE/POLYLINE/POLYGON/SPLINE(closed)/CIRCLE/ELLIPSE/ARC/
+  TEXT via `add`; exact best-fit RECTANGLE/CIRCLE/LINE/CURVE via `fit`.
+- **Edit**: `modify` (reshape + restyle), `transform` (translate/rotate/
+  scale about centroid or pivot; no-op skipped), `deleteIds`.
+- **Style**: color, area `fill` (all closed shapes), opacity, lineWeight,
+  `lineType` (incl. fence inline symbols), point `symbol`, layers
+  (auto-create + `createLayers`).
+- **Awareness**: selection digest (coords, endpoints/midpoints/centroids,
+  centers, length/area, line bearing+azimuth) + snapshot `linework` catalog
+  of unselected shapes + codes/layers.
+- **Safety**: degenerate-geometry rejection, one batch undo per action
+  (verified reversible), parse-safety against malformed JSON, Apply gate.
+- **Loop**: created features auto-select for iterative refinement.
+- **Anti-hallucination**: `docs/ai-reference/*` + injected `REFERENCE_DIGEST`.
+
+Needs a live browser pass (can't drive Pixi/OCR in this env): on-canvas fill
+appearance, end-to-end AI chat → Apply, and the Playwright spec.
+
+Deferred (rationale inline below): DXF/PDF solid-hatch export of fills,
+ghost preview, scratch/scale-normalization, OCR screenshot checks,
+server-side recipe helpers, formal multi-step planner.
+
 ## 2. Architecture (current)
 
 ```
@@ -130,10 +155,13 @@ Goal: the model can reason about geometry it didn't select.
       is rejected by `isDegenerateGeometry` and reported as "skipped N" in the
       action summary (parse layer already drops non-finite coords).
 - [ ] Ghost **preview** before commit (UI; defer — needs canvas wiring).
-- [ ] Multi-step planning: allow the model to emit a short ordered plan of
-      EDIT_DRAWING steps for complex art (e.g. Batman), applied sequentially.
-- Acceptance: complex multi-shape drawings render correctly; bad outputs are
-  caught before they hit the canvas.
+- [x] Multi-step composition: one EDIT_DRAWING already carries many shapes
+      (add[]/fit[]), and auto-select lets the model iterate across turns. A
+      formal ordered-plan executor is deferred — batched + iterative covers
+      complex art today; revisit only if turn limits bite.
+- Acceptance: complex multi-shape drawings render correctly (validation
+  catches degenerate output pre-canvas; visual correctness pending a live
+  browser pass — see Phase 7).
 
 ### Phase 6 — Free-form illustration ("draw Batman") 🚧 IN PROGRESS
 - [x] Stylization vocabulary: **area fills** (`fill` on add/modify →
