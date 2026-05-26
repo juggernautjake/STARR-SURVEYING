@@ -342,7 +342,10 @@ const REFERENCE_DIGEST = `REFERENCE (authoritative — follow exactly):
   POINT: UTIL_POLE/VEG_TREE_DECID/MON_*). Layers: layerName auto-creates;
   createLayers pre-makes named/colored layers (STRUCTURES/FENCE/ROW/…).
 * You also get a "linework" catalog in the snapshot — target unselected
-  shapes by their id.
+  shapes by their id. The snapshot's "activeLayer" is the default layer
+  (omit layerName to use it) and "extents" is the NE bounding box of the
+  drawing — size/place new geometry relative to it. CURRENT SELECTION items
+  carry each feature's color/fill/lineType/opacity so you can match them.
 * Never move existing shots unless asked; keep new geometry on a sensible
   layer and reuse the existing point-code scheme.`;
 
