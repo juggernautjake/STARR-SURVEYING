@@ -937,3 +937,9 @@ Newly-discovered items get appended here as `[ ]` during the loop.
 - 2026-05-26 15:3x CDT — Data-integrity audit: Traverse Viewer course
   edits (distance) are undoable too (Ctrl+Z reverts) — `traverse-edit-undo`
   spec. Both editable viewers (point + traverse) now have verified undo.
+- 2026-05-26 15:3x CDT — Audit (no change, rationale): `showPointNames`
+  defaults to false, so auto-assigned names don't render on-canvas by
+  default. Intentional — names are surfaced via export, the Point Data
+  Viewer, and the per-layer label toggle; defaulting on would contradict
+  the §13 anti-clutter work and the user's "labels too big/clutter"
+  complaint. The on-canvas display stays opt-in per layer.
