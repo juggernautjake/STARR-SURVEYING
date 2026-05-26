@@ -5,7 +5,7 @@
 // framework-free; the live creation path (a later slice) applies the
 // returned assignments inside the same undo batch as the geometry.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §8
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §8
 
 import type { DrawingDocument, Feature, Point2D } from '../types';
 import { pointNumberOf } from '../feature-fields';

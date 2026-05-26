@@ -5,7 +5,7 @@
 // quadrant bearing, and (for arcs) radius, delta, arc length, chord.
 // Pure + framework-free; unit-tested.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10
 
 import type { DrawingDocument, Feature, DrawingSettings, Point2D } from '../types';
 import { inverseBearingDistance, formatBearing, forwardPoint, parseBearing } from '../geometry/bearing';

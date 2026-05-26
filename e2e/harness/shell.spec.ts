@@ -1,6 +1,6 @@
 // e2e/harness/shell.spec.ts — Slice 1 smoke: the CAD shell renders.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §2
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §2
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';

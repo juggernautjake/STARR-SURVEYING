@@ -1,6 +1,6 @@
 // e2e/harness/_harness.ts — shared helpers for the UX-audit harness.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §2
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §2
 
 import { type Page } from '@playwright/test';
 

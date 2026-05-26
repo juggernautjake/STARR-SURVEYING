@@ -7,7 +7,7 @@
 // (show/hide) columns. Editing courses maps back to geometry — a
 // follow-up (10f).
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10
 
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';

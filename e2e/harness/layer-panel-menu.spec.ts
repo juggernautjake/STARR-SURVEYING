@@ -1,6 +1,6 @@
 // e2e/harness/layer-panel-menu.spec.ts — layer panel right-click menu.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §5
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §5
 // (layers panel control)
 
 import { test, expect } from '@playwright/test';

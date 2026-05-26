@@ -1,6 +1,6 @@
 // e2e/harness/export-layers.spec.ts — export-by-layers dialog.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §5
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §5
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';

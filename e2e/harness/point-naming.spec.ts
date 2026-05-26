@@ -1,6 +1,6 @@
 // e2e/harness/point-naming.spec.ts — Slice 8b-wire: drawn points get names.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §8
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §8
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';

@@ -1,6 +1,6 @@
 // e2e/harness/export-download.spec.ts — selection export produces a file.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §5
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §5
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing } from './_harness';

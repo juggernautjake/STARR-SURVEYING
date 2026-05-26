@@ -7,7 +7,7 @@
 // description. Columns are show/hide customizable (persisted). Point
 // NAME edits are routed through the guarded rename flow (§10.3).
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md §10
 
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';

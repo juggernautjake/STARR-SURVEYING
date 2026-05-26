@@ -5,7 +5,7 @@
 // standalone window. Reflects the live fullscreen state (it can change
 // via the browser's Esc/F11 too).
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
 
 import { useCallback, useEffect, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';

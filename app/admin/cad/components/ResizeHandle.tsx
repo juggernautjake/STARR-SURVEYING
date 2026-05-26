@@ -12,7 +12,7 @@
 //   sign -1  → dragging in the -axis direction grows the panel
 //              (handle on the panel's left/top edge).
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
 
 import { useCallback, useRef } from 'react';
 

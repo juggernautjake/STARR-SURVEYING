@@ -10,7 +10,7 @@
 //
 // Pure + framework-free so it is unit-testable.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
 
 import { PAPER_DIMENSIONS, type PaperSize } from '../templates/types';
 

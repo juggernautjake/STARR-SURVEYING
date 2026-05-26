@@ -1,9 +1,11 @@
 # CAD Standalone Window & UX Audit — Self-Updating Master Plan
 
-Status: **completed** · Owner: CAD/UX · Finalized: 2026-05-26 ~13:47 CDT
-Time-box: worked continuously 12:01 → finalized just before the 2:00 PM
-CDT stop with zero open backlog items (all shipped or
-deferred-with-rationale).
+Status: **in progress (reopened)** · Owner: CAD/UX · Last audit: 2026-05-26 14:38 CDT
+Time-box: **extended by the user to stop at 4:00 PM CDT (16:00),
+2026-05-26.** (Originally 2:00 PM; reopened to work the deferred items.)
+On every resume: check the clock — if ≥ 16:00 CDT, finalize per §7 and
+move this doc back to `completed/`; otherwise keep auditing/refactoring/
+testing the §17 backlog below.
 
 ---
 
@@ -853,3 +855,29 @@ Verification: 1265 CAD unit tests green; `tsc --noEmit` clean; all 26
 harness e2e specs pass (the combined run caught one stale spec from the
 §11 modal change, since fixed). New harness infra (`/cad-harness` +
 `playwright.harness.config.ts`) left in place for future UX audits.
+
+---
+
+## 17. Reopened backlog (2026-05-26, time-box → 4:00 PM CDT)
+
+User reopened the doc to work the previously-deferred items. Priority
+order (top = next); same audit cycle (§3): inspect → fix → typecheck +
+lint + test → live-verify in the harness → record → commit.
+
+- [ ] **17a. §12-exit — smooth destruct transitions**: dialogs/menus
+  fade/scale OUT on close (not just abrupt unmount). Add a small
+  `useExitTransition` hook and route the new dialogs' close paths through
+  it.
+- [ ] **17b. 8c-deriv — export cross-layer `:N` points**: optionally
+  materialize `:N` vertex refs as exportable point records so they land
+  in CSV/PNEZD alongside their base points. Pure helper + tests + an
+  export toggle.
+- [ ] **17c. §15 — unified rotation UX**: generalize the image-style
+  grab-node rotation handle (box + node + ghost + live editable angle)
+  to all feature types. Large canvas work; do incrementally and verify.
+- [ ] **17d. 8d — cross-layer copy `:N` semantics**: wire `planDuplicate`
+  / `base:N` into the LayerTransferDialog copy-to-layer path.
+- [ ] **17e. 8e — AI naming advisor (enhancement)**: infer the file's
+  naming scheme + suggest codes; never block on it.
+
+Newly-discovered items get appended here as `[ ]` during the loop.

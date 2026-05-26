@@ -1,6 +1,6 @@
 // e2e/harness/resize-layer-panel.spec.ts — Slice 3: layer panel resize.
 //
-// Spec: docs/planning/completed/cad-standalone-and-ux-audit.md
+// Spec: docs/planning/in-progress/cad-standalone-and-ux-audit.md
 
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';
