@@ -21,10 +21,12 @@ northing/easting (feet). Combine fields freely.
      closed (CURVE), deleteSource:true, color, fill, opacity, lineWeight,
      layerName }`. Prefer this for "best-fit square/circle/line/curve".
 - `modify[]` — `{ id, points?, color?, fill?, opacity?, lineWeight?,
-  lineType?, symbol? }` (replace vertices and/or restyle).
+  lineType?, symbol?, layerName? (move), pointNumber?, code?, description?,
+  elevation? }` (reshape, restyle, re-layer, and edit POINT survey attrs).
 - `transform` — `{ ids:"SELECTION"|[…], translate:{north,east},
   rotateDeg, scale, about:"CENTROID"|{northing,easting} }`.
 - `createLayers[]` — `{ name, color? }` pre-create named layers.
+- `hideIds[]` / `unhideIds[]` — non-destructive show/hide.
 - `deleteIds[]` — remove features by id.
 
 ## Worked examples
