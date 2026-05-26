@@ -249,8 +249,12 @@ Legend: `[ ]` open · `[x]` shipped+verified · `[~]` partial/deferred
   `findNameReferences` (point + linework refs + `:N` derivatives),
   `planRename` (rebases derivatives), `planDuplicate`, `nameIsTaken`,
   `RenameStrategy` type. 6 unit tests. (UI/preference wiring in 10d.)
-- [ ] **10c. editable Point Viewer UI**: inline-edit grid (coords move the
-  point; code/desc/elev edit), column show/hide, layer filter, search.
+- [x] **10c. editable Point Viewer UI** — `PointDataViewer.tsx`: inline-
+  edit grid (coords move the point via `rowEditToFeatureUpdate`+undo;
+  code/desc/elev), column show/hide (persisted), layer filter, search,
+  empty state. Toggled from View ▸ "Point Data Viewer (editable)" in a
+  resizable bottom dock. VERIFIED via harness screenshot. Name edits
+  route to an interim confirm-based rename; rich dialog = 10d.
 - [ ] **10d. rename confirmation dialog**: warn + "duplicate instead" +
   "remember my choice".
 - [ ] **10e. Traverse Viewer**: computed line/curve columns (bearing /
@@ -546,3 +550,11 @@ coordinates, bearing, azimuth, distance, chord, radius, delta, arc length
   derivatives), duplicate-with-new-name, name-collision check. 6 unit
   tests. Next: 10c editable Point Viewer UI (build on point-rows model) +
   10d rename dialog wiring the strategy/preference.
+- 2026-05-26 10:4x CDT — Slice 10c DONE. Built `PointDataViewer` — an
+  editable spreadsheet over all POINT features: inline coord/elev/code/
+  desc editing (undoable; coords move the point), persisted column
+  show/hide, layer filter + search, resizable bottom dock, View-menu
+  toggle. Harness screenshot confirms the panel + toolbar + columns +
+  empty state. Name editing uses an interim confirm-based rename (warns +
+  rebases refs); the rich dialog (duplicate option + remember-choice) is
+  10d. Next: 10d rename dialog, then 10e Traverse Viewer.

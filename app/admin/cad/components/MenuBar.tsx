@@ -654,6 +654,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           action: () => { onTogglePointTable?.(); setOpenMenu(null); },
         },
         {
+          label: 'Point Data Viewer (editable)',
+          action: () => { window.dispatchEvent(new CustomEvent('cad:togglePointDataViewer')); setOpenMenu(null); },
+        },
+        {
           label: 'Toggle Traverse Panel',
           action: () => { onToggleTraversePanel?.(); setOpenMenu(null); },
         },

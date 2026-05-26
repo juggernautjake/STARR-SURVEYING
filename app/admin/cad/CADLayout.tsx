@@ -52,6 +52,9 @@ import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/
 import FullscreenToggle from './components/FullscreenToggle';
 import ResizeHandle from './components/ResizeHandle';
 import { usePanelSize } from './hooks/usePanelSize';
+import PointDataViewer from './components/PointDataViewer';
+import { findNameReferences, planRename, planDuplicate, nameIsTaken } from '@/lib/cad/points/point-rename';
+import { makeBatchEntry } from '@/lib/cad/store';
 import OrientationDialog from './components/OrientationDialog';
 import DrawingRotationDialog from './components/DrawingRotationDialog';
 import TitleBlockPanel from './components/TitleBlockPanel';
@@ -124,6 +127,8 @@ export default function CADLayout() {
   const [layerPanelWidth, setLayerPanelWidth] = usePanelSize('layer', 192, 160, 480);
   const [rightDockWidth, setRightDockWidth] = usePanelSize('right', 192, 160, 520);
   const [pointTableHeight, setPointTableHeight] = usePanelSize('pointTable', 192, 120, 520);
+  const [pointViewerHeight, setPointViewerHeight] = usePanelSize('pointViewer', 240, 140, 600);
+  const [showPointViewer, setShowPointViewer] = useState(false);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -472,6 +477,13 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
   }, []);
 
+  // Point Data Viewer toggle (§10c)
+  useEffect(() => {
+    const handler = () => setShowPointViewer((v) => !v);
+    window.addEventListener('cad:togglePointDataViewer', handler);
+    return () => window.removeEventListener('cad:togglePointDataViewer', handler);
+  }, []);
+
   // Phase 8 §2.3 — bridge hotkey-only events into local UI
   // state. These dispatchers fire from `useHotkeys` so the
   // engine module stays free of CADLayout-specific imports.
@@ -600,6 +612,39 @@ export default function CADLayout() {
     });
     return unsubscribe;
   }, []);
+
+  // §10.3 interim rename handler — warns with the blast radius, then
+  // renames in place (rebasing references) in one undo batch. The rich
+  // dialog (duplicate option + remember-choice) lands in slice 10d.
+  function handlePointRename(featureId: string, oldName: string, newName: string) {
+    const doc = drawingStore.document;
+    if (nameIsTaken(doc, newName, featureId)) {
+      const dup = planDuplicate(doc, featureId, newName);
+      window.alert(`Point name "${newName}" is already in use. Choose a different name.`);
+      void dup; // duplicate path handled by the 10d dialog
+      return;
+    }
+    const refs = findNameReferences(doc, oldName);
+    const refCount = refs.linework.length;
+    const msg =
+      `Rename point "${oldName}" → "${newName}"?\n\n` +
+      (refCount > 0
+        ? `${refCount} line/shape feature(s) reference this point and will be updated to match. `
+        : 'No linework references this point. ') +
+      `Exports key on the point name, so downstream files will use the new name.\n\n` +
+      `OK = rename everywhere · Cancel = leave unchanged.`;
+    if (!window.confirm(msg)) return;
+    const updates = planRename(doc, oldName, newName);
+    const ops = updates.map((u) => {
+      const f = drawingStore.getFeature(u.featureId);
+      return {
+        type: 'MODIFY_FEATURE' as const,
+        data: { id: u.featureId, before: { properties: f?.properties }, after: { properties: u.properties } },
+      };
+    });
+    updates.forEach((u) => drawingStore.updateFeature(u.featureId, { properties: u.properties }));
+    if (ops.length > 0) undoStore.pushUndo(makeBatchEntry(`Rename point ${oldName} → ${newName}`, ops));
+  }
 
   // ─── Autosave helpers ────────────────────────────────────────────────────────
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -963,6 +1008,26 @@ export default function CADLayout() {
           <PointTablePanel
             codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'NUMERIC'}
             onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}
+          />
+        </div>
+        </>
+      )}
+      {showPointViewer && (
+        <>
+        <ResizeHandle
+          axis="y"
+          sign={-1}
+          size={pointViewerHeight}
+          min={140}
+          max={600}
+          onResize={setPointViewerHeight}
+          ariaLabel="Resize point data viewer"
+        />
+        <div className="border-t border-gray-700 shrink-0" style={{ height: pointViewerHeight }}>
+          <PointDataViewer
+            open={showPointViewer}
+            onClose={() => setShowPointViewer(false)}
+            onRenameRequest={handlePointRename}
           />
         </div>
         </>
