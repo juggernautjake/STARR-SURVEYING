@@ -142,7 +142,7 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
             <select
               value={method}
               onChange={(e) => { setMethod(e.target.value as Method); setResult(null); setError(null); }}
-              className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               data-testid="calc-point-method"
             >
               <option value="FOURTH_CORNER">4th corner of parallelogram (3 selected points)</option>
@@ -171,11 +171,11 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
             <div className="grid grid-cols-2 gap-2">
               <label>
                 <span className="text-gray-600 dark:text-gray-300">Bearing (azimuth °, 0=N)</span>
-                <input value={bearingA} onChange={(e) => setBearingA(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800" inputMode="decimal" data-testid="calc-point-bearing" />
+                <input value={bearingA} onChange={(e) => setBearingA(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" data-testid="calc-point-bearing" />
               </label>
               <label>
                 <span className="text-gray-600 dark:text-gray-300">Distance</span>
-                <input value={distance} onChange={(e) => setDistance(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800" inputMode="decimal" data-testid="calc-point-distance" />
+                <input value={distance} onChange={(e) => setDistance(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" data-testid="calc-point-distance" />
               </label>
             </div>
           )}
@@ -184,11 +184,11 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
             <div className="grid grid-cols-2 gap-2">
               <label>
                 <span className="text-gray-600 dark:text-gray-300">Bearing A (°)</span>
-                <input value={bearingA} onChange={(e) => setBearingA(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800" inputMode="decimal" />
+                <input value={bearingA} onChange={(e) => setBearingA(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" />
               </label>
               <label>
                 <span className="text-gray-600 dark:text-gray-300">Bearing B (°)</span>
-                <input value={bearingB} onChange={(e) => setBearingB(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800" inputMode="decimal" />
+                <input value={bearingB} onChange={(e) => setBearingB(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" />
               </label>
             </div>
           )}
@@ -197,15 +197,15 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
             <div className="grid grid-cols-2 gap-2">
               <label>
                 <span className="text-gray-600 dark:text-gray-300">Perp distance</span>
-                <input value={perpDistance} onChange={(e) => setPerpDistance(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800" inputMode="decimal" />
+                <input value={perpDistance} onChange={(e) => setPerpDistance(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" />
               </label>
               <label>
                 <span className="text-gray-600 dark:text-gray-300">Along distance (optional)</span>
-                <input value={alongDistance} onChange={(e) => setAlongDistance(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800" inputMode="decimal" />
+                <input value={alongDistance} onChange={(e) => setAlongDistance(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" />
               </label>
               <label className="col-span-2">
                 <span className="text-gray-600 dark:text-gray-300">Side (relative to refStart→refEnd direction)</span>
-                <select value={side} onChange={(e) => setSide(e.target.value as 'LEFT' | 'RIGHT')} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800">
+                <select value={side} onChange={(e) => setSide(e.target.value as 'LEFT' | 'RIGHT')} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
                   <option value="RIGHT">Right</option>
                   <option value="LEFT">Left</option>
                 </select>
@@ -215,7 +215,7 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
 
           <label className="block">
             <span className="text-gray-600 dark:text-gray-300">Code (optional, defaults to CALC)</span>
-            <input value={code} onChange={(e) => setCode(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800" />
+            <input value={code} onChange={(e) => setCode(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
           </label>
 
           {error && (

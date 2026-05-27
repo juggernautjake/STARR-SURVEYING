@@ -55,11 +55,19 @@ screenshot where feasible → record in §6 → commit + push.
   symbol a slight opaque (white) backing so the line never shows through it.
 - [x] **D. Infinity (and oriented) line-type symbols tilt with the line.** Rotate
   inline symbols so their long axis follows the segment direction.
-- [ ] **E. Media attachments for points / lines / shapes / layers** (LARGE — stage):
-  right-click "Add media for this point/feature/layer" → upload image/video;
-  "View media…" appears only when media exists; Properties panel shows
-  thumbnails; a media viewer with zoom + video controls. Decide storage
-  (IndexedDB blob store keyed by feature/layer id) and data model first.
+- [~] **E. Media attachments for points / lines / shapes / layers** (LARGE —
+  DEFERRED-with-design for the unattended loop). Rationale: its core value
+  (file upload, blob persistence, video playback, zoom viewer) can't be
+  verified with confidence in this headless Playwright harness, and it needs
+  a storage-infra decision best made attended. Concrete design to build next:
+  • Store `lib/cad/media/media-db.ts` IndexedDB ('starr-cad-media'): `blobs`
+    (mediaId→Blob) + `meta` (mediaId→MediaItem{id,ownerId,ownerKind,kind,
+    name,mime,size,thumbnail?,addedAt}). `useMediaStore` keeps a byOwner
+    index (hydrated from meta) so the UI can gate synchronously.
+  • UI: FeatureContextMenu + PointDataViewer right-click "Add media…" /
+    "View media…" (only when hasMedia); Properties panel thumbnail strip; a
+    MediaViewer modal (image pan/zoom + <video> controls). Cloud upload
+    (Supabase bucket like project-image.ts) is a follow-up.
 - [ ] **F. Import/Export deep review** (original ask): audit CSV/PNEZD/DXF/
   LandXML/GeoJSON readers + writers + the wizard for bugs/edge cases beyond
   the reset fix already shipped.
@@ -107,3 +115,9 @@ Newly-discovered audit targets get appended here as `[ ]`.
   tsc + eslint clean; 20 linetype tests pass. Visual confirmation constrained
   (needs a styled line in the harness). Next: F (import/export review) or the
   ongoing audit themes; E (media) is the large staged item.
+- 2026-05-27 02:1x CDT — E deferred-with-design (large; upload/video/blob not
+  verifiable headless). Formatting sweep: CalcPointDialog's 9 inputs/selects
+  used `bg-white dark:bg-gray-800` with no text color (latent dark-mode
+  dark-on-dark + inconsistent) — added explicit `text-gray-900
+  dark:text-gray-100`. Swept all CAD dialogs; no other adaptive inputs lack a
+  text color. Next: F (import/export review) / audit themes.
