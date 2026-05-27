@@ -834,7 +834,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     originals: Map<string, Feature>;
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
-  const selectPanRef = useRef(false);
   // "Move Page" mode: drag the white paper sheet to reposition the frame
   // over the data (updates paperOrigin only — geometry never moves).
   const paperMoveModeRef = useRef(false);
@@ -8401,15 +8400,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
-            // Click on empty canvas: start canvas pan (drag to shift view)
-            if (!e.shiftKey) {
-              selectPanRef.current = true;
-              isPanningRef.current = true;
-              setCursorStyle('grabbing');
-            } else {
-              // Shift+click on empty: start box selection
-              toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
-            }
+            // Empty canvas → start a box-select (the CAD-standard expectation
+            // the command hint advertises). Shift/Ctrl at mouseup adds to the
+            // selection; a click with no drag deselects (handled in the
+            // box-select mouseup). Panning is on Space+drag or middle-mouse.
+            toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           }
           break;
         }
@@ -10684,20 +10679,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         dragFeatureRef.current = null;
         const hit = hitTest(sx, sy);
         setCursorStyle(hit ? 'grab' : 'default');
-        return;
-      }
-
-      // Stop canvas pan in SELECT mode
-      if (selectPanRef.current) {
-        selectPanRef.current = false;
-        isPanningRef.current = false;
-        // If it was a short click (no drag), deselect — unless an additive
-        // modifier is held (the surveyor is mid multi-pick and just missed).
-        const dragDist = Math.hypot(sx - lastMouseRef.current.x, sy - lastMouseRef.current.y);
-        if (dragDist < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          selectionStore.deselectAll();
-        }
-        setCursorStyle('default');
         return;
       }
 

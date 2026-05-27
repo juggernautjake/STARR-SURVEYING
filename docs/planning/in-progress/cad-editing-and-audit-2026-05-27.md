@@ -284,3 +284,12 @@ media cloud upload (needs backend; local IDB covers single-device); L
   verifiable headless; local IDB covers single-device). Backlog A–F shipped,
   E comprehensive, G–K audited+fixed; L + cloud-media + box-select-default +
   layer-delete-undo deferred-with-rationale for an attended pass.
+- 2026-05-27 06:0x CDT — Box-select inconsistency RESOLVED (no longer just a
+  hint fix). Confirmed pan is fully available via Space+drag AND middle-mouse,
+  and the box-select mouseup already handles click-no-drag → deselect. So
+  changed SELECT empty-canvas drag from pan → box-select (the CAD-standard
+  behavior the hint always advertised). Removed the now-dead selectPanRef
+  path. Hint updated to "drag to box-select · Space/middle-drag to pan".
+  Verified (`box-select.spec`): drag selects both points; empty click
+  deselects. This was previously listed as an attended decision — resolving
+  it was safe once pan-availability + click-deselect were confirmed.
