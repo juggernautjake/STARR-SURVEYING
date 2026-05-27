@@ -130,3 +130,13 @@ Newly-discovered audit targets get appended here as `[ ]`.
   blocked with a warning + hint (companion to the hidden-layer guard).
   Locked-layer features were already unselectable; this closes the
   draw-new-geometry gap. `locked-layer-draw.spec` passes. Next: audit G/I/J/K.
+- 2026-05-27 02:4x CDT — K (menus) ROOT-CAUSE FIX for "right-click menus
+  sometimes don't dismiss": FeatureContextMenu's outside-click listener was
+  attached via requestAnimationFrame inside an effect that depended on
+  onClose. The parent (CanvasViewport) recreates onClose every render
+  (cursor-coord updates fire constantly), so each re-render cancelled the
+  pending rAF before the listener attached — the menu only sometimes had a
+  working dismiss listener. Now attaches once on mount via an onClose ref;
+  also listens for mousedown + pointerdown. `canvas-contextmenu.spec` passes
+  (menu opens, native menu suppressed, dismisses on outside click). Added a
+  `cad:togglePointTable`-style verification. Next: continue audit.

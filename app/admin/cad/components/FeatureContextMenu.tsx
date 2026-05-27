@@ -310,26 +310,37 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // close it. Presses inside the menu OR a portaled submenu are ignored.
   // A right-press outside closes this menu and lets the canvas reopen one at
   // the new spot, so every right-click reliably shows a fresh menu.
+  // Keep the latest onClose in a ref so the dismiss listener can attach
+  // exactly ONCE on mount. (The parent recreates onClose on every render —
+  // e.g. cursor-coordinate updates — and if this effect depended on onClose
+  // it would re-run constantly, cancelling the pending requestAnimationFrame
+  // before the outside-press listener ever attached. That race is why the
+  // menu only "sometimes" dismissed on an outside click.)
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
   useEffect(() => {
-    let raf = 0;
-    function onOutside(e: PointerEvent) {
+    function onOutside(e: Event) {
       if (!(e.target as HTMLElement | null)?.closest('[data-cad-context-menu]')) {
-        onClose();
+        onCloseRef.current();
       }
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     }
-    raf = requestAnimationFrame(() => {
+    const raf = requestAnimationFrame(() => {
+      // Both pointer and mouse presses so an outside click always dismisses,
+      // regardless of which event the environment fires.
       window.addEventListener('pointerdown', onOutside, true);
+      window.addEventListener('mousedown', onOutside, true);
       window.addEventListener('keydown', onKey);
     });
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointerdown', onOutside, true);
+      window.removeEventListener('mousedown', onOutside, true);
       window.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, []);
 
   // ── Helper: rotate by custom angle ───────────────────────────────────────
   function handleCustomRotate() {
