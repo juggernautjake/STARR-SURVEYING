@@ -210,3 +210,10 @@ Newly-discovered audit targets get appended here as `[ ]`.
   image to a point → view it) COMPLETE. Remaining media follow-ups (optional):
   canvas FeatureContextMenu Add/View, Properties-panel thumbnail strip, layer
   media, cloud upload for cross-reload persistence.
+- 2026-05-27 04:2x CDT — E2b DONE: Properties panel shows a media section for
+  the selected feature — thumbnail strip (click a thumb → opens the viewer)
+  + "Add" (attach photo/video) + empty-state hint. Verified
+  (`property-media.spec`): select point → attach PNG → thumbnail appears.
+  Media now attachable from the Point viewer right-click AND the Properties
+  panel, viewable in the MediaViewer. Remaining (optional): canvas
+  FeatureContextMenu Add/View, layer media, cloud upload.

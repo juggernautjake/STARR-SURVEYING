@@ -2,7 +2,9 @@
 // app/admin/cad/components/PropertyPanel.tsx — Selected feature properties panel
 
 import { useState, useEffect, useRef } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
@@ -119,6 +121,13 @@ export default function PropertyPanel() {
   const [lineTypePickerOpen, setLineTypePickerOpen] = useState(false);
 
   const single = features.length === 1 ? features[0] : null;
+  // Media attachments for the selected feature.
+  const mediaHydrate = useMediaStore((s) => s.hydrate);
+  const mediaByOwner = useMediaStore((s) => s.byOwner);
+  const addMedia = useMediaStore((s) => s.addMedia);
+  const mediaFileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
+  const featureMedia = single ? (mediaByOwner[single.id] ?? []) : [];
   const displayColor = editColor ?? (single?.style.color ?? '#000000');
   const displayWeight = editWeight ?? (single ? String(single.style.lineWeight) : '1');
   const displayOpacity = editOpacity ?? (single ? String(Math.round(single.style.opacity * 100)) : '100');
@@ -412,6 +421,55 @@ export default function PropertyPanel() {
       </div>
 
       <div className="p-2 space-y-3 flex-1 overflow-y-auto animate-[fadeIn_150ms_ease-out]">
+        {/* Media attachments — thumbnails + add. */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Media{featureMedia.length > 0 ? ` (${featureMedia.length})` : ''}</span>
+            <button
+              type="button"
+              onClick={() => mediaFileRef.current?.click()}
+              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-blue-400"
+              title="Attach a photo or video to this feature"
+            >
+              <ImageIcon size={11} /> Add
+            </button>
+          </div>
+          {featureMedia.length === 0 ? (
+            <p className="text-[10px] text-gray-600">No media. Click Add to attach photos/videos.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {featureMedia.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: feature.id } }))}
+                  className="w-12 h-12 rounded border border-gray-600 hover:border-blue-500 overflow-hidden bg-gray-800 flex items-center justify-center"
+                  title={`${m.name} — click to view`}
+                >
+                  {m.thumbnail ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.thumbnail} alt={m.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[9px] text-gray-400">{m.kind === 'video' ? '▶' : '🖼'}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          <input
+            ref={mediaFileRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            className="hidden"
+            onChange={async (e) => {
+              const fs = Array.from(e.target.files ?? []);
+              e.target.value = '';
+              for (const f of fs) await addMedia(feature.id, 'feature', f);
+            }}
+          />
+        </div>
+
         {/* Type */}
         <div className="space-y-1">
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Object</div>
