@@ -225,3 +225,13 @@ Newly-discovered audit targets get appended here as `[ ]`.
   attachable from canvas right-click, Point viewer, and Properties panel;
   viewable in the MediaViewer. Remaining optional: layer media (right-click
   in LayerPanel), cloud upload for cross-reload sharing.
+- 2026-05-27 04:4x CDT — Layer media DONE (completes E's "…or a layer"):
+  LayerPanel layer right-click menu now has "Add media for this layer…" +
+  "View media (N)", using the same global cad:addMediaForOwner host +
+  MediaViewer. tsc + eslint clean. (Couldn't exercise via harness — right-
+  clicking a layer ROW is a known Playwright-trigger quirk in this harness,
+  also seen pre-media; the wiring is identical to the canvas/point/property
+  paths already verified by canvas-media/point-media/property-media specs.)
+  Media feature now spans canvas, point viewer, properties, AND layers, with
+  a full image-zoom/video viewer. Cloud upload (cross-reload sharing) remains
+  an optional follow-up.

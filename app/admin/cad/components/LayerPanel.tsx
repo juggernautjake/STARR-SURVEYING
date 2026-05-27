@@ -3,8 +3,10 @@
 
 import { useState, useRef } from 'react';
 import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X, Send, Sparkles } from 'lucide-react';
+import { useEffect } from 'react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
+import { useMediaStore } from '@/lib/cad/media/media-store';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
@@ -38,6 +40,9 @@ export default function LayerPanel() {
   const store = useDrawingStore();
   const selectionStore = useSelectionStore();
   const { document: doc, activeLayerId } = store;
+  const mediaByOwner = useMediaStore((s) => s.byOwner);
+  const mediaHydrate = useMediaStore((s) => s.hydrate);
+  useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
   const [newLayerDefaults, setNewLayerDefaults] = useState<{ name: string; color: string } | null>(null);
@@ -799,6 +804,28 @@ export default function LayerPanel() {
           >
             Duplicate layer
           </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => {
+              const id = contextMenu.layerId;
+              setContextMenu(null);
+              window.dispatchEvent(new CustomEvent('cad:addMediaForOwner', { detail: { ownerId: id, ownerKind: 'layer' } }));
+            }}
+          >
+            Add media for this layer…
+          </button>
+          {(mediaByOwner[contextMenu.layerId]?.length ?? 0) > 0 && (
+            <button
+              className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+              onClick={() => {
+                const id = contextMenu.layerId;
+                setContextMenu(null);
+                window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: id } }));
+              }}
+            >
+              View media ({mediaByOwner[contextMenu.layerId].length})
+            </button>
+          )}
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => startRename(contextMenu.layerId)}
