@@ -1,11 +1,15 @@
 # CAD Rotation Grab-Node UX & Continued Audit — Self-Updating Plan
 
-Status: **in progress** · Owner: CAD/UX · Opened: 2026-05-26 19:14 CDT
-Time-box: **work until 9:00 PM CDT (21:00), 2026-05-26.** From 9:00 PM,
-stop starting new slices; finish whatever is mid-flight, record it, then
-move this doc to `completed/` and stop. On every resume: check the clock
-(`TZ="America/Chicago" date "+%H:%M"`) — if ≥ 21:00 CDT, finalize per §7
-and move this doc to `completed/`; otherwise keep working the backlog.
+Status: **completed** · Owner: CAD/UX · Opened: 2026-05-26 19:14 CDT ·
+Finalized: 2026-05-26 20:41 CDT
+Time-box: work-until-9:00-PM. Finalized at 20:41 — the backlog (R1–R6) is
+fully shipped and verified and no safe, high-value slice remained, so the
+loop has no more in-scope work. All three prior-engagement deferrals are
+now substantively closed: §15/§17c rotation grab-node + ghost; DXF
+created/derived points; and the AI-free core of §17e (feature-code naming
+scheme continuation). The only piece still deferred is the live LLM naming
+advisor itself, which needs an ANTHROPIC_API_KEY absent from this env.
+Moved to `completed/` per §7.
 
 ---
 
@@ -214,6 +218,21 @@ Newly-discovered audit targets get appended here as `[ ]`.
   AI-free core of the prior §17e advisor deferral, which is what surveyors
   actually use. Pure-numeric/`P#` still take priority so no existing case
   changes. 5 new unit tests; all 70 points tests green; tsc + eslint clean.
+  `point-naming` harness spec still passes (live naming path unaffected).
+- 2026-05-26 20:41 CDT — **Finalization.** Backlog R1–R6 all `[x]`; the
+  only open item is the live LLM naming advisor, deferred-with-rationale
+  (no API key in this env; the deterministic core covers the practical
+  need). Shipped this session: image-style rotation grab-node + bounding
+  box for all feature types, original-position ghost during the grab,
+  grab-hover cursor, stale-pivot hygiene; DXF export of created/derived
+  points (+ scoped-export + name-label offset); a created-points-survive-
+  rotation test; and feature-code naming-scheme continuation. Tree green
+  at finalization: 1289 CAD unit tests, tsc + eslint clean; harness specs
+  rotate-grabnode / rotate-selection / toolbar-tools / export-{download,
+  layers,selection} / shell / property-panel / copy-tool / delete-undo /
+  point-naming all pass. Status flipped to **completed**; the `Spec:` ref
+  in `rotate-grabnode.spec` repointed to `completed/`; doc moved to
+  `completed/`. in-progress/ is now empty; the loop stops.
 
 ---
 

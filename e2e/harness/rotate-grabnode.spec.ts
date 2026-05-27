@@ -2,7 +2,7 @@
 // image-style bounding box + grab-node for any feature, and dragging the
 // node spins the selection with a live degree readout.
 //
-// Spec: docs/planning/in-progress/cad-rotation-grabnode-and-audit.md §5 R1/R2
+// Spec: docs/planning/completed/cad-rotation-grabnode-and-audit.md §5 R1/R2
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';
 
