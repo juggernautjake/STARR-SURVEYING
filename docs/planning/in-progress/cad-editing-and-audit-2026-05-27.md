@@ -356,3 +356,12 @@ media cloud upload (needs backend; local IDB covers single-device); L
   close it. Added onContextMenu (preventDefault + onClose) to match every
   other overlay menu. tsc + eslint clean. Every right-click popup in the
   CAD app now dismisses on both a normal click AND a right-click elsewhere.
+- 2026-05-27 05:4x CDT — Formatting sweep cont'd (user: "continue looking
+  for formatting issues"): a project-wide grep for the dark-on-dark class
+  fixed earlier (`bg-white dark:bg-gray-800` with NO text color) found two
+  more live cases — SketchReconcileDialog's AI-notes `<textarea>` and
+  CloseDrawingDialog's adjustment-method `<select>`. In dark mode both
+  rendered dark text on a dark gray-800 field (typed text/selection
+  invisible). Added `text-gray-900 dark:text-gray-100` to both, matching
+  CalcPointDialog. Re-swept: no remaining `bg-white dark:bg-gray-800`
+  fields lack a text color. eslint clean (CSS-class-only edit).

@@ -128,7 +128,7 @@ export default function SketchReconcileDialog({ onClose }: Props): React.ReactEl
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               placeholder="e.g. The garage corner labelled GC was not shot; we got points on the porch and the back wall. The sketch is rotated about 30° clockwise from true north."
               data-testid="sketch-notes"
             />

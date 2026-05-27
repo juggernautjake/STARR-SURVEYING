@@ -116,7 +116,7 @@ export default function CloseDrawingDialog({ onClose }: Props): React.ReactEleme
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value as Method)}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800"
+                className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 data-testid="closure-method"
               >
                 <option value="NONE">None — report only, don&apos;t adjust</option>
