@@ -231,6 +231,11 @@ interface UIStore {
    *  rewriting their input. Threaded through `parseAngle` opts at
    *  every consumer site (`CommandBar`, `UnitInput`). */
   dmsPackedShortcutEnabled: boolean;
+  /** When true, selection/editing is restricted to features on the active
+   *  layer only. When false (default), any visible, unlocked layer's
+   *  features can be selected and edited. Hidden layers are never editable
+   *  regardless of this setting. */
+  restrictEditingToActiveLayer: boolean;
   /** Phase 8 §11.5.5 — per-field unit lock. Keyed by a stable
    *  `fieldId` ("offset.distance", "fillet.radius", "array.col",
    *  …) so a surveyor who pins an input to inches keeps that
@@ -266,6 +271,7 @@ interface UIStore {
   setFeatureTooltipsEnabled: (enabled: boolean) => void;
   setTooltipDelayMs: (ms: number) => void;
   setDmsPackedShortcutEnabled: (enabled: boolean) => void;
+  setRestrictEditingToActiveLayer: (enabled: boolean) => void;
   setFieldUnitLock: (fieldId: string, unit: LinearUnit | AreaUnit | null) => void;
   setFirmLogoDataUrl: (dataUrl: string | null) => void;
   /** Add a new transfer preset. id auto-generated. Replaces
@@ -320,6 +326,7 @@ export const useUIStore = create<UIStore>()(
       featureTooltipsEnabled: true,
       tooltipDelayMs: 500,
       dmsPackedShortcutEnabled: true,
+      restrictEditingToActiveLayer: false,
       fieldUnitLocks: {},
       firmLogoDataUrl: null,
       // Seed bundled presets on initial state construction.
@@ -345,6 +352,7 @@ export const useUIStore = create<UIStore>()(
         tooltipDelayMs: Number.isFinite(ms) ? Math.max(100, Math.min(3000, Math.round(ms))) : 500,
       }),
       setDmsPackedShortcutEnabled: (enabled) => set({ dmsPackedShortcutEnabled: !!enabled }),
+      setRestrictEditingToActiveLayer: (enabled) => set({ restrictEditingToActiveLayer: !!enabled }),
       setFieldUnitLock: (fieldId, unit) =>
         set((s) => {
           if (!fieldId) return s;
@@ -466,6 +474,7 @@ export const useUIStore = create<UIStore>()(
         featureTooltipsEnabled: s.featureTooltipsEnabled,
         tooltipDelayMs: s.tooltipDelayMs,
         dmsPackedShortcutEnabled: s.dmsPackedShortcutEnabled,
+        restrictEditingToActiveLayer: s.restrictEditingToActiveLayer,
         fieldUnitLocks: s.fieldUnitLocks,
         firmLogoDataUrl: s.firmLogoDataUrl,
         transferPresets: s.transferPresets,
