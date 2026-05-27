@@ -705,6 +705,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           label: 'Code-to-Style Mapping…',
           action: () => { window.dispatchEvent(new CustomEvent('cad:openCodeStylePanel')); setOpenMenu(null); },
         },
+        {
+          label: 'Connect Points into Linework',
+          action: () => { window.dispatchEvent(new CustomEvent('cad:buildLineworkFromCodes')); setOpenMenu(null); },
+        },
         { separator: true },
         {
           label: 'Curve Calculator…',

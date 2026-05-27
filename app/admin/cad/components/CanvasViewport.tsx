@@ -15,10 +15,12 @@ import {
   useUIStore,
   useAIStore,
   useTransferStore,
+  usePointStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
+import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
 import {
   buildFeatureIndex,
@@ -10983,6 +10985,44 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         detail: { text: `Fit to page at 1"=${scale}'. Coordinates unchanged.` },
       }));
     };
+    // Field-to-finish on demand: connect the imported line-coded points into
+    // linework (separate POLYLINE features) using the code/shot-order strings
+    // computed at import time. Points are never modified or removed.
+    const onBuildLinework = () => {
+      const ptStore = usePointStore.getState();
+      const dwgStore = useDrawingStore.getState();
+      const undStore = useUndoStore.getState();
+      const points = ptStore.getAllPoints();
+      const lineStrings = Object.values(ptStore.lineStrings);
+      const emit = (text: string) =>
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+      if (points.length === 0) {
+        emit('No imported survey points to connect. Import points with line codes first.');
+        return;
+      }
+      if (lineStrings.length === 0) {
+        emit('No line-coded points found — nothing to connect.');
+        return;
+      }
+      // Land each line on the layer its first point actually sits on.
+      const layerFor = (p: typeof points[number]) => {
+        const f = p.featureId ? dwgStore.getFeature(p.featureId) : null;
+        return f?.layerId ?? p.layerId ?? 'MISC';
+      };
+      const features = buildLineworkFeatures(points, lineStrings, layerFor);
+      if (features.length === 0) {
+        emit('No connectable line strings (each needs at least two points).');
+        return;
+      }
+      dwgStore.addFeatures(features);
+      undStore.pushUndo(
+        makeBatchEntry(
+          'Connect points into linework',
+          features.map((f) => ({ type: 'ADD_FEATURE' as const, data: f })),
+        ),
+      );
+      emit(`Connected ${features.length} line${features.length === 1 ? '' : 's'} from point codes. Lines are separate features — delete them anytime without affecting the points.`);
+    };
     const onRotate = (e: Event) => {
       const { center, angleRad } = (e as CustomEvent).detail as {
         center: Point2D;
@@ -11059,6 +11099,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:fitDrawingToPage', onFitToPage);
+    window.addEventListener('cad:buildLineworkFromCodes', onBuildLinework);
     const onMovePageMode = () => {
       const next = !paperMoveModeRef.current;
       paperMoveModeRef.current = next;
@@ -11339,6 +11380,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
+      window.removeEventListener('cad:buildLineworkFromCodes', onBuildLinework);
       window.removeEventListener('cad:movePageMode', onMovePageMode);
       window.removeEventListener('cad:beginSnapToPoint', onBeginSnapToPoint);
       window.removeEventListener('cad:rotate', onRotate);

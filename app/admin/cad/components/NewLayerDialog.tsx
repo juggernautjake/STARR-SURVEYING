@@ -72,7 +72,7 @@ export default function NewLayerDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-              className="mt-1 w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 outline-none focus:border-blue-500"
+              className="mt-1 w-full bg-gray-900 text-gray-100 placeholder-gray-500 border border-gray-600 rounded px-2 py-1 outline-none focus:border-blue-500"
             />
           </label>
 
@@ -96,7 +96,7 @@ export default function NewLayerDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="What goes on this layer?"
-              className="mt-1 w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 outline-none focus:border-blue-500 resize-none"
+              className="mt-1 w-full bg-gray-900 text-gray-100 placeholder-gray-500 border border-gray-600 rounded px-2 py-1 outline-none focus:border-blue-500 resize-none"
             />
           </label>
 
