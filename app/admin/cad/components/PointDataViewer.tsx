@@ -10,7 +10,7 @@
 // Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
 
 import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, RotateCcw } from 'lucide-react';
 import { useDrawingStore, useUndoStore, makeBatchEntry } from '@/lib/cad/store';
 import {
   buildPointRows,
@@ -18,7 +18,37 @@ import {
   type PointRow,
   type PointRowField,
 } from '@/lib/cad/points/point-rows';
+import type { Feature } from '@/lib/cad/types';
 import { readPanelSize, writePanelSize } from '@/lib/cad/ui/panel-size';
+
+// Snapshot of a point's values captured the first time it is edited, so the
+// surveyor can always see the original for reference or revert back to it.
+// Stored (as JSON) on the feature's properties so it persists with the file.
+const ORIG_KEY = '_origSnapshot';
+interface PointSnapshot {
+  name: string;
+  northing: number;
+  easting: number;
+  elevation: number | null;
+  code: string;
+  description: string;
+}
+const SNAP_FIELDS: (keyof PointSnapshot)[] = ['name', 'northing', 'easting', 'elevation', 'code', 'description'];
+
+function rowSnapshot(row: PointRow): PointSnapshot {
+  return {
+    name: row.name, northing: row.northing, easting: row.easting,
+    elevation: row.elevation, code: row.code, description: row.description,
+  };
+}
+function readSnapshot(feature: Feature | undefined): PointSnapshot | null {
+  const raw = (feature?.properties as Record<string, unknown> | undefined)?.[ORIG_KEY];
+  if (typeof raw !== 'string') return null;
+  try { return JSON.parse(raw) as PointSnapshot; } catch { return null; }
+}
+function snapshotDiffers(row: PointRow, snap: PointSnapshot): boolean {
+  return SNAP_FIELDS.some((f) => String(row[f as keyof PointRow] ?? '') !== String(snap[f] ?? ''));
+}
 
 type ColKey = 'name' | 'northing' | 'easting' | 'elevation' | 'code' | 'description' | 'layer';
 
@@ -95,7 +125,63 @@ export default function PointDataViewer({
     });
   }, [rows, layerFilter, search]);
 
+  // Original snapshot per row (if any edits have been made). Drives the
+  // "edited" indicator, original-value tooltips, and Revert.
+  const origByRow = useMemo(() => {
+    const m = new Map<string, PointSnapshot>();
+    for (const r of rows) {
+      const snap = readSnapshot(getFeature(r.id));
+      if (snap) m.set(r.id, snap);
+    }
+    return m;
+  }, [rows, getFeature]);
+
   if (!open) return null;
+
+  /** Stamp the original snapshot onto a feature the first time it's edited. */
+  function ensureSnapshot(row: PointRow) {
+    const feature = getFeature(row.id);
+    if (!feature) return;
+    const props = (feature.properties ?? {}) as Record<string, unknown>;
+    if (props[ORIG_KEY] !== undefined) return;
+    updateFeature(row.id, {
+      properties: { ...feature.properties, [ORIG_KEY]: JSON.stringify(rowSnapshot(row)) },
+    });
+  }
+
+  /** Restore every edited field of a point back to its captured original. */
+  function revertRow(row: PointRow) {
+    const feature = getFeature(row.id);
+    if (!feature) return;
+    const snap = readSnapshot(feature);
+    if (!snap) return;
+    // Fold each data field back to its original, threading the working
+    // feature so coordinate edits compose into a single point.
+    let working: Feature = feature;
+    const dataFields: PointRowField[] = ['northing', 'easting', 'elevation', 'code', 'description'];
+    for (const f of dataFields) {
+      const raw = snap[f as keyof PointSnapshot];
+      const upd = rowEditToFeatureUpdate(working, f, raw == null ? '' : String(raw), document.settings);
+      if (upd) working = { ...working, ...upd };
+    }
+    const nextProps: Record<string, string | number | boolean> = { ...(working.properties ?? {}) };
+    delete nextProps[ORIG_KEY]; // back to original → clear the snapshot
+    const update: Partial<Feature> = { geometry: working.geometry, properties: nextProps };
+    const before: Record<string, unknown> = {
+      geometry: feature.geometry,
+      properties: feature.properties,
+    };
+    updateFeature(row.id, update);
+    pushUndo(
+      makeBatchEntry(`Revert point ${row.name || row.id}`, [
+        { type: 'MODIFY_FEATURE', data: { id: row.id, before, after: update } },
+      ]),
+    );
+    // Name is guarded — route a name revert through the rename flow.
+    if (snap.name && snap.name !== row.name) {
+      onRenameRequest?.(row.id, row.name, snap.name);
+    }
+  }
 
   function toggleCol(key: ColKey) {
     setColVis((prev) => {
@@ -109,7 +195,10 @@ export default function PointDataViewer({
     setEdit(null);
     if (field === 'name') {
       const newName = raw.trim();
-      if (newName && newName !== row.name) onRenameRequest?.(row.id, row.name, newName);
+      if (newName && newName !== row.name) {
+        ensureSnapshot(row); // track the original before the guarded rename
+        onRenameRequest?.(row.id, row.name, newName);
+      }
       return;
     }
     if (field === 'layer') return;
@@ -117,6 +206,15 @@ export default function PointDataViewer({
     if (!feature) return;
     const update = rowEditToFeatureUpdate(feature, field as PointRowField, raw, document.settings);
     if (!update) return; // invalid input — ignore
+    // Capture the original snapshot on the first edit so it persists with
+    // the file and powers reference + revert.
+    if ((feature.properties as Record<string, unknown> | undefined)?.[ORIG_KEY] === undefined) {
+      update.properties = {
+        ...feature.properties,
+        ...(update.properties ?? {}),
+        [ORIG_KEY]: JSON.stringify(rowSnapshot(row)),
+      };
+    }
     const before: Record<string, unknown> = {};
     const featureRec = feature as unknown as Record<string, unknown>;
     for (const k of Object.keys(update)) before[k] = featureRec[k];
@@ -138,6 +236,18 @@ export default function PointDataViewer({
       case 'code': return row.code;
       case 'description': return row.description;
       case 'layer': return document.layers[row.layerId]?.name ?? row.layerId;
+    }
+  };
+  // Original value of a field for the tooltip, formatted like the cell.
+  const origCell = (snap: PointSnapshot, key: ColKey): string => {
+    switch (key) {
+      case 'name': return snap.name;
+      case 'northing': return snap.northing.toFixed(3);
+      case 'easting': return snap.easting.toFixed(3);
+      case 'elevation': return snap.elevation == null ? '' : snap.elevation.toFixed(3);
+      case 'code': return snap.code;
+      case 'description': return snap.description;
+      default: return '';
     }
   };
 
@@ -198,10 +308,14 @@ export default function PointDataViewer({
                   {c.label}
                 </th>
               ))}
+              <th className="w-8 border-b border-gray-700" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row) => (
+            {filtered.map((row) => {
+              const snap = origByRow.get(row.id);
+              const rowEdited = !!snap && snapshotDiffers(row, snap);
+              return (
               <tr
                 key={row.id}
                 className={`hover:bg-gray-800/60 ${row.editable ? '' : 'text-gray-400 italic'}`}
@@ -210,11 +324,16 @@ export default function PointDataViewer({
                 {visibleCols.map((c) => {
                   const cellEditable = c.editable && row.editable;
                   const editing = edit?.id === row.id && edit.field === c.key;
+                  const fieldEdited =
+                    !!snap &&
+                    (SNAP_FIELDS as string[]).includes(c.key) &&
+                    String(row[c.key as keyof PointRow] ?? '') !== String(snap[c.key as keyof PointSnapshot] ?? '');
                   return (
                     <td
                       key={c.key}
                       className="px-2 py-0.5 border-b border-gray-800 whitespace-nowrap"
                       onClick={() => cellEditable && setEdit({ id: row.id, field: c.key })}
+                      title={fieldEdited ? `Original: ${origCell(snap!, c.key) || '(empty)'}` : undefined}
                     >
                       {editing ? (
                         <input
@@ -228,18 +347,36 @@ export default function PointDataViewer({
                           className="w-full bg-gray-700 border border-blue-500 rounded px-1 outline-none"
                         />
                       ) : (
-                        <span className={cellEditable ? 'cursor-text' : 'text-gray-400'}>
+                        <span
+                          className={`${cellEditable ? 'cursor-text' : 'text-gray-400'} ${
+                            fieldEdited ? 'text-amber-300' : ''
+                          }`}
+                        >
                           {cell(row, c.key) || (c.editable ? '—' : '')}
                         </span>
                       )}
                     </td>
                   );
                 })}
+                <td className="px-1 py-0.5 border-b border-gray-800 text-center">
+                  {rowEdited && (
+                    <button
+                      type="button"
+                      onClick={() => revertRow(row)}
+                      className="text-gray-500 hover:text-amber-300 transition-colors"
+                      title="Revert this point to its original imported/created values"
+                      aria-label={`Revert point ${row.name || row.id} to original`}
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                  )}
+                </td>
               </tr>
-            ))}
+              );
+            })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={visibleCols.length} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={visibleCols.length + 1} className="px-3 py-6 text-center text-gray-500">
                   No points. Draw or import points, or clear the filter.
                 </td>
               </tr>
