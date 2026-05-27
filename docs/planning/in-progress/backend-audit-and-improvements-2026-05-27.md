@@ -50,8 +50,10 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Verified:** `tsc` + `eslint` clean. Render is code-verified only — the dashboard is auth-gated and not reachable from the unauthenticated `/cad-harness`, so it can't be screenshotted in this environment.
 - ~~Live "Hours This Week / This Period" and "PTO Balance" tiles~~ — deferred: the values come from the pay-computation route (`/api/admin/time-logs`, monetary `payroll/balance`) which needs careful week/period bucketing and a PTO source that isn't a simple field; shipping unverified numbers (no auth path in the harness) risks misleading payroll figures. Revisit with a dedicated dashboard-summary endpoint + a seeded-auth E2E path.
 
-### Slice 5 — CAD: ElementExplanationPopup chat placeholder
-- [ ] Either wire the "Chat (coming soon)" affordance to the existing AI proposal/chat store or cleanly remove the dead placeholder so the popup isn't advertising a non-feature. Decide based on what the AI store already supports.
+### Slice 5 — CAD: ElementExplanationPopup chat placeholder ✅ shipped (false positive)
+- [x] Investigate the "Chat (coming soon)" affordance.
+  - **Audit result:** false positive — the chat is fully implemented. `ChatPanel` is wired to `useAIStore.sendChatMessage` / `executeChatAction` with quick actions (Update This Element / Redraw This Group / Redraw Full Drawing) and per-message Apply buttons. Only the file's header comment was stale ("…land in the next slice … Chat (coming soon) placeholder").
+  - **Done:** corrected the header comment to describe the shipped chat section. No functional change; `tsc` already exercises the live wiring.
 
 ### Slice 6 — Research: ExportPanel "Coming Soon" format
 - [ ] Investigate the disabled export format; implement it if the underlying writer exists (`lib/cad/delivery/*`), otherwise remove the teaser so the panel only shows working options.
