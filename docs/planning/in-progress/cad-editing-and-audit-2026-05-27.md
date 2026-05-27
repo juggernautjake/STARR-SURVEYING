@@ -140,3 +140,7 @@ Newly-discovered audit targets get appended here as `[ ]`.
   also listens for mousedown + pointerdown. `canvas-contextmenu.spec` passes
   (menu opens, native menu suppressed, dismisses on outside click). Added a
   `cad:togglePointTable`-style verification. Next: continue audit.
+- 2026-05-27 02:5x CDT — Same dismiss-race fixed in PickModeContextMenu
+  (deferred mousedown listener in an effect depending on onClose). Now
+  mount-once via onClose ref. Swept all CAD components — no other
+  `[onClose]`-dep + deferred-listener popups remain. tsc + eslint clean.
