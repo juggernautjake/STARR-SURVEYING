@@ -50,10 +50,10 @@ screenshot where feasible → record in §6 → commit + push.
 - [x] **B. Filter… field formatting in the Point Data Viewer / Point table.**
   Fix the reported formatting issue (alignment/padding/contrast). Then sweep
   for other formatting glitches (misaligned inputs, clipped text, dark-on-dark).
-- [ ] **C. Line-type symbols render ON TOP of the line.** A dashed line with an
+- [x] **C. Line-type symbols render ON TOP of the line.** A dashed line with an
   "O"/glyph should not have dashes crossing through the symbol — give the
   symbol a slight opaque (white) backing so the line never shows through it.
-- [ ] **D. Infinity (and oriented) line-type symbols tilt with the line.** Rotate
+- [x] **D. Infinity (and oriented) line-type symbols tilt with the line.** Rotate
   inline symbols so their long axis follows the segment direction.
 - [ ] **E. Media attachments for points / lines / shapes / layers** (LARGE — stage):
   right-click "Add media for this point/feature/layer" → upload image/video;
@@ -100,3 +100,10 @@ Newly-discovered audit targets get appended here as `[ ]`.
   up the Points panel Filter field — fixed height (h-7), shrink-0, placeholder
   contrast, pointer-events-none icon, aligned clear button. Next: C (line-type
   symbols render on top of the line with an opaque backing).
+- 2026-05-27 02:0x CDT — C + D done. C: inline line-type symbols now get an
+  opaque paper-white backing disc drawn before the glyph, so dashes/lines no
+  longer show through (`drawSymbolBacking`). D: the DASH_INFINITY line type's
+  symbol now uses symbolRotation ALONG_LINE so the ∞ tilts with the segment.
+  tsc + eslint clean; 20 linetype tests pass. Visual confirmation constrained
+  (needs a styled line in the harness). Next: F (import/export review) or the
+  ongoing audit themes; E (media) is the large staged item.
