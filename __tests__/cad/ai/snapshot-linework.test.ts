@@ -42,6 +42,28 @@ describe('buildSnapshot linework catalog', () => {
     expect(buildSnapshot(doc({})).activeLayer).toBeNull();
   });
 
+  it('catalogs EVERY existing point with exact survey coords, number, code, and layer', () => {
+    const features = {
+      p1: { id: 'p1', type: 'POINT', geometry: { type: 'POINT', point: { x: 425, y: 1020 } }, layerId: 'L', style: STYLE, properties: { pointName: '5', code: 'IPF' } } as unknown as Feature,
+      p2: { id: 'p2', type: 'POINT', geometry: { type: 'POINT', point: { x: 600, y: 1100 } }, layerId: 'L', style: STYLE, properties: { pointName: '6', code: 'IPF' } } as unknown as Feature,
+    };
+    const snap = buildSnapshot(doc(features));
+    expect(snap.points).toHaveLength(2);
+    expect(snap.pointsTruncated).toBe(false);
+    expect(snap.points[0]).toMatchObject({ id: 'p1', pt: '5', northing: 1020, easting: 425, code: 'IPF', layer: 'BOUNDARY' });
+    expect(snap.points[1]).toMatchObject({ id: 'p2', pt: '6', northing: 1100, easting: 600 });
+  });
+
+  it('applies the display origin to catalogued point coordinates', () => {
+    const features = {
+      p1: { id: 'p1', type: 'POINT', geometry: { type: 'POINT', point: { x: 10, y: 20 } }, layerId: 'L', style: STYLE, properties: { pointName: '1' } } as unknown as Feature,
+    };
+    const d = doc(features);
+    (d.settings as unknown as { displayPreferences: { originNorthing: number; originEasting: number } }).displayPreferences = { originNorthing: 1000, originEasting: 2000 };
+    const snap = buildSnapshot(d);
+    expect(snap.points[0]).toMatchObject({ northing: 1020, easting: 2010 });
+  });
+
   it('computes the NE extents of visible features (null when empty)', () => {
     const features = {
       g1: { id: 'g1', type: 'POLYGON', geometry: { type: 'POLYGON', vertices: [

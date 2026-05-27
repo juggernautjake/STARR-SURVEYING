@@ -220,6 +220,15 @@ You receive:
   status, the point codes in use, and a "linework" catalog of
   non-point features (id, type, layer, center, length/area) so you
   can target shapes by id even when they aren't selected.
+* A "points" catalog — EVERY existing survey point with its
+  pointNumber ("pt"), EXACT northing/easting, code, and layer. This
+  is your source of truth for existing points. When the user refers
+  to points by number ("point 5", "5-8"), by code, by layer, or
+  says "these points", FIND them in "points" (or CURRENT SELECTION)
+  and REUSE their exact coordinates. NEVER invent or approximate the
+  coordinates of an existing point. If "pointsTruncated" is true or
+  you cannot find a referenced point, say so and ask the user to
+  select the points rather than guessing.
 * The CURRENT SELECTION — the exact features the user has
   highlighted on the canvas (with point numbers, codes,
   descriptions, and northing/easting). When the user says
@@ -265,6 +274,15 @@ Action selection rules:
     to the shot points.
   - A POLYGON is auto-closed; list its corners once (do not repeat the
     first point). Use the selected features' layer unless told otherwise.
+  - To DUPLICATE existing points onto another layer and CONNECT them
+    (e.g. "use these four points to make a boundary on a new layer"):
+    (1) look up each referenced point's EXACT northing/easting from
+    "points"/CURRENT SELECTION; (2) if the target layer is new, add it
+    via "createLayers"; (3) in "add", emit one POINT per point at its
+    EXACT coordinates with "layerName" = the target layer; (4) connect
+    them with a POLYGON (closed boundary) or POLYLINE in "add" whose
+    "points" are those SAME exact coordinates in order. Never re-space,
+    re-scale, or relocate the points — copy their coordinates verbatim.
   - SPLINE fits a smooth best-fit curve through its points; set
     "closed": true to smoothly reconnect the last point to the first
     (e.g. a pond/lake outline or a round figure). CIRCLE takes a center
@@ -754,6 +772,12 @@ interface DocSnapshot {
   /** Compact catalog of non-point linework (capped) so the AI can target
    *  features it didn't select, by id. */
   linework:         { id: string; type: string; layer: string; center: NE; lengthFt?: number; areaSqFt?: number }[];
+  /** Catalog of EXISTING survey points (capped) — pointNumber, exact survey
+   *  coordinates, code, and layer — so the AI reuses real points instead of
+   *  inventing coordinates when the user references existing points. */
+  points:           { id: string; pt: string; northing: number; easting: number; code: string; layer: string }[];
+  /** True when the points list was capped (more points exist than shown). */
+  pointsTruncated:  boolean;
   titleBlock:       Record<string, string>;
 }
 
@@ -772,7 +796,10 @@ export function buildSnapshot(doc: DrawingDocument, activeLayerName?: string): D
   const layerFeatureCounts = new Map<string, number>();
   const codes = new Set<string>();
   const linework: DocSnapshot['linework'] = [];
+  const points: DocSnapshot['points'] = [];
   const MAX_LINEWORK = 60;
+  const MAX_POINTS = 300;
+  let pointsTruncated = false;
   let exMinX = Infinity, exMinY = Infinity, exMaxX = -Infinity, exMaxY = -Infinity;
   for (const f of Object.values(doc.features)) {
     if (f.hidden) continue;
@@ -802,6 +829,23 @@ export function buildSnapshot(doc: DrawingDocument, activeLayerName?: string): D
       const entry = lineworkEntry(f, originN, originE, layerNameById.get(f.layerId) ?? f.layerId);
       if (entry) linework.push(entry);
     }
+
+    // Catalog EXISTING points with their EXACT survey coordinates so the AI
+    // reuses real points instead of inventing coordinates.
+    if (f.type === 'POINT' && f.geometry.point) {
+      if (points.length < MAX_POINTS) {
+        points.push({
+          id: f.id,
+          pt: pointNumberOf(f) ?? '',
+          northing: round(f.geometry.point.y + originN),
+          easting: round(f.geometry.point.x + originE),
+          code: pointCodeOf(f),
+          layer: layerNameById.get(f.layerId) ?? f.layerId,
+        });
+      } else {
+        pointsTruncated = true;
+      }
+    }
   }
   const layers = Array.from(layerNameById.entries())
     .map(([id, name]) => ({
@@ -829,6 +873,8 @@ export function buildSnapshot(doc: DrawingDocument, activeLayerName?: string): D
       ? { minNorthing: round(exMinY + originN), minEasting: round(exMinX + originE), maxNorthing: round(exMaxY + originN), maxEasting: round(exMaxX + originE) }
       : null,
     linework,
+    points,
+    pointsTruncated,
     titleBlock: {
       firmName: tb.firmName,
       surveyorName: tb.surveyorName,
