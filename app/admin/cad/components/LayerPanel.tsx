@@ -6,6 +6,7 @@ import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, Rota
 import { useEffect } from 'react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
+import { useUIStore } from '@/lib/cad/store';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { confirmAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
@@ -40,6 +41,8 @@ interface ContextMenu {
 export default function LayerPanel() {
   const store = useDrawingStore();
   const selectionStore = useSelectionStore();
+  const restrictToActive = useUIStore((s) => s.restrictEditingToActiveLayer);
+  const setRestrictToActive = useUIStore((s) => s.setRestrictEditingToActiveLayer);
   const { document: doc, activeLayerId } = store;
   const mediaByOwner = useMediaStore((s) => s.byOwner);
   const mediaHydrate = useMediaStore((s) => s.hydrate);
@@ -788,6 +791,18 @@ export default function LayerPanel() {
         >
           <EyeOffIcon size={12} />
           Hidden Items
+        </button>
+        <button
+          className="w-full flex items-center gap-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded px-1 py-1 text-xs transition-colors duration-100"
+          onClick={() => setRestrictToActive(!restrictToActive)}
+          title={
+            restrictToActive
+              ? 'Editing is limited to the active layer. Click to allow editing any visible layer.'
+              : 'Editing is allowed on any visible layer. Click to limit editing to the active layer only.'
+          }
+        >
+          {restrictToActive ? <Lock size={12} /> : <LockOpen size={12} />}
+          Edit: {restrictToActive ? 'active layer only' : 'any visible layer'}
         </button>
       </div>
 

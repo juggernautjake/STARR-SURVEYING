@@ -7050,15 +7050,32 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   // Hit testing
   // ─────────────────────────────────────────────
+  /**
+   * Whether a layer currently permits selecting/editing its features: it must
+   * be visible (hidden layers are never editable, even when active) and
+   * unlocked, and — when the "restrict editing to active layer" preference is
+   * on — it must be the active layer.
+   */
+  function canEditLayer(layerId: string): boolean {
+    const layer = drawingStore.getLayer(layerId);
+    if (!layer || layer.locked || layer.visible === false) return false;
+    if (
+      useUIStore.getState().restrictEditingToActiveLayer &&
+      layerId !== drawingStore.activeLayerId
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   function hitTest(sx: number, sy: number): string | null {
     // Use drawing-rotation-aware coordinate conversion
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const worldTol = HIT_TOLERANCE_PX / viewportStore.zoom;
-    // Exclude features on locked layers from selection
-    const layerVisible = drawingStore.getVisibleFeatures().filter((f) => {
-      const layer = drawingStore.getLayer(f.layerId);
-      return !layer?.locked;
-    });
+    // Exclude features on locked/hidden/non-active layers from selection.
+    const layerVisible = drawingStore.getVisibleFeatures().filter((f) =>
+      canEditLayer(f.layerId),
+    );
 
     // §19.1 — narrow with the spatial index. The cursor's
     // hit envelope is a (worldTol)-padded square at (wx,wy);
@@ -7216,9 +7233,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           sy >= bounds.y && sy <= bounds.y + bounds.height) {
         if (key.startsWith('text:')) {
           const featureId = key.slice(5); // strip 'text:' prefix
+          const tf = drawingStore.getFeature(featureId);
+          if (tf && !canEditLayer(tf.layerId)) continue;
           return { featureId, labelId: featureId, isTextFeature: true, key };
         }
         const [featureId, labelId] = key.split(':');
+        const lf = drawingStore.getFeature(featureId);
+        if (lf && !canEditLayer(lf.layerId)) continue;
         return { featureId, labelId, isTextFeature: false, key };
       }
     }
@@ -7242,8 +7263,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const matchedIds: string[] = drawingStore
       .getVisibleFeatures()
       .filter((f) => {
-        const layer = drawingStore.getLayer(f.layerId);
-        if (layer?.locked) return false;
+        if (!canEditLayer(f.layerId)) return false;
         const fb = featureBounds(f);
         if (useFullContainment && mode === 'WINDOW_FULL_ONLY') {
           return boundsContains(selBox, fb);
@@ -7270,13 +7290,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const expanded = new Set(matchedIds);
         for (const f of drawingStore.getVisibleFeatures()) {
           const pgid = f.properties?.polylineGroupId as string | undefined;
-          if (pgid && polylineGroupIds.has(pgid)) {
-            const layer = drawingStore.getLayer(f.layerId);
-            if (!layer?.locked) expanded.add(f.id);
+          if (pgid && polylineGroupIds.has(pgid) && canEditLayer(f.layerId)) {
+            expanded.add(f.id);
           }
-          if (f.featureGroupId && featureGroupIds.has(f.featureGroupId)) {
-            const layer = drawingStore.getLayer(f.layerId);
-            if (!layer?.locked) expanded.add(f.id);
+          if (f.featureGroupId && featureGroupIds.has(f.featureGroupId) && canEditLayer(f.layerId)) {
+            expanded.add(f.id);
           }
         }
         return Array.from(expanded);

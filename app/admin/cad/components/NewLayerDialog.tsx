@@ -8,7 +8,7 @@
 // Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §11
 
 import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Search } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { buildPointRows } from '@/lib/cad/points/point-rows';
 import { useExitTransition } from '../hooks/useExitTransition';
@@ -37,8 +37,28 @@ export default function NewLayerDialog({
   const [color, setColor] = useState(defaultColor);
   const [description, setDescription] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+  const [searchBy, setSearchBy] = useState<'NAME' | 'CODE'>('NAME');
 
   const points = useMemo(() => buildPointRows(doc), [doc]);
+
+  // Live filter — by point NAME (prefix, with code/description fallback) or
+  // by CODE (substring of the survey code).
+  const visiblePoints = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return points;
+    if (searchBy === 'CODE') {
+      return points.filter((p) => p.code.toLowerCase().includes(q));
+    }
+    return points.filter((p) => {
+      const name = (p.name || '').toLowerCase();
+      return (
+        name.startsWith(q) ||
+        p.code.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q)
+      );
+    });
+  }, [points, search, searchBy]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -107,13 +127,47 @@ export default function NewLayerDialog({
               </span>
               {points.length > 0 && (
                 <div className="flex gap-2 text-xs">
-                  <button type="button" className="text-blue-400 hover:underline" onClick={() => setSelected(new Set(points.map((p) => p.id)))}>All</button>
+                  <button type="button" className="text-blue-400 hover:underline" onClick={() => setSelected((prev) => new Set([...prev, ...visiblePoints.map((p) => p.id)]))}>All</button>
                   <button type="button" className="text-blue-400 hover:underline" onClick={() => setSelected(new Set())}>None</button>
                 </div>
               )}
             </div>
+
+            {points.length > 0 && (
+              <div className="flex items-stretch gap-1 mb-1">
+                <div className="flex rounded border border-gray-600 overflow-hidden shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setSearchBy('NAME')}
+                    className={`px-2 text-[11px] ${searchBy === 'NAME' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+                  >
+                    Name
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearchBy('CODE')}
+                    className={`px-2 text-[11px] ${searchBy === 'CODE' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+                  >
+                    Code
+                  </button>
+                </div>
+                <div className="relative flex-1">
+                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={searchBy === 'CODE' ? 'Search by code… (e.g. BC, IRF)' : 'Search by name… (e.g. 8 → 8, 87fnd)'}
+                    className="w-full h-7 pl-7 pr-7 bg-gray-900 text-gray-100 placeholder-gray-500 border border-gray-600 rounded text-[11px] outline-none focus:border-blue-500"
+                  />
+                  {search && (
+                    <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" aria-label="Clear search"><X size={11} /></button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="max-h-40 overflow-auto border border-gray-700 rounded">
-              {points.map((p) => (
+              {visiblePoints.map((p) => (
                 <div
                   key={p.id}
                   onClick={() => toggle(p.id)}
@@ -127,14 +181,19 @@ export default function NewLayerDialog({
                     className="accent-blue-500"
                     style={{ width: 14, height: 14, flex: '0 0 auto' }}
                   />
-                  <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.name || '(unnamed)'}
-                    <span className="text-gray-500"> · N {p.northing.toFixed(1)} E {p.easting.toFixed(1)}</span>
+                  <span className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className="font-mono text-gray-100 shrink-0">{p.name || '(unnamed)'}</span>
+                    {p.code && <span className="text-[10px] text-amber-400 shrink-0">{p.code}</span>}
+                    {p.description && <span className="text-[10px] text-gray-400 truncate min-w-0">{p.description}</span>}
+                    <span className="text-gray-500 text-[10px] shrink-0 ml-auto">N {p.northing.toFixed(1)} E {p.easting.toFixed(1)}</span>
                   </span>
                 </div>
               ))}
               {points.length === 0 && (
                 <div className="px-2 py-3 text-gray-500 text-xs">No points yet — you can add them later.</div>
+              )}
+              {points.length > 0 && visiblePoints.length === 0 && (
+                <div className="px-2 py-3 text-gray-500 text-xs">No points match &ldquo;{search}&rdquo;.</div>
               )}
             </div>
           </div>

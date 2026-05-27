@@ -119,6 +119,9 @@ export default function PropertyPanel() {
   // override their per-feature symbolId from the dialog.
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   const [lineTypePickerOpen, setLineTypePickerOpen] = useState(false);
+  // Multi-select editor: active per-type tab + which bulk picker is open.
+  const [multiTab, setMultiTab] = useState<string | null>(null);
+  const [bulkPicker, setBulkPicker] = useState<'lineType' | 'symbol' | null>(null);
 
   const single = features.length === 1 ? features[0] : null;
   // Media attachments for the selected feature.
@@ -180,6 +183,26 @@ export default function PropertyPanel() {
       timestamp: Date.now(),
       operations,
     });
+  }
+
+  // Apply a style patch to every feature in `subset` as a single undo entry.
+  // Used by the multi-select per-type editor so a whole batch of lines (or
+  // points) can be restyled at once.
+  function bulkApplyStyle(
+    subset: Feature[],
+    patch: Partial<Feature['style']>,
+    description: string,
+  ) {
+    if (subset.length === 0) return;
+    const operations = subset.map((f) => {
+      const before = drawingStore.getFeature(f.id)!;
+      drawingStore.updateFeature(f.id, {
+        style: { ...DEFAULT_FEATURE_STYLE, ...f.style, ...patch, isOverride: true },
+      });
+      const after = drawingStore.getFeature(f.id)!;
+      return { type: 'MODIFY_FEATURE' as const, data: { id: f.id, before, after } };
+    });
+    undoStore.pushUndo({ id: generateId(), timestamp: Date.now(), description, operations });
   }
 
   // Real-time coordinate editing — updates canvas immediately
@@ -335,38 +358,133 @@ export default function PropertyPanel() {
   }
 
   if (features.length > 1) {
-    // Multi-select: show count + allow bulk color/weight change + move to layer
+    // Multi-select: per-type tabs that restyle ALL selected features of a
+    // kind at once, plus a bulk "Move to Layer" that applies to everything.
     const mixedLayers = new Set(features.map((f) => f.layerId)).size > 1;
     const sharedLayerId = mixedLayers ? '' : features[0].layerId;
+
+    // Group the selection by editable kind.
+    const KINDS: { key: string; label: string; match: (t: string) => boolean; isLine: boolean; isPoint: boolean }[] = [
+      { key: 'LINES', label: 'Lines', match: (t) => t === 'LINE' || t === 'POLYLINE', isLine: true, isPoint: false },
+      { key: 'AREAS', label: 'Areas', match: (t) => t === 'POLYGON', isLine: true, isPoint: false },
+      { key: 'POINTS', label: 'Points', match: (t) => t === 'POINT', isLine: false, isPoint: true },
+      { key: 'TEXT', label: 'Text', match: (t) => t === 'TEXT', isLine: false, isPoint: false },
+      { key: 'OTHER', label: 'Other', match: (t) => !['LINE', 'POLYLINE', 'POLYGON', 'POINT', 'TEXT'].includes(t), isLine: false, isPoint: false },
+    ];
+    const groups = KINDS
+      .map((k) => ({ ...k, items: features.filter((f) => k.match(f.type)) }))
+      .filter((g) => g.items.length > 0);
+    const active = groups.find((g) => g.key === multiTab) ?? groups[0];
+    const subset = active.items;
+
     return (
       <div className="flex flex-col h-full text-gray-200 text-xs">
         <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700">
-          Properties
+          Properties · {features.length} selected
         </div>
-        <div className="p-2 space-y-2 animate-[fadeIn_150ms_ease-out]">
-          <div className="text-gray-400">{features.length} objects selected</div>
-          <div className="text-gray-500 text-[10px]">
-            {features.map((f) => f.type).join(', ')}
+
+        {/* Per-type tabs */}
+        {groups.length > 1 && (
+          <div className="flex items-center gap-1 px-2 pt-2 flex-wrap">
+            {groups.map((g) => (
+              <button
+                key={g.key}
+                onClick={() => setMultiTab(g.key)}
+                className={`px-2 py-0.5 rounded text-[11px] border transition-colors ${
+                  active.key === g.key
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {g.label} ({g.items.length})
+              </button>
+            ))}
           </div>
+        )}
+
+        <div className="p-2 space-y-2 overflow-y-auto animate-[fadeIn_150ms_ease-out]">
+          <div className="text-gray-500 text-[10px]">
+            Editing {subset.length} {active.label.toLowerCase()} together.
+          </div>
+
+          {/* Bulk style for the active kind */}
           <div className="border-t border-gray-700 pt-2 space-y-2">
+            <div className="text-gray-500 text-[10px] uppercase tracking-wider">{active.label} style</div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-gray-400">Color</span>
+              <span className="text-gray-400 shrink-0">Color</span>
               <input
                 type="color"
                 className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
-                defaultValue="#000000"
-                onChange={(e) => {
-                  const color = e.target.value;
-                  for (const f of features) {
-                    drawingStore.updateFeature(f.id, { style: { ...f.style, color } });
-                  }
+                defaultValue={subset[0]?.style.color ?? '#000000'}
+                onChange={(e) => bulkApplyStyle(subset, { color: e.target.value }, `Recolor ${subset.length} ${active.label.toLowerCase()}`)}
+              />
+            </div>
+
+            {active.isLine && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0">Line Type</span>
+                <button
+                  type="button"
+                  onClick={() => setBulkPicker('lineType')}
+                  className="flex items-center gap-1.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded transition-colors max-w-[140px]"
+                >
+                  {(() => {
+                    const lt = subset[0]?.style.lineTypeId ? getLineTypeById(subset[0].style.lineTypeId) : null;
+                    return <span className="text-[10px] text-gray-300 truncate">{lt?.name ?? 'Pick…'}</span>;
+                  })()}
+                </button>
+              </div>
+            )}
+
+            {active.isPoint && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0">Symbol</span>
+                <button
+                  type="button"
+                  onClick={() => setBulkPicker('symbol')}
+                  className="flex items-center gap-1.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded transition-colors max-w-[140px]"
+                >
+                  {(() => {
+                    const sym = subset[0]?.style.symbolId ? getSymbolById(subset[0].style.symbolId) : null;
+                    return sym
+                      ? <><SymbolThumbnail symbol={sym} size={18} /><span className="text-[10px] text-gray-300 truncate">{sym.name}</span></>
+                      : <span className="text-[10px] text-gray-300">Pick…</span>;
+                  })()}
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400 shrink-0">Line Weight</span>
+              <input
+                className="w-14 h-6 bg-gray-700 text-white rounded px-1 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
+                type="number" step="0.5" min="0.1" max="20"
+                placeholder="—"
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) bulkApplyStyle(subset, { lineWeight: Math.max(0.1, Math.min(20, v)) }, `Set weight on ${subset.length} ${active.label.toLowerCase()}`);
                 }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400 shrink-0">Opacity %</span>
+              <input
+                className="w-14 h-6 bg-gray-700 text-white rounded px-1 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
+                type="number" step="5" min="0" max="100"
+                placeholder="—"
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) bulkApplyStyle(subset, { opacity: Math.max(0, Math.min(1, v / 100)) }, `Set opacity on ${subset.length} ${active.label.toLowerCase()}`);
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
               />
             </div>
           </div>
-          {/* Move to layer — bulk action */}
+
+          {/* Move to layer — bulk action over the whole selection */}
           <div className="border-t border-gray-700 pt-2 space-y-1">
-            <div className="text-gray-500 text-[10px] uppercase tracking-wider">Move to Layer</div>
+            <div className="text-gray-500 text-[10px] uppercase tracking-wider">Move all to Layer</div>
             {mixedLayers && (
               <div className="text-[9px] text-yellow-500 mb-1">Multiple layers selected</div>
             )}
@@ -374,10 +492,7 @@ export default function PropertyPanel() {
               {(() => {
                 const targetLayer = sharedLayerId ? doc.layers[sharedLayerId] : null;
                 return targetLayer ? (
-                  <div
-                    className="w-3 h-3 rounded-sm border border-gray-500 shrink-0"
-                    style={{ backgroundColor: targetLayer.color }}
-                  />
+                  <div className="w-3 h-3 rounded-sm border border-gray-500 shrink-0" style={{ backgroundColor: targetLayer.color }} />
                 ) : null;
               })()}
               <select
@@ -393,6 +508,21 @@ export default function PropertyPanel() {
             </div>
           </div>
         </div>
+
+        {/* Bulk pickers — apply the chosen style to every feature in the tab. */}
+        <LineTypePicker
+          open={bulkPicker === 'lineType'}
+          selectedLineTypeId={subset[0]?.style.lineTypeId ?? null}
+          customLineTypes={drawingStore.document.customLineTypes}
+          onSelect={(lineTypeId) => bulkApplyStyle(subset, { lineTypeId }, `Set line type on ${subset.length} objects`)}
+          onClose={() => setBulkPicker(null)}
+        />
+        <SymbolPicker
+          open={bulkPicker === 'symbol'}
+          selectedSymbolId={subset[0]?.style.symbolId ?? null}
+          onSelect={(symbolId) => bulkApplyStyle(subset, { symbolId }, `Set symbol on ${subset.length} points`)}
+          onClose={() => setBulkPicker(null)}
+        />
       </div>
     );
   }

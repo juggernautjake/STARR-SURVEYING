@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/CADLayout.tsx — Main CAD editor UI shell
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import MenuBar from './components/MenuBar';
 import ToolBar from './components/ToolBar';
@@ -48,7 +48,6 @@ import CodeStylePanel from './components/CodeStylePanel';
 import AISidebar from './components/AISidebar';
 import BidirectionalSync from './components/BidirectionalSync';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
-import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
@@ -134,9 +133,16 @@ export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
   const [layerPanelWidth, setLayerPanelWidth] = usePanelSize('layer', 192, 160, 480);
   const [rightDockWidth, setRightDockWidth] = usePanelSize('right', 192, 160, 520);
-  const [pointTableHeight, setPointTableHeight] = usePanelSize('pointTable', 192, 120, 520);
   const [pointViewerHeight, setPointViewerHeight] = usePanelSize('pointViewer', 240, 140, 600);
-  const [showPointViewer, setShowPointViewer] = useState(false);
+  // The Point Data viewer is the single point manager — always docked at the
+  // bottom, collapsible to a slim bar. Persist the expanded/collapsed choice.
+  const [pointViewerCollapsed, setPointViewerCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('cad:pointViewerExpanded') !== '1';
+  });
+  useEffect(() => {
+    try { localStorage.setItem('cad:pointViewerExpanded', pointViewerCollapsed ? '0' : '1'); } catch { /* storage unavailable */ }
+  }, [pointViewerCollapsed]);
   const [renameDialog, setRenameDialog] = useState<RenameDialogData | null>(null);
   const [traverseViewerHeight, setTraverseViewerHeight] = usePanelSize('traverseViewer', 240, 140, 600);
   const [showTraverseViewer, setShowTraverseViewer] = useState(false);
@@ -144,6 +150,11 @@ export default function CADLayout() {
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
+  // Lightweight count for the collapsed Point Data bar.
+  const pointCount = useMemo(
+    () => Object.values(drawingStore.document.features).filter((f) => f.type === 'POINT').length,
+    [drawingStore.document.features],
+  );
 
   // Dynamic browser-tab title so multi-tab users can tell drawings
   // apart. Falls back to a generic title before the document hydrates.
@@ -169,7 +180,6 @@ export default function CADLayout() {
     setShowImportDialog(true);
   };
   const [showAIDrawingDialog, setShowAIDrawingDialog] = useState(false);
-  const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
   const [showDrawingRotation, setShowDrawingRotation] = useState(false);
@@ -511,18 +521,16 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
   }, []);
 
-  // Point Data Viewer toggle (§10c)
+  // Point Data viewer: both events collapse/expand the single bottom dock.
   useEffect(() => {
-    const handler = () => setShowPointViewer((v) => !v);
-    window.addEventListener('cad:togglePointDataViewer', handler);
-    return () => window.removeEventListener('cad:togglePointDataViewer', handler);
-  }, []);
-
-  // Points panel (bottom dock) toggle.
-  useEffect(() => {
-    const handler = () => setShowPointTable((v) => !v);
-    window.addEventListener('cad:togglePointTable', handler);
-    return () => window.removeEventListener('cad:togglePointTable', handler);
+    const toggle = () => setPointViewerCollapsed((v) => !v);
+    const expand = () => setPointViewerCollapsed(false);
+    window.addEventListener('cad:togglePointDataViewer', toggle);
+    window.addEventListener('cad:togglePointTable', expand);
+    return () => {
+      window.removeEventListener('cad:togglePointDataViewer', toggle);
+      window.removeEventListener('cad:togglePointTable', expand);
+    };
   }, []);
 
   // Global "attach media" host — any component can dispatch
@@ -975,7 +983,6 @@ export default function CADLayout() {
       <MenuBar
         onOpenImport={openImport}
         onOpenAIDrawing={() => setShowAIDrawingDialog(true)}
-        onTogglePointTable={() => setShowPointTable(p => !p)}
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
         onOpenCurveCalculator={() => setShowCurveCalculator(true)}
         onOpenOrientationDialog={() => setShowOrientationDialog(true)}
@@ -1124,46 +1131,37 @@ export default function CADLayout() {
 
       {/* Bottom area: command bar + optional point table + status bar */}
       <CommandBar />
-      {showPointTable && (
-        <>
-        <ResizeHandle
-          axis="y"
-          sign={-1}
-          size={pointTableHeight}
-          min={120}
-          max={520}
-          onResize={setPointTableHeight}
-          ariaLabel="Resize point table"
-        />
-        <div
-          className="border-t border-gray-700 shrink-0 animate-[slideInUp_200ms_cubic-bezier(0.16,1,0.3,1)]"
-          style={{ height: pointTableHeight }}
+      {/* Single Point Data viewer — always docked at the bottom, collapsible. */}
+      {pointViewerCollapsed ? (
+        <button
+          type="button"
+          onClick={() => setPointViewerCollapsed(false)}
+          className="shrink-0 flex items-center gap-2 px-3 h-7 border-t border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800 text-xs transition-colors"
+          title="Show the Point Data viewer"
+          aria-expanded={false}
         >
-          <PointTablePanel
-            codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'NUMERIC'}
-            onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}
-          />
-        </div>
-        </>
-      )}
-      {showPointViewer && (
+          <span className="text-gray-500">▴</span>
+          <span className="font-semibold text-gray-200">Point Data</span>
+          <span className="text-gray-500">{pointCount} pts</span>
+        </button>
+      ) : (
         <>
-        <ResizeHandle
-          axis="y"
-          sign={-1}
-          size={pointViewerHeight}
-          min={140}
-          max={600}
-          onResize={setPointViewerHeight}
-          ariaLabel="Resize point data viewer"
-        />
-        <div className="border-t border-gray-700 shrink-0 animate-[slideInUp_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none" style={{ height: pointViewerHeight }}>
-          <PointDataViewer
-            open={showPointViewer}
-            onClose={() => setShowPointViewer(false)}
-            onRenameRequest={handlePointRename}
+          <ResizeHandle
+            axis="y"
+            sign={-1}
+            size={pointViewerHeight}
+            min={140}
+            max={600}
+            onResize={setPointViewerHeight}
+            ariaLabel="Resize point data viewer"
           />
-        </div>
+          <div className="border-t border-gray-700 shrink-0 animate-[slideInUp_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none" style={{ height: pointViewerHeight }}>
+            <PointDataViewer
+              open
+              onClose={() => setPointViewerCollapsed(true)}
+              onRenameRequest={handlePointRename}
+            />
+          </div>
         </>
       )}
       {showTraverseViewer && (
@@ -1267,7 +1265,7 @@ export default function CADLayout() {
       {showImportDialog && (
         <ImportDialog
           onClose={() => setShowImportDialog(false)}
-          onImportComplete={() => { setShowImportDialog(false); setShowPointTable(true); }}
+          onImportComplete={() => { setShowImportDialog(false); setPointViewerCollapsed(false); }}
         />
       )}
 

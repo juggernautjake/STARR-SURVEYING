@@ -106,6 +106,7 @@ export default function PointDataViewer({
 
   const [layerFilter, setLayerFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
+  const [searchBy, setSearchBy] = useState<'ALL' | 'NAME' | 'CODE'>('ALL');
   const [colVis, setColVis] = useState<Record<ColKey, boolean>>(loadColVis);
   const [colMenuOpen, setColMenuOpen] = useState(false);
   const [edit, setEdit] = useState<{ id: string; field: ColKey } | null>(null);
@@ -136,13 +137,16 @@ export default function PointDataViewer({
     return rows.filter((r) => {
       if (layerFilter !== 'ALL' && r.layerId !== layerFilter) return false;
       if (!q) return true;
+      if (searchBy === 'NAME') return r.name.toLowerCase().includes(q);
+      if (searchBy === 'CODE') return r.code.toLowerCase().includes(q);
+      // ALL: name, code, or description.
       return (
         r.name.toLowerCase().includes(q) ||
         r.code.toLowerCase().includes(q) ||
         r.description.toLowerCase().includes(q)
       );
     });
-  }, [rows, layerFilter, search]);
+  }, [rows, layerFilter, search, searchBy]);
 
   // Original snapshot per row (if any edits have been made). Drives the
   // "edited" indicator, original-value tooltips, and Revert.
@@ -371,10 +375,23 @@ export default function PointDataViewer({
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-700 shrink-0">
         <span className="font-semibold text-gray-100">Point Data</span>
         <span className="text-gray-500">{filtered.length} pts</span>
+        <div className="flex rounded border border-gray-600 overflow-hidden shrink-0">
+          {(['ALL', 'NAME', 'CODE'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setSearchBy(m)}
+              className={`px-2 py-0.5 text-[11px] ${searchBy === m ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+              title={m === 'ALL' ? 'Search name, code, and description' : m === 'NAME' ? 'Search by point name/number only' : 'Search by survey code only'}
+            >
+              {m === 'ALL' ? 'All' : m === 'NAME' ? 'Name' : 'Code'}
+            </button>
+          ))}
+        </div>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name / code / desc…"
+          placeholder={searchBy === 'CODE' ? 'Search by code…' : searchBy === 'NAME' ? 'Search by name…' : 'Search name / code / desc…'}
           className="flex-1 min-w-0 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs"
         />
         <div className="relative">
