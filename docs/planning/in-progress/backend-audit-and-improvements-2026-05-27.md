@@ -84,7 +84,13 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **API:** `app/api/admin/notes/route.ts` — GET (pinned-first list, category + search filters), POST (create), PATCH (edit / pin-unpin), DELETE. Auth-gated shared workspace via `supabaseAdmin` + `withErrorHandler`, mirroring the CAD folders route.
   - **Page:** wired to the API — loads notes, creates (Save button now enabled + validating), pin/unpin, delete (with confirm), loading/empty states. Removed the Under Construction banner and the dev-guide block (now built).
   - **Verified:** `tsc` + `eslint` clean. Runtime needs `seeds/291` applied to Supabase (standard deploy step for every feature here); until then the page degrades gracefully via `safeFetch` (loading → empty). Auth-gated, so not harness-screenshottable.
-- [ ] **Remaining stubs to build out (same seed+API+wire pattern):** `leads` (CRM), `schedule` (calendar events), `my-files` (personal files — needs a storage bucket), `settings` (user preferences). Each is its own slice.
+### Slice 11 — Build out stub page: Leads / sales pipeline ✅ shipped
+- [x] `/admin/leads` (admin-only) was a UI-only stub. Fully built:
+  - **Seed:** `seeds/292_leads.sql` — `public.leads` (contact + pipeline fields, status CHECK, `converted_job_id` FK → jobs, follow-up date, indexes).
+  - **API:** `app/api/admin/leads/route.ts` — admin-gated GET (status filter + name/company/email/phone search), POST, PATCH (advance status / edit), DELETE.
+  - **Page:** wired — loads leads, creates (Save enabled + validating), inline status `<select>` on each card to move through the pipeline, delete, loading/empty states. Removed banner + dev guide.
+  - **Verified:** `tsc` + `eslint` clean (needs `seeds/292` applied to Supabase at deploy; degrades gracefully meanwhile). Auth-gated → code-verified.
+- [ ] **Remaining stubs to build out (same seed+API+wire pattern):** `schedule` (calendar events), `my-files` (personal files — needs a storage bucket), `settings` (user preferences). Each is its own slice.
 
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
