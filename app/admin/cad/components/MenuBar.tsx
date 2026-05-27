@@ -25,10 +25,11 @@ import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
-import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON } from '@/lib/cad/delivery';
+import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import SaveToDBDialog from './SaveToDBDialog';
+import ExportLayersDialog from './ExportLayersDialog';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 
@@ -71,6 +72,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     submenuCloseTimer.current = setTimeout(() => setOpenSubmenu(null), 180);
   };
   const [dbDialog, setDbDialog] = useState<'save' | 'open' | null>(null);
+  const [exportLayersOpen, setExportLayersOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
@@ -181,6 +183,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     return () => window.removeEventListener('cad:openDbDialog', handler);
   }, []);
 
+  // Open the Export-layers dialog from elsewhere (e.g. the LayerPanel
+  // right-click menu).
+  useEffect(() => {
+    const handler = () => setExportLayersOpen(true);
+    window.addEventListener('cad:openExportLayers', handler);
+    return () => window.removeEventListener('cad:openExportLayers', handler);
+  }, []);
+
   function openFileDialog() {
     const input = Object.assign(document.createElement('input'), {
       type: 'file',
@@ -287,6 +297,35 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     } catch (err) {
       cadLog.error('FileIO', 'LandXML export failed', err);
       alert('Failed to export LandXML. Try again, or contact support if it keeps failing.');
+    }
+  }
+
+  // ── Selection-scoped exports ────────────────
+  // Export only the currently-selected features. `scopeDocument`
+  // returns a doc clone narrowed to the selection (layers/settings
+  // preserved) so the existing writers work unchanged.
+  function exportSelection(format: 'CSV' | 'DXF' | 'LANDXML') {
+    const ids = Array.from(selectionStore.selectedIds);
+    if (ids.length === 0) {
+      alert('Select one or more features first, then choose Export selection.');
+      return;
+    }
+    try {
+      const scoped = scopeDocument(drawingStore.document, { kind: 'SELECTION', featureIds: ids });
+      if (format === 'CSV') {
+        const { rowCount, filename } = downloadCsv(scoped, { flavor: 'full' });
+        cadLog.info('FileIO', `Exported ${rowCount} selected points as CSV → ${filename}`);
+      } else if (format === 'DXF') {
+        const annotations = useAnnotationStore.getState().annotations;
+        const { filename } = downloadDxf(scoped, { annotations });
+        cadLog.info('FileIO', `Exported selection as DXF → ${filename}`);
+      } else {
+        const { filename } = downloadLandXML(scoped);
+        cadLog.info('FileIO', `Exported selection as LandXML → ${filename}`);
+      }
+    } catch (err) {
+      cadLog.error('FileIO', `Selection export (${format}) failed`, err);
+      alert(`Failed to export the selection as ${format}. Try again, or contact support if it keeps failing.`);
     }
   }
 
@@ -481,6 +520,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
             { label: 'Export as GeoJSON…', action: () => { exportGeoJSON(); setOpenMenu(null); } },
             { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
             { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
+            { separator: true },
+            { label: 'Export selection as CSV…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('CSV'); setOpenMenu(null); } },
+            { label: 'Export selection as DXF…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('DXF'); setOpenMenu(null); } },
+            { label: 'Export selection as LandXML…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('LANDXML'); setOpenMenu(null); } },
+            { label: 'Export layers…', action: () => { setExportLayersOpen(true); setOpenMenu(null); } },
           ],
         },
         {
@@ -493,16 +537,12 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         },
         { separator: true },
         {
-          label: '📜 Survey description…',
-          action: () => { onToggleDescriptionPanel?.(); setOpenMenu(null); },
-        },
-        {
-          label: '✓ Drawing completeness…',
-          action: () => { onToggleCompletenessPanel?.(); setOpenMenu(null); },
-        },
-        {
-          label: '🪪 RPLS review mode…',
-          action: () => { onToggleReviewModePanel?.(); setOpenMenu(null); },
+          label: 'Review & Delivery',
+          submenu: [
+            { label: '📜 Survey description…', action: () => { onToggleDescriptionPanel?.(); setOpenMenu(null); } },
+            { label: '✓ Drawing completeness…', action: () => { onToggleCompletenessPanel?.(); setOpenMenu(null); } },
+            { label: '🪪 RPLS review mode…', action: () => { onToggleReviewModePanel?.(); setOpenMenu(null); } },
+          ],
         },
       ],
     },
@@ -617,12 +657,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         },
         { separator: true },
         {
-          label: 'Toggle Point Table',
-          action: () => { onTogglePointTable?.(); setOpenMenu(null); },
-        },
-        {
-          label: 'Toggle Traverse Panel',
-          action: () => { onToggleTraversePanel?.(); setOpenMenu(null); },
+          label: 'Data tables & viewers',
+          submenu: [
+            { label: 'Point Data Viewer (editable)', action: () => { window.dispatchEvent(new CustomEvent('cad:togglePointDataViewer')); setOpenMenu(null); } },
+            { label: 'Traverse Viewer (line/curve data)', action: () => { window.dispatchEvent(new CustomEvent('cad:toggleTraverseViewer')); setOpenMenu(null); } },
+            { separator: true },
+            { label: 'Toggle Point Table', action: () => { onTogglePointTable?.(); setOpenMenu(null); } },
+            { label: 'Toggle Traverse Panel', action: () => { onToggleTraversePanel?.(); setOpenMenu(null); } },
+          ],
         },
         {
           label: 'Project Images…',
@@ -1055,6 +1097,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
     {/* Save/Open from Database dialogs */}
     {dbDialog && (
       <SaveToDBDialog mode={dbDialog} onClose={() => setDbDialog(null)} />
+    )}
+    {exportLayersOpen && (
+      <ExportLayersDialog onClose={() => setExportLayersOpen(false)} />
     )}
   </>
   );

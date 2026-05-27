@@ -54,6 +54,7 @@ import type { AnnotationBase } from '../labels/annotation-types';
 import type { LineTypeDefinition, SymbolDefinition } from '../styles/types';
 import { findSymbol } from '../styles/symbol-library';
 import { findLineType } from '../styles/linetype-library';
+import { collectDerivedPoints } from '../points/derived-points';
 
 // ────────────────────────────────────────────────────────────
 // Public API
@@ -324,7 +325,33 @@ function emitEntities(
     emitAnnotation(lines, a, doc);
   }
 
+  // Created points that live only as linework vertex refs (minted names +
+  // cross-layer `:N` derivatives) have no standalone POINT feature, so the
+  // feature walk above misses them. Materialize each as a POINT entity +
+  // a name TEXT on its layer so every created point lands in the DXF, the
+  // same way it lands in CSV/PNEZD/LandXML.
+  emitDerivedPoints(lines, doc);
+
   push(lines, 0, 'ENDSEC');
+}
+
+function emitDerivedPoints(lines: string[], doc: DrawingDocument): void {
+  const derived = collectDerivedPoints(doc);
+  if (derived.length === 0) return;
+  const drawingScale = doc.settings.drawingScale ?? 50;
+  const nameHeight = Math.max(0.01, (10 / 72) * drawingScale);
+  for (const p of derived) {
+    const layer = doc.layers[p.layerId];
+    const layerName = layer ? dxfSafeName(layer.name || layer.id) : '0';
+    const pos = { x: p.x, y: p.y };
+    emitPoint(lines, layerName, pos);
+    if (p.name) {
+      // Offset the name up-right of the marker so the label is legible
+      // instead of sitting on top of the POINT (typical point-number style).
+      const labelPos = { x: p.x + nameHeight * 0.5, y: p.y + nameHeight * 0.5 };
+      emitText(lines, layerName, labelPos, p.name, nameHeight, 0, 0, 0);
+    }
+  }
 }
 
 // ────────────────────────────────────────────────────────────

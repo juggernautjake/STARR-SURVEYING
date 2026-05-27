@@ -11,6 +11,7 @@ import type { Layer } from '@/lib/cad/types';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
+import NewLayerDialog from './NewLayerDialog';
 
 // Accessible palette for new layers — visually distinct, good contrast
 const LAYER_COLOR_PALETTE = [
@@ -38,6 +39,8 @@ export default function LayerPanel() {
   const selectionStore = useSelectionStore();
   const { document: doc, activeLayerId } = store;
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
+  const [newLayerDefaults, setNewLayerDefaults] = useState<{ name: string; color: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef<HTMLInputElement>(null);
@@ -93,16 +96,23 @@ export default function LayerPanel() {
     store.setActiveLayer(layerId);
   }
 
+  // Opening the New Layer modal (§11). The actual layer is created in
+  // `createLayerFromDialog` once the surveyor confirms.
   function handleNewLayer() {
+    setPanelMenu(null);
+    setNewLayerDefaults({ name: `Layer ${doc.layerOrder.length + 1}`, color: nextLayerColor() });
+  }
+
+  function createLayerFromDialog(result: { name: string; color: string; description: string; pointIds: string[] }) {
     const id = generateId();
     const existingCount = doc.layerOrder.length;
     store.addLayer({
       id,
-      name: `Layer ${existingCount + 1}`,
+      name: result.name,
       visible: true,
       locked: false,
       frozen: false,
-      color: nextLayerColor(),
+      color: result.color,
       lineWeight: 0.75,
       lineTypeId: 'SOLID',
       opacity: 1,
@@ -111,17 +121,45 @@ export default function LayerPanel() {
       isDefault: false,
       isProtected: false,
       autoAssignCodes: [],
+      description: result.description || undefined,
     });
+    // Move the chosen points onto the new layer.
+    for (const pid of result.pointIds) store.updateFeature(pid, { layerId: id });
     store.setActiveLayer(id);
+    setNewLayerDefaults(null);
   }
 
   function handleContextMenu(e: React.MouseEvent, layerId: string) {
     e.preventDefault();
+    e.stopPropagation(); // don't also open the panel-level menu
+    setPanelMenu(null);
     setContextMenu({ layerId, x: e.clientX, y: e.clientY });
   }
 
   function closeContextMenu() {
     setContextMenu(null);
+    setPanelMenu(null);
+  }
+
+  // Panel-level (background) right-click menu — bulk layer actions.
+  function handlePanelContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    setContextMenu(null);
+    setPanelMenu({ x: e.clientX, y: e.clientY });
+  }
+
+  function setAllLayers(patch: { visible?: boolean; locked?: boolean }) {
+    for (const id of doc.layerOrder) store.updateLayer(id, patch);
+    setPanelMenu(null);
+  }
+
+  function duplicateActiveLayer() {
+    const src = doc.layers[activeLayerId];
+    if (src) {
+      const newLayer = { ...src, id: generateId(), name: `${src.name} copy` };
+      store.addLayer(newLayer);
+    }
+    setPanelMenu(null);
   }
 
   function startRename(layerId: string) {
@@ -246,7 +284,7 @@ export default function LayerPanel() {
   return (
     <div
       className="flex flex-col h-full text-gray-200 text-xs"
-      onClick={contextMenu ? closeContextMenu : undefined}
+      onClick={contextMenu || panelMenu ? closeContextMenu : undefined}
     >
       <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex items-center justify-between gap-2">
         <span className="shrink-0">Layers</span>
@@ -285,7 +323,7 @@ export default function LayerPanel() {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" onContextMenu={handlePanelContextMenu}>
         {filteredLayers.map((layer) => {
           const isExpanded = expandedLayers.has(layer.id);
           // All features on this layer
@@ -868,6 +906,57 @@ export default function LayerPanel() {
             </button>
           )}
         </div>
+      )}
+
+      {/* Panel-level (background) right-click menu — bulk layer actions. */}
+      {panelMenu && (
+        <div
+          className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-lg py-1 text-xs text-gray-200 min-w-[180px] animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none origin-top-left"
+          style={{ top: panelMenu.y, left: panelMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="w-full text-left px-3 py-1 hover:bg-gray-700 flex items-center gap-1.5 text-blue-300"
+            onClick={() => { handleNewLayer(); setPanelMenu(null); }}>
+            <Plus size={12} /> New Layer
+          </button>
+          <div className="my-1 border-t border-gray-700" />
+          <button className="w-full text-left px-3 py-1 hover:bg-gray-700 flex items-center gap-1.5"
+            onClick={() => setAllLayers({ visible: true })}>
+            <Eye size={12} /> Reveal all layers
+          </button>
+          <button className="w-full text-left px-3 py-1 hover:bg-gray-700 flex items-center gap-1.5"
+            onClick={() => setAllLayers({ visible: false })}>
+            <EyeOff size={12} /> Hide all layers
+          </button>
+          <div className="my-1 border-t border-gray-700" />
+          <button className="w-full text-left px-3 py-1 hover:bg-gray-700 flex items-center gap-1.5"
+            onClick={() => setAllLayers({ locked: true })}>
+            <Lock size={12} /> Lock all layers
+          </button>
+          <button className="w-full text-left px-3 py-1 hover:bg-gray-700 flex items-center gap-1.5"
+            onClick={() => setAllLayers({ locked: false })}>
+            <LockOpen size={12} /> Unlock all layers
+          </button>
+          <div className="my-1 border-t border-gray-700" />
+          <button className="w-full text-left px-3 py-1 hover:bg-gray-700 flex items-center gap-1.5"
+            onClick={duplicateActiveLayer}>
+            <Layers size={12} /> Duplicate active layer
+          </button>
+          <button className="w-full text-left px-3 py-1 hover:bg-gray-700 flex items-center gap-1.5"
+            onClick={() => { window.dispatchEvent(new CustomEvent('cad:openExportLayers')); setPanelMenu(null); }}>
+            <Send size={12} /> Export layers…
+          </button>
+        </div>
+      )}
+
+      {/* New-layer creation modal (§11). */}
+      {newLayerDefaults && (
+        <NewLayerDialog
+          defaultName={newLayerDefaults.name}
+          defaultColor={newLayerDefaults.color}
+          onCreate={createLayerFromDialog}
+          onClose={() => setNewLayerDefaults(null)}
+        />
       )}
     </div>
   );

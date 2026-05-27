@@ -137,6 +137,13 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   if (!session?.user) return <>{children}</>;
 
+  // The CAD editor runs as a standalone, full-screen application — it
+  // owns its own chrome (menu bar, tool rail, panels) and must fill the
+  // entire viewport. Bypass the admin sidebar/topbar/page-header/FAB so
+  // nothing competes with the canvas. Still inside SessionProvider, so
+  // authenticated fetches keep working.
+  if (pathname.startsWith('/admin/cad')) return <>{children}</>;
+
   const role = session.user.role || 'employee';
   const roles = session.user.roles || [role];
   const pageTitle = getTitle(pathname);

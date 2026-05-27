@@ -638,6 +638,9 @@ export default function ToolBar() {
               delay={500}
             >
               <button
+                aria-label={group.label}
+                title={group.label}
+                aria-pressed={isActive}
                 onClick={() => {
                   toolStore.setTool(group.mainTool);
                 }}

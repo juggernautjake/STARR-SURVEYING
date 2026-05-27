@@ -19,6 +19,7 @@
 import type { DrawingDocument } from '../types';
 import { parseCodeWithSuffix } from '../codes/code-suffix-parser';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
+import { collectDerivedPoints } from '../points/derived-points';
 
 export type CsvFlavor = 'simplified' | 'full';
 
@@ -132,6 +133,39 @@ export function buildCsvRows(doc: DrawingDocument, opts: BuildOptions = {}): Bui
       properties:   feature.properties ?? {},
     };
     full.push(fullRow);
+  }
+
+  // §17b — append "created points" that live only as vertex pointRefs on
+  // linework (minted vertex names + cross-layer `:N`), so every created
+  // point is in the export, not just standalone POINT features.
+  for (const dpt of collectDerivedPoints(doc)) {
+    const layer = doc.layers[dpt.layerId]?.name ?? dpt.layerId;
+    const base: CsvSimplifiedRow = {
+      pointNo: dpt.name,
+      northing: dpt.northing,
+      easting: dpt.easting,
+      elevation: 0,
+      code: '',
+      suffix: '',
+      description: '',
+      layer,
+    };
+    if (flavor === 'simplified') {
+      simplified.push(base);
+    } else {
+      full.push({
+        ...base,
+        rawCode: '',
+        monumentAction: '',
+        aiConfidence: '',
+        aiTier: '',
+        featureId: '',
+        layerColor: doc.layers[dpt.layerId]?.color ?? '',
+        lineTypeId: '',
+        featureGroupId: '',
+        properties: { derived: true },
+      });
+    }
   }
 
   return flavor === 'simplified'
@@ -257,6 +291,17 @@ export function buildPnezdAscii(doc: DrawingDocument): { text: string; rowCount:
 
     lines.push(
       [pointNo, northing, easting, elevation, description].map(CSV_ESCAPE).join(',')
+    );
+  }
+
+  // §17b — include created points that exist only as linework vertex
+  // refs (minted vertex names + cross-layer `:N`) so the PNEZD file
+  // carries every created point.
+  for (const dpt of collectDerivedPoints(doc)) {
+    lines.push(
+      [dpt.name, dpt.northing.toFixed(4), dpt.easting.toFixed(4), (0).toFixed(4), '']
+        .map(CSV_ESCAPE)
+        .join(','),
     );
   }
 

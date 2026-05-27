@@ -49,6 +49,14 @@ import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
 import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
+import FullscreenToggle from './components/FullscreenToggle';
+import ResizeHandle from './components/ResizeHandle';
+import { usePanelSize } from './hooks/usePanelSize';
+import PointDataViewer from './components/PointDataViewer';
+import RenameConfirmDialog, { type RenameDialogData } from './components/RenameConfirmDialog';
+import TraverseViewer from './components/TraverseViewer';
+import { findNameReferences, planRename, planDuplicate, nameIsTaken } from '@/lib/cad/points/point-rename';
+import { makeBatchEntry } from '@/lib/cad/store';
 import OrientationDialog from './components/OrientationDialog';
 import DrawingRotationDialog from './components/DrawingRotationDialog';
 import TitleBlockPanel from './components/TitleBlockPanel';
@@ -118,6 +126,14 @@ const AUTOSAVE_DEBOUNCE_MS = 5_000;
 
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
+  const [layerPanelWidth, setLayerPanelWidth] = usePanelSize('layer', 192, 160, 480);
+  const [rightDockWidth, setRightDockWidth] = usePanelSize('right', 192, 160, 520);
+  const [pointTableHeight, setPointTableHeight] = usePanelSize('pointTable', 192, 120, 520);
+  const [pointViewerHeight, setPointViewerHeight] = usePanelSize('pointViewer', 240, 140, 600);
+  const [showPointViewer, setShowPointViewer] = useState(false);
+  const [renameDialog, setRenameDialog] = useState<RenameDialogData | null>(null);
+  const [traverseViewerHeight, setTraverseViewerHeight] = usePanelSize('traverseViewer', 240, 140, 600);
+  const [showTraverseViewer, setShowTraverseViewer] = useState(false);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
@@ -466,6 +482,20 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
   }, []);
 
+  // Point Data Viewer toggle (§10c)
+  useEffect(() => {
+    const handler = () => setShowPointViewer((v) => !v);
+    window.addEventListener('cad:togglePointDataViewer', handler);
+    return () => window.removeEventListener('cad:togglePointDataViewer', handler);
+  }, []);
+
+  // Traverse Viewer toggle (§10e)
+  useEffect(() => {
+    const handler = () => setShowTraverseViewer((v) => !v);
+    window.addEventListener('cad:toggleTraverseViewer', handler);
+    return () => window.removeEventListener('cad:toggleTraverseViewer', handler);
+  }, []);
+
   // Phase 8 §2.3 — bridge hotkey-only events into local UI
   // state. These dispatchers fire from `useHotkeys` so the
   // engine module stays free of CADLayout-specific imports.
@@ -594,6 +624,47 @@ export default function CADLayout() {
     });
     return unsubscribe;
   }, []);
+
+  // §10.3/§10.4 — guarded point-name change. Opens the rename dialog
+  // unless the user previously chose to remember a strategy.
+  const RENAME_PREF_KEY = 'starr-cad-rename-strategy';
+  function applyRenameInPlace(featureId: string, oldName: string, newName: string) {
+    const doc = drawingStore.document;
+    const updates = planRename(doc, oldName, newName);
+    const ops = updates.map((u) => {
+      const f = drawingStore.getFeature(u.featureId);
+      return {
+        type: 'MODIFY_FEATURE' as const,
+        data: { id: u.featureId, before: { properties: f?.properties }, after: { properties: u.properties } },
+      };
+    });
+    updates.forEach((u) => drawingStore.updateFeature(u.featureId, { properties: u.properties }));
+    if (ops.length > 0) undoStore.pushUndo(makeBatchEntry(`Rename point ${oldName} → ${newName}`, ops));
+  }
+  function applyDuplicate(featureId: string, newName: string) {
+    const dup = planDuplicate(drawingStore.document, featureId, newName);
+    if (!dup) return;
+    drawingStore.addFeature(dup);
+    undoStore.pushUndo(makeBatchEntry(`Duplicate point as ${newName}`, [
+      { type: 'ADD_FEATURE', data: dup },
+    ]));
+  }
+  function handlePointRename(featureId: string, oldName: string, newName: string) {
+    const doc = drawingStore.document;
+    const refs = findNameReferences(doc, oldName);
+    const taken = nameIsTaken(doc, newName, featureId);
+    const remembered = (typeof window !== 'undefined' && window.localStorage.getItem(RENAME_PREF_KEY)) || 'ASK';
+    if (remembered === 'RENAME' && !taken) { applyRenameInPlace(featureId, oldName, newName); return; }
+    if (remembered === 'DUPLICATE') { applyDuplicate(featureId, newName); return; }
+    setRenameDialog({
+      featureId,
+      oldName,
+      newName,
+      referenceCount: refs.linework.length,
+      derivatives: refs.derivatives,
+      nameTaken: taken,
+    });
+  }
 
   // ─── Autosave helpers ────────────────────────────────────────────────────────
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -814,11 +885,12 @@ export default function CADLayout() {
         <div className="flex-1 min-w-0">
           <ToolOptionsBar />
         </div>
-        {/* Display Preferences toggle button — always visible at right end of toolbar */}
+        {/* Display Preferences toggle + Fullscreen — always visible at right end of toolbar */}
         <div
-          className="flex items-center px-2 border-b border-l border-gray-700 shrink-0"
+          className="flex items-center gap-1 px-2 border-b border-l border-gray-700 shrink-0"
           style={{ backgroundColor: '#1a1f2e' }}
         >
+          <FullscreenToggle />
           <DisplayPrefsToggleButton
             open={showDisplayPrefs}
             onToggle={() => setShowDisplayPrefs((v) => !v)}
@@ -836,11 +908,25 @@ export default function CADLayout() {
           <ToolBar />
         </div>
 
-        {/* Layer panel (toggleable) */}
+        {/* Layer panel (toggleable, resizable) */}
         {showLayerPanel && (
-          <div className="flex flex-col bg-gray-800 border-r border-gray-700 w-48 cad-slide-left">
-            <LayerPanel />
-          </div>
+          <>
+            <div
+              className="flex flex-col bg-gray-800 border-r border-gray-700 cad-slide-left shrink-0"
+              style={{ width: layerPanelWidth }}
+            >
+              <LayerPanel />
+            </div>
+            <ResizeHandle
+              axis="x"
+              sign={1}
+              size={layerPanelWidth}
+              min={160}
+              max={480}
+              onResize={setLayerPanelWidth}
+              ariaLabel="Resize layer panel"
+            />
+          </>
         )}
 
         {/* Canvas fills remaining space */}
@@ -882,9 +968,22 @@ export default function CADLayout() {
           />
         </div>
 
-        {/* Right sidebar: property panel + traverse panel + image panel (toggleable) */}
+        {/* Right sidebar: property panel + traverse panel + image panel (toggleable, resizable) */}
         {(showPropertyPanel || showTraversePanel || showImagePanel) && (
-          <div className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right w-48">
+          <>
+          <ResizeHandle
+            axis="x"
+            sign={-1}
+            size={rightDockWidth}
+            min={160}
+            max={520}
+            onResize={setRightDockWidth}
+            ariaLabel="Resize properties panel"
+          />
+          <div
+            className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right"
+            style={{ width: rightDockWidth }}
+          >
             <div className="flex flex-col flex-1 min-w-0">
               {showPropertyPanel && <PropertyPanel />}
               {showTraversePanel && (
@@ -905,18 +1004,69 @@ export default function CADLayout() {
               )}
             </div>
           </div>
+          </>
         )}
       </div>
 
       {/* Bottom area: command bar + optional point table + status bar */}
       <CommandBar />
       {showPointTable && (
-        <div className="h-48 border-t border-gray-700 shrink-0 animate-[slideInUp_200ms_cubic-bezier(0.16,1,0.3,1)]">
+        <>
+        <ResizeHandle
+          axis="y"
+          sign={-1}
+          size={pointTableHeight}
+          min={120}
+          max={520}
+          onResize={setPointTableHeight}
+          ariaLabel="Resize point table"
+        />
+        <div
+          className="border-t border-gray-700 shrink-0 animate-[slideInUp_200ms_cubic-bezier(0.16,1,0.3,1)]"
+          style={{ height: pointTableHeight }}
+        >
           <PointTablePanel
             codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'NUMERIC'}
             onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}
           />
         </div>
+        </>
+      )}
+      {showPointViewer && (
+        <>
+        <ResizeHandle
+          axis="y"
+          sign={-1}
+          size={pointViewerHeight}
+          min={140}
+          max={600}
+          onResize={setPointViewerHeight}
+          ariaLabel="Resize point data viewer"
+        />
+        <div className="border-t border-gray-700 shrink-0 animate-[slideInUp_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none" style={{ height: pointViewerHeight }}>
+          <PointDataViewer
+            open={showPointViewer}
+            onClose={() => setShowPointViewer(false)}
+            onRenameRequest={handlePointRename}
+          />
+        </div>
+        </>
+      )}
+      {showTraverseViewer && (
+        <>
+        <ResizeHandle
+          axis="y"
+          sign={-1}
+          size={traverseViewerHeight}
+          min={140}
+          max={600}
+          onResize={setTraverseViewerHeight}
+          ariaLabel="Resize traverse viewer"
+        />
+        <div className="border-t border-gray-700 shrink-0 animate-[slideInUp_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none" style={{ height: traverseViewerHeight }}>
+          <TraverseViewer open={showTraverseViewer} onClose={() => setShowTraverseViewer(false)} />
+        </div>
+        </>
       )}
       <StatusBar onOpenRecentRecoveries={() => setShowRecentRecoveries(true)} />
 
@@ -927,6 +1077,25 @@ export default function CADLayout() {
           initialX={featureDialog.x}
           initialY={featureDialog.y}
           onClose={() => setFeatureDialog(null)}
+        />
+      )}
+
+      {/* §10.4 guarded point-rename dialog */}
+      {renameDialog && (
+        <RenameConfirmDialog
+          data={renameDialog}
+          onCancel={() => setRenameDialog(null)}
+          onChoose={(strategy, remember) => {
+            if (remember && typeof window !== 'undefined') {
+              window.localStorage.setItem('starr-cad-rename-strategy', strategy);
+            }
+            if (strategy === 'RENAME') {
+              applyRenameInPlace(renameDialog.featureId, renameDialog.oldName, renameDialog.newName);
+            } else {
+              applyDuplicate(renameDialog.featureId, renameDialog.newName);
+            }
+            setRenameDialog(null);
+          }}
         />
       )}
 

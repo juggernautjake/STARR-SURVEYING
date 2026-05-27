@@ -3,6 +3,9 @@
 
 import { generateId } from './types';
 import type { Feature, OffsetMode, Point2D } from './types';
+import { pointNumberOf } from './feature-fields';
+import { derivedName } from './points/point-naming';
+import { collectExistingNames } from './points/point-registry';
 import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
 import { closestPointOnSegment } from './geometry/point';
@@ -3148,6 +3151,12 @@ export function transferSelectionToLayer(
       }
     };
     let nextPointNo = opts.renumberStart;
+    // §8.4/§17d — when COPYING a point to a DIFFERENT layer without an
+    // explicit renumber, name the copy `base:N` (the same physical point
+    // referenced on another layer) so names stay unique and the cross-
+    // layer relationship is preserved. `:N` increments per base across
+    // the batch.
+    const existingNames = collectExistingNames(drawingStore.document);
     const newFeatures: Feature[] = [];
     for (const src of sourceFeatures) {
       const clone: Feature = JSON.parse(JSON.stringify(src));
@@ -3193,6 +3202,14 @@ export function transferSelectionToLayer(
       if (nextPointNo != null && clone.geometry.type === 'POINT') {
         clone.properties.pointNo = nextPointNo;
         nextPointNo += 1;
+      } else if (clone.geometry.type === 'POINT' && clone.layerId !== src.layerId) {
+        // §8.4/§17d — cross-layer copy with no explicit renumber → base:N.
+        const srcName = pointNumberOf(src);
+        if (srcName) {
+          const dn = derivedName(srcName, existingNames);
+          clone.properties.pointName = dn;
+          existingNames.add(dn);
+        }
       }
 
       // Apply translation last so audit stamps record the

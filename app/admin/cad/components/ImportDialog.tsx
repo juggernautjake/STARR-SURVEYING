@@ -27,6 +27,7 @@ import type { CSVImportConfig } from '@/lib/cad/import/types';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 import { generateId } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
+import { fitPaperToBounds, boundsOfPoints } from '@/lib/cad/geometry/paper-fit';
 import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
@@ -760,6 +761,27 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
         drawingStore.updateSettings({
           displayPreferences: { ...prefs, originNorthing: 0, originEasting: 0 },
         });
+      }
+    }
+
+    // Center the paper sheet under the imported points and pick a
+    // scale that fits them on the page. Features are stored at raw
+    // state-plane coordinates (often in the millions) while the paper
+    // frame defaults to world origin (0,0), so without this the points
+    // render far off the sheet (up and to the right). paperOrigin is a
+    // purely visual frame position — it never moves any geometry.
+    {
+      const bounds = boundsOfPoints(
+        importResult.points.map((p) => ({ easting: p.easting, northing: p.northing })),
+      );
+      if (bounds) {
+        const s = drawingStore.document.settings;
+        const { drawingScale, paperOrigin } = fitPaperToBounds(
+          bounds,
+          s.paperSize ?? 'TABLOID',
+          s.paperOrientation ?? 'LANDSCAPE',
+        );
+        drawingStore.updateSettings({ drawingScale, paperOrigin });
       }
     }
 

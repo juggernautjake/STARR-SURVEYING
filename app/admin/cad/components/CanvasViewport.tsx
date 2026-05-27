@@ -58,6 +58,7 @@ import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } fro
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
+import { nameDrawnFeature } from '@/lib/cad/points/point-registry';
 import { cadLog } from '@/lib/cad/logger';
 import {
   computeSideFromCursor,
@@ -154,6 +155,10 @@ const DEFAULT_GRIP_SIZE = 8; // half-size of grip square in pixels (fallback)
 // off the top edge, and the sentinel vertex index that marks it.
 const IMAGE_ROTATE_HANDLE_PX = 28;
 const IMAGE_ROTATE_GRIP = -2;
+// Selection-rotate grab-node: an image-style rotate grip drawn off the top
+// of the selection bounding box when the ROTATE tool is active, so any
+// feature type rotates "like an image" (box + node + ghost preview).
+const SELECTION_ROTATE_HANDLE_PX = 30;
 const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performance issues
 // Minimum meaningful segment length in world units before zoom scaling.
 // Prevents duplicate zero-length segments on double-click.
@@ -245,6 +250,13 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
 };
 
 const MIN_LABEL_FONT_SIZE_PX = 4;
+// §13 — labels scale with zoom × drawingScale; without an upper bound they
+// balloon when zoomed in and clutter the drawing. Cap the on-screen size.
+const MAX_LABEL_FONT_SIZE_PX = 26;
+// §13 — feature strokes are drawn in screen px from `lineWeight`; thin
+// weights (e.g. 0.75) render as near-invisible hairlines. Floor the
+// on-screen stroke so lines stay legible (never caps bold weights).
+const MIN_FEATURE_LINE_PX = 1.1;
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -793,6 +805,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     labelId: string;
     startWorld: Point2D;
     startOffset: Point2D;
+    // §14 — when point labels are GROUPED, sibling point labels (name +
+    // code/desc + elevation) move together; captured at grab time.
+    siblings?: { labelId: string; startOffset: Point2D }[];
   } | null>(null);
   // Interactive rotate/scale mode — driven by cursor position
   const interactiveOpRef = useRef<{
@@ -803,6 +818,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     baseAngle: number;
     /** For SCALE: distance from pivot to cursor when mode was entered (world units) */
     baseDist: number;
+  } | null>(null);
+  // Live screen position of the selection-rotate grab-node (set while the
+  // ROTATE tool renders its bounding-box affordance) so mousedown can
+  // hit-test it. pivot is the bounding-box center in world coords.
+  const rotateHandleRef = useRef<{ sx: number; sy: number; pivot: Point2D } | null>(null);
+  // Active grab-node rotate drag: pivot + the start angle from pivot to the
+  // grab-node + snapshots, so dragging spins the selection relative to the
+  // grabbed node and release commits a single undo entry.
+  const rotateGrabRef = useRef<{
+    pivot: Point2D;
+    startAngle: number;
+    originals: Map<string, Feature>;
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
@@ -1391,9 +1418,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pWidth = br.sx - tl.sx;
     const pHeight = br.sy - tl.sy;
 
-    // Grey background covering the whole viewport
+    // Grey background covering the whole viewport. Use the LIVE renderer
+    // size (not just the viewport-store screen size, which the resize
+    // observer only updates on a deferred frame) and oversize slightly so
+    // the surround always covers the canvas after a panel/window resize —
+    // otherwise stale dimensions leave uncovered bands at the edges.
+    const resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 1;
+    const liveW = pixi.app.renderer.width / resolution;
+    const liveH = pixi.app.renderer.height / resolution;
+    const surroundW = Math.max(screenWidth, liveW) + 40;
+    const surroundH = Math.max(screenHeight, liveH) + 40;
     g.beginFill(CANVAS_SURROUND_COLOR, 1);
-    g.drawRect(0, 0, screenWidth, screenHeight);
+    g.drawRect(-20, -20, surroundW, surroundH);
     g.endFill();
 
     // White paper rectangle
@@ -1715,7 +1751,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         : baseColor;
     const aiWeightMultiplier =
       aiTier === 4 ? 1.4 : aiTier === 3 ? 1.6 : aiTier === 2 ? 2.0 : aiTier === 1 ? 2.4 : 1;
-    const weight = (feature.style.lineWeight ?? 0.75) * aiWeightMultiplier;
+    // §13 — floor the on-screen stroke so thin weights stay legible
+    // (features draw in screen px, so a raw 0.75 is a near-invisible
+    // hairline). Never caps bold weights.
+    const weight = Math.max(
+      MIN_FEATURE_LINE_PX,
+      (feature.style.lineWeight ?? 0.75) * aiWeightMultiplier,
+    );
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
     const { zoom } = useViewportStore.getState();
@@ -1729,8 +1771,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const drawingScale = doc.settings.drawingScale ?? 50;
     // A line type may carry its own thickness/color; honor it when the
     // feature isn't being AI-tinted (tier overrides win for review).
-    const ltWeight =
-      aiTier == null && lineType.lineWeight != null ? lineType.lineWeight : weight;
+    const ltWeight = Math.max(
+      MIN_FEATURE_LINE_PX,
+      aiTier == null && lineType.lineWeight != null ? lineType.lineWeight : weight,
+    );
     const ltColor =
       aiTier == null && lineType.color
         ? parseInt(lineType.color.replace('#', ''), 16)
@@ -3009,7 +3053,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
         const drawingScale = doc.settings.drawingScale ?? 50;
         const fontSizeWorld = (label.style.fontSize / 72) * drawingScale * scale;
-        const fontSize = Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom);
+        const fontSize = Math.min(
+          MAX_LABEL_FONT_SIZE_PX,
+          Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom),
+        );
 
         if (!textObj) {
           const style = new pixi.TextStyleClass({
@@ -3427,6 +3474,45 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
+    // Rotation affordance — when the ROTATE tool is active with a
+    // selection, draw an image-style bounding box + a single grab-node
+    // off the top edge so ANY feature type rotates "like an image."
+    // Grabbing the node drives a live ghost-preview rotation (see
+    // handleMouseDown / mousemove). A lone image keeps its own grip.
+    rotateHandleRef.current = null;
+    if (toolState.activeTool === 'ROTATE' && selectedIds.size > 0) {
+      const selFeatures = Array.from(selectedIds)
+        .map((id) => drawingStore.getFeature(id))
+        .filter((f): f is Feature => !!f);
+      const loneImage =
+        selFeatures.length === 1 && selFeatures[0].geometry.type === 'IMAGE';
+      const bb = loneImage ? null : computeFeaturesBounds(selFeatures);
+      if (bb && Number.isFinite(bb.minX)) {
+        const p1 = w2s(bb.minX, bb.minY);
+        const p2 = w2s(bb.maxX, bb.maxY);
+        const left = Math.min(p1.sx, p2.sx);
+        const right = Math.max(p1.sx, p2.sx);
+        const top = Math.min(p1.sy, p2.sy);
+        const bottom = Math.max(p1.sy, p2.sy);
+        const gsR = docSettings.gripSize ?? 6;
+        // Bounding box (slightly inset alpha so it reads as a transform frame).
+        g.lineStyle(1.25, selColor, 0.85);
+        g.drawRect(left, top, right - left, bottom - top);
+        // Grab-node stalk + circle off the top-mid edge.
+        const midX = (left + right) / 2;
+        const handleY = top - SELECTION_ROTATE_HANDLE_PX;
+        g.lineStyle(1, selColor, 0.85);
+        g.moveTo(midX, top);
+        g.lineTo(midX, handleY);
+        g.lineStyle(1.5, selColor, 1);
+        g.beginFill(0xffffff, 1);
+        g.drawCircle(midX, handleY, gsR / 2 + 2);
+        g.endFill();
+        const pivot = { x: (bb.minX + bb.maxX) / 2, y: (bb.minY + bb.maxY) / 2 };
+        rotateHandleRef.current = { sx: midX, sy: handleY, pivot };
+      }
+    }
+
     // §29.3 — hover ring around the feature whose card the
     // surveyor is hovering in the AI sidebar. Tier-colored
     // rectangle around the cached bbox; sits on top of every
@@ -3711,6 +3797,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // Configurable selection/hover colors (also used here for preview lines)
     const selColorHex = (useDrawingStore.getState().document.settings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
+
+    // Grab-node rotate: ghost the ORIGINAL (pre-rotation) outline while the
+    // real geometry spins live, so the surveyor sees the before/after —
+    // the §15 "original vs. ghost" intent applied to direct manipulation.
+    if (rotateGrabRef.current) {
+      g.lineStyle(1.25, selColor, 0.4);
+      for (const orig of rotateGrabRef.current.originals.values()) {
+        if (orig.geometry.type === 'IMAGE') continue;
+        drawTransformedFeaturePreview(g, orig, (p) => p, w2s);
+      }
+    }
 
     if (!previewPoint) return;
 
@@ -7289,12 +7386,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   function withAutoLabels(feature: Feature): Feature {
     const doc = useDrawingStore.getState().document;
-    const layer = doc.layers[feature.layerId];
-    if (!layer) return feature;
+    // §8b — auto-assign point names/refs to newly-drawn geometry before
+    // labelling. This is the single chokepoint every manual draw-tool
+    // commit passes through (import/AI use their own paths), so naming
+    // hooks here without touching ~15 call sites. POINT → pointName;
+    // LINE/POLYLINE/POLYGON vertices → pointRefs (reuse / base:N / mint).
+    const named = nameDrawnFeature(doc, feature);
+    const layer = doc.layers[named.layerId];
+    if (!layer) return named;
     const displayPrefs = doc.settings.displayPreferences;
-    const labels = generateLabelsForFeature(feature, layer, displayPrefs);
-    if (labels.length === 0) return feature;
-    return { ...feature, textLabels: labels };
+    const labels = generateLabelsForFeature(named, layer, displayPrefs);
+    if (labels.length === 0) return named;
+    return { ...named, textLabels: labels };
   }
 
   // ─────────────────────────────────────────────
@@ -7912,6 +8015,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Grab-node rotation: mousedown on the selection rotate node starts a
+      // live drag-rotate (mirrors image rotation — drag spins, release
+      // commits). Takes priority over the two-click pivot/angle flow.
+      if (activeTool === 'ROTATE' && rotateHandleRef.current && !interactiveOpRef.current) {
+        const h = rotateHandleRef.current;
+        if (Math.hypot(sx - h.sx, sy - h.sy) <= 12) {
+          const { wx, wy } = screenToDrawingWorld(sx, sy);
+          const startAngle = Math.atan2(wy - h.pivot.y, wx - h.pivot.x);
+          const originals = new Map<string, Feature>();
+          for (const id of selectionStore.selectedIds) {
+            const f = drawingStore.getFeature(id);
+            if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+          }
+          if (originals.size > 0) {
+            // Clear any half-started two-click pivot so it can't fire a
+            // stray rotation after this grab-drag commits.
+            if (toolState.rotateCenter) toolStore.setRotateCenter(null);
+            rotateGrabRef.current = { pivot: h.pivot, startAngle, originals };
+            setCursorStyle('grabbing');
+            return;
+          }
+        }
+      }
+
       // Commit interactive rotate/scale on left-click
       if (interactiveOpRef.current) {
         const op = interactiveOpRef.current;
@@ -8152,11 +8279,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
               if (feature && label) {
                 const { wx, wy } = screenToDrawingWorld(sx, sy);
+                // §14 — group point name/code/elevation labels so dragging
+                // one moves the stack together (unless set to INDEPENDENT).
+                const POINT_LABEL_KINDS = ['POINT_NAME', 'POINT_DESCRIPTION', 'POINT_ELEVATION'];
+                const grouping = useDrawingStore.getState().document.settings.pointLabelGrouping ?? 'GROUPED';
+                let siblings: { labelId: string; startOffset: Point2D }[] | undefined;
+                if (grouping === 'GROUPED' && POINT_LABEL_KINDS.includes(label.kind)) {
+                  siblings = (feature.textLabels ?? [])
+                    .filter((l) => l.id !== label.id && POINT_LABEL_KINDS.includes(l.kind))
+                    .map((l) => ({ labelId: l.id, startOffset: { ...l.offset } }));
+                }
                 labelDragRef.current = {
                   featureId: labelHit.featureId,
                   labelId: labelHit.labelId,
                   startWorld: { x: wx, y: wy },
                   startOffset: { ...label.offset },
+                  siblings,
                 };
                 setCursorStyle('grabbing');
                 return;
@@ -9843,7 +9981,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Label drag update
       if (labelDragRef.current) {
-        const { featureId, labelId, startWorld, startOffset } = labelDragRef.current;
+        const { featureId, labelId, startWorld, startOffset, siblings } = labelDragRef.current;
         const { wx, wy } = screenToDrawingWorld(sx, sy);
         const dx = wx - startWorld.x;
         const dy = wy - startWorld.y;
@@ -9851,6 +9989,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           offset: { x: startOffset.x + dx, y: startOffset.y + dy },
           userPositioned: true,
         });
+        // §14 — move grouped sibling labels by the same delta.
+        if (siblings) {
+          for (const sib of siblings) {
+            drawingStore.updateTextLabel(featureId, sib.labelId, {
+              offset: { x: sib.startOffset.x + dx, y: sib.startOffset.y + dy },
+              userPositioned: true,
+            });
+          }
+        }
         return;
       }
 
@@ -9865,6 +10012,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // Screen right → paper right; screen down → paper BL-y decreases
         tbDrag.livePosX = tbDrag.origPosX + dScreenX / inchToPx;
         tbDrag.livePosY = tbDrag.origPosY - dScreenY / inchToPx;
+        setCursorStyle('grabbing');
+        return;
+      }
+
+      // Grab-node rotate drag — spin the selection live as the node follows
+      // the cursor (Shift snaps to 15°), with a degree readout near the node.
+      if (rotateGrabRef.current) {
+        const grab = rotateGrabRef.current;
+        const { wx, wy } = screenToDrawingWorld(sx, sy);
+        const curAngle = Math.atan2(wy - grab.pivot.y, wx - grab.pivot.x);
+        let delta = curAngle - grab.startAngle;
+        if (e.shiftKey) {
+          const step = Math.PI / 12; // 15°
+          delta = Math.round(delta / step) * step;
+        }
+        for (const [id, orig] of grab.originals) {
+          const newF = transformFeature(orig, (p) => rotate(p, grab.pivot, delta));
+          drawingStore.updateFeatureGeometry(id, newF.geometry);
+        }
+        const deg = normalizeDeg((delta * 180) / Math.PI);
+        setHud({
+          sx: sx + 18,
+          sy: sy - 10,
+          lines: [`Rotation: ${deg.toFixed(1)}°`, e.shiftKey ? 'Snapping 15° (Shift)' : 'Hold Shift = snap 15°'],
+        });
         setCursorStyle('grabbing');
         return;
       }
@@ -10225,6 +10397,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               setCursorStyle('default');
             }
           }
+        } else if (
+          toolStore.state.activeTool === 'ROTATE' &&
+          !rotateGrabRef.current &&
+          rotateHandleRef.current &&
+          Math.hypot(sx - rotateHandleRef.current.sx, sy - rotateHandleRef.current.sy) <= 12
+        ) {
+          // Hovering the selection rotate grab-node — show it's grabbable.
+          setCursorStyle('grab');
         } else if (toolStore.state.activeTool === 'ERASE') {
           // Erase tool: yellow when nothing under cursor, red when hovering erasable element
           setCursorStyle(hit ? SVG_CURSOR_ERASE_ACTIVE : SVG_CURSOR_ERASE_IDLE);
@@ -10359,6 +10539,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (paperDragRef.current) {
         paperDragRef.current = null;
         setCursorStyle('move');
+        return;
+      }
+
+      // Commit a grab-node rotate drag — one undo entry for the whole spin.
+      if (rotateGrabRef.current) {
+        const grab = rotateGrabRef.current;
+        rotateGrabRef.current = null;
+        const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[] = [];
+        for (const [id, before] of grab.originals) {
+          const after = drawingStore.getFeature(id);
+          if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
+        }
+        if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Rotate', ops));
+        setHud(null);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
         return;
       }
 
@@ -10670,6 +10865,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         interactiveOpRef.current = null;
         setInteractivePanel(null);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        e.stopPropagation();
+      }
+      // Cancel a grab-node rotate drag on Escape — restore the originals.
+      if (e.key === 'Escape' && rotateGrabRef.current) {
+        const dwgStore = useDrawingStore.getState();
+        for (const [id, orig] of rotateGrabRef.current.originals) {
+          dwgStore.updateFeatureGeometry(id, orig.geometry);
+        }
+        rotateGrabRef.current = null;
+        setHud(null);
         setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
         e.stopPropagation();
       }

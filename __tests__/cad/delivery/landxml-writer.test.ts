@@ -142,3 +142,22 @@ describe('exportToLandXML', () => {
     expect(xml).toContain('desc="Fence &lt;corner&gt; &amp; post"');
   });
 });
+
+describe('exportToLandXML — derived points (§17b)', () => {
+  it('emits CgPoints for cross-layer :N vertex refs', () => {
+    const doc = makeDoc({
+      features: {
+        L: {
+          id: 'L', type: 'LINE',
+          geometry: { type: 'LINE', start: { x: 10, y: 20 }, end: { x: 110, y: 20 } },
+          layerId: 'layer-1', style: STYLE,
+          properties: { pointRefs: JSON.stringify(['255:1', '256:1']) },
+        },
+      } as unknown as DrawingDocument['features'],
+    });
+    const xml = exportToLandXML(doc);
+    expect(xml).toContain('name="255:1"');
+    expect(xml).toContain('name="256:1"');
+    expect(xml).toContain('<CgPoints>');
+  });
+});
