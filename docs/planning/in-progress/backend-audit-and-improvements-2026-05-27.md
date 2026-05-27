@@ -104,7 +104,23 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Page:** General (company name / default state / job-number prefix / timezone) and Company (address / phone / fax / website / TBPELS firm #) are now controlled inputs that load saved values and persist via per-section Save buttons with a "✓ Saved" confirmation. Removed banner + dev guide.
   - **Honest remaining tabs (not faked):** Users (RBAC is code-driven in `lib/auth.ts`), Notifications (points to Messages → Settings, the real per-user prefs), Integrations (accurate "Not Connected" cards), Billing (links to the existing `/admin/billing` area).
   - **Verified:** `tsc` + `eslint` clean (needs `seeds/294` at deploy). Auth-gated → code-verified.
-- [ ] **Remaining stub:** `my-files` (personal file storage) — needs a Supabase Storage bucket + signed-upload flow, which can't be provisioned/verified from this sandbox. Tracked as the next slice (will ship the bucket seed + API + wiring following the same pattern, or defer with rationale if the bucket truly can't be created here).
+### Slice 14 — Build out stub page: My Files (personal storage) ✅ shipped
+- [x] `/admin/my-files` (+ Hub `?tab=files`) was a UI-only stub (drop zone + table, no storage). Fully built:
+  - **Seed:** `seeds/295_user_files.sql` — a PRIVATE `user-files` storage bucket (50 MB/file, service-role policy) + `user_files` metadata table (owner email, name, type, size, storage_path, folder, optional job link, indexes).
+  - **API:** `app/api/admin/my-files/route.ts` — GET (my files, each with a 1-hour signed download URL), POST (base64 upload → private bucket at a per-user path → metadata row, with orphan-object rollback), DELETE (ownership-checked; removes object + row). Mirrors the cad-images `ensureStorageBucket` runtime-create pattern.
+  - **Panel:** wired — loads files, Upload Files button + click/drag-drop dropzone (multi-file, 50 MB guard, uploads into the selected folder), per-row Download (signed URL) + Delete, loading/empty states. Removed banner + dev guide.
+  - **Verified:** `tsc` + `eslint` clean. Bucket auto-creates on first upload; `seeds/295` recommended at deploy for the RLS policy + table. Auth-gated + real file I/O → code-verified (can't exercise uploads in this sandbox).
+
+> **Stub build-out complete:** all five previously-stubbed pages — Notes, Leads, Schedule, Settings, My Files — are now fully built (table/bucket + API + wired UI), and every Under Construction banner across `app/admin/**` has been resolved (removed from built pages; the stubs no longer exist).
+
+---
+
+## Continued improvements (post-stub-buildout)
+
+> Stubs done — continuing the audit with genuine quality/feature improvements (the user asked to keep building). Each stays a verify-then-ship slice.
+
+### Slice 15 — CAD: shrink exported PDF size (Slice 2 follow-up)
+- [ ] The Print-dialog PDF embeds the extracted frame as a full-resolution PNG, producing very large files (~11 MB). Switch to a JPEG-compressed embed (or downscale to a sane DPI) to cut file size dramatically while keeping plot legibility. Verify on `/cad-harness` that the PDF still downloads and is materially smaller.
 
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
