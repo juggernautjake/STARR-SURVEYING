@@ -43,6 +43,7 @@ import { TooltipProvider } from './components/TooltipProvider';
 import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
+import FileManagerDialog from './components/FileManagerDialog';
 import CodeStylePanel from './components/CodeStylePanel';
 import AISidebar from './components/AISidebar';
 import BidirectionalSync from './components/BidirectionalSync';
@@ -189,6 +190,7 @@ export default function CADLayout() {
   const [showReviewModePanel, setShowReviewModePanel] = useState(false);
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
   const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
+  const [showFileManager, setShowFileManager] = useState(false);
   const [showCodeStylePanel, setShowCodeStylePanel] = useState(false);
   const [compassNotice, setCompassNotice] =
     useState<{ payload: CompassJobImport; stale: boolean } | null>(null);
@@ -344,6 +346,13 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Open the shared file manager (File ▸ File Manager).
+  useEffect(() => {
+    const handler = () => setShowFileManager(true);
+    window.addEventListener('cad:openFileManager', handler);
+    return () => window.removeEventListener('cad:openFileManager', handler);
   }, []);
 
   // Open the import wizard (always reset to step 1 first).
@@ -1370,6 +1379,11 @@ export default function CADLayout() {
         open={showRecentRecoveries}
         onClose={() => setShowRecentRecoveries(false)}
       />
+
+      {/* Shared file manager — folders/subfolders + all saved drawings */}
+      {showFileManager && (
+        <FileManagerDialog onClose={() => setShowFileManager(false)} />
+      )}
 
       {/* Phase 3 §15 — code-to-style mapping panel */}
       <CodeStylePanel

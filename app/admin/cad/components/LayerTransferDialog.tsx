@@ -51,6 +51,8 @@ export default function LayerTransferDialog({ onClose }: Props) {
   const [sourceMode, setSourceMode] = useState<'PICK' | 'TYPE'>('PICK');
   // Always-on point filter — live prefix auto-find, no execute button.
   const [pointSearch, setPointSearch] = useState('');
+  // Filter field: search by point NUMBER (prefix) or by CODE.
+  const [pointSearchBy, setPointSearchBy] = useState<'NUMBER' | 'CODE'>('NUMBER');
   // Phase 8 §11.7 Slice 18 — right-click context menu on
   // source-list rows. `target` carries the feature id the
   // surveyor clicked (or null for an empty-area click), so
@@ -238,12 +240,15 @@ export default function LayerTransferDialog({ onClose }: Props) {
       );
   }, [drawingStore.document.features, drawingStore.document.layers]);
 
-  // Prefix auto-find: "8" → every point whose number starts with 8 (874,
-  // 87fnd, 87set…). Code/description are matched as a substring fallback so
-  // a surveyor can also find points by what they are.
+  // Live filter. By NUMBER: prefix auto-find — "8" → every point whose number
+  // starts with 8 (874, 87fnd, 87set…), with code/description as a substring
+  // fallback. By CODE: match the survey code (e.g. type "bc" → all BC points).
   const pointSearchResults = useMemo(() => {
     const q = pointSearch.trim().toLowerCase();
     if (!q) return pointCatalog;
+    if (pointSearchBy === 'CODE') {
+      return pointCatalog.filter((p) => p.code.toLowerCase().includes(q));
+    }
     return pointCatalog.filter((p) => {
       const num = p.number.toLowerCase();
       return (
@@ -252,7 +257,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
         p.description.toLowerCase().includes(q)
       );
     });
-  }, [pointCatalog, pointSearch]);
+  }, [pointCatalog, pointSearch, pointSearchBy]);
 
   // Confirm gate: COPY_TO_CLIPBOARD doesn't need a target
   // layer (the clipboard is the destination); the other ops
@@ -523,13 +528,38 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 appear only while there's a query so the panel stays compact. */}
             {pointCatalog.length > 0 && (
               <div className="mb-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[10px] text-gray-500 mr-0.5">Search by</span>
+                  <button
+                    onClick={() => setPointSearchBy('NUMBER')}
+                    className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+                      pointSearchBy === 'NUMBER'
+                        ? 'bg-gray-600 border-gray-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
+                    }`}
+                  >
+                    Number
+                  </button>
+                  <button
+                    onClick={() => setPointSearchBy('CODE')}
+                    className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+                      pointSearchBy === 'CODE'
+                        ? 'bg-gray-600 border-gray-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
+                    }`}
+                  >
+                    Code
+                  </button>
+                </div>
                 <div className="relative">
                   <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                   <input
                     type="text"
                     value={pointSearch}
                     onChange={(e) => setPointSearch(e.target.value)}
-                    placeholder="Filter points by number… (8 → 8, 80, 87fnd)"
+                    placeholder={pointSearchBy === 'CODE'
+                      ? 'Filter points by code… (e.g. BC, IRF, MON)'
+                      : 'Filter points by number… (8 → 8, 80, 87fnd)'}
                     className="w-full h-7 pl-7 pr-7 bg-gray-900 border border-gray-700 rounded text-[11px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
                   />
                   {pointSearch && (

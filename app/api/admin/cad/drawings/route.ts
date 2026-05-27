@@ -44,7 +44,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const jobId = searchParams.get('job_id');
   let query = supabaseAdmin
     .from('cad_drawings')
-    .select('id, name, description, feature_count, layer_count, job_id, created_by, created_at, updated_at')
+    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at')
     .order('updated_at', { ascending: false });
   if (jobId) query = query.eq('job_id', jobId);
 
@@ -71,6 +71,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     description?: string;
     document: unknown;
     job_id?: string | null;
+    folder_id?: string | null;
     version?: string;
     feature_count?: number;
     layer_count?: number;
@@ -99,6 +100,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // the link.
   if (body.job_id !== undefined) {
     payload.job_id = body.job_id;
+  }
+  // Folder placement: set only when explicitly provided (omitting preserves
+  // the existing folder on re-save; null = root).
+  if (body.folder_id !== undefined) {
+    payload.folder_id = body.folder_id;
   }
 
   if (body.id) {
@@ -154,7 +160,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await req.json() as { id?: string; name?: string; description?: string };
+  const body = await req.json() as { id?: string; name?: string; description?: string; folder_id?: string | null };
   if (!body.id) {
     return NextResponse.json({ error: 'Missing required field: id' }, { status: 400 });
   }
@@ -166,16 +172,18 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     patch.name = body.name.trim();
   }
   if (typeof body.description === 'string') patch.description = body.description.trim() || null;
+  // Move into a folder (null = root).
+  if ('folder_id' in body) patch.folder_id = body.folder_id ?? null;
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   }
 
-  // Shared workspace — any authenticated CAD user can rename/re-describe.
+  // Shared workspace — any authenticated CAD user can rename / move / re-describe.
   const { data, error } = await supabaseAdmin
     .from('cad_drawings')
     .update(patch)
     .eq('id', body.id)
-    .select('id, name, description, feature_count, layer_count, job_id, created_by, created_at, updated_at')
+    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at')
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

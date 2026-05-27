@@ -1,0 +1,397 @@
+'use client';
+// app/admin/cad/components/FileManagerDialog.tsx
+//
+// Full file manager for the shared CAD workspace: a folder tree (with
+// subfolders) on the left and the selected folder's drawings on the right.
+// Create / rename / delete folders, move drawings between folders, search
+// across every drawing, and open / rename / export / delete files.
+//
+// Folders + drawings are shared across all CAD users (see the folders +
+// drawings API routes). Opened via the File ▸ File Manager menu item
+// (cad:openFileManager).
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
+  Pencil, Trash2, Download, FolderInput, Search, X,
+} from 'lucide-react';
+import {
+  useDrawingStore, useSelectionStore, useUndoStore, useSaveTargetStore,
+} from '@/lib/cad/store';
+import { validateAndMigrateDocument } from '@/lib/cad/validate';
+import { cadLog } from '@/lib/cad/logger';
+import { confirmAction } from './ConfirmDialog';
+import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+
+interface FolderRow {
+  id: string;
+  parent_id: string | null;
+  name: string;
+}
+interface DrawingMeta {
+  id: string;
+  name: string;
+  description: string | null;
+  feature_count: number;
+  layer_count: number;
+  folder_id: string | null;
+  updated_at: string;
+}
+
+interface Props {
+  onClose: () => void;
+}
+
+export default function FileManagerDialog({ onClose }: Props) {
+  const drawingStore = useDrawingStore();
+  const selectionStore = useSelectionStore();
+  const undoStore = useUndoStore();
+
+  const [folders, setFolders] = useState<FolderRow[]>([]);
+  const [drawings, setDrawings] = useState<DrawingMeta[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [fRes, dRes] = await Promise.all([
+        fetch('/api/admin/cad/folders'),
+        fetch('/api/admin/cad/drawings'),
+      ]);
+      if (!fRes.ok) throw new Error(`Folders: ${fRes.status}`);
+      if (!dRes.ok) throw new Error(`Drawings: ${dRes.status}`);
+      const fBody = await fRes.json() as { folders: FolderRow[] };
+      const dBody = await dRes.json() as { drawings: DrawingMeta[] };
+      setFolders(fBody.folders ?? []);
+      setDrawings(dBody.drawings ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load file manager');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const childrenOf = useCallback(
+    (parentId: string | null) => folders.filter((f) => f.parent_id === parentId),
+    [folders],
+  );
+
+  const folderName = useCallback(
+    (id: string | null) => (id === null ? 'All drawings' : folders.find((f) => f.id === id)?.name ?? '(folder)'),
+    [folders],
+  );
+
+  // Right-pane list: a global search ignores folder scoping; otherwise show
+  // the selected folder's drawings.
+  const visibleDrawings = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (q) {
+      return drawings.filter(
+        (d) => d.name.toLowerCase().includes(q) || (d.description ?? '').toLowerCase().includes(q),
+      );
+    }
+    return drawings.filter((d) => (d.folder_id ?? null) === selectedFolderId);
+  }, [drawings, search, selectedFolderId]);
+
+  const countIn = useCallback(
+    (folderId: string | null) => drawings.filter((d) => (d.folder_id ?? null) === folderId).length,
+    [drawings],
+  );
+
+  // ── Folder operations ────────────────────────────────────────────────────
+  async function createFolder(parentId: string | null) {
+    const name = window.prompt(parentId ? `New subfolder in "${folderName(parentId)}"` : 'New folder name');
+    if (name === null) return;
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/cad/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), parent_id: parentId }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      if (parentId) setExpanded((s) => new Set(s).add(parentId));
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not create folder');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function renameFolder(f: FolderRow) {
+    const next = window.prompt('Rename folder', f.name);
+    if (next === null || !next.trim() || next.trim() === f.name) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/cad/folders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: f.id, name: next.trim() }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Rename failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteFolder(f: FolderRow) {
+    const subCount = childrenOf(f.id).length;
+    const fileCount = countIn(f.id);
+    const ok = await confirmAction({
+      title: 'Delete folder?',
+      message:
+        `Delete folder "${f.name}"?` +
+        (subCount > 0 ? ` Its ${subCount} subfolder${subCount === 1 ? '' : 's'} will also be deleted.` : '') +
+        (fileCount > 0 ? ` Its ${fileCount} drawing${fileCount === 1 ? '' : 's'} will move to All drawings (not deleted).` : '') +
+        ' This can\'t be undone.',
+      confirmLabel: 'Delete folder',
+      cancelLabel: 'Cancel',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/cad/folders?id=${encodeURIComponent(f.id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      if (selectedFolderId === f.id) setSelectedFolderId(null);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Drawing operations ─────────────────────────────────────────────────────
+  async function openDrawing(id: string) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      const body = await res.json() as { drawing: { document: unknown; name?: string; description?: string | null } };
+      const payload = body.drawing.document as { document?: unknown };
+      const doc = validateAndMigrateDocument(payload?.document ?? payload);
+      const recordName = body.drawing.name?.trim();
+      if (recordName) doc.name = recordName;
+      drawingStore.loadDocument(doc);
+      selectionStore.deselectAll();
+      undoStore.clear();
+      useSaveTargetStore.getState().setCloudTarget(doc.id, id, body.drawing.name ?? doc.name, body.drawing.description ?? null);
+      cadLog.info('FileIO', `Opened drawing from file manager: ${doc.name}`);
+      onClose();
+      setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to open drawing');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function renameDrawing(d: DrawingMeta) {
+    const next = window.prompt('Rename drawing', d.name);
+    if (next === null || !next.trim() || next.trim() === d.name) return;
+    await patchDrawing(d.id, { name: next.trim() });
+  }
+
+  async function moveDrawing(id: string, folderId: string | null) {
+    await patchDrawing(id, { folder_id: folderId });
+  }
+
+  async function patchDrawing(id: string, patch: { name?: string; folder_id?: string | null }) {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/cad/drawings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...patch }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Update failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteDrawing(d: DrawingMeta) {
+    const ok = await confirmAction({
+      title: 'Delete drawing?',
+      message: `Delete "${d.name}" from the shared drawings? This can't be undone.`,
+      confirmLabel: 'Delete', cancelLabel: 'Cancel', danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportDrawing(d: DrawingMeta) {
+    try {
+      const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(d.id)}`);
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const { drawing } = await res.json() as { drawing: { document: unknown } };
+      const blob = new Blob([JSON.stringify(drawing.document, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), {
+        href: url, download: `${d.name.replace(/[^\w.-]+/g, '_') || 'drawing'}.starr`,
+      });
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Export failed');
+    }
+  }
+
+  // ── Folder tree rendering ──────────────────────────────────────────────────
+  function FolderNode({ folder, depth }: { folder: FolderRow; depth: number }) {
+    const kids = childrenOf(folder.id);
+    const isOpen = expanded.has(folder.id);
+    const isSel = selectedFolderId === folder.id;
+    return (
+      <li>
+        <div
+          className={`group flex items-center gap-1 pr-1 rounded cursor-pointer ${isSel ? 'bg-blue-600/30' : 'hover:bg-gray-800'}`}
+          style={{ paddingLeft: depth * 12 + 4 }}
+          onClick={() => setSelectedFolderId(folder.id)}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); if (kids.length) setExpanded((s) => { const n = new Set(s); if (n.has(folder.id)) n.delete(folder.id); else n.add(folder.id); return n; }); }}
+            className="w-4 shrink-0 text-gray-500"
+            aria-label={isOpen ? 'Collapse' : 'Expand'}
+          >
+            {kids.length > 0 ? (isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
+          </button>
+          {isOpen && kids.length ? <FolderOpen size={13} className="shrink-0 text-amber-400" /> : <Folder size={13} className="shrink-0 text-amber-400" />}
+          <span className="text-[12px] text-gray-200 truncate flex-1 py-0.5">{folder.name}</span>
+          <span className="text-[10px] text-gray-600 shrink-0">{countIn(folder.id) || ''}</span>
+          <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+            <button onClick={(e) => { e.stopPropagation(); void createFolder(folder.id); }} title="New subfolder" className="p-0.5 text-gray-400 hover:text-blue-400"><FolderPlus size={12} /></button>
+            <button onClick={(e) => { e.stopPropagation(); void renameFolder(folder); }} title="Rename" className="p-0.5 text-gray-400 hover:text-white"><Pencil size={11} /></button>
+            <button onClick={(e) => { e.stopPropagation(); void deleteFolder(folder); }} title="Delete" className="p-0.5 text-gray-400 hover:text-red-400"><Trash2 size={11} /></button>
+          </span>
+        </div>
+        {isOpen && kids.length > 0 && (
+          <ul>{kids.map((c) => <FolderNode key={c.id} folder={c} depth={depth + 1} />)}</ul>
+        )}
+      </li>
+    );
+  }
+
+  return (
+    <ModalFrame open onClose={onClose} title="File Manager" initialWidth={760} initialHeight={560} minWidth={520} minHeight={360} scrollBody={false}>
+      <div className="flex flex-col h-full text-sm text-gray-200">
+        {/* Toolbar */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700">
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search all drawings…"
+              className="w-full h-8 pl-7 pr-7 bg-gray-800 border border-gray-600 rounded text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" aria-label="Clear search"><X size={12} /></button>
+            )}
+          </div>
+          <button
+            onClick={() => void createFolder(null)}
+            disabled={busy}
+            className="flex items-center gap-1 px-2.5 h-8 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 text-xs rounded transition-colors"
+          >
+            <FolderPlus size={13} /> New folder
+          </button>
+        </div>
+
+        {error && <div className="m-3 text-red-400 text-xs bg-red-900/20 border border-red-700 rounded px-3 py-2">{error}</div>}
+
+        <div className="flex flex-1 min-h-0">
+          {/* Folder tree */}
+          <div className="w-56 shrink-0 border-r border-gray-700 overflow-y-auto py-1">
+            <div
+              className={`flex items-center gap-1 px-2 py-1 rounded cursor-pointer mx-1 ${selectedFolderId === null && !search ? 'bg-blue-600/30' : 'hover:bg-gray-800'}`}
+              onClick={() => setSelectedFolderId(null)}
+            >
+              <FolderOpen size={13} className="text-gray-400" />
+              <span className="text-[12px] text-gray-200 flex-1">All drawings</span>
+              <span className="text-[10px] text-gray-600">{countIn(null) || ''}</span>
+            </div>
+            <ul>{childrenOf(null).map((f) => <FolderNode key={f.id} folder={f} depth={0} />)}</ul>
+          </div>
+
+          {/* File list */}
+          <div className="flex-1 min-w-0 overflow-y-auto p-3">
+            <div className="text-[11px] text-gray-500 mb-2">
+              {search ? `Search results (${visibleDrawings.length})` : folderName(selectedFolderId)}
+            </div>
+            {loading ? (
+              <div className="flex items-center gap-2 py-8 text-gray-400 justify-center">
+                <span className="inline-block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                Loading…
+              </div>
+            ) : visibleDrawings.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                {search ? `No drawings match “${search}”.` : 'This folder is empty.'}
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {visibleDrawings.map((d) => (
+                  <li key={d.id} className="flex items-start justify-between gap-3 bg-gray-800 rounded-lg px-3 py-2 group">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-medium text-sm truncate">{d.name}</div>
+                      {d.description && <div className="text-gray-400 text-xs truncate mt-0.5">{d.description}</div>}
+                      <div className="text-gray-600 text-[11px] mt-1">
+                        {d.feature_count} feature{d.feature_count !== 1 ? 's' : ''} · {d.layer_count} layer{d.layer_count !== 1 ? 's' : ''} · Updated {new Date(d.updated_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button disabled={busy} onClick={() => void openDrawing(d.id)} className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs rounded transition-colors" title="Open">Open</button>
+                      <div className="relative flex items-center" title="Move to folder">
+                        <FolderInput size={12} className="absolute left-1.5 text-gray-400 pointer-events-none" />
+                        <select
+                          value={d.folder_id ?? ''}
+                          onChange={(e) => void moveDrawing(d.id, e.target.value || null)}
+                          className="appearance-none pl-6 pr-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded border border-gray-600 focus:outline-none focus:border-blue-500 max-w-[120px]"
+                        >
+                          <option value="">All drawings (root)</option>
+                          {folders.map((f) => (
+                            <option key={f.id} value={f.id}>{f.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button onClick={() => void exportDrawing(d)} className="px-1.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded transition-colors" title="Export .starr"><Download size={12} /></button>
+                      <button onClick={() => void renameDrawing(d)} className="px-1.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded transition-colors" title="Rename"><Pencil size={12} /></button>
+                      <button onClick={() => void deleteDrawing(d)} className="px-1.5 py-1 bg-gray-700 hover:bg-red-700 text-gray-400 hover:text-white text-xs rounded transition-colors" title="Delete"><Trash2 size={12} /></button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </ModalFrame>
+  );
+}
