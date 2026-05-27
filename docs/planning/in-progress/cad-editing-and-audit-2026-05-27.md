@@ -235,3 +235,11 @@ Newly-discovered audit targets get appended here as `[ ]`.
   Media feature now spans canvas, point viewer, properties, AND layers, with
   a full image-zoom/video viewer. Cloud upload (cross-reload sharing) remains
   an optional follow-up.
+- 2026-05-27 04:5x CDT — Media feature regression batch (point/viewer/property/
+  canvas) all pass together. Added a FULL import E2E (`import-full.spec`):
+  upload CSV → click through the wizard → Import → 3 points land in the
+  drawing. Validates the whole import path (the user's original concern)
+  after the reset + file-change fixes. Media (E) is comprehensively done
+  (attach from canvas/point-viewer/properties/layers; image-zoom+video
+  viewer; persists across reload via IndexedDB; cloud sharing = optional
+  follow-up).
