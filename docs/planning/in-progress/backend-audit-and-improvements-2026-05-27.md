@@ -90,7 +90,14 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **API:** `app/api/admin/leads/route.ts` — admin-gated GET (status filter + name/company/email/phone search), POST, PATCH (advance status / edit), DELETE.
   - **Page:** wired — loads leads, creates (Save enabled + validating), inline status `<select>` on each card to move through the pipeline, delete, loading/empty states. Removed banner + dev guide.
   - **Verified:** `tsc` + `eslint` clean (needs `seeds/292` applied to Supabase at deploy; degrades gracefully meanwhile). Auth-gated → code-verified.
-- [ ] **Remaining stubs to build out (same seed+API+wire pattern):** `schedule` (calendar events), `my-files` (personal files — needs a storage bucket), `settings` (user preferences). Each is its own slice.
+### Slice 12 — Build out stub page: Schedule / calendar ✅ shipped
+- [x] `/admin/schedule` (+ Hub `/admin/me?tab=schedule`) was a UI-only calendar stub. Fully built:
+  - **Seed:** `seeds/293_schedule_events.sql` — `public.schedule_events` (title, type, start/end, all_day, location, notes, `job_id` FK → jobs, assigned_to/by, color, indexes).
+  - **API:** `app/api/admin/schedule/route.ts` — GET by date range (non-admins see only their own events; admins see all), admin POST/PATCH/DELETE; server stamps a per-type color.
+  - **Panel:** wired — loads events for the visible window on navigation, the admin Create Event form now POSTs (building start/end ISO from the date/time/all-day inputs), per-event delete (admin) in week view, week + month render real events. Removed banner + dev guide.
+  - **Verified:** `tsc` + `eslint` clean (needs `seeds/293` applied at deploy; degrades gracefully). Auth-gated → code-verified.
+  - **Deferred (documented):** recurring events, drag-to-create/move, time-off approval, Google Calendar sync, conflict detection — each is a sizable feature beyond "make the page functional"; revisit if requested.
+- [ ] **Remaining stubs to build out:** `my-files` (personal files — needs a storage bucket) and `settings` (user preferences). Each is its own slice.
 
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
