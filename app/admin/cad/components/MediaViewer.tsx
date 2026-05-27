@@ -63,10 +63,20 @@ export default function MediaViewer() {
   const close = useCallback(() => setOwnerId(null), []);
   useEffect(() => {
     if (!ownerId) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { close(); return; }
+      // Arrow keys step between attachments.
+      if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && items.length > 1) {
+        const i = items.findIndex((m) => m.id === (active?.id ?? ''));
+        const next = e.key === 'ArrowRight'
+          ? (i + 1) % items.length
+          : (i - 1 + items.length) % items.length;
+        setActiveId(items[next].id);
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ownerId, close]);
+  }, [ownerId, close, items, active]);
 
   if (!ownerId || !active) return null;
 
