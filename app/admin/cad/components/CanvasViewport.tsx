@@ -2974,8 +2974,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       const geom = feature.geometry;
 
-      for (let li = 0; li < labels.length; li++) {
-        const label = labels[li];
+      // Draw stacked point labels so the NAME ends up on top (drawn last):
+      // when zoomed out far enough that the lines overlap, the later-drawn
+      // label wins, and the surveyor wants the point name/number visible.
+      // Non-point labels keep their original order.
+      const POINT_DRAW_ORDER: Record<string, number> = {
+        POINT_COORDINATES: 0, POINT_ELEVATION: 1, POINT_DESCRIPTION: 2, POINT_NAME: 3,
+      };
+      const orderedLabels = labels
+        .map((l, i) => ({ l, i }))
+        .sort((a, b) => {
+          const pa = POINT_DRAW_ORDER[a.l.kind];
+          const pb = POINT_DRAW_ORDER[b.l.kind];
+          if (pa !== undefined && pb !== undefined) return pa - pb;
+          return a.i - b.i;
+        })
+        .map((x) => x.l);
+
+      for (let li = 0; li < orderedLabels.length; li++) {
+        const label = orderedLabels[li];
         if (!label.visible) continue;
 
         const labelKey = `${feature.id}:${label.id}`;
