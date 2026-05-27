@@ -8034,6 +8034,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Block drawing on a HIDDEN active layer — the surveyor has likely
+      // forgotten a hidden layer is active and would otherwise draw where
+      // they can't see it. Warn with a hint instead.
+      if (activeTool.startsWith('DRAW_')) {
+        const dStore = useDrawingStore.getState();
+        const activeLayer = dStore.document.layers[dStore.activeLayerId];
+        if (activeLayer && activeLayer.visible === false) {
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `Layer "${activeLayer.name}" is hidden — you can't draw on it. Unhide it in the Layers panel, or pick a different (visible) active layer first.` },
+          }));
+          return;
+        }
+      }
+
       // Grab-node rotation: mousedown on the selection rotate node starts a
       // live drag-rotate (mirrors image rotation — drag spins, release
       // commits). Takes priority over the two-click pivot/angle flow.
