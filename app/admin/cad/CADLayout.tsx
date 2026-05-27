@@ -73,6 +73,7 @@ import {
   useDeliveryStore,
   useReviewWorkflowStore,
   useTransferStore,
+  useImportStore,
 } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
@@ -155,6 +156,13 @@ export default function CADLayout() {
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  // Always reset the import wizard before opening so a new file starts at
+  // step 1 — the store is an in-memory singleton, so without this a prior
+  // completed import would reopen stuck on "Done".
+  const openImport = () => {
+    useImportStore.getState().reset();
+    setShowImportDialog(true);
+  };
   const [showAIDrawingDialog, setShowAIDrawingDialog] = useState(false);
   const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
@@ -331,6 +339,13 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Open the import wizard (always reset to step 1 first).
+  useEffect(() => {
+    const handler = () => { useImportStore.getState().reset(); setShowImportDialog(true); };
+    window.addEventListener('cad:openImport', handler);
+    return () => window.removeEventListener('cad:openImport', handler);
   }, []);
 
   // Phase 3 §15 — code-to-style mapping panel
@@ -840,7 +855,7 @@ export default function CADLayout() {
           {compassNotice.payload.fieldFiles.length > 0 ? (
             <button
               type="button"
-              onClick={() => setShowImportDialog(true)}
+              onClick={openImport}
               className="px-3 py-1 bg-indigo-700 text-white rounded text-xs font-semibold hover:bg-indigo-600"
             >
               Open import
@@ -859,7 +874,7 @@ export default function CADLayout() {
 
       {/* Top menu bar */}
       <MenuBar
-        onOpenImport={() => setShowImportDialog(true)}
+        onOpenImport={openImport}
         onOpenAIDrawing={() => setShowAIDrawingDialog(true)}
         onTogglePointTable={() => setShowPointTable(p => !p)}
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
@@ -1263,7 +1278,7 @@ export default function CADLayout() {
       {showNewDrawingDialog && (
         <NewDrawingDialog
           onClose={() => setShowNewDrawingDialog(false)}
-          onImport={() => { setShowNewDrawingDialog(false); setShowImportDialog(true); }}
+          onImport={() => { setShowNewDrawingDialog(false); openImport(); }}
         />
       )}
 
