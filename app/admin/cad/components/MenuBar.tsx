@@ -990,15 +990,15 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
           onClick={() => {
             if (drawingStore.isDirty) {
               const ok = window.confirm(
-                'You have unsaved changes. Leave the CAD editor and return to the dashboard? Unsaved changes will be lost.',
+                'You have unsaved changes. Leave the CAD editor and return to Research CAD? Unsaved changes will be lost.',
               );
               if (!ok) return;
             }
-            router.push('/admin/dashboard');
+            router.push('/admin/research-cad');
           }}
           className="flex items-center gap-1.5 px-2 py-1 mr-1 rounded text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
-          title="Exit the CAD editor and return to the dashboard"
-          aria-label="Exit to dashboard"
+          title="Exit the CAD editor and return to Research CAD"
+          aria-label="Exit to Research CAD"
         >
           <LogOutIcon size={14} />
           <span className="hidden sm:inline">Exit</span>

@@ -25,7 +25,10 @@ import {
   Sparkles,
   FolderPlus,
   Magnet,
+  Image as ImageIcon,
+  Eye,
 } from 'lucide-react';
+import { useMediaStore } from '@/lib/cad/media/media-store';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -260,6 +263,10 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   const selIds = Array.from(selectionStore.selectedIds);
   const selCount = selIds.length;
   const feature = featureId ? drawingStore.getFeature(featureId) : null;
+  const mediaByOwner = useMediaStore((s) => s.byOwner);
+  const mediaHydrate = useMediaStore((s) => s.hydrate);
+  useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
+  const featureMediaCount = feature ? (mediaByOwner[feature.id]?.length ?? 0) : 0;
   const hasGroup = !!(feature?.properties?.polylineGroupId);
   const clipboard = hasClipboard();
   const clipCount = getClipboardCount();
@@ -310,26 +317,45 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // close it. Presses inside the menu OR a portaled submenu are ignored.
   // A right-press outside closes this menu and lets the canvas reopen one at
   // the new spot, so every right-click reliably shows a fresh menu.
+  // Keep the latest onClose in a ref so the dismiss listener can attach
+  // exactly ONCE on mount. (The parent recreates onClose on every render —
+  // e.g. cursor-coordinate updates — and if this effect depended on onClose
+  // it would re-run constantly, cancelling the pending requestAnimationFrame
+  // before the outside-press listener ever attached. That race is why the
+  // menu only "sometimes" dismissed on an outside click.)
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
   useEffect(() => {
-    let raf = 0;
-    function onOutside(e: PointerEvent) {
+    function onOutside(e: Event) {
       if (!(e.target as HTMLElement | null)?.closest('[data-cad-context-menu]')) {
-        onClose();
+        onCloseRef.current();
       }
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     }
-    raf = requestAnimationFrame(() => {
+    const raf = requestAnimationFrame(() => {
+      // Listen on every press/click event an environment might deliver so an
+      // outside interaction always dismisses. `click` is the reliable
+      // catch-all (fires even if pointerdown/mousedown are swallowed); a
+      // right-press doesn't emit `click`, so this never self-closes on open.
+      // `contextmenu` lets a right-click elsewhere close this menu before the
+      // canvas reopens one at the new spot.
       window.addEventListener('pointerdown', onOutside, true);
+      window.addEventListener('mousedown', onOutside, true);
+      window.addEventListener('click', onOutside, true);
+      window.addEventListener('contextmenu', onOutside, true);
       window.addEventListener('keydown', onKey);
     });
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointerdown', onOutside, true);
+      window.removeEventListener('mousedown', onOutside, true);
+      window.removeEventListener('click', onOutside, true);
+      window.removeEventListener('contextmenu', onOutside, true);
       window.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, []);
 
   // ── Helper: rotate by custom angle ───────────────────────────────────────
   function handleCustomRotate() {
@@ -683,6 +709,26 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
             );
           },
         },
+        {
+          id: 'addMedia',
+          label: 'Add media for this feature…',
+          icon: <ImageIcon size={12} />,
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:addMediaForOwner', { detail: { ownerId: feature.id, ownerKind: 'feature' } }));
+            onClose();
+          },
+        },
+        ...(featureMediaCount > 0
+          ? [{
+              id: 'viewMedia',
+              label: `View media (${featureMediaCount})`,
+              icon: <Eye size={12} />,
+              action: () => {
+                window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: feature.id } }));
+                onClose();
+              },
+            }]
+          : []),
         // Snap a point/vertex to another point — pick the vertex nearest the
         // right-click, then choose to snap just that point or move the whole
         // feature so the point lands on a chosen target point.

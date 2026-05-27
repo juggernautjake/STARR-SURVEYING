@@ -181,34 +181,56 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     }),
 
   addLayer: (layer) =>
-    set((state) => ({
-      document: {
-        ...state.document,
-        layers: { ...state.document.layers, [layer.id]: layer },
-        layerOrder: [...state.document.layerOrder, layer.id],
-        modified: new Date().toISOString(),
-      },
-      isDirty: true,
-    })),
+    set((state) => {
+      // Re-activate when the project had no active layer (e.g. right after
+      // every layer was deleted) so the user can immediately draw again.
+      const hadActive = state.document.layerOrder.includes(state.activeLayerId);
+      return {
+        document: {
+          ...state.document,
+          layers: { ...state.document.layers, [layer.id]: layer },
+          layerOrder: [...state.document.layerOrder, layer.id],
+          modified: new Date().toISOString(),
+        },
+        activeLayerId: hadActive ? state.activeLayerId : layer.id,
+        isDirty: true,
+      };
+    }),
 
   removeLayer: (layerId) =>
     set((state) => {
       const layer = state.document.layers[layerId];
-      if (!layer || layer.isDefault) return state;
+      if (!layer) return state;
       const layers = { ...state.document.layers };
       delete layers[layerId];
       const layerOrder = state.document.layerOrder.filter((id) => id !== layerId);
-      // Move features on deleted layer to active layer
-      const activeLayerId =
-        layerId === state.activeLayerId
-          ? (layerOrder[0] ?? state.activeLayerId)
-          : state.activeLayerId;
       const features = { ...state.document.features };
+
+      if (layerOrder.length === 0) {
+        // Deleting the LAST layer empties the project — its features (incl.
+        // all point data) have nowhere to move, so they are removed too.
+        for (const [fid, feature] of Object.entries(features)) {
+          if (feature.layerId === layerId) delete features[fid];
+        }
+        return {
+          document: { ...state.document, layers, layerOrder, features, modified: new Date().toISOString() },
+          activeLayerId: '',
+          isDirty: true,
+        };
+      }
+
+      // Otherwise move the deleted layer's features onto a surviving layer.
+      const targetLayerId =
+        layerId === state.activeLayerId ? layerOrder[0] : state.activeLayerId;
+      const safeTarget = layerOrder.includes(targetLayerId) ? targetLayerId : layerOrder[0];
       for (const [fid, feature] of Object.entries(features)) {
         if (feature.layerId === layerId) {
-          features[fid] = { ...feature, layerId: activeLayerId };
+          features[fid] = { ...feature, layerId: safeTarget };
         }
       }
+      const activeLayerId = layerOrder.includes(state.activeLayerId)
+        ? state.activeLayerId
+        : layerOrder[0];
       return {
         document: { ...state.document, layers, layerOrder, features, modified: new Date().toISOString() },
         activeLayerId,

@@ -21,8 +21,20 @@ test('editing a Northing cell updates the point', async ({ page }) => {
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('cad:togglePointDataViewer')));
   await expect(page.locator('text=/\\b1 pts\\b/')).toBeVisible({ timeout: 8000 });
 
-  // First data row, Northing is the 2nd column → click it to edit.
-  const northingCell = page.locator('tbody tr').first().locator('td').nth(1);
+  // Find the Northing column by its header, so the test survives column
+  // changes (e.g. the leading multi-select checkbox column). Each row's
+  // first <td> is the checkbox, so header index maps 1:1 to row <td> index.
+  const headers = page.locator('thead th');
+  const headerCount = await headers.count();
+  let northingIdx = -1;
+  for (let i = 0; i < headerCount; i++) {
+    if (((await headers.nth(i).textContent()) ?? '').trim() === 'Northing') {
+      northingIdx = i;
+      break;
+    }
+  }
+  expect(northingIdx).toBeGreaterThan(0);
+  const northingCell = page.locator('tbody tr').first().locator('td').nth(northingIdx);
   await northingCell.click();
   const input = northingCell.locator('input');
   await input.fill('1234.5');

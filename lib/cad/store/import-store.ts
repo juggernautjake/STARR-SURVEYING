@@ -87,6 +87,9 @@ export const useImportStore = create<ImportStore>()(
       file,
       fileType: detectFileType(file.name),
       rawText: text,
+      // A new file invalidates any parse from the previous one.
+      previewRows: [],
+      importResult: null,
     }),
 
   setConfig: (config) =>

@@ -834,7 +834,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     originals: Map<string, Feature>;
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
-  const selectPanRef = useRef(false);
   // "Move Page" mode: drag the white paper sheet to reposition the frame
   // over the data (updates paperOrigin only — geometry never moves).
   const paperMoveModeRef = useRef(false);
@@ -2974,8 +2973,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       const geom = feature.geometry;
 
-      for (let li = 0; li < labels.length; li++) {
-        const label = labels[li];
+      // Draw stacked point labels so the NAME ends up on top (drawn last):
+      // when zoomed out far enough that the lines overlap, the later-drawn
+      // label wins, and the surveyor wants the point name/number visible.
+      // Non-point labels keep their original order.
+      const POINT_DRAW_ORDER: Record<string, number> = {
+        POINT_COORDINATES: 0, POINT_ELEVATION: 1, POINT_DESCRIPTION: 2, POINT_NAME: 3,
+      };
+      const orderedLabels = labels
+        .map((l, i) => ({ l, i }))
+        .sort((a, b) => {
+          const pa = POINT_DRAW_ORDER[a.l.kind];
+          const pb = POINT_DRAW_ORDER[b.l.kind];
+          if (pa !== undefined && pb !== undefined) return pa - pb;
+          return a.i - b.i;
+        })
+        .map((x) => x.l);
+
+      for (let li = 0; li < orderedLabels.length; li++) {
+        const label = orderedLabels[li];
         if (!label.visible) continue;
 
         const labelKey = `${feature.id}:${label.id}`;
@@ -8017,6 +8033,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Block drawing on a HIDDEN or LOCKED active layer — the surveyor has
+      // likely forgotten which layer is active and would otherwise draw where
+      // they can't see it / on a layer meant to be protected. Warn + hint.
+      if (activeTool.startsWith('DRAW_')) {
+        const dStore = useDrawingStore.getState();
+        const activeLayer = dStore.document.layers[dStore.activeLayerId];
+        if (activeLayer && activeLayer.visible === false) {
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `Layer "${activeLayer.name}" is hidden — you can't draw on it. Unhide it in the Layers panel, or pick a different (visible) active layer first.` },
+          }));
+          return;
+        }
+        if (activeLayer && activeLayer.locked === true) {
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `Layer "${activeLayer.name}" is locked — you can't draw on it. Unlock it in the Layers panel, or pick a different active layer first.` },
+          }));
+          return;
+        }
+      }
+
       // Grab-node rotation: mousedown on the selection rotate node starts a
       // live drag-rotate (mirrors image rotation — drag spins, release
       // commits). Takes priority over the two-click pivot/angle flow.
@@ -8364,15 +8400,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
-            // Click on empty canvas: start canvas pan (drag to shift view)
-            if (!e.shiftKey) {
-              selectPanRef.current = true;
-              isPanningRef.current = true;
-              setCursorStyle('grabbing');
-            } else {
-              // Shift+click on empty: start box selection
-              toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
-            }
+            // Empty canvas → start a box-select (the CAD-standard expectation
+            // the command hint advertises). Shift/Ctrl at mouseup adds to the
+            // selection; a click with no drag deselects (handled in the
+            // box-select mouseup). Panning is on Space+drag or middle-mouse.
+            toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           }
           break;
         }
@@ -10650,20 +10682,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
-      // Stop canvas pan in SELECT mode
-      if (selectPanRef.current) {
-        selectPanRef.current = false;
-        isPanningRef.current = false;
-        // If it was a short click (no drag), deselect — unless an additive
-        // modifier is held (the surveyor is mid multi-pick and just missed).
-        const dragDist = Math.hypot(sx - lastMouseRef.current.x, sy - lastMouseRef.current.y);
-        if (dragDist < 3 && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          selectionStore.deselectAll();
-        }
-        setCursorStyle('default');
-        return;
-      }
-
       // Commit grip drag
       if (gripDragRef.current && gripStartRef.current) {
         const isRotate = gripDragRef.current.type === 'ROTATE';
@@ -11023,6 +11041,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       );
       emit(`Connected ${features.length} line${features.length === 1 ? '' : 's'} from point codes. Lines are separate features — delete them anytime without affecting the points.`);
     };
+    // Keyboard-shortcut actions that previously dispatched events with no
+    // listener (zoom in/out/selection, select-all, ortho toggle).
+    const onZoomInEv = () => {
+      const vp = useViewportStore.getState();
+      vp.zoomAt(vp.screenWidth / 2, vp.screenHeight / 2, 1.2);
+    };
+    const onZoomOutEv = () => {
+      const vp = useViewportStore.getState();
+      vp.zoomAt(vp.screenWidth / 2, vp.screenHeight / 2, 1 / 1.2);
+    };
+    const onSelectAllEv = () => {
+      const ids = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+      useSelectionStore.getState().selectMultiple(ids, 'REPLACE');
+    };
+    const onZoomSelectionEv = () => {
+      const dwg = useDrawingStore.getState();
+      const sel = Array.from(useSelectionStore.getState().selectedIds);
+      const feats = sel.map((id) => dwg.getFeature(id)).filter((f): f is Feature => !!f);
+      const b = computeFeaturesBounds(feats);
+      if (b) useViewportStore.getState().zoomToExtents(b);
+    };
+    const onToggleOrthoEv = () => {
+      const ts = useToolStore.getState();
+      ts.setOrthoEnabled(!ts.state.orthoEnabled);
+    };
     const onRotate = (e: Event) => {
       const { center, angleRad } = (e as CustomEvent).detail as {
         center: Point2D;
@@ -11100,6 +11143,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:fitDrawingToPage', onFitToPage);
     window.addEventListener('cad:buildLineworkFromCodes', onBuildLinework);
+    window.addEventListener('cad:zoomIn', onZoomInEv);
+    window.addEventListener('cad:zoomOut', onZoomOutEv);
+    window.addEventListener('cad:zoomSelection', onZoomSelectionEv);
+    window.addEventListener('cad:selectAll', onSelectAllEv);
+    window.addEventListener('cad:toggleOrtho', onToggleOrthoEv);
     const onMovePageMode = () => {
       const next = !paperMoveModeRef.current;
       paperMoveModeRef.current = next;
@@ -11381,6 +11429,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
       window.removeEventListener('cad:buildLineworkFromCodes', onBuildLinework);
+      window.removeEventListener('cad:zoomIn', onZoomInEv);
+      window.removeEventListener('cad:zoomOut', onZoomOutEv);
+      window.removeEventListener('cad:zoomSelection', onZoomSelectionEv);
+      window.removeEventListener('cad:selectAll', onSelectAllEv);
+      window.removeEventListener('cad:toggleOrtho', onToggleOrthoEv);
       window.removeEventListener('cad:movePageMode', onMovePageMode);
       window.removeEventListener('cad:beginSnapToPoint', onBeginSnapToPoint);
       window.removeEventListener('cad:rotate', onRotate);
@@ -11856,10 +11909,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const isSeal       = tbContextMenu.element === 'officialSealLabel';
         const focusEl = isTitleBlock ? 'titleBlock' : isSig || isSeal ? 'signatureBlock' : isNA ? 'northArrow' : undefined;
         return (
+          <>
+          {/* Click-away overlay so a normal click anywhere dismisses the
+              menu (not just moving the cursor out of it). */}
+          <div
+            className="fixed inset-0 z-[149]"
+            onClick={() => setTbContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setTbContextMenu(null); }}
+          />
           <div
             className="fixed z-[150] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[200px] text-xs"
             style={{ left: tbContextMenu.x, top: tbContextMenu.y }}
-            onMouseLeave={() => setTbContextMenu(null)}
           >
             <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700 mb-1">
               {isScaleBar ? 'Graphic Scale Bar' : isTitleBlock ? 'Title Block' : isSig ? 'Signature / Seal Block' : isNA ? 'North Arrow' : 'Official Seal Label'}
@@ -11913,6 +11973,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               ✕ Cancel
             </button>
           </div>
+          </>
         );
       })()}
 
@@ -12218,7 +12279,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       {/* Drawing-mode mini-menu (shown on right-click during DRAW_POLYGON) */}
       {drawingMenu && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setDrawingMenu(null)} />
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setDrawingMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setDrawingMenu(null); }}
+          />
           <div
             className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 text-xs text-gray-200 min-w-[160px]"
             style={{ top: drawingMenu.y, left: drawingMenu.x }}

@@ -12,7 +12,7 @@
 // transfer presets, selection blocks.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Layers, MousePointerClick, ListChecks, Trash2, Hash, AlertTriangle, ChevronDown } from 'lucide-react';
+import { X, Layers, MousePointerClick, ListChecks, Trash2, Hash, AlertTriangle, ChevronDown, Search } from 'lucide-react';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -22,6 +22,7 @@ import {
   useViewportStore,
 } from '@/lib/cad/store';
 import { featureBounds } from '@/lib/cad/geometry/bounds';
+import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '@/lib/cad/feature-fields';
 import { transferSelectionToLayer, copyToClipboard } from '@/lib/cad/operations';
 import {
   buildPointNoIndex,
@@ -48,6 +49,8 @@ export default function LayerTransferDialog({ onClose }: Props) {
   // switching is purely a UI affordance that preserves the
   // picked set. Defaults to PICK.
   const [sourceMode, setSourceMode] = useState<'PICK' | 'TYPE'>('PICK');
+  // Always-on point filter — live prefix auto-find, no execute button.
+  const [pointSearch, setPointSearch] = useState('');
   // Phase 8 §11.7 Slice 18 — right-click context menu on
   // source-list rows. `target` carries the feature id the
   // surveyor clicked (or null for an empty-area click), so
@@ -65,6 +68,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
   const setPickModeActive = useTransferStore((s) => s.setPickModeActive);
   const clearPicks = useTransferStore((s) => s.clearPicks);
   const removePick = useTransferStore((s) => s.removePick);
+  const addPick = useTransferStore((s) => s.addPick);
 
   // Inline "create + name a new layer" as the transfer target.
   const [creatingLayer, setCreatingLayer] = useState(false);
@@ -215,6 +219,41 @@ export default function LayerTransferDialog({ onClose }: Props) {
   }, [targetLayer, pickedIds]);
 
   const sourceCount = pickedIds.size;
+
+  // ── Point search catalog (SEARCH source mode) ──────────────────────────
+  // Every POINT feature with its number/name, code and description, so the
+  // surveyor can find points by number prefix instead of hunting on canvas.
+  const pointCatalog = useMemo(() => {
+    return Object.values(drawingStore.document.features)
+      .filter((f) => f.type === 'POINT')
+      .map((f) => ({
+        id: f.id,
+        number: pointNumberOf(f) ?? '',
+        code: pointCodeOf(f),
+        description: pointDescriptionOf(f),
+        layerName: drawingStore.document.layers[f.layerId]?.name ?? '',
+      }))
+      .sort((a, b) =>
+        a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: 'base' }),
+      );
+  }, [drawingStore.document.features, drawingStore.document.layers]);
+
+  // Prefix auto-find: "8" → every point whose number starts with 8 (874,
+  // 87fnd, 87set…). Code/description are matched as a substring fallback so
+  // a surveyor can also find points by what they are.
+  const pointSearchResults = useMemo(() => {
+    const q = pointSearch.trim().toLowerCase();
+    if (!q) return pointCatalog;
+    return pointCatalog.filter((p) => {
+      const num = p.number.toLowerCase();
+      return (
+        num.startsWith(q) ||
+        p.code.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q)
+      );
+    });
+  }, [pointCatalog, pointSearch]);
+
   // Confirm gate: COPY_TO_CLIPBOARD doesn't need a target
   // layer (the clipboard is the destination); the other ops
   // require an unlocked target.
@@ -479,6 +518,74 @@ export default function LayerTransferDialog({ onClose }: Props) {
               </div>
             </div>
 
+            {/* Always-on point filter — just a text field that filters the
+                drawing's points live as you type (no search button). Results
+                appear only while there's a query so the panel stays compact. */}
+            {pointCatalog.length > 0 && (
+              <div className="mb-2">
+                <div className="relative">
+                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={pointSearch}
+                    onChange={(e) => setPointSearch(e.target.value)}
+                    placeholder="Filter points by number… (8 → 8, 80, 87fnd)"
+                    className="w-full h-7 pl-7 pr-7 bg-gray-900 border border-gray-700 rounded text-[11px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  />
+                  {pointSearch && (
+                    <button
+                      onClick={() => setPointSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                      aria-label="Clear filter"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+                {pointSearch.trim() !== '' && (
+                  <div className="mt-1 bg-gray-900 border border-gray-700 rounded max-h-[160px] overflow-y-auto">
+                    {pointSearchResults.length === 0 ? (
+                      <p className="text-[11px] text-gray-500 text-center py-3">No points match &ldquo;{pointSearch}&rdquo;.</p>
+                    ) : (
+                      <ul>
+                        {pointSearchResults.slice(0, 200).map((p) => {
+                          const picked = pickedIds.has(p.id);
+                          return (
+                            <li key={p.id}>
+                              <button
+                                data-testid="point-search-result"
+                                onClick={() => (picked ? removePick(p.id) : addPick(p.id))}
+                                className={`w-full text-left px-2 py-1 flex items-center gap-2 transition-colors ${
+                                  picked ? 'bg-blue-600/20 hover:bg-blue-600/30' : 'hover:bg-gray-800'
+                                }`}
+                              >
+                                <span className={`shrink-0 w-3 text-[10px] ${picked ? 'text-blue-400' : 'text-gray-600'}`}>
+                                  {picked ? '✓' : ''}
+                                </span>
+                                <span className="font-mono text-[11px] text-gray-200 shrink-0">{p.number || '—'}</span>
+                                {p.code && <span className="text-[10px] text-amber-400 shrink-0">{p.code}</span>}
+                                {p.description && (
+                                  <span className="text-[10px] text-gray-400 truncate min-w-0">{p.description}</span>
+                                )}
+                                {p.layerName && (
+                                  <span className="ml-auto text-[10px] text-gray-600 shrink-0">{p.layerName}</span>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
+                        {pointSearchResults.length > 200 && (
+                          <li className="text-[10px] text-gray-500 italic px-2 py-1">
+                            Showing first 200 of {pointSearchResults.length} — refine your filter.
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {sourceMode === 'PICK' && (
               <div className="flex items-center justify-end mb-1">
                 <Tooltip
@@ -536,6 +643,10 @@ export default function LayerTransferDialog({ onClose }: Props) {
                     {Array.from(pickedIds).slice(0, 12).map((id) => {
                       const f = drawingStore.getFeature(id);
                       const layer = f ? layers[f.layerId] : null;
+                      const isPoint = f?.type === 'POINT';
+                      const num = f ? pointNumberOf(f) : null;
+                      const code = f ? pointCodeOf(f) : '';
+                      const desc = f ? pointDescriptionOf(f) : '';
                       return (
                         <li
                           key={id}
@@ -545,10 +656,20 @@ export default function LayerTransferDialog({ onClose }: Props) {
                             setSourceListMenu({ x: e.clientX, y: e.clientY, targetFeatureId: id });
                           }}
                         >
-                          <span className="text-[11px] text-gray-300 truncate min-w-0">
-                            <span className="font-mono text-gray-500">#{id.slice(0, 6)}</span>
-                            <span className="ml-1.5">{f?.type ?? '—'}</span>
-                            {layer && <span className="ml-1.5 text-gray-500">on {layer.name}</span>}
+                          <span className="text-[11px] text-gray-300 truncate min-w-0 flex items-center gap-1.5">
+                            {isPoint ? (
+                              <>
+                                <span className="font-mono text-gray-200">{num || `#${id.slice(0, 6)}`}</span>
+                                {code && <span className="text-[10px] text-amber-400">{code}</span>}
+                                {desc && <span className="text-[10px] text-gray-500 truncate min-w-0">{desc}</span>}
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-mono text-gray-500">#{id.slice(0, 6)}</span>
+                                <span>{f?.type ?? '—'}</span>
+                              </>
+                            )}
+                            {layer && <span className="text-gray-600">· {layer.name}</span>}
                           </span>
                           <button
                             onClick={() => removePick(id)}
@@ -1700,7 +1821,7 @@ function SourceListContextMenu(props: {
   // Dismiss on outside click + Escape. Listeners use capture
   // phase so the dialog's focus trap doesn't eat the events.
   useEffect(() => {
-    const onPointer = (e: PointerEvent) => {
+    const onPointer = (e: Event) => {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(e.target as Node)) props.onClose();
     };
@@ -1712,9 +1833,15 @@ function SourceListContextMenu(props: {
       }
     };
     window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('mousedown', onPointer, true);
+    window.addEventListener('click', onPointer, true);
+    window.addEventListener('contextmenu', onPointer, true);
     window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('mousedown', onPointer, true);
+      window.removeEventListener('click', onPointer, true);
+      window.removeEventListener('contextmenu', onPointer, true);
       window.removeEventListener('keydown', onKey, true);
     };
   }, [props]);

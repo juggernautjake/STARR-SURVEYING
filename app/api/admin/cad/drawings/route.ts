@@ -23,12 +23,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const id = searchParams.get('id');
 
   if (id) {
-    // Return a single drawing (full document payload)
+    // Return a single drawing (full document payload). Drawings are a shared
+    // workspace — any authenticated CAD user can open any drawing.
     const { data, error } = await supabaseAdmin
       .from('cad_drawings')
       .select('*')
       .eq('id', id)
-      .eq('created_by', session.user.email)
       .single();
 
     if (error) {
@@ -38,13 +38,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Return list — only metadata columns, not the full document JSONB.
-  // Optionally scope to a single job (the job-detail CAD tab passes
-  // ?job_id= to show only that job's drawings).
+  // Shared across all CAD users (no owner filter). Optionally scope to a
+  // single job (the job-detail CAD tab passes ?job_id= to show only that
+  // job's drawings).
   const jobId = searchParams.get('job_id');
   let query = supabaseAdmin
     .from('cad_drawings')
-    .select('id, name, description, feature_count, layer_count, job_id, created_at, updated_at')
-    .eq('created_by', session.user.email)
+    .select('id, name, description, feature_count, layer_count, job_id, created_by, created_at, updated_at')
     .order('updated_at', { ascending: false });
   if (jobId) query = query.eq('job_id', jobId);
 
@@ -84,7 +84,6 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const payload: Record<string, unknown> = {
-    created_by: session.user.email,
     name: body.name.trim(),
     description: body.description?.trim() ?? null,
     document: body.document,
@@ -103,12 +102,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   if (body.id) {
-    // Update existing
+    // Update existing. Drawings are a shared workspace — any authenticated
+    // CAD user can save changes to any drawing. `created_by` is intentionally
+    // omitted from the update so the original author is preserved; bump
+    // updated_at so the shared list reflects the latest save.
     const { data, error } = await supabaseAdmin
       .from('cad_drawings')
-      .update(payload)
+      .update({ ...payload, updated_at: new Date().toISOString() })
       .eq('id', body.id)
-      .eq('created_by', session.user.email)
       .select()
       .single();
 
@@ -118,10 +119,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ drawing: data });
   }
 
-  // Insert new
+  // Insert new — record the creator (preserved across later shared edits).
   const { data, error } = await supabaseAdmin
     .from('cad_drawings')
-    .insert(payload)
+    .insert({ ...payload, created_by: session.user.email })
     .select()
     .single();
 
@@ -169,12 +170,12 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   }
 
+  // Shared workspace — any authenticated CAD user can rename/re-describe.
   const { data, error } = await supabaseAdmin
     .from('cad_drawings')
     .update(patch)
     .eq('id', body.id)
-    .eq('created_by', session.user.email)
-    .select('id, name, description, feature_count, layer_count, job_id, created_at, updated_at')
+    .select('id, name, description, feature_count, layer_count, job_id, created_by, created_at, updated_at')
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -197,11 +198,11 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Missing required query param: id' }, { status: 400 });
   }
 
+  // Shared workspace — any authenticated CAD user can delete any drawing.
   const { error } = await supabaseAdmin
     .from('cad_drawings')
     .delete()
-    .eq('id', id)
-    .eq('created_by', session.user.email);
+    .eq('id', id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

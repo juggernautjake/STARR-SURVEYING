@@ -32,9 +32,11 @@ export interface AutosavePayload {
 }
 
 export interface AutosaveListEntry {
-  docId:    string;
-  savedAt:  string;
-  docName:  string | null;
+  docId:        string;
+  savedAt:      string;
+  docName:      string | null;
+  layerCount:   number;
+  featureCount: number;
 }
 
 const DB_NAME = 'starr-cad';
@@ -136,10 +138,13 @@ export async function listAutosaves(): Promise<AutosaveListEntry[]> {
         key.startsWith(KEY_PREFIX) &&
         value
       ) {
+        const counts = extractCounts(value);
         out.push({
           docId: key.slice(KEY_PREFIX.length),
           savedAt: value.savedAt,
           docName: extractDocName(value),
+          layerCount: counts.layers,
+          featureCount: counts.features,
         });
       }
       cursor.continue();
@@ -200,4 +205,28 @@ function extractDocName(payload: AutosavePayload): string | null {
   if (!doc || typeof doc !== 'object') return null;
   const name = doc.name;
   return typeof name === 'string' ? name : null;
+}
+
+function extractCounts(payload: AutosavePayload): {
+  layers: number;
+  features: number;
+} {
+  return summarizeDocument(payload.document);
+}
+
+/** Cheap layer/feature tally for a stored DrawingDocument, used to tell the
+ *  surveyor what a recovery snapshot actually contains before they restore
+ *  or discard it. Tolerant of partial/legacy shapes. */
+export function summarizeDocument(doc: unknown): {
+  layers: number;
+  features: number;
+} {
+  const d = doc as Record<string, unknown> | null;
+  if (!d || typeof d !== 'object') return { layers: 0, features: 0 };
+  const layers = d.layers;
+  const features = d.features;
+  return {
+    layers: layers && typeof layers === 'object' ? Object.keys(layers).length : 0,
+    features: features && typeof features === 'object' ? Object.keys(features).length : 0,
+  };
 }

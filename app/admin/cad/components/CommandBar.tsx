@@ -96,7 +96,7 @@ function parseCommand(raw: string): ParsedCommand {
 function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown, regularPolygonSides?: number): string {
   switch (activeTool) {
     case 'SELECT':
-      return 'Click to select, Shift+click to add/remove, drag to box-select, or type a command';
+      return 'Click to select · Shift+click to add/remove · drag to box-select · Space+drag or middle-drag to pan · or type a command';
     case 'PAN':
       return 'Click and drag to pan. Scroll to zoom. Middle-mouse drag also pans. Press S to return to Select.';
     case 'DRAW_POINT':
@@ -206,6 +206,14 @@ export default function CommandBar() {
       window.removeEventListener('cad:commandOutput', handler);
       if (clearTimer !== null) window.clearTimeout(clearTimer);
     };
+  }, []);
+
+  // Focus the command input on the keyboard shortcut (previously dispatched
+  // with no listener — the shortcut did nothing).
+  useEffect(() => {
+    const focus = () => { inputRef.current?.focus(); };
+    window.addEventListener('cad:focusCommandBar', focus);
+    return () => window.removeEventListener('cad:focusCommandBar', focus);
   }, []);
 
   // Stable ref so handleSubmit can call executeCommand without a stale closure
@@ -366,6 +374,26 @@ export default function CommandBar() {
       case 'zoom selection':
         zoomToSelection();
         break;
+      case 'fit page':
+      case 'fit to page':
+      case 'ftp':
+        window.dispatchEvent(new CustomEvent('cad:fitDrawingToPage'));
+        break;
+      case 'zi':
+      case 'zoom in':
+        window.dispatchEvent(new CustomEvent('cad:zoomIn'));
+        break;
+      case 'zo':
+      case 'zoom out':
+        window.dispatchEvent(new CustomEvent('cad:zoomOut'));
+        break;
+      case 'sa':
+      case 'select all':
+        window.dispatchEvent(new CustomEvent('cad:selectAll'));
+        break;
+      case 'print':
+        window.dispatchEvent(new CustomEvent('cad:openPrintDialog'));
+        break;
       case 'line':
       case 'l':
         toolStore.setTool('DRAW_LINE');
@@ -409,10 +437,6 @@ export default function CommandBar() {
       case 'select':
       case 's':
         toolStore.setTool('SELECT');
-        break;
-      case 'scale':
-      case 'sc':
-        toolStore.setTool('SCALE');
         break;
       case 'pan':
       case 'h':

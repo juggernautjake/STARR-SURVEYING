@@ -22,6 +22,9 @@ import CalcPointDialog from './components/CalcPointDialog';
 import CloseDrawingDialog from './components/CloseDrawingDialog';
 import SketchReconcileDialog from './components/SketchReconcileDialog';
 import ImportDialog from './components/ImportDialog';
+import PrintDialog from './components/PrintDialog';
+import MediaViewer from './components/MediaViewer';
+import { useMediaStore } from '@/lib/cad/media/media-store';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
@@ -73,6 +76,7 @@ import {
   useDeliveryStore,
   useReviewWorkflowStore,
   useTransferStore,
+  useImportStore,
 } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
@@ -86,6 +90,7 @@ import {
 import {
   clearAutosave,
   readAutosave,
+  summarizeDocument,
   writeAutosave,
 } from '@/lib/cad/persistence/autosave';
 import {
@@ -155,6 +160,13 @@ export default function CADLayout() {
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  // Always reset the import wizard before opening so a new file starts at
+  // step 1 — the store is an in-memory singleton, so without this a prior
+  // completed import would reopen stuck on "Done".
+  const openImport = () => {
+    useImportStore.getState().reset();
+    setShowImportDialog(true);
+  };
   const [showAIDrawingDialog, setShowAIDrawingDialog] = useState(false);
   const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
@@ -188,6 +200,7 @@ export default function CADLayout() {
     savedAt: string;
     document: unknown;
   } | null>(null);
+  const [recoveryDiscardArmed, setRecoveryDiscardArmed] = useState(false);
 
   // On mount: check for a pending RECON import, then check IndexedDB for a crash-recovery autosave
   useEffect(() => {
@@ -331,6 +344,13 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Open the import wizard (always reset to step 1 first).
+  useEffect(() => {
+    const handler = () => { useImportStore.getState().reset(); setShowImportDialog(true); };
+    window.addEventListener('cad:openImport', handler);
+    return () => window.removeEventListener('cad:openImport', handler);
   }, []);
 
   // Phase 3 §15 — code-to-style mapping panel
@@ -487,6 +507,38 @@ export default function CADLayout() {
     const handler = () => setShowPointViewer((v) => !v);
     window.addEventListener('cad:togglePointDataViewer', handler);
     return () => window.removeEventListener('cad:togglePointDataViewer', handler);
+  }, []);
+
+  // Points panel (bottom dock) toggle.
+  useEffect(() => {
+    const handler = () => setShowPointTable((v) => !v);
+    window.addEventListener('cad:togglePointTable', handler);
+    return () => window.removeEventListener('cad:togglePointTable', handler);
+  }, []);
+
+  // Global "attach media" host — any component can dispatch
+  // cad:addMediaForOwner { ownerId, ownerKind } to open a file picker and
+  // attach the chosen photos/videos to that feature/layer.
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const pendingMediaRef = useRef<{ ownerId: string; ownerKind: 'feature' | 'layer' } | null>(null);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent<{ ownerId: string; ownerKind: 'feature' | 'layer' }>).detail;
+      if (!d?.ownerId) return;
+      pendingMediaRef.current = { ownerId: d.ownerId, ownerKind: d.ownerKind ?? 'feature' };
+      mediaInputRef.current?.click();
+    };
+    window.addEventListener('cad:addMediaForOwner', handler);
+    return () => window.removeEventListener('cad:addMediaForOwner', handler);
+  }, []);
+
+  // Print / export-settings dialog (was dispatched by the Print shortcut but
+  // had no listener and was never mounted).
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowPrintDialog(true);
+    window.addEventListener('cad:openPrintDialog', handler);
+    return () => window.removeEventListener('cad:openPrintDialog', handler);
   }, []);
 
   // Traverse Viewer toggle (§10e)
@@ -710,7 +762,17 @@ export default function CADLayout() {
 
   return (
     <TooltipProvider>
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
+    <div
+      className="flex flex-col h-screen w-full overflow-hidden bg-white select-none"
+      onContextMenu={(e) => {
+        // The CAD app owns right-click (feature/layer/canvas menus). Suppress
+        // the browser's native context menu everywhere EXCEPT real text fields,
+        // where native copy/paste/spellcheck is still useful.
+        const t = e.target as HTMLElement | null;
+        if (t && (t.closest('input, textarea, [contenteditable="true"]'))) return;
+        e.preventDefault();
+      }}
+    >
       {/* Phase 7 delivery hydrator — keeps useDeliveryStore +
           useReviewWorkflowStore in sync with the active doc. */}
       <DeliveryHydrator />
@@ -721,22 +783,63 @@ export default function CADLayout() {
       <BidirectionalSync />
 
       {/* Crash-recovery dialog — offered when an autosave newer than current document is found */}
-      {recoveryPayload && (
+      {recoveryPayload && (() => {
+        const recoveredName =
+          (recoveryPayload.document as { name?: unknown } | null)?.name;
+        const title =
+          typeof recoveredName === 'string' && recoveredName.trim()
+            ? recoveredName
+            : 'Untitled drawing';
+        const { layers, features } = summarizeDocument(recoveryPayload.document);
+        return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]">
           <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-5 max-w-md w-full text-sm text-gray-200 space-y-4 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-            <h2 className="text-white font-semibold text-base">Recover Unsaved Drawing?</h2>
+            <h2 className="text-white font-semibold text-base">Recover unsaved work?</h2>
             <p className="text-gray-400 text-xs leading-relaxed">
-              An auto-saved version from{' '}
-              <strong className="text-white">{new Date(recoveryPayload.savedAt).toLocaleString()}</strong>{' '}
-              was found — this is newer than the current document. Would you like to restore it?
+              We found auto-saved changes that are newer than what&apos;s
+              currently open. This usually means a previous session closed
+              before you saved.
             </p>
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition-colors"
-                onClick={() => setRecoveryPayload(null)}
-              >
-                Discard & Start Fresh
-              </button>
+            <div className="rounded border border-gray-700 bg-gray-900/60 px-3 py-2">
+              <div className="text-white font-medium truncate" title={title}>{title}</div>
+              <div className="text-gray-400 text-xs mt-0.5">
+                {layers} layer{layers === 1 ? '' : 's'} · {features} feature{features === 1 ? '' : 's'}
+              </div>
+              <div className="text-gray-500 text-[11px] mt-0.5">
+                Auto-saved {new Date(recoveryPayload.savedAt).toLocaleString()}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              {recoveryDiscardArmed ? (
+                <div className="flex items-center gap-2 text-xs text-red-300">
+                  <span>Delete it?</span>
+                  <button
+                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                    onClick={() => {
+                      void clearAutosave(drawingStore.document.id);
+                      setRecoveryDiscardArmed(false);
+                      setRecoveryPayload(null);
+                      if (drawingStore.document.layerOrder.length === 0) setShowNewDrawingDialog(true);
+                    }}
+                  >
+                    Yes, discard
+                  </button>
+                  <button
+                    className="px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                    onClick={() => setRecoveryDiscardArmed(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="px-3 py-1.5 text-gray-400 hover:text-white text-xs transition-colors"
+                  onClick={() => setRecoveryDiscardArmed(true)}
+                  title="Permanently delete this auto-saved snapshot"
+                >
+                  Discard auto-save
+                </button>
+              )}
               <button
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs transition-colors"
                 onClick={() => {
@@ -750,17 +853,19 @@ export default function CADLayout() {
                     cadLog.error('AutoSave', 'Recovery failed — document was invalid', err);
                     alert('The auto-save could not be recovered (invalid format). Starting fresh.');
                   }
+                  setRecoveryDiscardArmed(false);
                   setRecoveryPayload(null);
                   // Zoom to the recovered drawing's extents
                   setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
                 }}
               >
-                Recover Drawing
+                Restore this version
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Auto-save failure warning */}
       {autoSaveFailed && (
@@ -840,7 +945,7 @@ export default function CADLayout() {
           {compassNotice.payload.fieldFiles.length > 0 ? (
             <button
               type="button"
-              onClick={() => setShowImportDialog(true)}
+              onClick={openImport}
               className="px-3 py-1 bg-indigo-700 text-white rounded text-xs font-semibold hover:bg-indigo-600"
             >
               Open import
@@ -859,7 +964,7 @@ export default function CADLayout() {
 
       {/* Top menu bar */}
       <MenuBar
-        onOpenImport={() => setShowImportDialog(true)}
+        onOpenImport={openImport}
         onOpenAIDrawing={() => setShowAIDrawingDialog(true)}
         onTogglePointTable={() => setShowPointTable(p => !p)}
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
@@ -1105,6 +1210,28 @@ export default function CADLayout() {
       {/* Cross-layer copy / move / duplicate dialog (Phase 8 §11.7) */}
       <LayerTransferGate />
 
+      {/* Print / export-settings dialog */}
+      {showPrintDialog && <PrintDialog onClose={() => setShowPrintDialog(false)} />}
+
+      {/* Media viewer (opens on cad:openMediaViewer) */}
+      <MediaViewer />
+
+      {/* Global attach-media file input (driven by cad:addMediaForOwner) */}
+      <input
+        ref={mediaInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        className="hidden"
+        onChange={async (e) => {
+          const p = pendingMediaRef.current;
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          if (!p || files.length === 0) return;
+          for (const f of files) await useMediaStore.getState().addMedia(p.ownerId, p.ownerKind, f);
+        }}
+      />
+
       {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
       {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}
 
@@ -1263,7 +1390,7 @@ export default function CADLayout() {
       {showNewDrawingDialog && (
         <NewDrawingDialog
           onClose={() => setShowNewDrawingDialog(false)}
-          onImport={() => { setShowNewDrawingDialog(false); setShowImportDialog(true); }}
+          onImport={() => { setShowNewDrawingDialog(false); openImport(); }}
         />
       )}
 

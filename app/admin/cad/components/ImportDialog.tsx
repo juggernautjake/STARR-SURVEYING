@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/components/ImportDialog.tsx — Multi-step field data import wizard
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   X,
   Upload,
@@ -585,6 +585,19 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   // into linework only when the surveyor opts in (or later via
   // Survey ▸ Connect Points into Linework). Lines are separate features.
   const [connectLinework, setConnectLinework] = useState(false);
+
+  // The import store is an in-memory singleton. Reset it when the dialog
+  // closes so the next import starts fresh at step 1 (not stuck on "Done")
+  // and the previous file/result aren't held in memory.
+  useEffect(() => {
+    return () => { useImportStore.getState().reset(); };
+  }, []);
+
+  // Swapping the file mid-wizard invalidates the prior parse — drop the
+  // dialog's local result so stale points from the old file can't be used.
+  useEffect(() => {
+    setImportResult(null);
+  }, [importStore.file]);
 
   const canGoNext = () => {
     const { step, file, rawText } = importStore;

@@ -4,6 +4,19 @@ import { getSymbolById } from './symbol-library';
 import { renderSymbol } from './symbol-renderer';
 
 /**
+ * Draw a small opaque (paper-white) disc behind an inline line-type symbol
+ * so the line/dashes never appear to run THROUGH the symbol — the glyph
+ * reads as overlaid on top of the line. Sized to the symbol footprint.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function drawSymbolBacking(g: any, x: number, y: number, sizePx: number): void {
+  g.lineStyle(0); // no stroke on the backing itself
+  g.beginFill(0xffffff, 1);
+  g.drawCircle(x, y, sizePx * 0.62);
+  g.endFill();
+}
+
+/**
  * Pixels per mm at screen resolution. Used to convert mm dash pattern values
  * to screen-space pixels. This is an approximation assuming ~96 DPI screen.
  */
@@ -167,6 +180,7 @@ function renderInlineSymbols(
       let rotation = 0;
       if (config.symbolRotation === 'ALONG_LINE') rotation = (angle * 180) / Math.PI;
       else if (config.symbolRotation === 'PERPENDICULAR') rotation = (angle * 180) / Math.PI + 90;
+      drawSymbolBacking(g, p.x, p.y, sizePx);
       renderSymbol(g, symbolDef, p.x, p.y, sizePx, rotation, lineColor, opacity);
     }
     return;
@@ -202,14 +216,15 @@ function renderInlineSymbols(
         oy = Math.sin(perpAngle) * offsetPx;
       }
 
+      drawSymbolBacking(g, sx + ox, sy + oy, sizePx);
       renderSymbol(g, symbolDef, sx + ox, sy + oy, sizePx, rotation, lineColor, opacity);
 
       if (config.side === 'BOTH') {
         const offsetPx = sizePx * 0.8;
-        renderSymbol(g, symbolDef,
-          sx - Math.cos(perpAngle) * offsetPx,
-          sy - Math.sin(perpAngle) * offsetPx,
-          sizePx, rotation, lineColor, opacity);
+        const bx = sx - Math.cos(perpAngle) * offsetPx;
+        const by = sy - Math.sin(perpAngle) * offsetPx;
+        drawSymbolBacking(g, bx, by, sizePx);
+        renderSymbol(g, symbolDef, bx, by, sizePx, rotation, lineColor, opacity);
       }
 
       distAccum += intervalPx;

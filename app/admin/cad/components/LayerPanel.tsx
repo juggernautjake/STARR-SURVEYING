@@ -3,8 +3,11 @@
 
 import { useState, useRef } from 'react';
 import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X, Send, Sparkles } from 'lucide-react';
+import { useEffect } from 'react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
+import { useMediaStore } from '@/lib/cad/media/media-store';
+import { confirmAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
@@ -38,6 +41,9 @@ export default function LayerPanel() {
   const store = useDrawingStore();
   const selectionStore = useSelectionStore();
   const { document: doc, activeLayerId } = store;
+  const mediaByOwner = useMediaStore((s) => s.byOwner);
+  const mediaHydrate = useMediaStore((s) => s.hydrate);
+  useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
   const [newLayerDefaults, setNewLayerDefaults] = useState<{ name: string; color: string } | null>(null);
@@ -178,11 +184,48 @@ export default function LayerPanel() {
     setRenamingId(null);
   }
 
-  function handleDeleteLayer(layerId: string) {
+  async function handleDeleteLayer(layerId: string) {
     const layer = doc.layers[layerId];
-    if (layer?.isDefault) return;
-    store.removeLayer(layerId);
+    if (!layer) return;
     setContextMenu(null);
+    const name = layer.name ?? layerId;
+    const count = Object.values(doc.features).filter((f) => f.layerId === layerId).length;
+    const isLastLayer = doc.layerOrder.length <= 1;
+
+    // Always confirm a layer delete (it can't be undone). The last layer
+    // gets a stronger warning because deleting it empties the whole
+    // project — all features, including point data, are permanently removed.
+    let title: string;
+    let message: string;
+    let confirmLabel: string;
+    if (isLastLayer) {
+      title = 'Delete the last layer?';
+      message =
+        count > 0
+          ? `"${name}" is the only layer left. Deleting it permanently removes the entire drawing — all ${count} feature${count === 1 ? '' : 's'}, including every survey point, will be deleted and the project will be empty. This can't be undone.`
+          : `"${name}" is the only layer left. Deleting it leaves the project with no layers. This can't be undone.`;
+      confirmLabel = count > 0 ? 'Delete everything' : 'Delete layer';
+    } else if (count > 0) {
+      const targetId = doc.layerOrder.find((id) => id !== layerId);
+      const targetName = targetId ? (doc.layers[targetId]?.name ?? 'another layer') : 'another layer';
+      title = 'Delete layer?';
+      message = `Delete layer "${name}"? Its ${count} feature${count === 1 ? '' : 's'} will move to "${targetName}". This can't be undone.`;
+      confirmLabel = 'Delete layer';
+    } else {
+      title = 'Delete layer?';
+      message = `Delete empty layer "${name}"? This can't be undone.`;
+      confirmLabel = 'Delete layer';
+    }
+
+    const ok = await confirmAction({
+      title,
+      message,
+      confirmLabel,
+      cancelLabel: 'Cancel',
+      danger: true,
+    });
+    if (!ok) return;
+    store.removeLayer(layerId);
   }
 
   function handleDuplicateLayer(layerId: string) {
@@ -748,6 +791,16 @@ export default function LayerPanel() {
         </button>
       </div>
 
+      {/* Click-away overlay — a normal click anywhere (incl. the canvas
+          outside this panel) dismisses the layer/panel right-click menus. */}
+      {(contextMenu || panelMenu) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => { setContextMenu(null); setPanelMenu(null); }}
+          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); setPanelMenu(null); }}
+        />
+      )}
+
       {/* Context menu */}
       {contextMenu && (
         <div
@@ -789,6 +842,28 @@ export default function LayerPanel() {
           >
             Duplicate layer
           </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => {
+              const id = contextMenu.layerId;
+              setContextMenu(null);
+              window.dispatchEvent(new CustomEvent('cad:addMediaForOwner', { detail: { ownerId: id, ownerKind: 'layer' } }));
+            }}
+          >
+            Add media for this layer…
+          </button>
+          {(mediaByOwner[contextMenu.layerId]?.length ?? 0) > 0 && (
+            <button
+              className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+              onClick={() => {
+                const id = contextMenu.layerId;
+                setContextMenu(null);
+                window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: id } }));
+              }}
+            >
+              View media ({mediaByOwner[contextMenu.layerId].length})
+            </button>
+          )}
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => startRename(contextMenu.layerId)}
@@ -897,14 +972,12 @@ export default function LayerPanel() {
               )}
             </button>
           )}
-          {!doc.layers[contextMenu.layerId]?.isDefault && (
-            <button
-              className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 text-red-400"
-              onClick={() => handleDeleteLayer(contextMenu.layerId)}
-            >
-              Delete
-            </button>
-          )}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 text-red-400"
+            onClick={() => handleDeleteLayer(contextMenu.layerId)}
+          >
+            Delete
+          </button>
         </div>
       )}
 

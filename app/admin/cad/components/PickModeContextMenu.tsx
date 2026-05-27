@@ -54,23 +54,36 @@ export default function PickModeContextMenu({
       )
     : [];
 
-  // Close on click outside or Escape.
+  // Close on click outside or Escape. Attach ONCE on mount via an onClose ref
+  // — depending on onClose would re-run this effect on every parent render
+  // (cursor updates), clearing the deferred timeout before the outside-click
+  // listener ever attached (the menu would only sometimes dismiss).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
   useEffect(() => {
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    function onDown(e: Event) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onCloseRef.current();
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     }
-    // Defer so the right-click that opened the menu doesn't immediately close it.
-    const t = setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+    // Defer so the right-click that opened the menu doesn't immediately close
+    // it. `click` is the reliable catch-all; `contextmenu` closes on a
+    // right-click elsewhere. (A right-press emits no `click`, so no self-close.)
+    const t = setTimeout(() => {
+      document.addEventListener('mousedown', onDown);
+      document.addEventListener('click', onDown, true);
+      document.addEventListener('contextmenu', onDown, true);
+    }, 0);
     document.addEventListener('keydown', onKey);
     return () => {
       clearTimeout(t);
       document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('click', onDown, true);
+      document.removeEventListener('contextmenu', onDown, true);
       document.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, []);
 
   const item = (label: string, action: () => void, disabled = false) => (
     <button

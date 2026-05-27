@@ -9,8 +9,9 @@
 //
 // Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
 
-import { useMemo, useState, useEffect } from 'react';
-import { X, RotateCcw } from 'lucide-react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { X, RotateCcw, Image as ImageIcon, Eye } from 'lucide-react';
+import { useMediaStore } from '@/lib/cad/media/media-store';
 import { useDrawingStore, useUndoStore, useSelectionStore, makeBatchEntry, makeRemoveFeatureEntry } from '@/lib/cad/store';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import {
@@ -112,6 +113,13 @@ export default function PointDataViewer({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; row: PointRow } | null>(null);
   // Multi-select for bulk actions (editable rows only).
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Media attachments (photos/videos) per point.
+  const mediaHydrate = useMediaStore((s) => s.hydrate);
+  const mediaByOwner = useMediaStore((s) => s.byOwner);
+  const addMedia = useMediaStore((s) => s.addMedia);
+  const mediaFileRef = useRef<HTMLInputElement>(null);
+  const pendingMediaOwnerRef = useRef<string | null>(null);
+  useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
 
   const rows = useMemo(() => buildPointRows(document), [document]);
 
@@ -542,12 +550,23 @@ export default function PointDataViewer({
                     </td>
                   );
                 })}
-                <td className="px-1 py-0.5 border-b border-gray-800 text-center">
+                <td className="px-1 py-0.5 border-b border-gray-800 text-center whitespace-nowrap">
+                  {(mediaByOwner[row.id]?.length ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: row.id } }))}
+                      className="text-gray-400 hover:text-blue-400 transition-colors mr-1 align-middle inline-flex items-center gap-0.5"
+                      title={`${mediaByOwner[row.id].length} media attachment(s) — click to view`}
+                      aria-label={`View media for point ${row.name || row.id}`}
+                    >
+                      <ImageIcon size={12} /><span className="text-[9px]">{mediaByOwner[row.id].length}</span>
+                    </button>
+                  )}
                   {rowEdited && (
                     <button
                       type="button"
                       onClick={() => revertRow(row)}
-                      className="text-gray-500 hover:text-amber-300 transition-colors"
+                      className="text-gray-500 hover:text-amber-300 transition-colors align-middle"
                       title="Revert this point to its original imported/created values"
                       aria-label={`Revert point ${row.name || row.id} to original`}
                     >
@@ -621,6 +640,34 @@ export default function PointDataViewer({
               </div>
             </div>
 
+            {/* Media — attach / view photos & videos for this point. */}
+            <div className="border-t border-gray-700 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  pendingMediaOwnerRef.current = ctxMenu.row.id;
+                  setCtxMenu(null);
+                  mediaFileRef.current?.click();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-gray-700 flex items-center gap-2"
+              >
+                <ImageIcon size={12} /> Add media for this point…
+              </button>
+              {(mediaByOwner[ctxMenu.row.id]?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = ctxMenu.row.id;
+                    setCtxMenu(null);
+                    window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: id } }));
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <Eye size={12} /> View media ({mediaByOwner[ctxMenu.row.id].length})
+                </button>
+              )}
+            </div>
+
             <div className="border-t border-gray-700 mt-1">
               {origByRow.has(ctxMenu.row.id) && snapshotDiffers(ctxMenu.row, origByRow.get(ctxMenu.row.id)!) && (
                 <button
@@ -642,6 +689,22 @@ export default function PointDataViewer({
           </div>
         </>
       )}
+
+      {/* Hidden file input for attaching media to the pending point. */}
+      <input
+        ref={mediaFileRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        className="hidden"
+        onChange={async (e) => {
+          const owner = pendingMediaOwnerRef.current;
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          if (!owner || files.length === 0) return;
+          for (const f of files) await addMedia(owner, 'feature', f);
+        }}
+      />
     </div>
   );
 }
