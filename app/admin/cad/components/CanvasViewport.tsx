@@ -2432,7 +2432,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     const ds         = drawingScale ?? 50;
-    const scaleLabel = tb.scaleLabel || `1" = ${ds}'`;
+    // Always show the live scale derived from drawingScale so the SCALE field
+    // can never drift from the graphic scale bar (which is also drawn from ds).
+    // A stored numeric override ("1\" = N'") is ignored in favour of the live
+    // value; only a genuinely custom non-numeric label (e.g. "NOT TO SCALE")
+    // is shown verbatim.
+    const customScale = (tb.scaleLabel ?? '').trim();
+    const scaleLabel  = (customScale === '' || /^1"\s*=\s*\d+(?:\.\d+)?'$/.test(customScale))
+      ? `1" = ${ds}'`
+      : customScale;
 
     drawCell('PROJECT',        tb.projectName     || doc.name || '', 'projectName',     tbScrLeft, dataTop,             halfTbW, rowH);
     drawCell('JOB NO.',        tb.projectNumber   || '', 'projectNumber',   midX,      dataTop,             halfTbW, rowH);
