@@ -772,8 +772,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const hoveredLabelKeyRef = useRef<string | null>(null);
   // Hovered title-block overlay element
   const hoveredTBElemRef = useRef<'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null>(null);
-  // Hidden <input> used to pick a seal image from the local machine.
-  const sealFileInputRef = useRef<HTMLInputElement | null>(null);
   // Screen bounding boxes of each TB element (updated each render frame)
   const tbBoundsRef = useRef<{
     northArrow:       { screenX: number; screenY: number; w: number; h: number } | null;
@@ -10737,8 +10735,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             });
           }
         } else if (element === 'officialSealLabel') {
-          // Single click (no drag) on the seal → pick a square seal image.
-          sealFileInputRef.current?.click();
+          // Single click (no drag) on the seal → open the seal picker
+          // (upload from computer, choose a saved cloud seal, or remove).
+          window.dispatchEvent(new CustomEvent('cad:openSealPicker'));
         }
         tbDragRef.current = null;
         hoveredTBElemRef.current = null;
@@ -12130,25 +12129,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           <div className="text-[9px] text-gray-400 mt-0.5 px-0.5">Enter to place · Esc to cancel</div>
         </div>
       )}
-
-      {/* Hidden picker for a local seal image — opened by clicking the seal. */}
-      <input
-        ref={sealFileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.currentTarget.value = '';
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            const url = typeof reader.result === 'string' ? reader.result : null;
-            if (url) drawingStore.updateTitleBlock({ sealImageDataUrl: url });
-          };
-          reader.readAsDataURL(file);
-        }}
-      />
 
       {/* Title-block field inline editor — single click on a title block data cell */}
       {tbFieldEditState && (() => {

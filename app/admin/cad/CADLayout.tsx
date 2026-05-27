@@ -44,6 +44,7 @@ import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
 import FileManagerDialog from './components/FileManagerDialog';
+import SealPickerModal from './components/SealPickerModal';
 import CodeStylePanel from './components/CodeStylePanel';
 import AISidebar from './components/AISidebar';
 import BidirectionalSync from './components/BidirectionalSync';
@@ -201,6 +202,7 @@ export default function CADLayout() {
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
   const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
+  const [showSealPicker, setShowSealPicker] = useState(false);
   const [showCodeStylePanel, setShowCodeStylePanel] = useState(false);
   const [compassNotice, setCompassNotice] =
     useState<{ payload: CompassJobImport; stale: boolean } | null>(null);
@@ -363,6 +365,13 @@ export default function CADLayout() {
     const handler = () => setShowFileManager(true);
     window.addEventListener('cad:openFileManager', handler);
     return () => window.removeEventListener('cad:openFileManager', handler);
+  }, []);
+
+  // Open the official-seal picker (clicking the seal in the signature block).
+  useEffect(() => {
+    const handler = () => setShowSealPicker(true);
+    window.addEventListener('cad:openSealPicker', handler);
+    return () => window.removeEventListener('cad:openSealPicker', handler);
   }, []);
 
   // Open the import wizard (always reset to step 1 first).
@@ -1381,6 +1390,11 @@ export default function CADLayout() {
       {/* Shared file manager — folders/subfolders + all saved drawings */}
       {showFileManager && (
         <FileManagerDialog onClose={() => setShowFileManager(false)} />
+      )}
+
+      {/* Official-seal picker — local upload + shared cloud seal library */}
+      {showSealPicker && (
+        <SealPickerModal onClose={() => setShowSealPicker(false)} />
       )}
 
       {/* Phase 3 §15 — code-to-style mapping panel */}
