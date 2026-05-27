@@ -32,8 +32,11 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Done:** `PrintDialog` now dispatches `cad:exportImage { format:'png', paperSize, orientation }` and closes. `CanvasViewport` registers an `onExportImage` listener (with matching cleanup) that calls `pixi.app.render()` then `renderer.extract.canvas(stage).toDataURL('image/png')` and triggers an `<a download>`; emits a `cad:commandOutput` toast. The handler is format-agnostic (PDF branch already present for Slice 2).
   - **Verified:** new harness spec `e2e/harness/export-png.spec.ts` opens the dialog on `/cad-harness`, clicks Export PNG, and asserts a real PNG download (header `0x89504E47`, 144 KB). Screenshot `test-results/audit/print-dialog-open.png` visually confirms the dialog + sheet render. `tsc` + `eslint` clean.
 
-### Slice 2 — CAD: real PDF export from Print dialog
-- [ ] Replace the `window.alert('PDF export coming soon')` with a working PDF export using `jspdf`: take the same extracted PNG, place it on a correctly-sized page (respect the dialog's paper size / orientation), and download a `.pdf`. Reuse the Slice 1 extraction path. Verify via harness that the click produces a PDF without throwing.
+### Slice 2 — CAD: real PDF export from Print dialog ✅ shipped
+- [x] Replace the `window.alert('PDF export coming soon')` with a working PDF export using `jspdf`.
+  - **Done:** the Export PDF button now dispatches `cad:exportImage { format:'pdf', … }`; the shared `onExportImage` handler dynamically imports `jspdf`, sizes the page to the extracted image (orientation honored), `addImage`s the PNG, and saves a `.pdf`.
+  - **Verified:** `e2e/harness/export-pdf.spec.ts` asserts a `%PDF-` download. `tsc` + `eslint` clean.
+  - **Follow-up (noted, not blocking):** the embedded raster is full device-resolution so the PDF is large (~11 MB). A later slice can downscale / JPEG-compress the image for smaller files.
 
 ### Slice 3 — CAD: CalcPointDialog error clarity
 - [ ] Audit the calc-point method switch; ensure every selectable method maps to a solver, and replace the generic `'Method not implemented.'` with either the correct solver call or a precise message. Confirm the dialog can't reach the fallback for any method exposed in its own UI.
