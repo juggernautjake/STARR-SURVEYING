@@ -219,13 +219,10 @@ const SVG_CURSOR_ERASE_IDLE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.
 const SVG_CURSOR_ERASE_ACTIVE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
 const SVG_CURSOR_ROTATE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17 3l3.5 6-6 0' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, alias`;
 
-const SVG_CURSOR_BOX_SELECT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='4' y='4' width='16' height='16' fill='none' stroke='%230088ff' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cline x1='12' y1='0' x2='12' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='12' y1='16' x2='12' y2='24' stroke='white' stroke-width='1'/%3E%3Cline x1='0' y1='12' x2='8' y2='12' stroke='white' stroke-width='1'/%3E%3Cline x1='16' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair`;
-
 const SVG_CURSOR_OFFSET = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 12 h16' fill='none' stroke='white' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cpath d='M4 7 h16' fill='none' stroke='white' stroke-width='1.5'/%3E%3Cpath d='M4 17 h16' fill='none' stroke='white' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='white'/%3E%3C/svg%3E") 12 12, crosshair`;
 
 const TOOL_CURSORS: Partial<Record<string, string>> = {
   SELECT: 'default',
-  BOX_SELECT: SVG_CURSOR_BOX_SELECT,
   PAN: 'grab',
   DRAW_POINT: SVG_CURSOR_CROSSHAIR,
   DRAW_LINE: SVG_CURSOR_CROSSHAIR,
@@ -7267,8 +7264,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // is in a non-draw, non-pan tool. Drawing tools want
     // the snap indicator; pan / box-select want clean
     // gestures.
-    const interactiveTool =
-      tool === 'SELECT' || tool === 'BOX_SELECT';
+    const interactiveTool = tool === 'SELECT';
     const candidate = interactiveTool ? hitTest(sx, sy) : null;
     if (candidate !== lastHoverFeatureRef.current) {
       lastHoverFeatureRef.current = candidate;
@@ -8499,13 +8495,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // box-select mouseup). Panning is on Space+drag or middle-mouse.
             toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           }
-          break;
-        }
-
-        case 'BOX_SELECT': {
-          // Dedicated box selection tool: always start box selection on mousedown
-          clickHitFeatureRef.current = false;
-          toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           break;
         }
 
@@ -10802,7 +10791,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       // Phase 8 §11.7 — Pick-mode box-select resolution. Parallel
-      // to the SELECT/BOX_SELECT path below; captured features get
+      // to the SELECT box-select path below; captured features get
       // added to (or removed from) the transferStore's pick set
       // rather than the selection store. Pick mode preempts the
       // regular flow.
@@ -10832,8 +10821,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // Short-drag no-op: a plain click in Pick mode flows
         // through the click handler at handleClick → togglePick.
         toolStore.setBoxSelect(null, null, false);
-      } else if (toolState.isBoxSelecting && (toolState.activeTool === 'SELECT' || toolState.activeTool === 'BOX_SELECT')) {
-        // Finish box selection (works for both SELECT and BOX_SELECT tools)
+      } else if (toolState.isBoxSelecting && toolState.activeTool === 'SELECT') {
+        // Finish box selection
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);

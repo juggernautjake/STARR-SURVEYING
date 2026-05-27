@@ -157,7 +157,7 @@ export default function ToolOptionsBar() {
   const showInverse = activeTool === 'INVERSE';
   const showMeasureArea = activeTool === 'MEASURE_AREA';
   const showDim = activeTool === 'DIM';
-  const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
+  const showSelectAll = activeTool === 'SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
   const showOffset = activeTool === 'OFFSET';
 
@@ -2093,7 +2093,6 @@ function OffsetPresetsDropdown() {
 // ─────────────────────────────────────────────
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
   SELECT: 'Select',
-  BOX_SELECT: 'Box Select',
   PAN: 'Pan / Zoom',
   DRAW_POINT: 'Draw Point',
   DRAW_LINE: 'Draw Line',
