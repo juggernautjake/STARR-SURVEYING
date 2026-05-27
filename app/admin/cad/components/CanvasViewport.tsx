@@ -11887,10 +11887,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const isSeal       = tbContextMenu.element === 'officialSealLabel';
         const focusEl = isTitleBlock ? 'titleBlock' : isSig || isSeal ? 'signatureBlock' : isNA ? 'northArrow' : undefined;
         return (
+          <>
+          {/* Click-away overlay so a normal click anywhere dismisses the
+              menu (not just moving the cursor out of it). */}
+          <div
+            className="fixed inset-0 z-[149]"
+            onClick={() => setTbContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setTbContextMenu(null); }}
+          />
           <div
             className="fixed z-[150] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[200px] text-xs"
             style={{ left: tbContextMenu.x, top: tbContextMenu.y }}
-            onMouseLeave={() => setTbContextMenu(null)}
           >
             <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700 mb-1">
               {isScaleBar ? 'Graphic Scale Bar' : isTitleBlock ? 'Title Block' : isSig ? 'Signature / Seal Block' : isNA ? 'North Arrow' : 'Official Seal Label'}
@@ -11944,6 +11951,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               ✕ Cancel
             </button>
           </div>
+          </>
         );
       })()}
 

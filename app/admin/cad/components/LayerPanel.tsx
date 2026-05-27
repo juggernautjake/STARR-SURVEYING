@@ -748,6 +748,16 @@ export default function LayerPanel() {
         </button>
       </div>
 
+      {/* Click-away overlay — a normal click anywhere (incl. the canvas
+          outside this panel) dismisses the layer/panel right-click menus. */}
+      {(contextMenu || panelMenu) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => { setContextMenu(null); setPanelMenu(null); }}
+          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); setPanelMenu(null); }}
+        />
+      )}
+
       {/* Context menu */}
       {contextMenu && (
         <div
