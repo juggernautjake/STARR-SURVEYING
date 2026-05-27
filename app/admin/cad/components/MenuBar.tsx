@@ -2,7 +2,8 @@
 // app/admin/cad/components/MenuBar.tsx — Top application menu bar
 
 import { useEffect, useRef, useState } from 'react';
-import { Settings as SettingsIcon, Keyboard as KeyboardIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Settings as SettingsIcon, Keyboard as KeyboardIcon, LogOut as LogOutIcon } from 'lucide-react';
 import {
   useAnnotationStore,
   useDeliveryStore,
@@ -74,6 +75,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
   const [dbDialog, setDbDialog] = useState<'save' | 'open' | null>(null);
   const [exportLayersOpen, setExportLayersOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const toolStore = useToolStore();
@@ -976,9 +978,27 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         )}
       </div>
 
-      {/* Right-side chrome — keyboard shortcuts + settings live
+      {/* Right-side chrome — exit, keyboard shortcuts + settings live
           here so the surveyor doesn't have to drill into Help. */}
       <div className="mr-3 flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            if (drawingStore.isDirty) {
+              const ok = window.confirm(
+                'You have unsaved changes. Leave the CAD editor and return to the dashboard? Unsaved changes will be lost.',
+              );
+              if (!ok) return;
+            }
+            router.push('/admin/dashboard');
+          }}
+          className="flex items-center gap-1.5 px-2 py-1 mr-1 rounded text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+          title="Exit the CAD editor and return to the dashboard"
+          aria-label="Exit to dashboard"
+        >
+          <LogOutIcon size={14} />
+          <span className="hidden sm:inline">Exit</span>
+        </button>
         <button
           type="button"
           onClick={() => setShowShortcuts(true)}
