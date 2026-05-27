@@ -8034,15 +8034,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
-      // Block drawing on a HIDDEN active layer — the surveyor has likely
-      // forgotten a hidden layer is active and would otherwise draw where
-      // they can't see it. Warn with a hint instead.
+      // Block drawing on a HIDDEN or LOCKED active layer — the surveyor has
+      // likely forgotten which layer is active and would otherwise draw where
+      // they can't see it / on a layer meant to be protected. Warn + hint.
       if (activeTool.startsWith('DRAW_')) {
         const dStore = useDrawingStore.getState();
         const activeLayer = dStore.document.layers[dStore.activeLayerId];
         if (activeLayer && activeLayer.visible === false) {
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
             detail: { text: `Layer "${activeLayer.name}" is hidden — you can't draw on it. Unhide it in the Layers panel, or pick a different (visible) active layer first.` },
+          }));
+          return;
+        }
+        if (activeLayer && activeLayer.locked === true) {
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `Layer "${activeLayer.name}" is locked — you can't draw on it. Unlock it in the Layers panel, or pick a different active layer first.` },
           }));
           return;
         }

@@ -126,3 +126,7 @@ Newly-discovered audit targets get appended here as `[ ]`.
   the old file could leak. `setFile` now clears previewRows + importResult,
   and the dialog drops its local result when `importStore.file` changes.
   import-reset spec still passes. Next: more F / audit themes G–K.
+- 2026-05-27 02:3x CDT — H (layers): drawing on a LOCKED active layer is now
+  blocked with a warning + hint (companion to the hidden-layer guard).
+  Locked-layer features were already unselectable; this closes the
+  draw-new-geometry gap. `locked-layer-draw.spec` passes. Next: audit G/I/J/K.
