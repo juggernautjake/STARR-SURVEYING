@@ -512,19 +512,23 @@ export default function FileManagerDialog({ onClose }: Props) {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button disabled={busy} onClick={() => void openDrawing(d.id)} className="px-3 h-7 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs rounded transition-colors" title="Open">Open</button>
-                      <label className="relative flex items-center" title="Move to folder">
-                        <FolderInput size={12} className="absolute left-2 text-gray-400 pointer-events-none" />
-                        <ChevronDown size={11} className="absolute right-1.5 text-gray-500 pointer-events-none" />
+                      <label
+                        className="flex items-center gap-1 h-7 px-2 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 focus-within:border-blue-500 cursor-pointer"
+                        title="Move this drawing to a folder"
+                      >
+                        <FolderInput size={12} className="text-gray-400 shrink-0" />
+                        <span className="text-[10px] text-gray-400 shrink-0">Move to</span>
                         <select
                           value={d.folder_id ?? ''}
                           onChange={(e) => void moveDrawing(d.id, e.target.value || null)}
-                          className="appearance-none w-[112px] h-7 pl-7 pr-5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded border border-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer truncate"
+                          className="appearance-none bg-transparent text-gray-100 text-xs outline-none cursor-pointer max-w-[96px] truncate"
                         >
                           <option value="">Root</option>
                           {folders.map((f) => (
                             <option key={f.id} value={f.id}>{f.name}</option>
                           ))}
                         </select>
+                        <ChevronDown size={11} className="text-gray-500 shrink-0" />
                       </label>
                       <button onClick={() => void duplicateDrawing(d)} disabled={busy} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 hover:text-white rounded transition-colors" title="Duplicate"><Copy size={13} /></button>
                       <button onClick={() => void exportDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded transition-colors" title="Export .starr"><Download size={13} /></button>

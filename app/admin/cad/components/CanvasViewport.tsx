@@ -649,6 +649,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     /** Single sprite for the firm-logo overlay in the title-
      *  block header. Lazy-created on first render with a logo
      *  set; texture is rebuilt whenever the data-URL changes. */
+    tbSealSprite: import('pixi.js').Sprite | null;
+    /** Cached data URL the current `tbSealSprite` texture was built from. */
+    tbSealTextureKey: string | null;
     tbLogoSprite: import('pixi.js').Sprite | null;
     /** Cached data URL the current `tbLogoSprite` texture was
      *  built from. When the surveyor swaps logos in Settings
@@ -1191,6 +1194,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           labelTexts: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
+          tbSealSprite: null,
+          tbSealTextureKey: null,
           tbLogoSprite: null,
           tbLogoTextureKey: null,
           paperGraphics,
@@ -2425,7 +2430,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     const ds         = drawingScale ?? 50;
-    const scaleLabel = tb.scaleLabel || `1" = ${ds}'`;
+    // Always show the live scale derived from drawingScale so the SCALE field
+    // can never drift from the graphic scale bar (which is also drawn from ds).
+    // A stored numeric override ("1\" = N'") is ignored in favour of the live
+    // value; only a genuinely custom non-numeric label (e.g. "NOT TO SCALE")
+    // is shown verbatim.
+    const customScale = (tb.scaleLabel ?? '').trim();
+    const scaleLabel  = (customScale === '' || /^1"\s*=\s*\d+(?:\.\d+)?'$/.test(customScale))
+      ? `1" = ${ds}'`
+      : customScale;
 
     drawCell('PROJECT',        tb.projectName     || doc.name || '', 'projectName',     tbScrLeft, dataTop,             halfTbW, rowH);
     drawCell('JOB NO.',        tb.projectNumber   || '', 'projectNumber',   midX,      dataTop,             halfTbW, rowH);
@@ -2526,18 +2539,60 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const officialSealHovered  = hoveredTBElemRef.current === 'officialSealLabel';
     const officialSealDragging = drag?.element === 'officialSealLabel';
-    const osTxt = mkTBTextSig('OFFICIAL\nSEAL', {
-      fontFamily: 'Arial', fontSize: sLblSz, fill: 0x555555, letterSpacing: 0.3,
-      fontWeight: 'bold',
-      align: 'center',
-    });
-    osTxt.anchor.set(0.5, 0.5);
-    osTxt.position.set(officialSealRenderX, officialSealRenderY);
-    // Compute bounds for hit-testing (centered anchor means left = x - w/2)
-    const osTxtW = Math.min(sealColW, sLblSz * 8);
-    const osTxtH = sLblSz * 2.5;
-    const osHitX = officialSealRenderX - osTxtW / 2 - 4;
-    const osHitY = officialSealRenderY - osTxtH / 2 - 4;
+    const sealUrl = tb.sealImageDataUrl ?? null;
+
+    if (sealUrl) {
+      // Render the uploaded square seal image, fit to the seal column.
+      try {
+        if (pixi.tbSealTextureKey !== sealUrl) {
+          const tex = pixi.TextureClass.from(sealUrl);
+          if (!pixi.tbSealSprite) {
+            pixi.tbSealSprite = new pixi.SpriteClass(tex);
+            pixi.tbSealSprite.anchor.set(0.5, 0.5);
+            pixi.tbSignatureContainer.addChild(pixi.tbSealSprite);
+          } else {
+            pixi.tbSealSprite.texture = tex;
+          }
+          pixi.tbSealTextureKey = sealUrl;
+        } else if (pixi.tbSealSprite && pixi.tbSealSprite.parent !== pixi.tbSignatureContainer) {
+          pixi.tbSignatureContainer.addChild(pixi.tbSealSprite);
+        }
+        const sprite = pixi.tbSealSprite!;
+        const boxPx = Math.max(8, Math.min(sealColW, sigBoxH) - 12);
+        const tw = Math.max(1, sprite.texture.width || 1);
+        const th = Math.max(1, sprite.texture.height || 1);
+        const sc = boxPx / Math.max(tw, th);
+        sprite.width = tw * sc;
+        sprite.height = th * sc;
+        sprite.position.set(sCx, sigTop + sigBoxH * 0.5);
+        sprite.visible = true;
+      } catch { /* invalid data URL — ignore */ }
+    } else if (pixi.tbSealSprite) {
+      // Seal removed — tear down the sprite so the placeholder text returns.
+      const parent = pixi.tbSealSprite.parent;
+      if (parent) parent.removeChild(pixi.tbSealSprite);
+      pixi.tbSealSprite = null;
+      pixi.tbSealTextureKey = null;
+    }
+
+    if (!sealUrl) {
+      const osTxt = mkTBTextSig('OFFICIAL\nSEAL', {
+        fontFamily: 'Arial', fontSize: sLblSz, fill: 0x555555, letterSpacing: 0.3,
+        fontWeight: 'bold',
+        align: 'center',
+      });
+      osTxt.anchor.set(0.5, 0.5);
+      osTxt.position.set(officialSealRenderX, officialSealRenderY);
+    }
+
+    // Hit bounds — clicking the seal area uploads/replaces the seal image.
+    const sealBoxPx = Math.min(sealColW, sigBoxH);
+    const osTxtW = sealUrl ? sealBoxPx : Math.min(sealColW, sLblSz * 8);
+    const osTxtH = sealUrl ? sealBoxPx : sLblSz * 2.5;
+    const osCx   = sealUrl ? sCx : officialSealRenderX;
+    const osCy   = sealUrl ? sigTop + sigBoxH * 0.5 : officialSealRenderY;
+    const osHitX = osCx - osTxtW / 2 - 4;
+    const osHitY = osCy - osTxtH / 2 - 4;
     tbBoundsRef.current.officialSealLabel = { screenX: osHitX, screenY: osHitY, w: osTxtW + 8, h: osTxtH + 8 };
     if (officialSealHovered || officialSealDragging) {
       g.lineStyle(1.5, 0x0088ff, 0.85);
@@ -2560,6 +2615,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     sigg.lineStyle(1, 0x000000, 1);
     sigg.moveTo(sigLineX1, dateLineY);
     sigg.lineTo(sigLineX2, dateLineY);
+
+    // Editable date value written above the line.
+    if (tb.signatureDate) {
+      const dvTxt = mkTBTextSig(tb.signatureDate, {
+        fontFamily: 'Arial', fontSize: Math.max(sLblSz * 0.95, 5), fill: 0x111111,
+      });
+      dvTxt.anchor.set(0, 1);
+      dvTxt.position.set(sigLineX1 + 2, dateLineY - 2);
+    }
+    // Register the date line as a click-to-edit field (handled by the same
+    // signature-block click → hitTestTBField flow as the main title block).
+    {
+      const dvBandH = Math.max(sLblSz * 1.6, 10);
+      tbFieldBoundsRef.current.push({
+        key: 'signatureDate', label: 'Date',
+        editValue: tb.signatureDate || '',
+        screenX: sigLineX1, screenY: dateLineY - dvBandH - 2,
+        w: sigLineX2 - sigLineX1, h: dvBandH + 4,
+      });
+    }
 
     // ── "DATE" label below the date line ──────────────────────────────────
     const dateLblSz = Math.max(sLblSz * 0.80, 4);
@@ -10659,6 +10734,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               w: fieldHit.w, h: fieldHit.h,
             });
           }
+        } else if (element === 'officialSealLabel') {
+          // Single click (no drag) on the seal → open the seal picker
+          // (upload from computer, choose a saved cloud seal, or remove).
+          window.dispatchEvent(new CustomEvent('cad:openSealPicker'));
         }
         tbDragRef.current = null;
         hoveredTBElemRef.current = null;
@@ -11016,6 +11095,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const originX = (b.minX + b.maxX) / 2 - paperW / 2;
       const originY = (b.minY + b.maxY) / 2 - paperH / 2;
       dwgStore.updateSettings({ drawingScale: scale, paperOrigin: { x: originX, y: originY } });
+      // Keep the title-block SCALE field in agreement with the graphic scale
+      // bar: if its label is auto (blank) or a plain "1\" = N'" value, revert
+      // it to auto so it re-derives from the new plot scale. A genuinely
+      // custom label (e.g. "1:600", "NOT TO SCALE") is preserved.
+      const curLabel = (dwgStore.document.settings.titleBlock?.scaleLabel ?? '').trim();
+      if (curLabel !== '' && /^1"\s*=\s*\d+(?:\.\d+)?'$/.test(curLabel)) {
+        dwgStore.updateTitleBlock({ scaleLabel: '' });
+      }
       vpStore.zoomToExtents({ minX: originX, minY: originY, maxX: originX + paperW, maxY: originY + paperH }, 0.05);
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
         detail: { text: `Fit to page at 1"=${scale}'. Coordinates unchanged.` },
@@ -12073,7 +12160,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full cursor-pointer"
                     defaultValue={currentValue}
                     onChange={(e) => {
-                      drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                      // Picking a scale sets the PLOT scale so the graphic
+                      // scale bar moves to match, and reverts the label to
+                      // auto so it re-derives "1\" = N'" — keeping the bar and
+                      // the SCALE field always in agreement.
+                      const m = e.currentTarget.value.match(/=\s*(\d+(?:\.\d+)?)/);
+                      if (m) {
+                        drawingStore.updateSettings({ drawingScale: parseFloat(m[1]) });
+                        drawingStore.updateTitleBlock({ scaleLabel: '' });
+                      } else {
+                        drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                      }
                       setTbFieldEditState(null);
                     }}
                     onKeyDown={(e) => { if (e.key === 'Escape') setTbFieldEditState(null); }}

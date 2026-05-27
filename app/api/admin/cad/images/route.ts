@@ -23,11 +23,32 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/svg+xml': 'svg',
 };
 
+// List the shared seal-image library (objects under the "seals/" prefix).
+export const GET = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (new URL(req.url).searchParams.get('folder') !== 'seals') {
+    return NextResponse.json({ images: [] });
+  }
+  await ensureStorageBucket(CAD_IMAGES_BUCKET, { public: true, fileSizeLimit: MAX_BYTES });
+  const { data, error } = await supabaseAdmin.storage
+    .from(CAD_IMAGES_BUCKET)
+    .list('seals', { limit: 200, sortBy: { column: 'created_at', order: 'desc' } });
+  if (error) return NextResponse.json({ error: error.message }, { status: 502 });
+  const images = (data ?? [])
+    .filter((o) => o.name && !o.name.startsWith('.'))
+    .map((o) => {
+      const path = `seals/${o.name}`;
+      return { name: o.name, path, url: supabaseAdmin.storage.from(CAD_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl };
+    });
+  return NextResponse.json({ images });
+}, { routeName: 'cad/images', exposeErrors: true });
+
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json() as { dataUrl?: string; name?: string };
+  const body = await req.json() as { dataUrl?: string; name?: string; folder?: string };
   const dataUrl = body.dataUrl;
   if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
     return NextResponse.json({ error: 'Expected a base64 data URL in "dataUrl".' }, { status: 400 });
@@ -50,10 +71,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   await ensureStorageBucket(CAD_IMAGES_BUCKET, { public: true, fileSizeLimit: MAX_BYTES });
 
-  // Per-user folder + random object id; not enumerable.
-  const safeUser = session.user.email.replace(/[^\w.@-]+/g, '_');
   const objectId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  const storagePath = `${safeUser}/${objectId}.${ext}`;
+  // Seals live in a shared "seals/" prefix (org-wide reusable library);
+  // everything else stays in a per-user, non-enumerable folder.
+  const storagePath = body.folder === 'seals'
+    ? `seals/${objectId}.${ext}`
+    : `${session.user.email.replace(/[^\w.@-]+/g, '_')}/${objectId}.${ext}`;
 
   const { error: upErr } = await supabaseAdmin.storage
     .from(CAD_IMAGES_BUCKET)

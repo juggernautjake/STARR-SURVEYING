@@ -272,6 +272,10 @@ export interface TitleBlockConfig {
   signatureBlockPos?: { x: number; y: number } | null;
   /** "OFFICIAL SEAL" label position (bottom-left, paper inches from paper BL). null = inside signature block. */
   officialSealLabelPos?: { x: number; y: number } | null;
+  /** Free-text written on the signature block's DATE line. */
+  signatureDate?: string;
+  /** Data-URL of an uploaded square seal image, rendered in the seal column. null/absent = the "OFFICIAL SEAL" placeholder text. */
+  sealImageDataUrl?: string | null;
 
   // ── Scale bar ──
   /** Show the checkered graphic scale bar. Default: true */
