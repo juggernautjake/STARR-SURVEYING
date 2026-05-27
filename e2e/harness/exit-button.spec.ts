@@ -3,11 +3,11 @@
 import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';
 
-test('menu bar shows an Exit-to-dashboard control', async ({ page }) => {
+test('menu bar shows an Exit-to-Research-CAD control', async ({ page }) => {
   await openHarness(page);
   await createBlankDrawing(page);
 
-  const exit = page.locator('button[aria-label="Exit to dashboard"]');
+  const exit = page.locator('button[aria-label="Exit to Research CAD"]');
   await expect(exit).toBeVisible();
   await expect(exit).toBeEnabled();
   await shot(page, 'exit-button');
