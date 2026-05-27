@@ -55,7 +55,7 @@ screenshot where feasible → record in §6 → commit + push.
   symbol a slight opaque (white) backing so the line never shows through it.
 - [x] **D. Infinity (and oriented) line-type symbols tilt with the line.** Rotate
   inline symbols so their long axis follows the segment direction.
-- [~] **E. Media attachments for points / lines / shapes / layers** (LARGE —
+- [~] **E. Media attachments (E1 store DONE) for points / lines / shapes / layers** (LARGE —
   DEFERRED-with-design for the unattended loop). Rationale: its core value
   (file upload, blob persistence, video playback, zoom viewer) can't be
   verified with confidence in this headless Playwright harness, and it needs
@@ -186,3 +186,11 @@ Newly-discovered audit targets get appended here as `[ ]`.
   `fit page`/`fit to page`/`ftp` command-bar command (Fit Drawing to Page was
   menu-only) — ties to the surveyor's earlier "fit points to the page" ask.
   Verified (`command-fitpage.spec`).
+- 2026-05-27 03:5x CDT — E un-deferred (it IS verifiable headless — Playwright
+  setInputFiles + Chromium image-decode + IndexedDB all work; and it stays
+  isolated from the document so no save-path regression risk). E1 DONE:
+  `lib/cad/media/media-store.ts` — MediaItem model, own IndexedDB
+  ('starr-cad-media': blobs + meta), image thumbnail via canvas, and a
+  Zustand byOwner index (pure indexAdd/indexRemove/indexFromMeta) hydrated
+  from IDB. 4 unit tests; tsc + eslint clean. Next: E2 (right-click Add/View
+  media on points + Properties thumbnails), then E3 (viewer).
