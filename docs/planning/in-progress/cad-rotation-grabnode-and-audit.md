@@ -113,6 +113,16 @@ screenshot → record in §6 → commit + push.
   unit tests (raw coords + DXF POINT/TEXT emission + no-dup of an existing
   POINT); 16 tests green in the two suites; tsc + eslint clean.
 
+- [x] **R6. Naming: continue feature-code schemes (AI-free §17e core).**
+  DONE — `nextPointName` now continues a dominant alpha-prefix + number
+  scheme (EP1→EP4, MON-001→MON-002, IP07→IP08) when no pure-numeric/`P#`
+  scheme is present, preserving zero-pad width and choosing the most-common
+  prefix on ties. Surveyors name by feature code, so this captures the
+  practical value of the prior §17e "infer the file's scheme" ask
+  deterministically — no API key needed; pure-numeric still wins. 5 new
+  unit tests; 70 points tests + tsc + eslint clean. Only the live LLM
+  advisor itself remains deferred (needs an ANTHROPIC_API_KEY absent here).
+
 Newly-discovered audit targets get appended here as `[ ]`.
 
 ---
@@ -199,6 +209,11 @@ Newly-discovered audit targets get appended here as `[ ]`.
   rotation+points+export paths compose. (3) Broad harness regression batch
   (shell, property-panel, copy-tool, delete-undo) all green. Everything
   this session is verified.
+- 2026-05-26 20:3x CDT — Slice R6 DONE: `nextPointName` now continues
+  feature-code schemes (EP1→EP4, MON-001→MON-002) deterministically — the
+  AI-free core of the prior §17e advisor deferral, which is what surveyors
+  actually use. Pure-numeric/`P#` still take priority so no existing case
+  changes. 5 new unit tests; all 70 points tests green; tsc + eslint clean.
 
 ---
 

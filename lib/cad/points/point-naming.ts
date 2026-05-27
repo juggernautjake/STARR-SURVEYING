@@ -61,6 +61,46 @@ export function nextPointName(existing: Iterable<string>): string {
     while (!free(`P${next}`)) next++;
     return `P${next}`;
   }
+
+  // Continue a dominant alpha-prefix + number scheme (e.g. EP1, MON-12,
+  // IP07) when no pure-numeric or P# scheme is present — surveyors often
+  // name by feature code. Pick the prefix with the most members (ties →
+  // highest current number) and preserve its zero-pad width.
+  const PREFIX_RE = /^([A-Za-z]+[-_ ]?)(\d+)$/;
+  const prefixCount = new Map<string, number>();
+  const prefixMax = new Map<string, number>();
+  const prefixWidth = new Map<string, number>();
+  for (const n of names) {
+    const m = PREFIX_RE.exec(n);
+    if (!m) continue;
+    const pre = m[1];
+    const digits = m[2];
+    const num = Number(digits);
+    prefixCount.set(pre, (prefixCount.get(pre) ?? 0) + 1);
+    if (num >= (prefixMax.get(pre) ?? -Infinity)) {
+      prefixMax.set(pre, num);
+      prefixWidth.set(pre, digits.length);
+    }
+  }
+  if (prefixCount.size > 0) {
+    let bestPre = '';
+    let bestCount = -1;
+    let bestMax = -Infinity;
+    for (const [pre, count] of prefixCount) {
+      const mx = prefixMax.get(pre)!;
+      if (count > bestCount || (count === bestCount && mx > bestMax)) {
+        bestPre = pre;
+        bestCount = count;
+        bestMax = mx;
+      }
+    }
+    const width = prefixWidth.get(bestPre) ?? 0;
+    const fmt = (v: number) => `${bestPre}${String(v).padStart(width, '0')}`;
+    let next = bestMax + 1;
+    while (!free(fmt(next))) next++;
+    return fmt(next);
+  }
+
   // No recognizable scheme — start at 1, skipping any taken names.
   let next = 1;
   while (!free(String(next))) next++;

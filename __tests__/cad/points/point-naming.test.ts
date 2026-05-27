@@ -37,6 +37,21 @@ describe('nextPointName', () => {
     expect(nextPointName([])).toBe('1');
     expect(nextPointName(['IPF', 'CP'])).toBe('1');
   });
+  it('continues an alpha-prefix + number scheme', () => {
+    expect(nextPointName(['EP1', 'EP2', 'EP3'])).toBe('EP4');
+    expect(nextPointName(['MON-10', 'MON-11'])).toBe('MON-12');
+  });
+  it('preserves the zero-pad width of the prefix scheme', () => {
+    expect(nextPointName(['MON-001', 'MON-002'])).toBe('MON-003');
+    expect(nextPointName(['IP07', 'IP08'])).toBe('IP09');
+  });
+  it('picks the most-common prefix when schemes are mixed', () => {
+    // EP has 3 members, TBM has 1 → continue EP.
+    expect(nextPointName(['EP1', 'EP2', 'EP5', 'TBM1'])).toBe('EP6');
+  });
+  it('keeps pure-numeric priority over a prefix scheme', () => {
+    expect(nextPointName(['100', 'EP1', 'EP2'])).toBe('101');
+  });
 });
 
 describe('derivedName', () => {
