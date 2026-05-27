@@ -160,3 +160,15 @@ Newly-discovered audit targets get appended here as `[ ]`.
   command-bar commands for the newly-wired actions: `select all`/`sa`,
   `zoom in`/`zi`, `zoom out`/`zo`, `print`. Verified `select all` selects all
   (`command-selectall.spec`). Next: continue audit (J preferences / I points).
+
+### Newly-discovered (this loop)
+- [ ] **L. Orphaned feature components (never wired into the UI).** Found via
+  an orphan-component cross-reference: `AnnotationPanel` (184 ln, annotation
+  management), `CertificationEditor` (133 ln, surveyor cert block, uses
+  useTemplateStore), `StandardNotesEditor` (129 ln, standard survey notes
+  selector) are complete components imported/rendered NOWHERE — the features
+  are inaccessible. Needs an attended decision on intended placement (which
+  menu/panel hosts each) + verification the template store is hydrated;
+  deferred from the unattended loop to avoid wiring them into the wrong spot
+  or exposing incomplete flows. (PrintDialog was the same class and HAS now
+  been wired this loop.)
