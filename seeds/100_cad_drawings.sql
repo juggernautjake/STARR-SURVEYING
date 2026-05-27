@@ -51,29 +51,34 @@ ALTER TABLE cad_drawings ENABLE ROW LEVEL SECURITY;
 -- `CREATE POLICY IF NOT EXISTS` syntax. Auth accessor is normalized to
 -- `auth.jwt() ->> 'email'` to match 093/095/096/210.
 
--- Authenticated users can read their own drawings
+-- Shared workspace: CAD drawings are visible to and editable by every
+-- authenticated CAD user (not just the creator). The API route enforces
+-- auth and uses the service role, so these policies are the fallback for
+-- any direct authenticated-client access.
+
+-- Any authenticated user can read any drawing
 DROP POLICY IF EXISTS cad_drawings_select ON cad_drawings;
 CREATE POLICY cad_drawings_select
   ON cad_drawings FOR SELECT
-  USING (created_by = auth.jwt() ->> 'email');
+  USING (auth.jwt() ->> 'email' IS NOT NULL);
 
--- Authenticated users can insert their own drawings
+-- Authenticated users insert drawings owned by themselves (records creator)
 DROP POLICY IF EXISTS cad_drawings_insert ON cad_drawings;
 CREATE POLICY cad_drawings_insert
   ON cad_drawings FOR INSERT
   WITH CHECK (created_by = auth.jwt() ->> 'email');
 
--- Authenticated users can update their own drawings
+-- Any authenticated user can update any drawing (shared editing)
 DROP POLICY IF EXISTS cad_drawings_update ON cad_drawings;
 CREATE POLICY cad_drawings_update
   ON cad_drawings FOR UPDATE
-  USING (created_by = auth.jwt() ->> 'email');
+  USING (auth.jwt() ->> 'email' IS NOT NULL);
 
--- Authenticated users can delete their own drawings
+-- Any authenticated user can delete any drawing (shared workspace)
 DROP POLICY IF EXISTS cad_drawings_delete ON cad_drawings;
 CREATE POLICY cad_drawings_delete
   ON cad_drawings FOR DELETE
-  USING (created_by = auth.jwt() ->> 'email');
+  USING (auth.jwt() ->> 'email' IS NOT NULL);
 
 -- Service role full access (worker + admin tooling)
 DROP POLICY IF EXISTS cad_drawings_service_role ON cad_drawings;

@@ -186,24 +186,45 @@ export default function LayerPanel() {
 
   async function handleDeleteLayer(layerId: string) {
     const layer = doc.layers[layerId];
-    if (layer?.isDefault) return;
+    if (!layer) return;
     setContextMenu(null);
-    // Deleting a layer reassigns its features to another layer and can't be
-    // undone — confirm when it holds features so the surveyor doesn't
-    // accidentally scramble their layer organization.
+    const name = layer.name ?? layerId;
     const count = Object.values(doc.features).filter((f) => f.layerId === layerId).length;
-    if (count > 0) {
+    const isLastLayer = doc.layerOrder.length <= 1;
+
+    // Always confirm a layer delete (it can't be undone). The last layer
+    // gets a stronger warning because deleting it empties the whole
+    // project — all features, including point data, are permanently removed.
+    let title: string;
+    let message: string;
+    let confirmLabel: string;
+    if (isLastLayer) {
+      title = 'Delete the last layer?';
+      message =
+        count > 0
+          ? `"${name}" is the only layer left. Deleting it permanently removes the entire drawing — all ${count} feature${count === 1 ? '' : 's'}, including every survey point, will be deleted and the project will be empty. This can't be undone.`
+          : `"${name}" is the only layer left. Deleting it leaves the project with no layers. This can't be undone.`;
+      confirmLabel = count > 0 ? 'Delete everything' : 'Delete layer';
+    } else if (count > 0) {
       const targetId = doc.layerOrder.find((id) => id !== layerId);
       const targetName = targetId ? (doc.layers[targetId]?.name ?? 'another layer') : 'another layer';
-      const ok = await confirmAction({
-        title: 'Delete layer?',
-        message: `Delete layer "${layer?.name ?? layerId}"? Its ${count} feature${count === 1 ? '' : 's'} will move to "${targetName}". This can't be undone.`,
-        confirmLabel: 'Delete layer',
-        cancelLabel: 'Cancel',
-        danger: true,
-      });
-      if (!ok) return;
+      title = 'Delete layer?';
+      message = `Delete layer "${name}"? Its ${count} feature${count === 1 ? '' : 's'} will move to "${targetName}". This can't be undone.`;
+      confirmLabel = 'Delete layer';
+    } else {
+      title = 'Delete layer?';
+      message = `Delete empty layer "${name}"? This can't be undone.`;
+      confirmLabel = 'Delete layer';
     }
+
+    const ok = await confirmAction({
+      title,
+      message,
+      confirmLabel,
+      cancelLabel: 'Cancel',
+      danger: true,
+    });
+    if (!ok) return;
     store.removeLayer(layerId);
   }
 
@@ -951,14 +972,12 @@ export default function LayerPanel() {
               )}
             </button>
           )}
-          {!doc.layers[contextMenu.layerId]?.isDefault && (
-            <button
-              className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 text-red-400"
-              onClick={() => handleDeleteLayer(contextMenu.layerId)}
-            >
-              Delete
-            </button>
-          )}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 text-red-400"
+            onClick={() => handleDeleteLayer(contextMenu.layerId)}
+          >
+            Delete
+          </button>
         </div>
       )}
 
