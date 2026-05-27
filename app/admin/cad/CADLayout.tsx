@@ -23,6 +23,7 @@ import CloseDrawingDialog from './components/CloseDrawingDialog';
 import SketchReconcileDialog from './components/SketchReconcileDialog';
 import ImportDialog from './components/ImportDialog';
 import PrintDialog from './components/PrintDialog';
+import MediaViewer from './components/MediaViewer';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
@@ -1149,6 +1150,9 @@ export default function CADLayout() {
 
       {/* Print / export-settings dialog */}
       {showPrintDialog && <PrintDialog onClose={() => setShowPrintDialog(false)} />}
+
+      {/* Media viewer (opens on cad:openMediaViewer) */}
+      <MediaViewer />
 
       {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
       {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}

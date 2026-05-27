@@ -201,3 +201,12 @@ Newly-discovered audit targets get appended here as `[ ]`.
   → store→IDB→thumbnail→index→UI all work, "View media (1)" appears. Next:
   E3 media viewer modal (image pan/zoom + video controls) listening for
   cad:openMediaViewer; then Properties-panel thumbnails + canvas right-click.
+- 2026-05-27 04:1x CDT — E3 DONE: MediaViewer modal (mounted in CADLayout,
+  opens on cad:openMediaViewer). Image pan + zoom (wheel/buttons/drag, % readout,
+  reset), native <video controls> for videos, thumbnail strip for multi-item
+  owners, per-item Delete, Escape/X to close (revokes blob URLs). Verified
+  end-to-end (`media-viewer.spec`): attach PNG → View media → viewer shows the
+  image + zoom controls → Escape closes. Core media vertical slice (attach
+  image to a point → view it) COMPLETE. Remaining media follow-ups (optional):
+  canvas FeatureContextMenu Add/View, Properties-panel thumbnail strip, layer
+  media, cloud upload for cross-reload persistence.
