@@ -108,8 +108,11 @@ export default function PointDataViewer({
   const rows = useMemo(() => buildPointRows(document), [document]);
 
   const layers = useMemo(() => {
-    const ids = new Set(rows.map((r) => r.layerId));
-    return [...ids].map((id) => ({ id, name: document.layers[id]?.name ?? id }));
+    const counts = new Map<string, number>();
+    for (const r of rows) counts.set(r.layerId, (counts.get(r.layerId) ?? 0) + 1);
+    return [...counts.keys()]
+      .map((id) => ({ id, name: document.layers[id]?.name ?? id, count: counts.get(id) ?? 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows, document.layers]);
 
   const filtered = useMemo(() => {
@@ -257,17 +260,6 @@ export default function PointDataViewer({
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-700 shrink-0">
         <span className="font-semibold text-gray-100">Point Data</span>
         <span className="text-gray-500">{filtered.length} pts</span>
-        <select
-          value={layerFilter}
-          onChange={(e) => setLayerFilter(e.target.value)}
-          className="bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 text-xs"
-          title="Filter by layer"
-        >
-          <option value="ALL">All layers</option>
-          {layers.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -296,6 +288,33 @@ export default function PointDataViewer({
         <button type="button" onClick={onClose} className="p-1 hover:bg-gray-700 rounded" aria-label="Close point data viewer">
           <X size={14} />
         </button>
+      </div>
+
+      {/* Per-layer tabs — switch which layer's points are shown. */}
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-700 shrink-0 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setLayerFilter('ALL')}
+          className={`px-2 py-0.5 rounded whitespace-nowrap transition-colors ${
+            layerFilter === 'ALL' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+          }`}
+          title="Show points from every layer"
+        >
+          All <span className="text-[10px] opacity-70">{rows.length}</span>
+        </button>
+        {layers.map((l) => (
+          <button
+            key={l.id}
+            type="button"
+            onClick={() => setLayerFilter(l.id)}
+            className={`px-2 py-0.5 rounded whitespace-nowrap transition-colors ${
+              layerFilter === l.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+            title={`Show only points on "${l.name}"`}
+          >
+            {l.name} <span className="text-[10px] opacity-70">{l.count}</span>
+          </button>
+        ))}
       </div>
 
       {/* Grid */}

@@ -10,10 +10,13 @@ test('Point Data Viewer opens from the View menu', async ({ page }) => {
   await createBlankDrawing(page);
 
   await page.locator('button:has-text("View")').first().click();
+  // "Point Data Viewer" lives under the "Data tables & viewers" submenu.
+  await page.getByText('Data tables & viewers').hover();
   await page.locator('text=Point Data Viewer').first().click();
 
   await expect(page.locator('text=Point Data').first()).toBeVisible();
-  await expect(page.locator('select[title="Filter by layer"]')).toBeVisible();
+  // Per-layer tab strip (the "All" tab is always present).
+  await expect(page.locator('button[title="Show points from every layer"]')).toBeVisible();
   await expect(page.locator('button:has-text("Columns")')).toBeVisible();
 
   await shot(page, 'point-viewer');
