@@ -43,6 +43,18 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
   const [loading, setLoading] = useState(mode === 'open');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Live filter over the saved-drawings list — matches name or description.
+  const visibleDrawings = (() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return drawings;
+    return drawings.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        (d.description ?? '').toLowerCase().includes(q),
+    );
+  })();
 
   // ── Fetch list when in open mode ─────────────────────────────────────
   const fetchDrawings = useCallback(async () => {
@@ -296,8 +308,20 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
                 <p className="text-gray-500 text-center py-8">No saved drawings found.</p>
               )}
               {!loading && drawings.length > 0 && (
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search saved drawings…"
+                  className="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded px-3 py-1.5 outline-none focus:border-blue-500 mb-1"
+                />
+              )}
+              {!loading && drawings.length > 0 && visibleDrawings.length === 0 && (
+                <p className="text-gray-500 text-center py-6">No drawings match &ldquo;{search}&rdquo;.</p>
+              )}
+              {!loading && visibleDrawings.length > 0 && (
                 <ul className="space-y-2">
-                  {drawings.map((d) => (
+                  {visibleDrawings.map((d) => (
                     <li
                       key={d.id}
                       className="flex items-start justify-between gap-3 bg-gray-800 rounded-lg px-4 py-3 group"
