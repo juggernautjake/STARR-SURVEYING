@@ -8029,6 +8029,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
           }
           if (originals.size > 0) {
+            // Clear any half-started two-click pivot so it can't fire a
+            // stray rotation after this grab-drag commits.
+            if (toolState.rotateCenter) toolStore.setRotateCenter(null);
             rotateGrabRef.current = { pivot: h.pivot, startAngle, originals };
             setCursorStyle('grabbing');
             return;
