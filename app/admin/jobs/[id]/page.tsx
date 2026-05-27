@@ -77,6 +77,7 @@ const TABS = [
 
 export default function JobDetailPage() {
   const { data: session } = useSession();
+  const isAdmin = (session?.user?.roles || []).includes('admin');
   const params = useParams();
   const router = useRouter();
   const jobId = params.id as string;
@@ -95,6 +96,7 @@ export default function JobDetailPage() {
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
   const [timeEntries, setTimeEntries] = useState<{ id: string; user_email: string; user_name?: string; work_type: string; start_time: string; end_time?: string; duration_minutes?: number; description?: string; billable: boolean }[]>([]);
   const [payments, setPayments] = useState<{ id: string; amount: number; payment_type: string; payment_method?: string; reference_number?: string; notes?: string; paid_at: string; recorded_by: string }[]>([]);
+  const [jobReceipts, setJobReceipts] = useState<{ id: string; vendor_name: string | null; total_cents: number | null; transaction_at: string | null; category: string | null; status: string; submitted_by_name: string | null; submitted_by_email: string | null; photo_signed_url: string | null }[]>([]);
   const [checklists, setChecklists] = useState<{ id: string; stage: string; item: string; is_completed: boolean; completed_by?: string; completed_at?: string }[]>([]);
   const [fieldData, setFieldData] = useState<FieldPoint[]>([]);
 
@@ -161,8 +163,14 @@ export default function JobDetailPage() {
     if (activeTab === 'financial') {
       fetch(`/api/admin/jobs/payments?job_id=${jobId}`).then(r => r.json()).then(d => setPayments(d.payments || [])).catch((err: unknown) => { handleError(err, 'load payments'); });
       fetch(`/api/admin/jobs/time?job_id=${jobId}`).then(r => r.json()).then(d => setTimeEntries(d.entries || [])).catch((err: unknown) => { handleError(err, 'load time entries'); });
+      // Receipts/expenses linked to this job (admin/bookkeeper only — the
+      // receipts API is admin-gated, so skip the call for other roles to
+      // avoid a guaranteed 403).
+      if (isAdmin) {
+        fetch(`/api/admin/receipts?jobId=${jobId}&limit=200`).then(r => r.ok ? r.json() : { receipts: [] }).then(d => setJobReceipts(d.receipts || [])).catch((err: unknown) => { handleError(err, 'load job receipts'); });
+      }
     }
-  }, [activeTab, jobId, reportPageError]);
+  }, [activeTab, jobId, isAdmin, reportPageError]);
 
   async function advanceStage(toStage: string) {
     try {
@@ -641,6 +649,49 @@ export default function JobDetailPage() {
               totalHours={job.total_hours}
               onAdd={addTimeEntry}
             />
+            {isAdmin && (
+              <div className="job-expenses" style={{ marginTop: '1rem', background: 'var(--color-bg-card)', border: 'var(--border-light)', borderRadius: '8px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>Expenses &amp; Receipts</h3>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>
+                    ${(jobReceipts.reduce((s, r) => s + (r.total_cents || 0), 0) / 100).toFixed(2)} total
+                  </span>
+                </div>
+                {jobReceipts.length === 0 ? (
+                  <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                    No receipts are linked to this job yet. Receipts submitted against this job (with its job link set) appear here once approved or pending.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {jobReceipts.map((r) => (
+                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.6rem', alignItems: 'center', padding: '0.5rem 0.6rem', background: 'var(--color-bg-subtle, #F8FAFC)', borderRadius: '6px', fontSize: '0.82rem' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.vendor_name || 'Unknown vendor'}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                            {r.category || 'uncategorized'}
+                            {r.submitted_by_name || r.submitted_by_email ? ` · ${r.submitted_by_name || r.submitted_by_email}` : ''}
+                            {r.transaction_at ? ` · ${new Date(r.transaction_at).toLocaleDateString()}` : ''}
+                          </div>
+                        </div>
+                        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>${((r.total_cents || 0) / 100).toFixed(2)}</span>
+                        <span style={{
+                          fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em',
+                          padding: '0.15rem 0.45rem', borderRadius: '10px',
+                          background: r.status === 'approved' ? 'var(--color-success-bg)' : r.status === 'rejected' ? 'var(--color-danger-bg, #FEE2E2)' : '#FEF3C7',
+                          color: r.status === 'approved' ? '#065F46' : r.status === 'rejected' ? '#991B1B' : '#92400E',
+                        }}>{r.status}</span>
+                        {r.photo_signed_url
+                          ? <a href={r.photo_signed_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75rem', color: 'var(--color-brand-navy)' }}>View</a>
+                          : <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>—</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Link href="/admin/receipts" style={{ display: 'inline-block', marginTop: '0.6rem', fontSize: '0.78rem', color: 'var(--color-brand-navy)' }}>
+                  Manage all receipts &rarr;
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
