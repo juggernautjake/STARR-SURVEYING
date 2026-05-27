@@ -10,10 +10,10 @@
 // drawings API routes). Opened via the File ▸ File Manager menu item
 // (cad:openFileManager).
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  Pencil, Trash2, Download, FolderInput, Search, X,
+  Pencil, Trash2, Download, FolderInput, Search, X, Copy, Upload,
 } from 'lucide-react';
 import {
   useDrawingStore, useSelectionStore, useUndoStore, useSaveTargetStore,
@@ -55,6 +55,9 @@ export default function FileManagerDialog({ onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Drag-and-drop: which folder target is highlighted ('root' | folderId).
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -210,6 +213,34 @@ export default function FileManagerDialog({ onClose }: Props) {
     await patchDrawing(id, { folder_id: folderId });
   }
 
+  // Reparent a folder (null = root). The API rejects cycles.
+  async function moveFolder(folderId: string, parentId: string | null) {
+    if (folderId === parentId) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/cad/folders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: folderId, parent_id: parentId }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Move failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Resolve a drag payload dropped on a folder target (folderId | null=root).
+  function handleDropOnFolder(target: string | null, dt: DataTransfer) {
+    setDropTarget(null);
+    if (dt.files && dt.files.length > 0) { void importFiles(dt.files); return; }
+    const data = dt.getData('text/plain');
+    if (data.startsWith('drawing:')) void moveDrawing(data.slice(8), target);
+    else if (data.startsWith('folder:')) void moveFolder(data.slice(7), target);
+  }
+
   async function patchDrawing(id: string, patch: { name?: string; folder_id?: string | null }) {
     setBusy(true);
     try {
@@ -263,6 +294,70 @@ export default function FileManagerDialog({ onClose }: Props) {
     }
   }
 
+  // Server-side copy: fetch the full document, POST it back as a new drawing
+  // named "… copy" in the same folder.
+  async function duplicateDrawing(d: DrawingMeta) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(d.id)}`);
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const { drawing } = await res.json() as { drawing: { document: unknown } };
+      const post = await fetch('/api/admin/cad/drawings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${d.name} copy`,
+          document: drawing.document,
+          folder_id: d.folder_id,
+          feature_count: d.feature_count,
+          layer_count: d.layer_count,
+        }),
+      });
+      if (!post.ok) throw new Error((await post.json().catch(() => ({})) as { error?: string }).error ?? `Server ${post.status}`);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Duplicate failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Import one or more .starr/.json files into the current folder.
+  async function importFiles(files: FileList | File[]) {
+    const list = Array.from(files).filter((f) => /\.(starr|json)$/i.test(f.name));
+    if (list.length === 0) return;
+    setBusy(true);
+    try {
+      for (const file of list) {
+        try {
+          const text = await file.text();
+          const parsed = JSON.parse(text) as { document?: unknown } | unknown;
+          // Accept either the saved envelope { version, application, document }
+          // or a bare document; validate the inner doc for the counts.
+          const inner = (parsed as { document?: unknown })?.document ?? parsed;
+          const doc = validateAndMigrateDocument(inner as Parameters<typeof validateAndMigrateDocument>[0]);
+          await fetch('/api/admin/cad/drawings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: file.name.replace(/\.(starr|json)$/i, ''),
+              document: parsed,
+              folder_id: selectedFolderId,
+              feature_count: Object.keys(doc.features ?? {}).length,
+              layer_count: Object.keys(doc.layers ?? {}).length,
+            }),
+          });
+        } catch (err) {
+          cadLog.warn('FileIO', `Import failed for ${file.name}`, err);
+          alert(`Could not import "${file.name}": ${err instanceof Error ? err.message : 'invalid file'}`);
+        }
+      }
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // ── Folder tree rendering ──────────────────────────────────────────────────
   function FolderNode({ folder, depth }: { folder: FolderRow; depth: number }) {
     const kids = childrenOf(folder.id);
@@ -271,9 +366,16 @@ export default function FileManagerDialog({ onClose }: Props) {
     return (
       <li>
         <div
-          className={`group flex items-center gap-1 pr-1 rounded cursor-pointer ${isSel ? 'bg-blue-600/30' : 'hover:bg-gray-800'}`}
+          className={`group flex items-center gap-1 pr-1 rounded cursor-pointer ${
+            dropTarget === folder.id ? 'bg-blue-500/40 ring-1 ring-blue-400' : isSel ? 'bg-blue-600/30' : 'hover:bg-gray-800'
+          }`}
           style={{ paddingLeft: depth * 12 + 4 }}
           onClick={() => setSelectedFolderId(folder.id)}
+          draggable
+          onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/plain', `folder:${folder.id}`); }}
+          onDragOver={(e) => { e.preventDefault(); setDropTarget(folder.id); }}
+          onDragLeave={(e) => { if (dropTarget === folder.id && !e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDropOnFolder(folder.id, e.dataTransfer); }}
         >
           <button
             onClick={(e) => { e.stopPropagation(); if (kids.length) setExpanded((s) => { const n = new Set(s); if (n.has(folder.id)) n.delete(folder.id); else n.add(folder.id); return n; }); }}
@@ -317,12 +419,28 @@ export default function FileManagerDialog({ onClose }: Props) {
             )}
           </div>
           <button
+            onClick={() => importInputRef.current?.click()}
+            disabled={busy}
+            className="flex items-center gap-1 px-2.5 h-8 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 text-xs rounded transition-colors"
+            title="Import .starr files into the selected folder"
+          >
+            <Upload size={13} /> Import
+          </button>
+          <button
             onClick={() => void createFolder(null)}
             disabled={busy}
             className="flex items-center gap-1 px-2.5 h-8 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 text-xs rounded transition-colors"
           >
             <FolderPlus size={13} /> New folder
           </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".starr,.json,application/json"
+            multiple
+            className="hidden"
+            onChange={(e) => { const fs = e.target.files; e.currentTarget.value = ''; if (fs) void importFiles(fs); }}
+          />
         </div>
 
         {error && <div className="m-3 text-red-400 text-xs bg-red-900/20 border border-red-700 rounded px-3 py-2">{error}</div>}
@@ -331,8 +449,13 @@ export default function FileManagerDialog({ onClose }: Props) {
           {/* Folder tree */}
           <div className="w-56 shrink-0 border-r border-gray-700 overflow-y-auto py-1">
             <div
-              className={`flex items-center gap-1 px-2 py-1 rounded cursor-pointer mx-1 ${selectedFolderId === null && !search ? 'bg-blue-600/30' : 'hover:bg-gray-800'}`}
+              className={`flex items-center gap-1 px-2 py-1 rounded cursor-pointer mx-1 ${
+                dropTarget === 'root' ? 'bg-blue-500/40 ring-1 ring-blue-400' : selectedFolderId === null && !search ? 'bg-blue-600/30' : 'hover:bg-gray-800'
+              }`}
               onClick={() => setSelectedFolderId(null)}
+              onDragOver={(e) => { e.preventDefault(); setDropTarget('root'); }}
+              onDragLeave={(e) => { if (dropTarget === 'root' && !e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+              onDrop={(e) => { e.preventDefault(); handleDropOnFolder(null, e.dataTransfer); }}
             >
               <FolderOpen size={13} className="text-gray-400" />
               <span className="text-[12px] text-gray-200 flex-1">All drawings</span>
@@ -341,10 +464,19 @@ export default function FileManagerDialog({ onClose }: Props) {
             <ul>{childrenOf(null).map((f) => <FolderNode key={f.id} folder={f} depth={0} />)}</ul>
           </div>
 
-          {/* File list */}
-          <div className="flex-1 min-w-0 overflow-y-auto p-3">
+          {/* File list — also an OS drop zone: dropping .starr files imports
+              them into the current folder. */}
+          <div
+            className={`flex-1 min-w-0 overflow-y-auto p-3 ${dropTarget === 'pane' ? 'ring-2 ring-inset ring-blue-400/60 bg-blue-500/5' : ''}`}
+            onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropTarget('pane'); } }}
+            onDragLeave={(e) => { if (dropTarget === 'pane' && !e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+            onDrop={(e) => {
+              if (e.dataTransfer.files.length > 0) { e.preventDefault(); setDropTarget(null); void importFiles(e.dataTransfer.files); }
+            }}
+          >
             <div className="text-[11px] text-gray-500 mb-2">
               {search ? `Search results (${visibleDrawings.length})` : folderName(selectedFolderId)}
+              <span className="text-gray-600"> · drag a file onto a folder to move it; drop .starr files here to import</span>
             </div>
             {loading ? (
               <div className="flex items-center gap-2 py-8 text-gray-400 justify-center">
@@ -358,7 +490,15 @@ export default function FileManagerDialog({ onClose }: Props) {
             ) : (
               <ul className="space-y-2">
                 {visibleDrawings.map((d) => (
-                  <li key={d.id} className="flex items-center justify-between gap-3 bg-gray-800 rounded-lg px-3 py-2 group">
+                  <li
+                    key={d.id}
+                    className="flex items-center justify-between gap-3 bg-gray-800 rounded-lg px-3 py-2 group"
+                    draggable
+                    onDragStart={(e) => {
+                      // Drag a file onto a folder in the tree to move it.
+                      e.dataTransfer.setData('text/plain', `drawing:${d.id}`);
+                    }}
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="text-white font-medium text-sm truncate">{d.name}</div>
                       {d.description && <div className="text-gray-400 text-xs truncate mt-0.5">{d.description}</div>}
@@ -382,6 +522,7 @@ export default function FileManagerDialog({ onClose }: Props) {
                           ))}
                         </select>
                       </label>
+                      <button onClick={() => void duplicateDrawing(d)} disabled={busy} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 hover:text-white rounded transition-colors" title="Duplicate"><Copy size={13} /></button>
                       <button onClick={() => void exportDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded transition-colors" title="Export .starr"><Download size={13} /></button>
                       <button onClick={() => void renameDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded transition-colors" title="Rename"><Pencil size={13} /></button>
                       <button onClick={() => void deleteDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-red-700 text-gray-400 hover:text-white rounded transition-colors" title="Delete"><Trash2 size={13} /></button>

@@ -38,7 +38,15 @@ out of every commit/artifact; commit messages end with the session URL.
   "Move to Layer". Replaces the current bare "N objects selected +
   one color swatch" multi-select view.
 
-- [ ] **S2a. File manager — duplicate / import + in-app drag.** Add a
+- [x] **S2a. File manager — duplicate / import + in-app drag.** DONE —
+  per-file Duplicate (server copy into same folder), Import button + hidden
+  input (.starr/.json → POST into current folder), draggable file rows that
+  drop onto folder nodes / the All-drawings root to move, draggable folder
+  nodes that reparent (PATCH parent_id, cycle-guarded), and the file pane is
+  an OS drop zone that imports dropped .starr files. (DB-backed actions
+  verified by code/types; the harness has no DB, so only modal chrome is
+  e2e-checked.) Next: S2b.
+- [x] ~~S2a (orig)~~ Add a
   Duplicate action per file (server-side copy of the document into the
   same folder, name " copy"). Add an Import control (upload one or more
   `.starr` files → POST to the drawings API → land in the current
