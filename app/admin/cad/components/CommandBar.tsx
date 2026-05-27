@@ -357,6 +357,11 @@ export default function CommandBar() {
       case 'zoom extents':
         zoomToExtents();
         break;
+      case 'connect linework':
+      case 'field to finish':
+      case 'f2f':
+        window.dispatchEvent(new CustomEvent('cad:buildLineworkFromCodes'));
+        break;
       case 'zs':
       case 'zoom selection':
         zoomToSelection();

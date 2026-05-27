@@ -22,6 +22,7 @@ import { parseCSV } from '@/lib/cad/import/csv-parser';
 import { parseRW5 } from '@/lib/cad/import/rw5-parser';
 import { parseJobXML } from '@/lib/cad/import/jobxml-parser';
 import { processImport } from '@/lib/cad/import/import-pipeline';
+import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { BUILT_IN_PRESETS } from '@/lib/cad/import/types';
 import type { CSVImportConfig } from '@/lib/cad/import/types';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
@@ -580,6 +581,10 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   // Default: import everything into one visible "Survey Points" layer.
   // Opt-in: split into per-code layers (the old behaviour).
   const [autoGenerateLayers, setAutoGenerateLayers] = useState(false);
+  // Off by default: import just the points. Line-coded points are connected
+  // into linework only when the surveyor opts in (or later via
+  // Survey ▸ Connect Points into Linework). Lines are separate features.
+  const [connectLinework, setConnectLinework] = useState(false);
 
   const canGoNext = () => {
     const { step, file, rawText } = importStore;
@@ -671,9 +676,6 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
     const features: Feature[] = [];
     const operations: UndoOperation[] = [];
 
-    // Build a lookup map for O(1) point access by ID
-    const pointById = new Map(importResult.points.map(p => [p.id, p]));
-
     for (const pt of importResult.points) {
       const pointFeature: Feature = {
         id: generateId(),
@@ -710,36 +712,19 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
       operations.push({ type: 'ADD_FEATURE', data: pointFeature });
     }
 
-    for (const ls of importResult.lineStrings) {
-      if (ls.pointIds.length < 2) continue;
-      const pts = ls.pointIds
-        .map(id => pointById.get(id))
-        .filter((p): p is (typeof importResult.points)[number] => p !== undefined);
-      if (pts.length < 2) continue;
-
-      const codeDef = pts[0]?.codeDefinition;
-      const lineFeature: Feature = {
-        id: generateId(),
-        type: 'POLYLINE',
-        geometry: {
-          type: 'POLYLINE',
-          vertices: pts.map(p => ({ x: p.easting, y: p.northing })),
-        },
-        layerId: targetLayerId ?? pts[0]?.layerId ?? 'MISC',
-        style: {
-          ...DEFAULT_FEATURE_STYLE,
-          color: codeDef?.defaultColor ?? '#000000',
-          lineWeight: codeDef?.defaultLineWeight ?? null,
-        },
-        properties: {
-          lineStringId: ls.id,
-          codeBase: ls.codeBase,
-          isClosed: String(ls.isClosed),
-        },
-      };
-      ls.featureId = lineFeature.id;
-      features.push(lineFeature);
-      operations.push({ type: 'ADD_FEATURE', data: lineFeature });
+    // Connect line-coded points into linework only when opted in. The
+    // line strings are still computed + stored on the point store, so the
+    // surveyor can draw them later via Survey ▸ Connect Points into Linework.
+    if (connectLinework) {
+      const lineFeatures = buildLineworkFeatures(
+        importResult.points,
+        importResult.lineStrings,
+        (p) => targetLayerId ?? p.layerId ?? 'MISC',
+      );
+      for (const lf of lineFeatures) {
+        features.push(lf);
+        operations.push({ type: 'ADD_FEATURE', data: lf });
+      }
     }
 
     // Batch-add to drawing with a single undoable entry
@@ -848,6 +833,17 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
             </button>
 
             <div className="flex items-center gap-2">
+              {isLastDataStep && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer mr-1 select-none" title="On: connect line-coded points into linework now (field-to-finish). Off (default): import points only — you can connect them later via Survey ▸ Connect Points into Linework.">
+                  <input
+                    type="checkbox"
+                    checked={connectLinework}
+                    onChange={(e) => setConnectLinework(e.target.checked)}
+                    className="accent-blue-500"
+                  />
+                  Connect points into linework
+                </label>
+              )}
               {isLastDataStep && (
                 <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer mr-1 select-none" title="On: split points into separate layers by survey code. Off (default): import everything into one 'Survey Points' layer.">
                   <input

@@ -165,6 +165,18 @@ export function generateLabelsForFeature(
   // up the current setting without threading it through each caller.
   const codeDisplayMode = useDrawingStore.getState().document.settings.codeDisplayMode ?? 'NUMERIC';
 
+  // Vertical step between stacked point labels. The renderer sizes a label
+  // at (fontSize/72)·drawingScale world units tall, so the gap must scale
+  // the same way — a fixed step left a large space between the name and the
+  // code/description. LINE_HEIGHT keeps them snug but not touching, and the
+  // step uses each line's OWN font size so mixed sizes still tuck cleanly.
+  const drawingScale = useDrawingStore.getState().document.settings.drawingScale ?? 50;
+  const LINE_HEIGHT = 1.15;
+  const fontOf = (styleKey: keyof LayerDisplayPreferences): number =>
+    (layerPrefs[styleKey] as TextLabel['style'] | undefined)?.fontSize ?? DEFAULT_TEXT_LABEL_STYLE.fontSize;
+  const lineStep = (styleKey: keyof LayerDisplayPreferences): number =>
+    ((fontOf(styleKey) / 72) * drawingScale) * LINE_HEIGHT;
+
   // ── Point labels ──
   if (feature.type === 'POINT' && feature.geometry.point) {
     const pt = feature.geometry.point;
@@ -177,7 +189,7 @@ export function generateLabelsForFeature(
       );
       if (name) {
         result.push(addOrKeep('POINT_NAME', name, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointNameTextStyle'));
-        yStep -= 12;
+        yStep -= lineStep('pointNameTextStyle');
       }
     }
 
@@ -205,7 +217,7 @@ export function generateLabelsForFeature(
       }
       if (desc) {
         result.push(addOrKeep('POINT_DESCRIPTION', desc, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointDescriptionTextStyle'));
-        yStep -= 12;
+        yStep -= lineStep('pointDescriptionTextStyle');
       }
     }
 
@@ -213,7 +225,7 @@ export function generateLabelsForFeature(
       const elev = feature.properties.elevation;
       if (elev !== undefined && elev !== null && elev !== '') {
         result.push(addOrKeep('POINT_ELEVATION', `El: ${Number(elev).toFixed(resolvedPrefs.linearDecimalPlaces)}`, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointElevationTextStyle'));
-        yStep -= 12;
+        yStep -= lineStep('pointElevationTextStyle');
       }
     }
 
