@@ -1,9 +1,9 @@
-// app/admin/notes/page.tsx — Company Notes (admin view)
+// app/admin/notes/page.tsx — Company Notes (shared company-wide notes board)
 'use client';
 import '../styles/AdminMyNotes.css';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import UnderConstruction from '../components/messaging/UnderConstruction';
+import { usePageError } from '../hooks/usePageError';
 
 interface Note {
   id: string;
@@ -28,11 +28,67 @@ const CATEGORIES = [
 
 export default function CompanyNotesPage() {
   const { data: session } = useSession();
-  const [notes] = useState<Note[]>([]);
+  const { safeFetch, safeAction } = usePageError('CompanyNotesPage');
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showEditor, setShowEditor] = useState(false);
   const [editorForm, setEditorForm] = useState({ title: '', content: '', category: 'general' });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await safeFetch<{ notes: Note[] }>('/api/admin/notes');
+      setNotes(res?.notes ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, [safeFetch]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function saveNote() {
+    if (!editorForm.title.trim() || saving) return;
+    setSaving(true);
+    try {
+      await safeAction('saving note', async () => {
+        const res = await fetch('/api/admin/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editorForm),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      });
+      setEditorForm({ title: '', content: '', category: 'general' });
+      setShowEditor(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function togglePin(note: Note) {
+    await safeAction('updating note', async () => {
+      const res = await fetch('/api/admin/notes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: note.id, is_pinned: !note.is_pinned }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+    });
+    await load();
+  }
+
+  async function deleteNote(id: string) {
+    if (!window.confirm('Delete this note? This cannot be undone.')) return;
+    await safeAction('deleting note', async () => {
+      const res = await fetch(`/api/admin/notes?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+    });
+    await load();
+  }
 
   if (!session?.user) return null;
 
@@ -45,180 +101,143 @@ export default function CompanyNotesPage() {
   const pinned = filtered.filter(n => n.is_pinned);
   const unpinned = filtered.filter(n => !n.is_pinned);
 
-  return (
-    <>
-      <UnderConstruction
-        feature="Company Notes"
-        description="Shared company-wide notes for procedures, safety guidelines, equipment instructions, and important announcements visible to all team members."
-      />
-
-      <div className="jobs-page">
-        <div className="jobs-page__header">
-          <div className="jobs-page__header-left">
-            <h2 className="jobs-page__title">Company Notes</h2>
-            <span className="jobs-page__count">{notes.length} notes</span>
-          </div>
-          <button className="jobs-page__btn jobs-page__btn--primary" onClick={() => setShowEditor(!showEditor)}>
-            + New Note
-          </button>
+  function NoteCard({ note }: { note: Note }) {
+    return (
+      <div className="job-card" style={{ borderLeft: `3px solid ${CATEGORIES.find(c => c.key === note.category)?.color || '#6B7280'}` }}>
+        <h3 className="job-card__name">{note.title}</h3>
+        <p className="job-card__client" style={{ WebkitLineClamp: 3, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap' }}>{note.content}</p>
+        <div className="job-card__footer">
+          <span>{CATEGORIES.find(c => c.key === note.category)?.label}</span>
+          <span>{new Date(note.updated_at).toLocaleDateString()}</span>
         </div>
-
-        {/* Category filter */}
-        <div className="jobs-page__pipeline">
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
           <button
-            className={`jobs-page__pipeline-stage ${categoryFilter === 'all' ? 'jobs-page__pipeline-stage--active' : ''}`}
-            onClick={() => setCategoryFilter('all')}
-            style={{ '--stage-color': '#374151' } as React.CSSProperties}
+            className="jobs-page__btn"
+            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+            onClick={() => void togglePin(note)}
           >
-            <span className="jobs-page__pipeline-label">All</span>
-            <span className="jobs-page__pipeline-count">{notes.length}</span>
+            {note.is_pinned ? '📌 Unpin' : '📌 Pin'}
           </button>
-          {CATEGORIES.map(c => (
-            <button
-              key={c.key}
-              className={`jobs-page__pipeline-stage ${categoryFilter === c.key ? 'jobs-page__pipeline-stage--active' : ''}`}
-              onClick={() => setCategoryFilter(categoryFilter === c.key ? 'all' : c.key)}
-              style={{ '--stage-color': c.color } as React.CSSProperties}
-            >
-              <span className="jobs-page__pipeline-label">{c.label}</span>
-              <span className="jobs-page__pipeline-count">{notes.filter(n => n.category === c.key).length}</span>
-            </button>
-          ))}
+          <button
+            className="jobs-page__btn"
+            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: '#EF4444' }}
+            onClick={() => void deleteNote(note.id)}
+          >
+            Delete
+          </button>
         </div>
+      </div>
+    );
+  }
 
-        {/* Search */}
-        <div className="jobs-page__controls">
-          <form className="jobs-page__search-form" onSubmit={e => e.preventDefault()}>
-            <input
-              className="jobs-page__search"
-              placeholder="Search notes..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </form>
+  return (
+    <div className="jobs-page">
+      <div className="jobs-page__header">
+        <div className="jobs-page__header-left">
+          <h2 className="jobs-page__title">Company Notes</h2>
+          <span className="jobs-page__count">{notes.length} notes</span>
         </div>
+        <button className="jobs-page__btn jobs-page__btn--primary" onClick={() => setShowEditor(!showEditor)}>
+          + New Note
+        </button>
+      </div>
 
-        {/* Note editor */}
-        {showEditor && (
-          <div className="job-form" style={{ marginBottom: '1.5rem' }}>
-            <div className="job-form__section">
-              <h3 className="job-form__section-title">New Company Note</h3>
-              <div className="job-form__grid">
-                <div className="job-form__field job-form__field--full">
-                  <label className="job-form__label">Title *</label>
-                  <input className="job-form__input" value={editorForm.title} onChange={e => setEditorForm(f => ({ ...f, title: e.target.value }))} placeholder="Note title" />
-                </div>
-                <div className="job-form__field">
-                  <label className="job-form__label">Category</label>
-                  <select className="job-form__select" value={editorForm.category} onChange={e => setEditorForm(f => ({ ...f, category: e.target.value }))}>
-                    {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div className="job-form__field job-form__field--full">
-                  <label className="job-form__label">Content</label>
-                  <textarea className="job-form__textarea" value={editorForm.content} onChange={e => setEditorForm(f => ({ ...f, content: e.target.value }))} rows={6} placeholder="Write your note..." />
-                </div>
+      {/* Category filter */}
+      <div className="jobs-page__pipeline">
+        <button
+          className={`jobs-page__pipeline-stage ${categoryFilter === 'all' ? 'jobs-page__pipeline-stage--active' : ''}`}
+          onClick={() => setCategoryFilter('all')}
+          style={{ '--stage-color': '#374151' } as React.CSSProperties}
+        >
+          <span className="jobs-page__pipeline-label">All</span>
+          <span className="jobs-page__pipeline-count">{notes.length}</span>
+        </button>
+        {CATEGORIES.map(c => (
+          <button
+            key={c.key}
+            className={`jobs-page__pipeline-stage ${categoryFilter === c.key ? 'jobs-page__pipeline-stage--active' : ''}`}
+            onClick={() => setCategoryFilter(categoryFilter === c.key ? 'all' : c.key)}
+            style={{ '--stage-color': c.color } as React.CSSProperties}
+          >
+            <span className="jobs-page__pipeline-label">{c.label}</span>
+            <span className="jobs-page__pipeline-count">{notes.filter(n => n.category === c.key).length}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="jobs-page__controls">
+        <form className="jobs-page__search-form" onSubmit={e => e.preventDefault()}>
+          <input
+            className="jobs-page__search"
+            placeholder="Search notes..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </form>
+      </div>
+
+      {/* Note editor */}
+      {showEditor && (
+        <div className="job-form" style={{ marginBottom: '1.5rem' }}>
+          <div className="job-form__section">
+            <h3 className="job-form__section-title">New Company Note</h3>
+            <div className="job-form__grid">
+              <div className="job-form__field job-form__field--full">
+                <label className="job-form__label">Title *</label>
+                <input className="job-form__input" value={editorForm.title} onChange={e => setEditorForm(f => ({ ...f, title: e.target.value }))} placeholder="Note title" />
               </div>
-              <div className="job-form__actions">
-                <button className="job-form__cancel" onClick={() => setShowEditor(false)}>Cancel</button>
-                <button className="job-form__submit" disabled>Save Note</button>
+              <div className="job-form__field">
+                <label className="job-form__label">Category</label>
+                <select className="job-form__select" value={editorForm.category} onChange={e => setEditorForm(f => ({ ...f, category: e.target.value }))}>
+                  {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                </select>
+              </div>
+              <div className="job-form__field job-form__field--full">
+                <label className="job-form__label">Content</label>
+                <textarea className="job-form__textarea" value={editorForm.content} onChange={e => setEditorForm(f => ({ ...f, content: e.target.value }))} rows={6} placeholder="Write your note..." />
               </div>
             </div>
+            <div className="job-form__actions">
+              <button className="job-form__cancel" onClick={() => setShowEditor(false)} disabled={saving}>Cancel</button>
+              <button className="job-form__submit" onClick={() => void saveNote()} disabled={saving || !editorForm.title.trim()}>
+                {saving ? 'Saving…' : 'Save Note'}
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Notes list */}
-        {filtered.length === 0 ? (
-          <div className="jobs-page__empty">
-            <span className="jobs-page__empty-icon">📝</span>
-            <h3>No notes yet</h3>
-            <p>Create company-wide notes for procedures, safety guidelines, and announcements.</p>
-          </div>
-        ) : (
-          <>
-            {pinned.length > 0 && (
-              <div className="jobs-page__section">
-                <h3 className="jobs-page__section-title">Pinned</h3>
-                <div className="jobs-page__grid">
-                  {pinned.map(note => (
-                    <div key={note.id} className="job-card" style={{ borderLeft: `3px solid ${CATEGORIES.find(c => c.key === note.category)?.color || '#6B7280'}` }}>
-                      <h3 className="job-card__name">{note.title}</h3>
-                      <p className="job-card__client" style={{ WebkitLineClamp: 3, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{note.content}</p>
-                      <div className="job-card__footer">
-                        <span>{CATEGORIES.find(c => c.key === note.category)?.label}</span>
-                        <span>{new Date(note.updated_at).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+      {/* Notes list */}
+      {loading ? (
+        <div className="jobs-page__empty">
+          <span className="jobs-page__empty-icon">⏳</span>
+          <h3>Loading notes…</h3>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="jobs-page__empty">
+          <span className="jobs-page__empty-icon">📝</span>
+          <h3>{notes.length === 0 ? 'No notes yet' : 'No notes match your filters'}</h3>
+          <p>Create company-wide notes for procedures, safety guidelines, and announcements.</p>
+        </div>
+      ) : (
+        <>
+          {pinned.length > 0 && (
             <div className="jobs-page__section">
-              <h3 className="jobs-page__section-title">All Notes</h3>
+              <h3 className="jobs-page__section-title">Pinned</h3>
               <div className="jobs-page__grid">
-                {unpinned.map(note => (
-                  <div key={note.id} className="job-card" style={{ borderLeft: `3px solid ${CATEGORIES.find(c => c.key === note.category)?.color || '#6B7280'}` }}>
-                    <h3 className="job-card__name">{note.title}</h3>
-                    <p className="job-card__client" style={{ WebkitLineClamp: 3, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{note.content}</p>
-                    <div className="job-card__footer">
-                      <span>{CATEGORIES.find(c => c.key === note.category)?.label}</span>
-                      <span>{new Date(note.updated_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                ))}
+                {pinned.map(note => <NoteCard key={note.id} note={note} />)}
               </div>
             </div>
-          </>
-        )}
-      </div>
-
-      {/* Setup Guide */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">Company Notes — Development Guide</h2>
-        <div className="msg-setup-guide__section">
-          <h3>What Needs To Be Done</h3>
-          <ul className="msg-setup-guide__list">
-            <li><strong>Database Table:</strong> Create <code>company_notes</code> table: id, title, content, category, is_pinned, created_by, created_at, updated_at</li>
-            <li><strong>API Route:</strong> Create <code>/api/admin/notes/route.ts</code> — CRUD operations, category filter, search, pin/unpin</li>
-            <li><strong>Rich Text:</strong> Integrate TipTap editor (already in project) for rich text note content with images, links, formatting</li>
-            <li><strong>File Attachments:</strong> Allow attaching files to notes (PDFs, images, documents)</li>
-            <li><strong>Version History:</strong> Track note edits with revision history and diff view</li>
-            <li><strong>Permissions:</strong> Control who can create, edit, and delete company notes</li>
-            <li><strong>Comments:</strong> Allow team members to comment on notes for discussion</li>
-            <li><strong>Templates:</strong> Pre-built note templates for common procedures</li>
-          </ul>
-        </div>
-        <div className="msg-setup-guide__section">
-          <h3>Continuation Prompt</h3>
-          <pre className="msg-setup-guide__prompt">{`Build Company Notes at /admin/notes/page.tsx.
-
-CURRENT STATE: UI shell with category filter pipeline, search, note editor form (not connected), pinned/unpinned sections. No database or API.
-
-DATABASE SCHEMA NEEDED:
-CREATE TABLE company_notes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  content TEXT,
-  category TEXT CHECK (category IN ('general','procedures','safety','equipment','legal','hr','training')) DEFAULT 'general',
-  is_pinned BOOLEAN DEFAULT false,
-  created_by TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-NEXT STEPS:
-1. Create company_notes table in Supabase
-2. Build /api/admin/notes/route.ts with CRUD + pin/unpin
-3. Connect UI to API for creating, editing, deleting notes
-4. Integrate TipTap rich text editor (already in project dependencies)
-5. Add file attachments to notes
-6. Build note detail view with full content display
-7. Add version history tracking
-8. Add commenting on notes
-9. Build procedure templates library
-10. Add search with full-text search in Supabase`}</pre>
-        </div>
-      </div>
-    </>
+          )}
+          <div className="jobs-page__section">
+            <h3 className="jobs-page__section-title">All Notes</h3>
+            <div className="jobs-page__grid">
+              {unpinned.map(note => <NoteCard key={note.id} note={note} />)}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
