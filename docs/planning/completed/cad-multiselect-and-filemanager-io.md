@@ -1,6 +1,6 @@
 # CAD Multi-Select Editing + File-Manager I/O — Build Plan
 
-Status: **in progress** · Owner: CAD/UX · Opened: 2026-05-27
+Status: **completed** · Owner: CAD/UX · Opened: 2026-05-27 · Closed: 2026-05-27
 
 This doc drives the Stop-hook build loop. While it sits in
 `docs/planning/in-progress/`, the loop keeps shipping the next slice.
@@ -55,12 +55,15 @@ out of every commit/artifact; commit messages end with the session URL.
   drop targets with a highlight. Folder rows draggable onto other folders
   to reparent (uses the existing PATCH parent_id + cycle guard).
 
-- [ ] **S2b. File manager — OS drag in/out.** Drag a file row OUT to the
-  desktop downloads the `.starr` (Chromium `DownloadURL` DataTransfer).
-  Drop `.starr` files FROM the OS onto the manager imports them (reuse
-  S2a import path via `dataTransfer.files`). Note: true OS *folder*
-  drag-in/out is browser-limited; scope to files + in-app folders, and
-  document any deferral inline.
+- [x] **S2b. File manager — OS drag in/out.** DONE — drag a file row OUT to
+  the desktop downloads its `.starr` via a Chromium `DownloadURL`
+  DataTransfer pointing at a new GET `/api/admin/cad/drawings/export?id=`
+  (returns the stored document as a JSON attachment). Dropping `.starr`
+  files FROM the OS onto the file pane imports them (S2a path).
+  DEFERRED (one line): OS *folder* drag-in/out and drag-out in
+  non-Chromium browsers are browser-API-limited — scoped to files + the
+  in-app folder tree, which covers the surveyor's workflow on the
+  Chromium-based desktop app.
 
 ---
 
@@ -74,3 +77,10 @@ out of every commit/artifact; commit messages end with the session URL.
   tabs with batched-undo bulk styling (color/weight/opacity + line type +
   symbol) and retained bulk Move-to-Layer. tsc + eslint clean;
   `multiselect-edit.spec` green. Next: S2a.
+- 2026-05-27 — S2a shipped. File manager Duplicate + Import + in-app drag
+  (file→folder move, folder reparent) + OS-file drop-to-import. tsc + eslint
+  clean; modal chrome e2e green (DB actions unverifiable headless).
+- 2026-05-27 — S2b shipped + loop CLOSED. OS drag-out via new export
+  endpoint + DownloadURL; drag-in done in S2a. OS folder drag + non-Chromium
+  drag-out deferred-with-rationale. All slices complete; moving this doc to
+  completed/.

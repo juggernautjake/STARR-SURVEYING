@@ -495,8 +495,12 @@ export default function FileManagerDialog({ onClose }: Props) {
                     className="flex items-center justify-between gap-3 bg-gray-800 rounded-lg px-3 py-2 group"
                     draggable
                     onDragStart={(e) => {
-                      // Drag a file onto a folder in the tree to move it.
+                      // In-app: drag onto a folder to move. OS: drag to the
+                      // desktop to download the .starr (Chromium DownloadURL).
                       e.dataTransfer.setData('text/plain', `drawing:${d.id}`);
+                      const safe = (d.name.replace(/[^\w.-]+/g, '_') || 'drawing') + '.starr';
+                      const url = `${window.location.origin}/api/admin/cad/drawings/export?id=${encodeURIComponent(d.id)}`;
+                      e.dataTransfer.setData('DownloadURL', `application/json:${safe}:${url}`);
                     }}
                   >
                     <div className="flex-1 min-w-0">
