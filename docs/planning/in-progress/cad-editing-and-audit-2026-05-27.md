@@ -217,3 +217,11 @@ Newly-discovered audit targets get appended here as `[ ]`.
   Media now attachable from the Point viewer right-click AND the Properties
   panel, viewable in the MediaViewer. Remaining (optional): canvas
   FeatureContextMenu Add/View, layer media, cloud upload.
+- 2026-05-27 04:3x CDT — E2c DONE: canvas right-click (FeatureContextMenu)
+  now has "Add media for this feature…" + "View media (N)". Added a reusable
+  global attach-media host in CADLayout (cad:addMediaForOwner {ownerId,
+  ownerKind} → file picker → store). Verified (`canvas-media.spec`):
+  right-click point → add PNG → right-click → View media (1). Media now
+  attachable from canvas right-click, Point viewer, and Properties panel;
+  viewable in the MediaViewer. Remaining optional: layer media (right-click
+  in LayerPanel), cloud upload for cross-reload sharing.

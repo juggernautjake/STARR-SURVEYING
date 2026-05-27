@@ -24,6 +24,7 @@ import SketchReconcileDialog from './components/SketchReconcileDialog';
 import ImportDialog from './components/ImportDialog';
 import PrintDialog from './components/PrintDialog';
 import MediaViewer from './components/MediaViewer';
+import { useMediaStore } from '@/lib/cad/media/media-store';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
@@ -511,6 +512,22 @@ export default function CADLayout() {
     const handler = () => setShowPointTable((v) => !v);
     window.addEventListener('cad:togglePointTable', handler);
     return () => window.removeEventListener('cad:togglePointTable', handler);
+  }, []);
+
+  // Global "attach media" host — any component can dispatch
+  // cad:addMediaForOwner { ownerId, ownerKind } to open a file picker and
+  // attach the chosen photos/videos to that feature/layer.
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const pendingMediaRef = useRef<{ ownerId: string; ownerKind: 'feature' | 'layer' } | null>(null);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent<{ ownerId: string; ownerKind: 'feature' | 'layer' }>).detail;
+      if (!d?.ownerId) return;
+      pendingMediaRef.current = { ownerId: d.ownerId, ownerKind: d.ownerKind ?? 'feature' };
+      mediaInputRef.current?.click();
+    };
+    window.addEventListener('cad:addMediaForOwner', handler);
+    return () => window.removeEventListener('cad:addMediaForOwner', handler);
   }, []);
 
   // Print / export-settings dialog (was dispatched by the Print shortcut but
@@ -1153,6 +1170,22 @@ export default function CADLayout() {
 
       {/* Media viewer (opens on cad:openMediaViewer) */}
       <MediaViewer />
+
+      {/* Global attach-media file input (driven by cad:addMediaForOwner) */}
+      <input
+        ref={mediaInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        className="hidden"
+        onChange={async (e) => {
+          const p = pendingMediaRef.current;
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          if (!p || files.length === 0) return;
+          for (const f of files) await useMediaStore.getState().addMedia(p.ownerId, p.ownerKind, f);
+        }}
+      />
 
       {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
       {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}

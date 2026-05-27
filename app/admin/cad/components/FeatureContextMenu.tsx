@@ -25,7 +25,10 @@ import {
   Sparkles,
   FolderPlus,
   Magnet,
+  Image as ImageIcon,
+  Eye,
 } from 'lucide-react';
+import { useMediaStore } from '@/lib/cad/media/media-store';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -260,6 +263,10 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   const selIds = Array.from(selectionStore.selectedIds);
   const selCount = selIds.length;
   const feature = featureId ? drawingStore.getFeature(featureId) : null;
+  const mediaByOwner = useMediaStore((s) => s.byOwner);
+  const mediaHydrate = useMediaStore((s) => s.hydrate);
+  useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
+  const featureMediaCount = feature ? (mediaByOwner[feature.id]?.length ?? 0) : 0;
   const hasGroup = !!(feature?.properties?.polylineGroupId);
   const clipboard = hasClipboard();
   const clipCount = getClipboardCount();
@@ -694,6 +701,26 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
             );
           },
         },
+        {
+          id: 'addMedia',
+          label: 'Add media for this feature…',
+          icon: <ImageIcon size={12} />,
+          action: () => {
+            window.dispatchEvent(new CustomEvent('cad:addMediaForOwner', { detail: { ownerId: feature.id, ownerKind: 'feature' } }));
+            onClose();
+          },
+        },
+        ...(featureMediaCount > 0
+          ? [{
+              id: 'viewMedia',
+              label: `View media (${featureMediaCount})`,
+              icon: <Eye size={12} />,
+              action: () => {
+                window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: feature.id } }));
+                onClose();
+              },
+            }]
+          : []),
         // Snap a point/vertex to another point — pick the vertex nearest the
         // right-click, then choose to snap just that point or move the whole
         // feature so the point lands on a chosen target point.
