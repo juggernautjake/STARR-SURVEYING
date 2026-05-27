@@ -129,6 +129,12 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Done:** `PrintDialog` now passes `plotStyle` in the export event; the export handler flattens onto white then applies the style — GRAYSCALE → per-pixel luma, MONOCHROME → luma thresholded to pure B/W — before producing the PNG/PDF. AS_DISPLAYED is unchanged.
   - **Verified on `/cad-harness`:** new `export-plotstyle` spec selects Grayscale, exports a PNG, decodes it in-browser, and asserts **0 non-gray pixels** with 72k dark content pixels (real linework, not a blank sheet). `tsc` + `eslint` clean.
 
+### Slice 17 — CAD: honor Print "Print Elements" toggles in export ✅ shipped (3 of 7; rest deferred)
+- [x] The dialog's Print Elements checkboxes were ignored by export.
+  - **Done:** `PrintDialog` passes `elements: { titleBlock, northArrow, scaleBar }`; the export handler hides the matching Pixi containers (`tbTitleBlockContainer` + `tbSignatureContainer`, `tbNorthArrowContainer`, `tbScaleBarContainer`) just for the export render, then restores them (safe — no rAF frame runs mid-handler; also restored in the catch).
+  - **Verified on `/cad-harness`:** new `export-elements` spec exports all-on (67,702 dark px) then Title-Block-off (20,704 dark px) → ~69% less ink, proving the toggle removes the title block. `tsc` + `eslint` clean.
+- ~~Border / Legend / Certification / Notes toggles~~ — deferred: these aren't discrete Pixi containers (the border is part of the shared paper layer; legend/cert/notes aren't separately rendered objects), so honoring them needs a render-pipeline refactor disproportionate to the value. The three high-ink furniture toggles (title block, north arrow, scale bar) cover the common print-customisation need.
+
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
   - *Payroll hours* — `MyHoursPanel` (`/admin/me?tab=hours`): week strip → "+ Log Time" → work-type/hours/description → POST `/api/admin/time-logs` (server computes effective rate, status=pending) → admin approves in `/admin/hours-approval` (bulk approve/reject/adjust, dispute/resubmit). End-to-end real APIs + DB (`daily_time_logs`).

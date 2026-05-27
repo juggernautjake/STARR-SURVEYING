@@ -11338,18 +11338,36 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const pixi = pixiRef.current;
       if (!pixi) return;
       const detail = (e as CustomEvent).detail as
-        | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE'; plotStyle?: 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE' }
+        | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE'; plotStyle?: 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
+            elements?: { titleBlock?: boolean; northArrow?: boolean; scaleBar?: boolean } }
         | undefined;
       const format = detail?.format === 'pdf' ? 'pdf' : 'png';
       const plotStyle = detail?.plotStyle ?? 'AS_DISPLAYED';
+      const elements = detail?.elements;
       const baseName =
         (useDrawingStore.getState().document.name || 'drawing').replace(/[^\w.-]+/g, '_') || 'drawing';
       const emit = (text: string) =>
         window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+      // Honor the dialog's "Print Elements" toggles by hiding the matching
+      // title-block containers just for the export render, then restoring.
+      // Safe because no rAF frame runs inside this synchronous handler.
+      const hiddenForExport: Array<{ visible: boolean } & object> = [];
+      const hideIf = (off: boolean | undefined, ctr?: { visible: boolean }) => {
+        if (off === false && ctr && ctr.visible) { ctr.visible = false; hiddenForExport.push(ctr as { visible: boolean } & object); }
+      };
       try {
-        // Force a fresh frame so the export reflects exactly what's on screen.
+        if (elements) {
+          // titleBlock toggle also covers the signature/seal block (same furniture).
+          hideIf(elements.titleBlock, pixi.tbTitleBlockContainer);
+          hideIf(elements.titleBlock, pixi.tbSignatureContainer);
+          hideIf(elements.northArrow, pixi.tbNorthArrowContainer);
+          hideIf(elements.scaleBar, pixi.tbScaleBarContainer);
+        }
+        // Force a fresh frame so the export reflects the requested elements.
         pixi.app.render();
         const srcCanvas = pixi.app.renderer.extract.canvas(pixi.app.stage) as HTMLCanvasElement;
+        // Restore visibility immediately; the next rAF frame repaints normally.
+        for (const ctr of hiddenForExport) ctr.visible = true;
         const w = srcCanvas.width;
         const h = srcCanvas.height;
         if (!w || !h) { emit('Export failed: empty canvas.'); return; }
@@ -11401,6 +11419,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           })();
         }
       } catch (err) {
+        // Make sure a thrown extract never leaves furniture hidden on screen.
+        for (const ctr of hiddenForExport) ctr.visible = true;
         emit('Export failed: ' + (err instanceof Error ? err.message : 'unknown error'));
       }
     };

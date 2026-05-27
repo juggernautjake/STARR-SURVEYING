@@ -198,7 +198,7 @@ export default function PrintDialog({ onClose }: Props) {
           <button
             onClick={() => {
               window.dispatchEvent(new CustomEvent('cad:exportImage', {
-                detail: { format: 'pdf', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle },
+                detail: { format: 'pdf', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, elements: { titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar } },
               }));
               onClose();
             }}
@@ -209,7 +209,7 @@ export default function PrintDialog({ onClose }: Props) {
           <button
             onClick={() => {
               window.dispatchEvent(new CustomEvent('cad:exportImage', {
-                detail: { format: 'png', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle },
+                detail: { format: 'png', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, elements: { titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar } },
               }));
               onClose();
             }}
