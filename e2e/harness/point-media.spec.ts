@@ -34,6 +34,9 @@ test('attach an image to a point and see View media', async ({ page }) => {
   await chooser.setFiles({ name: 'rod.png', mimeType: 'image/png', buffer: PNG });
   await page.waitForTimeout(400);
 
+  // The row now shows a media indicator badge.
+  await expect(page.locator('button[aria-label^="View media for point"]')).toBeVisible({ timeout: 5000 });
+
   // Re-open the menu → "View media (1)" is now available.
   await page.locator('tbody tr').first().click({ button: 'right' });
   await expect(page.getByText(/View media \(1\)/)).toBeVisible({ timeout: 5000 });

@@ -243,3 +243,7 @@ Newly-discovered audit targets get appended here as `[ ]`.
   (attach from canvas/point-viewer/properties/layers; image-zoom+video
   viewer; persists across reload via IndexedDB; cloud sharing = optional
   follow-up).
+- 2026-05-27 05:0x CDT — Media discoverability: Point Data Viewer rows now
+  show a media badge (icon + count) when a point has attachments; clicking it
+  opens the viewer. So the surveyor sees at a glance which points have
+  photos/videos without right-clicking. Verified (point-media.spec extended).

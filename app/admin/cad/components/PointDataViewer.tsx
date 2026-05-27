@@ -550,12 +550,23 @@ export default function PointDataViewer({
                     </td>
                   );
                 })}
-                <td className="px-1 py-0.5 border-b border-gray-800 text-center">
+                <td className="px-1 py-0.5 border-b border-gray-800 text-center whitespace-nowrap">
+                  {(mediaByOwner[row.id]?.length ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('cad:openMediaViewer', { detail: { ownerId: row.id } }))}
+                      className="text-gray-400 hover:text-blue-400 transition-colors mr-1 align-middle inline-flex items-center gap-0.5"
+                      title={`${mediaByOwner[row.id].length} media attachment(s) — click to view`}
+                      aria-label={`View media for point ${row.name || row.id}`}
+                    >
+                      <ImageIcon size={12} /><span className="text-[9px]">{mediaByOwner[row.id].length}</span>
+                    </button>
+                  )}
                   {rowEdited && (
                     <button
                       type="button"
                       onClick={() => revertRow(row)}
-                      className="text-gray-500 hover:text-amber-300 transition-colors"
+                      className="text-gray-500 hover:text-amber-300 transition-colors align-middle"
                       title="Revert this point to its original imported/created values"
                       aria-label={`Revert point ${row.name || row.id} to original`}
                     >
