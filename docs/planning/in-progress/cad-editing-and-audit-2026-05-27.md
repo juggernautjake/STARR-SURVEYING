@@ -265,3 +265,12 @@ CAD unit tests; tsc + eslint clean throughout. Deferred-with-rationale:
 media cloud upload (needs backend; local IDB covers single-device); L
 (orphaned components, needs attended placement); box-select default flip
 (UX decision).
+- 2026-05-27 05:2x CDT — H (data safety): deleting a layer reassigns its
+  features to another layer and is NOT undoable, yet had no confirmation —
+  one misclick could scramble layer organization irreversibly. Added a
+  confirmAction guard when the layer holds features (states the target layer,
+  feature count, and "can't be undone"). Empty layers delete without a prompt.
+  tsc + eslint clean. (Layer-row context menu isn't openable in this harness —
+  known Playwright trigger limitation — so verified by logic + the proven
+  confirmAction pattern.) Noted: layer deletion being non-undoable is a
+  deeper gap (would need a layer-level undo op) — left for an attended pass.

@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
 import { useMediaStore } from '@/lib/cad/media/media-store';
+import { confirmAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
@@ -183,11 +184,27 @@ export default function LayerPanel() {
     setRenamingId(null);
   }
 
-  function handleDeleteLayer(layerId: string) {
+  async function handleDeleteLayer(layerId: string) {
     const layer = doc.layers[layerId];
     if (layer?.isDefault) return;
-    store.removeLayer(layerId);
     setContextMenu(null);
+    // Deleting a layer reassigns its features to another layer and can't be
+    // undone — confirm when it holds features so the surveyor doesn't
+    // accidentally scramble their layer organization.
+    const count = Object.values(doc.features).filter((f) => f.layerId === layerId).length;
+    if (count > 0) {
+      const targetId = doc.layerOrder.find((id) => id !== layerId);
+      const targetName = targetId ? (doc.layers[targetId]?.name ?? 'another layer') : 'another layer';
+      const ok = await confirmAction({
+        title: 'Delete layer?',
+        message: `Delete layer "${layer?.name ?? layerId}"? Its ${count} feature${count === 1 ? '' : 's'} will move to "${targetName}". This can't be undone.`,
+        confirmLabel: 'Delete layer',
+        cancelLabel: 'Cancel',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    store.removeLayer(layerId);
   }
 
   function handleDuplicateLayer(layerId: string) {
