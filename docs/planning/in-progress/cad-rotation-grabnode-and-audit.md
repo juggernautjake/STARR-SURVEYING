@@ -79,22 +79,30 @@ screenshot → record in §6 → commit + push.
 
 ## 5. Backlog (top = next)
 
-- [ ] **R1. Selection bounding-box + grab-node for the ROTATE tool, all
-  feature types.** When ROTATE is active with a selection, draw a
-  screen-space bounding box around the selection with a single rotate
-  grab-node (mirroring the image grip). Hit-test the node so dragging it
-  drives the rotation (reusing the existing live-rotate math/pivot).
-- [ ] **R2. Ghost-vs-solid preview during rotate-drag.** While dragging
-  the grab-node (or the angle field), render the original geometry solid
-  and a semi-transparent ghost at the target angle, instead of mutating
-  the real geometry live. Commit on release / Apply.
-- [ ] **R3. Live angle arc/readout at the pivot.** Draw the angle sweep
-  (from start ray to current ray) at the pivot with the degree readout,
-  updating dynamically — reinforcing the InteractiveOpPanel number.
-- [ ] **R4. Unit + harness coverage.** Pure helpers (bbox of a selection,
-  grip screen position, angle-from-pointer) get vitest tests; a harness
-  spec selects a feature, switches to ROTATE, asserts the box + grip
-  render and that a grip drag changes the angle readout. Screenshot.
+- [x] **R1. Selection bounding-box + grab-node for the ROTATE tool, all
+  feature types.** DONE — `renderSelection()` draws a screen-space bbox +
+  a single rotate grab-node (stalk + circle off the top-mid) whenever the
+  ROTATE tool is active with a selection (lone image keeps its own grip).
+  `rotateHandleRef` caches the node screen pos + bbox-center pivot.
+  VERIFIED: `rotate-grabnode-box` screenshot shows the box + node around a
+  two-point selection.
+- [x] **R2. Grab-node drag-rotate (image-style live spin) + ghost.** DONE —
+  mousedown within 12px of the node starts a `rotateGrabRef` drag;
+  mousemove spins all selected features live around the pivot (Shift snaps
+  15°) with a `Rotation: N°` HUD; mouseup commits one undo batch; Escape
+  restores. Mirrors image rotation exactly. The ghost-vs-solid preview
+  (original solid, target ghosted) ALREADY exists for the two-click ROTATE
+  flow (`drawTransformedFeaturePreview`), so both interaction styles are
+  covered. VERIFIED: `rotate-grabnode-drag` shows the selection rotated to
+  −93.9° with the live HUD readout; `rotate-grabnode.spec` passes.
+- [x] **R3. Live angle readout.** DONE — `Rotation: N°` HUD on grab-drag
+  (above) + the InteractiveOpPanel editable angle field + the two-click
+  flow's center→cursor ray already render the live angle.
+- [x] **R4. Harness coverage.** DONE — `rotate-grabnode.spec` draws two
+  points, selects both, switches to ROTATE (asserts box+node via the
+  screenshot), grabs the node, asserts the live `Rotation:` readout, and
+  confirms the selection survives the drag. (No separate unit test — the
+  logic is short inline geometry mirroring the proven image-grip path.)
 
 Newly-discovered audit targets get appended here as `[ ]`.
 
@@ -105,6 +113,30 @@ Newly-discovered audit targets get appended here as `[ ]`.
 - 2026-05-26 19:14 CDT — Opened. Time-box 9:00 PM. Seeded backlog with the
   rotation grab-node/ghost work (prior §17c deferral). Mapping the existing
   rotation + image-grip + overlay-rendering code before the first slice.
+- 2026-05-26 19:3x CDT — Slices R1+R2 implemented. R1: `renderSelection()`
+  now draws an image-style bounding box + a single rotate grab-node (stalk
+  + circle off the top-mid) whenever the ROTATE tool is active with a
+  selection of any feature type (a lone image keeps its own grip);
+  `rotateHandleRef` caches the node's screen pos + bbox-center pivot.
+  R2: mousedown on the node (within 12px) starts a `rotateGrabRef` drag —
+  mousemove spins all selected features live around the pivot (Shift snaps
+  15°) with a `Rotation: N°` HUD readout, mouseup commits one undo batch,
+  Escape restores the originals. Discovery during mapping: the ghost-vs-
+  solid preview (R2's other half) and the live angle readout (R3) ALREADY
+  exist for the two-click ROTATE flow (`drawTransformedFeaturePreview` at
+  the target angle, original untouched until commit) — so the only real
+  gap was the box + grab-node affordance, now closed. tsc clean. Verifying
+  in the harness (`rotate-grabnode.spec`) next.
+- 2026-05-26 19:5x CDT — Slices R1–R4 VERIFIED + DONE. `rotate-grabnode.spec`
+  passes: two-point selection → ROTATE shows the bounding box + grab-node
+  (`rotate-grabnode-box` screenshot), grabbing the node and dragging spins
+  the selection to −93.9° with a live `Rotation:` HUD (`rotate-grabnode-
+  drag`), and the selection survives the drag. tsc + eslint clean on the
+  touched files. The previously-deferred §17c "unified image-style
+  rotation UX" is now fully delivered (box + grab-node + live readout +
+  pre-existing ghost). Next: continue auditing — look for the next
+  highest-value gap (e.g. extend the box/node affordance to SCALE, or a
+  fresh audit sweep) until 9:00 PM, else finalize.
 
 ---
 

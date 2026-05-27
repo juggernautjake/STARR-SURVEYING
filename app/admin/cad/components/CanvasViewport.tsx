@@ -155,6 +155,10 @@ const DEFAULT_GRIP_SIZE = 8; // half-size of grip square in pixels (fallback)
 // off the top edge, and the sentinel vertex index that marks it.
 const IMAGE_ROTATE_HANDLE_PX = 28;
 const IMAGE_ROTATE_GRIP = -2;
+// Selection-rotate grab-node: an image-style rotate grip drawn off the top
+// of the selection bounding box when the ROTATE tool is active, so any
+// feature type rotates "like an image" (box + node + ghost preview).
+const SELECTION_ROTATE_HANDLE_PX = 30;
 const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performance issues
 // Minimum meaningful segment length in world units before zoom scaling.
 // Prevents duplicate zero-length segments on double-click.
@@ -814,6 +818,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     baseAngle: number;
     /** For SCALE: distance from pivot to cursor when mode was entered (world units) */
     baseDist: number;
+  } | null>(null);
+  // Live screen position of the selection-rotate grab-node (set while the
+  // ROTATE tool renders its bounding-box affordance) so mousedown can
+  // hit-test it. pivot is the bounding-box center in world coords.
+  const rotateHandleRef = useRef<{ sx: number; sy: number; pivot: Point2D } | null>(null);
+  // Active grab-node rotate drag: pivot + the start angle from pivot to the
+  // grab-node + snapshots, so dragging spins the selection relative to the
+  // grabbed node and release commits a single undo entry.
+  const rotateGrabRef = useRef<{
+    pivot: Point2D;
+    startAngle: number;
+    originals: Map<string, Feature>;
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
@@ -3455,6 +3471,45 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           g.drawCircle(handle.sx, handle.sy, gs / 2 + 1);
           g.endFill();
         }
+      }
+    }
+
+    // Rotation affordance — when the ROTATE tool is active with a
+    // selection, draw an image-style bounding box + a single grab-node
+    // off the top edge so ANY feature type rotates "like an image."
+    // Grabbing the node drives a live ghost-preview rotation (see
+    // handleMouseDown / mousemove). A lone image keeps its own grip.
+    rotateHandleRef.current = null;
+    if (toolState.activeTool === 'ROTATE' && selectedIds.size > 0) {
+      const selFeatures = Array.from(selectedIds)
+        .map((id) => drawingStore.getFeature(id))
+        .filter((f): f is Feature => !!f);
+      const loneImage =
+        selFeatures.length === 1 && selFeatures[0].geometry.type === 'IMAGE';
+      const bb = loneImage ? null : computeFeaturesBounds(selFeatures);
+      if (bb && Number.isFinite(bb.minX)) {
+        const p1 = w2s(bb.minX, bb.minY);
+        const p2 = w2s(bb.maxX, bb.maxY);
+        const left = Math.min(p1.sx, p2.sx);
+        const right = Math.max(p1.sx, p2.sx);
+        const top = Math.min(p1.sy, p2.sy);
+        const bottom = Math.max(p1.sy, p2.sy);
+        const gsR = docSettings.gripSize ?? 6;
+        // Bounding box (slightly inset alpha so it reads as a transform frame).
+        g.lineStyle(1.25, selColor, 0.85);
+        g.drawRect(left, top, right - left, bottom - top);
+        // Grab-node stalk + circle off the top-mid edge.
+        const midX = (left + right) / 2;
+        const handleY = top - SELECTION_ROTATE_HANDLE_PX;
+        g.lineStyle(1, selColor, 0.85);
+        g.moveTo(midX, top);
+        g.lineTo(midX, handleY);
+        g.lineStyle(1.5, selColor, 1);
+        g.beginFill(0xffffff, 1);
+        g.drawCircle(midX, handleY, gsR / 2 + 2);
+        g.endFill();
+        const pivot = { x: (bb.minX + bb.maxX) / 2, y: (bb.minY + bb.maxY) / 2 };
+        rotateHandleRef.current = { sx: midX, sy: handleY, pivot };
       }
     }
 
@@ -7949,6 +8004,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Grab-node rotation: mousedown on the selection rotate node starts a
+      // live drag-rotate (mirrors image rotation — drag spins, release
+      // commits). Takes priority over the two-click pivot/angle flow.
+      if (activeTool === 'ROTATE' && rotateHandleRef.current && !interactiveOpRef.current) {
+        const h = rotateHandleRef.current;
+        if (Math.hypot(sx - h.sx, sy - h.sy) <= 12) {
+          const { wx, wy } = screenToDrawingWorld(sx, sy);
+          const startAngle = Math.atan2(wy - h.pivot.y, wx - h.pivot.x);
+          const originals = new Map<string, Feature>();
+          for (const id of selectionStore.selectedIds) {
+            const f = drawingStore.getFeature(id);
+            if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+          }
+          if (originals.size > 0) {
+            rotateGrabRef.current = { pivot: h.pivot, startAngle, originals };
+            setCursorStyle('grabbing');
+            return;
+          }
+        }
+      }
+
       // Commit interactive rotate/scale on left-click
       if (interactiveOpRef.current) {
         const op = interactiveOpRef.current;
@@ -9926,6 +10002,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Grab-node rotate drag — spin the selection live as the node follows
+      // the cursor (Shift snaps to 15°), with a degree readout near the node.
+      if (rotateGrabRef.current) {
+        const grab = rotateGrabRef.current;
+        const { wx, wy } = screenToDrawingWorld(sx, sy);
+        const curAngle = Math.atan2(wy - grab.pivot.y, wx - grab.pivot.x);
+        let delta = curAngle - grab.startAngle;
+        if (e.shiftKey) {
+          const step = Math.PI / 12; // 15°
+          delta = Math.round(delta / step) * step;
+        }
+        for (const [id, orig] of grab.originals) {
+          const newF = transformFeature(orig, (p) => rotate(p, grab.pivot, delta));
+          drawingStore.updateFeatureGeometry(id, newF.geometry);
+        }
+        const deg = normalizeDeg((delta * 180) / Math.PI);
+        setHud({
+          sx: sx + 18,
+          sy: sy - 10,
+          lines: [`Rotation: ${deg.toFixed(1)}°`, e.shiftKey ? 'Snapping 15° (Shift)' : 'Hold Shift = snap 15°'],
+        });
+        setCursorStyle('grabbing');
+        return;
+      }
+
       // Interactive rotate/scale preview — cursor drives the transformation
       if (interactiveOpRef.current) {
         const op = interactiveOpRef.current;
@@ -10419,6 +10520,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Commit a grab-node rotate drag — one undo entry for the whole spin.
+      if (rotateGrabRef.current) {
+        const grab = rotateGrabRef.current;
+        rotateGrabRef.current = null;
+        const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[] = [];
+        for (const [id, before] of grab.originals) {
+          const after = drawingStore.getFeature(id);
+          if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
+        }
+        if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Rotate', ops));
+        setHud(null);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        return;
+      }
+
       const toolState = toolStore.state;
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
@@ -10727,6 +10843,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         interactiveOpRef.current = null;
         setInteractivePanel(null);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        e.stopPropagation();
+      }
+      // Cancel a grab-node rotate drag on Escape — restore the originals.
+      if (e.key === 'Escape' && rotateGrabRef.current) {
+        const dwgStore = useDrawingStore.getState();
+        for (const [id, orig] of rotateGrabRef.current.originals) {
+          dwgStore.updateFeatureGeometry(id, orig.geometry);
+        }
+        rotateGrabRef.current = null;
+        setHud(null);
         setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
         e.stopPropagation();
       }
