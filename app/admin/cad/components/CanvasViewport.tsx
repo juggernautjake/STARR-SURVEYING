@@ -11016,6 +11016,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const originX = (b.minX + b.maxX) / 2 - paperW / 2;
       const originY = (b.minY + b.maxY) / 2 - paperH / 2;
       dwgStore.updateSettings({ drawingScale: scale, paperOrigin: { x: originX, y: originY } });
+      // Keep the title-block SCALE field in agreement with the graphic scale
+      // bar: if its label is auto (blank) or a plain "1\" = N'" value, revert
+      // it to auto so it re-derives from the new plot scale. A genuinely
+      // custom label (e.g. "1:600", "NOT TO SCALE") is preserved.
+      const curLabel = (dwgStore.document.settings.titleBlock?.scaleLabel ?? '').trim();
+      if (curLabel !== '' && /^1"\s*=\s*\d+(?:\.\d+)?'$/.test(curLabel)) {
+        dwgStore.updateTitleBlock({ scaleLabel: '' });
+      }
       vpStore.zoomToExtents({ minX: originX, minY: originY, maxX: originX + paperW, maxY: originY + paperH }, 0.05);
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
         detail: { text: `Fit to page at 1"=${scale}'. Coordinates unchanged.` },
@@ -12073,7 +12081,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full cursor-pointer"
                     defaultValue={currentValue}
                     onChange={(e) => {
-                      drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                      // Picking a scale sets the PLOT scale so the graphic
+                      // scale bar moves to match, and reverts the label to
+                      // auto so it re-derives "1\" = N'" — keeping the bar and
+                      // the SCALE field always in agreement.
+                      const m = e.currentTarget.value.match(/=\s*(\d+(?:\.\d+)?)/);
+                      if (m) {
+                        drawingStore.updateSettings({ drawingScale: parseFloat(m[1]) });
+                        drawingStore.updateTitleBlock({ scaleLabel: '' });
+                      } else {
+                        drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                      }
                       setTbFieldEditState(null);
                     }}
                     onKeyDown={(e) => { if (e.key === 'Escape') setTbFieldEditState(null); }}
