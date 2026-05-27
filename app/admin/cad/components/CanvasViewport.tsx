@@ -649,6 +649,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     /** Single sprite for the firm-logo overlay in the title-
      *  block header. Lazy-created on first render with a logo
      *  set; texture is rebuilt whenever the data-URL changes. */
+    tbSealSprite: import('pixi.js').Sprite | null;
+    /** Cached data URL the current `tbSealSprite` texture was built from. */
+    tbSealTextureKey: string | null;
     tbLogoSprite: import('pixi.js').Sprite | null;
     /** Cached data URL the current `tbLogoSprite` texture was
      *  built from. When the surveyor swaps logos in Settings
@@ -769,6 +772,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const hoveredLabelKeyRef = useRef<string | null>(null);
   // Hovered title-block overlay element
   const hoveredTBElemRef = useRef<'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null>(null);
+  // Hidden <input> used to pick a seal image from the local machine.
+  const sealFileInputRef = useRef<HTMLInputElement | null>(null);
   // Screen bounding boxes of each TB element (updated each render frame)
   const tbBoundsRef = useRef<{
     northArrow:       { screenX: number; screenY: number; w: number; h: number } | null;
@@ -1191,6 +1196,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           labelTexts: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
+          tbSealSprite: null,
+          tbSealTextureKey: null,
           tbLogoSprite: null,
           tbLogoTextureKey: null,
           paperGraphics,
@@ -2526,18 +2533,60 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const officialSealHovered  = hoveredTBElemRef.current === 'officialSealLabel';
     const officialSealDragging = drag?.element === 'officialSealLabel';
-    const osTxt = mkTBTextSig('OFFICIAL\nSEAL', {
-      fontFamily: 'Arial', fontSize: sLblSz, fill: 0x555555, letterSpacing: 0.3,
-      fontWeight: 'bold',
-      align: 'center',
-    });
-    osTxt.anchor.set(0.5, 0.5);
-    osTxt.position.set(officialSealRenderX, officialSealRenderY);
-    // Compute bounds for hit-testing (centered anchor means left = x - w/2)
-    const osTxtW = Math.min(sealColW, sLblSz * 8);
-    const osTxtH = sLblSz * 2.5;
-    const osHitX = officialSealRenderX - osTxtW / 2 - 4;
-    const osHitY = officialSealRenderY - osTxtH / 2 - 4;
+    const sealUrl = tb.sealImageDataUrl ?? null;
+
+    if (sealUrl) {
+      // Render the uploaded square seal image, fit to the seal column.
+      try {
+        if (pixi.tbSealTextureKey !== sealUrl) {
+          const tex = pixi.TextureClass.from(sealUrl);
+          if (!pixi.tbSealSprite) {
+            pixi.tbSealSprite = new pixi.SpriteClass(tex);
+            pixi.tbSealSprite.anchor.set(0.5, 0.5);
+            pixi.tbSignatureContainer.addChild(pixi.tbSealSprite);
+          } else {
+            pixi.tbSealSprite.texture = tex;
+          }
+          pixi.tbSealTextureKey = sealUrl;
+        } else if (pixi.tbSealSprite && pixi.tbSealSprite.parent !== pixi.tbSignatureContainer) {
+          pixi.tbSignatureContainer.addChild(pixi.tbSealSprite);
+        }
+        const sprite = pixi.tbSealSprite!;
+        const boxPx = Math.max(8, Math.min(sealColW, sigBoxH) - 12);
+        const tw = Math.max(1, sprite.texture.width || 1);
+        const th = Math.max(1, sprite.texture.height || 1);
+        const sc = boxPx / Math.max(tw, th);
+        sprite.width = tw * sc;
+        sprite.height = th * sc;
+        sprite.position.set(sCx, sigTop + sigBoxH * 0.5);
+        sprite.visible = true;
+      } catch { /* invalid data URL — ignore */ }
+    } else if (pixi.tbSealSprite) {
+      // Seal removed — tear down the sprite so the placeholder text returns.
+      const parent = pixi.tbSealSprite.parent;
+      if (parent) parent.removeChild(pixi.tbSealSprite);
+      pixi.tbSealSprite = null;
+      pixi.tbSealTextureKey = null;
+    }
+
+    if (!sealUrl) {
+      const osTxt = mkTBTextSig('OFFICIAL\nSEAL', {
+        fontFamily: 'Arial', fontSize: sLblSz, fill: 0x555555, letterSpacing: 0.3,
+        fontWeight: 'bold',
+        align: 'center',
+      });
+      osTxt.anchor.set(0.5, 0.5);
+      osTxt.position.set(officialSealRenderX, officialSealRenderY);
+    }
+
+    // Hit bounds — clicking the seal area uploads/replaces the seal image.
+    const sealBoxPx = Math.min(sealColW, sigBoxH);
+    const osTxtW = sealUrl ? sealBoxPx : Math.min(sealColW, sLblSz * 8);
+    const osTxtH = sealUrl ? sealBoxPx : sLblSz * 2.5;
+    const osCx   = sealUrl ? sCx : officialSealRenderX;
+    const osCy   = sealUrl ? sigTop + sigBoxH * 0.5 : officialSealRenderY;
+    const osHitX = osCx - osTxtW / 2 - 4;
+    const osHitY = osCy - osTxtH / 2 - 4;
     tbBoundsRef.current.officialSealLabel = { screenX: osHitX, screenY: osHitY, w: osTxtW + 8, h: osTxtH + 8 };
     if (officialSealHovered || officialSealDragging) {
       g.lineStyle(1.5, 0x0088ff, 0.85);
@@ -2560,6 +2609,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     sigg.lineStyle(1, 0x000000, 1);
     sigg.moveTo(sigLineX1, dateLineY);
     sigg.lineTo(sigLineX2, dateLineY);
+
+    // Editable date value written above the line.
+    if (tb.signatureDate) {
+      const dvTxt = mkTBTextSig(tb.signatureDate, {
+        fontFamily: 'Arial', fontSize: Math.max(sLblSz * 0.95, 5), fill: 0x111111,
+      });
+      dvTxt.anchor.set(0, 1);
+      dvTxt.position.set(sigLineX1 + 2, dateLineY - 2);
+    }
+    // Register the date line as a click-to-edit field (handled by the same
+    // signature-block click → hitTestTBField flow as the main title block).
+    {
+      const dvBandH = Math.max(sLblSz * 1.6, 10);
+      tbFieldBoundsRef.current.push({
+        key: 'signatureDate', label: 'Date',
+        editValue: tb.signatureDate || '',
+        screenX: sigLineX1, screenY: dateLineY - dvBandH - 2,
+        w: sigLineX2 - sigLineX1, h: dvBandH + 4,
+      });
+    }
 
     // ── "DATE" label below the date line ──────────────────────────────────
     const dateLblSz = Math.max(sLblSz * 0.80, 4);
@@ -10659,6 +10728,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               w: fieldHit.w, h: fieldHit.h,
             });
           }
+        } else if (element === 'officialSealLabel') {
+          // Single click (no drag) on the seal → pick a square seal image.
+          sealFileInputRef.current?.click();
         }
         tbDragRef.current = null;
         hoveredTBElemRef.current = null;
@@ -12050,6 +12122,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           <div className="text-[9px] text-gray-400 mt-0.5 px-0.5">Enter to place · Esc to cancel</div>
         </div>
       )}
+
+      {/* Hidden picker for a local seal image — opened by clicking the seal. */}
+      <input
+        ref={sealFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.currentTarget.value = '';
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const url = typeof reader.result === 'string' ? reader.result : null;
+            if (url) drawingStore.updateTitleBlock({ sealImageDataUrl: url });
+          };
+          reader.readAsDataURL(file);
+        }}
+      />
 
       {/* Title-block field inline editor — single click on a title block data cell */}
       {tbFieldEditState && (() => {
