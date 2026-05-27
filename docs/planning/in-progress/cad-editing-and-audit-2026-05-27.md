@@ -152,3 +152,6 @@ Newly-discovered audit targets get appended here as `[ ]`.
   CADLayout now mounts PrintDialog (previously never rendered) + listens for
   openPrintDialog. `wired-shortcuts.spec` verifies select-all + print.
   tsc + eslint clean. Next: continue audit.
+- 2026-05-27 03:1x CDT — K: MenuBar callback props all wired (cross-checked
+  vs CADLayout). CommandBar had a duplicate `case 'scale'/'sc'` (second was
+  unreachable dead code) — removed. tsc + eslint clean.

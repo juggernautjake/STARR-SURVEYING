@@ -418,10 +418,6 @@ export default function CommandBar() {
       case 's':
         toolStore.setTool('SELECT');
         break;
-      case 'scale':
-      case 'sc':
-        toolStore.setTool('SCALE');
-        break;
       case 'pan':
       case 'h':
         toolStore.setTool('PAN');
