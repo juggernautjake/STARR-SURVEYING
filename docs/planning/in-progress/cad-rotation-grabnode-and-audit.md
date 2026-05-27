@@ -104,6 +104,15 @@ screenshot → record in §6 → commit + push.
   confirms the selection survives the drag. (No separate unit test — the
   logic is short inline geometry mirroring the proven image-grip path.)
 
+- [x] **R5. DXF export of created/derived points** (prior-engagement
+  deferral, picked up). DONE — `exportToDxf` now materializes derived
+  points (minted vertex names + cross-layer `:N`, not backed by a POINT
+  feature) as POINT entities + a name TEXT on their layer, mirroring the
+  CSV/PNEZD/LandXML behavior. `DerivedPoint` gained raw `x`/`y` (DXF emits
+  geometry space; northing/easting carry the display-origin offset). 3 new
+  unit tests (raw coords + DXF POINT/TEXT emission + no-dup of an existing
+  POINT); 16 tests green in the two suites; tsc + eslint clean.
+
 Newly-discovered audit targets get appended here as `[ ]`.
 
 ---
@@ -143,6 +152,16 @@ Newly-discovered audit targets get appended here as `[ ]`.
   (discoverability) and `test.slow()` on the new spec to absorb the
   dev-server cold-compile (the spec runs ~2.2m and was grazing the 120s
   per-test timeout). tsc + eslint clean; `rotate-grabnode` passes.
+- 2026-05-26 20:2x CDT — Slice R5 DONE: DXF export now includes created/
+  derived points (the last of the three prior-engagement deferrals to be
+  concrete + testable). `exportToDxf` emits a POINT + name TEXT for every
+  minted/`:N` vertex with no standalone POINT feature, on the right layer,
+  at raw world coords; `DerivedPoint` carries raw x/y for geometry-space
+  writers. 3 new unit tests, all green; tsc + eslint clean. Only §17e (AI
+  naming advisor) remains deferred — it needs an ANTHROPIC_API_KEY absent
+  from this env to verify, and the deterministic naming core already
+  covers numeric/`P#` schemes; out of scope. Next: continue auditing until
+  9 PM, else finalize.
 
 ---
 

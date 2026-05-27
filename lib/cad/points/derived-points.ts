@@ -21,6 +21,11 @@ export interface DerivedPoint {
   northing: number;
   easting: number;
   layerId: string;
+  /** Raw world coords (no origin offset) — used by writers that emit
+   *  geometry space directly, e.g. DXF (northing/easting carry the
+   *  display-origin offset and suit PNEZD/LandXML). */
+  x: number;
+  y: number;
 }
 
 export function collectDerivedPoints(doc: DrawingDocument): DerivedPoint[] {
@@ -54,6 +59,8 @@ export function collectDerivedPoints(doc: DrawingDocument): DerivedPoint[] {
         northing: coords[i].y + oN,
         easting: coords[i].x + oE,
         layerId: f.layerId,
+        x: coords[i].x,
+        y: coords[i].y,
       });
     }
   }

@@ -43,6 +43,9 @@ describe('collectDerivedPoints', () => {
     expect(p.northing).toBeCloseTo(1020, 6); // y + originN
     expect(p.easting).toBeCloseTo(2010, 6);  // x + originE
     expect(p.layerId).toBe('FENCE');
+    // Raw world coords (no origin offset) — for geometry-space writers.
+    expect(p.x).toBeCloseTo(10, 6);
+    expect(p.y).toBeCloseTo(20, 6);
   });
 
   it('materializes minted vertex points (no POINT feature)', () => {
