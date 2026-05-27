@@ -47,7 +47,7 @@ screenshot where feasible → record in §6 → commit + push.
   except real text fields (input/textarea/contenteditable, which keep native
   copy/paste). Verified: contextmenu on the canvas is prevented, on an input
   is not (`native-contextmenu.spec`).
-- [ ] **B. Filter… field formatting in the Point Data Viewer / Point table.**
+- [x] **B. Filter… field formatting in the Point Data Viewer / Point table.**
   Fix the reported formatting issue (alignment/padding/contrast). Then sweep
   for other formatting glitches (misaligned inputs, clipped text, dark-on-dark).
 - [ ] **C. Line-type symbols render ON TOP of the line.** A dashed line with an
@@ -94,3 +94,9 @@ Newly-discovered audit targets get appended here as `[ ]`.
 4. Repoint any `// Spec:` refs (`grep -rln` the in-progress path) to
    `completed/`, then `git mv` this doc to `docs/planning/completed/`.
 5. Commit + push. in-progress/ empties; the hook routes onward.
+
+- 2026-05-27 01:5x CDT — A done (native right-click suppression, verified).
+  Added a `cad:togglePointTable` event (consistency + testability). B: cleaned
+  up the Points panel Filter field — fixed height (h-7), shrink-0, placeholder
+  contrast, pointer-events-none icon, aligned clear button. Next: C (line-type
+  symbols render on top of the line with an opaque backing).

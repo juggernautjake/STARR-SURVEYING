@@ -504,6 +504,13 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:togglePointDataViewer', handler);
   }, []);
 
+  // Points panel (bottom dock) toggle.
+  useEffect(() => {
+    const handler = () => setShowPointTable((v) => !v);
+    window.addEventListener('cad:togglePointTable', handler);
+    return () => window.removeEventListener('cad:togglePointTable', handler);
+  }, []);
+
   // Traverse Viewer toggle (§10e)
   useEffect(() => {
     const handler = () => setShowTraverseViewer((v) => !v);

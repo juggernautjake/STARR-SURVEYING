@@ -129,18 +129,22 @@ export default function PointTablePanel({
         </span>
 
         {/* Filter */}
-        <div className="relative">
-          <Filter size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+        <div className="relative shrink-0 h-7 w-36">
+          <Filter size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             type="text"
             value={filter}
             onChange={e => setFilter(e.target.value)}
             placeholder="Filter…"
-            className="bg-gray-700 text-gray-200 text-xs pl-6 pr-6 py-1 rounded border border-gray-600 focus:border-blue-500 focus:outline-none w-32"
+            className="h-7 w-full bg-gray-700 text-gray-200 placeholder-gray-500 text-xs leading-none pl-7 pr-7 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
           />
           {filter && (
-            <button onClick={() => setFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-              <X size={10} />
+            <button
+              onClick={() => setFilter('')}
+              aria-label="Clear filter"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+            >
+              <X size={12} />
             </button>
           )}
         </div>
