@@ -183,6 +183,14 @@ Newly-discovered audit targets get appended here as `[ ]`.
   all pass against the live app, confirming the DXF derived-points change
   doesn't break the real download/scoped-export paths. Also nudged each
   derived point's name TEXT up-right of its marker for legibility.
+- 2026-05-26 20:2x CDT — Rotation polish: the grab-node drag now ghosts the
+  ORIGINAL (pre-rotation) outline in `renderToolPreview` while the live
+  geometry spins, so the surveyor sees before/after during direct
+  manipulation (the §15 "original vs. ghost" intent, previously only on
+  the two-click flow). VERIFIED: `rotate-grabnode-drag` screenshot shows
+  the faint original-position circles beside the rotated solid points;
+  spec passes; 1284 CAD tests + tsc + eslint clean. The §15/§17c rotation
+  ask is now fully delivered across BOTH on-canvas rotation styles.
 
 ---
 

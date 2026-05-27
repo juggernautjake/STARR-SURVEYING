@@ -3798,6 +3798,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const selColorHex = (useDrawingStore.getState().document.settings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
 
+    // Grab-node rotate: ghost the ORIGINAL (pre-rotation) outline while the
+    // real geometry spins live, so the surveyor sees the before/after —
+    // the §15 "original vs. ghost" intent applied to direct manipulation.
+    if (rotateGrabRef.current) {
+      g.lineStyle(1.25, selColor, 0.4);
+      for (const orig of rotateGrabRef.current.originals.values()) {
+        if (orig.geometry.type === 'IMAGE') continue;
+        drawTransformedFeaturePreview(g, orig, (p) => p, w2s);
+      }
+    }
+
     if (!previewPoint) return;
 
     // For MOVE/COPY: show line from base point to cursor + ghost of the moved/copied selection
