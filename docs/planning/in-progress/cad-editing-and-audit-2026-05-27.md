@@ -247,3 +247,21 @@ Newly-discovered audit targets get appended here as `[ ]`.
   show a media badge (icon + count) when a point has attachments; clicking it
   opens the viewer. So the surveyor sees at a glance which points have
   photos/videos without right-clicking. Verified (point-media.spec extended).
+
+### Checkpoint — 2026-05-27 ~05:1x CDT
+Delivered this loop (all verified unless noted): native right-click
+suppression; Points-panel Filter formatting; line-type symbols rendered on
+top (white backing) + infinity tilts ALONG_LINE; CalcPointDialog text
+colors; import wizard reset-on-open + clear-on-file-change + full E2E;
+hidden- AND locked-layer draw guards; **root-cause fix** for "context menus
+sometimes don't dismiss" (FeatureContextMenu + PickModeContextMenu render
+race); 7 dead keyboard shortcuts + Print dialog wired; command-bar dup
+removed + select-all/zoom/print/fit-page commands; box-select hint
+corrected; orphaned-feature-components finding (L, deferred). **MEDIA (E)
+comprehensively shipped**: media store + own IndexedDB (persists across
+reload), attach from canvas right-click / Point viewer / Properties panel /
+layers, image pan-zoom + video viewer, row media badge. Tree green: 1298
+CAD unit tests; tsc + eslint clean throughout. Deferred-with-rationale:
+media cloud upload (needs backend; local IDB covers single-device); L
+(orphaned components, needs attended placement); box-select default flip
+(UX decision).
