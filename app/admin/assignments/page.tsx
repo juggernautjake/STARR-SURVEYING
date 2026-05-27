@@ -4,7 +4,6 @@ import '../styles/AdminAssignments.css';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import UnderConstruction from '../components/messaging/UnderConstruction';
 import { usePageError } from '../hooks/usePageError';
 
 interface Assignment {
@@ -170,10 +169,6 @@ export default function AssignmentsPage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="Assignments"
-        description="View and manage task assignments from admins. Track study materials, job tasks, equipment maintenance, and more."
-      />
 
       {/* Header with create button */}
       <div className="assign__header">

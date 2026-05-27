@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
-import UnderConstruction from '../../components/messaging/UnderConstruction';
 import MessageBubble from '../../components/messaging/MessageBubble';
 import ComposeBox from '../../components/messaging/ComposeBox';
 import ConversationHeader from '../../components/messaging/ConversationHeader';
@@ -201,10 +200,6 @@ export default function ConversationPage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="Conversation Thread"
-        description="Real-time messaging thread with message history, reactions, replies, file sharing, and read receipts."
-      />
 
       {/* Conversation Header */}
       {conversation && (

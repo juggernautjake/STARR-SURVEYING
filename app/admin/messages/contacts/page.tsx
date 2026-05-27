@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
-import UnderConstruction from '../../components/messaging/UnderConstruction';
 
 interface Contact {
   email: string;
@@ -58,10 +57,6 @@ export default function ContactsPage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="Contact Directory"
-        description="Browse and search your Starr Surveying team members. Start conversations directly from the contact list."
-      />
 
       <div className="msg-contacts-page">
         <div className="msg-contacts-page__header">

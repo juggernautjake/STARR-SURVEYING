@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
-import UnderConstruction from '../../components/messaging/UnderConstruction';
 import { SURVEY_TYPES } from '../../components/jobs/JobCard';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import Tooltip from '../../research/components/Tooltip';
@@ -102,10 +101,6 @@ export default function NewJobPage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="New Job"
-        description="Create a new survey job and start the quote-to-delivery lifecycle."
-      />
 
       <div className="job-form">
         <div className="job-form__header">

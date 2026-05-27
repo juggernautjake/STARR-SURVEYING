@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
-import UnderConstruction from '../../components/messaging/UnderConstruction';
 import ContactPicker from '../../components/messaging/ContactPicker';
 import ComposeBox from '../../components/messaging/ComposeBox';
 
@@ -76,10 +75,6 @@ export default function NewMessagePage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="New Message Composer"
-        description="Start a new direct message or create a group chat with your Starr Surveying team members."
-      />
 
       <div className="msg-new">
         <div className="msg-new__header">
