@@ -346,7 +346,10 @@ function emitDerivedPoints(lines: string[], doc: DrawingDocument): void {
     const pos = { x: p.x, y: p.y };
     emitPoint(lines, layerName, pos);
     if (p.name) {
-      emitText(lines, layerName, pos, p.name, nameHeight, 0, 0, 0);
+      // Offset the name up-right of the marker so the label is legible
+      // instead of sitting on top of the POINT (typical point-number style).
+      const labelPos = { x: p.x + nameHeight * 0.5, y: p.y + nameHeight * 0.5 };
+      emitText(lines, layerName, labelPos, p.name, nameHeight, 0, 0, 0);
     }
   }
 }
