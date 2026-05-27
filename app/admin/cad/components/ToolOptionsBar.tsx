@@ -310,7 +310,7 @@ export default function ToolOptionsBar() {
                 min={MIN_LINE_WEIGHT}
                 max={MAX_LINE_WEIGHT}
                 step={0.25}
-                className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
+                className="w-20 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
                 value={drawStyle.lineWeight ?? ''}
                 placeholder="layer"
                 title="Line weight (pt)"

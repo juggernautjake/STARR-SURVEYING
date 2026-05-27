@@ -141,6 +141,11 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Verified on `/cad-harness`:** extended `export-pdf` spec parses the PDF MediaBox and asserts **1224 × 792 pt** (Tabloid Landscape) while staying ~88 KB. `tsc` + `eslint` clean.
   - **Note:** PNG export stays a raw raster of the frame (paper sizing is a PDF/plot concept); Scale Mode "Fit to Page" is effectively what the aspect-fit does, and fixed-scale plotting (true 1"=N' on paper) remains a larger future item.
 
+### Slice 19 — CAD: golden-path visual audit + Weight-field clipping fix ✅ shipped
+- [x] Used Playwright + screenshot inspection (OCR) to drive the editor golden path (`e2e/harness/visual-audit.spec.ts`): create drawing → draw a line → drop points → open a menu.
+  - **Result:** editor renders cleanly; line drawing works and shows the live length/bearing readout (`Len 116.650 ft, Bearing N 56°18'35" E`); title block, scale bar, north arrow, layers, and options bar all correct. Golden path verified.
+  - **Bug found + fixed:** the DRAW LINE options-bar **Weight** input (`w-14`, `type=number`) clipped its `placeholder="layer"` to "laye" (spinner arrows ate the width). Widened to `w-20`; re-ran the audit and confirmed the placeholder now reads "layer" in full. `tsc` + `eslint` clean.
+
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
   - *Payroll hours* — `MyHoursPanel` (`/admin/me?tab=hours`): week strip → "+ Log Time" → work-type/hours/description → POST `/api/admin/time-logs` (server computes effective rate, status=pending) → admin approves in `/admin/hours-approval` (bulk approve/reject/adjust, dispute/resubmit). End-to-end real APIs + DB (`daily_time_logs`).
