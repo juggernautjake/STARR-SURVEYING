@@ -43,8 +43,12 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Audit result:** the `<select>` exposes exactly the 4 `Method` union members and the `compute()` chain handles all 4 — so `'Method not implemented.'` was unreachable dead code.
   - **Done:** replaced the trailing branch with a `const unhandled: never = method` exhaustiveness guard (compile-time safety if a 5th method is ever added to the union without a branch) and changed the post-switch null guard to a precise, actionable message. `tsc` + `eslint` clean.
 
-### Slice 4 — Dashboard: live Jobs + Payroll summary tiles
-- [ ] Replace the `--` placeholders and "coming soon" notes on the dashboard Jobs and Finances cards with real counts pulled from existing APIs (active jobs, hours this week / period, PTO balance). Keep graceful empty states when the user has no data. Verify rendering for an admin and a field-crew role.
+### Slice 4 — Dashboard: live Jobs tile + honest Finances copy ✅ shipped (hours/PTO deferred)
+- [x] Replace the misleading "coming soon" notes and `--` placeholders on the dashboard Jobs and Finances cards.
+  - **Done — Jobs card:** now fetches `/api/admin/jobs` (admins) or `/api/admin/jobs?my_jobs=true` (others) with `limit=500` and shows a live **Active Jobs** count (stages other than completed/cancelled/on_hold), with loading / zero / N-in-progress empty states. Removed the false "Job tracking coming soon" note.
+  - **Done — Finances card:** both `/admin/payroll` and `/admin/my-pay` are fully shipped, so the "Payroll tracking coming soon" note was simply wrong. Replaced the fake `--` Hours/PTO metrics with accurate role-aware copy and kept the View Finances link. Also removed a now-dead `role` local + a stale `useCallback` dep (lint clean).
+  - **Verified:** `tsc` + `eslint` clean. Render is code-verified only — the dashboard is auth-gated and not reachable from the unauthenticated `/cad-harness`, so it can't be screenshotted in this environment.
+- ~~Live "Hours This Week / This Period" and "PTO Balance" tiles~~ — deferred: the values come from the pay-computation route (`/api/admin/time-logs`, monetary `payroll/balance`) which needs careful week/period bucketing and a PTO source that isn't a simple field; shipping unverified numbers (no auth path in the harness) risks misleading payroll figures. Revisit with a dedicated dashboard-summary endpoint + a seeded-auth E2E path.
 
 ### Slice 5 — CAD: ElementExplanationPopup chat placeholder
 - [ ] Either wire the "Chat (coming soon)" affordance to the existing AI proposal/chat store or cleanly remove the dead placeholder so the popup isn't advertising a non-feature. Decide based on what the AI store already supports.
