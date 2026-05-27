@@ -179,3 +179,10 @@ Newly-discovered audit targets get appended here as `[ ]`.
   make a plain left-drag box-select and reserve pan for middle/space — worth
   deciding whether to flip the default. parseCSV + PropertyPanel audited, no
   bugs. Full CAD suite green (1294).
+- 2026-05-27 03:4x CDT — Audited autosave (debounced + periodic, per-doc key,
+  reads live doc — correct), SettingsDialog (binds straight to store, no
+  non-persisting toggles), CalcPointDialog (all 4 methods implemented; the
+  "not implemented" branch is unreachable defensive code). All clean. Added a
+  `fit page`/`fit to page`/`ftp` command-bar command (Fit Drawing to Page was
+  menu-only) — ties to the surveyor's earlier "fit points to the page" ask.
+  Verified (`command-fitpage.spec`).

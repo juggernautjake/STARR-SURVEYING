@@ -374,6 +374,11 @@ export default function CommandBar() {
       case 'zoom selection':
         zoomToSelection();
         break;
+      case 'fit page':
+      case 'fit to page':
+      case 'ftp':
+        window.dispatchEvent(new CustomEvent('cad:fitDrawingToPage'));
+        break;
       case 'zi':
       case 'zoom in':
         window.dispatchEvent(new CustomEvent('cad:zoomIn'));
