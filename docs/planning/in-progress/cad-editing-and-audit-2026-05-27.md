@@ -347,3 +347,12 @@ media cloud upload (needs backend; local IDB covers single-device); L
   pt number, code, and layer (capped MAX_POINTS, pointsTruncated flag) — so
   the "AI placed random points" fix is real on the data side, not just the
   prompt. Backlog complete; holding code changes, awaiting 06:00 to finalize.
+- 2026-05-27 05:4x CDT — Menu-dismiss sweep finished: audited the last
+  popup surfaces. InteractiveOpPanel / OnLineOffsetPanel are persistent
+  anchored op-panels (not click-away menus) — correct as-is. The ToolBar
+  tool-variants flyout, however, IS right-click-triggered (a tool button's
+  onContextMenu opens it) — exactly the user's reported class — yet its
+  dismiss overlay only had onClick, so a right-click elsewhere wouldn't
+  close it. Added onContextMenu (preventDefault + onClose) to match every
+  other overlay menu. tsc + eslint clean. Every right-click popup in the
+  CAD app now dismisses on both a normal click AND a right-click elsewhere.

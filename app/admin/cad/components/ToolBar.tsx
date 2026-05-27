@@ -483,7 +483,11 @@ function VariantFlyout({ group, activeTool, onSelect, onClose, anchorY }: Flyout
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/10 animate-[fadeIn_150ms_ease-out]" onClick={onClose} />
+      <div
+        className="fixed inset-0 z-40 bg-black/10 animate-[fadeIn_150ms_ease-out]"
+        onClick={onClose}
+        onContextMenu={(e) => { e.preventDefault(); onClose(); }}
+      />
       <div
         ref={flyoutRef}
         className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 min-w-[260px] max-w-[340px] animate-[slideInLeft_150ms_ease-out]"
