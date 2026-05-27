@@ -60,8 +60,11 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Audit result:** every `FORMAT_OPTIONS` entry (svg / json / png / pdf / dxf) is `available: true`, so the `{!opt.available && <span>Coming Soon</span>}` badge never renders — no misleading teaser is shown. The server route fully implements all five (`renderToPng/renderToPdf/renderToDxf` + svg/json) so `available: true` is truthful. The `available` flag is kept as a reasonable forward guard.
   - **Real fix found + shipped:** the client download map in `handleExportDrawing` (research project page) omitted the `dxf` mime, so DXF downloads fell back to `application/octet-stream`. Added `dxf: 'image/vnd.dxf'` (IANA-registered) so the blob carries the correct content type. `tsc` + `eslint` clean.
 
-### Slice 7 — Learn: exam-prep empty states
-- [ ] RPLS "Coming Soon" card and SIT "Content coming soon" — make these honest, non-dead-end states (clear messaging + a link to available content) rather than inert teasers.
+### Slice 7 — Learn: exam-prep empty states ✅ shipped
+- [x] RPLS "Coming Soon" card and SIT "Content coming soon" — make these honest, non-dead-end states.
+  - **Done — RPLS card:** was an inert `<div>` with a non-clickable "Coming Soon" arrow. Dedicated RPLS prep genuinely isn't built (large feature, correctly not faked), so the card is now a `<Link>` to the available FS curriculum (`/admin/learn/exam-prep/sit`) with a "Start with FS Prep →" CTA and copy that sets expectations honestly. No longer a dead-end.
+  - **SIT "Content coming soon":** left as-is — it's a legitimate data-driven section empty state inside a fully-navigable module page (back link, topics, quiz), not a trap. Honest messaging already present.
+  - **Verified:** `tsc` + `eslint` clean. Auth-gated pages, so render is code-verified only.
 
 ---
 
