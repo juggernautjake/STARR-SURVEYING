@@ -97,7 +97,14 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Panel:** wired — loads events for the visible window on navigation, the admin Create Event form now POSTs (building start/end ISO from the date/time/all-day inputs), per-event delete (admin) in week view, week + month render real events. Removed banner + dev guide.
   - **Verified:** `tsc` + `eslint` clean (needs `seeds/293` applied at deploy; degrades gracefully). Auth-gated → code-verified.
   - **Deferred (documented):** recurring events, drag-to-create/move, time-off approval, Google Calendar sync, conflict detection — each is a sizable feature beyond "make the page functional"; revisit if requested.
-- [ ] **Remaining stubs to build out:** `my-files` (personal files — needs a storage bucket) and `settings` (user preferences). Each is its own slice.
+### Slice 13 — Build out stub page: Admin Settings (General + Company) ✅ shipped
+- [x] `/admin/settings` had unconnected forms. Built the editable sections for real:
+  - **Seed:** `seeds/294_app_settings.sql` — `public.app_settings` (key TEXT PK → JSONB value, updated_by/at), one row per section.
+  - **API:** `app/api/admin/settings/route.ts` — admin GET (all sections as a map) + PUT (upsert an allowed section: `general` | `company`).
+  - **Page:** General (company name / default state / job-number prefix / timezone) and Company (address / phone / fax / website / TBPELS firm #) are now controlled inputs that load saved values and persist via per-section Save buttons with a "✓ Saved" confirmation. Removed banner + dev guide.
+  - **Honest remaining tabs (not faked):** Users (RBAC is code-driven in `lib/auth.ts`), Notifications (points to Messages → Settings, the real per-user prefs), Integrations (accurate "Not Connected" cards), Billing (links to the existing `/admin/billing` area).
+  - **Verified:** `tsc` + `eslint` clean (needs `seeds/294` at deploy). Auth-gated → code-verified.
+- [ ] **Remaining stub:** `my-files` (personal file storage) — needs a Supabase Storage bucket + signed-upload flow, which can't be provisioned/verified from this sandbox. Tracked as the next slice (will ship the bucket seed + API + wiring following the same pattern, or defer with rationale if the bucket truly can't be created here).
 
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
