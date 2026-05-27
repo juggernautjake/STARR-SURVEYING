@@ -42,10 +42,11 @@ screenshot where feasible → record in §6 → commit + push.
 ## 5. Backlog (top = next)
 
 ### Concrete user requests (this engagement)
-- [ ] **A. Suppress the native browser right-click menu across the CAD app.**
-  Many right-clicks open the OS/browser context menu. Add a contextmenu
-  preventDefault on the CAD shell root (so right-click is owned by the app),
-  while still letting inputs/textareas keep native behavior where useful.
+- [x] **A. Suppress the native browser right-click menu across the CAD app.**
+  DONE — `onContextMenu` on the CAD shell root preventDefaults everywhere
+  except real text fields (input/textarea/contenteditable, which keep native
+  copy/paste). Verified: contextmenu on the canvas is prevented, on an input
+  is not (`native-contextmenu.spec`).
 - [ ] **B. Filter… field formatting in the Point Data Viewer / Point table.**
   Fix the reported formatting issue (alignment/padding/contrast). Then sweep
   for other formatting glitches (misaligned inputs, clipped text, dark-on-dark).

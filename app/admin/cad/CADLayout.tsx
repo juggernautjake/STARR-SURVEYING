@@ -725,7 +725,17 @@ export default function CADLayout() {
 
   return (
     <TooltipProvider>
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
+    <div
+      className="flex flex-col h-screen w-full overflow-hidden bg-white select-none"
+      onContextMenu={(e) => {
+        // The CAD app owns right-click (feature/layer/canvas menus). Suppress
+        // the browser's native context menu everywhere EXCEPT real text fields,
+        // where native copy/paste/spellcheck is still useful.
+        const t = e.target as HTMLElement | null;
+        if (t && (t.closest('input, textarea, [contenteditable="true"]'))) return;
+        e.preventDefault();
+      }}
+    >
       {/* Phase 7 delivery hydrator — keeps useDeliveryStore +
           useReviewWorkflowStore in sync with the active doc. */}
       <DeliveryHydrator />
