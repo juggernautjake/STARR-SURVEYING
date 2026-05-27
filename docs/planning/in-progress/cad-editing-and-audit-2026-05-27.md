@@ -312,3 +312,7 @@ media cloud upload (needs backend; local IDB covers single-device); L
   (orphaned components, cloud media, layer-delete undo). Holding further code
   changes to preserve the verified-stable state; remaining loop time goes to
   QA + watching for any real issue.
+- 2026-05-27 06:4x CDT — QA pass 2 GREEN: point-viewer-revert/menu/bulk +
+  export-download/layers/selection all pass together — the point-viewer
+  overhaul and export work coexist cleanly with this loop's changes. Running
+  a final broad regression of the remaining core specs toward 6 AM.
