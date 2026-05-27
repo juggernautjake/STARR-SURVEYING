@@ -137,6 +137,12 @@ Newly-discovered audit targets get appended here as `[ ]`.
   pre-existing ghost). Next: continue auditing — look for the next
   highest-value gap (e.g. extend the box/node affordance to SCALE, or a
   fresh audit sweep) until 9:00 PM, else finalize.
+- 2026-05-26 20:0x CDT — Regression + polish. Confirmed no regression from
+  the renderSelection change: existing `rotate-selection` + `toolbar-tools`
+  specs still pass. Added a `grab` hover cursor over the rotate grab-node
+  (discoverability) and `test.slow()` on the new spec to absorb the
+  dev-server cold-compile (the spec runs ~2.2m and was grazing the 120s
+  per-test timeout). tsc + eslint clean; `rotate-grabnode` passes.
 
 ---
 

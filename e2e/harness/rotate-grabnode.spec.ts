@@ -7,6 +7,9 @@ import { test, expect } from '@playwright/test';
 import { openHarness, createBlankDrawing, shot } from './_harness';
 
 test('ROTATE grab-node rotates a multi-point selection with a live readout', async ({ page }) => {
+  // First-hit dev-server compile of the harness route can run long; give
+  // this spec extra headroom so the cold-start doesn't trip the timeout.
+  test.slow();
   await openHarness(page);
   await createBlankDrawing(page);
 

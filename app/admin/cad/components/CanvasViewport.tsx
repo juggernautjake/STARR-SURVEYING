@@ -10383,6 +10383,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               setCursorStyle('default');
             }
           }
+        } else if (
+          toolStore.state.activeTool === 'ROTATE' &&
+          !rotateGrabRef.current &&
+          rotateHandleRef.current &&
+          Math.hypot(sx - rotateHandleRef.current.sx, sy - rotateHandleRef.current.sy) <= 12
+        ) {
+          // Hovering the selection rotate grab-node — show it's grabbable.
+          setCursorStyle('grab');
         } else if (toolStore.state.activeTool === 'ERASE') {
           // Erase tool: yellow when nothing under cursor, red when hovering erasable element
           setCursorStyle(hit ? SVG_CURSOR_ERASE_ACTIVE : SVG_CURSOR_ERASE_IDLE);
