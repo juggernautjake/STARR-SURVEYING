@@ -124,6 +124,11 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Done:** the PDF branch now composites the extracted frame onto a white canvas and embeds it as JPEG (q=0.85) with `jsPDF({ compress: true })`. White fill prevents transparent regions going black; line-work plots stay legible. PNG export is untouched (stays lossless).
   - **Verified on `/cad-harness`:** `export-pdf` spec passed — the PDF is a valid `%PDF` and dropped from **~11.5 MB → 88 KB** (~130× smaller). `tsc` + `eslint` clean.
 
+### Slice 16 — CAD: make Print "Plot Style" (Mono/Grayscale) actually work ✅ shipped
+- [x] The Print dialog's Plot Style dropdown (As Displayed / Monochrome / Grayscale) was ignored by the export — a dead setting.
+  - **Done:** `PrintDialog` now passes `plotStyle` in the export event; the export handler flattens onto white then applies the style — GRAYSCALE → per-pixel luma, MONOCHROME → luma thresholded to pure B/W — before producing the PNG/PDF. AS_DISPLAYED is unchanged.
+  - **Verified on `/cad-harness`:** new `export-plotstyle` spec selects Grayscale, exports a PNG, decodes it in-browser, and asserts **0 non-gray pixels** with 72k dark content pixels (real linework, not a blank sheet). `tsc` + `eslint` clean.
+
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
   - *Payroll hours* — `MyHoursPanel` (`/admin/me?tab=hours`): week strip → "+ Log Time" → work-type/hours/description → POST `/api/admin/time-logs` (server computes effective rate, status=pending) → admin approves in `/admin/hours-approval` (bulk approve/reject/adjust, dispute/resubmit). End-to-end real APIs + DB (`daily_time_logs`).

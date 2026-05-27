@@ -11338,9 +11338,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const pixi = pixiRef.current;
       if (!pixi) return;
       const detail = (e as CustomEvent).detail as
-        | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE' }
+        | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE'; plotStyle?: 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE' }
         | undefined;
       const format = detail?.format === 'pdf' ? 'pdf' : 'png';
+      const plotStyle = detail?.plotStyle ?? 'AS_DISPLAYED';
       const baseName =
         (useDrawingStore.getState().document.name || 'drawing').replace(/[^\w.-]+/g, '_') || 'drawing';
       const emit = (text: string) =>
@@ -11349,9 +11350,35 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // Force a fresh frame so the export reflects exactly what's on screen.
         pixi.app.render();
         const srcCanvas = pixi.app.renderer.extract.canvas(pixi.app.stage) as HTMLCanvasElement;
-        const dataUrl = srcCanvas.toDataURL('image/png');
-        if (!dataUrl || dataUrl === 'data:,') { emit('Export failed: empty canvas.'); return; }
+        const w = srcCanvas.width;
+        const h = srcCanvas.height;
+        if (!w || !h) { emit('Export failed: empty canvas.'); return; }
+
+        // Composite onto a white background (so transparent areas don't go
+        // black in JPEG / on paper), then apply the chosen Plot Style.
+        const flat = document.createElement('canvas');
+        flat.width = w;
+        flat.height = h;
+        const fctx = flat.getContext('2d');
+        if (!fctx) { emit('Export failed: canvas context unavailable.'); return; }
+        fctx.fillStyle = '#ffffff';
+        fctx.fillRect(0, 0, w, h);
+        fctx.drawImage(srcCanvas, 0, 0);
+
+        // Plot Style: GRAYSCALE → luma; MONOCHROME → luma threshold to B/W.
+        if (plotStyle === 'GRAYSCALE' || plotStyle === 'MONOCHROME') {
+          const img = fctx.getImageData(0, 0, w, h);
+          const px = img.data;
+          for (let i = 0; i < px.length; i += 4) {
+            const luma = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114);
+            const v = plotStyle === 'MONOCHROME' ? (luma < 128 ? 0 : 255) : luma;
+            px[i] = px[i + 1] = px[i + 2] = v;
+          }
+          fctx.putImageData(img, 0, 0);
+        }
+
         if (format === 'png') {
+          const dataUrl = flat.toDataURL('image/png');
           const a = Object.assign(document.createElement('a'), { href: dataUrl, download: `${baseName}.png` });
           a.click();
           emit('Exported PNG.');
@@ -11359,28 +11386,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           void (async () => {
             try {
               const { jsPDF } = await import('jspdf');
-              const w = srcCanvas.width;
-              const h = srcCanvas.height;
-              // Composite onto white and embed as JPEG: a survey plot is line
-              // work on white, so JPEG compresses an order of magnitude smaller
-              // than the raw PNG while staying legible. (White fill also keeps
-              // transparent areas from going black in JPEG.)
-              let imgData = dataUrl;
-              let imgFormat: 'PNG' | 'JPEG' = 'PNG';
-              const flat = document.createElement('canvas');
-              flat.width = w;
-              flat.height = h;
-              const fctx = flat.getContext('2d');
-              if (fctx) {
-                fctx.fillStyle = '#ffffff';
-                fctx.fillRect(0, 0, w, h);
-                fctx.drawImage(srcCanvas, 0, 0);
-                imgData = flat.toDataURL('image/jpeg', 0.85);
-                imgFormat = 'JPEG';
-              }
+              // JPEG embed: a survey plot is line work on white, so JPEG
+              // compresses an order of magnitude smaller than a raw PNG while
+              // staying legible.
+              const imgData = flat.toDataURL('image/jpeg', 0.85);
               const orientation = (detail?.orientation === 'PORTRAIT' ? 'portrait' : 'landscape') as 'portrait' | 'landscape';
               const pdf = new jsPDF({ orientation, unit: 'pt', format: [w, h], compress: true });
-              pdf.addImage(imgData, imgFormat, 0, 0, w, h);
+              pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
               pdf.save(`${baseName}.pdf`);
               emit('Exported PDF.');
             } catch (err) {
