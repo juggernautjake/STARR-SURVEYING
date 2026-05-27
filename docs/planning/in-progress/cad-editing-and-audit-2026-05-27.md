@@ -338,3 +338,12 @@ media cloud upload (needs backend; local IDB covers single-device); L
   `__tests__/recon/phase16-worker-sync.test.ts` — the recon/worker Supabase
   subsystem, untouched by this branch; identical to main, pre-existing/out of
   scope). Holding further changes; remaining loop time is QA toward 6 AM.
+- 2026-05-27 05:3x CDT — Comprehensive QA gate re-run GREEN after the
+  drawingMenu fix: 9 specs together — box-select, canvas + native context
+  menus, hidden/locked-layer draw guards, import-reset, wired-shortcuts,
+  command-selectall, command-fitpage — all pass (13.8m). Also re-verified the
+  AI grounding data path: `buildSnapshot` (drawing-chat.ts:835-848) emits
+  EVERY existing point with its EXACT survey northing/easting (world+origin),
+  pt number, code, and layer (capped MAX_POINTS, pointsTruncated flag) — so
+  the "AI placed random points" fix is real on the data side, not just the
+  prompt. Backlog complete; holding code changes, awaiting 06:00 to finalize.
