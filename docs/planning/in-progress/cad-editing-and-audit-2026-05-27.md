@@ -293,3 +293,13 @@ media cloud upload (needs backend; local IDB covers single-device); L
   Verified (`box-select.spec`): drag selects both points; empty click
   deselects. This was previously listed as an attended decision — resolving
   it was safe once pan-availability + click-deselect were confirmed.
+- 2026-05-27 06:1x CDT — Continued audit, verified-clean: manual Save (clears
+  dirty on success, retains on failure for retry, success toast), DIM tool
+  (two-click inverse bearing/distance annotation), point-click selection
+  still works after the box-select change (rotate-selection + copy-tool pass).
+  The major user pain points are all resolved: import reliability, right-click
+  menu reliability + native suppression, layer-draw safety + delete confirm,
+  point-label order, line-symbol overlay + infinity tilt, box-select, and the
+  full media-attachment feature. Remaining (attended-only, documented):
+  orphaned editor components (L), media cloud upload, layer-delete undo,
+  orphaned-media GC. Tree green: 1298 CAD unit tests; ~15 new harness specs.
