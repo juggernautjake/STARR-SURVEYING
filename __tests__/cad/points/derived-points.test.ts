@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { collectDerivedPoints } from '@/lib/cad/points/derived-points';
 import { buildPnezdAscii, buildCsvRows } from '@/lib/cad/persistence/export-csv';
+import { transformFeature, rotate } from '@/lib/cad/geometry/transform';
 import type { DrawingDocument, Feature } from '@/lib/cad/types';
 
 function pt(id: string, name: string, x: number, y: number): Feature {
@@ -62,6 +63,23 @@ describe('collectDerivedPoints', () => {
     ]);
     // 255 has a POINT feature → skip; 300 appears twice → once; 301 once.
     expect(collectDerivedPoints(d).map((p) => p.name).sort()).toEqual(['300', '301']);
+  });
+});
+
+describe('created points survive a rotation', () => {
+  it('keeps vertex names after transformFeature(rotate) and exports at the new coords', () => {
+    const a = { x: 5, y: 5 }, b = { x: 9, y: 9 };
+    const L = line('L', 'BOUNDARY', ['300', '301'], a, b);
+    // Rotate 90° CCW about the origin: {5,5}→{-5,5}, {9,9}→{-9,9}.
+    const rotated = transformFeature(L, (p) => rotate(p, { x: 0, y: 0 }, Math.PI / 2));
+    const d = doc([rotated]);
+    const out = collectDerivedPoints(d);
+    // Names preserved (pointRefs ride through transformFeature)…
+    expect(out.map((p) => p.name).sort()).toEqual(['300', '301']);
+    // …at the rotated coordinates.
+    const p300 = out.find((p) => p.name === '300')!;
+    expect(p300.x).toBeCloseTo(-5, 6);
+    expect(p300.y).toBeCloseTo(5, 6);
   });
 });
 

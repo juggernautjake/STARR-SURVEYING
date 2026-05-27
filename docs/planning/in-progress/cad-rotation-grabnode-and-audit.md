@@ -191,6 +191,14 @@ Newly-discovered audit targets get appended here as `[ ]`.
   the faint original-position circles beside the rotated solid points;
   spec passes; 1284 CAD tests + tsc + eslint clean. The §15/§17c rotation
   ask is now fully delivered across BOTH on-canvas rotation styles.
+- 2026-05-26 20:3x CDT — Hardening + cross-feature test. (1) Grab-start now
+  clears any half-started two-click pivot so a stray rotation can't fire
+  after the grab commits. (2) Added a unit test proving created points
+  survive rotation: `transformFeature(rotate)` preserves `pointRefs`, so
+  `collectDerivedPoints` still returns the names at the new coords — the
+  rotation+points+export paths compose. (3) Broad harness regression batch
+  (shell, property-panel, copy-tool, delete-undo) all green. Everything
+  this session is verified.
 
 ---
 
