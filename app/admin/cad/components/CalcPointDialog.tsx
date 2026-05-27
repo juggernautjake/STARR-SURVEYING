@@ -99,11 +99,17 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
         const ad = alongDistance.trim() === '' ? 0 : parseFloat(alongDistance);
         if (!Number.isFinite(ad)) return setError('Along-distance must be numeric or blank.');
         r = calcPointParallelToLine(points[0].point, points[1].point, points[2].point, pd, side, ad);
+      } else {
+        // Exhaustiveness guard: every `Method` in the union above is handled.
+        // If a new method is added to the type without a branch here, this
+        // line fails to compile — so the dialog can never silently no-op.
+        const unhandled: never = method;
+        return setError(`Unsupported calc method: ${String(unhandled)}.`);
       }
     } catch (e) {
       return setError(e instanceof Error ? e.message : 'Solver threw an unexpected error.');
     }
-    if (!r) return setError('Method not implemented.');
+    if (!r) return setError('No result — check the selected points and inputs, then try again.');
     if (!r.ok) return setError(r.reason);
     setResult(r.point);
   }

@@ -38,8 +38,10 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Verified:** `e2e/harness/export-pdf.spec.ts` asserts a `%PDF-` download. `tsc` + `eslint` clean.
   - **Follow-up (noted, not blocking):** the embedded raster is full device-resolution so the PDF is large (~11 MB). A later slice can downscale / JPEG-compress the image for smaller files.
 
-### Slice 3 — CAD: CalcPointDialog error clarity
-- [ ] Audit the calc-point method switch; ensure every selectable method maps to a solver, and replace the generic `'Method not implemented.'` with either the correct solver call or a precise message. Confirm the dialog can't reach the fallback for any method exposed in its own UI.
+### Slice 3 — CAD: CalcPointDialog error clarity ✅ shipped
+- [x] Audit the calc-point method switch; ensure every selectable method maps to a solver, and replace the generic `'Method not implemented.'`.
+  - **Audit result:** the `<select>` exposes exactly the 4 `Method` union members and the `compute()` chain handles all 4 — so `'Method not implemented.'` was unreachable dead code.
+  - **Done:** replaced the trailing branch with a `const unhandled: never = method` exhaustiveness guard (compile-time safety if a 5th method is ever added to the union without a branch) and changed the post-switch null guard to a precise, actionable message. `tsc` + `eslint` clean.
 
 ### Slice 4 — Dashboard: live Jobs + Payroll summary tiles
 - [ ] Replace the `--` placeholders and "coming soon" notes on the dashboard Jobs and Finances cards with real counts pulled from existing APIs (active jobs, hours this week / period, PTO balance). Keep graceful empty states when the user has no data. Verify rendering for an admin and a field-crew role.
