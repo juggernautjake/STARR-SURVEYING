@@ -55,8 +55,10 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Audit result:** false positive — the chat is fully implemented. `ChatPanel` is wired to `useAIStore.sendChatMessage` / `executeChatAction` with quick actions (Update This Element / Redraw This Group / Redraw Full Drawing) and per-message Apply buttons. Only the file's header comment was stale ("…land in the next slice … Chat (coming soon) placeholder").
   - **Done:** corrected the header comment to describe the shipped chat section. No functional change; `tsc` already exercises the live wiring.
 
-### Slice 6 — Research: ExportPanel "Coming Soon" format
-- [ ] Investigate the disabled export format; implement it if the underlying writer exists (`lib/cad/delivery/*`), otherwise remove the teaser so the panel only shows working options.
+### Slice 6 — Research: ExportPanel "Coming Soon" format ✅ shipped (false positive + real mime fix)
+- [x] Investigate the disabled export format.
+  - **Audit result:** every `FORMAT_OPTIONS` entry (svg / json / png / pdf / dxf) is `available: true`, so the `{!opt.available && <span>Coming Soon</span>}` badge never renders — no misleading teaser is shown. The server route fully implements all five (`renderToPng/renderToPdf/renderToDxf` + svg/json) so `available: true` is truthful. The `available` flag is kept as a reasonable forward guard.
+  - **Real fix found + shipped:** the client download map in `handleExportDrawing` (research project page) omitted the `dxf` mime, so DXF downloads fell back to `application/octet-stream`. Added `dxf: 'image/vnd.dxf'` (IANA-registered) so the blob carries the correct content type. `tsc` + `eslint` clean.
 
 ### Slice 7 — Learn: exam-prep empty states
 - [ ] RPLS "Coming Soon" card and SIT "Content coming soon" — make these honest, non-dead-end states (clear messaging + a link to available content) rather than inert teasers.
