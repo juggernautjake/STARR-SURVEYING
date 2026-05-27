@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 import Link from 'next/link';
-import UnderConstruction from '../components/messaging/UnderConstruction';
 import JobCard, { STAGE_CONFIG, SURVEY_TYPES } from '../components/jobs/JobCard';
 import Tooltip from '../research/components/Tooltip';
 
@@ -95,10 +94,6 @@ export default function AllJobsPage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="Job Management"
-        description="Track every survey job from quote to delivery. Manage crews, equipment, research, drawings, and payments all in one place."
-      />
 
       <div className="jobs-page">
         {/* Header */}

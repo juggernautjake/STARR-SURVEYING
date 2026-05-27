@@ -71,3 +71,13 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
 ## Continuous-improvement backlog (appended as the sweep continues)
 
 > Once the slices above are shipped, keep auditing and appending new slices here (build quality, a11y, error states, loading states, empty states, dead code, console noise, etc.). The Stop-hook loop keeps this doc active until it's moved to `completed/`.
+
+### Slice 8 — Remove stale "Under Construction" banner from fully-built pages ✅ shipped (core batch; rest in progress)
+- [x] The `messaging/UnderConstruction` banner ("Components below are being built. Some may not be fully functional yet.") was copy-pasted atop many fully-functional pages, falsely telling users core features are incomplete.
+  - **Done — removed from confirmed-complete core pages:** `jobs/page.tsx`, `jobs/[id]/page.tsx` (896 lines, 52 hooks), `my-jobs/MyJobsPanel.tsx`, `my-pay/MyPayPanel.tsx` (both render spots), `payroll/page.tsx`, `payroll/[email]/page.tsx`. All are rich, data-driven, shipped features (the dashboard links to them as live). Removed the banner + now-unused imports. `tsc` + `eslint` clean.
+- [ ] **Remaining banner pages — evaluate build-completeness before removing (per user: build out if incomplete):** `messages/*` (new/contacts/settings/[conversationId]), `my-files`, `jobs/new`, `assignments` (these fetch real data → likely complete), and the **zero-fetch** pages `settings`, `leads`, `schedule`, `notes` (suspected static/mock stubs — verify and build out the data layer if so, otherwise the banner stays accurate).
+
+### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
+- [ ] **Hours logging** — make logging hours work well and be *super easy*. Audit the time-entry UX (`my-hours`, `hours-approval`, job time tracker) end-to-end.
+- [ ] **Receipts** — ensure the receipt-recording pages/systems work great (`receipts`, mileage, expense capture).
+- [ ] **Job attachments** — ensure CAD drawings and receipts can be attached to specific jobs.

@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
-import UnderConstruction from '../../components/messaging/UnderConstruction';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import JobFileManager from '../../components/jobs/JobFileManager';
@@ -347,10 +346,6 @@ export default function JobDetailPage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="Job Detail"
-        description="Full job view with stage tracking, crew management, research, field work, files, financials, and job messaging."
-      />
 
       {/* Job Header */}
       <div className="job-detail__header">

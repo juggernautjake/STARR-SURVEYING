@@ -7,7 +7,6 @@ import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
-import UnderConstruction from '../../components/messaging/UnderConstruction';
 import RaiseHistory from '../../components/payroll/RaiseHistory';
 import CertificationsPanel from '../../components/payroll/CertificationsPanel';
 import BalanceCard from '../../components/payroll/BalanceCard';
@@ -123,7 +122,6 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
 
   return (
     <div className="payroll-page">
-      <UnderConstruction feature="Employee Pay Detail" description="View and manage employee pay rates, certifications, raises, and balance." />
 
       {/* Header */}
       <div className="payroll-emp-detail__header">
