@@ -12279,7 +12279,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       {/* Drawing-mode mini-menu (shown on right-click during DRAW_POLYGON) */}
       {drawingMenu && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setDrawingMenu(null)} />
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setDrawingMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setDrawingMenu(null); }}
+          />
           <div
             className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 text-xs text-gray-200 min-w-[160px]"
             style={{ top: drawingMenu.y, left: drawingMenu.x }}

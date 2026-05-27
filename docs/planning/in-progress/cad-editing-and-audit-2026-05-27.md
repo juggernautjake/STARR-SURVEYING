@@ -327,3 +327,14 @@ media cloud upload (needs backend; local IDB covers single-device); L
   overlay. Verified: canvas menu opens on right-click + dismisses on click
   (canvas-contextmenu); menu-item clicks still run (canvas-media). tsc+eslint
   clean.
+- 2026-05-27 05:2x CDT — Menu-dismiss consistency follow-up: the DRAW_POLYGON
+  "Drawing Polygon" mini-menu's full-screen overlay only had `onClick`
+  (dismisses on left-click) but no `onContextMenu`, so a right-click elsewhere
+  wouldn't close it — unlike every other overlay menu (LayerPanel,
+  PointDataViewer, title-block) which already handle both. Added
+  `onContextMenu` (preventDefault + close) to match. tsc clean (only the
+  benign stale `.next/types` cache note); `canvas-contextmenu` still passes.
+  Full unit suite: all CAD green (the only 14 failures are in
+  `__tests__/recon/phase16-worker-sync.test.ts` — the recon/worker Supabase
+  subsystem, untouched by this branch; identical to main, pre-existing/out of
+  scope). Holding further changes; remaining loop time is QA toward 6 AM.
