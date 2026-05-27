@@ -274,3 +274,13 @@ media cloud upload (needs backend; local IDB covers single-device); L
   known Playwright trigger limitation — so verified by logic + the proven
   confirmAction pattern.) Noted: layer deletion being non-undoable is a
   deeper gap (would need a layer-level undo op) — left for an attended pass.
+- 2026-05-27 05:5x CDT — Audit + QA pass. Verified-clean (no bug): TEXT-tool
+  commit (guards empty), vertex grip-drag (proper MODIFY_FEATURE undo),
+  TraverseViewer edits (validated + undoable), layer-panel bulk actions (all
+  reversible — no un-confirmed destructive op besides layer-delete, now
+  guarded). Broad regression batch — import-full, import-reset,
+  hidden/locked-layer-draw, canvas-contextmenu, wired-shortcuts — all pass
+  together. Cloud media upload confirmed as attended-only (round-trip not
+  verifiable headless; local IDB covers single-device). Backlog A–F shipped,
+  E comprehensive, G–K audited+fixed; L + cloud-media + box-select-default +
+  layer-delete-undo deferred-with-rationale for an attended pass.
