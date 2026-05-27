@@ -172,3 +172,10 @@ Newly-discovered audit targets get appended here as `[ ]`.
   deferred from the unattended loop to avoid wiring them into the wrong spot
   or exposing incomplete flows. (PrintDialog was the same class and HAS now
   been wired this loop.)
+- 2026-05-27 03:3x CDT — G/K inconsistency: SELECT-tool command hint said
+  "drag to box-select", but a plain empty-canvas drag PANS (box-select needs
+  Shift+drag; pan also via middle-mouse / space+drag). Corrected the hint to
+  match actual behavior. Open UX question (deferred, attended): many CAD apps
+  make a plain left-drag box-select and reserve pan for middle/space — worth
+  deciding whether to flip the default. parseCSV + PropertyPanel audited, no
+  bugs. Full CAD suite green (1294).

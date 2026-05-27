@@ -96,7 +96,7 @@ function parseCommand(raw: string): ParsedCommand {
 function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown, regularPolygonSides?: number): string {
   switch (activeTool) {
     case 'SELECT':
-      return 'Click to select, Shift+click to add/remove, drag to box-select, or type a command';
+      return 'Click to select · Shift+click to add/remove · Shift+drag to box-select · drag to pan · or type a command';
     case 'PAN':
       return 'Click and drag to pan. Scroll to zoom. Middle-mouse drag also pans. Press S to return to Select.';
     case 'DRAW_POINT':
