@@ -335,16 +335,24 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       if (e.key === 'Escape') onCloseRef.current();
     }
     const raf = requestAnimationFrame(() => {
-      // Both pointer and mouse presses so an outside click always dismisses,
-      // regardless of which event the environment fires.
+      // Listen on every press/click event an environment might deliver so an
+      // outside interaction always dismisses. `click` is the reliable
+      // catch-all (fires even if pointerdown/mousedown are swallowed); a
+      // right-press doesn't emit `click`, so this never self-closes on open.
+      // `contextmenu` lets a right-click elsewhere close this menu before the
+      // canvas reopens one at the new spot.
       window.addEventListener('pointerdown', onOutside, true);
       window.addEventListener('mousedown', onOutside, true);
+      window.addEventListener('click', onOutside, true);
+      window.addEventListener('contextmenu', onOutside, true);
       window.addEventListener('keydown', onKey);
     });
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointerdown', onOutside, true);
       window.removeEventListener('mousedown', onOutside, true);
+      window.removeEventListener('click', onOutside, true);
+      window.removeEventListener('contextmenu', onOutside, true);
       window.removeEventListener('keydown', onKey);
     };
   }, []);

@@ -1700,7 +1700,7 @@ function SourceListContextMenu(props: {
   // Dismiss on outside click + Escape. Listeners use capture
   // phase so the dialog's focus trap doesn't eat the events.
   useEffect(() => {
-    const onPointer = (e: PointerEvent) => {
+    const onPointer = (e: Event) => {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(e.target as Node)) props.onClose();
     };
@@ -1712,9 +1712,15 @@ function SourceListContextMenu(props: {
       }
     };
     window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('mousedown', onPointer, true);
+    window.addEventListener('click', onPointer, true);
+    window.addEventListener('contextmenu', onPointer, true);
     window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('mousedown', onPointer, true);
+      window.removeEventListener('click', onPointer, true);
+      window.removeEventListener('contextmenu', onPointer, true);
       window.removeEventListener('keydown', onKey, true);
     };
   }, [props]);

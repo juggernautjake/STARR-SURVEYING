@@ -316,3 +316,14 @@ media cloud upload (needs backend; local IDB covers single-device); L
   export-download/layers/selection all pass together — the point-viewer
   overhaul and export work coexist cleanly with this loop's changes. Running
   a final broad regression of the remaining core specs toward 6 AM.
+- 2026-05-27 (post-restart) — Menu-dismiss hardening (user re-reported popups
+  "sometimes" not closing). Beyond the earlier render-race fix, added `click`
+  (the reliable catch-all — fires even if pointerdown/mousedown are swallowed;
+  a right-press emits no click so it can't self-close on open) and
+  `contextmenu` (right-click elsewhere closes before the canvas reopens) to
+  the listener-based menus: FeatureContextMenu, PickModeContextMenu,
+  SourceListContextMenu. Overlay-based menus (LayerPanel, PointDataViewer,
+  title-block, drawing) already catch a normal click via their full-screen
+  overlay. Verified: canvas menu opens on right-click + dismisses on click
+  (canvas-contextmenu); menu-item clicks still run (canvas-media). tsc+eslint
+  clean.

@@ -61,18 +61,26 @@ export default function PickModeContextMenu({
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
   useEffect(() => {
-    function onDown(e: MouseEvent) {
+    function onDown(e: Event) {
       if (ref.current && !ref.current.contains(e.target as Node)) onCloseRef.current();
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onCloseRef.current();
     }
-    // Defer so the right-click that opened the menu doesn't immediately close it.
-    const t = setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+    // Defer so the right-click that opened the menu doesn't immediately close
+    // it. `click` is the reliable catch-all; `contextmenu` closes on a
+    // right-click elsewhere. (A right-press emits no `click`, so no self-close.)
+    const t = setTimeout(() => {
+      document.addEventListener('mousedown', onDown);
+      document.addEventListener('click', onDown, true);
+      document.addEventListener('contextmenu', onDown, true);
+    }, 0);
     document.addEventListener('keydown', onKey);
     return () => {
       clearTimeout(t);
       document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('click', onDown, true);
+      document.removeEventListener('contextmenu', onDown, true);
       document.removeEventListener('keydown', onKey);
     };
   }, []);
