@@ -48,8 +48,8 @@ export default function LayerTransferDialog({ onClose }: Props) {
   // Source mode — picks vs. type-ids tabs. Local because
   // switching is purely a UI affordance that preserves the
   // picked set. Defaults to PICK.
-  const [sourceMode, setSourceMode] = useState<'PICK' | 'TYPE' | 'SEARCH'>('PICK');
-  // Point-search query for the SEARCH source mode — prefix auto-find.
+  const [sourceMode, setSourceMode] = useState<'PICK' | 'TYPE'>('PICK');
+  // Always-on point filter — live prefix auto-find, no execute button.
   const [pointSearch, setPointSearch] = useState('');
   // Phase 8 §11.7 Slice 18 — right-click context menu on
   // source-list rows. `target` carries the feature id the
@@ -515,20 +515,76 @@ export default function LayerTransferDialog({ onClose }: Props) {
                   <Hash size={12} />
                   Type IDs
                 </button>
-                <button
-                  onClick={() => { setSourceMode('SEARCH'); setPickModeActive(false); }}
-                  className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border transition-colors ${
-                    sourceMode === 'SEARCH'
-                      ? 'bg-gray-600 border-gray-500 text-white'
-                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
-                  }`}
-                  title="Search points by number, code, or description and click to add"
-                >
-                  <Search size={12} />
-                  Search
-                </button>
               </div>
             </div>
+
+            {/* Always-on point filter — just a text field that filters the
+                drawing's points live as you type (no search button). Results
+                appear only while there's a query so the panel stays compact. */}
+            {pointCatalog.length > 0 && (
+              <div className="mb-2">
+                <div className="relative">
+                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={pointSearch}
+                    onChange={(e) => setPointSearch(e.target.value)}
+                    placeholder="Filter points by number… (8 → 8, 80, 87fnd)"
+                    className="w-full h-7 pl-7 pr-7 bg-gray-900 border border-gray-700 rounded text-[11px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  />
+                  {pointSearch && (
+                    <button
+                      onClick={() => setPointSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                      aria-label="Clear filter"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+                {pointSearch.trim() !== '' && (
+                  <div className="mt-1 bg-gray-900 border border-gray-700 rounded max-h-[160px] overflow-y-auto">
+                    {pointSearchResults.length === 0 ? (
+                      <p className="text-[11px] text-gray-500 text-center py-3">No points match &ldquo;{pointSearch}&rdquo;.</p>
+                    ) : (
+                      <ul>
+                        {pointSearchResults.slice(0, 200).map((p) => {
+                          const picked = pickedIds.has(p.id);
+                          return (
+                            <li key={p.id}>
+                              <button
+                                data-testid="point-search-result"
+                                onClick={() => (picked ? removePick(p.id) : addPick(p.id))}
+                                className={`w-full text-left px-2 py-1 flex items-center gap-2 transition-colors ${
+                                  picked ? 'bg-blue-600/20 hover:bg-blue-600/30' : 'hover:bg-gray-800'
+                                }`}
+                              >
+                                <span className={`shrink-0 w-3 text-[10px] ${picked ? 'text-blue-400' : 'text-gray-600'}`}>
+                                  {picked ? '✓' : ''}
+                                </span>
+                                <span className="font-mono text-[11px] text-gray-200 shrink-0">{p.number || '—'}</span>
+                                {p.code && <span className="text-[10px] text-amber-400 shrink-0">{p.code}</span>}
+                                {p.description && (
+                                  <span className="text-[10px] text-gray-400 truncate min-w-0">{p.description}</span>
+                                )}
+                                {p.layerName && (
+                                  <span className="ml-auto text-[10px] text-gray-600 shrink-0">{p.layerName}</span>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
+                        {pointSearchResults.length > 200 && (
+                          <li className="text-[10px] text-gray-500 italic px-2 py-1">
+                            Showing first 200 of {pointSearchResults.length} — refine your filter.
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {sourceMode === 'PICK' && (
               <div className="flex items-center justify-end mb-1">
@@ -554,72 +610,6 @@ export default function LayerTransferDialog({ onClose }: Props) {
             )}
 
             {sourceMode === 'TYPE' && <TypeIdsField />}
-
-            {sourceMode === 'SEARCH' && (
-              <div className="mb-2">
-                <div className="relative">
-                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                  <input
-                    type="text"
-                    autoFocus
-                    value={pointSearch}
-                    onChange={(e) => setPointSearch(e.target.value)}
-                    placeholder="Search points… (e.g. 8 → 8, 80, 87fnd)"
-                    className="w-full h-7 pl-7 pr-7 bg-gray-900 border border-gray-700 rounded text-[11px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                  />
-                  {pointSearch && (
-                    <button
-                      onClick={() => setPointSearch('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                      aria-label="Clear search"
-                    >
-                      <X size={11} />
-                    </button>
-                  )}
-                </div>
-                <div className="mt-1 bg-gray-900 border border-gray-700 rounded max-h-[160px] overflow-y-auto">
-                  {pointCatalog.length === 0 ? (
-                    <p className="text-[11px] text-gray-500 text-center py-3">No points in this drawing.</p>
-                  ) : pointSearchResults.length === 0 ? (
-                    <p className="text-[11px] text-gray-500 text-center py-3">No points match &ldquo;{pointSearch}&rdquo;.</p>
-                  ) : (
-                    <ul>
-                      {pointSearchResults.slice(0, 200).map((p) => {
-                        const picked = pickedIds.has(p.id);
-                        return (
-                          <li key={p.id}>
-                            <button
-                              data-testid="point-search-result"
-                              onClick={() => (picked ? removePick(p.id) : addPick(p.id))}
-                              className={`w-full text-left px-2 py-1 flex items-center gap-2 transition-colors ${
-                                picked ? 'bg-blue-600/20 hover:bg-blue-600/30' : 'hover:bg-gray-800'
-                              }`}
-                            >
-                              <span className={`shrink-0 w-3 text-[10px] ${picked ? 'text-blue-400' : 'text-gray-600'}`}>
-                                {picked ? '✓' : ''}
-                              </span>
-                              <span className="font-mono text-[11px] text-gray-200 shrink-0">{p.number || '—'}</span>
-                              {p.code && <span className="text-[10px] text-amber-400 shrink-0">{p.code}</span>}
-                              {p.description && (
-                                <span className="text-[10px] text-gray-400 truncate min-w-0">{p.description}</span>
-                              )}
-                              {p.layerName && (
-                                <span className="ml-auto text-[10px] text-gray-600 shrink-0">{p.layerName}</span>
-                              )}
-                            </button>
-                          </li>
-                        );
-                      })}
-                      {pointSearchResults.length > 200 && (
-                        <li className="text-[10px] text-gray-500 italic px-2 py-1">
-                          Showing first 200 of {pointSearchResults.length} — refine your search.
-                        </li>
-                      )}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            )}
 
             <div
               className="bg-gray-900 border border-gray-700 rounded p-2 max-h-[160px] overflow-y-auto"

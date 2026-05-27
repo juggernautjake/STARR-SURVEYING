@@ -18,25 +18,25 @@ test('point search filters results and adds a point to the picks', async ({ page
   await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.55);
   await page.waitForTimeout(150);
 
-  // Open the Send to Layer dialog and switch to Search mode.
+  // Open the Send to Layer dialog. The point filter is an always-on text
+  // field (no Search tab / button) that filters live as you type.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('cad:openLayerTransfer')));
   await expect(page.getByText('Send to Layer')).toBeVisible();
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
 
-  const input = page.getByPlaceholder(/Search points/);
+  const input = page.getByPlaceholder(/Filter points/);
   await expect(input).toBeVisible();
 
-  // Both drawn points are listed.
   const results = page.getByTestId('point-search-result');
-  await expect(results).toHaveCount(2);
+  // Results appear only while there is a query.
+  await expect(results).toHaveCount(0);
 
   // A non-matching query shows the empty state…
   await input.fill('zzz');
   await expect(page.getByText(/No points match/)).toBeVisible();
 
-  // …and clearing restores the full list.
-  await input.fill('');
-  await expect(results).toHaveCount(2);
+  // …and a matching prefix filters live (drawn points are numbered from 1).
+  await input.fill('1');
+  await expect(results.first()).toBeVisible();
   await shot(page, 'point-search');
 
   // Clicking a result adds it to the picks.
