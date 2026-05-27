@@ -11331,6 +11331,52 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:scale', onScale);
     window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
 
+    // ── Raster export: extract the live Pixi frame to PNG (and PDF) ────────
+    // PrintDialog dispatches cad:exportImage; the canvas owns the renderer so
+    // it does the pixel extraction here and triggers a download.
+    const onExportImage = (e: Event) => {
+      const pixi = pixiRef.current;
+      if (!pixi) return;
+      const detail = (e as CustomEvent).detail as
+        | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE' }
+        | undefined;
+      const format = detail?.format === 'pdf' ? 'pdf' : 'png';
+      const baseName =
+        (useDrawingStore.getState().document.name || 'drawing').replace(/[^\w.-]+/g, '_') || 'drawing';
+      const emit = (text: string) =>
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+      try {
+        // Force a fresh frame so the export reflects exactly what's on screen.
+        pixi.app.render();
+        const srcCanvas = pixi.app.renderer.extract.canvas(pixi.app.stage) as HTMLCanvasElement;
+        const dataUrl = srcCanvas.toDataURL('image/png');
+        if (!dataUrl || dataUrl === 'data:,') { emit('Export failed: empty canvas.'); return; }
+        if (format === 'png') {
+          const a = Object.assign(document.createElement('a'), { href: dataUrl, download: `${baseName}.png` });
+          a.click();
+          emit('Exported PNG.');
+        } else {
+          void (async () => {
+            try {
+              const { jsPDF } = await import('jspdf');
+              const w = srcCanvas.width;
+              const h = srcCanvas.height;
+              const orientation = (detail?.orientation === 'PORTRAIT' ? 'portrait' : 'landscape') as 'portrait' | 'landscape';
+              const pdf = new jsPDF({ orientation, unit: 'pt', format: [w, h] });
+              pdf.addImage(dataUrl, 'PNG', 0, 0, w, h);
+              pdf.save(`${baseName}.pdf`);
+              emit('Exported PDF.');
+            } catch (err) {
+              emit('PDF export failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+            }
+          })();
+        }
+      } catch (err) {
+        emit('Export failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+      }
+    };
+    window.addEventListener('cad:exportImage', onExportImage);
+
     // ── Interactive rotate: cursor drives rotation in real-time ────────────
     const onStartInteractiveRotate = (e: Event) => {
       const detail = (e as CustomEvent).detail as { pivot?: Point2D } | undefined;
@@ -11594,6 +11640,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
+      window.removeEventListener('cad:exportImage', onExportImage);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
       window.removeEventListener('cad:deleteSelection', onDeleteSelection);

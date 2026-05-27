@@ -202,7 +202,12 @@ export default function PrintDialog({ onClose }: Props) {
             Export PDF
           </button>
           <button
-            onClick={() => window.alert('PNG export coming soon')}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('cad:exportImage', {
+                detail: { format: 'png', paperSize: cfg.paperSize, orientation: cfg.orientation },
+              }));
+              onClose();
+            }}
             className="px-4 py-1.5 text-xs rounded bg-green-700 hover:bg-green-600 transition-colors"
           >
             Export PNG
