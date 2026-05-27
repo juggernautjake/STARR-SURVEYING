@@ -135,6 +135,12 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Verified on `/cad-harness`:** new `export-elements` spec exports all-on (67,702 dark px) then Title-Block-off (20,704 dark px) → ~69% less ink, proving the toggle removes the title block. `tsc` + `eslint` clean.
 - ~~Border / Legend / Certification / Notes toggles~~ — deferred: these aren't discrete Pixi containers (the border is part of the shared paper layer; legend/cert/notes aren't separately rendered objects), so honoring them needs a render-pipeline refactor disproportionate to the value. The three high-ink furniture toggles (title block, north arrow, scale bar) cover the common print-customisation need.
 
+### Slice 18 — CAD: size exported PDF to the selected paper + fit the drawing ✅ shipped
+- [x] The PDF page was sized to the raw canvas pixel dimensions, ignoring the dialog's Paper Size / Orientation / Center-on-Page — so it wasn't a real plot sheet.
+  - **Done:** the export now builds the jsPDF page from `PAPER_DIMENSIONS` (inches × 72 pt) for the chosen size + orientation, and fits the captured image into it preserving aspect ratio with a 0.25" margin — centered, or top-left when Center-on-Page is off.
+  - **Verified on `/cad-harness`:** extended `export-pdf` spec parses the PDF MediaBox and asserts **1224 × 792 pt** (Tabloid Landscape) while staying ~88 KB. `tsc` + `eslint` clean.
+  - **Note:** PNG export stays a raw raster of the frame (paper sizing is a PDF/plot concept); Scale Mode "Fit to Page" is effectively what the aspect-fit does, and fixed-scale plotting (true 1"=N' on paper) remains a larger future item.
+
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
   - *Payroll hours* — `MyHoursPanel` (`/admin/me?tab=hours`): week strip → "+ Log Time" → work-type/hours/description → POST `/api/admin/time-logs` (server computes effective rate, status=pending) → admin approves in `/admin/hours-approval` (bulk approve/reject/adjust, dispute/resubmit). End-to-end real APIs + DB (`daily_time_logs`).

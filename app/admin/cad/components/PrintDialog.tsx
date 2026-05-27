@@ -198,7 +198,7 @@ export default function PrintDialog({ onClose }: Props) {
           <button
             onClick={() => {
               window.dispatchEvent(new CustomEvent('cad:exportImage', {
-                detail: { format: 'pdf', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, elements: { titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar } },
+                detail: { format: 'pdf', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, centerOnPage: cfg.centerOnPage, elements: { titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar } },
               }));
               onClose();
             }}

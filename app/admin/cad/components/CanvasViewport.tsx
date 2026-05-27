@@ -56,6 +56,7 @@ import { generateId } from '@/lib/cad/types';
 import type { ImageGeometry } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { PAPER_DIMENSIONS } from '@/lib/cad/templates/types';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
@@ -11339,6 +11340,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (!pixi) return;
       const detail = (e as CustomEvent).detail as
         | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE'; plotStyle?: 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
+            paperSize?: keyof typeof PAPER_DIMENSIONS; centerOnPage?: boolean;
             elements?: { titleBlock?: boolean; northArrow?: boolean; scaleBar?: boolean } }
         | undefined;
       const format = detail?.format === 'pdf' ? 'pdf' : 'png';
@@ -11409,8 +11411,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // staying legible.
               const imgData = flat.toDataURL('image/jpeg', 0.85);
               const orientation = (detail?.orientation === 'PORTRAIT' ? 'portrait' : 'landscape') as 'portrait' | 'landscape';
-              const pdf = new jsPDF({ orientation, unit: 'pt', format: [w, h], compress: true });
-              pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
+              // Size the page to the selected paper (points = inches × 72) so
+              // the PDF is a real plot sheet, then fit the captured image into
+              // it preserving aspect ratio (centered, or top-left margin).
+              const dim = PAPER_DIMENSIONS[detail?.paperSize ?? 'TABLOID'] ?? PAPER_DIMENSIONS.TABLOID;
+              const pdf = new jsPDF({ orientation, unit: 'pt', format: [dim.width * 72, dim.height * 72], compress: true });
+              const pageW = pdf.internal.pageSize.getWidth();
+              const pageH = pdf.internal.pageSize.getHeight();
+              const margin = 18; // 0.25"
+              const fit = Math.min((pageW - margin * 2) / w, (pageH - margin * 2) / h);
+              const drawW = w * fit;
+              const drawH = h * fit;
+              const x = detail?.centerOnPage === false ? margin : (pageW - drawW) / 2;
+              const y = detail?.centerOnPage === false ? margin : (pageH - drawH) / 2;
+              pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
               pdf.save(`${baseName}.pdf`);
               emit('Exported PDF.');
             } catch (err) {
