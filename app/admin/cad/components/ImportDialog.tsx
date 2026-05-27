@@ -593,6 +593,12 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
     return () => { useImportStore.getState().reset(); };
   }, []);
 
+  // Swapping the file mid-wizard invalidates the prior parse — drop the
+  // dialog's local result so stale points from the old file can't be used.
+  useEffect(() => {
+    setImportResult(null);
+  }, [importStore.file]);
+
   const canGoNext = () => {
     const { step, file, rawText } = importStore;
     if (step === 'FILE_SELECT') return !!file && !!rawText;

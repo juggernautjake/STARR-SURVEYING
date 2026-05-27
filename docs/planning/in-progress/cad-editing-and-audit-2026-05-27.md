@@ -121,3 +121,8 @@ Newly-discovered audit targets get appended here as `[ ]`.
   dark-on-dark + inconsistent) — added explicit `text-gray-900
   dark:text-gray-100`. Swept all CAD dialogs; no other adaptive inputs lack a
   text color. Next: F (import/export review) / audit themes.
+- 2026-05-27 02:2x CDT — F (import): swapping the file mid-wizard left the
+  prior parse result (importResult/previewRows) in place — stale points from
+  the old file could leak. `setFile` now clears previewRows + importResult,
+  and the dialog drops its local result when `importStore.file` changes.
+  import-reset spec still passes. Next: more F / audit themes G–K.
