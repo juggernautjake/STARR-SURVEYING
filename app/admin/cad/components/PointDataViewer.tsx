@@ -9,15 +9,16 @@
 //
 // Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { X, RotateCcw } from 'lucide-react';
-import { useDrawingStore, useUndoStore, makeBatchEntry } from '@/lib/cad/store';
+import { useDrawingStore, useUndoStore, makeBatchEntry, makeRemoveFeatureEntry } from '@/lib/cad/store';
 import {
   buildPointRows,
   rowEditToFeatureUpdate,
   type PointRow,
   type PointRowField,
 } from '@/lib/cad/points/point-rows';
+import { findNameReferences } from '@/lib/cad/points/point-rename';
 import type { Feature } from '@/lib/cad/types';
 import { readPanelSize, writePanelSize } from '@/lib/cad/ui/panel-size';
 
@@ -97,6 +98,7 @@ export default function PointDataViewer({
   const document = useDrawingStore((s) => s.document);
   const updateFeature = useDrawingStore((s) => s.updateFeature);
   const getFeature = useDrawingStore((s) => s.getFeature);
+  const removeFeature = useDrawingStore((s) => s.removeFeature);
   const pushUndo = useUndoStore((s) => s.pushUndo);
 
   const [layerFilter, setLayerFilter] = useState<string>('ALL');
@@ -104,6 +106,8 @@ export default function PointDataViewer({
   const [colVis, setColVis] = useState<Record<ColKey, boolean>>(loadColVis);
   const [colMenuOpen, setColMenuOpen] = useState(false);
   const [edit, setEdit] = useState<{ id: string; field: ColKey } | null>(null);
+  // Right-click context menu for a point row.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; row: PointRow } | null>(null);
 
   const rows = useMemo(() => buildPointRows(document), [document]);
 
@@ -138,6 +142,13 @@ export default function PointDataViewer({
     }
     return m;
   }, [rows, getFeature]);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ctxMenu]);
 
   if (!open) return null;
 
@@ -186,6 +197,36 @@ export default function PointDataViewer({
     }
   }
 
+  /** Reassign a point's feature to another layer ("send to layer"). */
+  function sendRowToLayer(row: PointRow, layerId: string) {
+    const feature = getFeature(row.id);
+    if (!feature || feature.layerId === layerId) return;
+    updateFeature(row.id, { layerId });
+    pushUndo(
+      makeBatchEntry(`Send point ${row.name || row.id} to ${document.layers[layerId]?.name ?? layerId}`, [
+        { type: 'MODIFY_FEATURE', data: { id: row.id, before: { layerId: feature.layerId }, after: { layerId } } },
+      ]),
+    );
+  }
+
+  /** Delete a point's feature (keeps any linework — those are separate). */
+  function deleteRow(row: PointRow) {
+    const feature = getFeature(row.id);
+    if (!feature) return;
+    removeFeature(row.id);
+    pushUndo(makeRemoveFeatureEntry(feature));
+  }
+
+  /** Layers that "contain" a point: its own layer plus any layer whose
+   *  linework references this point's name (cross-layer `:N` shares). */
+  function layersContaining(row: PointRow): { id: string; name: string }[] {
+    const ids = new Set<string>([row.layerId]);
+    if (row.name) {
+      for (const lw of findNameReferences(document, row.name).linework) ids.add(lw.layerId);
+    }
+    return [...ids].map((id) => ({ id, name: document.layers[id]?.name ?? id }));
+  }
+
   function toggleCol(key: ColKey) {
     setColVis((prev) => {
       const next = { ...prev, [key]: !prev[key] };
@@ -230,6 +271,7 @@ export default function PointDataViewer({
   }
 
   const visibleCols = COLUMNS.filter((c) => colVis[c.key]);
+  const layerOrder = document.layerOrder ?? Object.keys(document.layers);
   const cell = (row: PointRow, key: ColKey): string => {
     switch (key) {
       case 'name': return row.name;
@@ -339,6 +381,11 @@ export default function PointDataViewer({
                 key={row.id}
                 className={`hover:bg-gray-800/60 ${row.editable ? '' : 'text-gray-400 italic'}`}
                 title={row.editable ? undefined : 'Derived point (line vertex) — read-only here; edit the line geometry instead'}
+                onContextMenu={(e) => {
+                  if (!row.editable) return;
+                  e.preventDefault();
+                  setCtxMenu({ x: e.clientX, y: e.clientY, row });
+                }}
               >
                 {visibleCols.map((c) => {
                   const cellEditable = c.editable && row.editable;
@@ -403,6 +450,80 @@ export default function PointDataViewer({
           </tbody>
         </table>
       </div>
+
+      {/* Row right-click menu — edit/command actions for one point. */}
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
+          <div
+            className="fixed z-50 min-w-[200px] bg-gray-800 border border-gray-600 rounded shadow-xl py-1 text-xs overflow-y-auto"
+            style={{
+              left: Math.min(ctxMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 9999) - 230),
+              // The viewer is bottom-docked, so grow the menu UPWARD from the
+              // click and cap its height to the space above so every action
+              // (incl. Delete) stays on screen.
+              bottom: (typeof window !== 'undefined' ? window.innerHeight : 0) - ctxMenu.y,
+              maxHeight: Math.max(160, ctxMenu.y - 8),
+            }}
+          >
+            <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-gray-500 border-b border-gray-700">
+              Point {ctxMenu.row.name || ctxMenu.row.id.slice(0, 6)}
+            </div>
+
+            {/* Send to layer */}
+            <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-gray-500 mt-1">Send to layer</div>
+            <div className="max-h-40 overflow-y-auto">
+              {layerOrder.length === 0 && <div className="px-3 py-1 text-gray-500">No layers</div>}
+              {layerOrder.map((lid) => {
+                const lyr = document.layers[lid];
+                if (!lyr) return null;
+                const here = ctxMenu.row.layerId === lid;
+                return (
+                  <button
+                    key={lid}
+                    type="button"
+                    disabled={here}
+                    onClick={() => { sendRowToLayer(ctxMenu.row, lid); setCtxMenu(null); }}
+                    className="w-full text-left px-3 py-1 hover:bg-gray-700 disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-between"
+                  >
+                    <span>{lyr.name}</span>
+                    {here && <span className="text-[10px] text-gray-500">current</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Layers containing this point */}
+            <div className="border-t border-gray-700 mt-1 px-3 py-1">
+              <div className="text-[10px] uppercase tracking-wide text-gray-500">Layers containing this point</div>
+              <div className="mt-0.5 flex flex-wrap gap-1">
+                {layersContaining(ctxMenu.row).map((l) => (
+                  <span key={l.id} className="px-1.5 py-0.5 rounded bg-gray-700 text-gray-200 text-[10px]">{l.name}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 mt-1">
+              {origByRow.has(ctxMenu.row.id) && snapshotDiffers(ctxMenu.row, origByRow.get(ctxMenu.row.id)!) && (
+                <button
+                  type="button"
+                  onClick={() => { revertRow(ctxMenu.row); setCtxMenu(null); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <RotateCcw size={12} /> Revert to original
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { deleteRow(ctxMenu.row); setCtxMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-red-900/40 text-red-300"
+              >
+                Delete point
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
