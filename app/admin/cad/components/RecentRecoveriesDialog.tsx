@@ -34,12 +34,14 @@ export default function RecentRecoveriesDialog({ open, onClose }: Props) {
   const [entries, setEntries] = useState<AutosaveListEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
+  const [armedDiscardId, setArmedDiscardId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setEntries(null);
     setError(null);
+    setArmedDiscardId(null);
     void listAutosaves()
       .then((rows) => {
         if (!cancelled) setEntries(rows);
@@ -98,6 +100,7 @@ export default function RecentRecoveriesDialog({ open, onClose }: Props) {
     setError(null);
     try {
       await clearAutosave(entry.docId);
+      setArmedDiscardId(null);
       setEntries((rows) =>
         (rows ?? []).filter((r) => r.docId !== entry.docId)
       );
@@ -146,29 +149,54 @@ export default function RecentRecoveriesDialog({ open, onClose }: Props) {
                         {entry.docName ?? '(untitled drawing)'}
                       </strong>
                       <span style={styles.rowMeta}>
-                        Auto-saved {formatRelative(entry.savedAt)}
+                        {entry.layerCount} layer{entry.layerCount === 1 ? '' : 's'} ·{' '}
+                        {entry.featureCount} feature{entry.featureCount === 1 ? '' : 's'} ·{' '}
+                        auto-saved {formatRelative(entry.savedAt)}
                         {isCurrent ? ' · this drawing' : ''}
                       </span>
                     </div>
                     <div style={styles.rowActions}>
-                      <button
-                        type="button"
-                        onClick={() => void handleDiscard(entry)}
-                        disabled={busy}
-                        style={busy ? styles.btnGhostDisabled : styles.btnGhost}
-                      >
-                        Discard
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleRestore(entry)}
-                        disabled={busy}
-                        style={
-                          busy ? styles.btnPrimaryDisabled : styles.btnPrimary
-                        }
-                      >
-                        {busy ? 'Working…' : 'Restore'}
-                      </button>
+                      {armedDiscardId === entry.docId ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleDiscard(entry)}
+                            disabled={busy}
+                            style={busy ? styles.btnDangerDisabled : styles.btnDanger}
+                          >
+                            {busy ? 'Working…' : 'Confirm discard'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setArmedDiscardId(null)}
+                            disabled={busy}
+                            style={styles.btnGhost}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setArmedDiscardId(entry.docId)}
+                            disabled={busy}
+                            style={busy ? styles.btnGhostDisabled : styles.btnGhost}
+                          >
+                            Discard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleRestore(entry)}
+                            disabled={busy}
+                            style={
+                              busy ? styles.btnPrimaryDisabled : styles.btnPrimary
+                            }
+                          >
+                            {busy ? 'Working…' : 'Restore'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </li>
                 );
@@ -297,6 +325,27 @@ const styles: Record<string, React.CSSProperties> = {
   },
   btnPrimaryDisabled: {
     background: '#94A3B8',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'not-allowed',
+    opacity: 0.7,
+  },
+  btnDanger: {
+    background: '#DC2626',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  btnDangerDisabled: {
+    background: '#FCA5A5',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,

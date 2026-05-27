@@ -90,6 +90,7 @@ import {
 import {
   clearAutosave,
   readAutosave,
+  summarizeDocument,
   writeAutosave,
 } from '@/lib/cad/persistence/autosave';
 import {
@@ -199,6 +200,7 @@ export default function CADLayout() {
     savedAt: string;
     document: unknown;
   } | null>(null);
+  const [recoveryDiscardArmed, setRecoveryDiscardArmed] = useState(false);
 
   // On mount: check for a pending RECON import, then check IndexedDB for a crash-recovery autosave
   useEffect(() => {
@@ -781,22 +783,63 @@ export default function CADLayout() {
       <BidirectionalSync />
 
       {/* Crash-recovery dialog — offered when an autosave newer than current document is found */}
-      {recoveryPayload && (
+      {recoveryPayload && (() => {
+        const recoveredName =
+          (recoveryPayload.document as { name?: unknown } | null)?.name;
+        const title =
+          typeof recoveredName === 'string' && recoveredName.trim()
+            ? recoveredName
+            : 'Untitled drawing';
+        const { layers, features } = summarizeDocument(recoveryPayload.document);
+        return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]">
           <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-5 max-w-md w-full text-sm text-gray-200 space-y-4 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-            <h2 className="text-white font-semibold text-base">Recover Unsaved Drawing?</h2>
+            <h2 className="text-white font-semibold text-base">Recover unsaved work?</h2>
             <p className="text-gray-400 text-xs leading-relaxed">
-              An auto-saved version from{' '}
-              <strong className="text-white">{new Date(recoveryPayload.savedAt).toLocaleString()}</strong>{' '}
-              was found — this is newer than the current document. Would you like to restore it?
+              We found auto-saved changes that are newer than what&apos;s
+              currently open. This usually means a previous session closed
+              before you saved.
             </p>
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition-colors"
-                onClick={() => setRecoveryPayload(null)}
-              >
-                Discard & Start Fresh
-              </button>
+            <div className="rounded border border-gray-700 bg-gray-900/60 px-3 py-2">
+              <div className="text-white font-medium truncate" title={title}>{title}</div>
+              <div className="text-gray-400 text-xs mt-0.5">
+                {layers} layer{layers === 1 ? '' : 's'} · {features} feature{features === 1 ? '' : 's'}
+              </div>
+              <div className="text-gray-500 text-[11px] mt-0.5">
+                Auto-saved {new Date(recoveryPayload.savedAt).toLocaleString()}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              {recoveryDiscardArmed ? (
+                <div className="flex items-center gap-2 text-xs text-red-300">
+                  <span>Delete it?</span>
+                  <button
+                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                    onClick={() => {
+                      void clearAutosave(drawingStore.document.id);
+                      setRecoveryDiscardArmed(false);
+                      setRecoveryPayload(null);
+                      if (drawingStore.document.layerOrder.length === 0) setShowNewDrawingDialog(true);
+                    }}
+                  >
+                    Yes, discard
+                  </button>
+                  <button
+                    className="px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                    onClick={() => setRecoveryDiscardArmed(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="px-3 py-1.5 text-gray-400 hover:text-white text-xs transition-colors"
+                  onClick={() => setRecoveryDiscardArmed(true)}
+                  title="Permanently delete this auto-saved snapshot"
+                >
+                  Discard auto-save
+                </button>
+              )}
               <button
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs transition-colors"
                 onClick={() => {
@@ -810,17 +853,19 @@ export default function CADLayout() {
                     cadLog.error('AutoSave', 'Recovery failed — document was invalid', err);
                     alert('The auto-save could not be recovered (invalid format). Starting fresh.');
                   }
+                  setRecoveryDiscardArmed(false);
                   setRecoveryPayload(null);
                   // Zoom to the recovered drawing's extents
                   setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
                 }}
               >
-                Recover Drawing
+                Restore this version
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Auto-save failure warning */}
       {autoSaveFailed && (
