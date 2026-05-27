@@ -162,6 +162,15 @@ Newly-discovered audit targets get appended here as `[ ]`.
   from this env to verify, and the deterministic naming core already
   covers numeric/`P#` schemes; out of scope. Next: continue auditing until
   9 PM, else finalize.
+- 2026-05-26 20:3x CDT — Regression sweep. Full CAD suite green: 1283/1283
+  unit tests pass (101 files), tsc clean. Observation (out of scope, NOT a
+  regression from this session): `__tests__/recon/phase16-worker-sync.test`
+  has 14 pre-existing failures — a mocked-Supabase `syncHarvestToSupabase`
+  test in the STARR-RECON module (its `from()` mock isn't invoked). I
+  touched no recon code (only `lib/cad/*` + CAD tests this session), so
+  these are unrelated to the rotation/DXF work and belong to a separate
+  product surface; flagged here for a future recon-focused pass rather
+  than fixed under a CAD time-box.
 
 ---
 
