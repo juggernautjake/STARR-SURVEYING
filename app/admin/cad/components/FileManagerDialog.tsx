@@ -358,7 +358,7 @@ export default function FileManagerDialog({ onClose }: Props) {
             ) : (
               <ul className="space-y-2">
                 {visibleDrawings.map((d) => (
-                  <li key={d.id} className="flex items-start justify-between gap-3 bg-gray-800 rounded-lg px-3 py-2 group">
+                  <li key={d.id} className="flex items-center justify-between gap-3 bg-gray-800 rounded-lg px-3 py-2 group">
                     <div className="flex-1 min-w-0">
                       <div className="text-white font-medium text-sm truncate">{d.name}</div>
                       {d.description && <div className="text-gray-400 text-xs truncate mt-0.5">{d.description}</div>}
@@ -367,23 +367,24 @@ export default function FileManagerDialog({ onClose }: Props) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button disabled={busy} onClick={() => void openDrawing(d.id)} className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs rounded transition-colors" title="Open">Open</button>
-                      <div className="relative flex items-center" title="Move to folder">
-                        <FolderInput size={12} className="absolute left-1.5 text-gray-400 pointer-events-none" />
+                      <button disabled={busy} onClick={() => void openDrawing(d.id)} className="px-3 h-7 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs rounded transition-colors" title="Open">Open</button>
+                      <label className="relative flex items-center" title="Move to folder">
+                        <FolderInput size={12} className="absolute left-2 text-gray-400 pointer-events-none" />
+                        <ChevronDown size={11} className="absolute right-1.5 text-gray-500 pointer-events-none" />
                         <select
                           value={d.folder_id ?? ''}
                           onChange={(e) => void moveDrawing(d.id, e.target.value || null)}
-                          className="appearance-none pl-6 pr-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded border border-gray-600 focus:outline-none focus:border-blue-500 max-w-[120px]"
+                          className="appearance-none w-[112px] h-7 pl-7 pr-5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded border border-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer truncate"
                         >
-                          <option value="">All drawings (root)</option>
+                          <option value="">Root</option>
                           {folders.map((f) => (
                             <option key={f.id} value={f.id}>{f.name}</option>
                           ))}
                         </select>
-                      </div>
-                      <button onClick={() => void exportDrawing(d)} className="px-1.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded transition-colors" title="Export .starr"><Download size={12} /></button>
-                      <button onClick={() => void renameDrawing(d)} className="px-1.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs rounded transition-colors" title="Rename"><Pencil size={12} /></button>
-                      <button onClick={() => void deleteDrawing(d)} className="px-1.5 py-1 bg-gray-700 hover:bg-red-700 text-gray-400 hover:text-white text-xs rounded transition-colors" title="Delete"><Trash2 size={12} /></button>
+                      </label>
+                      <button onClick={() => void exportDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded transition-colors" title="Export .starr"><Download size={13} /></button>
+                      <button onClick={() => void renameDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded transition-colors" title="Rename"><Pencil size={13} /></button>
+                      <button onClick={() => void deleteDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-red-700 text-gray-400 hover:text-white rounded transition-colors" title="Delete"><Trash2 size={13} /></button>
                     </div>
                   </li>
                 ))}
