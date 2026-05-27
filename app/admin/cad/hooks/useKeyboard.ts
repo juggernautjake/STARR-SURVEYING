@@ -36,7 +36,6 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   delete: 'edit.delete',
   backspace: 'edit.delete',
   s: 'tool.select',
-  b: 'tool.boxSelect',
   h: 'tool.pan',
   l: 'tool.line',
   p: 'tool.point',
@@ -257,9 +256,6 @@ export function useKeyboard() {
         break;
       case 'tool.select':
         toolStore.setTool('SELECT');
-        break;
-      case 'tool.boxSelect':
-        toolStore.setTool('BOX_SELECT');
         break;
       case 'tool.pan':
         toolStore.setTool('PAN');

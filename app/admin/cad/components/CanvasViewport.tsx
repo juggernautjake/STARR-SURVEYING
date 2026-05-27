@@ -219,13 +219,10 @@ const SVG_CURSOR_ERASE_IDLE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.
 const SVG_CURSOR_ERASE_ACTIVE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
 const SVG_CURSOR_ROTATE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17 3l3.5 6-6 0' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, alias`;
 
-const SVG_CURSOR_BOX_SELECT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='4' y='4' width='16' height='16' fill='none' stroke='%230088ff' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cline x1='12' y1='0' x2='12' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='12' y1='16' x2='12' y2='24' stroke='white' stroke-width='1'/%3E%3Cline x1='0' y1='12' x2='8' y2='12' stroke='white' stroke-width='1'/%3E%3Cline x1='16' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair`;
-
 const SVG_CURSOR_OFFSET = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 12 h16' fill='none' stroke='white' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cpath d='M4 7 h16' fill='none' stroke='white' stroke-width='1.5'/%3E%3Cpath d='M4 17 h16' fill='none' stroke='white' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='white'/%3E%3C/svg%3E") 12 12, crosshair`;
 
 const TOOL_CURSORS: Partial<Record<string, string>> = {
   SELECT: 'default',
-  BOX_SELECT: SVG_CURSOR_BOX_SELECT,
   PAN: 'grab',
   DRAW_POINT: SVG_CURSOR_CROSSHAIR,
   DRAW_LINE: SVG_CURSOR_CROSSHAIR,
@@ -786,8 +783,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     label: string;
     /** Value pre-filled in the inline editor (may differ from the display text). */
     editValue: string;
+    /** Bounds are in the owning container's LOCAL (un-transformed) space. */
     screenX: number; screenY: number; w: number; h: number;
+    /** Transform of the owning container so a screen click can be mapped back
+     *  into local space (the block is drawn inside a scaled/rotated Pixi
+     *  container; without this the band drifts from the visible field once the
+     *  block is scaled or rotated). */
+    xform?: { cx: number; cy: number; scale: number; rot: number };
   }>>([]);
+  // Paper-inch bottom-left position the signature block was last rendered at,
+  // used so a drag starts from the exact rendered spot regardless of the
+  // block's scale/rotation (prevents it jumping off-page on click-drag).
+  const tbSigPaperPosRef = useRef<{ x: number; y: number } | null>(null);
   // Drag state for title-block overlay elements
   const tbDragRef = useRef<{
     element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
@@ -2066,10 +2073,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return null;
   }
 
-  /** Returns the editable title-block field hit at screen coords, or null. */
+  /** Returns the editable title-block field hit at screen coords, or null.
+   *  Fields are stored in their container's local space, so the click is
+   *  mapped back through the container transform (scale + rotation about its
+   *  center) before the bounds test. */
   function hitTestTBField(sx: number, sy: number) {
     for (const b of tbFieldBoundsRef.current) {
-      if (sx >= b.screenX && sx <= b.screenX + b.w && sy >= b.screenY && sy <= b.screenY + b.h) {
+      let lx = sx;
+      let ly = sy;
+      if (b.xform) {
+        const { cx, cy, scale, rot } = b.xform;
+        const s = scale || 1;
+        const ux = (sx - cx) / s;
+        const uy = (sy - cy) / s;
+        const cos = Math.cos(rot);
+        const sin = Math.sin(rot);
+        // Inverse of Pixi's world = center + R(rot)·scale·(local − center).
+        lx = cx + cos * ux + sin * uy;
+        ly = cy - sin * ux + cos * uy;
+      }
+      if (lx >= b.screenX && lx <= b.screenX + b.w && ly >= b.screenY && ly <= b.screenY + b.h) {
         return b;
       }
     }
@@ -2356,8 +2379,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
     // Track header fields for click-to-edit (split the header roughly in half)
-    tbFieldBoundsRef.current.push({ key: 'firmName',   label: 'Firm Name',   editValue: tb.firmName   || '', screenX: tbScrLeft,    screenY: tbScrTop, w: headerSplitX - tbScrLeft,  h: headerH });
-    tbFieldBoundsRef.current.push({ key: 'surveyType', label: 'Survey Type', editValue: tb.surveyType || '', screenX: headerSplitX, screenY: tbScrTop, w: tbScrRight - headerSplitX, h: headerH });
+    const tbHeaderXform = { cx: tbCenterX, cy: tbCenterY, scale: tbScale, rot: (tb.titleBlockRotationDeg ?? 0) * (Math.PI / 180) };
+    tbFieldBoundsRef.current.push({ key: 'firmName',   label: 'Firm Name',   editValue: tb.firmName   || '', screenX: tbScrLeft,    screenY: tbScrTop, w: headerSplitX - tbScrLeft,  h: headerH, xform: tbHeaderXform });
+    tbFieldBoundsRef.current.push({ key: 'surveyType', label: 'Survey Type', editValue: tb.surveyType || '', screenX: headerSplitX, screenY: tbScrTop, w: tbScrRight - headerSplitX, h: headerH, xform: tbHeaderXform });
 
     // Right subtitle (italic, muted blue) — survey type
     const subTxt = mkTBTextTB((tb.surveyType || 'BOUNDARY SURVEY').toUpperCase(), {
@@ -2426,6 +2450,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         key: storeKey, label,
         screenX: cellLeft, screenY: cellTop, w: cellW, h: cellH,
         editValue: editValue ?? displayValue,
+        xform: { cx: tbCenterX, cy: tbCenterY, scale: tbScale, rot: (tb.titleBlockRotationDeg ?? 0) * (Math.PI / 180) },
       });
     }
 
@@ -2488,6 +2513,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     // Store signature block bounds (AABB of rotated rectangle)
     tbBoundsRef.current.signatureBlock = rotatedAabb(sigCenterX, sigCenterY, sigBoxW, sigBoxH, sigScale, tb.signatureBlockRotationDeg ?? 0);
+    // Record the exact paper-inch bottom-left the block was drawn at so a drag
+    // begins from here regardless of scale/rotation (the AABB is wider than the
+    // box once scaled, so deriving the origin from it would shift the block).
+    tbSigPaperPosRef.current = {
+      x: (sigLeft - tl.sx) / inchToPx,
+      y: (br.sy - sigTop - sigBoxH) / inchToPx,
+    };
     const sigHovered  = hoveredTBElemRef.current === 'signatureBlock';
     const sigDragging = drag?.element === 'signatureBlock';
 
@@ -2626,6 +2658,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
     // Register the date line as a click-to-edit field (handled by the same
     // signature-block click → hitTestTBField flow as the main title block).
+    // The bounds are in the signature container's local space; the xform maps
+    // a screen click back through the block's scale/rotation so the band stays
+    // aligned with the visible date line.
     {
       const dvBandH = Math.max(sLblSz * 1.6, 10);
       tbFieldBoundsRef.current.push({
@@ -2633,6 +2668,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         editValue: tb.signatureDate || '',
         screenX: sigLineX1, screenY: dateLineY - dvBandH - 2,
         w: sigLineX2 - sigLineX1, h: dvBandH + 4,
+        xform: { cx: sigCenterX, cy: sigCenterY, scale: sigScale, rot: (tb.signatureBlockRotationDeg ?? 0) * (Math.PI / 180) },
       });
     }
 
@@ -7267,8 +7303,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // is in a non-draw, non-pan tool. Drawing tools want
     // the snap indicator; pan / box-select want clean
     // gestures.
-    const interactiveTool =
-      tool === 'SELECT' || tool === 'BOX_SELECT';
+    const interactiveTool = tool === 'SELECT';
     const candidate = interactiveTool ? hitTest(sx, sy) : null;
     if (candidate !== lastHoverFeatureRef.current) {
       lastHoverFeatureRef.current = candidate;
@@ -8264,11 +8299,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               }
             }
           } else if (tbHit === 'signatureBlock') {
-            if (tb?.signatureBlockPos) {
+            // Prefer the exact paper-inch BL position the block was last drawn
+            // at (correct under any scale/rotation); fall back to the stored
+            // override, then the rotated AABB.
+            const stored = tbSigPaperPosRef.current;
+            if (stored) {
+              origPosX = stored.x;
+              origPosY = stored.y;
+            } else if (tb?.signatureBlockPos) {
               origPosX = tb.signatureBlockPos.x;
               origPosY = tb.signatureBlockPos.y;
             } else {
-              // Read from last-rendered bounds (accounts for any signatureBlockPos offset)
               const b = tbBoundsRef.current.signatureBlock;
               if (b) {
                 origPosX = (b.screenX - tl.sx) / inchToPx;
@@ -8499,13 +8540,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // box-select mouseup). Panning is on Space+drag or middle-mouse.
             toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           }
-          break;
-        }
-
-        case 'BOX_SELECT': {
-          // Dedicated box selection tool: always start box selection on mousedown
-          clickHitFeatureRef.current = false;
-          toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           break;
         }
 
@@ -10726,11 +10760,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Single click (no drag) on the title/signature block → open field editor
           const fieldHit = hitTestTBField(sx, sy);
           if (fieldHit) {
+            // The field bounds are in the block's local space; map the local
+            // center forward through the container transform so the inline
+            // editor pops up over the *visible* field (not its un-scaled spot).
+            let anchorX = fieldHit.screenX;
+            let anchorY = fieldHit.screenY;
+            if (fieldHit.xform) {
+              const { cx, cy, scale, rot } = fieldHit.xform;
+              const lcx = fieldHit.screenX + fieldHit.w / 2;
+              const lcy = fieldHit.screenY + fieldHit.h / 2;
+              const cos = Math.cos(rot);
+              const sin = Math.sin(rot);
+              const scx = cx + scale * (cos * (lcx - cx) - sin * (lcy - cy));
+              const scy = cy + scale * (sin * (lcx - cx) + cos * (lcy - cy));
+              anchorX = scx - fieldHit.w / 2;
+              anchorY = scy - fieldHit.h / 2;
+            }
             setTbFieldEditState({
               key: fieldHit.key, label: fieldHit.label,
               // Use the pre-computed editValue (may differ from the display text, e.g. SHEET / SCALE)
               value: fieldHit.editValue,
-              screenX: fieldHit.screenX, screenY: fieldHit.screenY,
+              screenX: anchorX, screenY: anchorY,
               w: fieldHit.w, h: fieldHit.h,
             });
           }
@@ -10802,7 +10852,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       // Phase 8 §11.7 — Pick-mode box-select resolution. Parallel
-      // to the SELECT/BOX_SELECT path below; captured features get
+      // to the SELECT box-select path below; captured features get
       // added to (or removed from) the transferStore's pick set
       // rather than the selection store. Pick mode preempts the
       // regular flow.
@@ -10832,8 +10882,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // Short-drag no-op: a plain click in Pick mode flows
         // through the click handler at handleClick → togglePick.
         toolStore.setBoxSelect(null, null, false);
-      } else if (toolState.isBoxSelecting && (toolState.activeTool === 'SELECT' || toolState.activeTool === 'BOX_SELECT')) {
-        // Finish box selection (works for both SELECT and BOX_SELECT tools)
+      } else if (toolState.isBoxSelecting && toolState.activeTool === 'SELECT') {
+        // Finish box selection
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);

@@ -52,7 +52,6 @@ export function resolveCursor(ctx: CursorContext): CursorType {
       return ctx.isDragging ? 'GRABBING' : 'GRAB';
 
     case 'SELECT':
-    case 'BOX_SELECT':
       if (ctx.isGripHover && ctx.gripAngleDeg !== null && ctx.gripAngleDeg !== undefined) {
         return resolveGripCursor(ctx.gripAngleDeg);
       }

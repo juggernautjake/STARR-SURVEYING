@@ -10,10 +10,11 @@
 // drawings API routes). Opened via the File ▸ File Manager menu item
 // (cad:openFileManager).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  Pencil, Trash2, Download, FolderInput, Search, X, Copy, Upload,
+  Pencil, Trash2, Download, FolderInput, Search, X, Copy, Upload, MoreVertical, Check,
 } from 'lucide-react';
 import {
   useDrawingStore, useSelectionStore, useUndoStore, useSaveTargetStore,
@@ -42,6 +43,147 @@ interface Props {
   onClose: () => void;
 }
 
+// ── Reusable bits for the kebab menu / destination pickers ──────────────────
+
+// A centered modal overlay that stacks above the File Manager's ModalFrame.
+// Escape closes only this overlay (capture-phase listener pre-empts the
+// ModalFrame's window-level Escape handler so the whole dialog doesn't close).
+function CenterModal({
+  title, onClose, children, footer, width = 380,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  width?: number;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose(); }
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+  return createPortal(
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-black/50"
+      style={{ zIndex: 2100 }}
+      onMouseDown={onClose}
+    >
+      <div
+        className="flex flex-col max-h-[72vh] bg-gray-800 border border-gray-600 rounded-lg shadow-2xl"
+        style={{ width }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 flex items-center justify-between px-4 h-9 bg-gray-900/60 border-b border-gray-700">
+          <h3 className="text-xs font-semibold text-gray-200 truncate">{title}</h3>
+          <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700" aria-label="Close"><X size={14} /></button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-3">{children}</div>
+        {footer && <div className="shrink-0 flex items-center justify-end gap-2 px-4 py-2.5 border-t border-gray-700">{footer}</div>}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// Selectable folder tree (root + every folder). value=null means the root.
+function FolderTreeSelect({
+  folders, value, onChange,
+}: { folders: FolderRow[]; value: string | null; onChange: (id: string | null) => void }) {
+  const kidsOf = (parentId: string | null) => folders.filter((f) => f.parent_id === parentId);
+  function Node({ folder, depth }: { folder: FolderRow; depth: number }) {
+    const kids = kidsOf(folder.id);
+    const sel = value === folder.id;
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={() => onChange(folder.id)}
+          className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-left ${sel ? 'bg-blue-600/40 text-white' : 'hover:bg-gray-700 text-gray-200'}`}
+          style={{ paddingLeft: depth * 14 + 8 }}
+        >
+          <Folder size={13} className="shrink-0 text-amber-400" />
+          <span className="text-[12px] truncate flex-1">{folder.name}</span>
+          {sel && <Check size={13} className="text-blue-300 shrink-0" />}
+        </button>
+        {kids.length > 0 && <ul>{kids.map((c) => <Node key={c.id} folder={c} depth={depth + 1} />)}</ul>}
+      </li>
+    );
+  }
+  return (
+    <ul className="space-y-0.5">
+      <li>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-left ${value === null ? 'bg-blue-600/40 text-white' : 'hover:bg-gray-700 text-gray-200'}`}
+        >
+          <FolderOpen size={13} className="shrink-0 text-gray-400" />
+          <span className="text-[12px] truncate flex-1">All drawings (root)</span>
+          {value === null && <Check size={13} className="text-blue-300 shrink-0" />}
+        </button>
+      </li>
+      {kidsOf(null).map((f) => <Node key={f.id} folder={f} depth={0} />)}
+    </ul>
+  );
+}
+
+function MenuItem({
+  icon, children, onClick, danger,
+}: { icon: ReactNode; children: ReactNode; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs ${danger ? 'text-red-400 hover:bg-red-900/30' : 'text-gray-200 hover:bg-gray-700'}`}
+    >
+      <span className={`shrink-0 ${danger ? 'text-red-400' : 'text-gray-400'}`}>{icon}</span>
+      <span className="truncate">{children}</span>
+    </button>
+  );
+}
+
+// Name + destination picker for creating a new folder anywhere in the tree.
+function FolderCreateModal({
+  folders, defaultParentId, busy, onCancel, onSubmit,
+}: {
+  folders: FolderRow[];
+  defaultParentId: string | null;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (name: string, parentId: string | null) => void;
+}) {
+  const [name, setName] = useState('');
+  const [parentId, setParentId] = useState<string | null>(defaultParentId);
+  const canSubmit = name.trim().length > 0 && !busy;
+  return (
+    <CenterModal
+      title="Create new folder"
+      onClose={onCancel}
+      footer={
+        <>
+          <button onClick={onCancel} className="px-3 h-7 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200">Cancel</button>
+          <button onClick={() => { if (canSubmit) onSubmit(name.trim(), parentId); }} disabled={!canSubmit} className="px-3 h-7 text-xs rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white">Create folder</button>
+        </>
+      }
+    >
+      <label className="block text-[11px] text-gray-400 mb-1">Folder name</label>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) onSubmit(name.trim(), parentId); }}
+        placeholder="e.g. June Surveys"
+        className="w-full h-8 px-2 mb-3 bg-gray-900 border border-gray-600 rounded text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+      />
+      <label className="block text-[11px] text-gray-400 mb-1">Location in file tree</label>
+      <div className="border border-gray-700 rounded p-1 bg-gray-900/40 max-h-48 overflow-y-auto">
+        <FolderTreeSelect folders={folders} value={parentId} onChange={setParentId} />
+      </div>
+    </CenterModal>
+  );
+}
+
 export default function FileManagerDialog({ onClose }: Props) {
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
@@ -58,6 +200,22 @@ export default function FileManagerDialog({ onClose }: Props) {
   // Drag-and-drop: which folder target is highlighted ('root' | folderId).
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  // Per-row kebab menu + the move/copy destination picker + folder creation.
+  const [menuFor, setMenuFor] = useState<{ drawing: DrawingMeta; right: number; top: number; bottom: number } | null>(null);
+  const [picker, setPicker] = useState<{ mode: 'move' | 'copy'; drawing: DrawingMeta } | null>(null);
+  const [pickerDest, setPickerDest] = useState<string | null>(null);
+  const [folderModal, setFolderModal] = useState<{ defaultParentId: string | null; onCreated?: (id: string) => void } | null>(null);
+
+  // Escape closes the open kebab menu (capture phase so the ModalFrame's own
+  // Escape-to-close handler doesn't fire underneath it).
+  useEffect(() => {
+    if (!menuFor) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); setMenuFor(null); }
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [menuFor]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -213,6 +371,59 @@ export default function FileManagerDialog({ onClose }: Props) {
     await patchDrawing(id, { folder_id: folderId });
   }
 
+  // Server-side copy into a chosen folder: fetch the full document and POST it
+  // back as a new "… copy" drawing in the destination folder.
+  async function copyDrawingTo(d: DrawingMeta, folderId: string | null) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(d.id)}`);
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const { drawing } = await res.json() as { drawing: { document: unknown } };
+      const post = await fetch('/api/admin/cad/drawings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${d.name} copy`,
+          document: drawing.document,
+          folder_id: folderId,
+          feature_count: d.feature_count,
+          layer_count: d.layer_count,
+        }),
+      });
+      if (!post.ok) throw new Error((await post.json().catch(() => ({})) as { error?: string }).error ?? `Server ${post.status}`);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Copy failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Create a folder and return its new id (used by the folder-creation modal,
+  // including the "New folder" affordance inside the move/copy picker).
+  async function handleCreateFolderModal(name: string, parentId: string | null) {
+    setBusy(true);
+    try {
+      const createRes = await fetch('/api/admin/cad/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), parent_id: parentId }),
+      });
+      if (!createRes.ok) throw new Error((await createRes.json().catch(() => ({})) as { error?: string }).error ?? `Server ${createRes.status}`);
+      const body = await createRes.json() as { folder?: { id: string } };
+      const newId = body.folder?.id ?? null;
+      if (parentId) setExpanded((s) => new Set(s).add(parentId));
+      const cb = folderModal?.onCreated;
+      setFolderModal(null);
+      await refresh();
+      if (cb && newId) cb(newId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not create folder');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // Reparent a folder (null = root). The API rejects cycles.
   async function moveFolder(folderId: string, parentId: string | null) {
     if (folderId === parentId) return;
@@ -291,34 +502,6 @@ export default function FileManagerDialog({ onClose }: Props) {
       URL.revokeObjectURL(url);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Export failed');
-    }
-  }
-
-  // Server-side copy: fetch the full document, POST it back as a new drawing
-  // named "… copy" in the same folder.
-  async function duplicateDrawing(d: DrawingMeta) {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(d.id)}`);
-      if (!res.ok) throw new Error(`Server ${res.status}`);
-      const { drawing } = await res.json() as { drawing: { document: unknown } };
-      const post = await fetch('/api/admin/cad/drawings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `${d.name} copy`,
-          document: drawing.document,
-          folder_id: d.folder_id,
-          feature_count: d.feature_count,
-          layer_count: d.layer_count,
-        }),
-      });
-      if (!post.ok) throw new Error((await post.json().catch(() => ({})) as { error?: string }).error ?? `Server ${post.status}`);
-      await refresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Duplicate failed');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -468,6 +651,7 @@ export default function FileManagerDialog({ onClose }: Props) {
               them into the current folder. */}
           <div
             className={`flex-1 min-w-0 overflow-y-auto p-3 ${dropTarget === 'pane' ? 'ring-2 ring-inset ring-blue-400/60 bg-blue-500/5' : ''}`}
+            onScroll={() => { if (menuFor) setMenuFor(null); }}
             onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropTarget('pane'); } }}
             onDragLeave={(e) => { if (dropTarget === 'pane' && !e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
             onDrop={(e) => {
@@ -512,28 +696,18 @@ export default function FileManagerDialog({ onClose }: Props) {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button disabled={busy} onClick={() => void openDrawing(d.id)} className="px-3 h-7 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs rounded transition-colors" title="Open">Open</button>
-                      <label
-                        className="flex items-center gap-1 h-7 px-2 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 focus-within:border-blue-500 cursor-pointer"
-                        title="Move this drawing to a folder"
+                      <button
+                        disabled={busy}
+                        onClick={(e) => {
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setMenuFor({ drawing: d, right: r.right, top: r.top, bottom: r.bottom });
+                        }}
+                        className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 hover:text-white rounded transition-colors"
+                        title="More actions"
+                        aria-label="More actions"
                       >
-                        <FolderInput size={12} className="text-gray-400 shrink-0" />
-                        <span className="text-[10px] text-gray-400 shrink-0">Move to</span>
-                        <select
-                          value={d.folder_id ?? ''}
-                          onChange={(e) => void moveDrawing(d.id, e.target.value || null)}
-                          className="appearance-none bg-transparent text-gray-100 text-xs outline-none cursor-pointer max-w-[96px] truncate"
-                        >
-                          <option value="">Root</option>
-                          {folders.map((f) => (
-                            <option key={f.id} value={f.id}>{f.name}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={11} className="text-gray-500 shrink-0" />
-                      </label>
-                      <button onClick={() => void duplicateDrawing(d)} disabled={busy} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 hover:text-white rounded transition-colors" title="Duplicate"><Copy size={13} /></button>
-                      <button onClick={() => void exportDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded transition-colors" title="Export .starr"><Download size={13} /></button>
-                      <button onClick={() => void renameDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded transition-colors" title="Rename"><Pencil size={13} /></button>
-                      <button onClick={() => void deleteDrawing(d)} className="w-7 h-7 flex items-center justify-center bg-gray-700 hover:bg-red-700 text-gray-400 hover:text-white rounded transition-colors" title="Delete"><Trash2 size={13} /></button>
+                        <MoreVertical size={15} />
+                      </button>
                     </div>
                   </li>
                 ))}
@@ -542,6 +716,92 @@ export default function FileManagerDialog({ onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Per-row actions menu (portaled so it isn't clipped by the file pane). */}
+      {menuFor && createPortal(
+        <div className="fixed inset-0" style={{ zIndex: 2000 }} onMouseDown={() => setMenuFor(null)}>
+          <div
+            className="absolute min-w-[210px] bg-gray-800 border border-gray-600 rounded-md shadow-2xl py-1"
+            style={
+              // Flip the menu above the button when it would overflow the bottom.
+              (menuFor.bottom + 260 > window.innerHeight)
+                ? { bottom: Math.max(8, window.innerHeight - menuFor.top + 4), right: Math.max(8, window.innerWidth - menuFor.right) }
+                : { top: menuFor.bottom + 4, right: Math.max(8, window.innerWidth - menuFor.right) }
+            }
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <MenuItem
+              icon={<FolderInput size={13} />}
+              onClick={() => { const d = menuFor.drawing; setMenuFor(null); setPickerDest(d.folder_id ?? null); setPicker({ mode: 'move', drawing: d }); }}
+            >
+              Move “{menuFor.drawing.name}” to…
+            </MenuItem>
+            <MenuItem
+              icon={<Copy size={13} />}
+              onClick={() => { const d = menuFor.drawing; setMenuFor(null); setPickerDest(d.folder_id ?? null); setPicker({ mode: 'copy', drawing: d }); }}
+            >
+              Copy “{menuFor.drawing.name}” to…
+            </MenuItem>
+            <MenuItem
+              icon={<FolderPlus size={13} />}
+              onClick={() => { setMenuFor(null); setFolderModal({ defaultParentId: selectedFolderId }); }}
+            >
+              Create new folder…
+            </MenuItem>
+            <div className="my-1 border-t border-gray-700" />
+            <MenuItem icon={<Download size={13} />} onClick={() => { const d = menuFor.drawing; setMenuFor(null); void exportDrawing(d); }}>Export .starr</MenuItem>
+            <MenuItem icon={<Pencil size={13} />} onClick={() => { const d = menuFor.drawing; setMenuFor(null); void renameDrawing(d); }}>Rename…</MenuItem>
+            <div className="my-1 border-t border-gray-700" />
+            <MenuItem icon={<Trash2 size={13} />} danger onClick={() => { const d = menuFor.drawing; setMenuFor(null); void deleteDrawing(d); }}>Delete</MenuItem>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Move / Copy destination picker. */}
+      {picker && (
+        <CenterModal
+          title={`${picker.mode === 'move' ? 'Move' : 'Copy'} “${picker.drawing.name}” to…`}
+          onClose={() => setPicker(null)}
+          footer={
+            <>
+              <button
+                onClick={() => setFolderModal({ defaultParentId: pickerDest, onCreated: (id) => setPickerDest(id) })}
+                className="mr-auto px-3 h-7 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 flex items-center gap-1"
+              >
+                <FolderPlus size={12} /> New folder
+              </button>
+              <button onClick={() => setPicker(null)} className="px-3 h-7 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200">Cancel</button>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  const { mode, drawing } = picker;
+                  const dest = pickerDest;
+                  setPicker(null);
+                  if (mode === 'move') void moveDrawing(drawing.id, dest);
+                  else void copyDrawingTo(drawing, dest);
+                }}
+                className="px-3 h-7 text-xs rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white"
+              >
+                {picker.mode === 'move' ? 'Move here' : 'Copy here'}
+              </button>
+            </>
+          }
+        >
+          <FolderTreeSelect folders={folders} value={pickerDest} onChange={setPickerDest} />
+        </CenterModal>
+      )}
+
+      {/* New-folder creation (standalone, or as a destination for move/copy). */}
+      {folderModal && (
+        <FolderCreateModal
+          folders={folders}
+          defaultParentId={folderModal.defaultParentId}
+          busy={busy}
+          onCancel={() => setFolderModal(null)}
+          onSubmit={(name, parentId) => void handleCreateFolderModal(name, parentId)}
+        />
+      )}
     </ModalFrame>
   );
 }

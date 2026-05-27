@@ -501,7 +501,6 @@ export type BoxSelectMode = 'WINDOW' | 'CROSSING';
 
 export type ToolType =
   | 'SELECT'
-  | 'BOX_SELECT'
   | 'PAN'
   | 'DRAW_POINT'
   | 'DRAW_LINE'
