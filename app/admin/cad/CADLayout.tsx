@@ -22,6 +22,7 @@ import CalcPointDialog from './components/CalcPointDialog';
 import CloseDrawingDialog from './components/CloseDrawingDialog';
 import SketchReconcileDialog from './components/SketchReconcileDialog';
 import ImportDialog from './components/ImportDialog';
+import PrintDialog from './components/PrintDialog';
 import AIDrawingDialog from './components/AIDrawingDialog';
 import QuestionDialog from './components/QuestionDialog';
 import ElementExplanationPopup from './components/ElementExplanationPopup';
@@ -509,6 +510,15 @@ export default function CADLayout() {
     const handler = () => setShowPointTable((v) => !v);
     window.addEventListener('cad:togglePointTable', handler);
     return () => window.removeEventListener('cad:togglePointTable', handler);
+  }, []);
+
+  // Print / export-settings dialog (was dispatched by the Print shortcut but
+  // had no listener and was never mounted).
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowPrintDialog(true);
+    window.addEventListener('cad:openPrintDialog', handler);
+    return () => window.removeEventListener('cad:openPrintDialog', handler);
   }, []);
 
   // Traverse Viewer toggle (§10e)
@@ -1136,6 +1146,9 @@ export default function CADLayout() {
 
       {/* Cross-layer copy / move / duplicate dialog (Phase 8 §11.7) */}
       <LayerTransferGate />
+
+      {/* Print / export-settings dialog */}
+      {showPrintDialog && <PrintDialog onClose={() => setShowPrintDialog(false)} />}
 
       {/* Intersect Tool dialog (Phase 8 §11.6 Slice 1) */}
       {showIntersect && <IntersectDialog onClose={() => setShowIntersect(false)} />}

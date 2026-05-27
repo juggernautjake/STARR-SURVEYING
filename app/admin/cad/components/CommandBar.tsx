@@ -208,6 +208,14 @@ export default function CommandBar() {
     };
   }, []);
 
+  // Focus the command input on the keyboard shortcut (previously dispatched
+  // with no listener — the shortcut did nothing).
+  useEffect(() => {
+    const focus = () => { inputRef.current?.focus(); };
+    window.addEventListener('cad:focusCommandBar', focus);
+    return () => window.removeEventListener('cad:focusCommandBar', focus);
+  }, []);
+
   // Stable ref so handleSubmit can call executeCommand without a stale closure
   const executeCommandRef = useRef<(name: string) => void>(() => {});
 

@@ -144,3 +144,11 @@ Newly-discovered audit targets get appended here as `[ ]`.
   (deferred mousedown listener in an effect depending on onClose). Now
   mount-once via onClose ref. Swept all CAD components — no other
   `[onClose]`-dep + deferred-listener popups remain. tsc + eslint clean.
+- 2026-05-27 03:0x CDT — K/G: cross-referenced all `cad:` event dispatches vs
+  listeners — found 7 keyboard shortcuts dispatching events with NO listener
+  (dead): zoom in/out/selection, select-all, toggle-ortho, focus-command-bar,
+  print. Wired them: CanvasViewport handles zoomIn/zoomOut/zoomSelection/
+  selectAll/toggleOrtho; CommandBar focuses its input on focusCommandBar;
+  CADLayout now mounts PrintDialog (previously never rendered) + listens for
+  openPrintDialog. `wired-shortcuts.spec` verifies select-all + print.
+  tsc + eslint clean. Next: continue audit.

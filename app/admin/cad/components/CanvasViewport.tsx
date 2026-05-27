@@ -11060,6 +11060,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       );
       emit(`Connected ${features.length} line${features.length === 1 ? '' : 's'} from point codes. Lines are separate features — delete them anytime without affecting the points.`);
     };
+    // Keyboard-shortcut actions that previously dispatched events with no
+    // listener (zoom in/out/selection, select-all, ortho toggle).
+    const onZoomInEv = () => {
+      const vp = useViewportStore.getState();
+      vp.zoomAt(vp.screenWidth / 2, vp.screenHeight / 2, 1.2);
+    };
+    const onZoomOutEv = () => {
+      const vp = useViewportStore.getState();
+      vp.zoomAt(vp.screenWidth / 2, vp.screenHeight / 2, 1 / 1.2);
+    };
+    const onSelectAllEv = () => {
+      const ids = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+      useSelectionStore.getState().selectMultiple(ids, 'REPLACE');
+    };
+    const onZoomSelectionEv = () => {
+      const dwg = useDrawingStore.getState();
+      const sel = Array.from(useSelectionStore.getState().selectedIds);
+      const feats = sel.map((id) => dwg.getFeature(id)).filter((f): f is Feature => !!f);
+      const b = computeFeaturesBounds(feats);
+      if (b) useViewportStore.getState().zoomToExtents(b);
+    };
+    const onToggleOrthoEv = () => {
+      const ts = useToolStore.getState();
+      ts.setOrthoEnabled(!ts.state.orthoEnabled);
+    };
     const onRotate = (e: Event) => {
       const { center, angleRad } = (e as CustomEvent).detail as {
         center: Point2D;
@@ -11137,6 +11162,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:fitDrawingToPage', onFitToPage);
     window.addEventListener('cad:buildLineworkFromCodes', onBuildLinework);
+    window.addEventListener('cad:zoomIn', onZoomInEv);
+    window.addEventListener('cad:zoomOut', onZoomOutEv);
+    window.addEventListener('cad:zoomSelection', onZoomSelectionEv);
+    window.addEventListener('cad:selectAll', onSelectAllEv);
+    window.addEventListener('cad:toggleOrtho', onToggleOrthoEv);
     const onMovePageMode = () => {
       const next = !paperMoveModeRef.current;
       paperMoveModeRef.current = next;
@@ -11418,6 +11448,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
       window.removeEventListener('cad:buildLineworkFromCodes', onBuildLinework);
+      window.removeEventListener('cad:zoomIn', onZoomInEv);
+      window.removeEventListener('cad:zoomOut', onZoomOutEv);
+      window.removeEventListener('cad:zoomSelection', onZoomSelectionEv);
+      window.removeEventListener('cad:selectAll', onSelectAllEv);
+      window.removeEventListener('cad:toggleOrtho', onToggleOrthoEv);
       window.removeEventListener('cad:movePageMode', onMovePageMode);
       window.removeEventListener('cad:beginSnapToPoint', onBeginSnapToPoint);
       window.removeEventListener('cad:rotate', onRotate);
