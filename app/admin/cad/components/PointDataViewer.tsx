@@ -11,7 +11,8 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { X, RotateCcw } from 'lucide-react';
-import { useDrawingStore, useUndoStore, makeBatchEntry, makeRemoveFeatureEntry } from '@/lib/cad/store';
+import { useDrawingStore, useUndoStore, useSelectionStore, makeBatchEntry, makeRemoveFeatureEntry } from '@/lib/cad/store';
+import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import {
   buildPointRows,
   rowEditToFeatureUpdate,
@@ -99,6 +100,7 @@ export default function PointDataViewer({
   const updateFeature = useDrawingStore((s) => s.updateFeature);
   const getFeature = useDrawingStore((s) => s.getFeature);
   const removeFeature = useDrawingStore((s) => s.removeFeature);
+  const removeFeatures = useDrawingStore((s) => s.removeFeatures);
   const pushUndo = useUndoStore((s) => s.pushUndo);
 
   const [layerFilter, setLayerFilter] = useState<string>('ALL');
@@ -108,6 +110,8 @@ export default function PointDataViewer({
   const [edit, setEdit] = useState<{ id: string; field: ColKey } | null>(null);
   // Right-click context menu for a point row.
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; row: PointRow } | null>(null);
+  // Multi-select for bulk actions (editable rows only).
+  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const rows = useMemo(() => buildPointRows(document), [document]);
 
@@ -225,6 +229,63 @@ export default function PointDataViewer({
       for (const lw of findNameReferences(document, row.name).linework) ids.add(lw.layerId);
     }
     return [...ids].map((id) => ({ id, name: document.layers[id]?.name ?? id }));
+  }
+
+  function togglePick(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function clearPicks() { setPicked(new Set()); }
+
+  /** Send every picked point to a layer (single undo batch). */
+  function bulkSendToLayer(layerId: string) {
+    const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Record<string, unknown>; after: Record<string, unknown> } }[] = [];
+    for (const id of picked) {
+      const f = getFeature(id);
+      if (!f || f.layerId === layerId) continue;
+      updateFeature(id, { layerId });
+      ops.push({ type: 'MODIFY_FEATURE', data: { id, before: { layerId: f.layerId }, after: { layerId } } });
+    }
+    if (ops.length) pushUndo(makeBatchEntry(`Send ${ops.length} point(s) to ${document.layers[layerId]?.name ?? layerId}`, ops));
+  }
+
+  /** Delete every picked point (single undo batch). */
+  function bulkDelete() {
+    const feats = [...picked].map((id) => getFeature(id)).filter((f): f is Feature => !!f);
+    if (feats.length === 0) return;
+    removeFeatures(feats.map((f) => f.id));
+    pushUndo(makeBatchEntry(`Delete ${feats.length} point(s)`, feats.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f }))));
+    clearPicks();
+  }
+
+  /** Export picked points to a CSV download (pt,N,E,Z,code,desc). */
+  function bulkExport() {
+    const pickedRows = rows.filter((r) => picked.has(r.id));
+    if (pickedRows.length === 0) return;
+    const header = 'PointNumber,Northing,Easting,Elevation,Code,Description';
+    const lines = pickedRows.map((r) =>
+      [r.name, r.northing.toFixed(4), r.easting.toFixed(4), r.elevation == null ? '' : r.elevation.toFixed(4),
+        `"${r.code.replace(/"/g, '""')}"`, `"${r.description.replace(/"/g, '""')}"`].join(','),
+    );
+    const csv = [header, ...lines].join('\r\n') + '\r\n';
+    if (typeof window !== 'undefined') {
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(window.document.createElement('a'), { href: url, download: 'selected-points.csv' });
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  /** Select the picked points on the canvas and open the AI chat so the
+   *  surveyor can ask about them (the AI sees them via CURRENT SELECTION). */
+  function bulkAskAI() {
+    if (picked.size === 0) return;
+    useSelectionStore.getState().selectMultiple([...picked], 'REPLACE');
+    useAIConversationsStore.getState().open();
   }
 
   function toggleCol(key: ColKey) {
@@ -359,11 +420,57 @@ export default function PointDataViewer({
         ))}
       </div>
 
+      {/* Bulk action bar — appears when ≥1 point is checked. */}
+      {picked.size > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-700 bg-blue-950/40 shrink-0 flex-wrap">
+          <span className="font-semibold text-blue-200">{picked.size} selected</span>
+          <select
+            value=""
+            onChange={(e) => { if (e.target.value) { bulkSendToLayer(e.target.value); e.target.value = ''; } }}
+            className="bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 text-xs"
+            title="Send the selected points to a layer"
+          >
+            <option value="">Send to layer…</option>
+            {layerOrder.map((lid) => {
+              const lyr = document.layers[lid];
+              return lyr ? <option key={lid} value={lid}>{lyr.name}</option> : null;
+            })}
+          </select>
+          <button type="button" onClick={bulkAskAI} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Select these points on the canvas and open the AI to ask about them">Ask AI</button>
+          <button type="button" onClick={bulkExport} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Export the selected points to CSV">Export CSV</button>
+          <button type="button" onClick={bulkDelete} className="px-2 py-0.5 rounded bg-red-900/50 border border-red-800 text-red-200 hover:bg-red-900" title="Delete the selected points">Delete</button>
+          <button type="button" onClick={clearPicks} className="ml-auto px-2 py-0.5 rounded text-gray-400 hover:text-gray-200" title="Clear selection">Clear</button>
+        </div>
+      )}
+
       {/* Grid */}
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse">
           <thead className="sticky top-0 bg-gray-800">
             <tr>
+              <th className="w-7 px-1 py-1 border-b border-gray-700 text-center">
+                <input
+                  type="checkbox"
+                  className="accent-blue-500"
+                  aria-label="Select all visible points"
+                  ref={(el) => {
+                    if (!el) return;
+                    const editable = filtered.filter((r) => r.editable);
+                    const sel = editable.filter((r) => picked.has(r.id)).length;
+                    el.checked = editable.length > 0 && sel === editable.length;
+                    el.indeterminate = sel > 0 && sel < editable.length;
+                  }}
+                  onChange={(e) => {
+                    const editable = filtered.filter((r) => r.editable).map((r) => r.id);
+                    setPicked((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) editable.forEach((id) => next.add(id));
+                      else editable.forEach((id) => next.delete(id));
+                      return next;
+                    });
+                  }}
+                />
+              </th>
               {visibleCols.map((c) => (
                 <th key={c.key} className="text-left font-semibold px-2 py-1 border-b border-gray-700 whitespace-nowrap">
                   {c.label}
@@ -387,6 +494,17 @@ export default function PointDataViewer({
                   setCtxMenu({ x: e.clientX, y: e.clientY, row });
                 }}
               >
+                <td className="w-7 px-1 py-0.5 border-b border-gray-800 text-center">
+                  {row.editable && (
+                    <input
+                      type="checkbox"
+                      className="accent-blue-500"
+                      checked={picked.has(row.id)}
+                      onChange={() => togglePick(row.id)}
+                      aria-label={`Select point ${row.name || row.id}`}
+                    />
+                  )}
+                </td>
                 {visibleCols.map((c) => {
                   const cellEditable = c.editable && row.editable;
                   const editing = edit?.id === row.id && edit.field === c.key;
@@ -442,7 +560,7 @@ export default function PointDataViewer({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={visibleCols.length + 1} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={visibleCols.length + 2} className="px-3 py-6 text-center text-gray-500">
                   No points. Draw or import points, or clear the filter.
                 </td>
               </tr>
