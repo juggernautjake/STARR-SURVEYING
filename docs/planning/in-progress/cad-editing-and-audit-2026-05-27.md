@@ -155,3 +155,8 @@ Newly-discovered audit targets get appended here as `[ ]`.
 - 2026-05-27 03:1x CDT — K: MenuBar callback props all wired (cross-checked
   vs CADLayout). CommandBar had a duplicate `case 'scale'/'sc'` (second was
   unreachable dead code) — removed. tsc + eslint clean.
+- 2026-05-27 03:2x CDT — Core-flow regression batch (shell, toolbar-tools,
+  status-toggles, delete-undo) all pass after the loop's changes. Added typed
+  command-bar commands for the newly-wired actions: `select all`/`sa`,
+  `zoom in`/`zi`, `zoom out`/`zo`, `print`. Verified `select all` selects all
+  (`command-selectall.spec`). Next: continue audit (J preferences / I points).

@@ -374,6 +374,21 @@ export default function CommandBar() {
       case 'zoom selection':
         zoomToSelection();
         break;
+      case 'zi':
+      case 'zoom in':
+        window.dispatchEvent(new CustomEvent('cad:zoomIn'));
+        break;
+      case 'zo':
+      case 'zoom out':
+        window.dispatchEvent(new CustomEvent('cad:zoomOut'));
+        break;
+      case 'sa':
+      case 'select all':
+        window.dispatchEvent(new CustomEvent('cad:selectAll'));
+        break;
+      case 'print':
+        window.dispatchEvent(new CustomEvent('cad:openPrintDialog'));
+        break;
       case 'line':
       case 'l':
         toolStore.setTool('DRAW_LINE');
