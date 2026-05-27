@@ -1,6 +1,7 @@
 // __tests__/cad/delivery/dxf-writer.test.ts
 import { describe, it, expect } from 'vitest';
 import { exportToDxf } from '@/lib/cad/delivery/dxf-writer';
+import { scopeDocument } from '@/lib/cad/delivery/scope-document';
 import type { DrawingDocument, Feature } from '@/lib/cad/types';
 
 const STYLE = {
@@ -152,6 +153,24 @@ describe('exportToDxf — derived (created) points', () => {
     expect(dxf).toContain('\r\n256:1\r\n');
     // …and the derived POINT sits at its raw world coord on the FENCE layer.
     expect(dxf).toMatch(/\r\nPOINT\r\n8\r\nFENCE\r\n10\r\n10\.0+\r\n20\r\n20\.0+\r\n/);
+  });
+
+  it('carries derived points through a by-layer scoped export', () => {
+    const A = { x: 10, y: 20 }, B = { x: 110, y: 20 };
+    const full = makeDoc(
+      {
+        a: { id: 'a', type: 'POINT', geometry: { type: 'POINT', point: A }, layerId: 'BOUNDARY', style: STYLE, properties: { pointName: '255' } },
+        b: { id: 'b', type: 'POINT', geometry: { type: 'POINT', point: B }, layerId: 'BOUNDARY', style: STYLE, properties: { pointName: '256' } },
+        L: { id: 'L', type: 'LINE', geometry: { type: 'LINE', start: A, end: B }, layerId: 'FENCE', style: STYLE, properties: { pointRefs: JSON.stringify(['255:1', '256:1']) } },
+      },
+      { BOUNDARY: layer('BOUNDARY'), FENCE: layer('FENCE') }
+    );
+    const scoped = scopeDocument(full, { kind: 'LAYERS', layerIds: ['FENCE'] });
+    const dxf = exportToDxf(scoped);
+    // The FENCE line's created vertices export even though the BOUNDARY
+    // anchor points were scoped out.
+    expect(dxf).toContain('\r\n255:1\r\n');
+    expect(dxf).toContain('\r\n256:1\r\n');
   });
 
   it('does not duplicate a vertex that already has a POINT feature', () => {

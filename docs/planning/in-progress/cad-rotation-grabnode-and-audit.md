@@ -171,6 +171,13 @@ Newly-discovered audit targets get appended here as `[ ]`.
   these are unrelated to the rotation/DXF work and belong to a separate
   product surface; flagged here for a future recon-focused pass rather
   than fixed under a CAD time-box.
+- 2026-05-26 20:1x CDT — Audit: confirmed export-by-scope + created-points
+  compose correctly. `scopeDocument` keeps features (with their
+  `pointRefs`) intact, so a scoped DXF export runs `collectDerivedPoints`
+  on the scoped doc and the retained linework's created vertices export
+  even when their anchor POINT features were scoped out. Added a
+  by-layer-scope DXF test proving `255:1`/`256:1` survive a FENCE-only
+  export. 11 DXF tests green.
 
 ---
 
