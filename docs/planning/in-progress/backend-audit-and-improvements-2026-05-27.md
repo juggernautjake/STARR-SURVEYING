@@ -119,8 +119,10 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
 
 > Stubs done — continuing the audit with genuine quality/feature improvements (the user asked to keep building). Each stays a verify-then-ship slice.
 
-### Slice 15 — CAD: shrink exported PDF size (Slice 2 follow-up)
-- [ ] The Print-dialog PDF embeds the extracted frame as a full-resolution PNG, producing very large files (~11 MB). Switch to a JPEG-compressed embed (or downscale to a sane DPI) to cut file size dramatically while keeping plot legibility. Verify on `/cad-harness` that the PDF still downloads and is materially smaller.
+### Slice 15 — CAD: shrink exported PDF size (Slice 2 follow-up) ✅ shipped
+- [x] The Print-dialog PDF embedded the frame as a full-resolution PNG (~11.5 MB).
+  - **Done:** the PDF branch now composites the extracted frame onto a white canvas and embeds it as JPEG (q=0.85) with `jsPDF({ compress: true })`. White fill prevents transparent regions going black; line-work plots stay legible. PNG export is untouched (stays lossless).
+  - **Verified on `/cad-harness`:** `export-pdf` spec passed — the PDF is a valid `%PDF` and dropped from **~11.5 MB → 88 KB** (~130× smaller). `tsc` + `eslint` clean.
 
 ### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
 - [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:

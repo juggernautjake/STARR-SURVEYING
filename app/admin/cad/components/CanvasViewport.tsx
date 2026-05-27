@@ -11361,9 +11361,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const { jsPDF } = await import('jspdf');
               const w = srcCanvas.width;
               const h = srcCanvas.height;
+              // Composite onto white and embed as JPEG: a survey plot is line
+              // work on white, so JPEG compresses an order of magnitude smaller
+              // than the raw PNG while staying legible. (White fill also keeps
+              // transparent areas from going black in JPEG.)
+              let imgData = dataUrl;
+              let imgFormat: 'PNG' | 'JPEG' = 'PNG';
+              const flat = document.createElement('canvas');
+              flat.width = w;
+              flat.height = h;
+              const fctx = flat.getContext('2d');
+              if (fctx) {
+                fctx.fillStyle = '#ffffff';
+                fctx.fillRect(0, 0, w, h);
+                fctx.drawImage(srcCanvas, 0, 0);
+                imgData = flat.toDataURL('image/jpeg', 0.85);
+                imgFormat = 'JPEG';
+              }
               const orientation = (detail?.orientation === 'PORTRAIT' ? 'portrait' : 'landscape') as 'portrait' | 'landscape';
-              const pdf = new jsPDF({ orientation, unit: 'pt', format: [w, h] });
-              pdf.addImage(dataUrl, 'PNG', 0, 0, w, h);
+              const pdf = new jsPDF({ orientation, unit: 'pt', format: [w, h], compress: true });
+              pdf.addImage(imgData, imgFormat, 0, 0, w, h);
               pdf.save(`${baseName}.pdf`);
               emit('Exported PDF.');
             } catch (err) {
