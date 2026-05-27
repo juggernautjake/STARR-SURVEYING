@@ -178,6 +178,11 @@ Newly-discovered audit targets get appended here as `[ ]`.
   even when their anchor POINT features were scoped out. Added a
   by-layer-scope DXF test proving `255:1`/`256:1` survive a FENCE-only
   export. 11 DXF tests green.
+- 2026-05-26 20:1x CDT — End-to-end export regression: the three export
+  harness specs (`export-download`, `export-layers`, `export-selection`)
+  all pass against the live app, confirming the DXF derived-points change
+  doesn't break the real download/scoped-export paths. Also nudged each
+  derived point's name TEXT up-right of its marker for legibility.
 
 ---
 
