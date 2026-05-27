@@ -12,7 +12,7 @@
 // transfer presets, selection blocks.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Layers, MousePointerClick, ListChecks, Trash2, Hash, AlertTriangle } from 'lucide-react';
+import { X, Layers, MousePointerClick, ListChecks, Trash2, Hash, AlertTriangle, ChevronDown } from 'lucide-react';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -69,6 +69,11 @@ export default function LayerTransferDialog({ onClose }: Props) {
   // Inline "create + name a new layer" as the transfer target.
   const [creatingLayer, setCreatingLayer] = useState(false);
   const [newLayerName, setNewLayerName] = useState('');
+  // De-clutter: the dialog leads with the common flow (operation → pick
+  // source → target layer → Confirm). Power tools — saved selection blocks,
+  // smart-selection helpers, and routing presets — collapse behind a single
+  // "Advanced" disclosure so they don't crowd the everyday path.
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   function createTargetLayer() {
     const name = newLayerName.trim();
@@ -499,19 +504,6 @@ export default function LayerTransferDialog({ onClose }: Props) {
 
             {sourceMode === 'TYPE' && <TypeIdsField />}
 
-            {/* Saved selection blocks — surveyor recalls a
-                named pick set or saves the current one for
-                later. Document-scoped so cross-drawing noise
-                stays out of the dropdown. */}
-            <SelectionBlocksRow />
-
-            {/* Smart selection helpers — programmatic ways to
-                add (or Alt-click subtract) batches of features.
-                Composable: surveyors stack "By layer = BOUNDARY"
-                + "By type = POLYLINE" + "In viewport" to land
-                on "every visible boundary polyline." */}
-            <SmartSelectionHelpers />
-
             <div
               className="bg-gray-900 border border-gray-700 rounded p-2 max-h-[160px] overflow-y-auto"
               onContextMenu={(e) => {
@@ -707,11 +699,37 @@ export default function LayerTransferDialog({ onClose }: Props) {
               so the dialog stays compact for the common case. */}
           {options.operation === 'DUPLICATE' && <OptionsBlock />}
 
-          {/* Preset save / load row — captures op + destination
-              + options snapshot (NOT source set) so surveyor
-              can re-run a "Working → Print copy" routing in
-              one click. */}
-          <TransferPresetsRow />
+          {/* Advanced — power tools tucked out of the common flow:
+              smart-selection helpers, saved selection blocks, and
+              routing presets. Collapsed by default to keep the dialog
+              focused on "pick source → target layer → Confirm." */}
+          <div className="border-t border-gray-700 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              aria-expanded={showAdvanced}
+              className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              <ChevronDown
+                size={13}
+                className={`transition-transform ${showAdvanced ? '' : '-rotate-90'}`}
+              />
+              Advanced — selection tools &amp; presets
+            </button>
+            {showAdvanced && (
+              <div className="mt-2 space-y-3 animate-[fadeIn_120ms_ease-out] motion-reduce:animate-none">
+                {/* Smart selection helpers — programmatic ways to add
+                    (or Alt-click subtract) batches of features. */}
+                <SmartSelectionHelpers />
+                {/* Saved selection blocks — recall a named pick set or
+                    save the current one for later (document-scoped). */}
+                <SelectionBlocksRow />
+                {/* Routing presets — capture op + destination + options
+                    (NOT the source set) for one-click re-use. */}
+                <TransferPresetsRow />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
