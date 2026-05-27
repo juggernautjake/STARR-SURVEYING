@@ -1,9 +1,9 @@
 # CAD Editing, Layers, Points, Preferences & Menus — Self-Updating Audit
 
-Status: **in progress** · Owner: CAD/UX · Opened: 2026-05-27 01:37 CDT
-Time-box: **work until 6:00 AM CDT (06:00), 2026-05-27.** On every resume:
-check the clock (`TZ="America/Chicago" date "+%H:%M"`). If ≥ 06:00 CDT →
-§7 Finalization and STOP. Otherwise keep working the §5 backlog.
+Status: **completed** · Owner: CAD/UX · Opened: 2026-05-27 01:37 CDT ·
+Closed: 2026-05-27 06:0x CDT
+Time-box: worked until 6:00 AM CDT (06:00), 2026-05-27 — reached; finalized
+per §7. Every §5 item is shipped or explicitly deferred-with-rationale.
 
 ---
 
@@ -55,8 +55,15 @@ screenshot where feasible → record in §6 → commit + push.
   symbol a slight opaque (white) backing so the line never shows through it.
 - [x] **D. Infinity (and oriented) line-type symbols tilt with the line.** Rotate
   inline symbols so their long axis follows the segment direction.
-- [~] **E. Media attachments (E1 store DONE) for points / lines / shapes / layers** (LARGE —
-  DEFERRED-with-design for the unattended loop). Rationale: its core value
+- [x] **E. Media attachments for points / lines / shapes / layers** — SHIPPED
+  in-app (un-deferred mid-loop once proven headless-verifiable): media-store
+  (own IndexedDB + byOwner index + thumbnails), MediaViewer modal (image
+  pan/zoom + video controls), right-click Add/View on points + canvas
+  features + layers, Properties-panel thumbnails. Verified by point-media /
+  media-viewer / property-media / canvas-media specs. DEFERRED (attended,
+  one line): CLOUD upload for cross-device sharing — needs a storage-infra
+  decision (Supabase bucket) best made attended. Original design notes below.
+- [x] ~~E (old deferral note)~~ — superseded by the line above. Rationale: its core value
   (file upload, blob persistence, video playback, zoom viewer) can't be
   verified with confidence in this headless Playwright harness, and it needs
   a storage-infra decision best made attended. Concrete design to build next:
@@ -68,16 +75,29 @@ screenshot where feasible → record in §6 → commit + push.
     "View media…" (only when hasMedia); Properties panel thumbnail strip; a
     MediaViewer modal (image pan/zoom + <video> controls). Cloud upload
     (Supabase bucket like project-image.ts) is a follow-up.
-- [ ] **F. Import/Export deep review** (original ask): audit CSV/PNEZD/DXF/
-  LandXML/GeoJSON readers + writers + the wizard for bugs/edge cases beyond
-  the reset fix already shipped.
+- [x] **F. Import/Export deep review** (original ask): the wizard mid-file
+  stale-result bug FIXED (`setFile` clears previewRows + importResult; dialog
+  drops local result on file change); parseCSV + the export readers/writers
+  audited — no further bugs found. Verified by import-reset / import-full /
+  export-download / export-layers / export-selection specs.
 
 ### Ongoing audit themes (open-ended — keep finding + fixing)
-- [ ] **G. Editing** — selection, grips, move/rotate/scale, undo/redo integrity.
-- [ ] **H. Layer control** — visibility/lock/isolate, active-layer safety, panel UX.
-- [ ] **I. Point control** — viewer, naming, codes, derived points.
-- [ ] **J. Preferences** — settings dialog, display prefs, persistence.
-- [ ] **K. Menu control** — menubar/submenus, command bar, context menus.
+- [x] **G. Editing** — box-select drag, rotate grab-node, SELECT-hint accuracy,
+  undo/redo audited. No open issues found this loop.
+- [x] **H. Layer control** — hidden- AND locked-active-layer draw guards added;
+  layer-delete confirmation; layer media menu. (Layer-delete UNDO deferred,
+  attended — needs a new undo op-type; one line.)
+- [x] **I. Point control** — full Point Data Viewer overhaul (editable cells +
+  original-value revert, per-layer tabs, right-click menu, multi-select bulk
+  ops, media), point-label name-on-top order, point-viewer-edit spec hardened
+  against the new checkbox column.
+- [x] **J. Preferences** — SettingsDialog / DisplayPrefs / autosave audited
+  (bind straight to store, persist correctly); no non-persisting toggles.
+- [x] **K. Menu control** — native right-click suppression; context-menu
+  dismiss render-race ROOT-CAUSE fix + hardening (click + contextmenu) across
+  every popup (Feature/PickMode/SourceList listener menus + Layer/PointViewer/
+  title-block/drawing/ToolBar-flyout overlays); 7 dead keyboard shortcuts
+  wired; command-bar additions; duplicate `scale` case removed.
 
 Newly-discovered audit targets get appended here as `[ ]`.
 
@@ -162,7 +182,12 @@ Newly-discovered audit targets get appended here as `[ ]`.
   (`command-selectall.spec`). Next: continue audit (J preferences / I points).
 
 ### Newly-discovered (this loop)
-- [ ] **L. Orphaned feature components (never wired into the UI).** Found via
+- [defer] **L. Orphaned feature components (never wired into the UI)** —
+  DEFERRED (attended, one line): wiring AnnotationPanel / CertificationEditor /
+  StandardNotesEditor needs an attended decision on which menu/panel hosts
+  each + template-store hydration check; cost/risk of mis-placing them exceeds
+  unattended value. (PrintDialog, same class, WAS wired this loop.) Details:
+- [ ] ~~L (original)~~ Found via
   an orphan-component cross-reference: `AnnotationPanel` (184 ln, annotation
   management), `CertificationEditor` (133 ln, surveyor cert block, uses
   useTemplateStore), `StandardNotesEditor` (129 ln, standard survey notes
@@ -365,3 +390,21 @@ media cloud upload (needs backend; local IDB covers single-device); L
   invisible). Added `text-gray-900 dark:text-gray-100` to both, matching
   CalcPointDialog. Re-swept: no remaining `bg-white dark:bg-gray-800`
   fields lack a text color. eslint clean (CSS-class-only edit).
+- 2026-05-27 06:0x CDT — FINALIZATION (clock ≥ 06:00). Broad feature e2e
+  batch surfaced ONE red: `point-viewer-edit` expected Northing at td.nth(1)
+  but got "1". Root cause: NOT a product bug — the multi-select checkbox
+  column added in this loop's Point-Viewer overhaul shifted data columns
+  right by one, so the spec's hard-coded index was stale (the editing feature
+  itself commits correctly, proven by the fix passing). Made the spec robust:
+  it now derives the Northing column index from the header (survives column
+  changes). Re-run GREEN. Tree state at close: tsc clean (only benign stale
+  `.next/types` note); eslint clean on all touched files; vitest 1589 selected
+  CAD/lib tests pass, 0 fail (the only repo-wide failures are 14 in
+  `__tests__/recon/phase16-worker-sync.test.ts` — recon/worker Supabase
+  subsystem, untouched by this branch, identical to main, pre-existing/out of
+  scope); full e2e regression green across box-select, both context menus,
+  hidden/locked-layer guards, wired-shortcuts, command-bar, dialogs-smoke,
+  new-layer, point-viewer-edit, media-viewer, exit-button, connect-linework,
+  toolbar-tools. Every §5 item shipped or deferred-with-rationale (E cloud
+  upload, H layer-delete undo, L orphaned components — all attended-only).
+  Status flipped to completed; doc moved to completed/. CLOSING THIS LOOP.
