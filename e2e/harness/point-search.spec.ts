@@ -42,4 +42,8 @@ test('point search filters results and adds a point to the picks', async ({ page
   // Clicking a result adds it to the picks.
   await results.first().click();
   await expect(page.getByText(/\b1 picked\b/)).toBeVisible();
+
+  // Switching to "Code" search changes the field to filter by code.
+  await page.getByRole('button', { name: 'Code', exact: true }).click();
+  await expect(page.getByPlaceholder(/Filter points by code/)).toBeVisible();
 });

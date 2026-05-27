@@ -501,6 +501,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onTogglePointTa
         { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
         { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
         { label: 'Open Saved Drawing…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
+        { label: 'File Manager…', action: () => { window.dispatchEvent(new CustomEvent('cad:openFileManager')); setOpenMenu(null); } },
         { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: () => { void saveDocument(); setOpenMenu(null); } },
