@@ -303,3 +303,12 @@ media cloud upload (needs backend; local IDB covers single-device); L
   full media-attachment feature. Remaining (attended-only, documented):
   orphaned editor components (L), media cloud upload, layer-delete undo,
   orphaned-media GC. Tree green: 1298 CAD unit tests; ~15 new harness specs.
+- 2026-05-27 06:3x CDT — Comprehensive QA gate GREEN: 12 key specs run
+  together — box-select, canvas/native context menus, hidden/locked-layer
+  draw guards, wired-shortcuts, command-selectall, the 4 media specs,
+  import-reset — all pass in one run (19m). Combined with 1298 CAD unit
+  tests, the full body of this loop's changes is verified to cohere. The
+  meaningful backlog is complete; remaining items are attended-only deferrals
+  (orphaned components, cloud media, layer-delete undo). Holding further code
+  changes to preserve the verified-stable state; remaining loop time goes to
+  QA + watching for any real issue.
