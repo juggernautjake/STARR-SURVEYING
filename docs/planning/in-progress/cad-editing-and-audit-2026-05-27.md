@@ -194,3 +194,10 @@ Newly-discovered audit targets get appended here as `[ ]`.
   Zustand byOwner index (pure indexAdd/indexRemove/indexFromMeta) hydrated
   from IDB. 4 unit tests; tsc + eslint clean. Next: E2 (right-click Add/View
   media on points + Properties thumbnails), then E3 (viewer).
+- 2026-05-27 04:0x CDT — E2a DONE: PointDataViewer right-click menu now has
+  "Add media for this point…" (hidden file input, image/video) and "View
+  media (N)" (only when attachments exist; dispatches cad:openMediaViewer).
+  Verified end-to-end in headless Chromium (`point-media.spec`): attach a PNG
+  → store→IDB→thumbnail→index→UI all work, "View media (1)" appears. Next:
+  E3 media viewer modal (image pan/zoom + video controls) listening for
+  cad:openMediaViewer; then Properties-panel thumbnails + canvas right-click.
