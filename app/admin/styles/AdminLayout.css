@@ -115,7 +115,7 @@
 /* === BUTTONS === */
 .admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.55rem 1.15rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; text-decoration:none; border:2px solid transparent; }
 .admin-btn--primary { background:#BD1218; color:#FFF; border-color:#BD1218; }
-.admin-btn--primary:hover { background:#9A0F14; border-color:#9A0F14; }
+.admin-btn--primary:hover { background:var(--color-brand-red-d); border-color:var(--color-brand-red-d); }
 .admin-btn--secondary { background:#1D3095; color:#FFF; border-color:#1D3095; }
 .admin-btn--secondary:hover { background:var(--color-brand-navy-d); border-color:var(--color-brand-navy-d); }
 .admin-btn--ghost { background:transparent; color:#6B7280; border-color:#E5E7EB; }
@@ -268,7 +268,7 @@
   border: 1px solid rgba(255,255,255,.3);
 }
 .fab-menu .fieldbook-fab:hover {
-  background: #9A0F14;
+  background: var(--color-brand-red-d);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(189, 18, 24, 0.45);
 }
@@ -429,7 +429,7 @@
 /* FAB button — rightmost in the bottom-right toolbar row */
 .fieldbook-fab-wrap { position:fixed; bottom:1.5rem; right:1.5rem; z-index:90; display:flex; flex-direction:column; align-items:center; }
 .fieldbook-fab { width:48px; height:48px; border-radius:12px; background:#BD1218; color:#FFF; border:none; font-size:1.3rem; cursor:pointer; box-shadow:0 4px 16px rgba(189,18,24,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
-.fieldbook-fab:hover { background:#9A0F14; transform:translateY(-2px); box-shadow:0 6px 20px rgba(189,18,24,.45); }
+.fieldbook-fab:hover { background:var(--color-brand-red-d); transform:translateY(-2px); box-shadow:0 6px 20px rgba(189,18,24,.45); }
 .fieldbook-fab-tooltip { position:absolute; bottom:calc(100% + 8px); white-space:nowrap; background:#FEF3C7; color:#92400E; font-family:'Inter',sans-serif; font-size:.75rem; font-weight:600; padding:.35rem .7rem; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.1); opacity:0; transform:translateY(4px); pointer-events:none; transition:opacity .2s, transform .2s; }
 .fieldbook-fab-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#FEF3C7; border-bottom:none; }
 .fieldbook-fab-wrap:hover .fieldbook-fab-tooltip { opacity:1; transform:translateY(0); }
