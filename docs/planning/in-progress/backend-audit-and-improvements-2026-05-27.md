@@ -464,6 +464,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - **Cohesive color gradient:** `cad/components/AISidebar.tsx:190` — tier 2 in a 5-step quality ramp (`5 → 22C55E (green)`, `4 → 84CC16`, `3 → F59E0B (amber)`, **`2 → EF4444 (red-500)`**, `1 → B91C1C (red-700)`). The ramp is curated as a hand-built gradient; replacing the tier-2 step with a token would risk drifting away from the visual progression if the token ever changes. Keep the ramp tight.
 - [x] **Sweep total:** the original 34 files / 56 occurrences of `#EF4444` are now down to 8 files / 8 documented intentional cases. `tsc` + `eslint` clean.
 
+### Slice 62 — Unit tests for the photo-annotation renderer ✅ shipped
+- [x] Added `__tests__/lib/photoAnnotationRenderer.test.ts` — 14 specs covering `parseAnnotations` (defensive null/empty/malformed JSON / missing-items / non-array-items / valid-empty / valid-stroke), `strokeToPath` (empty points → empty string, three-point Move+Line+Line emission, rectangular-image x/y scaling, 2-decimal-precision floating-point control), and `strokeWidthPx` (shorter-edge scaling for both landscape + portrait, integer rounding, 1-px minimum for very thin strokes). The mobile + web renderers both call into this module; pinning the contract prevents drift between platforms. `tsc` + `eslint` clean.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
