@@ -575,6 +575,14 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - **Transform / edit tools:** MOVE / COPY / ROTATE / SCALE / TRIM / EXTEND / ERASE / OFFSET / PERPENDICULAR / DRAW_TEXT / MEASURE variants.
 - [x] `tsc` + `eslint` clean. `lib/cad/cursors/manager.ts` previously had no test coverage even though it's called every frame the canvas is rendered.
 
+### Slice 75 — Unit tests for the CAD bounds module ✅ shipped
+- [x] Added `__tests__/cad/geometry/bounds.test.ts` for `lib/cad/geometry/bounds.ts` — `computeBounds`, `featureBounds`, `computeFeaturesBounds`, `expandBounds`. These feed the LOD culler, snap engine, fit-to-window helper, print extent, and "centre on selection". A wrong value here manifests as "feature disappears" or "fit-to-window zooms past the data". 17 specs cover:
+  - `computeBounds`: empty (0-bbox), single-point degenerate, multi-point with negative coords.
+  - `featureBounds`: every geometry type — POINT, LINE, POLYLINE, CIRCLE (centre ± radius), ELLIPSE at rotation 0 + at 90° (radii swap), ARC (conservative full-circle bbox), SPLINE (control-point bbox), IMAGE (position + width/height), TEXT (degenerate at anchor).
+  - `computeFeaturesBounds`: null for empty list, union for multiple.
+  - `expandBounds`: symmetric grow, negative-margin shrink (caller responsibility, documented as "expand" but math is reversible).
+- [x] `tsc` + `eslint` clean.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
