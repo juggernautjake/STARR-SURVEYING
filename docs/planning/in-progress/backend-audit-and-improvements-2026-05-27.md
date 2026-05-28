@@ -484,6 +484,12 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 - [x] Re-ran the `find app/admin -name "page.tsx"` vs `PAGE_TITLES` cross-check after Slice 57 and found 12 more non-dynamic pages still falling through to `"Admin"`: `billing/plan-history`, `cad`, `equipment/templates/cleanup-queue`, `equipment/templates/new`, `personnel/crew-calendar`, `receipts` (it was missing!), `research/billing`, `research/coverage`, `research/library`, `research/pipeline`, `research/testing`, `support/new`. Added them all. The two remaining un-titled paths (`/admin` itself, `/admin/login`) are deliberate fall-throughs.
 - [x] `tsc` + `eslint` clean. `PAGE_TITLES` now has 97 entries — every non-dynamic admin page has a specific browser-tab title.
 
+### Slice 66 — Unit tests for research geometry bbox + scale helpers ✅ shipped
+- [x] Added `__tests__/lib/geometry-engine.test.ts` — 10 specs for the two pure-function fitters in `lib/research/geometry.engine.ts` that decide where on the paper a traverse drawing lands:
+  - `computeBoundingBox`: empty list → centered-on-origin default; single-rectangle padding; tiny-spread → minimum-dimension enforcement; midpoint stays correct under min-dim widening; negative coordinates.
+  - `computeScale`: returns the limiting axis (smaller of x/y); identical-points always positive (min-dim guard inside bbox); tight margin → smaller scale than no margin; huge bbox + tiny canvas still positive.
+- [x] Tests revealed the subtlety that `computeScale` calls `computeBoundingBox(points, 0)` internally — so even though I expected `bbox.width = 0` for two identical points, the inside-bbox min-dim guard bumps it to 100, and the function never actually reaches its own `if (bbox.width <= 0) return 1` fallback. The fallback isn't dead code (a user could call `computeBoundingBox` separately, get an unenforced bbox, and somehow surface a zero-width one) but it's hard to trigger through `computeScale` alone. Test pins the actual observable behaviour. `tsc` + `eslint` clean.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
