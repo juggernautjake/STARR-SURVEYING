@@ -29,8 +29,21 @@
 .mynotes__search-bar {
   display: flex; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center;
 }
+/* Slice 87 — search input + Search button share an explicit 36 px
+ * box-sizing:border-box height. Before this, the search rendered ~36 px
+ * but the adjacent `.admin-btn--sm` (padding .35rem .75rem + .78rem font
+ * + 2 px border) rendered ~28 px — an 8 px gap on the same row, with
+ * the button floating in the search input's vertical space.
+ *
+ * Scoped to .mynotes__search-bar so other .admin-btn--sm usages stay
+ * unaffected. Same alignment-sweep pattern as Slices 83-86. */
+.mynotes__search,
+.mynotes__search-bar .admin-btn--sm {
+  box-sizing: border-box;
+  height: 36px;
+}
 .mynotes__search {
-  flex: 1; padding: 0.55rem 0.75rem; border: 2px solid #E5E7EB; border-radius: 8px;
+  flex: 1; padding: 0 0.75rem; border: 2px solid #E5E7EB; border-radius: 8px;
   font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #0F1419;
   outline: none; transition: border-color 0.15s;
 }
