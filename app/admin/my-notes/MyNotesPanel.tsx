@@ -283,7 +283,7 @@ export default function MyNotesPanel() {
             {saving && <span className="mynotes-editor__saving">Saving...</span>}
             <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveNote(true)} disabled={saving}>Save</button>
             {editEntry && (
-              <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: '#EF4444' }} onClick={() => deleteEntry(editEntry.id)}>Delete</button>
+              <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: 'var(--color-error)' }} onClick={() => deleteEntry(editEntry.id)}>Delete</button>
             )}
           </div>
         </div>

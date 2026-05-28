@@ -19,7 +19,7 @@ interface Note {
 const CATEGORIES = [
   { key: 'general', label: 'General', color: '#6B7280' },
   { key: 'procedures', label: 'Procedures', color: 'var(--color-brand-navy)' },
-  { key: 'safety', label: 'Safety', color: '#EF4444' },
+  { key: 'safety', label: 'Safety', color: 'var(--color-error)' },
   { key: 'equipment', label: 'Equipment', color: '#D97706' },
   { key: 'legal', label: 'Legal', color: '#7C3AED' },
   { key: 'hr', label: 'HR', color: '#059669' },
@@ -120,7 +120,7 @@ export default function CompanyNotesPage() {
           </button>
           <button
             className="jobs-page__btn"
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: '#EF4444' }}
+            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: 'var(--color-error)' }}
             onClick={() => void deleteNote(note.id)}
           >
             Delete

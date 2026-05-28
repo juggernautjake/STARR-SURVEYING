@@ -131,7 +131,7 @@ export default function ProfilePanel() {
           <div className="emp-manage__field"><label>Email</label><span>{email}</span></div>
           <div className="emp-manage__field"><label>Role</label><span>{profile?.job_title || role}</span></div>
           <div className="emp-manage__field"><label>Authentication</label><span>Google Workspace (@starr-surveying.com)</span></div>
-          <div className="emp-manage__field"><label>Status</label><span style={{ color: profile?.is_active !== false ? '#059669' : '#EF4444' }}>{profile?.is_active !== false ? 'Active' : 'Inactive'}</span></div>
+          <div className="emp-manage__field"><label>Status</label><span style={{ color: profile?.is_active !== false ? '#059669' : 'var(--color-error)' }}>{profile?.is_active !== false ? 'Active' : 'Inactive'}</span></div>
           {profile?.available_balance !== undefined && (
             <div className="emp-manage__field"><label>Available Balance</label><span>{fmtCurrency(profile.available_balance)}</span></div>
           )}

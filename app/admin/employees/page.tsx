@@ -213,7 +213,7 @@ export default function EmployeesPage() {
                       {ROLE_LABELS[primaryRole as UserRole] || primaryRole}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: isActive ? '#059669' : '#EF4444', fontWeight: 600 }}>
+                  <span style={{ fontSize: '0.7rem', color: isActive ? '#059669' : 'var(--color-error)', fontWeight: 600 }}>
                     {emp.is_banned ? 'Banned' : isActive ? 'Active' : 'Inactive'}
                   </span>
                 </div>

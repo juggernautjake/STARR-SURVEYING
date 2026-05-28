@@ -30,7 +30,7 @@ interface Message {
 }
 
 const ESCALATION_COLORS: Record<string, string> = {
-  low: '#10B981', medium: '#F59E0B', high: '#EF4444', critical: '#7C3AED',
+  low: '#10B981', medium: '#F59E0B', high: 'var(--color-error)', critical: '#7C3AED',
 };
 
 const STATUS_LABELS: Record<string, string> = {
