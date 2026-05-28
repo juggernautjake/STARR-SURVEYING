@@ -470,6 +470,16 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 63 — Unit tests for the quote-form attachment validator ✅ shipped
 - [x] Added `__tests__/lib/quote-attachments.test.ts` — 14 specs covering `formatBytes` (MB / KB / B thresholds incl. zero) and `validateQuoteAttachments` (happy paths: empty list, single allowed file, exact-max-files boundary, exact-total-bytes boundary, CAD/mapping formats; rejections: too-many-files / bad-extension / no-extension / extension case-insensitivity / total-size exceeded; and the documented `bad-type` BEFORE `too-large` ordering for more actionable errors). This validator runs both client-side (before form POST) and server-side (`/api/contact` re-checks); pinning the rules prevents drift between browser-side optimism and server-side enforcement. `tsc` + `eslint` clean.
 
+### Slice 64 — Unit tests for the research confidence-bucket helpers ✅ shipped (+ doc'd a confusing API)
+- [x] Added `__tests__/lib/research-confidence.test.ts` — 20 specs covering the four pure-function bucket mappings in `lib/research/confidence.ts`:
+  - `getConfidenceLevel` — 5 buckets (`very_high ≥ 90`, `high ≥ 75`, `moderate ≥ 55`, `low ≥ 35`, `very_low`). Boundary values pinned (89, 75, 55, 35, etc.).
+  - `getConfidenceColor` — every bucket returns a real 7-char hex; top + bottom are distinct. **(Kept as hex on purpose:** the SVG server-side renderer in `lib/research/svg.renderer.ts:392` writes the value into an SVG presentation attribute (`<line stroke="${color}">`), and SVG attribute literals don't resolve CSS `var()`. Same rationale as Slice 47.)
+  - `getConfidenceDescription` — tier descriptions match the right level.
+  - `getConfidenceSymbol` — 5-symbol notation (`CONFIRMED ✓ ≥ 88`, `DEDUCED ~ ≥ 65`, `UNCONFIRMED ? ≥ 45`, `DISCREPANCY ✗ ≥ 20`, `CRITICAL ✗✗`). Each boundary pinned.
+  - `formatConfidenceSymbol` — default vs `showScore=true` shapes.
+  - `summariseConfidenceSymbols` — per-bucket counts, `overallPct` is the rounded average, and the empty-array case (`dominantSymbol → CRITICAL` because 0 maps there).
+- [x] **API quirk worth flagging:** `summariseConfidenceSymbols(...).dominantSymbol` is documented in the test as "the symbol bucket of the *average score*, NOT the most-frequent count." The function name is mildly misleading — a caller might naturally expect "dominant = mode" — and a future refactor that picks the most-frequent bucket would break callers that rely on the current "average-bucket" behaviour. Test pinning the contract so the choice is explicit.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
