@@ -8,6 +8,15 @@
 .admin-layout__main { flex:1; margin-left:260px; display:flex; flex-direction:column; min-height:100vh; transition:margin-left .3s; min-width:0; overflow-x:hidden; }
 .admin-layout__content { flex:1; padding:2rem; margin-top:64px; min-width:0; overflow-x:hidden; }
 
+/* Admin sections use navy links; the global `a { color: var(--brand-red) }`
+   in app/styles/globals.css is a marketing-site default that bleeds into
+   admin pages otherwise. Scoped to .admin-layout so the marketing site,
+   error pages, and unauthenticated harness routes are untouched. Excludes
+   .btn / .btn-* / [class*="dashboard-card"] so colored action buttons keep
+   their own foreground. */
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]) { color: var(--color-brand-navy, #1D3095); }
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):hover { color: var(--color-brand-navy-d, #152050); }
+
 /* === SIDEBAR === */
 .admin-sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; height:100dvh; background:linear-gradient(180deg,#152050,#1D3095); display:flex; flex-direction:column; z-index:50; transition:transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 .admin-sidebar__header { padding:1.25rem 1.25rem 1rem; border-bottom:1px solid rgba(255,255,255,.1); display:flex; align-items:center; gap:.75rem; }

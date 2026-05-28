@@ -315,6 +315,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   
   **Runtime caveat:** verification against the real Google Calendar API needs egress to `googleapis.com` (the request/response shapes follow GCal v3); `tsc` + `eslint` clean. Commit `a011ddf`.
 
+### Slice 31 — Admin sections: navy link colour (kill the global red bleed) ✅ shipped
+- [x] `app/styles/globals.css:114` sets `a { color: var(--brand-red) }` as a marketing-site default, which bled into every admin page that didn't override per-link with an inline style. Closes the user's "consistent navy link colour (not the global red)" audit note. Fix: add a scoped rule in `app/admin/styles/AdminLayout.css` that overrides anchor colour to `var(--color-brand-navy)` within `.admin-layout`, excluding `.btn`, sidebar/topbar (which intentionally have white-on-navy), and dashboard-card variants (which set their own colours). Inline-style overrides remain untouched — those are addressed slice-by-slice as the audit walks individual pages. `tsc` + `eslint` clean (one pre-existing harmless `react-hooks/exhaustive-deps` warning on `/admin/time-off/page.tsx` unrelated to this change).
+
 ### Slice 30 — PTO Balance: accrual schema, dashboard tile, auto-deduction on approval ✅ shipped
 - [x] Closes the Slice 4 deferred PTO Balance dashboard tile (originally deferred for lack of an accrual schema). `seeds/298` adds:
   - `pto_balances` — per-employee row (`accrual_rate_hours`, `accrual_period` `biweekly|monthly|annual`, `balance_hours`, `carryover_cap`, `last_accrued_at`).
