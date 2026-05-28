@@ -51,9 +51,16 @@
 .rewards__store-filters {
   display: flex; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap;
 }
+/* Slice 91 — explicit 36 px box-sizing:border-box height (matches the
+ * --button-height-sm scale used elsewhere) + appearance:auto with extra
+ * right-padding so the native arrow has room. Without an explicit
+ * height the select rendered at its native ~30 px and looked subtly
+ * shorter than other 32-36 px controls used across the admin shell. */
 .rewards__filter-select {
-  padding: 0.4rem 0.75rem; border: 1px solid #E5E7EB; border-radius: 8px;
+  box-sizing: border-box; height: 36px;
+  padding: 0 1.75rem 0 0.75rem; border: 1px solid #E5E7EB; border-radius: 8px;
   font-family: 'Inter', sans-serif; font-size: 0.82rem; background: #FFF;
+  appearance: auto; cursor: pointer;
 }
 .rewards__store-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;
