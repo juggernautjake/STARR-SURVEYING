@@ -16,8 +16,8 @@
 .um-search { width:100%; }
 .um-filter-tabs { display:flex; gap:.35rem; flex-wrap:wrap; margin-bottom:1rem; }
 .um-filter-tab { display:inline-flex; align-items:center; gap:.35rem; height:34px; padding:0 .85rem; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:500; color:#6B7280; cursor:pointer; transition:all .15s; }
-.um-filter-tab:hover { border-color:#1D3095; color:#1D3095; }
-.um-filter-tab--active { background:#1D3095; border-color:#1D3095; color:#FFF; }
+.um-filter-tab:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
+.um-filter-tab--active { background:var(--color-brand-navy); border-color:var(--color-brand-navy); color:#FFF; }
 .um-filter-tab__count { font-size:.7rem; background:rgba(0,0,0,.08); border-radius:10px; padding:.1rem .4rem; min-width:1.1rem; text-align:center; }
 .um-filter-tab--active .um-filter-tab__count { background:rgba(255,255,255,.2); }
 .um-filter-tab--alert { border-color:#F59E0B; color:#D97706; }
@@ -38,7 +38,7 @@
 
 /* User cell */
 .um-cell-user { display:flex; align-items:center; gap:.65rem; min-width:200px; }
-.um-avatar { width:36px; height:36px; border-radius:50%; background:#1D3095; color:#FFF; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; flex-shrink:0; }
+.um-avatar { width:36px; height:36px; border-radius:50%; background:var(--color-brand-navy); color:#FFF; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; flex-shrink:0; }
 .um-name { font-weight:600; color:#0F1419; font-size:.85rem; }
 .um-email { font-size:.75rem; color:#6B7280; }
 
@@ -75,8 +75,8 @@
 .um-btn { display:inline-flex; align-items:center; justify-content:center; gap:.3rem; padding:.5rem 1rem; border:none; border-radius:6px; font-family:'Inter',sans-serif; font-weight:600; cursor:pointer; transition:all .15s; font-size:.82rem; }
 .um-btn--sm { padding:.35rem .7rem; font-size:.75rem; }
 .um-btn--xs { padding:.2rem .4rem; font-size:.75rem; background:none; color:#6B7280; }
-.um-btn--xs:hover { color:#1D3095; }
-.um-btn--primary { background:#1D3095; color:#FFF; }
+.um-btn--xs:hover { color:var(--color-brand-navy); }
+.um-btn--primary { background:var(--color-brand-navy); color:#FFF; }
 .um-btn--primary:hover { background:var(--color-brand-navy-d); }
 .um-btn--success { background:#059669; color:#FFF; }
 .um-btn--success:hover { background:#047857; }
@@ -85,7 +85,7 @@
 .um-btn--danger { background:#BD1218; color:#FFF; }
 .um-btn--danger:hover { background:#9B1015; }
 .um-btn--ghost { background:transparent; color:#6B7280; border:1px solid #E5E7EB; }
-.um-btn--ghost:hover { border-color:#1D3095; color:#1D3095; }
+.um-btn--ghost:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
 .um-btn:disabled { opacity:.5; cursor:not-allowed; }
 
 /* Confirmation Modal */

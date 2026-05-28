@@ -116,7 +116,7 @@
 .cmdk-row:hover,
 .cmdk-row--selected {
   background: #F0F4FF;
-  color: #1D3095;
+  color: var(--color-brand-navy);
 }
 
 .cmdk-row__label {

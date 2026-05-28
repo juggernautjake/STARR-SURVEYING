@@ -178,8 +178,8 @@
 
 .admin-rail__flyout-link:hover {
   background: #F0F4FF;
-  border-left-color: #1D3095;
-  color: #1D3095;
+  border-left-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
 }
 
 .admin-rail__flyout-link-label {

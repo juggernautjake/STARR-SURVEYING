@@ -13,9 +13,9 @@
   margin-bottom: -2px; color: #6B7280; cursor: pointer; transition: all 0.15s;
   white-space: nowrap;
 }
-.mynotes__tab:hover { color: #1D3095; }
+.mynotes__tab:hover { color: var(--color-brand-navy); }
 .mynotes__tab--active {
-  color: #1D3095; border-bottom-color: #1D3095;
+  color: var(--color-brand-navy); border-bottom-color: var(--color-brand-navy);
 }
 
 /* === LIST VIEW === */
@@ -47,7 +47,7 @@
   font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #0F1419;
   outline: none; transition: border-color 0.15s;
 }
-.mynotes__search:focus { border-color: #1D3095; }
+.mynotes__search:focus { border-color: var(--color-brand-navy); }
 
 /* Chips */
 .mynotes__chips {
@@ -59,12 +59,12 @@
   background: #FFF; color: #374151; cursor: pointer; white-space: nowrap;
   transition: all 0.15s;
 }
-.mynotes__chip:hover { border-color: #1D3095; color: #1D3095; }
-.mynotes__chip--active { background: #1D3095; color: #FFF; border-color: #1D3095; }
+.mynotes__chip:hover { border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
+.mynotes__chip--active { background: var(--color-brand-navy); color: #FFF; border-color: var(--color-brand-navy); }
 .mynotes__chip--add {
   border-style: dashed; color: #9CA3AF; font-weight: 500;
 }
-.mynotes__chip--add:hover { border-color: #1D3095; color: #1D3095; }
+.mynotes__chip--add:hover { border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
 
 /* New list form */
 .mynotes__new-list-form {
@@ -76,7 +76,7 @@
   padding: 0.4rem 0.5rem; border: 1px solid #E5E7EB; border-radius: 6px;
   font-size: 1rem; background: #FFF; cursor: pointer; outline: none;
 }
-.mynotes__icon-select:focus { border-color: #1D3095; }
+.mynotes__icon-select:focus { border-color: var(--color-brand-navy); }
 
 /* Notes grid */
 .mynotes__grid {
@@ -112,7 +112,7 @@
   font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #9CA3AF;
 }
 .mynotes__card-edited {
-  font-family: 'Inter', sans-serif; font-size: 0.68rem; color: #1D3095; font-weight: 500;
+  font-family: 'Inter', sans-serif; font-size: 0.68rem; color: var(--color-brand-navy); font-weight: 500;
 }
 .mynotes__card-delete {
   background: none; border: none; font-size: 0.85rem; cursor: pointer;
@@ -139,7 +139,7 @@
 .mynotes-editor__back {
   background: none; border: none; cursor: pointer;
   font-family: 'Inter', sans-serif; font-size: 0.85rem; font-weight: 500;
-  color: #1D3095; padding: 0;
+  color: var(--color-brand-navy); padding: 0;
 }
 .mynotes-editor__back:hover { text-decoration: underline; }
 .mynotes-editor__actions {
@@ -196,9 +196,9 @@
   background: #FFFEF7; color: #3B2F1E; cursor: pointer; transition: all 0.15s;
   white-space: nowrap;
 }
-.mynotes-notebook__vis-toggle:hover { border-color: #1D3095; }
+.mynotes-notebook__vis-toggle:hover { border-color: var(--color-brand-navy); }
 .mynotes-notebook__vis-toggle--public {
-  background: #DBEAFE; border-color: #1D3095; color: #1D3095;
+  background: #DBEAFE; border-color: var(--color-brand-navy); color: var(--color-brand-navy);
 }
 .mynotes-notebook__vis-badge {
   font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 600;
@@ -244,7 +244,7 @@
 }
 .mynotes-notebook__media-name {
   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: #1D3095;
+  color: var(--color-brand-navy);
 }
 .mynotes-notebook__media-remove {
   background: none; border: none; color: #9CA3AF; cursor: pointer; font-size: 0.82rem;
@@ -296,8 +296,8 @@
   background: #FFF; color: #374151; cursor: pointer; white-space: nowrap;
   transition: all 0.15s;
 }
-.mynotes-editor__cat:hover { border-color: #1D3095; }
-.mynotes-editor__cat--active { background: #1D3095; color: #FFF; border-color: #1D3095; }
+.mynotes-editor__cat:hover { border-color: var(--color-brand-navy); }
+.mynotes-editor__cat--active { background: var(--color-brand-navy); color: #FFF; border-color: var(--color-brand-navy); }
 
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
