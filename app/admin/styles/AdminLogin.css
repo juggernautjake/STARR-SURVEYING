@@ -11,8 +11,8 @@
 .admin-login__divider::before,.admin-login__divider::after { content:''; flex:1; height:1px; background:#E5E7EB; }
 .admin-login__divider-text { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
 .admin-login__notice { font-family:'Inter',sans-serif; font-size:.8rem; color:#9CA3AF; line-height:1.5; }
-.admin-login__notice strong { color:#BD1218; }
-.admin-login__error { margin-bottom:1.25rem; padding:.75rem 1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#BD1218; }
+.admin-login__notice strong { color:var(--color-brand-red); }
+.admin-login__error { margin-bottom:1.25rem; padding:.75rem 1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:var(--color-brand-red); }
 .admin-login__success { margin-bottom:1.25rem; padding:.75rem 1rem; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#065F46; }
 .admin-login__info { margin-bottom:1.25rem; padding:.75rem 1rem; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#1E40AF; }
 .admin-login__form { display:flex; flex-direction:column; gap:.75rem; }
@@ -34,7 +34,7 @@
 .register-card__logo { width:70px; height:70px; margin:0 auto 1rem; object-fit:contain; }
 .register-card__title { font-family:'Sora',sans-serif; font-size:1.35rem; font-weight:700; color:#0F1419; margin-bottom:.35rem; }
 .register-card__subtitle { font-family:'Inter',sans-serif; font-size:.85rem; color:#6B7280; margin-bottom:1.5rem; line-height:1.5; }
-.register-card__error { margin-bottom:1rem; padding:.75rem 1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#BD1218; }
+.register-card__error { margin-bottom:1rem; padding:.75rem 1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:var(--color-brand-red); }
 .register-card__form { display:flex; flex-direction:column; gap:.65rem; text-align:left; }
 .register-card__field { display:flex; flex-direction:column; gap:.25rem; }
 .register-card__label { font-family:'Inter',sans-serif; font-size:.78rem; font-weight:600; color:#374151; }

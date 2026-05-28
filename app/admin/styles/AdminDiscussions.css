@@ -21,7 +21,7 @@
 .discussion-panel__tab:hover { color:var(--color-brand-navy); background:#F5F7FF; }
 .discussion-panel__tab--active { color:var(--color-brand-navy); background:#EFF6FF; border-color:var(--color-brand-navy); }
 .discussion-panel__close { background:none; border:none; font-size:1.25rem; color:#6B7280; cursor:pointer; padding:.25rem; }
-.discussion-panel__close:hover { color:#BD1218; }
+.discussion-panel__close:hover { color:var(--color-brand-red); }
 
 .discussion-panel__context { padding:.45rem 1rem; background:#F8F9FA; font-family:'Inter',sans-serif; font-size:.72rem; color:#6B7280; border-bottom:1px solid #E5E7EB; }
 

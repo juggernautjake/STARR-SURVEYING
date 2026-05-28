@@ -7,7 +7,7 @@
 :root {
   --recon-brand: var(--color-brand-navy);
   --recon-brand-dark: #152050;
-  --recon-red: #BD1218;
+  --recon-red: var(--color-brand-red);
   --recon-dark: #0F1419;
   --recon-success: #059669;
   --recon-warning: #D97706;
