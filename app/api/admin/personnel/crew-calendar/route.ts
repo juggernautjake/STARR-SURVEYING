@@ -57,13 +57,17 @@ interface CalendarUser {
   cells: Record<string, CalendarCell>;
 }
 
+// Notes on the timestamp field: job_team has no created_at column on
+// the live schema; assigned_at is the insert timestamp (Slice 78 / 81).
+// The "unconfirmed_overdue" rule below treats assigned_at as the
+// reference point — semantically the same as the original intent.
 interface AssignmentRow {
   id: string;
   user_email: string | null;
   state: string;
   assigned_from: string;
   assigned_to: string;
-  created_at: string;
+  assigned_at: string;
   confirmed_at: string | null;
 }
 
@@ -195,7 +199,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data: asgData, error: asgErr } = await supabaseAdmin
     .from('job_team')
     .select(
-      'id, user_email, state, assigned_from, assigned_to, created_at, confirmed_at'
+      'id, user_email, state, assigned_from, assigned_to, assigned_at, confirmed_at'
     )
     .in('state', ['proposed', 'confirmed'])
     .in('user_email', internalEmails)
@@ -266,7 +270,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       // State derivation: confirmed > proposed > overdue.
       const isOverdue =
         a.state === 'proposed' &&
-        nowMs - Date.parse(a.created_at) > NOTIFICATION_GRACE_MS;
+        nowMs - Date.parse(a.assigned_at) > NOTIFICATION_GRACE_MS;
       if (a.state === 'confirmed') {
         cell.state =
           cell.state === 'open' || cell.state === 'proposed' || cell.state === 'unconfirmed_overdue'

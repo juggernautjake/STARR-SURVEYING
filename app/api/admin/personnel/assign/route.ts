@@ -246,9 +246,11 @@ export const POST = withErrorHandler(
       .from('job_team')
       .insert(rows)
       .select(
+        // job_team has no created_at column on the live schema; it
+        // uses assigned_at as the insert timestamp (see Slice 78 / 81).
         'id, job_id, user_email, user_name, role, slot_role, ' +
           'assigned_from, assigned_to, state, is_crew_lead, ' +
-          'is_override, override_reason, notes, created_at'
+          'is_override, override_reason, notes, assigned_at'
       );
 
     if (error) {

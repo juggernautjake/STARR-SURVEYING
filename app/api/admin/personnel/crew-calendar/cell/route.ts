@@ -63,10 +63,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     supabaseAdmin
       .from('job_team')
       .select(
+        // job_team has no created_at column on the live schema;
+        // assigned_at is the insert timestamp (Slice 78 / 81).
         'id, job_id, user_email, user_name, slot_role, role, ' +
           'assigned_from, assigned_to, state, is_crew_lead, ' +
           'is_override, override_reason, decline_reason, ' +
-          'confirmed_at, declined_at, created_at, notes'
+          'confirmed_at, declined_at, assigned_at, notes'
       )
       .eq('user_email', userEmail)
       .in('state', ['proposed', 'confirmed', 'declined', 'cancelled'])
