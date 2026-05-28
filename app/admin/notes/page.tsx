@@ -18,7 +18,7 @@ interface Note {
 
 const CATEGORIES = [
   { key: 'general', label: 'General', color: '#6B7280' },
-  { key: 'procedures', label: 'Procedures', color: '#1D3095' },
+  { key: 'procedures', label: 'Procedures', color: 'var(--color-brand-navy)' },
   { key: 'safety', label: 'Safety', color: '#EF4444' },
   { key: 'equipment', label: 'Equipment', color: '#D97706' },
   { key: 'legal', label: 'Legal', color: '#7C3AED' },

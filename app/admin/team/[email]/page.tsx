@@ -621,7 +621,7 @@ const styles: Record<string, React.CSSProperties> = {
   back: {
     display: 'inline-block',
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     marginBottom: 16,
     textDecoration: 'none',
   },
@@ -646,7 +646,7 @@ const styles: Record<string, React.CSSProperties> = {
   rolePill: {
     display: 'inline-block',
     background: '#EEF2FF',
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     padding: '2px 8px',
     borderRadius: 999,
     fontSize: 11,
@@ -685,7 +685,7 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 220,
   },
   primaryBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -696,8 +696,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   secondaryBtn: {
     background: '#FFFFFF',
-    color: '#1D3095',
-    border: '1px solid #1D3095',
+    color: 'var(--color-brand-navy)',
+    border: '1px solid var(--color-brand-navy)',
     borderRadius: 8,
     padding: '10px 14px',
     cursor: 'pointer',
@@ -711,7 +711,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   linkBtn: {
     fontSize: 12,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
@@ -805,7 +805,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#ECFDF5',
   },
   tableLink: {
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
   },
   captureGrid: {
@@ -916,7 +916,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block',
     marginTop: 12,
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
   },
   empty: {

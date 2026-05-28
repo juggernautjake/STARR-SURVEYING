@@ -371,6 +371,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 43 — Token-ize the hardcoded navy hex (sweep): jobs/field-data/reports batch ✅ shipped
 - [x] Four pages: `jobs/[id]/field/page.tsx` (6), `field-data/[id]/page.tsx` (7), `reports/page.tsx` (6), `reports/job/[jobId]/page.tsx` (2). 21 occurrences total — inline-style JSX literals + `<style jsx>` template-literal CSS. 53 `#1D3095` literals across 22 admin .tsx files remain. `tsc` + `eslint` clean.
 
+### Slice 44 — Token-ize the hardcoded navy hex (sweep): team/profile/settings/employees/notes batch ✅ shipped
+- [x] Five files: `team/[email]/page.tsx` (8), `profile/ProfilePanel.tsx` (4), `settings/page.tsx` (4), `employees/page.tsx` (1), `notes/page.tsx` (1). 18 occurrences total. Notes case worth flagging: the page's `CATEGORIES` config previously mapped the "procedures" category to `#1D3095`; now it reads `var(--color-brand-navy)`. This means the procedures-category accent will track brand navy if the token ever changes — that's the intended sweep behaviour, but a future "procedure category needs its own colour" could re-introduce a hardcoded value (with a comment explaining why) without breaking the rest. 35 `#1D3095` literals across 17 admin .tsx files remain. `tsc` + `eslint` clean.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:

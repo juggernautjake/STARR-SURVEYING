@@ -205,7 +205,7 @@ export default function EmployeesPage() {
                 <div className="job-card__header">
                   <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
                     {emp.job_title && (
-                      <span className="job-card__stage" style={{ background: '#1D3095', fontSize: '.68rem' }}>
+                      <span className="job-card__stage" style={{ background: 'var(--color-brand-navy)', fontSize: '.68rem' }}>
                         {JOB_TITLE_LABELS[emp.job_title] || emp.job_title}
                       </span>
                     )}

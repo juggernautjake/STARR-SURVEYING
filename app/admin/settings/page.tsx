@@ -337,7 +337,7 @@ function GoogleCalendarConnectCard() {
           ) : (
             <p style={{ margin: '0.25rem 0 0', color: '#6B7280', fontSize: '0.8rem' }}>Not connected</p>
           )}
-          {message && <p style={{ margin: '0.4rem 0 0', color: '#1D3095', fontSize: '0.8rem' }}>{message}</p>}
+          {message && <p style={{ margin: '0.4rem 0 0', color: 'var(--color-brand-navy)', fontSize: '0.8rem' }}>{message}</p>}
         </div>
       </div>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -361,10 +361,10 @@ function GoogleCalendarConnectCard() {
 }
 
 const btnPrimary: React.CSSProperties = {
-  padding: '0.45rem 0.9rem', background: '#1D3095', color: '#FFF',
+  padding: '0.45rem 0.9rem', background: 'var(--color-brand-navy)', color: '#FFF',
   border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem',
 };
 const btnSecondary: React.CSSProperties = {
-  padding: '0.45rem 0.9rem', background: '#FFF', color: '#1D3095',
-  border: '1px solid #1D3095', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem',
+  padding: '0.45rem 0.9rem', background: '#FFF', color: 'var(--color-brand-navy)',
+  border: '1px solid var(--color-brand-navy)', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem',
 };
