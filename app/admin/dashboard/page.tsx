@@ -33,6 +33,7 @@ export default function AdminDashboardPage() {
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [activeJobsCount, setActiveJobsCount] = useState<number | null>(null);
+  const [hoursThisWeek, setHoursThisWeek] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const roles = session?.user?.roles || ['employee'];
@@ -104,6 +105,27 @@ export default function AdminDashboardPage() {
         }
       }
 
+      // Hours logged this week for the My Finances card (the user's own
+      // daily time logs, Sunday → today). Scoped to self via the email param
+      // so it works for admins too (who would otherwise get every user's logs).
+      if (isCompanyUser && (isAdminOrDev || isFieldCrew)) {
+        try {
+          const now = new Date();
+          const weekStart = new Date(now);
+          weekStart.setDate(now.getDate() - now.getDay()); // Sunday
+          const iso = (d: Date) => d.toISOString().split('T')[0];
+          const email = session?.user?.email ?? '';
+          const tlRes = await fetch(`/api/admin/time-logs?email=${encodeURIComponent(email)}&date_from=${iso(weekStart)}&date_to=${iso(now)}`);
+          if (tlRes.ok) {
+            const tld = await tlRes.json();
+            const total = (tld.logs || []).reduce((sum: number, l: { hours?: number }) => sum + (Number(l.hours) || 0), 0);
+            setHoursThisWeek(Math.round(total * 10) / 10);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'hours this week' });
+        }
+      }
+
       // Admin-only data
       if (isAdminOrDev) {
         // Activity feed
@@ -132,7 +154,7 @@ export default function AdminDashboardPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'dashboard data load' });
     }
     setLoading(false);
-  }, [isAdminOrDev, isCompanyUser, isFieldCrew, isResearcher, reportPageError]);
+  }, [isAdminOrDev, isCompanyUser, isFieldCrew, isResearcher, session?.user?.email, reportPageError]);
 
   useEffect(() => {
     if (session?.user) loadData();
@@ -295,10 +317,16 @@ export default function AdminDashboardPage() {
               <span className="dashboard-card__badge">Finances</span>
             </div>
             <h3 className="dashboard-card__title">My Finances</h3>
+            <div className="dashboard-card__metrics">
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">{hoursThisWeek === null ? '--' : hoursThisWeek}</span>
+                <span className="dashboard-card__metric-label">Hours This Week</span>
+              </div>
+            </div>
             <p className="dashboard-card__empty-note">
               {isAdminOrDev
                 ? 'Run payroll, review hours, and manage balances'
-                : 'View your hours, pay stubs, and PTO balance'}
+                : 'View your hours, pay stubs, and bank transfers'}
             </p>
             <span className="dashboard-card__link">View Finances &rarr;</span>
           </Link>
