@@ -86,6 +86,8 @@ export default function SchedulePanel() {
   const [formData, setFormData] = useState({
     title: '', event_type: 'field_work', start_date: '', start_time: '08:00',
     end_date: '', end_time: '17:00', all_day: false, location: '', notes: '',
+    recurrence: 'none' as 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly',
+    recurrence_end: '',
   });
 
   const userRoles = session?.user?.roles || ['employee'];
@@ -115,6 +117,13 @@ export default function SchedulePanel() {
     setSaving(true);
     try {
       const url = force ? '/api/admin/schedule?force=1' : '/api/admin/schedule';
+      const ruleMap: Record<string, string | null> = {
+        none: null,
+        daily: 'FREQ=DAILY',
+        weekdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+        weekly: 'FREQ=WEEKLY',
+        monthly: 'FREQ=MONTHLY',
+      };
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,6 +131,10 @@ export default function SchedulePanel() {
           title: formData.title, event_type: formData.event_type,
           start_time: startIso, end_time: endIso, all_day: formData.all_day,
           location: formData.location, notes: formData.notes,
+          recurrence_rule: ruleMap[formData.recurrence],
+          recurrence_end: formData.recurrence !== 'none' && formData.recurrence_end
+            ? new Date(`${formData.recurrence_end}T23:59`).toISOString()
+            : null,
         }),
       });
       if (res.status === 409) {
@@ -139,7 +152,7 @@ export default function SchedulePanel() {
         await safeAction('creating event', async () => { throw new Error(msg); });
         return;
       }
-      setFormData({ title: '', event_type: 'field_work', start_date: '', start_time: '08:00', end_date: '', end_time: '17:00', all_day: false, location: '', notes: '' });
+      setFormData({ title: '', event_type: 'field_work', start_date: '', start_time: '08:00', end_date: '', end_time: '17:00', all_day: false, location: '', notes: '', recurrence: 'none', recurrence_end: '' });
       setShowEventForm(false);
       await load();
     } finally {
@@ -262,6 +275,22 @@ export default function SchedulePanel() {
                 All Day Event
               </label>
             </div>
+            <div className="sched__form-field">
+              <label>Repeats</label>
+              <select value={formData.recurrence} onChange={e => setFormData(p => ({ ...p, recurrence: e.target.value as typeof p.recurrence }))}>
+                <option value="none">Does not repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekdays">Every weekday (Mon–Fri)</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            {formData.recurrence !== 'none' && (
+              <div className="sched__form-field">
+                <label>Repeat until</label>
+                <input type="date" value={formData.recurrence_end} onChange={e => setFormData(p => ({ ...p, recurrence_end: e.target.value }))} />
+              </div>
+            )}
             <div className="sched__form-field sched__form-field--full">
               <label>Notes</label>
               <textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
