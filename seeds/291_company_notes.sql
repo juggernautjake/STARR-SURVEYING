@@ -11,7 +11,7 @@
 -- no RLS — access is gated at the API/auth layer like the rest of the
 -- /api/admin surface).
 --
--- Spec: docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md (Slice 10)
+-- Spec: docs/planning/completed/backend-audit-and-improvements-2026-05-27.md (Slice 10)
 -- ============================================================================
 
 BEGIN;

@@ -6,7 +6,7 @@
 // POST   /api/admin/google-calendar  — { action: 'connect' } returns the OAuth URL to redirect to
 // DELETE /api/admin/google-calendar  — disconnect (drops tokens + event links)
 //
-// Spec: docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md
+// Spec: docs/planning/completed/backend-audit-and-improvements-2026-05-27.md
 //       Slice 29 (deferred from Slice 12).
 
 import { NextRequest, NextResponse } from 'next/server';

@@ -19,7 +19,7 @@
 --   etag                 — last-known remote etag for change detection
 --   updated_remote_at    — last remote update time we observed
 --
--- Spec: docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md
+-- Spec: docs/planning/completed/backend-audit-and-improvements-2026-05-27.md
 --       Slice 12 deferred items.
 -- ============================================================================
 

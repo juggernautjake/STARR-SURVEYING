@@ -13,7 +13,7 @@
 -- status           For time-off requests: pending / approved / denied.
 --                  Defaults to 'approved' so non-time-off events stay visible.
 --
--- Spec: docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md
+-- Spec: docs/planning/completed/backend-audit-and-improvements-2026-05-27.md
 --       (Slice 12 deferred items)
 -- ============================================================================
 

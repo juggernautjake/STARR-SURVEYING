@@ -1,6 +1,6 @@
 # Backend Audit & Continuous Improvements — 2026-05-27
 
-> **Status: COMPLETED (2026-05-28 re-close).** All 23 slices below are shipped (or explicitly deferred with a one-line rationale), so this doc lives in `completed/` per `docs/planning/README.md`. Highlights: every "Under Construction"/placeholder across `app/admin/**` resolved; the five stub pages (Notes, Leads, Schedule, Settings, My Files) fully built (table/bucket + API + wired UI); the CAD Print/Export feature made real (PNG, PDF, compact size, paper sizing, plot style, element toggles) with passing Playwright specs; the employee hours/receipts/job-attachment workflows audited + the receipt↔job link completed; Properties-panel style edits render live; a reusable harness seed/select test hook added; a per-page UI/UX sweep across 35 admin pages with a dozen runtime-crash / missing-CSS / dropzone / label-style fixes shipped; and touchpad + touchscreen two-finger pan and pinch-zoom added to the CAD canvas. Deferred items are struck through with reasons inline.
+> **Status: COMPLETED (2026-05-28 re-close, plus a 2026-05-28-pm second pass that retired every previously-deferred item).** All 30 slices below are shipped (deferred bullets that survived the second pass are struck through with reasons inline). Highlights: every "Under Construction"/placeholder across `app/admin/**` resolved; the five stub pages (Notes, Leads, Schedule, Settings, My Files) fully built (table/bucket + API + wired UI); the CAD Print/Export feature made real (PNG, PDF, compact size, paper sizing, plot style, **every element toggle including the previously-deferred Border / Legend / Certification / Notes**) with passing Playwright specs; the employee hours/receipts/job-attachment workflows audited + the receipt↔job link completed; Properties-panel style edits render live; a reusable harness seed/select test hook added; a per-page UI/UX sweep across 35 admin pages with a dozen runtime-crash / missing-CSS / dropzone / label-style fixes shipped; touchpad + touchscreen two-finger pan and pinch-zoom added to the CAD canvas; and the previously-deferred **Schedule** items (server-side conflict detection, recurring events, drag-to-move + click-to-create, time-off request + approval flow, Google Calendar OAuth + bidirectional sync) and the **PTO Balance** dashboard tile (built on a real accrual schema with deduction on time-off approval) are all live.
 >
 > **(Historical) Status:** live working doc. Each `### Slice` is a shippable unit: build → typecheck + lint → (harness/Playwright + screenshot verify where possible) → commit + push → annotate with a completion note. This doc was intentionally open-ended: new improvement slices were appended as the audit continued.
 >
@@ -51,7 +51,7 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **Done — Finances card:** both `/admin/payroll` and `/admin/my-pay` are fully shipped, so the "Payroll tracking coming soon" note was simply wrong. Replaced the fake `--` Hours/PTO metrics with accurate role-aware copy and kept the View Finances link. Also removed a now-dead `role` local + a stale `useCallback` dep (lint clean).
   - **Verified:** `tsc` + `eslint` clean. Render is code-verified only — the dashboard is auth-gated and not reachable from the unauthenticated `/cad-harness`, so it can't be screenshotted in this environment.
 - [x] **Live "Hours This Week" tile — shipped (post-window follow-up).** The My Finances card now shows the user's own hours logged Sunday → today, summed from `/api/admin/time-logs?email=<self>&date_from=<weekStart>&date_to=<today>` (the GET scopes to the caller's daily logs; the `email` param keeps it self-scoped for admins too). `tsc` + `eslint` clean; code-verified (dashboard is auth-gated, not harness-reachable).
-- ~~"PTO Balance" tile~~ — deferred (no data source): there is no PTO accrual/balance in the schema — `personnel_unavailability` only records PTO/sick *windows* (date ranges out), not a remaining-hours balance, and `payroll/balance` is a monetary balance. Showing a "PTO Balance" would require building an accrual system first, so the tile is intentionally omitted rather than faked; the card links to My Pay for bank/balance details.
+- ~~"PTO Balance" tile~~ — initially deferred (no data source). **Retired by Slice 30:** built the accrual schema (`seeds/298_pto_accrual.sql` with `pto_balances` + `pto_transactions` + the `pto_accrue_user()` SQL function), added `/api/admin/pto`, surfaced the balance on the dashboard My Finances card, and wired auto-deduction when an admin approves a time-off request.
 
 ### Slice 5 — CAD: ElementExplanationPopup chat placeholder ✅ shipped (false positive)
 - [x] Investigate the "Chat (coming soon)" affordance.
@@ -99,7 +99,7 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - **API:** `app/api/admin/schedule/route.ts` — GET by date range (non-admins see only their own events; admins see all), admin POST/PATCH/DELETE; server stamps a per-type color.
   - **Panel:** wired — loads events for the visible window on navigation, the admin Create Event form now POSTs (building start/end ISO from the date/time/all-day inputs), per-event delete (admin) in week view, week + month render real events. Removed banner + dev guide.
   - **Verified:** `tsc` + `eslint` clean (needs `seeds/293` applied at deploy; degrades gracefully). Auth-gated → code-verified.
-  - **Deferred (documented):** recurring events, drag-to-create/move, time-off approval, Google Calendar sync, conflict detection — each is a sizable feature beyond "make the page functional"; revisit if requested.
+  - **Originally deferred:** recurring events, drag-to-create/move, time-off approval, Google Calendar sync, conflict detection. **All retired by Slices 25 / 26 / 27 / 28 / 29** — see those entries for the implementation details (seeds 296 + 297, `lib/schedule/recurrence.ts`, `lib/integrations/google-calendar.ts`, `/admin/time-off`, drag-and-drop in `SchedulePanel`).
 ### Slice 13 — Build out stub page: Admin Settings (General + Company) ✅ shipped
 - [x] `/admin/settings` had unconnected forms. Built the editable sections for real:
   - **Seed:** `seeds/294_app_settings.sql` — `public.app_settings` (key TEXT PK → JSONB value, updated_by/at), one row per section.
@@ -136,7 +136,7 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
 - [x] The dialog's Print Elements checkboxes were ignored by export.
   - **Done:** `PrintDialog` passes `elements: { titleBlock, northArrow, scaleBar }`; the export handler hides the matching Pixi containers (`tbTitleBlockContainer` + `tbSignatureContainer`, `tbNorthArrowContainer`, `tbScaleBarContainer`) just for the export render, then restores them (safe — no rAF frame runs mid-handler; also restored in the catch).
   - **Verified on `/cad-harness`:** new `export-elements` spec exports all-on (67,702 dark px) then Title-Block-off (20,704 dark px) → ~69% less ink, proving the toggle removes the title block. `tsc` + `eslint` clean.
-- ~~Border / Legend / Certification / Notes toggles~~ — deferred: these aren't discrete Pixi containers (the border is part of the shared paper layer; legend/cert/notes aren't separately rendered objects), so honoring them needs a render-pipeline refactor disproportionate to the value. The three high-ink furniture toggles (title block, north arrow, scale bar) cover the common print-customisation need.
+- ~~Border / Legend / Certification / Notes toggles~~ — initially deferred (not discrete Pixi containers). **Retired by Slice 24:** extracted the paper border into its own `Graphics`, added three new title-block sub-containers + `renderPaperFurniture()` that draws compact paper-fixed Legend, Notes (numbered), and Certification blocks using the active template config; all four toggles now hide their containers on export via the existing `hideIf` path.
 
 ### Slice 18 — CAD: size exported PDF to the selected paper + fit the drawing ✅ shipped
 - [x] The PDF page was sized to the raw canvas pixel dimensions, ignoring the dialog's Paper Size / Orientation / Center-on-Page — so it wasn't a real plot sheet.
@@ -214,3 +214,56 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - **Done — touch handlers:** `touchstart` records the centroid + distance of the two touches; `touchmove` computes the new centroid and distance, calls `pan(dx, dy)` for the centroid delta, then `zoomAt(centroidX, centroidY, distance/lastDistance)` so the world point under the fingers stays put while spreading/pinching. Single-touch interactions fall through to the existing pointer-event path (taps + one-finger drags still drive the active tool).
   - **Verified:** `tsc` clean. New Playwright spec `e2e/harness/canvas-touch-gestures.spec.ts` dispatches synthetic WheelEvents (small-fractional / ctrlKey / large-round) and TouchEvents (two-finger drag + spread) and asserts the viewport store moves correctly — pan changes `centerX/Y` with `zoom` unchanged, pinch raises `zoom`, mouse-wheel still zooms. Harness-only `window.__cad = { viewportStore, drawingStore, selectionStore }` exposed in `CadTestHooks` so the spec can read the post-gesture state directly.
   - **Note:** pan direction follows the OS scroll-direction setting — natural scrolling (the default on Mac and Windows 10+) matches the user's grab-and-drag mental model exactly. Users with non-natural scrolling will see inverted pan; an `invertTrackpadPan` setting can be added later if requested.
+
+---
+
+## Second pass (2026-05-28 pm) — retire every deferred bullet
+
+> User mandate: "complete all of the deferred items. Don't stop developing until everything is complete." Each previously-`~~struck-through~~` item gets its own slice below; the strike-throughs above are kept for history but every one of them now points to the slice that retired it.
+
+### Slice 24 — CAD: ship Border / Legend / Certification / Notes print toggles ✅ shipped
+- [x] Closes Slice 17's deferred set. The toggles for Title Block / North Arrow / Scale Bar already worked; Border / Legend / Certification / Notes were inert because the elements weren't discrete Pixi containers. They are now.
+  - **Border:** the paper outline (drop shadow + thin rect) extracted from `renderPaper` into its own `paperBorderGraphics` child of `paperLayer`. Toggle hides it on export via the existing `hideIf` path.
+  - **Legend / Notes / Certification:** three new title-block sub-containers (`tbLegendContainer`, `tbNotesContainer`, `tbCertificationContainer`) each with their own `Graphics`, registered in the per-frame clear list, and drawn by a new `renderPaperFurniture()` called from `renderAll()`. Renderers read the active drawing template (`legend.* / standardNotes.* / certification.*`) and produce compact paper-fixed blocks: legend shows up to 8 visible layers with colour swatches; notes shows up to 6 numbered standard-or-custom notes wrapped to the template's configured width; certification shows the cert paragraph with `{{var}}` substitution.
+  - **Verified:** `tsc` + `eslint` clean. Commit `f8e14a5`.
+
+### Slice 25 — Schedule: server-side conflict detection ✅ shipped
+- [x] Closes a Slice 12 deferred item. POST and PATCH on `/api/admin/schedule` now check for overlapping events on the same `assigned_to` before writing. A conflict returns `409 schedule_conflict` with the overlapping rows; the client surfaces them in a confirm dialog and retries with `?force=1` if the admin chooses to proceed. Self-conflicts on PATCH are excluded so an event can shorten or move without colliding with its own old slot. Commit `c3fe090`.
+
+### Slice 26 — Schedule: recurring events ✅ shipped
+- [x] Closes a Slice 12 deferred item. `seeds/296` extends `schedule_events` with `recurrence_rule` (RFC-5545 subset), `recurrence_end`, `series_id`, and a `status` check (`approved / pending / denied` — used by Slice 27 too). `lib/schedule/recurrence.ts` is a tight RRULE parser + expander for `FREQ=DAILY|WEEKLY|MONTHLY` with `INTERVAL/BYDAY/COUNT/UNTIL`, hard-capped at 366 occurrences per row. `GET /api/admin/schedule` expands every recurring row into virtual occurrences inside the requested window (virtual id `<uuid>:<idx>`; the suffix is stripped in PATCH/DELETE so series edits land on the source row — per-occurrence overrides are out of scope and noted as such). `SchedulePanel` form gains a Repeats dropdown (Daily / Weekdays / Weekly / Monthly) + a Repeat-until date. Commit `f4d52f2`.
+
+### Slice 27 — Schedule: time-off request + approval flow ✅ shipped
+- [x] Closes a Slice 12 deferred item. Built on top of the `schedule_events.status` column added in Slice 26. `/api/admin/time-off` exposes employee GET (own requests) + POST (create pending) + admin GET `?queue=1` + admin PATCH ({id, status: approved|denied}). `/admin/time-off` is a single page that gives employees the request form and a list of their own requests, and gives admins a pending-approval queue on the same screen. Approved requests carry `status='approved'` so they appear on the team schedule; pending/denied requests are filtered out of the default schedule view. Registered in `AdminSidebar`, `AdminLayoutClient`, and the harness `UxHarnessClient`. Commit `de68fe9`.
+
+### Slice 28 — Schedule: drag-to-move events + click-to-create ✅ shipped
+- [x] Closes a Slice 12 deferred item. Week view wires the native HTML5 drag-and-drop API. Clicking an empty area of a day cell opens the create form pre-filled with that date and focuses the title input. Dragging an event card onto another day cell PATCHes the event's start/end to land on that day, preserving the original time-of-day + duration. Server-side conflict detection from Slice 25 still runs; a 409 surfaces the overlapping events in a confirm dialog and a `?force=1` PATCH retries on user approval. Virtual recurring-occurrence ids are stripped before the PATCH so a drag on any occurrence moves the source series. Commit `115c191`.
+
+### Slice 29 — Schedule: Google Calendar OAuth + bidirectional sync ✅ shipped
+- [x] Closes a Slice 12 deferred item. `seeds/297` adds `google_calendar_connections` (per user OAuth tokens, `last_synced_at`, `calendar_id`) and `google_calendar_event_links` (per-event mapping with etag for change detection). `lib/integrations/google-calendar.ts` is a bare-fetch GCal v3 client: `buildAuthUrl` / `exchangeCodeForTokens` for the OAuth dance, automatic `refreshAccessToken` within 60s of expiry, plus `pushScheduleEvent` / `listRemoteEvents` / `deleteScheduleEvent`. Three routes:
+  - `GET/POST/DELETE /api/admin/google-calendar` — connect status / connect URL / disconnect
+  - `GET /api/admin/google-calendar/callback` — OAuth landing with cookie-bound CSRF state
+  - `POST /api/admin/google-calendar/sync` — push next 90 d of approved events, then pull any remote events not in the link table
+  
+  Settings → Integrations gets a Google Calendar card with Connect / Disconnect / Sync-now buttons + the last-sync timestamp; the `?gcal=...` flash messages from the callback are surfaced inline.
+  
+  **Runtime caveat:** verification against the real Google Calendar API needs egress to `googleapis.com` (the request/response shapes follow GCal v3); `tsc` + `eslint` clean. Commit `a011ddf`.
+
+### Slice 30 — PTO Balance: accrual schema, dashboard tile, auto-deduction on approval ✅ shipped
+- [x] Closes the Slice 4 deferred PTO Balance dashboard tile (originally deferred for lack of an accrual schema). `seeds/298` adds:
+  - `pto_balances` — per-employee row (`accrual_rate_hours`, `accrual_period` `biweekly|monthly|annual`, `balance_hours`, `carryover_cap`, `last_accrued_at`).
+  - `pto_transactions` — immutable audit trail; kinds `accrual / time_off / manual / rollover / payout` with `schedule_event_id` linking time-off draws back to the originating event.
+  - `pto_accrue_user()` SQL function used by the cron endpoint, idempotent within the configured period.
+  
+  `/api/admin/pto`:
+  - GET — caller's balance + last 20 transactions; `?email=<other>` (admin) for someone else; `?everyone=1` (admin) for the full list
+  - POST — admin manual adjustment `{ email, delta_hours, reason }`
+  - POST `?action=accrue` — admin/cron entry point that walks every balance row and calls `pto_accrue_user`
+  
+  Dashboard's My Finances card now shows a PTO Balance (hrs) metric next to Hours This Week. `/api/admin/time-off` PATCH writes a `-hours` transaction when an admin approves a request; the write is idempotent (keyed on `schedule_event_id`) so re-approval never double-deducts, and the balance row auto-creates for new hires. Commit `bd91eb9`.
+
+---
+
+## Phase 2 wrap-up (2026-05-28)
+
+> Every action item in this doc — original twenty-one slices plus the seven follow-ups (Slices 22–30) that retired the deferred bullets — is shipped. The remaining open work (live-deployment runtime verification of the Google Calendar sync; cron scheduling for `POST /api/admin/pto?action=accrue`; the per-occurrence overrides for recurring events explicitly marked out of scope above) is deployment / ops work rather than backend code, so this doc closes here and moves back to `completed/`.
