@@ -30,6 +30,7 @@ import '@/app/admin/styles/AdminFieldWork.css';
 import '@/app/admin/styles/AdminDiscussions.css';
 import '@/app/admin/styles/AdminEmployeeManage.css';
 import '@/app/admin/styles/AdminArticle.css';
+import '@/app/admin/styles/AdminAudit.css';
 
 // A fully-privileged session so every role gate renders.
 const MOCK_SESSION = {

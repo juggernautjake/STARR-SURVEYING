@@ -1,0 +1,104 @@
+/* app/admin/styles/AdminAudit.css — styles for /admin/audit
+   The page (app/admin/audit/page.tsx) uses these class names but no CSS
+   file previously defined them, so it rendered unstyled (search input
+   collapsed to a tiny square, footer link picked up the global red link
+   colour, etc.). */
+
+.audit-page {
+  padding: 1.25rem 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-size: 0.9rem;
+  color: var(--color-text, #1F2937);
+}
+
+.audit-page header { margin-bottom: 1rem; }
+.audit-page header h1 { font-size: 1.4rem; font-weight: 700; margin: 0 0 0.25rem; }
+.audit-page header p  { font-size: 0.85rem; color: var(--color-text-tertiary, #6B7280); margin: 0; }
+
+.audit-filters {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0 0 1rem;
+}
+.audit-filters input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-border, #D1D5DB);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+}
+.audit-filters input[type="text"]:focus {
+  outline: none;
+  border-color: var(--color-brand-navy, #1D3095);
+  box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.15);
+}
+.audit-filters select {
+  height: 2rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--color-border, #D1D5DB);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+}
+
+.audit-error,
+.audit-loading,
+.audit-empty {
+  padding: 1.25rem;
+  text-align: center;
+  background: var(--color-bg-subtle, #F9FAFB);
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  color: var(--color-text-tertiary, #6B7280);
+  font-size: 0.88rem;
+}
+.audit-error { color: #B91C1C; background: #FEF2F2; border-color: #FCA5A5; }
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  background: #fff;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.audit-table thead { background: var(--color-bg-subtle, #F9FAFB); }
+.audit-table th,
+.audit-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border, #E5E7EB);
+  vertical-align: top;
+}
+.audit-table tr:last-child td { border-bottom: 0; }
+.audit-when   { color: var(--color-text-tertiary, #6B7280); white-space: nowrap; }
+.audit-actor  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.audit-action code {
+  background: var(--color-bg-subtle, #F3F4F6);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.audit-meta pre {
+  background: var(--color-bg-subtle, #F9FAFB);
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  overflow-x: auto;
+}
+
+.audit-page footer { margin-top: 1.25rem; }
+.audit-page footer a {
+  color: var(--color-brand-navy, #1D3095);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.audit-page footer a:hover { text-decoration: underline; }
