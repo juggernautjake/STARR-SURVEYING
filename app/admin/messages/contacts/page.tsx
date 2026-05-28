@@ -145,52 +145,6 @@ export default function ContactsPage() {
           ))}
         </div>
       </div>
-
-      {/* Setup Guide */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">Contact Directory — Development Guide</h2>
-
-        <div className="msg-setup-guide__section">
-          <h3>Current Capabilities</h3>
-          <ul className="msg-setup-guide__list">
-            <li>Fetches all team members from the contacts API</li>
-            <li>Search by name or email</li>
-            <li>Filter by role (All / Admins / Employees)</li>
-            <li>Card-based grid layout with avatars and admin badges</li>
-            <li>Quick action to start a direct message with any contact</li>
-            <li>Loading skeleton and empty states</li>
-          </ul>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>Database Requirements</h3>
-          <p className="msg-setup-guide__text">
-            The contacts API currently derives contacts from conversation_participants
-            and hardcoded admin emails. For a full directory, consider creating a
-            <code> user_profiles </code> table that stores name, email, avatar URL,
-            department, job title, phone number, and online status.
-          </p>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>Continuation Prompt for This Page</h3>
-          <pre className="msg-setup-guide__prompt">{`Improve the contact directory at /admin/messages/contacts/page.tsx. Current state: grid of contact cards fetched from API, search, role filter, quick DM action.
-
-NEXT STEPS:
-1. Add a user_profiles table to store richer profile data (department, job title, phone, avatar_url, bio, hire_date)
-2. Show online/offline status indicators (green dot = online in last 5 min)
-3. Add profile detail modal/drawer when clicking a contact card (shows full profile, recent conversations, shared files)
-4. Add group creation from selected contacts (checkbox multi-select + "Create Group" button)
-5. Add department-based grouping/filtering (e.g., Field Crew, Office, Management)
-6. Add alphabetical section headers (A, B, C...) for large lists
-7. Add "Favorite" contacts that pin to the top of the list
-8. Integrate with Google Workspace API to sync profile photos and org chart data
-9. Add contact export (CSV) for admin users
-10. Add invite functionality for new team members (send email invitation)
-11. Show last active time and conversation history summary per contact
-12. Add sorting options (name, department, recent activity)`}</pre>
-        </div>
-      </div>
     </>
   );
 }

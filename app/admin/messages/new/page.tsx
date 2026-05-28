@@ -136,37 +136,6 @@ export default function NewMessagePage() {
           </div>
         )}
       </div>
-
-      {/* Setup Guide */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">New Message Page — Development Guide</h2>
-
-        <div className="msg-setup-guide__section">
-          <h3>Current Capabilities</h3>
-          <ul className="msg-setup-guide__list">
-            <li>Toggle between Direct Message and Group Chat</li>
-            <li>Contact picker with search, avatars, admin badges</li>
-            <li>Direct message: max 1 recipient, checks for existing conversation</li>
-            <li>Group chat: multiple recipients, optional group name</li>
-            <li>Compose and send first message</li>
-            <li>Redirects to conversation thread after creation</li>
-          </ul>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>Continuation Prompt for This Page</h3>
-          <pre className="msg-setup-guide__prompt">{`Improve the new message page at /admin/messages/new/page.tsx. Current state: type selector (direct/group), contact picker, group name input, compose box that creates conversation + sends first message.
-
-NEXT STEPS:
-1. Add pre-fill from URL params: ?to=email@starr-surveying.com should auto-select that contact
-2. Add "Recent Contacts" section above the full contact list showing last 5 people messaged
-3. Add file attachment support to the initial message
-4. Add contact avatars using Google profile images from the session
-5. Add announcement type option (admin-only) for broadcast messages
-6. Validate that recipients exist before creating conversation
-7. Show a loading spinner while the conversation is being created`}</pre>
-        </div>
-      </div>
     </>
   );
 }

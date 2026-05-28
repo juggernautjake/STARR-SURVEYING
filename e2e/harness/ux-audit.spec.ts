@@ -31,7 +31,10 @@ async function stubBackend(page: import('@playwright/test').Page) {
   });
 }
 
-const PAGES = ['settings'];
+const PAGES = [
+  'dashboard', 'jobs', 'leads', 'notes', 'receipts', 'payroll',
+  'settings', 'mileage', 'assignments', 'reports', 'equipment', 'invites',
+];
 
 for (const p of PAGES) {
   test(`ux-harness renders /${p}`, async ({ page }) => {
