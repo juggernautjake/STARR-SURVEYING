@@ -198,7 +198,11 @@ export default function PrintDialog({ onClose }: Props) {
           <button
             onClick={() => {
               window.dispatchEvent(new CustomEvent('cad:exportImage', {
-                detail: { format: 'pdf', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, centerOnPage: cfg.centerOnPage, elements: { titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar } },
+                detail: { format: 'pdf', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, centerOnPage: cfg.centerOnPage, elements: {
+                  titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar,
+                  border: cfg.printBorder, legend: cfg.printLegend,
+                  certification: cfg.printCertification, notes: cfg.printNotes,
+                } },
               }));
               onClose();
             }}
@@ -209,7 +213,11 @@ export default function PrintDialog({ onClose }: Props) {
           <button
             onClick={() => {
               window.dispatchEvent(new CustomEvent('cad:exportImage', {
-                detail: { format: 'png', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, elements: { titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar } },
+                detail: { format: 'png', paperSize: cfg.paperSize, orientation: cfg.orientation, plotStyle: cfg.plotStyle, elements: {
+                  titleBlock: cfg.printTitleBlock, northArrow: cfg.printNorthArrow, scaleBar: cfg.printScaleBar,
+                  border: cfg.printBorder, legend: cfg.printLegend,
+                  certification: cfg.printCertification, notes: cfg.printNotes,
+                } },
               }));
               onClose();
             }}
