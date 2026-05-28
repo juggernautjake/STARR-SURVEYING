@@ -436,10 +436,37 @@ export default function SchedulePanel() {
               const isCurrentMonth = d.getMonth() === currentMonth;
               const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), d));
               return (
-                <div key={i} className={`sched__month-cell ${!isCurrentMonth ? 'sched__month-cell--outside' : ''} ${isToday(d) ? 'sched__month-cell--today' : ''}`}>
+                <div
+                  key={i}
+                  className={`sched__month-cell ${!isCurrentMonth ? 'sched__month-cell--outside' : ''} ${isToday(d) ? 'sched__month-cell--today' : ''}`}
+                  onClick={(ev) => {
+                    // Only trigger create when clicking the cell background,
+                    // not an event chip (which has its own drag affordance).
+                    if ((ev.target as HTMLElement).closest('.sched__month-event')) return;
+                    startCreateOnDay(d);
+                  }}
+                  onDragOver={isAdmin ? (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; } : undefined}
+                  onDrop={isAdmin ? (ev) => {
+                    ev.preventDefault();
+                    const eventId = ev.dataTransfer.getData('text/plain');
+                    if (eventId) void moveEvent(eventId, d.toISOString());
+                  } : undefined}
+                  style={isAdmin ? { cursor: 'copy' } : undefined}
+                  title={isAdmin ? 'Click to add an event on this day; drop another event here to move it' : undefined}
+                >
                   <span className="sched__month-cell-num">{d.getDate()}</span>
                   {dayEvents.slice(0, 3).map(e => (
-                    <div key={e.id} className="sched__month-event" style={{ background: `${e.color}20`, color: e.color, borderLeft: `2px solid ${e.color}` }}>
+                    <div
+                      key={e.id}
+                      className="sched__month-event"
+                      style={{ background: `${e.color}20`, color: e.color, borderLeft: `2px solid ${e.color}`, cursor: isAdmin ? 'grab' : 'default' }}
+                      draggable={isAdmin}
+                      onDragStart={isAdmin ? (ev) => {
+                        ev.stopPropagation();
+                        ev.dataTransfer.effectAllowed = 'move';
+                        ev.dataTransfer.setData('text/plain', e.id);
+                      } : undefined}
+                    >
                       {e.title}
                     </div>
                   ))}
