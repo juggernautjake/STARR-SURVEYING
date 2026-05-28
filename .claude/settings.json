@@ -49,7 +49,16 @@
       "Bash(npm outdated)",
       "Bash(npm outdated *)",
       "Bash(npm view *)",
-      "Bash(npm config get *)"
+      "Bash(npm config get *)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_navigate_back",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_network_request",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_resize"
     ]
   }
 }
