@@ -353,6 +353,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 
 ---
 
+### Slice 38 — Token-ize the hardcoded navy hex (sweep): CAD components batch ✅ shipped
+- [x] Continued the per-file sweep started in Slices 36/37. Batched the 11 `app/admin/cad/components/*.tsx` files that referenced `#1D3095` (`AIDrawingDialog`, `AISidebar`, `CompletenessPanel`, `ElementExplanationPopup`, `QuestionDialog`, `RPLSReviewModePanel`, `RPLSSubmissionDialog`, `RecentRecoveriesDialog`, `SealHashBanner`, `SealImageUploader`, `SurveyDescriptionPanel` — 18 occurrences total) into a single slice because they're all inline `styles` consts inside a single subsystem and a future brand-navy change should land in one commit for that surface. Every literal is `background`, `border`, or `color` on a styles object; no template-literal interpolation or external concatenation to worry about. 126 `#1D3095` literals across 45 admin .tsx files remain. `tsc` + `eslint` clean (the four pre-existing warnings on untouched files persist: `employees/page.tsx`, `equipment/inventory/page.tsx`, `learn/quiz-history/page.tsx`, `receipts/page.tsx`).
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:

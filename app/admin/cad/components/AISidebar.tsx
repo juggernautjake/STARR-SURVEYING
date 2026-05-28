@@ -804,8 +804,8 @@ const styles: Record<string, React.CSSProperties> = {
   tabActive: {
     background: 'transparent',
     border: 'none',
-    borderBottom: '2px solid #1D3095',
-    color: '#1D3095',
+    borderBottom: '2px solid var(--color-brand-navy)',
+    color: 'var(--color-brand-navy)',
     fontSize: 11,
     fontWeight: 600,
     padding: '6px 8px',
@@ -865,7 +865,7 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: 0.5,
   },
   btnPrimary: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,
