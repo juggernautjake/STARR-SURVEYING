@@ -269,7 +269,7 @@
 }
 
 .err-dialog__btn--primary:hover {
-  background: #162575;
+  background: var(--color-brand-navy-d);
 }
 
 .err-dialog__btn--primary:disabled {
@@ -385,7 +385,7 @@
 }
 
 .err-boundary__btn--primary:hover {
-  background: #162575;
+  background: var(--color-brand-navy-d);
 }
 
 .err-boundary__btn--primary:disabled {

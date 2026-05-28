@@ -31,9 +31,9 @@
 .sched__view-btn:last-child { border-right:none; }
 .sched__view-btn:hover { background:var(--color-bg-app); color:var(--color-brand-navy); }
 .sched__view-btn--active { background:var(--color-brand-navy); color:#fff; font-weight:600; }
-.sched__view-btn--active:hover { background:#162575; color:#fff; }
+.sched__view-btn--active:hover { background:var(--color-brand-navy-d); color:#fff; }
 .sched__add-btn { padding:0 .85rem; font-size:.82rem; font-weight:600; background:var(--color-brand-navy); color:#fff; border:none; border-radius:6px; cursor:pointer; transition:background .15s; display:inline-flex; align-items:center; }
-.sched__add-btn:hover { background:#162575; }
+.sched__add-btn:hover { background:var(--color-brand-navy-d); }
 
 /* ── Legend ── */
 .sched__legend { display:flex; flex-wrap:wrap; gap:.75rem; padding:.65rem 1rem; background:#fff; border: var(--border-light); border-radius:8px; margin-bottom:1rem; }
@@ -60,7 +60,7 @@
 /* ── Buttons ── */
 .sched__btn { padding:.45rem 1rem; font-size:.85rem; font-weight:600; border:none; border-radius:6px; cursor:pointer; transition:all .15s; font-family:inherit; }
 .sched__btn--primary { background:var(--color-brand-navy); color:#fff; }
-.sched__btn--primary:hover { background:#162575; }
+.sched__btn--primary:hover { background:var(--color-brand-navy-d); }
 .sched__btn--primary:disabled { opacity:.5; cursor:not-allowed; }
 .sched__btn--secondary { background:var(--color-bg-subtle); color:#374151; border: var(--border-light); }
 .sched__btn--secondary:hover { background:#E5E7EB; }
