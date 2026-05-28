@@ -173,7 +173,7 @@ export default function FinancesPage() {
 
   const lockPeriod = useCallback(async () => {
     if (!data) return;
-    const lockable = data.receipts.by_status.approved.count;
+    const lockable = (data.receipts?.by_status?.approved?.count ?? 0);
     if (lockable === 0) return;
     const label = periodLabel.trim() || String(year);
     const ok = window.confirm(
@@ -290,19 +290,19 @@ export default function FinancesPage() {
             locking ||
             loading ||
             !data ||
-            data.receipts.by_status.approved.count === 0
+            (data.receipts?.by_status?.approved?.count ?? 0) === 0
           }
           title={
             !data
               ? 'Loading…'
-              : data.receipts.by_status.approved.count === 0
+              : (data.receipts?.by_status?.approved?.count ?? 0) === 0
                 ? 'Nothing new to lock — every approved receipt in this window is already filed.'
-                : `Lock ${data.receipts.by_status.approved.count} approved receipt(s) into "${periodLabel.trim() || String(year)}"`
+                : `Lock ${(data.receipts?.by_status?.approved?.count ?? 0)} approved receipt(s) into "${periodLabel.trim() || String(year)}"`
           }
         >
           {locking
             ? 'Locking…'
-            : `🔒 Lock ${data?.receipts.by_status.approved.count ?? 0} into period`}
+            : `🔒 Lock ${data?.receipts?.by_status?.approved?.count ?? 0} into period`}
         </button>
       </div>
 
@@ -318,7 +318,7 @@ export default function FinancesPage() {
 
       {loading && !data ? (
         <div style={styles.empty}>Loading…</div>
-      ) : !data ? (
+      ) : !data || !data.receipts ? (
         <div style={styles.empty}>
           No data — the tax-summary endpoint returned nothing for {year}.
         </div>
