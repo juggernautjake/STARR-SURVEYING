@@ -548,6 +548,10 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - Non-sensitive primitives pass through.
 - [x] **Quirk surfaced + documented:** when the input contains an **array** value, `sanitizeBody` recurses (because `typeof [] === 'object'`) and the array gets flattened to an index-keyed plain object — `{ tags: ['a', 'b'] }` sanitizes to `{ tags: { 0: 'a', 1: 'b' } }`. Output is used only for error-report logging (not re-serialised), so this doesn't matter in practice, but a future contributor refactoring `sanitizeBody` should know this is the existing behaviour the tests now pin. `tsc` + `eslint` clean.
 
+### Slice 70 — Unit tests for the CAD feature-fields fan-in helpers ✅ shipped (+ doc'd a whitespace surprise)
+- [x] Added `__tests__/cad/feature-fields.test.ts` for `lib/cad/feature-fields.ts` — the three helpers (`pointNumberOf`, `pointCodeOf`, `pointDescriptionOf`) that historical exporters (CSV / DXF / LandXML / report) call to read a point's display number, code, and description regardless of which legacy code path created the feature (`pointNo`, `pointNumber`, `pointName`, `name`, `code`, `rawCode`, `resolvedAlphaCode`, `description`, `desc`). 17 specs cover each priority order, null/undefined defensive paths, numeric → string coercion, and trim semantics.
+- [x] **Surfaced + documented a mildly surprising behaviour:** `pointNumberOf` uses `??` (nullish coalescing) for the fan-in but checks `s === ''` AFTER coalescing — so a whitespace-only `pointNo: '  '` wins over a valid `pointNumber: '7'` and the function ends up returning null. A naive caller might expect the helper to fall through to `pointNumber`. Test pins the current contract; if a future audit decides whitespace should be treated as "missing", the test will need to change (and the doc'd reasoning makes the choice explicit). `tsc` + `eslint` clean.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
