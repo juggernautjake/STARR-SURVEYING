@@ -103,7 +103,7 @@ export default function SchedulePanel() {
 
   useEffect(() => { if (session?.user) void load(); }, [session?.user, load]);
 
-  async function createEvent() {
+  async function createEvent(force = false) {
     if (!formData.title.trim() || !formData.start_date || saving) return;
     const endDate = formData.end_date || formData.start_date;
     const startIso = formData.all_day
@@ -114,18 +114,31 @@ export default function SchedulePanel() {
       : new Date(`${endDate}T${formData.end_time}`).toISOString();
     setSaving(true);
     try {
-      await safeAction('creating event', async () => {
-        const res = await fetch('/api/admin/schedule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: formData.title, event_type: formData.event_type,
-            start_time: startIso, end_time: endIso, all_day: formData.all_day,
-            location: formData.location, notes: formData.notes,
-          }),
-        });
-        if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      const url = force ? '/api/admin/schedule?force=1' : '/api/admin/schedule';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formData.title, event_type: formData.event_type,
+          start_time: startIso, end_time: endIso, all_day: formData.all_day,
+          location: formData.location, notes: formData.notes,
+        }),
       });
+      if (res.status === 409) {
+        const body = (await res.json().catch(() => ({}))) as { conflicts?: Array<{ title: string; start_time: string; end_time: string }> };
+        const list = (body.conflicts ?? []).map(c =>
+          `• ${c.title} (${new Date(c.start_time).toLocaleString()} → ${new Date(c.end_time).toLocaleString()})`
+        ).join('\n');
+        const ok = window.confirm(`This event overlaps with ${body.conflicts?.length ?? 0} existing event(s):\n\n${list}\n\nCreate anyway?`);
+        if (ok) { void createEvent(true); return; }
+        return;
+      }
+      if (!res.ok) {
+        const msg = (await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`;
+        // Surface non-conflict errors via the page error path.
+        await safeAction('creating event', async () => { throw new Error(msg); });
+        return;
+      }
       setFormData({ title: '', event_type: 'field_work', start_date: '', start_time: '08:00', end_date: '', end_time: '17:00', all_day: false, location: '', notes: '' });
       setShowEventForm(false);
       await load();
