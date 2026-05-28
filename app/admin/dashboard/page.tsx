@@ -34,6 +34,7 @@ export default function AdminDashboardPage() {
   const [pendingCount, setPendingCount] = useState(0);
   const [activeJobsCount, setActiveJobsCount] = useState<number | null>(null);
   const [hoursThisWeek, setHoursThisWeek] = useState<number | null>(null);
+  const [upcomingEvents, setUpcomingEvents] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const roles = session?.user?.roles || ['employee'];
@@ -123,6 +124,20 @@ export default function AdminDashboardPage() {
           }
         } catch (err) {
           reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'hours this week' });
+        }
+
+        // Upcoming schedule events (next 30 days) for the My Schedule card.
+        try {
+          const now = new Date();
+          const to = new Date(now);
+          to.setDate(now.getDate() + 30);
+          const sRes = await fetch(`/api/admin/schedule?from=${now.toISOString()}&to=${to.toISOString()}`);
+          if (sRes.ok) {
+            const sd = await sRes.json();
+            setUpcomingEvents((sd.events || []).length);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'upcoming events' });
         }
       }
 
@@ -342,15 +357,17 @@ export default function AdminDashboardPage() {
             <h3 className="dashboard-card__title">My Schedule</h3>
             <div className="dashboard-card__metrics">
               <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
-                <span className="dashboard-card__metric-label">Upcoming</span>
-              </div>
-              <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
-                <span className="dashboard-card__metric-label">Time-Off</span>
+                <span className="dashboard-card__metric-value">{upcomingEvents === null ? '--' : upcomingEvents}</span>
+                <span className="dashboard-card__metric-label">Upcoming (30d)</span>
               </div>
             </div>
-            <p className="dashboard-card__empty-note">Scheduling coming soon</p>
+            <p className="dashboard-card__empty-note">
+              {upcomingEvents === null
+                ? 'Loading your schedule…'
+                : upcomingEvents === 0
+                  ? 'No upcoming events in the next 30 days'
+                  : `${upcomingEvents} event${upcomingEvents === 1 ? '' : 's'} in the next 30 days`}
+            </p>
             <span className="dashboard-card__link">View Schedule &rarr;</span>
           </Link>
         )}
