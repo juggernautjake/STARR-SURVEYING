@@ -629,7 +629,14 @@
 .admin-empty__desc { font-family:'Inter',sans-serif; font-size:.85rem; color:#9CA3AF; margin-bottom:1rem; }
 
 /* === DASHBOARD 4-CARD LAYOUT === */
-.dashboard-cards { display:grid; grid-template-columns:repeat(2,1fr); gap:1rem; margin-bottom:2rem; }
+/* Slice 89 — switched from fixed `repeat(2, 1fr)` to `auto-fit, minmax`
+ * so the grid adapts to the visible card count (varies 3–5 by role) and
+ * to wider viewports. Previously 3 visible cards → 2-up + 1 orphan, and
+ * 5 visible cards → 2/2/1 orphan. Now the grid fills the row naturally
+ * (2 cards on tablets, 3+ on desktop) without stretching a lone card to
+ * fill its row. Mobile breakpoint at 599 px still forces a single column
+ * via the responsive overrides at line ~699. */
+.dashboard-cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:1rem; margin-bottom:2rem; }
 .dashboard-card { background:#FFF; border:1px solid #E5E7EB; border-radius:12px; padding:1.25rem; text-decoration:none; color:inherit; transition:all .2s; display:flex; flex-direction:column; gap:.65rem; position:relative; overflow:hidden; }
 .dashboard-card:hover { border-color:#1D3095; box-shadow:0 4px 16px rgba(29,48,149,.1); transform:translateY(-2px); }
 .dashboard-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
