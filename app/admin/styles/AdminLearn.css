@@ -572,9 +572,24 @@
 /* === FIELDBOOK FULL PAGE === */
 .fbfull__actions-bar { display:flex; gap:.75rem; margin-bottom:1.25rem; flex-wrap:wrap; }
 .fbfull__filters { display:flex; gap:.5rem; margin-bottom:.75rem; flex-wrap:wrap; align-items:center; }
-.fbfull__search { flex:1; min-width:200px; padding:.55rem .75rem; border:2px solid #E5E7EB; border-radius:8px; font-family:'Inter',sans-serif; font-size:.88rem; color:var(--color-text-primary); }
-.fbfull__search:focus { outline:none; border-color:var(--color-brand-navy); }
-.fbfull__date { padding:.55rem .6rem; border:2px solid #E5E7EB; border-radius:8px; font-family:'Inter',sans-serif; font-size:.82rem; color:#374151; }
+/* Slice 85 — search input + date input share an explicit 40 px height
+ * (= --input-height token), matching font-size, padding-y, border, and
+ * border-radius so they line up on the filter row. Same alignment pattern
+ * Slices 83 + 84 fixed elsewhere. Before this, the date input rendered
+ * shorter because its font-size was .82rem vs the search's .88rem. */
+.fbfull__search,
+.fbfull__date {
+  box-sizing:border-box;
+  height:40px;
+  font-family:'Inter',sans-serif;
+  font-size:.85rem;
+  border:2px solid #E5E7EB;
+  border-radius:8px;
+  color:var(--color-text-primary);
+}
+.fbfull__search { flex:1; min-width:200px; padding:0 .75rem; }
+.fbfull__date { padding:0 .6rem; color:#374151; }
+.fbfull__search:focus,
 .fbfull__date:focus { outline:none; border-color:var(--color-brand-navy); }
 
 /* Category filter chips */
