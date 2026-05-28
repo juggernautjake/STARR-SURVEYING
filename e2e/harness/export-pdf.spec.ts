@@ -1,6 +1,6 @@
 // e2e/harness/export-pdf.spec.ts
 // Verifies the Print/Export dialog produces a real PDF download (Slice 2 of
-// docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md).
+// docs/planning/completed/backend-audit-and-improvements-2026-05-27.md).
 
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
