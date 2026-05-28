@@ -557,7 +557,7 @@
 
 /* === FIELDBOOK BUTTON (floating) === */
 .fieldbook-btn { position:fixed; bottom:1.5rem; right:1.5rem; z-index:100; padding:.65rem 1.1rem; background:var(--color-brand-navy); color:#FFF; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(29,48,149,.3); transition:all .15s; display:flex; align-items:center; gap:.4rem; }
-.fieldbook-btn:hover { background:#162473; transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
+.fieldbook-btn:hover { background:var(--color-brand-navy-d); transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
 
 /* === FIELDBOOK PANEL (overlay from FieldbookButton) === */
 .fieldbook-panel { position:fixed; bottom:5rem; right:1.5rem; z-index:101; width:380px; max-width:calc(100vw - 2rem); background:#FFF; border: var(--border-light); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.15); animation:slideUp .2s ease; }
@@ -684,7 +684,7 @@
 /* === ADMIN BUTTONS === */
 .admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; padding:.5rem 1rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; border:1px solid transparent; text-decoration:none; }
 .admin-btn--primary { background:var(--color-brand-navy); color:#FFF; border-color:var(--color-brand-navy); }
-.admin-btn--primary:hover { background:#162473; }
+.admin-btn--primary:hover { background:var(--color-brand-navy-d); }
 .admin-btn--primary:disabled { opacity:.5; cursor:not-allowed; }
 .admin-btn--secondary { background:#FFF; color:var(--color-brand-navy); border-color:var(--color-brand-navy); }
 .admin-btn--secondary:hover { background:var(--color-info-bg); }
@@ -714,7 +714,7 @@
 
 /* === FIELDBOOK INLINE BUTTON + OVERLAY (from FieldbookButton component) === */
 .fieldbook-inline-btn { position:fixed; bottom:1.5rem; right:1.5rem; z-index:100; padding:.6rem 1rem; background:var(--color-brand-navy); color:#FFF; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(29,48,149,.3); transition:all .15s; display:flex; align-items:center; gap:.35rem; }
-.fieldbook-inline-btn:hover { background:#162473; transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
+.fieldbook-inline-btn:hover { background:var(--color-brand-navy-d); transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
 .fieldbook-overlay { position:fixed; inset:0; background:rgba(0,0,0,.25); z-index:200; display:flex; align-items:flex-end; justify-content:flex-end; padding:1.5rem; }
 .fieldbook-panel { z-index:201; }
 .fieldbook-panel__context { padding:.5rem 1.15rem; font-family:'Inter',sans-serif; font-size:.72rem; color:var(--color-text-muted); display:flex; flex-wrap:wrap; gap:.65rem; }
