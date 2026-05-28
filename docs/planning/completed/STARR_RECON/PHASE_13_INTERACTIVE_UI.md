@@ -878,6 +878,33 @@ Items explicitly deferred from Phase 13:
 | TNRIS LiDAR integration | Deferred (service requires account registration) |
 | Cross-county property detection | Deferred (complex; affects <1% of properties) |
 
+### Shipped 2026-05-28 (Slice 104) — topo/tax sections in the Phase 10 PDF
+
+`worker/src/reports/pdf-generator.ts` previously stopped at Section 6
+(Purchase Summary) → Appendix even when the Phase 13 routes had fetched
+USGS topographic + TX Comptroller tax data into the project dir. The
+two `- [ ]` items called out in §"Open items at re-open time" above are
+now retired:
+
+- **ProjectData type** (`worker/src/types/reports.ts`) gained optional
+  `topo?: any | null` and `tax?: any | null` fields.
+- **MasterOrchestrator.loadProjectData** loads `topo.json` and
+  `tax.json` from the project dir, with a canonical-path fallback to
+  `/tmp/analysis/<projectId>/` where the Phase 13 Express routes
+  actually write them.
+- **PDF generator** gained `writeTopoSection()` (Section 7 — elevation
+  + slope/aspect + contours + NHD water + NLCD land cover) and
+  `writeTaxSection()` (Section 8 — county/CAD + combined rate + taxing
+  units + exemptions + delinquency). Both render gracefully when the
+  data is null/missing (section skipped, page not added). Footers cite
+  source + queried_at timestamps. Appendix is now Section 10.
+
+`tsc` + `eslint` clean. Existing 84 Phase 10 report tests still pass.
+
+This is the final survivor from §13.16's pre-shipped backlog; every
+other entry is either ✅ Built (Phase 14/15) or explicitly deferred
+with rationale.
+
 ---
 
 ## 13.17 Environment Variables (Phase 13)

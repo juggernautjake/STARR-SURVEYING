@@ -114,8 +114,8 @@ All five formats (svg, json, png, pdf, dxf) are now fully implemented and return
 - [x] User can select which view mode to export — ExportPanel view mode selector
 - [x] All formats enabled in ExportPanel UI
 - [x] 31 unit tests covering all export functions
-- [ ] Template preview renders a thumbnail — deferred (requires additional render-to-thumbnail endpoint)
-- [ ] Export files stored in Supabase Storage — currently returns base64 blob; S3/Storage persistence deferred
+- [x] Template preview renders a thumbnail — shipped 2026-05-28 (Slice 105) via `renderTemplateThumbnail()` in `lib/research/export.service.ts` + new GET route `/api/admin/research/templates/drawing/[id]/thumbnail?w=&h=` returning `image/png` directly.
+- [x] Export files stored in Supabase Storage — shipped 2026-05-28 (Slice 105) via `persistExportToStorage()` in `lib/research/export.service.ts` + opt-in `persist: true` on the existing POST `/api/admin/research/[projectId]/drawings/[drawingId]` export action. Bucket is `research-exports` (constant `RESEARCH_EXPORTS_BUCKET` in `lib/supabase.ts`, auto-created via `ensureStorageBucket`). Persist mode returns `storage_url` (1 h signed) + `storage_path` instead of `blob_data`. Legacy base64 path is the default so existing callers don't break.
 
 ---
 

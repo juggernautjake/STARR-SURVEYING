@@ -4,9 +4,26 @@
 // PNG  — SVG → sharp (resvg-js for Node) → 300-DPI PNG
 // PDF  — SVG embedded in jsPDF page with paper-size auto-detection
 // DXF  — geometry elements mapped to AutoCAD layers via dxf-writer
+//
+// Phase 12 deferred items shipped 2026-05-28 (Slice 105):
+//  - `renderTemplateThumbnail()` — synthetic preview PNG of a drawing
+//    template, used by the template-picker UI
+//  - `persistExportToStorage()` — uploads any export Buffer to the
+//    `research-exports` Supabase Storage bucket and returns a
+//    public/signed URL so callers don't have to base64-stream large
+//    rasters back through Next.js JSON responses
 
-import type { RenderedDrawing, DrawingElement, ViewMode, FeatureClass, ElementGeometry } from '@/types/research';
+import type {
+  RenderedDrawing,
+  DrawingElement,
+  ViewMode,
+  FeatureClass,
+  ElementGeometry,
+  DrawingTemplate,
+  ElementStyle,
+} from '@/types/research';
 import { renderDrawingSVG } from './svg.renderer';
+import { supabaseAdmin, RESEARCH_EXPORTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 
 // ── DPI constant ────────────────────────────────────────────────────────────
 const EXPORT_DPI = 300;
@@ -272,4 +289,307 @@ interface DxfWriterInstance {
   drawPoint(x: number, y: number, z: number): this;
   drawText(x: number, y: number, z: number, textHeight: number, textAngle: number, text: string): this;
   toDxfString(): string;
+}
+
+// ── Template Thumbnail (Phase 12 deferred item) ─────────────────────────────
+
+/**
+ * Render a small preview thumbnail of a DrawingTemplate as a PNG buffer.
+ *
+ * Synthesises a tiny "sample drawing" using the template's `feature_styles`
+ * so the template picker can show users what each template actually looks
+ * like (instead of a name-only list). The sample includes a property
+ * boundary, an easement line, a setback offset, a building footprint, and
+ * a label — five common surveying feature classes that exercise the
+ * template's stroke/fill/dash settings.
+ *
+ * Default thumbnail size is 480 x 320 (3:2 ratio). Use a smaller size for
+ * compact grid views.
+ */
+export async function renderTemplateThumbnail(
+  template: DrawingTemplate,
+  opts: { width?: number; height?: number } = {},
+): Promise<Buffer> {
+  const width = opts.width ?? 480;
+  const height = opts.height ?? 320;
+
+  const styleFor = (fc: FeatureClass, fallback: Partial<ElementStyle> = {}): ElementStyle => {
+    const fs = template.feature_styles?.[fc];
+    return {
+      stroke: fs?.stroke ?? fallback.stroke ?? '#333333',
+      strokeWidth: fs?.strokeWidth ?? fallback.strokeWidth ?? 1,
+      strokeDasharray: fs?.dasharray ?? fallback.strokeDasharray,
+      fill: fs?.fill ?? fallback.fill ?? 'none',
+      opacity: 1,
+      fontSize: fs?.fontSize ?? fallback.fontSize ?? 11,
+    };
+  };
+
+  const now = new Date().toISOString();
+  const blankFactors = {
+    source_quality: 0,
+    extraction_certainty: 0,
+    cross_reference_match: 0,
+    sample_size: 0,
+  } as unknown as DrawingElement['confidence_factors'];
+
+  const elementTypeForGeometry = (g: ElementGeometry): DrawingElement['element_type'] => {
+    switch (g.type) {
+      case 'line':    return 'line';
+      case 'curve':   return 'curve';
+      case 'polygon': return 'polygon';
+      case 'point':   return 'point';
+      case 'label':   return 'label';
+      default:        return 'line';
+    }
+  };
+
+  const makeElement = (
+    id: string,
+    feature_class: FeatureClass,
+    geometry: ElementGeometry,
+    attributes: Record<string, unknown> = {},
+    z_index = 0,
+    layer = 'preview',
+  ): DrawingElement => ({
+    id,
+    drawing_id: 'preview',
+    element_type: elementTypeForGeometry(geometry),
+    feature_class,
+    geometry,
+    attributes,
+    style: styleFor(feature_class),
+    layer,
+    z_index,
+    visible: true,
+    locked: false,
+    confidence_score: 90,
+    confidence_factors: blankFactors,
+    source_references: [],
+    data_point_ids: [],
+    discrepancy_ids: [],
+    user_modified: false,
+    created_at: now,
+    updated_at: now,
+  });
+
+  // Sample geometry: an inset rectangular property with a building, a setback,
+  // and an easement line. Coordinates are in SVG user units so the SVG
+  // renderer scales them to the canvas dimensions natively.
+  const pad = 40;
+  const propMin: [number, number] = [pad, pad + 20];
+  const propMax: [number, number] = [width - pad, height - pad - 30];
+  const [x0, y0] = propMin;
+  const [x1, y1] = propMax;
+
+  const elements: DrawingElement[] = [
+    // Property boundary (closed polygon)
+    makeElement(
+      'pb',
+      'property_boundary' as FeatureClass,
+      { type: 'polygon', points: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] },
+      {},
+      0,
+      'boundary',
+    ),
+    // Setback offset (inner dashed rectangle)
+    makeElement(
+      'sb',
+      'setback' as FeatureClass,
+      {
+        type: 'polygon',
+        points: [
+          [x0 + 18, y0 + 14],
+          [x1 - 18, y0 + 14],
+          [x1 - 18, y1 - 14],
+          [x0 + 18, y1 - 14],
+        ],
+      },
+      {},
+      1,
+      'setback',
+    ),
+    // Easement line across the lot
+    makeElement(
+      'es',
+      'easement' as FeatureClass,
+      { type: 'line', start: [x0, y0 + Math.round((y1 - y0) * 0.35)], end: [x1, y0 + Math.round((y1 - y0) * 0.35)] },
+      {},
+      2,
+      'easement',
+    ),
+    // Building footprint
+    makeElement(
+      'bd',
+      'building' as FeatureClass,
+      {
+        type: 'polygon',
+        points: [
+          [x0 + 80, y0 + 80],
+          [x1 - 80, y0 + 80],
+          [x1 - 80, y1 - 60],
+          [x0 + 80, y1 - 60],
+        ],
+      },
+      {},
+      3,
+      'building',
+    ),
+    // Template name label at top center
+    makeElement(
+      'lbl',
+      'annotation' as FeatureClass,
+      { type: 'label', position: [width / 2, 22], anchor: 'middle' },
+      { text: template.name },
+      4,
+      'labels',
+    ),
+  ];
+
+  const drawing: RenderedDrawing = {
+    id: `preview-${template.id}`,
+    research_project_id: 'preview',
+    drawing_template_id: template.id,
+    name: `${template.name} — Preview`,
+    version: 1,
+    status: 'rendered',
+    canvas_config: {
+      width,
+      height,
+      scale: 1,
+      units: 'feet',
+      origin: [0, 0],
+      background: '#FFFFFF',
+    } as unknown as RenderedDrawing['canvas_config'],
+    title_block: null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  const svg = renderDrawingSVG(drawing, elements, 'standard' as ViewMode, {
+    showTitleBlock: false,
+    showNorthArrow: false,
+    showScaleBar: false,
+    showLegend: false,
+    showConfidenceBar: false,
+    interactive: false,
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Resvg } = require('@resvg/resvg-js') as typeof import('@resvg/resvg-js');
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: 'width', value: width },
+    font: { loadSystemFonts: false },
+    background: 'rgba(255, 255, 255, 1)',
+  });
+  return Buffer.from(resvg.render().asPng());
+}
+
+// ── Storage Persistence (Phase 12 deferred item) ────────────────────────────
+
+export type ExportFormat = 'png' | 'pdf' | 'dxf' | 'svg';
+
+const EXT_BY_FORMAT: Record<ExportFormat, string> = {
+  png: 'png',
+  pdf: 'pdf',
+  dxf: 'dxf',
+  svg: 'svg',
+};
+
+const MIME_BY_FORMAT: Record<ExportFormat, string> = {
+  png: 'image/png',
+  pdf: 'application/pdf',
+  dxf: 'image/vnd.dxf',
+  svg: 'image/svg+xml',
+};
+
+export interface PersistExportOptions {
+  projectId: string;
+  format: ExportFormat;
+  /** Optional name slug — defaults to the format. Used in the storage path. */
+  name?: string;
+  /** Sign the URL for `signedUrlSeconds` instead of returning the public URL. */
+  signedUrlSeconds?: number;
+  /** Override the timestamp for deterministic tests. */
+  timestamp?: string;
+}
+
+export interface PersistedExport {
+  bucket: string;
+  path: string;
+  publicUrl?: string;
+  signedUrl?: string;
+  contentType: string;
+  size: number;
+}
+
+/**
+ * Upload an export buffer to the `research-exports` Supabase Storage bucket
+ * and return its URL. Callers (e.g., `app/api/admin/research/.../export`)
+ * used to base64-encode the buffer into the JSON response, which was fine
+ * for a 50 KB SVG but slow + memory-heavy for a 4 MB 300-DPI PNG.
+ *
+ * The storage path is `{projectId}/{format}/{timestamp}-{name}.{ext}`,
+ * scoped per project so RLS can scope reads to a project's owners. The
+ * bucket is lazy-created on first call via `ensureStorageBucket`.
+ *
+ * Returns the public URL by default; pass `signedUrlSeconds` to get a
+ * short-lived signed URL instead (used when the bucket is provisioned
+ * as private).
+ */
+export async function persistExportToStorage(
+  buffer: Buffer,
+  options: PersistExportOptions,
+): Promise<PersistedExport> {
+  const { projectId, format } = options;
+  if (!projectId || !/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    throw new Error(`persistExportToStorage: invalid projectId "${projectId}"`);
+  }
+  const ext = EXT_BY_FORMAT[format];
+  const contentType = MIME_BY_FORMAT[format];
+  if (!ext || !contentType) {
+    throw new Error(`persistExportToStorage: unsupported format "${format}"`);
+  }
+
+  // Deterministic timestamp slug for the storage path.
+  const ts = options.timestamp ?? new Date().toISOString().replace(/[:.]/g, '-');
+  const nameSlug = (options.name ?? format).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+  const path = `${projectId}/${format}/${ts}-${nameSlug}.${ext}`;
+
+  await ensureStorageBucket(RESEARCH_EXPORTS_BUCKET, { public: true });
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(RESEARCH_EXPORTS_BUCKET)
+    .upload(path, buffer, {
+      contentType,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(`persistExportToStorage: upload failed — ${uploadError.message}`);
+  }
+
+  const out: PersistedExport = {
+    bucket: RESEARCH_EXPORTS_BUCKET,
+    path,
+    contentType,
+    size: buffer.byteLength,
+  };
+
+  if (options.signedUrlSeconds && options.signedUrlSeconds > 0) {
+    const { data, error } = await supabaseAdmin.storage
+      .from(RESEARCH_EXPORTS_BUCKET)
+      .createSignedUrl(path, options.signedUrlSeconds);
+    if (error || !data?.signedUrl) {
+      throw new Error(`persistExportToStorage: signed-URL failed — ${error?.message ?? 'no url returned'}`);
+    }
+    out.signedUrl = data.signedUrl;
+  } else {
+    const { data } = supabaseAdmin.storage
+      .from(RESEARCH_EXPORTS_BUCKET)
+      .getPublicUrl(path);
+    out.publicUrl = data.publicUrl;
+  }
+
+  return out;
 }
