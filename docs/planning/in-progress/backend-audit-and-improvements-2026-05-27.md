@@ -588,7 +588,7 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
-> User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
+> User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–76, 39 slices total). The wrap-up below covers the first batch (38–66); a Phase-4b addendum at the end covers 67–76.
 
 **Design-token sweeps (Slices 38–47, 49, 59–61):**
 
@@ -629,3 +629,32 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 - Live walkthrough of Slices 24–30 against real production data.
 
 > Phase-4 changes are all on branch `claude/gifted-ramanujan-lQaEI`. HEAD at session end pushed; doc stays in `in-progress/` because the deployment-side gaps above still apply.
+
+---
+
+## Phase 4b — continuation (Slices 67–76)
+
+Same session, continued past the original wrap-up because the stop-hook was still firing ("planning doc still in `in-progress/`"). 10 more slices shipped:
+
+**`withAlpha()` helper + retrofit (Slices 67–68):**
+
+- New `lib/admin/color-alpha.ts` with `withAlpha(color, alphaPct)` that preserves the historical 0x20-byte append for hex inputs AND falls through to `color-mix(in srgb, COLOR PCT%, transparent)` for `var(--…)` / named-color inputs. 11 specs in `__tests__/lib/color-alpha.test.ts`.
+- Retrofitted all 11 `color + '20'` call sites across 7 files onto the helper, which unblocked tokenising the 3 deferred EF4444 conversions from Slice 61 (JobCard `cancelled`, JobQuoteBuilder `unpaid`, jobs/[id]/page.tsx `lost`). Net effect on the Slice-61 deferral list: 8 → 5 documented intentional remains.
+
+**Token-ization continued in lib/ (Slice 71):**
+
+- `lib/saas/tickets.ts:PRIORITY_COLORS` `normal` + `urgent` keys converted to `var(--color-brand-navy)` / `var(--color-brand-red)` (consumed via inline `style={{ color }}` so `var()` resolves).
+- Email templates in `lib/saas/notifications/templates.ts` intentionally stay literal — external email clients don't load `tokens.css`.
+
+**More unit-test coverage (Slices 69, 70, 72, 73, 74, 75, 76):**
+
+- Eight more test files, **102 new vitest specs**:
+  - `__tests__/lib/errorHandler-sanitize.test.ts` (9) — PII redactor allowlist + the doc'd quirk that arrays get flattened to index-keyed objects.
+  - `__tests__/cad/feature-fields.test.ts` (17) — the legacy-key fan-in helpers + the doc'd whitespace-masks-fallback subtlety.
+  - `__tests__/saas/notifications-prefs.test.ts` (8) — `effectiveChannels()` priority matrix (allowed-gate > user opt > event default).
+  - `__tests__/cad/geometry/lod-bbox.test.ts` (17) — `isEmptyBBox` / `bboxesOverlap` / `expandBBox` — the three viewport-culling primitives.
+  - `__tests__/cad/cursor-resolver.test.ts` (23) — `resolveCursor()` priority cascade + every tool branch + grip-angle normalisation.
+  - `__tests__/cad/geometry/bounds.test.ts` (17) — every geometry-type bbox (POINT through TEXT, incl. ELLIPSE rotation).
+  - `__tests__/saas/sms-phone-validation.test.ts` (11) — `isValidPhoneNumber()` E.164 regex.
+
+**Session totals:** 39 slices, 1 bug-find-and-fix, ~249 new unit-test specs across 17 new test files, ~245 brand-hex literals tokenized, 32 navigation/title gaps closed, 4 pre-existing lint warnings cleared. Branch `claude/gifted-ramanujan-lQaEI` is the running record.
