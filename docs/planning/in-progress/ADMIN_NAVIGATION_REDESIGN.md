@@ -1,9 +1,15 @@
 # Admin Navigation Redesign — Planning Document
 
-**Status:** Planning / RFC · ready for implementation slicing
+**Status:** Re-opened 2026-05-28 to ship the three remaining items below
 **Owner:** Jacob Maddux
 **Created:** 2026-05-12
 **Target repo path:** `docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md`
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
+> these three items called out in §13 + §16 of the original spec:
+> 1. Delete `app/admin/components/AdminSidebar.tsx` (PR-cycle grace expired)
+> 2. Brand-coloured workspace icons (§13.1)
+> 3. `?` help drawer content + `nav.*` telemetry events (§13.7 / §13.8)
 
 > **One-sentence pitch:** Collapse the current 11-section, ~50-link sidebar into a 7-workspace icon rail + a `/admin/me` central hub + a `Cmd+K` command palette, so every surveyor lands somewhere useful in ≤ 1 click and can reach any page in ≤ 1 keystroke chord.
 

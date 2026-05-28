@@ -2,7 +2,12 @@
 
 **Starr Software — AI Property Research Pipeline Phase**
 
-**Status:** ✅ COMPLETE v1.0 (March 2026)
+**Status:** ✅ COMPLETE v1.0 (March 2026) · Re-opened 2026-05-28 night to ship the 2 deferred deliverables below
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
+> the two `- [ ]` items still open in the deliverables checklist:
+> 1. Template preview thumbnail rendering (no render-to-thumbnail endpoint in `lib/research/export.service.ts`)
+> 2. Supabase Storage persistence of exports (current implementation returns base64; no Storage upload path)
 
 **Goal:** Enable surveyors to export plat drawings in all industry-standard formats — SVG, JSON (already done), PNG (print quality), PDF (print-ready), and DXF (AutoCAD/Civil 3D). Provide reusable drawing templates for consistent output.
 

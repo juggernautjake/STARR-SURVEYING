@@ -1,8 +1,15 @@
 # Pay Progression Overhaul
 
-**Status:** Planning — slices below ship one at a time per the in-progress / completed cycle.
-**Total estimate:** ~7 engineering days across 26 slices + 6 verification checkpoints.
+**Status:** Re-opened 2026-05-28 to ship the three remaining items below
+**Total estimate:** original ~7 engineering days across 26 slices + 6 verification checkpoints — Slices 1-25 shipped. Remainder below.
 **Related:** previous `docs/planning/completed/UI_UX_OVERHAUL.md` established the token system this plan builds on.
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to retire
+> the three "Recommend reopening as a fresh slice" callouts surfaced in
+> Slice P-25/P-26:
+> 1. Drop `employee_profiles.job_title` column once tier-derivation is fully migrated
+> 2. Delete the `JOB_TITLES` hardcoded constant + migrate the 3 remaining importers (`EmployeePayCard`, `MyPayPanel`, `PayRateTable`)
+> 3. Module → credential mapping + pay-impact callout (needs `modules.credential_key` or `module_credentials` join table)
 
 ---
 

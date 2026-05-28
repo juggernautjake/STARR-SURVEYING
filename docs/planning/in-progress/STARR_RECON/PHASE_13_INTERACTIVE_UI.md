@@ -4,8 +4,15 @@
 **Version:** 1.1 | **Last Updated:** March 2026
 **Phase Duration:** Weeks 54–56
 **Depends On:** All Phases 1–12
-**Status:** ✅ COMPLETE v1.1 (March 2026)
+**Status:** ✅ COMPLETE v1.1 (March 2026) · Re-opened 2026-05-28 night to ship the topo/tax PDF-inclusion item below
 - **v1.0:** Henschen, iDocket, Fidlar clerk adapters + clerk-registry update (priority 4/5/6) + InteractiveBoundaryViewer component + USGS client + TX Comptroller client + Zod schema validator + 4 UI pages. 60 statewide adapter tests + initial interactive tests.
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
+> the one survivor from §13.16 "Future Work":
+> - Phase 10 PDF report missing topo/USGS elevation + Comptroller PTAD
+>   sections. `worker/src/reports/pdf-generator.ts` has no USGS or PTAD
+>   write-out even though Phase 13 routes fetch the data; the PDF
+>   inclusion is the only `- [ ]` item that survives.
 - **v1.1:** Next.js API routes (boundary viewer with traverse walk, topo/tax proxies, library, billing, document download), Phase 13 Express routes in worker, schema validation in master-orchestrator.ts, Supabase migration for research_topo + research_tax, 20 traverse walk tests added. **80 total interactive UI tests. 1,497 total tests pass.**
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 **See Also:** `PHASE_13_STATEWIDE_ADAPTERS.md` — detailed spec for Henschen, iDocket, and Fidlar clerk adapter implementations.

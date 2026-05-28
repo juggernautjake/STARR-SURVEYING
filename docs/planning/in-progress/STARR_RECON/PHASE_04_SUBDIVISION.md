@@ -3,8 +3,16 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 10–12
 **Depends On:** Phase 1 (PropertyIdentity), Phase 2 (HarvestedDocuments), Phase 3 (PropertyIntelligence with lot data, AI extraction)
-**Status:** ✅ COMPLETE v1.2 — All bugs fixed, perimeter closure added, HTTP error handling improved, 80 unit tests pass
+**Status:** ✅ COMPLETE v1.2 — All bugs fixed, perimeter closure added, HTTP error handling improved, 80 unit tests pass · Re-opened 2026-05-28 night to ship §4.14 future improvements
 **Last Updated:** March 2026
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to work
+> the 5 items in §4.14 ("Future Improvements (Not Yet Implemented)"):
+> 1. Plat amendment chain full download (currently only finds instrument numbers)
+> 2. Lot-level CC&R mapping (currently subdivision-wide)
+> 3. Coordinate-based geometry (Phase 7 → Phase 4 feedback)
+> 4. Multi-page plat support (currently sends only first plat image)
+> 5. HOA/CC&R document download (currently only extracts text from plat notes)
 
 ---
 

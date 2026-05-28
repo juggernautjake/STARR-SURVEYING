@@ -1,9 +1,13 @@
 # CAD Editing, Layers, Points, Preferences & Menus — Self-Updating Audit
 
-Status: **completed** · Owner: CAD/UX · Opened: 2026-05-27 01:37 CDT ·
-Closed: 2026-05-27 06:0x CDT
-Time-box: worked until 6:00 AM CDT (06:00), 2026-05-27 — reached; finalized
-per §7. Every §5 item is shipped or explicitly deferred-with-rationale.
+Status: **re-opened 2026-05-28** · Owner: CAD/UX · Opened: 2026-05-27 01:37 CDT ·
+Closed: 2026-05-27 06:0x CDT · Re-opened: 2026-05-28 night
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
+> the three deferred items below. The original §5 backlog is shipped or
+> rationale-deferred per the doc body; only the items in §L (Orphan
+> editor components), §M (Media cloud upload), §N (Layer-delete undo)
+> are alive. New completion notes land inline next to each item.
 
 ---
 
