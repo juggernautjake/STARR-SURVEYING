@@ -168,8 +168,11 @@ CREATE INDEX IF NOT EXISTS idx_job_team_job_state
 
 -- "Show me overrides last week" — admin audit panel parallel to
 -- equipment_reservations idx_equipment_reservations_overrides.
+-- (Sorts by assigned_at — the live job_team schema doesn't carry a
+-- created_at column; assigned_at is the closest equivalent and is
+-- always set on insert.)
 CREATE INDEX IF NOT EXISTS idx_job_team_overrides
-  ON job_team (created_at DESC)
+  ON job_team (assigned_at DESC)
   WHERE is_override = true;
 
 -- ── 5. CREATE personnel_skills ───────────────────────────────
