@@ -55,6 +55,33 @@ const PAGES: Record<string, ComponentType> = {
   reports: nextDynamic(() => import('@/app/admin/reports/page'), { ssr: false }),
   equipment: nextDynamic(() => import('@/app/admin/equipment/page'), { ssr: false }),
   invites: nextDynamic(() => import('@/app/admin/invites/page'), { ssr: false }),
+  // Batch 2
+  // The /admin/my-* and /admin/schedule pages are server redirects to the
+  // Hub at /admin/me?tab=…; mount the actual Panel components instead so the
+  // harness renders their real content.
+  'my-pay': nextDynamic(() => import('@/app/admin/my-pay/MyPayPanel'), { ssr: false }),
+  'my-hours': nextDynamic(() => import('@/app/admin/my-hours/MyHoursPanel'), { ssr: false }),
+  'my-jobs': nextDynamic(() => import('@/app/admin/my-jobs/MyJobsPanel'), { ssr: false }),
+  'my-notes': nextDynamic(() => import('@/app/admin/my-notes/MyNotesPanel'), { ssr: false }),
+  'my-files': nextDynamic(() => import('@/app/admin/my-files/MyFilesPanel'), { ssr: false }),
+  schedule: nextDynamic(() => import('@/app/admin/schedule/SchedulePanel'), { ssr: false }),
+  team: nextDynamic(() => import('@/app/admin/team/page'), { ssr: false }),
+  work: nextDynamic(() => import('@/app/admin/work/page'), { ssr: false }),
+  users: nextDynamic(() => import('@/app/admin/users/page'), { ssr: false }),
+  discussions: nextDynamic(() => import('@/app/admin/discussions/page'), { ssr: false }),
+  'hours-approval': nextDynamic(() => import('@/app/admin/hours-approval/page'), { ssr: false }),
+  announcements: nextDynamic(() => import('@/app/admin/announcements/page'), { ssr: false }),
+  audit: nextDynamic(() => import('@/app/admin/audit/page'), { ssr: false }),
+  'error-log': nextDynamic(() => import('@/app/admin/error-log/page'), { ssr: false }),
+  office: nextDynamic(() => import('@/app/admin/office/page'), { ssr: false }),
+  'org-settings': nextDynamic(() => import('@/app/admin/org-settings/page'), { ssr: false }),
+  profile: nextDynamic(() => import('@/app/admin/profile/page'), { ssr: false }),
+  timeline: nextDynamic(() => import('@/app/admin/timeline/page'), { ssr: false }),
+  vehicles: nextDynamic(() => import('@/app/admin/vehicles/page'), { ssr: false }),
+  rewards: nextDynamic(() => import('@/app/admin/rewards/page'), { ssr: false }),
+  billing: nextDynamic(() => import('@/app/admin/billing/page'), { ssr: false }),
+  research: nextDynamic(() => import('@/app/admin/research/page'), { ssr: false }),
+  finances: nextDynamic(() => import('@/app/admin/finances/page'), { ssr: false }),
 };
 
 const AdminLayoutClient = nextDynamic(
