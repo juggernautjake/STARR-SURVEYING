@@ -467,6 +467,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 62 — Unit tests for the photo-annotation renderer ✅ shipped
 - [x] Added `__tests__/lib/photoAnnotationRenderer.test.ts` — 14 specs covering `parseAnnotations` (defensive null/empty/malformed JSON / missing-items / non-array-items / valid-empty / valid-stroke), `strokeToPath` (empty points → empty string, three-point Move+Line+Line emission, rectangular-image x/y scaling, 2-decimal-precision floating-point control), and `strokeWidthPx` (shorter-edge scaling for both landscape + portrait, integer rounding, 1-px minimum for very thin strokes). The mobile + web renderers both call into this module; pinning the contract prevents drift between platforms. `tsc` + `eslint` clean.
 
+### Slice 63 — Unit tests for the quote-form attachment validator ✅ shipped
+- [x] Added `__tests__/lib/quote-attachments.test.ts` — 14 specs covering `formatBytes` (MB / KB / B thresholds incl. zero) and `validateQuoteAttachments` (happy paths: empty list, single allowed file, exact-max-files boundary, exact-total-bytes boundary, CAD/mapping formats; rejections: too-many-files / bad-extension / no-extension / extension case-insensitivity / total-size exceeded; and the documented `bad-type` BEFORE `too-large` ordering for more actionable errors). This validator runs both client-side (before form POST) and server-side (`/api/contact` re-checks); pinning the rules prevents drift between browser-side optimism and server-side enforcement. `tsc` + `eslint` clean.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
