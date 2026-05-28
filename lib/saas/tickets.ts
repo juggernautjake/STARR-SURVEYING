@@ -167,8 +167,8 @@ export const STATUS_LABELS: Record<TicketStatus, string> = {
 /** UI hint color per priority. */
 export const PRIORITY_COLORS: Record<TicketPriority, string> = {
   low: '#6B7280',
-  normal: '#1D3095',
+  normal: 'var(--color-brand-navy)',
   high: '#D97706',
-  urgent: '#BD1218',
+  urgent: 'var(--color-brand-red)',
   critical: '#7F1D1D',
 };
