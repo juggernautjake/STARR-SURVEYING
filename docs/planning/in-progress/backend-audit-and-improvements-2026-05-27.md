@@ -333,6 +333,11 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 
 ---
 
+### Slice 32 — Time-off page: token-ize the hardcoded brand colours ✅ shipped
+- [x] Phase-3 audit follow-up. `app/admin/time-off/page.tsx` had four hardcoded `#1D3095` (request + submit buttons, schedule deep-link, the request-form border colour) and three `#B91C1C` (error message, deny-button text + border) inline-style literals — so the page wouldn't track a brand-colour change in `tokens.css`. Converted all four navy references to `var(--color-brand-navy)` and all three reds to `var(--color-error)`, matching the same tokens the shared forms / dashboard cards already consume. While in the file, replaced the dangling `// eslint-disable-next-line react-hooks/exhaustive-deps` (it was on the same line as the body, so it suppressed nothing) by wrapping `loadAll` in `useCallback([safeFetch, isAdmin])` and adding it to the `useEffect` deps — the pre-existing `exhaustive-deps` warning called out in the handoff is now actually gone. `tsc` + `eslint` clean (remaining warnings are all on unrelated files: `employees/page.tsx`, `equipment/inventory/page.tsx`, `learn/quiz-history/page.tsx`, `receipts/page.tsx`).
+
+---
+
 ## Phase 2 wrap-up (2026-05-28)
 
 > Every action item in this doc — original twenty-one slices plus the seven follow-ups (Slices 22–30) that retired the deferred bullets — is shipped. The remaining open work (live-deployment runtime verification of the Google Calendar sync; cron scheduling for `POST /api/admin/pto?action=accrue`; the per-occurrence overrides for recurring events explicitly marked out of scope above) is deployment / ops work rather than backend code, so this doc closes here and moves back to `completed/`.
