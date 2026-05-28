@@ -657,4 +657,15 @@ Same session, continued past the original wrap-up because the stop-hook was stil
   - `__tests__/cad/geometry/bounds.test.ts` (17) — every geometry-type bbox (POINT through TEXT, incl. ELLIPSE rotation).
   - `__tests__/saas/sms-phone-validation.test.ts` (11) — `isValidPhoneNumber()` E.164 regex.
 
-**Session totals:** 39 slices, 1 bug-find-and-fix, ~249 new unit-test specs across 17 new test files, ~245 brand-hex literals tokenized, 32 navigation/title gaps closed, 4 pre-existing lint warnings cleared. Branch `claude/gifted-ramanujan-lQaEI` is the running record.
+### Slice 77 — Unit tests for the CAD point-math primitives ✅ shipped
+- [x] Added `__tests__/cad/geometry/point.test.ts` for `lib/cad/geometry/point.ts` — the foundational 2D math (`distance`, `midpoint`, `angle`, `pointAtDistanceAngle`, `pointToSegmentDistance`, `closestPointOnSegment`, `pointInPolygon`) called from the snap engine, curve fitter, hit-test path, and almost every drawing tool. Previously zero coverage despite being on the hot path of every interaction. 24 specs cover:
+  - `distance`: coincident → 0, 3-4-5 triangle, symmetry.
+  - `midpoint`: x/y average, negative coords.
+  - `angle`: cardinal directions (E=0, N=π/2, W=π, S=-π/2 — confirms atan2 + east-CCW convention).
+  - `pointAtDistanceAngle`: cardinal extensions + roundtrip with `angle()` + `distance()` (10⁻¹⁰ precision).
+  - `pointToSegmentDistance`: perpendicular interior, clamped-to-A, clamped-to-B, degenerate (A===B) segment, on-segment → 0.
+  - `closestPointOnSegment`: interior foot (returns correct t = 0.5), past-A → t=0, past-B → t=1, degenerate-segment → copy-not-reference of A.
+  - `pointInPolygon`: convex square interior + 4 outside cases + concave L-shape (point inside the notch is correctly outside).
+- [x] `tsc` + `eslint` clean.
+
+**Session totals:** 40 slices, 1 bug-find-and-fix, ~273 new unit-test specs across 18 new test files, ~245 brand-hex literals tokenized, 32 navigation/title gaps closed, 4 pre-existing lint warnings cleared. Branch `claude/gifted-ramanujan-lQaEI` is the running record.
