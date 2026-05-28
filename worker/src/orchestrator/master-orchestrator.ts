@@ -350,6 +350,21 @@ export class MasterOrchestrator {
     const purchases = loadJson('purchase_report.json');
     const reconciliationV2 = loadJson('reconciled_boundary_v2.json');
 
+    // Phase 13: optional topo + tax artifacts. The Phase 13 routes write
+    // these to /tmp/analysis/<projectId>/ rather than this.outputDir, so
+    // fall back to that canonical path when the project dir lacks them.
+    const loadJsonAt = (absPath: string): any => {
+      if (!fs.existsSync(absPath)) return null;
+      try {
+        return JSON.parse(fs.readFileSync(absPath, 'utf-8'));
+      } catch (e) {
+        logger.warn('orchestrator', `Failed to parse ${absPath} — using null: ${String(e)}`);
+        return null;
+      }
+    };
+    const topo = loadJson('topo.json') ?? loadJsonAt(`/tmp/analysis/${projectId}/topo.json`);
+    const tax  = loadJson('tax.json')  ?? loadJsonAt(`/tmp/analysis/${projectId}/tax.json`);
+
     // Phase 13: validate key phase outputs — logs a warning if schema doesn't match
     // but never blocks report generation (non-fatal, uses validateOrNull)
     const warn = (phase: string, msg: string) =>
@@ -391,6 +406,8 @@ export class MasterOrchestrator {
       confidence: (confidence ?? null) as ConfidenceReport,
       purchases,
       reconciliationV2,
+      topo,
+      tax,
     };
   }
 
