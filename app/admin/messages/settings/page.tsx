@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
-import UnderConstruction from '../../components/messaging/UnderConstruction';
 
 interface Preferences {
   notifications_enabled: boolean;
@@ -85,10 +84,6 @@ export default function MessagingSettingsPage() {
 
   return (
     <>
-      <UnderConstruction
-        feature="Messaging Settings"
-        description="Configure your messaging notifications, privacy, and display preferences."
-      />
 
       <div className="msg-settings">
         <div className="msg-settings__header">

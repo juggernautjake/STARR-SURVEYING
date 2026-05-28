@@ -56,6 +56,7 @@ import { generateId } from '@/lib/cad/types';
 import type { ImageGeometry } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { PAPER_DIMENSIONS } from '@/lib/cad/templates/types';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
@@ -11331,6 +11332,114 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:scale', onScale);
     window.addEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
 
+    // ── Raster export: extract the live Pixi frame to PNG (and PDF) ────────
+    // PrintDialog dispatches cad:exportImage; the canvas owns the renderer so
+    // it does the pixel extraction here and triggers a download.
+    const onExportImage = (e: Event) => {
+      const pixi = pixiRef.current;
+      if (!pixi) return;
+      const detail = (e as CustomEvent).detail as
+        | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE'; plotStyle?: 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
+            paperSize?: keyof typeof PAPER_DIMENSIONS; centerOnPage?: boolean;
+            elements?: { titleBlock?: boolean; northArrow?: boolean; scaleBar?: boolean } }
+        | undefined;
+      const format = detail?.format === 'pdf' ? 'pdf' : 'png';
+      const plotStyle = detail?.plotStyle ?? 'AS_DISPLAYED';
+      const elements = detail?.elements;
+      const baseName =
+        (useDrawingStore.getState().document.name || 'drawing').replace(/[^\w.-]+/g, '_') || 'drawing';
+      const emit = (text: string) =>
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+      // Honor the dialog's "Print Elements" toggles by hiding the matching
+      // title-block containers just for the export render, then restoring.
+      // Safe because no rAF frame runs inside this synchronous handler.
+      const hiddenForExport: Array<{ visible: boolean } & object> = [];
+      const hideIf = (off: boolean | undefined, ctr?: { visible: boolean }) => {
+        if (off === false && ctr && ctr.visible) { ctr.visible = false; hiddenForExport.push(ctr as { visible: boolean } & object); }
+      };
+      try {
+        if (elements) {
+          // titleBlock toggle also covers the signature/seal block (same furniture).
+          hideIf(elements.titleBlock, pixi.tbTitleBlockContainer);
+          hideIf(elements.titleBlock, pixi.tbSignatureContainer);
+          hideIf(elements.northArrow, pixi.tbNorthArrowContainer);
+          hideIf(elements.scaleBar, pixi.tbScaleBarContainer);
+        }
+        // Force a fresh frame so the export reflects the requested elements.
+        pixi.app.render();
+        const srcCanvas = pixi.app.renderer.extract.canvas(pixi.app.stage) as HTMLCanvasElement;
+        // Restore visibility immediately; the next rAF frame repaints normally.
+        for (const ctr of hiddenForExport) ctr.visible = true;
+        const w = srcCanvas.width;
+        const h = srcCanvas.height;
+        if (!w || !h) { emit('Export failed: empty canvas.'); return; }
+
+        // Composite onto a white background (so transparent areas don't go
+        // black in JPEG / on paper), then apply the chosen Plot Style.
+        const flat = document.createElement('canvas');
+        flat.width = w;
+        flat.height = h;
+        const fctx = flat.getContext('2d');
+        if (!fctx) { emit('Export failed: canvas context unavailable.'); return; }
+        fctx.fillStyle = '#ffffff';
+        fctx.fillRect(0, 0, w, h);
+        fctx.drawImage(srcCanvas, 0, 0);
+
+        // Plot Style: GRAYSCALE → luma; MONOCHROME → luma threshold to B/W.
+        if (plotStyle === 'GRAYSCALE' || plotStyle === 'MONOCHROME') {
+          const img = fctx.getImageData(0, 0, w, h);
+          const px = img.data;
+          for (let i = 0; i < px.length; i += 4) {
+            const luma = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114);
+            const v = plotStyle === 'MONOCHROME' ? (luma < 128 ? 0 : 255) : luma;
+            px[i] = px[i + 1] = px[i + 2] = v;
+          }
+          fctx.putImageData(img, 0, 0);
+        }
+
+        if (format === 'png') {
+          const dataUrl = flat.toDataURL('image/png');
+          const a = Object.assign(document.createElement('a'), { href: dataUrl, download: `${baseName}.png` });
+          a.click();
+          emit('Exported PNG.');
+        } else {
+          void (async () => {
+            try {
+              const { jsPDF } = await import('jspdf');
+              // JPEG embed: a survey plot is line work on white, so JPEG
+              // compresses an order of magnitude smaller than a raw PNG while
+              // staying legible.
+              const imgData = flat.toDataURL('image/jpeg', 0.85);
+              const orientation = (detail?.orientation === 'PORTRAIT' ? 'portrait' : 'landscape') as 'portrait' | 'landscape';
+              // Size the page to the selected paper (points = inches × 72) so
+              // the PDF is a real plot sheet, then fit the captured image into
+              // it preserving aspect ratio (centered, or top-left margin).
+              const dim = PAPER_DIMENSIONS[detail?.paperSize ?? 'TABLOID'] ?? PAPER_DIMENSIONS.TABLOID;
+              const pdf = new jsPDF({ orientation, unit: 'pt', format: [dim.width * 72, dim.height * 72], compress: true });
+              const pageW = pdf.internal.pageSize.getWidth();
+              const pageH = pdf.internal.pageSize.getHeight();
+              const margin = 18; // 0.25"
+              const fit = Math.min((pageW - margin * 2) / w, (pageH - margin * 2) / h);
+              const drawW = w * fit;
+              const drawH = h * fit;
+              const x = detail?.centerOnPage === false ? margin : (pageW - drawW) / 2;
+              const y = detail?.centerOnPage === false ? margin : (pageH - drawH) / 2;
+              pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+              pdf.save(`${baseName}.pdf`);
+              emit('Exported PDF.');
+            } catch (err) {
+              emit('PDF export failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+            }
+          })();
+        }
+      } catch (err) {
+        // Make sure a thrown extract never leaves furniture hidden on screen.
+        for (const ctr of hiddenForExport) ctr.visible = true;
+        emit('Export failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+      }
+    };
+    window.addEventListener('cad:exportImage', onExportImage);
+
     // ── Interactive rotate: cursor drives rotation in real-time ────────────
     const onStartInteractiveRotate = (e: Event) => {
       const detail = (e as CustomEvent).detail as { pivot?: Point2D } | undefined;
@@ -11594,6 +11703,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:drawCircleByRadius', onDrawCircleByRadius);
+      window.removeEventListener('cad:exportImage', onExportImage);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
       window.removeEventListener('cad:deleteSelection', onDeleteSelection);

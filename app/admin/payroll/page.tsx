@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
-import UnderConstruction from '../components/messaging/UnderConstruction';
 import EmployeePayCard from '../components/payroll/EmployeePayCard';
 import PayRateTable from '../components/payroll/PayRateTable';
 import PayrollRunPanel from '../components/payroll/PayrollRunPanel';
@@ -113,7 +112,6 @@ export default function PayrollPage() {
 
   return (
     <div className="payroll-page">
-      <UnderConstruction feature="Payroll & Finances" description="Manage employee pay, certifications, payroll runs, and balance transfers." />
 
       {/* Summary Cards */}
       <div className="payroll-summary-cards">

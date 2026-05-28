@@ -1,0 +1,170 @@
+# Backend Audit & Continuous Improvements — 2026-05-27
+
+> **Status: COMPLETED.** All 21 slices below are shipped (or explicitly deferred with a one-line rationale), so this doc has been moved from `in-progress/` to `completed/` per `docs/planning/README.md`. Highlights: every "Under Construction"/placeholder across `app/admin/**` resolved; the five stub pages (Notes, Leads, Schedule, Settings, My Files) fully built (table/bucket + API + wired UI); the CAD Print/Export feature made real (PNG, PDF, compact size, paper sizing, plot style, element toggles) with passing Playwright specs; the employee hours/receipts/job-attachment workflows audited + the receipt↔job link completed; Properties-panel style edits render live; and a reusable harness seed/select test hook added. Deferred items are struck through with reasons inline.
+>
+> **(Historical) Status:** live working doc. Each `### Slice` is a shippable unit: build → typecheck + lint → (harness/Playwright + screenshot verify where possible) → commit + push → annotate with a completion note. This doc was intentionally open-ended: new improvement slices were appended as the audit continued.
+>
+> **Scope:** a sweep of every page under `app/admin/**` (the "backend") plus their API routes and shared components, hunting for placeholders ("coming soon" / "not implemented"), broken or stubbed UX, and concrete polish/build/fix opportunities.
+>
+> **Testing method:** CAD-shell work is verified through the unauthenticated `/cad-harness` route with Playwright (`playwright.harness.config.ts`) + screenshots that are visually inspected (OCR). Auth-gated admin pages are verified by code-reading + typecheck/lint until a seeded auth path exists; where a slice can be exercised through an API route, that's preferred.
+
+---
+
+## Audit findings — raw inventory (placeholders / stubs / unfinished)
+
+These are the concrete "this isn't done yet" markers found in `app/admin/**`:
+
+1. `cad/components/PrintDialog.tsx:199,205` — **Export PDF / Export PNG** buttons just `window.alert('… coming soon')`. Real export libs (`jspdf`, `pdfkit`) are already in `package.json`; the Pixi renderer (`pixiRef.current.app.renderer`) supports `extract`.
+2. `cad/components/ElementExplanationPopup.tsx` — "Chat (coming soon)" placeholder block.
+3. `cad/components/CalcPointDialog.tsx:106` — falls back to a bare `'Method not implemented.'` error; the message is unhelpful for the wired methods and there's no guard explaining which methods are live.
+4. `dashboard/page.tsx:240,282` — "Job tracking coming soon" / "Payroll tracking coming soon" empty notes with hard-coded `--` metrics, even though jobs/payroll APIs exist.
+5. `research/components/ExportPanel.tsx:168` — a format with a "Coming Soon" badge (disabled export option).
+6. `learn/exam-prep/page.tsx:79,84` — RPLS exam card "Coming Soon".
+7. `learn/exam-prep/sit/module/[id]/page.tsx:255` — "Content coming soon" empty state for modules with no lessons.
+8. `messaging/UnderConstruction.tsx` — a generic Under-Construction component; audit where it's still mounted.
+
+(More will be appended as the sweep continues — equipment, payroll, research pipeline, learn manage, etc.)
+
+---
+
+## Slices
+
+### Slice 1 — CAD: real PNG export from Print dialog ✅ shipped
+- [x] Replace the `window.alert('PNG export coming soon')` with a working PNG export: render the current drawing via the Pixi renderer's `extract` plugin and download a `.png`. Wire through a `cad:exportImage` window event (matches the existing `cad:*` event pattern the canvas already listens for) so `PrintDialog` stays presentation-only.
+  - **Done:** `PrintDialog` now dispatches `cad:exportImage { format:'png', paperSize, orientation }` and closes. `CanvasViewport` registers an `onExportImage` listener (with matching cleanup) that calls `pixi.app.render()` then `renderer.extract.canvas(stage).toDataURL('image/png')` and triggers an `<a download>`; emits a `cad:commandOutput` toast. The handler is format-agnostic (PDF branch already present for Slice 2).
+  - **Verified:** new harness spec `e2e/harness/export-png.spec.ts` opens the dialog on `/cad-harness`, clicks Export PNG, and asserts a real PNG download (header `0x89504E47`, 144 KB). Screenshot `test-results/audit/print-dialog-open.png` visually confirms the dialog + sheet render. `tsc` + `eslint` clean.
+
+### Slice 2 — CAD: real PDF export from Print dialog ✅ shipped
+- [x] Replace the `window.alert('PDF export coming soon')` with a working PDF export using `jspdf`.
+  - **Done:** the Export PDF button now dispatches `cad:exportImage { format:'pdf', … }`; the shared `onExportImage` handler dynamically imports `jspdf`, sizes the page to the extracted image (orientation honored), `addImage`s the PNG, and saves a `.pdf`.
+  - **Verified:** `e2e/harness/export-pdf.spec.ts` asserts a `%PDF-` download. `tsc` + `eslint` clean.
+  - **Follow-up (noted, not blocking):** the embedded raster is full device-resolution so the PDF is large (~11 MB). A later slice can downscale / JPEG-compress the image for smaller files.
+
+### Slice 3 — CAD: CalcPointDialog error clarity ✅ shipped
+- [x] Audit the calc-point method switch; ensure every selectable method maps to a solver, and replace the generic `'Method not implemented.'`.
+  - **Audit result:** the `<select>` exposes exactly the 4 `Method` union members and the `compute()` chain handles all 4 — so `'Method not implemented.'` was unreachable dead code.
+  - **Done:** replaced the trailing branch with a `const unhandled: never = method` exhaustiveness guard (compile-time safety if a 5th method is ever added to the union without a branch) and changed the post-switch null guard to a precise, actionable message. `tsc` + `eslint` clean.
+
+### Slice 4 — Dashboard: live Jobs tile + honest Finances copy ✅ shipped (hours/PTO deferred)
+- [x] Replace the misleading "coming soon" notes and `--` placeholders on the dashboard Jobs and Finances cards.
+  - **Done — Jobs card:** now fetches `/api/admin/jobs` (admins) or `/api/admin/jobs?my_jobs=true` (others) with `limit=500` and shows a live **Active Jobs** count (stages other than completed/cancelled/on_hold), with loading / zero / N-in-progress empty states. Removed the false "Job tracking coming soon" note.
+  - **Done — Finances card:** both `/admin/payroll` and `/admin/my-pay` are fully shipped, so the "Payroll tracking coming soon" note was simply wrong. Replaced the fake `--` Hours/PTO metrics with accurate role-aware copy and kept the View Finances link. Also removed a now-dead `role` local + a stale `useCallback` dep (lint clean).
+  - **Verified:** `tsc` + `eslint` clean. Render is code-verified only — the dashboard is auth-gated and not reachable from the unauthenticated `/cad-harness`, so it can't be screenshotted in this environment.
+- ~~Live "Hours This Week / This Period" and "PTO Balance" tiles~~ — deferred: the values come from the pay-computation route (`/api/admin/time-logs`, monetary `payroll/balance`) which needs careful week/period bucketing and a PTO source that isn't a simple field; shipping unverified numbers (no auth path in the harness) risks misleading payroll figures. Revisit with a dedicated dashboard-summary endpoint + a seeded-auth E2E path.
+
+### Slice 5 — CAD: ElementExplanationPopup chat placeholder ✅ shipped (false positive)
+- [x] Investigate the "Chat (coming soon)" affordance.
+  - **Audit result:** false positive — the chat is fully implemented. `ChatPanel` is wired to `useAIStore.sendChatMessage` / `executeChatAction` with quick actions (Update This Element / Redraw This Group / Redraw Full Drawing) and per-message Apply buttons. Only the file's header comment was stale ("…land in the next slice … Chat (coming soon) placeholder").
+  - **Done:** corrected the header comment to describe the shipped chat section. No functional change; `tsc` already exercises the live wiring.
+
+### Slice 6 — Research: ExportPanel "Coming Soon" format ✅ shipped (false positive + real mime fix)
+- [x] Investigate the disabled export format.
+  - **Audit result:** every `FORMAT_OPTIONS` entry (svg / json / png / pdf / dxf) is `available: true`, so the `{!opt.available && <span>Coming Soon</span>}` badge never renders — no misleading teaser is shown. The server route fully implements all five (`renderToPng/renderToPdf/renderToDxf` + svg/json) so `available: true` is truthful. The `available` flag is kept as a reasonable forward guard.
+  - **Real fix found + shipped:** the client download map in `handleExportDrawing` (research project page) omitted the `dxf` mime, so DXF downloads fell back to `application/octet-stream`. Added `dxf: 'image/vnd.dxf'` (IANA-registered) so the blob carries the correct content type. `tsc` + `eslint` clean.
+
+### Slice 7 — Learn: exam-prep empty states ✅ shipped
+- [x] RPLS "Coming Soon" card and SIT "Content coming soon" — make these honest, non-dead-end states.
+  - **Done — RPLS card:** was an inert `<div>` with a non-clickable "Coming Soon" arrow. Dedicated RPLS prep genuinely isn't built (large feature, correctly not faked), so the card is now a `<Link>` to the available FS curriculum (`/admin/learn/exam-prep/sit`) with a "Start with FS Prep →" CTA and copy that sets expectations honestly. No longer a dead-end.
+  - **SIT "Content coming soon":** left as-is — it's a legitimate data-driven section empty state inside a fully-navigable module page (back link, topics, quiz), not a trap. Honest messaging already present.
+  - **Verified:** `tsc` + `eslint` clean. Auth-gated pages, so render is code-verified only.
+
+---
+
+## Continuous-improvement backlog (appended as the sweep continues)
+
+> Once the slices above are shipped, keep auditing and appending new slices here (build quality, a11y, error states, loading states, empty states, dead code, console noise, etc.). The Stop-hook loop keeps this doc active until it's moved to `completed/`.
+
+### Slice 8 — Remove stale "Under Construction" banner from fully-built pages ✅ shipped (core batch; rest in progress)
+- [x] The `messaging/UnderConstruction` banner ("Components below are being built. Some may not be fully functional yet.") was copy-pasted atop many fully-functional pages, falsely telling users core features are incomplete.
+  - **Done — removed from confirmed-complete core pages:** `jobs/page.tsx`, `jobs/[id]/page.tsx` (896 lines, 52 hooks), `my-jobs/MyJobsPanel.tsx`, `my-pay/MyPayPanel.tsx` (both render spots), `payroll/page.tsx`, `payroll/[email]/page.tsx`. All are rich, data-driven, shipped features (the dashboard links to them as live). Removed the banner + now-unused imports. `tsc` + `eslint` clean.
+- [x] **Remaining banner pages evaluated.** Removed banner from the confirmed-complete (real POST/persistence) pages: `assignments` (POST/PATCH `/api/admin/assignments`), `jobs/new` (POST `/api/admin/jobs` → redirect), and all messaging pages `messages/new` `messages/contacts` `messages/settings` `messages/[conversationId]` (full conversations/send/read/reactions/preferences wiring). `tsc` + `eslint` clean.
+- [x] **Confirmed genuine stubs — banner correctly KEPT (accurate):** `leads`, `schedule`, `notes`, `my-files` all use `const [x] = useState([])` with no setter/fetch/persistence; `settings` has an explicit in-code TODO "Connect form inputs to settings API." Per the user's rule the banner stays until these are built. Being built out one-by-one in Slice 10+.
+
+### Slice 10 — Build out stub page: Company Notes ✅ shipped
+- [x] `/admin/notes` was a UI-only stub (`const [notes] = useState([])`, disabled Save, a self-documenting dev guide). Now fully built the established way (seed SQL + API route + page wiring):
+  - **Seed:** `seeds/291_company_notes.sql` creates `public.company_notes` (id, title, content, category CHECK, is_pinned, created_by, timestamps) + sort/category indexes, matching the page's own schema spec.
+  - **API:** `app/api/admin/notes/route.ts` — GET (pinned-first list, category + search filters), POST (create), PATCH (edit / pin-unpin), DELETE. Auth-gated shared workspace via `supabaseAdmin` + `withErrorHandler`, mirroring the CAD folders route.
+  - **Page:** wired to the API — loads notes, creates (Save button now enabled + validating), pin/unpin, delete (with confirm), loading/empty states. Removed the Under Construction banner and the dev-guide block (now built).
+  - **Verified:** `tsc` + `eslint` clean. Runtime needs `seeds/291` applied to Supabase (standard deploy step for every feature here); until then the page degrades gracefully via `safeFetch` (loading → empty). Auth-gated, so not harness-screenshottable.
+### Slice 11 — Build out stub page: Leads / sales pipeline ✅ shipped
+- [x] `/admin/leads` (admin-only) was a UI-only stub. Fully built:
+  - **Seed:** `seeds/292_leads.sql` — `public.leads` (contact + pipeline fields, status CHECK, `converted_job_id` FK → jobs, follow-up date, indexes).
+  - **API:** `app/api/admin/leads/route.ts` — admin-gated GET (status filter + name/company/email/phone search), POST, PATCH (advance status / edit), DELETE.
+  - **Page:** wired — loads leads, creates (Save enabled + validating), inline status `<select>` on each card to move through the pipeline, delete, loading/empty states. Removed banner + dev guide.
+  - **Verified:** `tsc` + `eslint` clean (needs `seeds/292` applied to Supabase at deploy; degrades gracefully meanwhile). Auth-gated → code-verified.
+### Slice 12 — Build out stub page: Schedule / calendar ✅ shipped
+- [x] `/admin/schedule` (+ Hub `/admin/me?tab=schedule`) was a UI-only calendar stub. Fully built:
+  - **Seed:** `seeds/293_schedule_events.sql` — `public.schedule_events` (title, type, start/end, all_day, location, notes, `job_id` FK → jobs, assigned_to/by, color, indexes).
+  - **API:** `app/api/admin/schedule/route.ts` — GET by date range (non-admins see only their own events; admins see all), admin POST/PATCH/DELETE; server stamps a per-type color.
+  - **Panel:** wired — loads events for the visible window on navigation, the admin Create Event form now POSTs (building start/end ISO from the date/time/all-day inputs), per-event delete (admin) in week view, week + month render real events. Removed banner + dev guide.
+  - **Verified:** `tsc` + `eslint` clean (needs `seeds/293` applied at deploy; degrades gracefully). Auth-gated → code-verified.
+  - **Deferred (documented):** recurring events, drag-to-create/move, time-off approval, Google Calendar sync, conflict detection — each is a sizable feature beyond "make the page functional"; revisit if requested.
+### Slice 13 — Build out stub page: Admin Settings (General + Company) ✅ shipped
+- [x] `/admin/settings` had unconnected forms. Built the editable sections for real:
+  - **Seed:** `seeds/294_app_settings.sql` — `public.app_settings` (key TEXT PK → JSONB value, updated_by/at), one row per section.
+  - **API:** `app/api/admin/settings/route.ts` — admin GET (all sections as a map) + PUT (upsert an allowed section: `general` | `company`).
+  - **Page:** General (company name / default state / job-number prefix / timezone) and Company (address / phone / fax / website / TBPELS firm #) are now controlled inputs that load saved values and persist via per-section Save buttons with a "✓ Saved" confirmation. Removed banner + dev guide.
+  - **Honest remaining tabs (not faked):** Users (RBAC is code-driven in `lib/auth.ts`), Notifications (points to Messages → Settings, the real per-user prefs), Integrations (accurate "Not Connected" cards), Billing (links to the existing `/admin/billing` area).
+  - **Verified:** `tsc` + `eslint` clean (needs `seeds/294` at deploy). Auth-gated → code-verified.
+### Slice 14 — Build out stub page: My Files (personal storage) ✅ shipped
+- [x] `/admin/my-files` (+ Hub `?tab=files`) was a UI-only stub (drop zone + table, no storage). Fully built:
+  - **Seed:** `seeds/295_user_files.sql` — a PRIVATE `user-files` storage bucket (50 MB/file, service-role policy) + `user_files` metadata table (owner email, name, type, size, storage_path, folder, optional job link, indexes).
+  - **API:** `app/api/admin/my-files/route.ts` — GET (my files, each with a 1-hour signed download URL), POST (base64 upload → private bucket at a per-user path → metadata row, with orphan-object rollback), DELETE (ownership-checked; removes object + row). Mirrors the cad-images `ensureStorageBucket` runtime-create pattern.
+  - **Panel:** wired — loads files, Upload Files button + click/drag-drop dropzone (multi-file, 50 MB guard, uploads into the selected folder), per-row Download (signed URL) + Delete, loading/empty states. Removed banner + dev guide.
+  - **Verified:** `tsc` + `eslint` clean. Bucket auto-creates on first upload; `seeds/295` recommended at deploy for the RLS policy + table. Auth-gated + real file I/O → code-verified (can't exercise uploads in this sandbox).
+
+> **Stub build-out complete:** all five previously-stubbed pages — Notes, Leads, Schedule, Settings, My Files — are now fully built (table/bucket + API + wired UI), and every Under Construction banner across `app/admin/**` has been resolved (removed from built pages; the stubs no longer exist).
+
+---
+
+## Continued improvements (post-stub-buildout)
+
+> Stubs done — continuing the audit with genuine quality/feature improvements (the user asked to keep building). Each stays a verify-then-ship slice.
+
+### Slice 15 — CAD: shrink exported PDF size (Slice 2 follow-up) ✅ shipped
+- [x] The Print-dialog PDF embedded the frame as a full-resolution PNG (~11.5 MB).
+  - **Done:** the PDF branch now composites the extracted frame onto a white canvas and embeds it as JPEG (q=0.85) with `jsPDF({ compress: true })`. White fill prevents transparent regions going black; line-work plots stay legible. PNG export is untouched (stays lossless).
+  - **Verified on `/cad-harness`:** `export-pdf` spec passed — the PDF is a valid `%PDF` and dropped from **~11.5 MB → 88 KB** (~130× smaller). `tsc` + `eslint` clean.
+
+### Slice 16 — CAD: make Print "Plot Style" (Mono/Grayscale) actually work ✅ shipped
+- [x] The Print dialog's Plot Style dropdown (As Displayed / Monochrome / Grayscale) was ignored by the export — a dead setting.
+  - **Done:** `PrintDialog` now passes `plotStyle` in the export event; the export handler flattens onto white then applies the style — GRAYSCALE → per-pixel luma, MONOCHROME → luma thresholded to pure B/W — before producing the PNG/PDF. AS_DISPLAYED is unchanged.
+  - **Verified on `/cad-harness`:** new `export-plotstyle` spec selects Grayscale, exports a PNG, decodes it in-browser, and asserts **0 non-gray pixels** with 72k dark content pixels (real linework, not a blank sheet). `tsc` + `eslint` clean.
+
+### Slice 17 — CAD: honor Print "Print Elements" toggles in export ✅ shipped (3 of 7; rest deferred)
+- [x] The dialog's Print Elements checkboxes were ignored by export.
+  - **Done:** `PrintDialog` passes `elements: { titleBlock, northArrow, scaleBar }`; the export handler hides the matching Pixi containers (`tbTitleBlockContainer` + `tbSignatureContainer`, `tbNorthArrowContainer`, `tbScaleBarContainer`) just for the export render, then restores them (safe — no rAF frame runs mid-handler; also restored in the catch).
+  - **Verified on `/cad-harness`:** new `export-elements` spec exports all-on (67,702 dark px) then Title-Block-off (20,704 dark px) → ~69% less ink, proving the toggle removes the title block. `tsc` + `eslint` clean.
+- ~~Border / Legend / Certification / Notes toggles~~ — deferred: these aren't discrete Pixi containers (the border is part of the shared paper layer; legend/cert/notes aren't separately rendered objects), so honoring them needs a render-pipeline refactor disproportionate to the value. The three high-ink furniture toggles (title block, north arrow, scale bar) cover the common print-customisation need.
+
+### Slice 18 — CAD: size exported PDF to the selected paper + fit the drawing ✅ shipped
+- [x] The PDF page was sized to the raw canvas pixel dimensions, ignoring the dialog's Paper Size / Orientation / Center-on-Page — so it wasn't a real plot sheet.
+  - **Done:** the export now builds the jsPDF page from `PAPER_DIMENSIONS` (inches × 72 pt) for the chosen size + orientation, and fits the captured image into it preserving aspect ratio with a 0.25" margin — centered, or top-left when Center-on-Page is off.
+  - **Verified on `/cad-harness`:** extended `export-pdf` spec parses the PDF MediaBox and asserts **1224 × 792 pt** (Tabloid Landscape) while staying ~88 KB. `tsc` + `eslint` clean.
+  - **Note:** PNG export stays a raw raster of the frame (paper sizing is a PDF/plot concept); Scale Mode "Fit to Page" is effectively what the aspect-fit does, and fixed-scale plotting (true 1"=N' on paper) remains a larger future item.
+
+### Slice 19 — CAD: golden-path visual audit + Weight-field clipping fix ✅ shipped
+- [x] Used Playwright + screenshot inspection (OCR) to drive the editor golden path (`e2e/harness/visual-audit.spec.ts`): create drawing → draw a line → drop points → open a menu.
+  - **Result:** editor renders cleanly; line drawing works and shows the live length/bearing readout (`Len 116.650 ft, Bearing N 56°18'35" E`); title block, scale bar, north arrow, layers, and options bar all correct. Golden path verified.
+  - **Bug found + fixed:** the DRAW LINE options-bar **Weight** input (`w-14`, `type=number`) clipped its `placeholder="layer"` to "laye" (spinner arrows ate the width). Widened to `w-20`; re-ran the audit and confirmed the placeholder now reads "layer" in full. `tsc` + `eslint` clean.
+
+### Slice 20 — Properties panel: live render of style edits (USER REQUEST) ✅ shipped (color/weight/opacity; font-size next)
+- [x] User: "as the user increases/decreases line weight or font size … the affected features render the change dynamically." In `PropertyPanel`, single-feature **Color / Line Weight / Opacity** edits only updated local state and committed to the canvas on **blur** — no live feedback (bulk edits already applied live).
+  - **Done:** added `beginStyleEdit()` (snapshots the pre-edit feature on input focus) + `applyStyleLive()` (calls `drawingStore.updateFeature` on every `onChange`, no undo, so the canvas repaints immediately). `commitStyleChange()` (blur) now pushes a single undo entry from the pre-edit snapshot → final, only if the style actually changed — so the user sees the change in real time and undo stays one step.
+  - **Verified end-to-end (after Slice 21's test hook):** `e2e/harness/live-style-preview.spec.ts` seeds + selects a line, then sets weight 1 → 16 while the input is still focused (pre-blur) and measures canvas ink in the drawing area: **666 → 11,016 dark px (16.5×)**, proving the weight renders live before blur. It then blurs and undoes once → ink returns to **666 exactly**, confirming the pre-edit-snapshot undo restores in a single step. `tsc` + `eslint` clean.
+- [x] **Font size — verified already live (no change needed).** Both PropertyPanel font-size controls already call the store in `onChange`: the TEXT-feature size (`updateFeature(... fontSize)`, ~line 1023) and the per-label size (`updateTextLabel(... style.fontSize)`, ~line 1128). Rotation and bulk style edits likewise apply on change. So with Slice 20's color/weight/opacity fix, **all** Properties-panel style edits now render dynamically as the user adjusts them — the user's request is fully covered.
+
+### Slice 21 — Harness test hook for deterministic seed/select ✅ shipped
+- [x] Driving the WebGL canvas from Playwright is unreliable (chord-prefixed tool keys; synthetic pointer/command-bar input doesn't register deterministically), which blocked verifying selection-dependent behaviour.
+  - **Done:** added `app/admin/cad/components/CadTestHooks.tsx` — a harness-only (`NEXT_PUBLIC_E2E_HARNESS==='1'`) listener for `cad:test:seedLine` that adds a LINE on the active layer and selects it (REPLACE), firing `cad:test:seedLine:done`. Mounted only from the env-gated `/cad-harness` page, so it never ships to `/admin/cad`.
+  - **Payoff:** Slice 20's live-preview is now E2E-verified, and future selection-dependent specs can seed geometry deterministically. Also added a `cad:test:undo` hook (`undoStore.undo()`) used to verify the live-edit's single-step undo. `tsc` + `eslint` clean.
+
+### Slice 9 — Employee workflows: hours logging, receipts, job attachments (USER PRIORITY)
+- [x] **Hours logging — audited, confirmed working (no fix needed).** Two complementary systems, both fully wired:
+  - *Payroll hours* — `MyHoursPanel` (`/admin/me?tab=hours`): week strip → "+ Log Time" → work-type/hours/description → POST `/api/admin/time-logs` (server computes effective rate, status=pending) → admin approves in `/admin/hours-approval` (bulk approve/reject/adjust, dispute/resubmit). End-to-end real APIs + DB (`daily_time_logs`).
+  - *Job hours* — `JobTimeTracker` on the job detail Financial tab: POST `/api/admin/jobs/time` (verified wired via `addTimeEntry` at `jobs/[id]/page.tsx:316`; loads on tab open at line 163). A sub-agent initially reported this as "stubbed/never saves" — that was **incorrect** (it only read the first 150 lines); verified the handler and API both work.
+- [x] **Receipts — audited, working.** `/admin/receipts` is a full bookkeeper queue (filter, approve/reject/reopen, bulk-approve, CSV export, maintenance/equipment linking, soft-delete) on the `receipts` table with AI extraction + signed photo URLs. Employee capture is the mobile path (not in this web repo). No web-side bug found.
+- [x] **Job attachments — CAD already works; receipts now surfaced on the job.**
+  - CAD→job: `JobCadPanel` lists `cad_drawings WHERE job_id`, "New Drawing" passes `job_id` to the editor which preserves it on save. Files→job: `JobFileManager` loads/saves via `/api/admin/jobs/files` (also verified working — sub-agent's "auto-load missing" claim was wrong).
+  - **Shipped:** new **Expenses & Receipts** section on the job detail Financial tab — admin-gated, fetches `/api/admin/receipts?jobId=<job>`, lists vendor / category / submitter / date / amount / status with a photo "View" link, a running total, and a link to the full receipts queue. This is the missing *view* of receipts attached to a job. `tsc` + `eslint` clean (code-verified; page is auth-gated so not harness-screenshottable).
+- [x] **Follow-up shipped — assign/reassign a receipt to a job from the web.** `PATCH /api/admin/receipts/[id]` now accepts `job_id` (string | null, empty→null) alongside the existing fields. The receipts approval editor gains a **Job** dropdown (fed by `/api/admin/jobs?limit=500`) beside Category / Tax flag; choosing a job calls the existing `wrap()` PATCH helper, and the receipt then appears in that job's Expenses section. `tsc` clean; `eslint` 0 errors (2 pre-existing warnings on untouched lines). Now the full loop works: assign on the receipts page → view on the job.

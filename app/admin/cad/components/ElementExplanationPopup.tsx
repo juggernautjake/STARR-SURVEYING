@@ -9,11 +9,11 @@
 //   3. Assumptions (bullets)
 //   4. Alternatives considered
 //   5. Confidence breakdown (Stage-6 factors as bars)
-//
-// The chat input + REDRAW_* action buttons (§30.4 + §30.6)
-// land in the next slice — this component leaves space for
-// them under a "Chat (coming soon)" placeholder so the layout
-// doesn't shift when chat lands.
+//   6. Chat (§30.4 + §30.6) — a live chat panel wired to
+//      useAIStore.sendChatMessage / executeChatAction, with
+//      "Update This Element", "Redraw This Group", and
+//      "Redraw Full Drawing" quick actions and per-message
+//      Apply buttons for proposed REDRAW_* actions.
 //
 // Closes via the ✕ button, the backdrop click, or the Esc key.
 

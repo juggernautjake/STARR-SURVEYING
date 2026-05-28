@@ -9,7 +9,6 @@ import '../styles/AdminPayroll.css';
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
 import { usePageError } from '../hooks/usePageError';
-import UnderConstruction from '../components/messaging/UnderConstruction';
 import BalanceCard from '../components/payroll/BalanceCard';
 import PayStubView from '../components/payroll/PayStubView';
 import CertificationsPanel from '../components/payroll/CertificationsPanel';
@@ -101,7 +100,6 @@ export default function MyPayPanel() {
   if (!profileExists || !profile) {
     return (
       <div className="payroll-page">
-        <UnderConstruction feature="My Pay" description="View your earnings, pay stubs, certifications, and manage bank transfers." />
         <div className="payroll-empty-state">
           <div className="payroll-empty-state__icon">💰</div>
           <h2>Your pay profile hasn&apos;t been set up yet</h2>
@@ -163,7 +161,6 @@ export default function MyPayPanel() {
 
   return (
     <div className="payroll-page">
-      <UnderConstruction feature="My Pay" description="View your earnings, pay stubs, certifications, and manage bank transfers." />
 
       {/* Pay Summary Header */}
       <div className="payroll-my-header">

@@ -32,14 +32,16 @@ export default function AdminDashboardPage() {
   const [recentQuizzes, setRecentQuizzes] = useState<QuizAttempt[]>([]);
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  const [activeJobsCount, setActiveJobsCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const role = session?.user?.role || 'employee';
   const roles = session?.user?.roles || ['employee'];
   const isAdminUser = roles.includes('admin');
   const isDevUser = roles.includes('developer');
   const isAdminOrDev = isAdminUser || isDevUser;
   const isCompanyUser = session?.user?.email?.endsWith('@starr-surveying.com') ?? false;
+  const isFieldCrew = roles.includes('field_crew');
+  const isResearcher = roles.includes('researcher');
   const firstName = session?.user?.name?.split(' ')[0] || 'there';
 
   const loadData = useCallback(async () => {
@@ -80,6 +82,28 @@ export default function AdminDashboardPage() {
         reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'flashcard due count' });
       }
 
+      // Active jobs count for the My Jobs card (admins see all jobs; everyone
+      // else sees jobs they're a team member on). High limit so the active
+      // subset isn't truncated by the default page size.
+      if (isCompanyUser && (isAdminOrDev || isFieldCrew || isResearcher)) {
+        try {
+          const url = isAdminOrDev
+            ? '/api/admin/jobs?limit=500'
+            : '/api/admin/jobs?my_jobs=true&limit=500';
+          const jobsRes = await fetch(url);
+          if (jobsRes.ok) {
+            const jd = await jobsRes.json();
+            const TERMINAL = new Set(['completed', 'cancelled', 'on_hold']);
+            const active = (jd.jobs || []).filter(
+              (j: { stage?: string }) => !TERMINAL.has(j.stage ?? ''),
+            ).length;
+            setActiveJobsCount(active);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'active jobs count' });
+        }
+      }
+
       // Admin-only data
       if (isAdminOrDev) {
         // Activity feed
@@ -108,7 +132,7 @@ export default function AdminDashboardPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'dashboard data load' });
     }
     setLoading(false);
-  }, [role, isAdminOrDev, reportPageError]);
+  }, [isAdminOrDev, isCompanyUser, isFieldCrew, isResearcher, reportPageError]);
 
   useEffect(() => {
     if (session?.user) loadData();
@@ -229,15 +253,17 @@ export default function AdminDashboardPage() {
             <h3 className="dashboard-card__title">My Jobs</h3>
             <div className="dashboard-card__metrics">
               <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
+                <span className="dashboard-card__metric-value">{activeJobsCount === null ? '--' : activeJobsCount}</span>
                 <span className="dashboard-card__metric-label">Active Jobs</span>
               </div>
-              <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
-                <span className="dashboard-card__metric-label">Hours This Week</span>
-              </div>
             </div>
-            <p className="dashboard-card__empty-note">Job tracking coming soon</p>
+            <p className="dashboard-card__empty-note">
+              {activeJobsCount === null
+                ? 'Loading your jobs…'
+                : activeJobsCount === 0
+                  ? 'No active jobs right now'
+                  : `${activeJobsCount} job${activeJobsCount === 1 ? '' : 's'} in progress`}
+            </p>
             <span className="dashboard-card__link">View Jobs &rarr;</span>
           </Link>
         )}
@@ -269,17 +295,11 @@ export default function AdminDashboardPage() {
               <span className="dashboard-card__badge">Finances</span>
             </div>
             <h3 className="dashboard-card__title">My Finances</h3>
-            <div className="dashboard-card__metrics">
-              <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
-                <span className="dashboard-card__metric-label">Hours This Period</span>
-              </div>
-              <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
-                <span className="dashboard-card__metric-label">PTO Balance</span>
-              </div>
-            </div>
-            <p className="dashboard-card__empty-note">Payroll tracking coming soon</p>
+            <p className="dashboard-card__empty-note">
+              {isAdminOrDev
+                ? 'Run payroll, review hours, and manage balances'
+                : 'View your hours, pay stubs, and PTO balance'}
+            </p>
             <span className="dashboard-card__link">View Finances &rarr;</span>
           </Link>
         )}

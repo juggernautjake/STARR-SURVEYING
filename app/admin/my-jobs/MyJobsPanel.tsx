@@ -11,7 +11,6 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
-import UnderConstruction from '../components/messaging/UnderConstruction';
 import JobCard from '../components/jobs/JobCard';
 
 interface Job {
@@ -61,10 +60,6 @@ export default function MyJobsPanel() {
 
   return (
     <>
-      <UnderConstruction
-        feature="My Jobs"
-        description="View all jobs you are assigned to. Track your active surveys, see your role on each job, and access job details quickly."
-      />
 
       <div className="jobs-page">
         <div className="jobs-page__header">

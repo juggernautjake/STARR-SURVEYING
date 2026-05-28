@@ -1286,6 +1286,7 @@ export default function ResearchProjectPage() {
           json: 'application/json',
           png: 'image/png',
           pdf: 'application/pdf',
+          dxf: 'image/vnd.dxf',
         };
         const blob = new Blob([bytes], { type: mimeTypes[format] || 'application/octet-stream' });
         const url = URL.createObjectURL(blob);

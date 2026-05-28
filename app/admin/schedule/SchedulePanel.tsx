@@ -6,9 +6,9 @@
 
 import '../styles/AdminSchedule.css';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import UnderConstruction from '../components/messaging/UnderConstruction';
+import { usePageError } from '../hooks/usePageError';
 
 type ViewMode = 'week' | 'month';
 
@@ -75,10 +75,12 @@ function isToday(d: Date): boolean {
 
 export default function SchedulePanel() {
   const { data: session } = useSession();
+  const { safeFetch, safeAction } = usePageError('SchedulePanel');
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showEventForm, setShowEventForm] = useState(false);
-  const [events] = useState<ScheduleEvent[]>([]);
+  const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [saving, setSaving] = useState(false);
 
   // Admin form state
   const [formData, setFormData] = useState({
@@ -88,6 +90,58 @@ export default function SchedulePanel() {
 
   const userRoles = session?.user?.roles || ['employee'];
   const isAdmin = userRoles.includes('admin');
+
+  // Load events covering the visible window (month view spans up to 42 days).
+  const load = useCallback(async () => {
+    const ref = currentDate;
+    const from = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
+    const to = new Date(ref.getFullYear(), ref.getMonth() + 2, 0, 23, 59, 59);
+    const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+    const res = await safeFetch<{ events: ScheduleEvent[] }>(`/api/admin/schedule?${params}`);
+    setEvents(res?.events ?? []);
+  }, [currentDate, safeFetch]);
+
+  useEffect(() => { if (session?.user) void load(); }, [session?.user, load]);
+
+  async function createEvent() {
+    if (!formData.title.trim() || !formData.start_date || saving) return;
+    const endDate = formData.end_date || formData.start_date;
+    const startIso = formData.all_day
+      ? new Date(`${formData.start_date}T00:00`).toISOString()
+      : new Date(`${formData.start_date}T${formData.start_time}`).toISOString();
+    const endIso = formData.all_day
+      ? new Date(`${endDate}T23:59`).toISOString()
+      : new Date(`${endDate}T${formData.end_time}`).toISOString();
+    setSaving(true);
+    try {
+      await safeAction('creating event', async () => {
+        const res = await fetch('/api/admin/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: formData.title, event_type: formData.event_type,
+            start_time: startIso, end_time: endIso, all_day: formData.all_day,
+            location: formData.location, notes: formData.notes,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      });
+      setFormData({ title: '', event_type: 'field_work', start_date: '', start_time: '08:00', end_date: '', end_time: '17:00', all_day: false, location: '', notes: '' });
+      setShowEventForm(false);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteEvent(id: string) {
+    if (!window.confirm('Delete this event?')) return;
+    await safeAction('deleting event', async () => {
+      const res = await fetch(`/api/admin/schedule?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+    });
+    await load();
+  }
 
   function navigatePrev() {
     const d = new Date(currentDate);
@@ -115,11 +169,6 @@ export default function SchedulePanel() {
 
   return (
     <>
-      <UnderConstruction
-        feature="My Schedule"
-        description="View your work schedule, field assignments, meetings, deadlines, and time-off requests on a calendar."
-      />
-
       {/* Calendar controls */}
       <div className="sched__controls">
         <div className="sched__controls-left">
@@ -207,8 +256,10 @@ export default function SchedulePanel() {
             </div>
           </div>
           <div className="sched__form-actions">
-            <button className="sched__btn sched__btn--secondary" onClick={() => setShowEventForm(false)}>Cancel</button>
-            <button className="sched__btn sched__btn--primary" disabled={!formData.title.trim()}>Create Event</button>
+            <button className="sched__btn sched__btn--secondary" onClick={() => setShowEventForm(false)} disabled={saving}>Cancel</button>
+            <button className="sched__btn sched__btn--primary" onClick={() => void createEvent()} disabled={saving || !formData.title.trim() || !formData.start_date}>
+              {saving ? 'Creating…' : 'Create Event'}
+            </button>
           </div>
         </div>
       )}
@@ -233,11 +284,21 @@ export default function SchedulePanel() {
                     <div className="sched__week-empty">No events</div>
                   )}
                   {dayEvents.map(e => (
-                    <div key={e.id} className="sched__event-card" style={{ borderLeftColor: e.color }}>
+                    <div key={e.id} className="sched__event-card" style={{ borderLeftColor: e.color, position: 'relative' }}>
                       <span className="sched__event-title">{e.title}</span>
                       <span className="sched__event-time">
                         {e.all_day ? 'All day' : `${new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                       </span>
+                      {isAdmin && (
+                        <button
+                          className="sched__event-delete"
+                          title="Delete event"
+                          style={{ position: 'absolute', top: 2, right: 4, border: 'none', background: 'transparent', color: 'var(--color-text-tertiary)', cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1 }}
+                          onClick={() => void deleteEvent(e.id)}
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -275,62 +336,6 @@ export default function SchedulePanel() {
         </div>
       )}
 
-      {/* Development Guide */}
-      <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'var(--color-bg-app)', border: 'var(--border-light)', borderRadius: '8px' }}>
-        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', color: '#1F2937' }}>My Schedule — Development Guide</h3>
-        <div style={{ fontSize: '0.82rem', color: 'var(--color-text-tertiary)', lineHeight: 1.6 }}>
-          <p style={{ margin: '0 0 0.75rem' }}><strong>Current Capabilities:</strong></p>
-          <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-            <li>Week and month calendar views with navigation (prev/next/today)</li>
-            <li>Event type legend with color coding (field work, office, meeting, training, time-off, deadline, equipment, other)</li>
-            <li>Admin create event form with title, type, dates, times, all-day toggle, location, notes</li>
-            <li>Today highlighting in both week and month views</li>
-            <li>Outside-month day dimming in month view</li>
-          </ul>
-          <p style={{ margin: '0 0 0.5rem' }}><strong>Database:</strong> Needs a <code>schedule_events</code> table — see continuation prompt for schema.</p>
-        </div>
-        <pre style={{ background: '#1F2937', color: '#E5E7EB', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflow: 'auto', marginTop: '0.75rem' }}>{`CONTINUATION PROMPT:
-Build the schedule system at /admin/schedule/page.tsx.
-
-CURRENT STATE: Week/month calendar views, event legend, admin create form (UI only, not connected).
-
-DATABASE SCHEMA NEEDED:
-CREATE TABLE schedule_events (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title TEXT NOT NULL,
-  event_type TEXT DEFAULT 'other',
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
-  all_day BOOLEAN DEFAULT false,
-  location TEXT,
-  notes TEXT,
-  job_id UUID REFERENCES jobs(id),
-  assigned_to TEXT NOT NULL,
-  assigned_by TEXT,
-  is_recurring BOOLEAN DEFAULT false,
-  recurrence_rule TEXT,
-  color TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-API ROUTE NEEDED: /api/admin/schedule (GET list by date range, POST create, PUT update, DELETE)
-
-NEXT STEPS:
-1. Create schedule_events table and API route
-2. Wire create form to POST /api/admin/schedule
-3. Load events via GET with date range query params
-4. Add event click to show detail popup
-5. Add drag-to-create: click and drag on calendar to create event
-6. Add drag-to-move: drag existing events to reschedule
-7. Add recurring events (daily, weekly, biweekly, monthly)
-8. Add time-off requests: employees request, admins approve
-9. Add auto-scheduling: link to assignments and auto-populate
-10. Add sync with Google Calendar via API
-11. Add day view with hourly grid
-12. Add conflict detection (warn if double-booked)
-13. Add print/export schedule to PDF
-14. Notifications for upcoming events (15min, 1hr, 1day before)`}</pre>
-      </div>
     </>
   );
 }

@@ -171,6 +171,21 @@ export default function ReceiptsApprovalPage() {
     () => new Set()
   );
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Jobs list for the per-receipt job-assignment dropdown.
+  const [jobs, setJobs] = useState<{ id: string; name: string; job_number: string | null }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/jobs?limit=500');
+        if (!res.ok) return;
+        const d = await res.json() as { jobs?: { id: string; name: string; job_number: string | null }[] };
+        if (!cancelled) setJobs(d.jobs ?? []);
+      } catch { /* non-fatal — the dropdown just stays empty */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -431,6 +446,7 @@ export default function ReceiptsApprovalPage() {
               }
               selected={selectedIds.has(r.id)}
               onToggleSelected={() => onToggleSelected(r.id)}
+              jobs={jobs}
             />
           ))}
         </div>
@@ -482,6 +498,8 @@ interface ReceiptRowProps {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelected?: () => void;
+  /** Jobs for the assignment dropdown (assign / reassign this receipt). */
+  jobs: { id: string; name: string; job_number: string | null }[];
 }
 
 function ReceiptRow({
@@ -493,6 +511,7 @@ function ReceiptRow({
   selected,
   onToggleSelected,
   onRefresh,
+  jobs,
 }: ReceiptRowProps) {
   const [rejectReason, setRejectReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -683,6 +702,24 @@ function ReceiptRow({
                 {TAX_FLAG_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={styles.editLabel}>
+              Job
+              <select
+                value={row.job_id ?? ''}
+                disabled={!!busy}
+                onChange={(e) =>
+                  void wrap('assigning job', { job_id: e.target.value || null })
+                }
+                style={styles.select}
+              >
+                <option value="">— Unassigned —</option>
+                {jobs.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.job_number ? `${j.job_number} · ${j.name}` : j.name}
                   </option>
                 ))}
               </select>

@@ -34,6 +34,7 @@ interface PatchBody {
   category?: string | null;
   tax_deductible_flag?: string | null;
   notes?: string | null;
+  job_id?: string | null;
 }
 
 export const PATCH = withErrorHandler(
@@ -106,6 +107,14 @@ export const PATCH = withErrorHandler(
     }
     if (body.notes !== undefined) {
       update.notes = body.notes;
+    }
+    if (body.job_id !== undefined) {
+      // Assign / reassign the receipt to a job (or clear with null). Empty
+      // string is normalized to null so the FK clears cleanly.
+      if (body.job_id !== null && typeof body.job_id !== 'string') {
+        return NextResponse.json({ error: 'job_id must be a string or null' }, { status: 400 });
+      }
+      update.job_id = body.job_id ? body.job_id : null;
     }
     if (body.rejected_reason !== undefined && body.status === undefined) {
       // Allow updating the rejection reason without changing status

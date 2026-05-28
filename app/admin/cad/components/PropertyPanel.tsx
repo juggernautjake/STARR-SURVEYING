@@ -122,6 +122,9 @@ export default function PropertyPanel() {
   // Multi-select editor: active per-type tab + which bulk picker is open.
   const [multiTab, setMultiTab] = useState<string | null>(null);
   const [bulkPicker, setBulkPicker] = useState<'lineType' | 'symbol' | null>(null);
+  // Snapshot of the feature taken when a style edit begins, so live edits can
+  // render immediately while a single undo entry is pushed on blur.
+  const styleBeforeRef = useRef<Feature | null>(null);
 
   const single = features.length === 1 ? features[0] : null;
   // Media attachments for the selected feature.
@@ -135,22 +138,44 @@ export default function PropertyPanel() {
   const displayWeight = editWeight ?? (single ? String(single.style.lineWeight) : '1');
   const displayOpacity = editOpacity ?? (single ? String(Math.round(single.style.opacity * 100)) : '100');
 
+  // Capture the pre-edit feature once, when a style edit starts (input focus).
+  function beginStyleEdit() {
+    if (single && !styleBeforeRef.current) {
+      styleBeforeRef.current = drawingStore.getFeature(single.id) ?? null;
+    }
+  }
+
+  // Apply the current style to the feature immediately (no undo push) so the
+  // canvas re-renders live as the user drags/types. `next` overrides let each
+  // input pass its just-changed raw value without waiting for React state.
+  function applyStyleLive(next: { color?: string; weight?: string; opacity?: string }) {
+    if (!single) return;
+    const cur = drawingStore.getFeature(single.id);
+    if (!cur) return;
+    const color = toHex(next.color ?? displayColor);
+    const lineWeight = Math.max(0.1, Math.min(20, parseFloat(next.weight ?? displayWeight) || 1));
+    const opacity = Math.max(0, Math.min(1, (parseFloat(next.opacity ?? displayOpacity) || 100) / 100));
+    drawingStore.updateFeature(single.id, {
+      style: { ...DEFAULT_FEATURE_STYLE, ...cur.style, color, lineWeight, opacity, isOverride: true },
+    });
+  }
+
+  // Finalize on blur: the live value is already applied, so push a single undo
+  // entry from the pre-edit snapshot to the final state (only if it changed).
   function commitStyleChange() {
     if (!single) return;
-    const before = drawingStore.getFeature(single.id)!;
-    const color = toHex(displayColor);
-    const lineWeight = Math.max(0.1, Math.min(20, parseFloat(displayWeight) || 1));
-    const opacity = Math.max(0, Math.min(1, (parseFloat(displayOpacity) || 100) / 100));
-    drawingStore.updateFeature(single.id, {
-      style: { ...DEFAULT_FEATURE_STYLE, ...single.style, color, lineWeight, opacity, isOverride: true },
-    });
+    const before = styleBeforeRef.current ?? drawingStore.getFeature(single.id)!;
+    applyStyleLive({});
     const after = drawingStore.getFeature(single.id)!;
-    undoStore.pushUndo({
-      id: generateId(),
-      description: 'Edit style',
-      timestamp: Date.now(),
-      operations: [{ type: 'MODIFY_FEATURE', data: { id: single.id, before, after } }],
-    });
+    if (JSON.stringify(before.style) !== JSON.stringify(after.style)) {
+      undoStore.pushUndo({
+        id: generateId(),
+        description: 'Edit style',
+        timestamp: Date.now(),
+        operations: [{ type: 'MODIFY_FEATURE', data: { id: single.id, before, after } }],
+      });
+    }
+    styleBeforeRef.current = null;
     setEditColor(null);
     setEditWeight(null);
     setEditOpacity(null);
@@ -643,7 +668,8 @@ export default function PropertyPanel() {
               type="color"
               className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
               value={displayColor}
-              onChange={(e) => setEditColor(e.target.value)}
+              onFocus={beginStyleEdit}
+              onChange={(e) => { beginStyleEdit(); setEditColor(e.target.value); applyStyleLive({ color: e.target.value }); }}
               onBlur={commitStyleChange}
             />
           </div>
@@ -708,7 +734,8 @@ export default function PropertyPanel() {
               min="0.1"
               max="20"
               value={displayWeight}
-              onChange={(e) => setEditWeight(e.target.value)}
+              onFocus={beginStyleEdit}
+              onChange={(e) => { beginStyleEdit(); setEditWeight(e.target.value); if (e.target.value !== '') applyStyleLive({ weight: e.target.value }); }}
               onBlur={commitStyleChange}
               onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
             />
@@ -722,7 +749,8 @@ export default function PropertyPanel() {
               min="0"
               max="100"
               value={displayOpacity}
-              onChange={(e) => setEditOpacity(e.target.value)}
+              onFocus={beginStyleEdit}
+              onChange={(e) => { beginStyleEdit(); setEditOpacity(e.target.value); if (e.target.value !== '') applyStyleLive({ opacity: e.target.value }); }}
               onBlur={commitStyleChange}
               onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
             />

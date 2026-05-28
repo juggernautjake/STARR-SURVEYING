@@ -73,16 +73,17 @@ export default function ExamPrepPage() {
           <span className="admin-learn__section-arrow">Start FS Prep &rarr;</span>
         </Link>
 
-        {/* RPLS Card */}
-        <div className="admin-learn__section-card" style={{ opacity: 0.7 }}>
+        {/* RPLS Card — dedicated RPLS prep isn't built yet, so link to the
+            available FS curriculum instead of leaving an inert dead-end. */}
+        <Link href="/admin/learn/exam-prep/sit" className="admin-learn__section-card" style={{ opacity: 0.85 }}>
           <span className="admin-learn__section-icon">&#x2B50;</span>
           <h3 className="admin-learn__section-title">RPLS Exam (Coming Soon)</h3>
           <p className="admin-learn__section-desc">
             Advanced preparation for the Registered Professional Land Surveyor exam.
-            Complete the FS exam prep first to build your foundation.
+            Dedicated RPLS material is on the way — start with the FS curriculum to build your foundation.
           </p>
-          <span className="admin-learn__section-arrow" style={{ color: 'var(--color-text-muted)' }}>Coming Soon</span>
-        </div>
+          <span className="admin-learn__section-arrow">Start with FS Prep &rarr;</span>
+        </Link>
       </div>
 
       {/* Recent Activity */}
