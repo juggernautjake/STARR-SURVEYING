@@ -42,22 +42,17 @@ export default function NewLayerDialog({
 
   const points = useMemo(() => buildPointRows(doc), [doc]);
 
-  // Live filter — by point NAME (prefix, with code/description fallback) or
-  // by CODE (substring of the survey code).
+  // Live filter — strictly by the selected field (NAME or CODE) so the
+  // results always pertain to the chosen filter. Previously NAME mode fell
+  // through to code+description, which let a code-only match (e.g. "308" in
+  // the description) sneak into the name results.
   const visiblePoints = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return points;
     if (searchBy === 'CODE') {
-      return points.filter((p) => p.code.toLowerCase().includes(q));
+      return points.filter((p) => (p.code || '').toLowerCase().includes(q));
     }
-    return points.filter((p) => {
-      const name = (p.name || '').toLowerCase();
-      return (
-        name.startsWith(q) ||
-        p.code.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q)
-      );
-    });
+    return points.filter((p) => (p.name || '').toLowerCase().includes(q));
   }, [points, search, searchBy]);
 
   function toggle(id: string) {
@@ -134,30 +129,30 @@ export default function NewLayerDialog({
             </div>
 
             {points.length > 0 && (
-              <div className="flex items-stretch gap-1 mb-1">
-                <div className="flex rounded border border-gray-600 overflow-hidden shrink-0">
+              <div className="flex items-center gap-1 mb-1">
+                <div className="flex h-7 rounded border border-gray-600 overflow-hidden shrink-0">
                   <button
                     type="button"
                     onClick={() => setSearchBy('NAME')}
-                    className={`px-2 text-[11px] ${searchBy === 'NAME' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+                    className={`h-full px-2 text-[11px] leading-none ${searchBy === 'NAME' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
                   >
                     Name
                   </button>
                   <button
                     type="button"
                     onClick={() => setSearchBy('CODE')}
-                    className={`px-2 text-[11px] ${searchBy === 'CODE' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+                    className={`h-full px-2 text-[11px] leading-none border-l border-gray-600 ${searchBy === 'CODE' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
                   >
                     Code
                   </button>
                 </div>
                 <div className="relative flex-1">
-                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder={searchBy === 'CODE' ? 'Search by code… (e.g. BC, IRF)' : 'Search by name… (e.g. 8 → 8, 87fnd)'}
-                    className="w-full h-7 pl-7 pr-7 bg-gray-900 text-gray-100 placeholder-gray-500 border border-gray-600 rounded text-[11px] outline-none focus:border-blue-500"
+                    placeholder={searchBy === 'CODE' ? 'Search by code… (e.g. BC, IRF)' : 'Search by name… (e.g. 8, 87fnd)'}
+                    className="w-full h-7 pl-8 pr-7 bg-gray-900 text-gray-100 placeholder-gray-500 border border-gray-600 rounded text-[11px] outline-none focus:border-blue-500"
                   />
                   {search && (
                     <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" aria-label="Clear search"><X size={11} /></button>
