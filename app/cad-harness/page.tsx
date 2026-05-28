@@ -10,6 +10,7 @@
 import { notFound } from 'next/navigation';
 import CADLayout from '@/app/admin/cad/CADLayout';
 import CADErrorBoundary from '@/app/admin/cad/components/CADErrorBoundary';
+import CadTestHooks from '@/app/admin/cad/components/CadTestHooks';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,8 @@ export default function CadHarnessPage() {
   return (
     <CADErrorBoundary>
       <CADLayout />
+      {/* Test-only seed/select hooks (harness route is env-gated). */}
+      <CadTestHooks />
     </CADErrorBoundary>
   );
 }
