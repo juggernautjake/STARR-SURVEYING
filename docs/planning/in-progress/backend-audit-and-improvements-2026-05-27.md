@@ -480,6 +480,10 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - `summariseConfidenceSymbols` — per-bucket counts, `overallPct` is the rounded average, and the empty-array case (`dominantSymbol → CRITICAL` because 0 maps there).
 - [x] **API quirk worth flagging:** `summariseConfidenceSymbols(...).dominantSymbol` is documented in the test as "the symbol bucket of the *average score*, NOT the most-frequent count." The function name is mildly misleading — a caller might naturally expect "dominant = mode" — and a future refactor that picks the most-frequent bucket would break callers that rely on the current "average-bucket" behaviour. Test pinning the contract so the choice is explicit.
 
+### Slice 65 — Admin layout page-titles: 12 more entries (Slice 57 follow-up) ✅ shipped
+- [x] Re-ran the `find app/admin -name "page.tsx"` vs `PAGE_TITLES` cross-check after Slice 57 and found 12 more non-dynamic pages still falling through to `"Admin"`: `billing/plan-history`, `cad`, `equipment/templates/cleanup-queue`, `equipment/templates/new`, `personnel/crew-calendar`, `receipts` (it was missing!), `research/billing`, `research/coverage`, `research/library`, `research/pipeline`, `research/testing`, `support/new`. Added them all. The two remaining un-titled paths (`/admin` itself, `/admin/login`) are deliberate fall-throughs.
+- [x] `tsc` + `eslint` clean. `PAGE_TITLES` now has 97 entries — every non-dynamic admin page has a specific browser-tab title.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:

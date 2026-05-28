@@ -120,6 +120,19 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/team': 'Field Team',
   '/admin/timeline': 'Activity Timeline',
   '/admin/vehicles': 'Vehicles',
+  // Remaining one-off pages caught by the title-map audit in Slice 65.
+  '/admin/billing/plan-history': 'Plan History',
+  '/admin/cad': 'CAD Drawings',
+  '/admin/equipment/templates/cleanup-queue': 'Templates Cleanup Queue',
+  '/admin/equipment/templates/new': 'New Equipment Template',
+  '/admin/personnel/crew-calendar': 'Crew Calendar',
+  '/admin/receipts': 'Receipts',
+  '/admin/research/billing': 'Research Billing',
+  '/admin/research/coverage': 'Research Coverage',
+  '/admin/research/library': 'Research Library',
+  '/admin/research/pipeline': 'Research Pipeline',
+  '/admin/research/testing': 'Research Testing',
+  '/admin/support/new': 'New Support Ticket',
 };
 
 function getTitle(p: string): string {
