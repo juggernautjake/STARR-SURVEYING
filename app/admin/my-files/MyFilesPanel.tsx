@@ -145,7 +145,7 @@ export default function MyFilesPanel() {
             key={f.key}
             className={`jobs-page__pipeline-stage ${folderFilter === f.key ? 'jobs-page__pipeline-stage--active' : ''}`}
             onClick={() => setFolderFilter(folderFilter === f.key ? 'all' : f.key)}
-            style={{ '--stage-color': '#1D3095' } as React.CSSProperties}
+            style={{ '--stage-color': 'var(--color-brand-navy)' } as React.CSSProperties}
           >
             <span className="jobs-page__pipeline-icon">{f.icon}</span>
             <span className="jobs-page__pipeline-label">{f.label}</span>

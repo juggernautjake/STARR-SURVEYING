@@ -494,7 +494,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   deriveBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -570,7 +570,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stopDuration: {
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     fontWeight: 600,
   },
   stopMeta: {
@@ -587,7 +587,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stopCategory: {
     background: '#EEF2FF',
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     padding: '2px 8px',
     borderRadius: 999,
     fontSize: 11,
@@ -606,7 +606,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
   },
   stopAction: {
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
   },
   segmentRail: {

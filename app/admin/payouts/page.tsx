@@ -297,7 +297,7 @@ export default function PayoutsPage() {
         header p { color: #6B7280; margin: 0; }
         .payouts-btn-primary {
           padding: 0.55rem 1.1rem;
-          background: #1D3095;
+          background: var(--color-brand-navy);
           color: #FFF;
           border: 0;
           border-radius: 6px;

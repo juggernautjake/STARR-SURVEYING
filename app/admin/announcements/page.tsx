@@ -26,7 +26,7 @@ interface Release {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  feature: '#1D3095',
+  feature: 'var(--color-brand-navy)',
   bugfix: '#059669',
   breaking: '#BD1218',
   security: '#7F1D1D',
@@ -178,7 +178,7 @@ export default function AnnouncementsPage() {
           padding: 1.25rem 1.5rem;
         }
         .announcement--focused {
-          border-color: #1D3095;
+          border-color: var(--color-brand-navy);
           box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.1);
         }
         .announcement-header {
