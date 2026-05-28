@@ -37,7 +37,7 @@ const PAGES = [
   'my-pay', 'my-hours', 'my-jobs', 'my-notes', 'my-files', 'schedule',
   'team', 'work', 'users', 'discussions', 'hours-approval', 'announcements',
   'audit', 'error-log', 'office', 'org-settings', 'profile', 'timeline',
-  'vehicles', 'rewards', 'billing', 'research', 'finances',
+  'vehicles', 'rewards', 'billing', 'research', 'finances', 'time-off',
 ];
 
 for (const p of PAGES) {
