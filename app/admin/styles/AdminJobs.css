@@ -526,6 +526,31 @@
 /* --------------------------------------------------------------------------
    Import-specific
    -------------------------------------------------------------------------- */
+.job-import__dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  border: 2px dashed var(--color-border, #D1D5DB);
+  border-radius: 8px;
+  background: var(--color-bg-subtle, #F9FAFB);
+  color: var(--color-text-tertiary, #6B7280);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.job-import__dropzone:hover {
+  border-color: var(--color-brand-navy, #1D3095);
+  background: #FFFFFF;
+}
+.job-import__dropzone--active {
+  border-color: var(--color-brand-navy, #1D3095);
+  background: var(--color-info-bg, #EFF6FF);
+}
+.job-import__dropzone p { margin: 0; }
+
 .job-import__modes {
   display: flex;
   gap: 0.35rem;
