@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { TRANSACTION_TYPES, WITHDRAWAL_STATUSES, formatCurrency, formatDateTime } from './PayrollConstants';
+import { withAlpha } from '@/lib/admin/color-alpha';
 
 interface BalanceSummary {
   balance: number;
@@ -261,7 +262,7 @@ export default function BalanceCard({ email, isAdmin, isSelf }: BalanceCardProps
                     <div className="payroll-balance__wd-date">{formatDateTime(wd.requested_at)}</div>
                   </div>
                   <div className="payroll-balance__wd-status">
-                    <span className="payroll-badge" style={{ backgroundColor: statusInfo.color + '20', color: statusInfo.color }}>
+                    <span className="payroll-badge" style={{ backgroundColor: withAlpha(statusInfo.color, 12.55), color: statusInfo.color }}>
                       {statusInfo.label}
                     </span>
                     {isAdmin && wd.status === 'pending' && (

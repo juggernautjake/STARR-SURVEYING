@@ -528,6 +528,16 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 67 — `withAlpha()` helper unblocks the `color + '20'` alpha pattern ✅ shipped
 - [x] Slice 61 documented 3 files where `var(--color-error)` couldn't replace `#EF4444` because the values were concatenated with the alpha-channel literal `'20'` (`color + '20'` → `#EF444420`). Concatenating onto a `var()` produces invalid CSS. Added `lib/admin/color-alpha.ts` with `withAlpha(color, alphaPct)` — hex input uses the fast `color + alphaHex` append (preserving the historical render exactly for `alphaPct ≈ 12.55%`); anything else (CSS vars, named colors, existing `color-mix()` exprs) falls through to `color-mix(in srgb, COLOR PCT%, transparent)` which all modern browsers (Chrome 111+, Firefox 113+, Safari 16.2+) resolve correctly. Eleven specs in `__tests__/lib/color-alpha.test.ts` pin the contract: 0x20-byte parity at 12.55%, hex 50% / 0% / 100% boundaries, defensive clamping for out-of-range pct, fall-through behaviour for CSS-var / named-color / short-hex / nested-color-mix inputs. Next slice retrofits the 11 admin call sites that use the hex-concat pattern. `tsc` + `eslint` clean.
 
+### Slice 68 — Retrofit 11 `color + '20'` sites onto `withAlpha()` + finish the deferred EF4444 conversions ✅ shipped
+- [x] Replaced all 11 `color + '20'` instances across 7 files with `withAlpha(color, 12.55)` — the 12.55% argument maps to exactly `0x20` alpha (Slice 67's helper test pins this) so the visual result is byte-identical to the legacy concat:
+  - `app/admin/components/jobs/JobCard.tsx` (stage badge — and tokenized `cancelled` to `var(--color-error)` now that the alpha case is handled)
+  - `app/admin/components/jobs/JobQuoteBuilder.tsx` (payment-status pill — and tokenized `unpaid` to `var(--color-error)`)
+  - `app/admin/components/jobs/FieldWorkView.tsx` (3 sites — job-stage badge + two RTK-status badges)
+  - `app/admin/components/payroll/BalanceCard.tsx` (withdrawal-status badge)
+  - `app/admin/components/payroll/PayrollRunPanel.tsx` (payroll-status badge)
+  - `app/admin/jobs/[id]/page.tsx` (3 sites — stage badge + result-color background + draft-result palette button — and tokenized `lost: '#EF4444' → var(--color-error)` in the colors map)
+- [x] Net effect on the deferred EF4444 list from Slice 61: 3 of the 8 documented intentional remains are now properly converted (the 3 `color + '20'` ones). The remaining 5 are still legitimate exceptions (2 color-picker palettes, 2 SVG fill/stroke attributes, 1 cohesive quality-ramp tier). `tsc` + `eslint` clean. `withAlpha()` specs continue to pass.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
