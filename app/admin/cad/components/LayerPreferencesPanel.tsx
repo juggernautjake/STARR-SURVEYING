@@ -244,27 +244,23 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
   function update(partial: Partial<LayerDisplayPreferences>) {
     store.updateLayerDisplayPreferences(layerId, partial);
 
-    // Auto-regenerate labels when any label-visibility toggle changes
-    const touchesVisibility = Object.keys(partial).some((k) =>
-      LABEL_VISIBILITY_KEYS.includes(k as keyof LayerDisplayPreferences),
-    );
-    if (touchesVisibility) {
-      const features = store.getFeaturesOnLayer(layerId);
-      const displayPrefs = store.document.settings.displayPreferences;
-      // Build merged prefs with the same safe-merge logic used for `prefs`
-      const mergedPrefs: LayerDisplayPreferences = {
-        ...prefs,
-        ...partial,
-        pointLabelOffset: {
-          ...prefs.pointLabelOffset,
-          ...((partial.pointLabelOffset) ?? {}),
-        },
-      };
-      const labelMap = regenerateLayerLabels(features, { ...layer, displayPreferences: mergedPrefs }, displayPrefs);
-      labelMap.forEach((labels, featureId) => {
-        store.setFeatureTextLabels(featureId, labels);
-      });
-    }
+    // Auto-regenerate the layer's labels on EVERY prefs change — not just
+    // visibility — so a font-size / weight / color / offset / format edit
+    // restyles existing labels live as the user types or holds an arrow.
+    const features = store.getFeaturesOnLayer(layerId);
+    const displayPrefs = store.document.settings.displayPreferences;
+    const mergedPrefs: LayerDisplayPreferences = {
+      ...prefs,
+      ...partial,
+      pointLabelOffset: {
+        ...prefs.pointLabelOffset,
+        ...((partial.pointLabelOffset) ?? {}),
+      },
+    };
+    const labelMap = regenerateLayerLabels(features, { ...layer, displayPreferences: mergedPrefs }, displayPrefs);
+    labelMap.forEach((labels, featureId) => {
+      store.setFeatureTextLabels(featureId, labels);
+    });
   }
 
   function applyToExistingFeatures() {

@@ -311,45 +311,6 @@ export default function ConversationPage() {
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
       />
-
-      {/* Setup Guide */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">Conversation Thread — Development Guide</h2>
-
-        <div className="msg-setup-guide__section">
-          <h3>Current Capabilities</h3>
-          <ul className="msg-setup-guide__list">
-            <li>Loads conversation metadata and participant list</li>
-            <li>Fetches and displays message history in chronological order</li>
-            <li>Date separators between messages on different days</li>
-            <li>Send new text messages via ComposeBox</li>
-            <li>Reply to specific messages (reply_to_id)</li>
-            <li>Emoji reactions on messages</li>
-            <li>Delete own messages (soft delete)</li>
-            <li>Auto-scroll to latest message</li>
-            <li>Mark all messages as read when viewing</li>
-            <li>Polls every 5 seconds for new messages</li>
-            <li>Conversation info panel with participant list</li>
-            <li>Search within this conversation</li>
-            <li>Archive conversation</li>
-          </ul>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>Continuation Prompt for This Page</h3>
-          <pre className="msg-setup-guide__prompt">{`Improve the conversation thread page at /admin/messages/[conversationId]/page.tsx. Current state: messages load and display with MessageBubble component, ComposeBox handles input, 5-second polling for new messages, reply threading, emoji reactions, soft delete, date separators, read receipts, and conversation info panel.
-
-NEXT STEPS:
-1. Replace 5-second polling with Supabase Realtime: subscribe to INSERT on messages table WHERE conversation_id matches. Use useEffect cleanup to unsubscribe.
-2. Add file attachment support: when ComposeBox passes files, upload to Supabase Storage bucket "message-attachments", get public URL, and include in message attachments array.
-3. Add typing indicator: use Supabase Realtime Presence to broadcast typing state. Show "X is typing..." below the message list.
-4. Add infinite scroll: load older messages when user scrolls to top (use the "before" cursor parameter on the GET API).
-5. Add message editing: when onEdit is called, put the compose box into edit mode with the existing content pre-filled.
-6. Add read receipt display: show small avatars or "Read by X" under the last message in the thread.
-7. Add link preview: detect URLs in message content and render Open Graph preview cards.
-8. Optimize re-renders: use React.memo on MessageBubble, memoize message list.`}</pre>
-        </div>
-      </div>
     </>
   );
 }

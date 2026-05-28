@@ -13,6 +13,7 @@
 // Spec: docs/planning/in-progress/CUSTOMER_PORTAL.md §3.10.
 
 import Link from 'next/link';
+import '../styles/AdminAudit.css';
 import { useEffect, useMemo, useState } from 'react';
 
 interface AuditRow {

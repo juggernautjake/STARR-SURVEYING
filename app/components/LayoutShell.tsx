@@ -11,12 +11,14 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const isAuthPage = pathname === '/register';
   // The env-gated CAD UX-audit harness renders the bare editor shell.
   const isCadHarness = pathname.startsWith('/cad-harness');
+  // The env-gated admin UX-audit harness renders admin pages bare.
+  const isUxHarness = pathname.startsWith('/ux-harness');
 
   // Marketing Header + Footer are intentionally suppressed on the
   // admin shell, the operator console, and the bare auth pages —
   // each of those owns its own chrome (AdminLayoutClient /
   // PlatformLayoutClient / etc.).
-  if (isAdmin || isPlatform || isAuthPage || isCadHarness) {
+  if (isAdmin || isPlatform || isAuthPage || isCadHarness || isUxHarness) {
     return <>{children}</>;
   }
 

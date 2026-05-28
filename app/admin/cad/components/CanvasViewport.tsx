@@ -57,6 +57,8 @@ import type { ImageGeometry } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { PAPER_DIMENSIONS } from '@/lib/cad/templates/types';
+import { useTemplateStore } from '@/lib/cad/store/template-store';
+import { STANDARD_NOTES as STANDARD_NOTES_LIB } from '@/lib/cad/templates/standard-notes';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
@@ -633,6 +635,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbScaleBarContainer: import('pixi.js').Container;
     tbSignatureContainer: import('pixi.js').Container;
     tbNorthArrowContainer: import('pixi.js').Container;
+    /** Slice 24: Border / Legend / Certification / Notes — paper furniture
+     *  that respects the Print dialog's element toggles. Border lives in its
+     *  own Graphics on paperLayer; the others are full title-block-style
+     *  sub-containers above the drawing. */
+    paperBorderGraphics: import('pixi.js').Graphics;
+    tbLegendContainer: import('pixi.js').Container;
+    tbLegendGraphics: import('pixi.js').Graphics;
+    tbCertificationContainer: import('pixi.js').Container;
+    tbCertificationGraphics: import('pixi.js').Graphics;
+    tbNotesContainer: import('pixi.js').Container;
+    tbNotesGraphics: import('pixi.js').Graphics;
     /** Each container's own Graphics object (drawn in local space). */
     tbTitleBlockGraphics: import('pixi.js').Graphics;
     tbScaleBarGraphics: import('pixi.js').Graphics;
@@ -1144,19 +1157,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const tbScaleBarContainer   = new PIXI.Container();
         const tbSignatureContainer  = new PIXI.Container();
         const tbNorthArrowContainer = new PIXI.Container();
+        const tbLegendContainer        = new PIXI.Container();
+        const tbCertificationContainer = new PIXI.Container();
+        const tbNotesContainer         = new PIXI.Container();
         const tbTitleBlockGraphics  = new PIXI.Graphics();
         const tbScaleBarGraphics    = new PIXI.Graphics();
         const tbSignatureGraphics   = new PIXI.Graphics();
         const tbNorthArrowGraphics  = new PIXI.Graphics();
+        const tbLegendGraphics        = new PIXI.Graphics();
+        const tbCertificationGraphics = new PIXI.Graphics();
+        const tbNotesGraphics         = new PIXI.Graphics();
         tbTitleBlockContainer.addChild(tbTitleBlockGraphics);
         tbScaleBarContainer.addChild(tbScaleBarGraphics);
         tbSignatureContainer.addChild(tbSignatureGraphics);
         tbNorthArrowContainer.addChild(tbNorthArrowGraphics);
+        tbLegendContainer.addChild(tbLegendGraphics);
+        tbCertificationContainer.addChild(tbCertificationGraphics);
+        tbNotesContainer.addChild(tbNotesGraphics);
 
         app.stage.addChild(paperLayer, drawingRotContainer, titleBlockLayer);
 
         const paperGraphics = new PIXI.Graphics();
-        paperLayer.addChild(paperGraphics);
+        // Slice 24: border lives in its own Graphics so the Print dialog's
+        // Border toggle can hide it for export without dropping the paper fill.
+        const paperBorderGraphics = new PIXI.Graphics();
+        paperLayer.addChild(paperGraphics, paperBorderGraphics);
 
         const gridGraphics = new PIXI.Graphics();
         gridLayer.addChild(gridGraphics);
@@ -1175,6 +1200,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // Order: element containers first (drawn under hover highlights), then shared graphics on top
         titleBlockLayer.addChild(
           tbTitleBlockContainer, tbScaleBarContainer, tbSignatureContainer, tbNorthArrowContainer,
+          tbLegendContainer, tbCertificationContainer, tbNotesContainer,
           titleBlockGraphics,
         );
 
@@ -1194,6 +1220,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           tbScaleBarContainer,
           tbSignatureContainer,
           tbNorthArrowContainer,
+          tbLegendContainer,
+          tbLegendGraphics,
+          tbCertificationContainer,
+          tbCertificationGraphics,
+          tbNotesContainer,
+          tbNotesGraphics,
+          paperBorderGraphics,
           tbTitleBlockGraphics,
           tbScaleBarGraphics,
           tbSignatureGraphics,
@@ -1451,11 +1484,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.drawRect(pLeft, pTop, pWidth, pHeight);
     g.endFill();
 
-    // Paper border (thin drop-shadow effect)
-    g.lineStyle(1, 0x000000, 0.2);
-    g.drawRect(pLeft + 2, pTop + 2, pWidth, pHeight); // shadow
-    g.lineStyle(0.5, 0x000000, 0.4);
-    g.drawRect(pLeft, pTop, pWidth, pHeight); // border
+    // Paper border (thin drop-shadow effect) — Slice 24: lives in its own
+    // Graphics so the Print dialog's Border toggle can hide it for export.
+    const b = pixi.paperBorderGraphics;
+    b.clear();
+    b.lineStyle(1, 0x000000, 0.2);
+    b.drawRect(pLeft + 2, pTop + 2, pWidth, pHeight); // shadow
+    b.lineStyle(0.5, 0x000000, 0.4);
+    b.drawRect(pLeft, pTop, pWidth, pHeight); // border
   }
 
   // ─────────────────────────────────────────────
@@ -2101,6 +2137,215 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────
+  // Render: Paper furniture — Legend, Certification, Notes (Slice 24).
+  // Drawn into dedicated containers so the Print dialog's element
+  // toggles can hide each independently for export. Layout is compact
+  // and paper-fixed; positioning matches the template config defaults
+  // (legend top-left, notes mid-left, certification top-right).
+  // ─────────────────────────────────────────────────────────────────
+  function renderPaperFurniture() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const doc = useDrawingStore.getState().document;
+    const { paperSize, paperOrientation, drawingScale } = doc.settings;
+    let [pw, ph] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
+    if (paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
+    const paperW = pw * (drawingScale ?? 50);
+    const paperH = ph * (drawingScale ?? 50);
+    const originX = doc.settings.paperOrigin?.x ?? 0;
+    const originY = doc.settings.paperOrigin?.y ?? 0;
+    const { zoom } = useViewportStore.getState();
+    const inchToPx = zoom * (drawingScale ?? 50);
+    const res = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
+    const tl = w2s(originX, originY + paperH); // paper top-left in screen px
+    const br = w2s(originX + paperW, originY); // paper bottom-right in screen px
+
+    const tplStore = useTemplateStore.getState();
+    const tpl = tplStore.activeTemplate;
+    const pcfg = tplStore.printConfig;
+    const printVisible = (k: 'printLegend' | 'printCertification' | 'printNotes') =>
+      pcfg[k] !== false;
+
+    // Tiny helper — adds text inside one of the new containers.
+    const mkText = (
+      container: import('pixi.js').Container,
+      content: string,
+      style: Partial<import('pixi.js').ITextStyle>,
+    ) => {
+      const t = new pixi.TextClass(content, new pixi.TextStyleClass(style));
+      (t as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+      t.resolution = res;
+      container.addChild(t);
+      return t;
+    };
+
+    // ── LEGEND (top-left of paper) ─────────────────────────────────
+    if (printVisible('printLegend')) {
+      const docState = useDrawingStore.getState().document;
+      const layerOrder = docState.layerOrder ?? Object.keys(docState.layers);
+      const layers = layerOrder
+        .map((id) => docState.layers[id])
+        .filter((l): l is NonNullable<typeof l> => !!l && l.visible !== false)
+        .slice(0, 8);
+      if (layers.length > 0) {
+        const lg = pixi.tbLegendGraphics;
+        const titleFontPx = Math.max(7, 9 * (tpl.legend?.fontSize ?? 8) / 8) * inchToPx / 50;
+        const rowFontPx = Math.max(6, 7 * (tpl.legend?.fontSize ?? 8) / 8) * inchToPx / 50;
+        const padPx = 0.08 * inchToPx;
+        const rowH = rowFontPx * 1.45;
+        const widthPx = Math.min((tpl.legend?.width ?? 1.6), pw * 0.18) * inchToPx;
+        const heightPx = padPx * 2 + titleFontPx * 1.4 + layers.length * rowH;
+        const lx = tl.sx + (tpl.legend?.position?.x ?? 0.5) * inchToPx;
+        const ly = tl.sy + (tpl.legend?.position?.y ?? 0.5) * inchToPx;
+        lg.beginFill(0xffffff, 0.9);
+        lg.lineStyle(0.5, 0x000000, 0.7);
+        lg.drawRect(lx, ly, widthPx, heightPx);
+        lg.endFill();
+        // Title
+        const title = mkText(pixi.tbLegendContainer, (tpl.legend?.title ?? 'LEGEND').toUpperCase(), {
+          fontFamily: tpl.legend?.font ?? 'Arial',
+          fontSize: titleFontPx, fontWeight: '700', fill: '#000',
+        });
+        title.position.set(lx + padPx, ly + padPx);
+        // Rows: color swatch + layer name
+        let ry = ly + padPx + titleFontPx * 1.35;
+        for (const layer of layers) {
+          const colorHex = layer.color ?? '#000000';
+          const colorInt = parseInt(colorHex.replace('#', ''), 16) || 0;
+          lg.beginFill(colorInt, 1);
+          lg.lineStyle(0.3, 0x000000, 0.5);
+          lg.drawRect(lx + padPx, ry + rowFontPx * 0.25, rowFontPx, rowFontPx * 0.85);
+          lg.endFill();
+          const t = mkText(pixi.tbLegendContainer, layer.name, {
+            fontFamily: tpl.legend?.font ?? 'Arial',
+            fontSize: rowFontPx, fill: '#111',
+          });
+          t.position.set(lx + padPx + rowFontPx * 1.6, ry);
+          ry += rowH;
+        }
+      }
+    }
+
+    // ── NOTES (left margin, below legend) ──────────────────────────
+    if (printVisible('printNotes')) {
+      const noteIds = tpl.standardNotes?.selectedNoteIds ?? [];
+      const customNotes = tpl.standardNotes?.customNotes ?? [];
+      const stdLib = STANDARD_NOTES_LIB;
+      const noteLines: string[] = [];
+      for (const id of noteIds) {
+        const note = stdLib.find((n) => n.id === id);
+        if (note) noteLines.push(note.text);
+      }
+      noteLines.push(...customNotes);
+      const shown = noteLines.slice(0, 6);
+      if (shown.length > 0) {
+        const ng = pixi.tbNotesGraphics;
+        const titleFontPx = Math.max(7, 9 * (tpl.standardNotes?.fontSize ?? 8) / 8) * inchToPx / 50;
+        const rowFontPx = Math.max(6, 7 * (tpl.standardNotes?.fontSize ?? 8) / 8) * inchToPx / 50;
+        const padPx = 0.08 * inchToPx;
+        const widthPx = Math.min((tpl.standardNotes?.width ?? 3.5), pw * 0.28) * inchToPx;
+        const innerW = widthPx - padPx * 2;
+        const charPx = rowFontPx * 0.55; // rough monospace-ish approximation
+        const charsPerLine = Math.max(20, Math.floor(innerW / charPx));
+        let totalRows = 0;
+        const wrapped = shown.map((line, i) => {
+          const prefix = `${i + 1}. `;
+          const text = prefix + line;
+          const lines: string[] = [];
+          for (let s = 0; s < text.length; s += charsPerLine) {
+            lines.push(text.slice(s, s + charsPerLine));
+          }
+          totalRows += lines.length;
+          return lines;
+        });
+        const rowH = rowFontPx * 1.3;
+        const heightPx = padPx * 2 + titleFontPx * 1.4 + totalRows * rowH + (shown.length - 1) * (rowFontPx * 0.4);
+        const nx = tl.sx + (tpl.standardNotes?.position?.x ?? 0.5) * inchToPx;
+        const ny = tl.sy + (tpl.standardNotes?.position?.y ?? 4.5) * inchToPx;
+        ng.beginFill(0xffffff, 0.9);
+        ng.lineStyle(0.5, 0x000000, 0.7);
+        ng.drawRect(nx, ny, widthPx, heightPx);
+        ng.endFill();
+        const title = mkText(pixi.tbNotesContainer, (tpl.standardNotes?.title ?? 'NOTES').toUpperCase(), {
+          fontFamily: tpl.standardNotes?.font ?? 'Arial',
+          fontSize: titleFontPx, fontWeight: '700', fill: '#000',
+        });
+        title.position.set(nx + padPx, ny + padPx);
+        let ry = ny + padPx + titleFontPx * 1.35;
+        for (const lines of wrapped) {
+          for (const line of lines) {
+            const t = mkText(pixi.tbNotesContainer, line, {
+              fontFamily: tpl.standardNotes?.font ?? 'Arial',
+              fontSize: rowFontPx, fill: '#111',
+            });
+            t.position.set(nx + padPx, ry);
+            ry += rowH;
+          }
+          ry += rowFontPx * 0.4; // gap between notes
+        }
+      }
+    }
+
+    // ── CERTIFICATION (top-right, above the title block) ───────────
+    if (printVisible('printCertification') && tpl.certification?.visible !== false) {
+      const certText = tpl.certification?.certificationText?.trim() ?? '';
+      if (certText) {
+        const cg = pixi.tbCertificationGraphics;
+        const titleFontPx = Math.max(7, 9 * (tpl.certification?.fontSize ?? 8) / 8) * inchToPx / 50;
+        const bodyFontPx = Math.max(6, 7 * (tpl.certification?.fontSize ?? 8) / 8) * inchToPx / 50;
+        const padPx = 0.1 * inchToPx;
+        const widthPx = Math.min((tpl.certification?.width ?? 3.5), pw * 0.32) * inchToPx;
+        const innerW = widthPx - padPx * 2;
+        const charPx = bodyFontPx * 0.55;
+        const charsPerLine = Math.max(20, Math.floor(innerW / charPx));
+        // Substitute the {{vars}} the template engine knows about.
+        const filled = certText
+          .replace(/\{\{surveyorName\}\}/g, tpl.certification.surveyorName || '')
+          .replace(/\{\{licenseNumber\}\}/g, tpl.certification.licenseNumber || '')
+          .replace(/\{\{licenseState\}\}/g, tpl.certification.licenseState || '')
+          .replace(/\{\{firmName\}\}/g, tpl.certification.firmName || tpl.company?.name || '');
+        const words = filled.split(/\s+/);
+        const lines: string[] = [];
+        let cur = '';
+        for (const word of words) {
+          if ((cur + ' ' + word).length > charsPerLine && cur) {
+            lines.push(cur);
+            cur = word;
+          } else {
+            cur = cur ? cur + ' ' + word : word;
+          }
+        }
+        if (cur) lines.push(cur);
+        const rowH = bodyFontPx * 1.35;
+        const heightPx = padPx * 2 + titleFontPx * 1.4 + lines.length * rowH;
+        const cx = tl.sx + (tpl.certification?.position?.x ?? pw - 4) * inchToPx;
+        const cy = tl.sy + (tpl.certification?.position?.y ?? 0.5) * inchToPx;
+        // Clamp right edge to paper so the block doesn't drift off-sheet.
+        const clampedX = Math.min(cx, br.sx - widthPx - 0.1 * inchToPx);
+        cg.beginFill(0xffffff, 0.95);
+        cg.lineStyle(0.5, 0x000000, 0.7);
+        cg.drawRect(clampedX, cy, widthPx, heightPx);
+        cg.endFill();
+        const title = mkText(pixi.tbCertificationContainer, 'CERTIFICATION', {
+          fontFamily: tpl.certification?.font ?? 'Arial',
+          fontSize: titleFontPx, fontWeight: '700', fill: '#000',
+        });
+        title.position.set(clampedX + padPx, cy + padPx);
+        let ry = cy + padPx + titleFontPx * 1.35;
+        for (const line of lines) {
+          const t = mkText(pixi.tbCertificationContainer, line, {
+            fontFamily: tpl.certification?.font ?? 'Arial',
+            fontSize: bodyFontPx, fill: '#111',
+          });
+          t.position.set(clampedX + padPx, ry);
+          ry += rowH;
+        }
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // Render: Title Block (bottom-right), Signature Block (bottom-left),
   //         North Arrow (top-right), and Scale Bar
   // ─────────────────────────────────────────────────────────────────
@@ -2114,10 +2359,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     // ── Clear per-element containers: destroy text children, clear graphics
     const elemContainers = [
-      { ctr: pixi.tbTitleBlockContainer, gfx: pixi.tbTitleBlockGraphics },
-      { ctr: pixi.tbScaleBarContainer,   gfx: pixi.tbScaleBarGraphics },
-      { ctr: pixi.tbSignatureContainer,  gfx: pixi.tbSignatureGraphics },
-      { ctr: pixi.tbNorthArrowContainer, gfx: pixi.tbNorthArrowGraphics },
+      { ctr: pixi.tbTitleBlockContainer,    gfx: pixi.tbTitleBlockGraphics },
+      { ctr: pixi.tbScaleBarContainer,      gfx: pixi.tbScaleBarGraphics },
+      { ctr: pixi.tbSignatureContainer,     gfx: pixi.tbSignatureGraphics },
+      { ctr: pixi.tbNorthArrowContainer,    gfx: pixi.tbNorthArrowGraphics },
+      { ctr: pixi.tbLegendContainer,        gfx: pixi.tbLegendGraphics },
+      { ctr: pixi.tbCertificationContainer, gfx: pixi.tbCertificationGraphics },
+      { ctr: pixi.tbNotesContainer,         gfx: pixi.tbNotesGraphics },
     ] as const;
     for (const { ctr, gfx } of elemContainers) {
       gfx.clear();
@@ -2133,6 +2381,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         c !== g &&
         c !== pixi.tbTitleBlockContainer && c !== pixi.tbScaleBarContainer &&
         c !== pixi.tbSignatureContainer  && c !== pixi.tbNorthArrowContainer &&
+        c !== pixi.tbLegendContainer     && c !== pixi.tbCertificationContainer &&
+        c !== pixi.tbNotesContainer      &&
         (c as { _isTitleBlockText?: boolean })._isTitleBlockText
       ) {
         (c as import('pixi.js').Text).destroy();
@@ -7157,6 +7407,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     renderIntersectPreview();
     renderCopilotPreview();
     renderTitleBlock();
+    renderPaperFurniture();
   }
 
   // ─────────────────────────────────────────────
@@ -11341,7 +11592,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const detail = (e as CustomEvent).detail as
         | { format?: 'png' | 'pdf'; orientation?: 'PORTRAIT' | 'LANDSCAPE'; plotStyle?: 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
             paperSize?: keyof typeof PAPER_DIMENSIONS; centerOnPage?: boolean;
-            elements?: { titleBlock?: boolean; northArrow?: boolean; scaleBar?: boolean } }
+            elements?: { titleBlock?: boolean; northArrow?: boolean; scaleBar?: boolean;
+                         border?: boolean; legend?: boolean; certification?: boolean; notes?: boolean } }
         | undefined;
       const format = detail?.format === 'pdf' ? 'pdf' : 'png';
       const plotStyle = detail?.plotStyle ?? 'AS_DISPLAYED';
@@ -11364,6 +11616,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           hideIf(elements.titleBlock, pixi.tbSignatureContainer);
           hideIf(elements.northArrow, pixi.tbNorthArrowContainer);
           hideIf(elements.scaleBar, pixi.tbScaleBarContainer);
+          hideIf(elements.border, pixi.paperBorderGraphics);
+          hideIf(elements.legend, pixi.tbLegendContainer);
+          hideIf(elements.certification, pixi.tbCertificationContainer);
+          hideIf(elements.notes, pixi.tbNotesContainer);
         }
         // Force a fresh frame so the export reflects the requested elements.
         pixi.app.render();
@@ -11717,42 +11973,153 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }, [toolStore]);
 
   // ─────────────────────────────────────────────
-  // Scroll → zoom canvas at cursor position (non-passive, prevents page scroll)
-  // Zooms toward the cursor location (or toward the centroid of selected elements
-  // if any are selected and the cursor is not over the canvas center area).
+  // Wheel events. Three distinct gestures land here:
+  //   • mouse wheel        → zoom at cursor (legacy behaviour)
+  //   • trackpad pinch     → zoom at cursor (browsers synthesise ctrlKey=true)
+  //   • trackpad two-finger drag → pan the viewport
+  // Heuristic for distinguishing trackpad pan from mouse-wheel zoom:
+  // mouse-wheel ticks arrive as deltaY = ±100 (or multiples) with deltaX=0;
+  // trackpad two-finger scrolling produces small, often fractional deltas and
+  // commonly populates deltaX as well. Listener is non-passive so we can
+  // suppress page scrolling over the canvas in every case.
   // ─────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault(); // Always prevent page scroll when over canvas
-      const rect = canvas.getBoundingClientRect();
-      let sx = e.clientX - rect.left;
-      let sy = e.clientY - rect.top;
-
+    const applyZoom = (sx: number, sy: number, deltaY: number) => {
       const zoomSettings = useDrawingStore.getState().document.settings;
       const speed = zoomSettings.zoomSpeed ?? 1.0;
       const invert = zoomSettings.invertScrollZoom ?? false;
       const zoomTowardCursor = zoomSettings.zoomTowardCursor ?? true;
       const baseFactor = 1.0 + 0.15 * speed;
-      const scrollUp = invert ? (e.deltaY > 0) : (e.deltaY < 0);
+      const scrollUp = invert ? (deltaY > 0) : (deltaY < 0);
       const factor = scrollUp ? baseFactor : 1 / baseFactor;
       if (!zoomTowardCursor) {
-        // Cursor-focused zoom disabled in settings → zoom about the
-        // viewport center instead.
         const vp = useViewportStore.getState();
         sx = vp.screenWidth / 2;
         sy = vp.screenHeight / 2;
       }
-      // Anchor the world point under the cursor so the drawing moves
-      // toward the cursor on zoom-in and away on zoom-out, exactly
-      // tracking the cursor's offset from the screen center.
       useViewportStore.getState().zoomAt(sx, sy, factor);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault(); // Always prevent page scroll when over canvas
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      // Trackpad pinch arrives as wheel + synthesised ctrlKey. Treat as zoom.
+      if (e.ctrlKey) {
+        // Pinch deltas are tiny; amplify so a normal pinch feels right.
+        applyZoom(sx, sy, e.deltaY * 4);
+        return;
+      }
+
+      // Heuristic: trackpad two-finger drag → pan; everything else → zoom.
+      // Mouse wheels emit large integer deltaY (≥ ~50) with deltaX = 0.
+      const looksLikeTrackpadPan =
+        e.deltaX !== 0 ||
+        (e.deltaMode === 0 && Math.abs(e.deltaY) < 50);
+
+      if (looksLikeTrackpadPan) {
+        // Two-finger scroll on a trackpad: drag the drawing. The viewport's
+        // pan() takes screen-space deltas in the direction the user dragged,
+        // so negate the scroll deltas (scrolling down moves the page up).
+        useViewportStore.getState().pan(-e.deltaX, -e.deltaY);
+        return;
+      }
+
+      applyZoom(sx, sy, e.deltaY);
     };
 
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // ─────────────────────────────────────────────
+  // Touch gestures for iPad / phone / touchscreen laptops.
+  // Two-finger drag → pan; two-finger pinch → zoom at the gesture centroid.
+  // Single-touch taps/drags fall through to the existing pointer-event path
+  // (which Pixi already routes to the active tool).
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let lastCentroid: { x: number; y: number } | null = null;
+    let lastDistance = 0;
+
+    const centroidOf = (touches: TouchList): { x: number; y: number } => {
+      const rect = canvas.getBoundingClientRect();
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < touches.length; i++) {
+        cx += touches[i].clientX - rect.left;
+        cy += touches[i].clientY - rect.top;
+      }
+      return { x: cx / touches.length, y: cy / touches.length };
+    };
+    const distanceOf = (touches: TouchList): number => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) {
+        lastCentroid = null;
+        lastDistance = 0;
+        return;
+      }
+      e.preventDefault();
+      lastCentroid = centroidOf(e.touches);
+      lastDistance = distanceOf(e.touches);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !lastCentroid) return;
+      e.preventDefault();
+      const centroid = centroidOf(e.touches);
+      const distance = distanceOf(e.touches);
+      const vp = useViewportStore.getState();
+
+      // Pan by the centroid delta (positive dx/dy = fingers moved right/down,
+      // so the drawing follows in the same direction).
+      const dx = centroid.x - lastCentroid.x;
+      const dy = centroid.y - lastCentroid.y;
+      if (dx !== 0 || dy !== 0) {
+        vp.pan(dx, dy);
+      }
+
+      // Zoom by the distance ratio, anchored on the centroid so the world
+      // point under the fingers stays put while spreading or pinching.
+      if (lastDistance > 0 && distance > 0) {
+        const factor = distance / lastDistance;
+        if (factor !== 1) {
+          vp.zoomAt(centroid.x, centroid.y, factor);
+        }
+      }
+
+      lastCentroid = centroid;
+      lastDistance = distance;
+    };
+
+    const reset = () => {
+      lastCentroid = null;
+      lastDistance = 0;
+    };
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    canvas.addEventListener('touchend', reset);
+    canvas.addEventListener('touchcancel', reset);
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', reset);
+      canvas.removeEventListener('touchcancel', reset);
+    };
   }, []);
 
   // ─────────────────────────────────────────────
@@ -12340,7 +12707,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       <option key={n} value={`1" = ${n}'`}>{`1" = ${n}'`}</option>
                     ))}
                   </select>
-                  <div className="text-[8px] text-gray-500 px-0.5">Select a scale · Esc to cancel</div>
+                  <div className="text-[10px] text-gray-500 px-0.5">Select a scale · Esc to cancel</div>
                 </>
               );
             })() : (
@@ -12364,7 +12731,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     setTbFieldEditState(null);
                   }}
                 />
-                <div className="text-[8px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
+                <div className="text-[10px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
               </>
             )}
           </div>

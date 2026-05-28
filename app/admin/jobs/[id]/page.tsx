@@ -703,68 +703,6 @@ export default function JobDetailPage() {
           <JobMessagesPanel jobId={jobId} />
         )}
       </div>
-
-      {/* Setup Guide */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">Job Detail — Development Guide</h2>
-        <div className="msg-setup-guide__section">
-          <h3>Current Capabilities</h3>
-          <ul className="msg-setup-guide__list">
-            <li>Full job detail view with header, stats, tags</li>
-            <li>Stage timeline with advance button and history</li>
-            <li>6 tabs: Overview, Research, Field Work, Files, Financial, Messages</li>
-            <li>Overview: property details, client info, notes, stage checklist (with templates), team panel, equipment list</li>
-            <li>Research: categorized research documents (14 categories) with add/expand/delete</li>
-            <li>Field Work: interactive point map (SVG) with zoom/pan, shot log with search, timeline slider with session markers, point detail popup on double-click, bi-directional selection highlighting, toggleable map labels, live polling support</li>
-            <li>Files: upload/download/delete with sections and types, auto-backup</li>
-            <li>Financial: quote/payment summary, payment history, time tracker with user breakdown</li>
-            <li>Messages: placeholder for job-specific messaging thread</li>
-          </ul>
-        </div>
-        <div className="msg-setup-guide__section">
-          <h3>Remaining Work</h3>
-          <ul className="msg-setup-guide__list">
-            <li><strong>Trimble Integration:</strong> Connect Trimble Access API for real-time point streaming via WebSocket or polling. Map instrument serial numbers to equipment inventory.</li>
-            <li><strong>Satellite Imagery:</strong> Integrate a tile map provider (Mapbox, Google Maps, or ESRI) for satellite background on point map. Requires API key and coordinate transformation (State Plane → WGS84).</li>
-            <li><strong>Messages Tab:</strong> Auto-create a conversation for the job, link via conversation_id column, embed messaging thread.</li>
-            <li><strong>Inline Editing:</strong> Click-to-edit for job name, description, client info, property details.</li>
-            <li><strong>DWG/CAD Preview:</strong> Autodesk Platform Services (APS) Viewer for .dwg file preview in Files tab.</li>
-            <li><strong>Photo Gallery:</strong> GPS-tagged field images with location overlay on point map.</li>
-            <li><strong>Activity Feed:</strong> Chronological log of all changes, stage transitions, file uploads, messages.</li>
-            <li><strong>PDF Export:</strong> Print/export job summary as PDF report.</li>
-            <li><strong>Weather Widget:</strong> Weather forecast for field work planning.</li>
-            <li><strong>Point Import:</strong> CSV/TXT import for bulk field data from Trimble data collectors (.dc, .job files).</li>
-          </ul>
-        </div>
-        <div className="msg-setup-guide__section">
-          <h3>Continuation Prompt</h3>
-          <pre className="msg-setup-guide__prompt">{`Continue developing the Job Detail page at /admin/jobs/[id]/page.tsx.
-
-CURRENT STATE: Tabbed view with 6 tabs. Field Work tab has full interactive visualization:
-- SVG point map with zoom/pan, colored dots by data type, toggleable labels
-- Shot log panel with search, click/double-click selection, accuracy/RTK badges
-- Timeline slider with session break markers (30min gap detection)
-- Point detail popup showing all coordinates, quality metrics, observations
-- Live polling toggle for real-time data updates (5-second interval)
-- Bi-directional highlighting between map and log
-
-FIELD DATA STRUCTURE (job_field_data table):
-- id, job_id, data_type (point/observation/measurement/gps_position/total_station/photo/note)
-- point_name, northing, easting, elevation, description
-- raw_data JSONB: { accuracy, rtk_status, pdop, hdop, vdop, satellites, code, session_id, hz_angle, vt_angle, slope_dist }
-- collected_by, collected_at, instrument
-
-NEXT PRIORITY STEPS:
-1. Connect Trimble Access API for real-time field data streaming (WebSocket or SSE)
-2. Add satellite imagery overlay (Mapbox GL JS or Google Maps) with coordinate transformation
-3. Connect messages tab to internal messaging system (auto-create conversation)
-4. Add CSV/TXT point import for bulk data from Trimble data collectors
-5. Add field photo capture with GPS tagging and map overlay
-6. Build job activity feed (track all changes chronologically)
-7. Add PDF export for job summary report
-8. Inline editing for job metadata fields`}</pre>
-        </div>
-      </div>
     </>
   );
 }

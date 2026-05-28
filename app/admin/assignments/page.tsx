@@ -367,39 +367,6 @@ export default function AssignmentsPage() {
           })}
         </div>
       )}
-
-      {/* Development Guide */}
-      <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
-        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', color: '#1F2937' }}>Assignments — Development Guide</h3>
-        <div style={{ fontSize: '0.82rem', color: '#6B7280', lineHeight: 1.6 }}>
-          <p style={{ margin: '0 0 0.75rem' }}><strong>Current Capabilities:</strong></p>
-          <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-            <li>View assignments with status/type filters and expandable detail cards</li>
-            <li>Admin create form: assign tasks to employees with type, priority, due date, notes</li>
-            <li>Update status: pending → in progress → completed</li>
-            <li>Auto-notification created when admin assigns a task</li>
-            <li>Overdue highlighting for past-due assignments</li>
-          </ul>
-          <p style={{ margin: '0 0 0.5rem' }}><strong>Database:</strong> Assignments and notifications tables are created by database migrations</p>
-        </div>
-        <pre style={{ background: '#1F2937', color: '#E5E7EB', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflow: 'auto', marginTop: '0.75rem' }}>{`CONTINUATION PROMPT:
-Improve assignments at /admin/assignments/page.tsx.
-
-CURRENT STATE: Assignment list with filters, admin create form, status updates,
-auto-notification on create, overdue detection, expandable detail cards.
-
-NEXT STEPS:
-1. Add completion notes: let assignee add notes when marking complete
-2. Add job/module linking: link assignments to specific jobs or learning modules
-3. Add recurring assignments: repeat daily/weekly/monthly
-4. Add progress tracking: percentage completion for long tasks
-5. Add file attachments: attach reference docs to assignments
-6. Add assignment templates: save common assignment types as reusable templates
-7. Add calendar view: show assignments on a calendar with due dates
-8. Add email notifications: send email when assignment is created/due
-9. Add drag-and-drop reordering of assignments
-10. Add Kanban board view (pending/in-progress/completed columns)`}</pre>
-      </div>
     </>
   );
 }

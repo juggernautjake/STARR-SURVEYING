@@ -273,51 +273,6 @@ export default function MessagingSettingsPage() {
           </div>
         )}
       </div>
-
-      {/* Setup Guide */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">Messaging Settings — Development Guide</h2>
-
-        <div className="msg-setup-guide__section">
-          <h3>Current Capabilities</h3>
-          <ul className="msg-setup-guide__list">
-            <li>Toggle switches for notification preferences</li>
-            <li>Privacy controls: read receipts, typing indicators</li>
-            <li>Display options: message density, enter-to-send, auto-archive</li>
-            <li>Loads/saves preferences via the preferences API</li>
-            <li>Visual feedback on save (button state change)</li>
-          </ul>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>Database Requirements</h3>
-          <p className="msg-setup-guide__text">
-            Uses the <code>messaging_preferences</code> table from the messaging schema.
-            Run the schema SQL to create this table. Preferences are stored as individual
-            columns with sensible defaults.
-          </p>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>Continuation Prompt for This Page</h3>
-          <pre className="msg-setup-guide__prompt">{`Improve the messaging settings page at /admin/messages/settings/page.tsx. Current state: toggle switches for notifications (enabled, sound, email, desktop, preview), privacy (read receipts, typing indicators), display (density, enter-to-send, auto-archive), save button.
-
-NEXT STEPS:
-1. Add browser notification permission request (Notification.requestPermission()) when desktop notifications are enabled
-2. Add notification sound preview/selection (let users choose from 3-4 sounds)
-3. Add per-conversation notification overrides (mute specific conversations)
-4. Add "Do Not Disturb" schedule (e.g., mute all from 10pm-7am)
-5. Add blocked users management (block/unblock specific contacts)
-6. Add data management: export chat history, delete all messages
-7. Add keyboard shortcuts section (customizable shortcuts for common actions)
-8. Add theme/color scheme selection for the messaging UI
-9. Add font size adjustment for messages
-10. Add status message (custom status like "In the field", "In office", "On vacation")
-11. Add away message auto-reply configuration
-12. Add integration settings (email digest frequency, mobile push config)
-13. Real-time preview of display settings changes`}</pre>
-        </div>
-      </div>
     </>
   );
 }

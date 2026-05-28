@@ -96,7 +96,7 @@ export default function OrgSettingsPage() {
       </div>
     );
   }
-  if (!state) {
+  if (!state || !state.org || !state.settings) {
     return <div style={{ padding: '2rem', color: '#4B5563' }}>Loading…</div>;
   }
 

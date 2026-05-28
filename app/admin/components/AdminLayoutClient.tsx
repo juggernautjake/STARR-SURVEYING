@@ -92,6 +92,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/schedule': 'My Schedule',
   '/admin/my-hours': 'My Hours',
   '/admin/hours-approval': 'Hours Approval',
+  '/admin/time-off': 'Time Off',
   '/admin/discussions': 'Discussion Threads',
   '/admin/learn/fieldbook': 'My Fieldbook',
   '/admin/research': 'Property Research',

@@ -91,7 +91,7 @@ function ImageThumbnail({
       {/* Name label at bottom */}
       <div className="absolute bottom-0 inset-x-0 bg-black/70 px-1 py-0.5">
         <p className="text-[9px] text-gray-200 truncate leading-tight">{image.name}</p>
-        <p className="text-[8px] text-gray-500 leading-none">
+        <p className="text-[10px] text-gray-500 leading-none">
           {image.originalWidth}×{image.originalHeight} · {formatBytes(approxBytes)}
         </p>
       </div>

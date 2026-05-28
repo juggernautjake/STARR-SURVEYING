@@ -166,7 +166,7 @@ export default function ReportsPage() {
       <header className="reports-header reports-no-print">
         <div>
           <h1>Operations Report</h1>
-          {data && <p>{data.org.name} · {range.from} to {range.to}</p>}
+          {data?.org && <p>{data.org.name} · {range.from} to {range.to}</p>}
         </div>
         <div className="reports-actions">
           <button onClick={() => window.print()} className="reports-btn reports-btn-primary">
@@ -178,7 +178,7 @@ export default function ReportsPage() {
       {/* Print-only header */}
       <div className="reports-print-only">
         <h1>Operations Report</h1>
-        {data && <p>{data.org.name} — {range.from} to {range.to}</p>}
+        {data?.org && <p>{data.org.name} — {range.from} to {range.to}</p>}
       </div>
 
       <section className="reports-range reports-no-print">

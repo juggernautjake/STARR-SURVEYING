@@ -454,40 +454,6 @@ export default function ErrorLogPage() {
           </button>
         </div>
       )}
-
-      {/* Development Guide */}
-      <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
-        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', color: '#1F2937' }}>Error Log — Development Guide</h3>
-        <div style={{ fontSize: '0.82rem', color: '#6B7280', lineHeight: 1.6 }}>
-          <p style={{ margin: '0 0 0.75rem' }}><strong>Current Capabilities:</strong></p>
-          <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-            <li>View all error reports with severity color-coding and status badges</li>
-            <li>Filter by status, type, severity; full-text search on error messages, pages, components</li>
-            <li>Expand reports to see full details: user notes, environment info, stack traces, breadcrumbs, console logs</li>
-            <li>Update status (new, acknowledged, investigating, resolved, won&apos;t fix)</li>
-            <li>Delete individual reports</li>
-            <li>Pagination for large datasets</li>
-          </ul>
-          <p style={{ margin: '0 0 0.5rem' }}><strong>Database:</strong> Uses <code>error_reports</code> table (created by database migrations)</p>
-        </div>
-        <pre style={{ background: '#1F2937', color: '#E5E7EB', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflow: 'auto', marginTop: '0.75rem' }}>{`CONTINUATION PROMPT:
-Improve the error log viewer at /admin/error-log/page.tsx.
-
-CURRENT STATE: Filterable, searchable list of error reports with expandable detail view,
-status management, pagination, breadcrumb viewer, console log viewer, stack trace display.
-
-NEXT STEPS:
-1. Add error grouping: group similar errors by message/component and show count
-2. Add chart/graph: error count over time (last 7/30 days) using Recharts
-3. Add bulk actions: select multiple and batch update status or delete
-4. Add assignment: assign errors to specific admin users for investigation
-5. Add resolution notes: text input when marking as resolved
-6. Add export: download error reports as CSV/JSON
-7. Add email/Slack notifications for critical errors
-8. Add error rate monitoring: alert if error count spikes above threshold
-9. Add user impact analysis: which users are most affected
-10. Add real-time updates via Supabase Realtime subscription`}</pre>
-      </div>
     </>
   );
 }

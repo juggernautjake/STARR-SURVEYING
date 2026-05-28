@@ -33,6 +33,9 @@ export default function AdminDashboardPage() {
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [activeJobsCount, setActiveJobsCount] = useState<number | null>(null);
+  const [hoursThisWeek, setHoursThisWeek] = useState<number | null>(null);
+  const [upcomingEvents, setUpcomingEvents] = useState<number | null>(null);
+  const [ptoBalance, setPtoBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const roles = session?.user?.roles || ['employee'];
@@ -104,6 +107,54 @@ export default function AdminDashboardPage() {
         }
       }
 
+      // Hours logged this week for the My Finances card (the user's own
+      // daily time logs, Sunday → today). Scoped to self via the email param
+      // so it works for admins too (who would otherwise get every user's logs).
+      if (isCompanyUser && (isAdminOrDev || isFieldCrew)) {
+        try {
+          const now = new Date();
+          const weekStart = new Date(now);
+          weekStart.setDate(now.getDate() - now.getDay()); // Sunday
+          const iso = (d: Date) => d.toISOString().split('T')[0];
+          const email = session?.user?.email ?? '';
+          const tlRes = await fetch(`/api/admin/time-logs?email=${encodeURIComponent(email)}&date_from=${iso(weekStart)}&date_to=${iso(now)}`);
+          if (tlRes.ok) {
+            const tld = await tlRes.json();
+            const total = (tld.logs || []).reduce((sum: number, l: { hours?: number }) => sum + (Number(l.hours) || 0), 0);
+            setHoursThisWeek(Math.round(total * 10) / 10);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'hours this week' });
+        }
+
+        // Upcoming schedule events (next 30 days) for the My Schedule card.
+        try {
+          const now = new Date();
+          const to = new Date(now);
+          to.setDate(now.getDate() + 30);
+          const sRes = await fetch(`/api/admin/schedule?from=${now.toISOString()}&to=${to.toISOString()}`);
+          if (sRes.ok) {
+            const sd = await sRes.json();
+            setUpcomingEvents((sd.events || []).length);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'upcoming events' });
+        }
+
+        // PTO balance for the My Finances card (closes the Slice 4 deferred
+        // PTO tile — seeds/298 provides the accrual + balance schema).
+        try {
+          const ptoRes = await fetch('/api/admin/pto');
+          if (ptoRes.ok) {
+            const pd = await ptoRes.json() as { balance: { balance_hours: number } | null };
+            const hours = Number(pd?.balance?.balance_hours ?? 0);
+            setPtoBalance(Math.round(hours * 10) / 10);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'pto balance' });
+        }
+      }
+
       // Admin-only data
       if (isAdminOrDev) {
         // Activity feed
@@ -132,7 +183,7 @@ export default function AdminDashboardPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'dashboard data load' });
     }
     setLoading(false);
-  }, [isAdminOrDev, isCompanyUser, isFieldCrew, isResearcher, reportPageError]);
+  }, [isAdminOrDev, isCompanyUser, isFieldCrew, isResearcher, session?.user?.email, reportPageError]);
 
   useEffect(() => {
     if (session?.user) loadData();
@@ -295,10 +346,20 @@ export default function AdminDashboardPage() {
               <span className="dashboard-card__badge">Finances</span>
             </div>
             <h3 className="dashboard-card__title">My Finances</h3>
+            <div className="dashboard-card__metrics">
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">{hoursThisWeek === null ? '--' : hoursThisWeek}</span>
+                <span className="dashboard-card__metric-label">Hours This Week</span>
+              </div>
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">{ptoBalance === null ? '--' : ptoBalance}</span>
+                <span className="dashboard-card__metric-label">PTO Balance (hrs)</span>
+              </div>
+            </div>
             <p className="dashboard-card__empty-note">
               {isAdminOrDev
                 ? 'Run payroll, review hours, and manage balances'
-                : 'View your hours, pay stubs, and PTO balance'}
+                : 'View your hours, pay stubs, and bank transfers'}
             </p>
             <span className="dashboard-card__link">View Finances &rarr;</span>
           </Link>
@@ -314,15 +375,17 @@ export default function AdminDashboardPage() {
             <h3 className="dashboard-card__title">My Schedule</h3>
             <div className="dashboard-card__metrics">
               <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
-                <span className="dashboard-card__metric-label">Upcoming</span>
-              </div>
-              <div className="dashboard-card__metric">
-                <span className="dashboard-card__metric-value">--</span>
-                <span className="dashboard-card__metric-label">Time-Off</span>
+                <span className="dashboard-card__metric-value">{upcomingEvents === null ? '--' : upcomingEvents}</span>
+                <span className="dashboard-card__metric-label">Upcoming (30d)</span>
               </div>
             </div>
-            <p className="dashboard-card__empty-note">Scheduling coming soon</p>
+            <p className="dashboard-card__empty-note">
+              {upcomingEvents === null
+                ? 'Loading your schedule…'
+                : upcomingEvents === 0
+                  ? 'No upcoming events in the next 30 days'
+                  : `${upcomingEvents} event${upcomingEvents === 1 ? '' : 's'} in the next 30 days`}
+            </p>
             <span className="dashboard-card__link">View Schedule &rarr;</span>
           </Link>
         )}

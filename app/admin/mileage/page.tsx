@@ -105,7 +105,7 @@ export default function MileagePage() {
 
   // Group rows by user for the per-employee subtotal display.
   const grouped = useMemo(() => {
-    if (!data) return [];
+    if (!data || !Array.isArray(data.days)) return [];
     const map = new Map<
       string,
       { user_email: string; days: MileageDayRow[]; subtotal: number }

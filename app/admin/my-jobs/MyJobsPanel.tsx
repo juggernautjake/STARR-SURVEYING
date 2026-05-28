@@ -136,34 +136,6 @@ export default function MyJobsPanel() {
           </>
         )}
       </div>
-
-      {/* Setup Guide */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">My Jobs — Development Guide</h2>
-        <div className="msg-setup-guide__section">
-          <h3>Current Capabilities</h3>
-          <ul className="msg-setup-guide__list">
-            <li>Fetches only jobs where the current user is a team member</li>
-            <li>Summary stats: active, in-field, completed counts</li>
-            <li>Separates active and completed jobs into sections</li>
-            <li>Click any job card to open full job detail view</li>
-          </ul>
-        </div>
-        <div className="msg-setup-guide__section">
-          <h3>Continuation Prompt</h3>
-          <pre className="msg-setup-guide__prompt">{`Improve the My Jobs page at /admin/my-jobs/page.tsx. Current: shows user's assigned jobs with active/completed sections.
-
-NEXT STEPS:
-1. Show the user's role on each job card (Party Chief, Technician, etc.)
-2. Add notification badges for jobs with new messages or updates
-3. Add time tracking quick-log from the job card
-4. Add "Today's Schedule" section showing jobs scheduled for today
-5. Add job notifications feed (stage changes, new assignments, messages)
-6. Add quick-action buttons (log time, upload photo, send message)
-7. Add map view showing all active job locations
-8. Mobile-optimized card layout for field use`}</pre>
-        </div>
-      </div>
     </>
   );
 }

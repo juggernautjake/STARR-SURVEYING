@@ -395,11 +395,13 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 16,
   },
   checkboxRow: {
-    display: 'flex',
+    display: 'inline-flex',
     gap: 8,
     alignItems: 'center',
     fontSize: 13,
     color: '#4B5563',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
   },
   error: {
     background: '#FEF2F2',

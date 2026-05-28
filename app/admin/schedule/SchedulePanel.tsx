@@ -86,6 +86,8 @@ export default function SchedulePanel() {
   const [formData, setFormData] = useState({
     title: '', event_type: 'field_work', start_date: '', start_time: '08:00',
     end_date: '', end_time: '17:00', all_day: false, location: '', notes: '',
+    recurrence: 'none' as 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly',
+    recurrence_end: '',
   });
 
   const userRoles = session?.user?.roles || ['employee'];
@@ -103,7 +105,7 @@ export default function SchedulePanel() {
 
   useEffect(() => { if (session?.user) void load(); }, [session?.user, load]);
 
-  async function createEvent() {
+  async function createEvent(force = false) {
     if (!formData.title.trim() || !formData.start_date || saving) return;
     const endDate = formData.end_date || formData.start_date;
     const startIso = formData.all_day
@@ -114,19 +116,43 @@ export default function SchedulePanel() {
       : new Date(`${endDate}T${formData.end_time}`).toISOString();
     setSaving(true);
     try {
-      await safeAction('creating event', async () => {
-        const res = await fetch('/api/admin/schedule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: formData.title, event_type: formData.event_type,
-            start_time: startIso, end_time: endIso, all_day: formData.all_day,
-            location: formData.location, notes: formData.notes,
-          }),
-        });
-        if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      const url = force ? '/api/admin/schedule?force=1' : '/api/admin/schedule';
+      const ruleMap: Record<string, string | null> = {
+        none: null,
+        daily: 'FREQ=DAILY',
+        weekdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+        weekly: 'FREQ=WEEKLY',
+        monthly: 'FREQ=MONTHLY',
+      };
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formData.title, event_type: formData.event_type,
+          start_time: startIso, end_time: endIso, all_day: formData.all_day,
+          location: formData.location, notes: formData.notes,
+          recurrence_rule: ruleMap[formData.recurrence],
+          recurrence_end: formData.recurrence !== 'none' && formData.recurrence_end
+            ? new Date(`${formData.recurrence_end}T23:59`).toISOString()
+            : null,
+        }),
       });
-      setFormData({ title: '', event_type: 'field_work', start_date: '', start_time: '08:00', end_date: '', end_time: '17:00', all_day: false, location: '', notes: '' });
+      if (res.status === 409) {
+        const body = (await res.json().catch(() => ({}))) as { conflicts?: Array<{ title: string; start_time: string; end_time: string }> };
+        const list = (body.conflicts ?? []).map(c =>
+          `• ${c.title} (${new Date(c.start_time).toLocaleString()} → ${new Date(c.end_time).toLocaleString()})`
+        ).join('\n');
+        const ok = window.confirm(`This event overlaps with ${body.conflicts?.length ?? 0} existing event(s):\n\n${list}\n\nCreate anyway?`);
+        if (ok) { void createEvent(true); return; }
+        return;
+      }
+      if (!res.ok) {
+        const msg = (await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`;
+        // Surface non-conflict errors via the page error path.
+        await safeAction('creating event', async () => { throw new Error(msg); });
+        return;
+      }
+      setFormData({ title: '', event_type: 'field_work', start_date: '', start_time: '08:00', end_date: '', end_time: '17:00', all_day: false, location: '', notes: '', recurrence: 'none', recurrence_end: '' });
       setShowEventForm(false);
       await load();
     } finally {
@@ -141,6 +167,54 @@ export default function SchedulePanel() {
       if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
     });
     await load();
+  }
+
+  // Drag-to-move: shift an event's start/end to land on the dropped day,
+  // preserving the original time-of-day + duration. Server-side conflict
+  // detection runs as usual; we re-PATCH with ?force=1 if the user agrees.
+  async function moveEvent(eventId: string, newDayIso: string, force = false) {
+    const ev = events.find(e => e.id === eventId || e.id.split(':')[0] === eventId);
+    if (!ev) return;
+    const oldStart = new Date(ev.start_time);
+    const oldEnd = new Date(ev.end_time);
+    const duration = oldEnd.getTime() - oldStart.getTime();
+    const newDay = new Date(newDayIso);
+    newDay.setHours(oldStart.getHours(), oldStart.getMinutes(), oldStart.getSeconds(), 0);
+    const newStart = newDay;
+    const newEnd = new Date(newStart.getTime() + duration);
+    const url = force ? '/api/admin/schedule?force=1' : '/api/admin/schedule';
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: ev.id.split(':')[0], start_time: newStart.toISOString(), end_time: newEnd.toISOString() }),
+    });
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { conflicts?: Array<{ title: string; start_time: string; end_time: string }> };
+      const list = (body.conflicts ?? []).map(c =>
+        `• ${c.title} (${new Date(c.start_time).toLocaleString()})`
+      ).join('\n');
+      if (window.confirm(`Moving this event would overlap ${body.conflicts?.length ?? 0} existing event(s):\n\n${list}\n\nMove anyway?`)) {
+        void moveEvent(eventId, newDayIso, true);
+      }
+      return;
+    }
+    if (!res.ok) {
+      const msg = (await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`;
+      await safeAction('moving event', async () => { throw new Error(msg); });
+      return;
+    }
+    await load();
+  }
+
+  // Click an empty day → open the create form pre-filled with that date.
+  function startCreateOnDay(d: Date) {
+    if (!isAdmin) return;
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setFormData(p => ({ ...p, start_date: iso, end_date: iso }));
+    setShowEventForm(true);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLInputElement>('.sched__event-form input[type="text"]')?.focus();
+    });
   }
 
   function navigatePrev() {
@@ -249,6 +323,22 @@ export default function SchedulePanel() {
                 All Day Event
               </label>
             </div>
+            <div className="sched__form-field">
+              <label>Repeats</label>
+              <select value={formData.recurrence} onChange={e => setFormData(p => ({ ...p, recurrence: e.target.value as typeof p.recurrence }))}>
+                <option value="none">Does not repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekdays">Every weekday (Mon–Fri)</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            {formData.recurrence !== 'none' && (
+              <div className="sched__form-field">
+                <label>Repeat until</label>
+                <input type="date" value={formData.recurrence_end} onChange={e => setFormData(p => ({ ...p, recurrence_end: e.target.value }))} />
+              </div>
+            )}
             <div className="sched__form-field sched__form-field--full">
               <label>Notes</label>
               <textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
@@ -279,12 +369,39 @@ export default function SchedulePanel() {
             {weekDates.map((d, i) => {
               const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), d));
               return (
-                <div key={i} className={`sched__week-day ${isToday(d) ? 'sched__week-day--today' : ''}`}>
+                <div
+                  key={i}
+                  className={`sched__week-day ${isToday(d) ? 'sched__week-day--today' : ''}`}
+                  onClick={(ev) => {
+                    // Only trigger create when clicking the cell background,
+                    // not an event card or its delete button.
+                    if ((ev.target as HTMLElement).closest('.sched__event-card')) return;
+                    startCreateOnDay(d);
+                  }}
+                  onDragOver={isAdmin ? (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; } : undefined}
+                  onDrop={isAdmin ? (ev) => {
+                    ev.preventDefault();
+                    const eventId = ev.dataTransfer.getData('text/plain');
+                    if (eventId) void moveEvent(eventId, d.toISOString());
+                  } : undefined}
+                  style={isAdmin ? { cursor: 'copy' } : undefined}
+                  title={isAdmin ? 'Click to add an event on this day; drop another event here to move it' : undefined}
+                >
                   {dayEvents.length === 0 && (
                     <div className="sched__week-empty">No events</div>
                   )}
                   {dayEvents.map(e => (
-                    <div key={e.id} className="sched__event-card" style={{ borderLeftColor: e.color, position: 'relative' }}>
+                    <div
+                      key={e.id}
+                      className="sched__event-card"
+                      style={{ borderLeftColor: e.color, position: 'relative', cursor: isAdmin ? 'grab' : 'default' }}
+                      draggable={isAdmin}
+                      onDragStart={isAdmin ? (ev) => {
+                        ev.stopPropagation();
+                        ev.dataTransfer.effectAllowed = 'move';
+                        ev.dataTransfer.setData('text/plain', e.id);
+                      } : undefined}
+                    >
                       <span className="sched__event-title">{e.title}</span>
                       <span className="sched__event-time">
                         {e.all_day ? 'All day' : `${new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
@@ -294,7 +411,7 @@ export default function SchedulePanel() {
                           className="sched__event-delete"
                           title="Delete event"
                           style={{ position: 'absolute', top: 2, right: 4, border: 'none', background: 'transparent', color: 'var(--color-text-tertiary)', cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1 }}
-                          onClick={() => void deleteEvent(e.id)}
+                          onClick={(ev) => { ev.stopPropagation(); void deleteEvent(e.id); }}
                         >
                           ×
                         </button>

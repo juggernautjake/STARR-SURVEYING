@@ -250,7 +250,7 @@ export default function TimelinePage() {
       {!userEmail ? (
         <div style={styles.empty}>
           Pick an employee to load their timeline. Tip — the per-card
-          link from <Link href="/admin/team">Field Team</Link> deep-
+          link from <Link href="/admin/team" style={styles.stopAction}>Field Team</Link> deep-
           links into this view.
         </div>
       ) : !data || (data.stops.length === 0 && data.segments.length === 0) ? (
