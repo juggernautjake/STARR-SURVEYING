@@ -2015,7 +2015,7 @@
 .admin-textarea:focus-visible,
 .admin-topbar__xp:focus-visible,
 .fab-menu__toggle:focus-visible {
-  outline: 2px solid #1D3095;
+  outline: 2px solid var(--color-brand-navy);
   outline-offset: 2px;
 }
 

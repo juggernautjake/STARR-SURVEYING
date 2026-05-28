@@ -5,9 +5,9 @@
 
 /* ── CSS Custom Properties ─────────────────────────────────────────────────── */
 :root {
-  --recon-brand: #1D3095;
+  --recon-brand: var(--color-brand-navy);
   --recon-brand-dark: #152050;
-  --recon-red: #BD1218;
+  --recon-red: var(--color-brand-red);
   --recon-dark: #0F1419;
   --recon-success: #059669;
   --recon-warning: #D97706;
@@ -1396,7 +1396,7 @@
   min-width: 20px;
   height: 18px;
   padding: 0 5px;
-  background: #1D3095;
+  background: var(--color-brand-navy);
   color: #fff;
   border-radius: 9px;
   font-size: 0.68rem;
@@ -1409,7 +1409,7 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.3rem 0.75rem;
-  background: #1D3095;
+  background: var(--color-brand-navy);
   color: #fff;
   border: none;
   border-radius: 6px;
