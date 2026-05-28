@@ -566,6 +566,15 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - `expandBBox`: symmetric grow by fraction; asymmetric for non-square bbox; zero/negative-fraction no-ops (returns the SAME ref, not a copy); empty-input pass-through.
 - [x] `tsc` + `eslint` clean. `lod.ts` previously had no test coverage; this slice adds the three primitives that the other 7 LOD helpers all rely on.
 
+### Slice 74 — Unit tests for the CAD cursor resolver ✅ shipped
+- [x] Added `__tests__/cad/cursor-resolver.test.ts` for `lib/cad/cursors/manager.ts:resolveCursor` — the pure mapper that decides the canvas mouse-pointer style every frame. 23 specs cover:
+  - **Priority cascade:** `notAllowed > isWaiting > isAIChatMode > tool-based default`. The cascade order is what makes the "system says no" / "still loading" / "in chat mode" states reliable; pinning so a future refactor can't reorder them.
+  - **PAN tool:** GRAB ↔ GRABBING on `isDragging`.
+  - **SELECT tool:** DEFAULT / MOVE on hover / MOVE on drag / RESIZE_E_W,N_S,NE_SW,NW_SE on grip-hover for the 4 cardinal grip angles + the 180° / 360° / -45° angle-normalisation; `isGripHover` without `gripAngleDeg` falls through (instead of crashing).
+  - **DRAW_* tools:** snap-aware variants — CROSSHAIR / DRAW_ENDPOINT / DRAW_MIDPOINT / DRAW_INTERSECT / CROSSHAIR_SNAP for `NEAREST` + `GRID`.
+  - **Transform / edit tools:** MOVE / COPY / ROTATE / SCALE / TRIM / EXTEND / ERASE / OFFSET / PERPENDICULAR / DRAW_TEXT / MEASURE variants.
+- [x] `tsc` + `eslint` clean. `lib/cad/cursors/manager.ts` previously had no test coverage even though it's called every frame the canvas is rendered.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
