@@ -196,9 +196,9 @@ export default function FeatureLabelPreferencesPanel({ featureId, open, onClose 
                       {/* Modification badges */}
                       {isModified && (
                         <div className="flex gap-1 mt-0.5 flex-wrap">
-                          {isPositioned && <span className="text-[8px] bg-yellow-900/50 text-yellow-400 border border-yellow-700/50 px-1 rounded">moved</span>}
-                          {isRotated    && <span className="text-[8px] bg-purple-900/50 text-purple-400 border border-purple-700/50 px-1 rounded">rotated</span>}
-                          {isScaled     && <span className="text-[8px] bg-sky-900/50 text-sky-400 border border-sky-700/50 px-1 rounded">scaled ×{label.scale.toFixed(2)}</span>}
+                          {isPositioned && <span className="text-[10px] bg-yellow-900/50 text-yellow-400 border border-yellow-700/50 px-1 rounded">moved</span>}
+                          {isRotated    && <span className="text-[10px] bg-purple-900/50 text-purple-400 border border-purple-700/50 px-1 rounded">rotated</span>}
+                          {isScaled     && <span className="text-[10px] bg-sky-900/50 text-sky-400 border border-sky-700/50 px-1 rounded">scaled ×{label.scale.toFixed(2)}</span>}
                         </div>
                       )}
                     </div>

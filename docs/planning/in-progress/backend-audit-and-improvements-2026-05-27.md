@@ -169,3 +169,23 @@ These are the concrete "this isn't done yet" markers found in `app/admin/**`:
   - CAD→job: `JobCadPanel` lists `cad_drawings WHERE job_id`, "New Drawing" passes `job_id` to the editor which preserves it on save. Files→job: `JobFileManager` loads/saves via `/api/admin/jobs/files` (also verified working — sub-agent's "auto-load missing" claim was wrong).
   - **Shipped:** new **Expenses & Receipts** section on the job detail Financial tab — admin-gated, fetches `/api/admin/receipts?jobId=<job>`, lists vendor / category / submitter / date / amount / status with a photo "View" link, a running total, and a link to the full receipts queue. This is the missing *view* of receipts attached to a job. `tsc` + `eslint` clean (code-verified; page is auth-gated so not harness-screenshottable).
 - [x] **Follow-up shipped — assign/reassign a receipt to a job from the web.** `PATCH /api/admin/receipts/[id]` now accepts `job_id` (string | null, empty→null) alongside the existing fields. The receipts approval editor gains a **Job** dropdown (fed by `/api/admin/jobs?limit=500`) beside Category / Tax flag; choosing a job calls the existing `wrap()` PATCH helper, and the receipt then appears in that job's Expenses section. `tsc` clean; `eslint` 0 errors (2 pre-existing warnings on untouched lines). Now the full loop works: assign on the receipts page → view on the job.
+
+---
+
+## Phase 2 — Backend-wide UI/UX, wiring & styling audit (re-opened 2026-05-28)
+
+**Mandate (user):** screenshot every page / interface / popup / modal / dialog across the *whole* business-management backend (not just CAD) and verify: formatting/alignment (no overlap, no funky spacing), styling (fonts not too small/large), menu structure (remove redundancy; collapse into menus/submenus), that every button does what it should, that all routes/wiring are hooked up, and that no page is a placeholder/empty/missing. Fix everything found.
+
+### ⚠ Environment constraint (must-unblock for the screenshot sweep)
+Live authenticated screenshots of the admin pages are **not currently possible from this sandbox**:
+- The deployed admin app `https://app.starrsurveying.com` is **blocked by the environment's egress network policy** (returns a proxy `503 — remote connection failure`). Provided credentials can't be used until that host (and the Supabase host) are allowlisted.
+- The local dev server can't authenticate either — there is no Supabase/NextAuth config in this sandbox (only `.env.example`; all auth env vars unset).
+- Only the unauthenticated, client-side `/cad-harness` route renders (hence CAD is the one screenshot-testable surface so far).
+
+**To unblock the full sweep, one of:** (a) allow `app.starrsurveying.com` (+ the Supabase host) in the environment's network policy so Playwright can log in with the test creds; or (b) provide the Supabase env vars so the local dev server can authenticate (still needs egress to Supabase). See https://code.claude.com/docs/en/claude-code-on-the-web for network-policy settings.
+
+### Achievable now (no live admin render) — code-level audit + CAD screenshots
+- [x] **Dead-wiring scan — clean.** No `onClick={()=>{}}`, no `href="#"`, no `alert('coming soon')`, no `TODO/FIXME` across `app/admin/**`. The 5 previously-stubbed pages were already built (Phase 1, Slices 10–14).
+- [x] **Too-small fonts (8px) — fixed.** Bumped the 6 `text-[8px]` occurrences (CAD field-editor hints, image-panel caption, label-state badges) to `text-[10px]` for legibility. (101 `text-[9px]` left as-is — borderline-standard for dense CAD micro-labels; revisit per-case if a screenshot shows a problem.)
+- [ ] **Always-disabled buttons — reviewed.** `billing` "Change plan" is a documented pending feature (`/api/admin/billing/change` not built; a `customer-portal` Stripe route exists as the real path) — left for a billing-aware follow-up since payments code can't be tested here. `exam-prep` "Complete All Modules First" is a correct gated state (not a bug). `billing/upgrade` "Add to plan" pends the same billing endpoint.
+- [ ] **Full per-page formatting/menu/wiring sweep** — blocked on the environment constraint above; ready to execute once admin pages are renderable.

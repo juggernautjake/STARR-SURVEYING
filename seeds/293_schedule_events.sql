@@ -10,7 +10,7 @@
 -- Read/write via app/api/admin/schedule/route.ts (service-role
 -- supabaseAdmin; access gated at the API/auth layer).
 --
--- Spec: docs/planning/completed/backend-audit-and-improvements-2026-05-27.md (Slice 12)
+-- Spec: docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md (Slice 12)
 -- ============================================================================
 
 BEGIN;

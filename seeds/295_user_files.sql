@@ -11,7 +11,7 @@
 -- The bucket is also auto-created at runtime by ensureStorageBucket() on
 -- first upload, so applying this seed is recommended but not required.
 --
--- Spec: docs/planning/completed/backend-audit-and-improvements-2026-05-27.md (Slice 14)
+-- Spec: docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md (Slice 14)
 -- ============================================================================
 
 BEGIN;

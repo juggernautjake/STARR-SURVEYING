@@ -12340,7 +12340,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       <option key={n} value={`1" = ${n}'`}>{`1" = ${n}'`}</option>
                     ))}
                   </select>
-                  <div className="text-[8px] text-gray-500 px-0.5">Select a scale · Esc to cancel</div>
+                  <div className="text-[10px] text-gray-500 px-0.5">Select a scale · Esc to cancel</div>
                 </>
               );
             })() : (
@@ -12364,7 +12364,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     setTbFieldEditState(null);
                   }}
                 />
-                <div className="text-[8px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
+                <div className="text-[10px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
               </>
             )}
           </div>
