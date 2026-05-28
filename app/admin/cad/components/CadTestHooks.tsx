@@ -18,7 +18,7 @@
 //   → adds a LINE on the active layer and selects it (REPLACE).
 
 import { useEffect } from 'react';
-import { useDrawingStore, useSelectionStore } from '@/lib/cad/store';
+import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
@@ -46,8 +46,18 @@ export default function CadTestHooks() {
       window.dispatchEvent(new CustomEvent('cad:test:seedLine:done', { detail: { id: feature.id } }));
     };
 
+    // Deterministic undo (cad:test:undo) — Ctrl+Z would hit a focused input.
+    const onUndo = () => {
+      useUndoStore.getState().undo();
+      window.dispatchEvent(new CustomEvent('cad:test:undo:done'));
+    };
+
     window.addEventListener('cad:test:seedLine', onSeedLine);
-    return () => window.removeEventListener('cad:test:seedLine', onSeedLine);
+    window.addEventListener('cad:test:undo', onUndo);
+    return () => {
+      window.removeEventListener('cad:test:seedLine', onSeedLine);
+      window.removeEventListener('cad:test:undo', onUndo);
+    };
   }, []);
 
   return null;

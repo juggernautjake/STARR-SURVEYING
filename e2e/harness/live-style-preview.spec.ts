@@ -51,8 +51,20 @@ test('Properties panel renders line-weight changes live', async ({ page }) => {
   await page.waitForTimeout(300);
   const after = await ink(page);
 
+  // Blur to commit the single undo entry, then undo → line returns to thin.
+  await weight.evaluate((el: HTMLInputElement) => el.blur());
+  await page.waitForTimeout(200);
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.addEventListener('cad:test:undo:done', () => resolve(), { once: true });
+    window.dispatchEvent(new CustomEvent('cad:test:undo'));
+    setTimeout(resolve, 3000);
+  }));
+  await page.waitForTimeout(300);
+  const afterUndo = await ink(page);
+
   // eslint-disable-next-line no-console
-  console.log('[live-style] ink before=', before, 'after(focused)=', after);
+  console.log('[live-style] ink before=', before, 'after(focused)=', after, 'afterUndo=', afterUndo);
   expect(before).toBeGreaterThan(0);
-  expect(after).toBeGreaterThan(before * 1.5);
+  expect(after).toBeGreaterThan(before * 1.5);   // renders live, pre-blur
+  expect(afterUndo).toBeLessThan(after * 0.5);    // one undo restores the thin line
 });
