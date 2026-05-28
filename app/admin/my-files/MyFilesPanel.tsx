@@ -145,7 +145,7 @@ export default function MyFilesPanel() {
             key={f.key}
             className={`jobs-page__pipeline-stage ${folderFilter === f.key ? 'jobs-page__pipeline-stage--active' : ''}`}
             onClick={() => setFolderFilter(folderFilter === f.key ? 'all' : f.key)}
-            style={{ '--stage-color': '#1D3095' } as React.CSSProperties}
+            style={{ '--stage-color': 'var(--color-brand-navy)' } as React.CSSProperties}
           >
             <span className="jobs-page__pipeline-icon">{f.icon}</span>
             <span className="jobs-page__pipeline-label">{f.label}</span>
@@ -216,7 +216,7 @@ export default function MyFilesPanel() {
                 {file.file_url
                   ? <a className="fw__btn fw__btn--sm" href={file.file_url} target="_blank" rel="noopener noreferrer">Download</a>
                   : <button className="fw__btn fw__btn--sm" disabled>Download</button>}
-                <button className="fw__btn fw__btn--sm" style={{ color: '#EF4444' }} onClick={() => void deleteFile(file.id)}>Delete</button>
+                <button className="fw__btn fw__btn--sm" style={{ color: 'var(--color-error)' }} onClick={() => void deleteFile(file.id)}>Delete</button>
               </span>
             </div>
           ))}

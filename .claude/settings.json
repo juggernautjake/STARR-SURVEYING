@@ -20,5 +20,45 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(supabase --version)",
+      "Bash(supabase --help)",
+      "Bash(supabase db --help)",
+      "Bash(supabase db query --help)",
+      "Bash(supabase projects list)",
+      "Bash(supabase projects list *)",
+      "Bash(supabase status)",
+      "Bash(supabase status *)",
+      "Bash(supabase orgs list)",
+      "Bash(supabase functions list *)",
+      "Bash(supabase secrets list *)",
+      "Bash(vercel --version)",
+      "Bash(vercel whoami)",
+      "Bash(vercel ls)",
+      "Bash(vercel ls *)",
+      "Bash(vercel projects ls)",
+      "Bash(vercel env ls)",
+      "Bash(vercel env ls *)",
+      "Bash(vercel domains ls)",
+      "Bash(vercel inspect *)",
+      "Bash(npm run type-check)",
+      "Bash(npm run lint)",
+      "Bash(npm ls *)",
+      "Bash(npm outdated)",
+      "Bash(npm outdated *)",
+      "Bash(npm view *)",
+      "Bash(npm config get *)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_navigate_back",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_network_request",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_resize"
+    ]
   }
 }

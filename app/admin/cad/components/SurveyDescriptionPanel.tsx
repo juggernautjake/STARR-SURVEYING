@@ -762,7 +762,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   smallPrimaryBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,
@@ -772,7 +772,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   btnPrimary: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,

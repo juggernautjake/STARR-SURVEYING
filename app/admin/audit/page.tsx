@@ -29,7 +29,7 @@ interface AuditRow {
 const SEVERITY_COLORS: Record<AuditRow['severity'], string> = {
   info: '#6B7280',
   warning: '#D97706',
-  critical: '#BD1218',
+  critical: 'var(--color-brand-red)',
 };
 
 export default function CustomerAuditPage() {
@@ -222,7 +222,7 @@ export default function CustomerAuditPage() {
         }
         .audit-meta details summary {
           cursor: pointer;
-          color: #1D3095;
+          color: var(--color-brand-navy);
           font-size: 0.82rem;
         }
         .audit-meta pre {
@@ -242,7 +242,7 @@ export default function CustomerAuditPage() {
           text-decoration: none;
           font-size: 0.85rem;
         }
-        footer a:hover { color: #1D3095; }
+        footer a:hover { color: var(--color-brand-navy); }
       `}</style>
     </div>
   );

@@ -156,7 +156,7 @@ const styles = `
     font-family: 'Sora', sans-serif;
     font-size: 2.2rem;
     font-weight: 700;
-    color: #1D3095;
+    color: var(--color-brand-navy);
     line-height: 1;
   }
   .upgrade-price__period {
@@ -188,7 +188,7 @@ const styles = `
     font-family: inherit;
   }
   .upgrade-btn--primary {
-    background: #1D3095;
+    background: var(--color-brand-navy);
     color: #FFF;
   }
   .upgrade-btn--primary:disabled {
@@ -197,8 +197,8 @@ const styles = `
   }
   .upgrade-btn--secondary {
     background: #FFF;
-    color: #1D3095;
-    border: 1px solid #1D3095;
+    color: var(--color-brand-navy);
+    border: 1px solid var(--color-brand-navy);
   }
   .upgrade-btn--secondary:hover {
     background: #F0F4FF;
@@ -210,12 +210,12 @@ const styles = `
     margin-bottom: 1rem;
   }
   .upgrade-note a {
-    color: #1D3095;
+    color: var(--color-brand-navy);
   }
   .upgrade-back {
     display: inline-block;
     font-size: 0.85rem;
-    color: #1D3095;
+    color: var(--color-brand-navy);
     text-decoration: none;
   }
   .upgrade-back:hover {

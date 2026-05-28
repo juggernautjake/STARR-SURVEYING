@@ -370,7 +370,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
   primaryBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -381,8 +381,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   secondaryBtn: {
     background: 'transparent',
-    color: '#1D3095',
-    border: '1px solid #1D3095',
+    color: 'var(--color-brand-navy)',
+    border: '1px solid var(--color-brand-navy)',
     borderRadius: 8,
     padding: '8px 14px',
     cursor: 'pointer',
@@ -510,7 +510,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   linkBtn: {
     background: 'transparent',
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
     padding: '4px 10px',

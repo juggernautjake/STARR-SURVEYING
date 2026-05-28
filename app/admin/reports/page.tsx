@@ -494,7 +494,7 @@ export default function ReportsPage() {
         .reports-btn {
           padding: 0.55rem 1.1rem;
           background: #FFF;
-          color: #1D3095;
+          color: var(--color-brand-navy);
           border: 1px solid #C7D2FE;
           border-radius: 6px;
           font-weight: 600;
@@ -503,9 +503,9 @@ export default function ReportsPage() {
           font-family: inherit;
         }
         .reports-btn-primary {
-          background: #1D3095;
+          background: var(--color-brand-navy);
           color: #FFF;
-          border-color: #1D3095;
+          border-color: var(--color-brand-navy);
         }
         .reports-range {
           background: #FFF;
@@ -531,7 +531,7 @@ export default function ReportsPage() {
           font-family: inherit;
         }
         .reports-chip-active {
-          background: #1D3095;
+          background: var(--color-brand-navy);
           color: #FFF;
         }
         .reports-custom {
@@ -641,7 +641,7 @@ export default function ReportsPage() {
           background: #F9FAFB;
         }
         .reports-table td :global(a) {
-          color: #1D3095;
+          color: var(--color-brand-navy);
           text-decoration: none;
           font-weight: 600;
         }
@@ -657,7 +657,7 @@ export default function ReportsPage() {
         .reports-pill {
           padding: 0.2rem 0.6rem;
           background: #EEF2FF;
-          color: #1D3095;
+          color: var(--color-brand-navy);
           border-radius: 999px;
           font-size: 0.78rem;
           font-weight: 500;

@@ -30,7 +30,7 @@ interface Message {
 }
 
 const ESCALATION_COLORS: Record<string, string> = {
-  low: '#10B981', medium: '#F59E0B', high: '#EF4444', critical: '#7C3AED',
+  low: '#10B981', medium: '#F59E0B', high: 'var(--color-error)', critical: '#7C3AED',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -115,7 +115,7 @@ export default function ThreadDetailPage() {
 
   return (
     <>
-      <Link href="/admin/discussions" style={{ fontFamily: 'Inter,sans-serif', fontSize: '.82rem', color: '#1D3095', textDecoration: 'none', marginBottom: '.75rem', display: 'inline-block' }}>
+      <Link href="/admin/discussions" style={{ fontFamily: 'Inter,sans-serif', fontSize: '.82rem', color: 'var(--color-brand-navy)', textDecoration: 'none', marginBottom: '.75rem', display: 'inline-block' }}>
         ← Back to Discussions
       </Link>
 
@@ -132,7 +132,7 @@ export default function ThreadDetailPage() {
           <span className="thread-detail__badge" style={{ background: '#E5E7EB', color: '#374151' }}>
             {TYPE_LABELS[thread.thread_type] || thread.thread_type}
           </span>
-          <span className="thread-detail__badge" style={{ background: '#EFF6FF', color: '#1D3095' }}>
+          <span className="thread-detail__badge" style={{ background: '#EFF6FF', color: 'var(--color-brand-navy)' }}>
             {STATUS_LABELS[thread.status] || thread.status}
           </span>
         </div>

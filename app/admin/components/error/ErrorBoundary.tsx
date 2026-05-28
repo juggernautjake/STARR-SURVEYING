@@ -174,7 +174,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               <p className="err-boundary__notes-intro">Your feedback helps us identify and resolve issues faster.</p>
 
               <div className="err-boundary__field">
-                <label>What were you doing when this happened? <span style={{ color: '#EF4444' }}>*</span></label>
+                <label>What were you doing when this happened? <span style={{ color: 'var(--color-error)' }}>*</span></label>
                 <textarea
                   value={userNotes}
                   onChange={e => this.setState({ userNotes: e.target.value })}

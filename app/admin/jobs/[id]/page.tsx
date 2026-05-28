@@ -23,6 +23,7 @@ import FieldWorkView from '../../components/jobs/FieldWorkView';
 import type { FieldPoint, JobContext } from '../../components/jobs/FieldWorkView';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import Tooltip from '../../research/components/Tooltip';
+import { withAlpha } from '@/lib/admin/color-alpha';
 
 interface Job {
   id: string;
@@ -402,7 +403,7 @@ export default function JobDetailPage() {
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-            <span className="job-detail__stage-badge" style={{ background: stageInfo.color + '20', color: stageInfo.color }}>
+            <span className="job-detail__stage-badge" style={{ background: withAlpha(stageInfo.color, 12.55), color: stageInfo.color }}>
               {stageInfo.icon} {stageInfo.label}
             </span>
             <button
@@ -754,7 +755,7 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
     }
   }
 
-  const colors = { won: '#10B981', lost: '#EF4444', abandoned: '#9CA3AF' } as const;
+  const colors = { won: '#10B981', lost: 'var(--color-error)', abandoned: '#9CA3AF' } as const;
 
   if (!editing) {
     if (currentResult) {
@@ -762,7 +763,7 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <span style={{
             padding: '0.18rem 0.55rem',
-            background: colors[currentResult] + '20',
+            background: withAlpha(colors[currentResult], 12.55),
             color: colors[currentResult],
             borderRadius: 999,
             fontSize: '0.74rem',
@@ -820,7 +821,7 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
               flex: 1,
               padding: '0.3rem 0.5rem',
               border: '1px solid ' + (draftResult === r ? colors[r] : '#D1D5DB'),
-              background: draftResult === r ? colors[r] + '20' : '#FFF',
+              background: draftResult === r ? withAlpha(colors[r], 12.55) : '#FFF',
               color: draftResult === r ? colors[r] : '#374151',
               borderRadius: 4,
               fontSize: '0.78rem',

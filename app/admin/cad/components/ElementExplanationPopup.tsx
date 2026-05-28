@@ -671,7 +671,7 @@ const styles: Record<string, React.CSSProperties> = {
   bubbleRow: { display: 'flex' },
   bubbleUser: {
     maxWidth: '80%',
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     padding: '8px 10px',
     borderRadius: 10,
@@ -702,7 +702,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   bubbleApply: {
     marginLeft: 'auto',
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 4,
@@ -757,7 +757,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'not-allowed',
   },
   chatSend: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,

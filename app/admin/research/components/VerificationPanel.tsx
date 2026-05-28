@@ -24,7 +24,7 @@ function getConfidenceGrade(score: number): { label: string; color: string; bg: 
   if (score >= 75) return { label: 'Good', color: '#2563EB', bg: '#EFF6FF' };
   if (score >= 55) return { label: 'Fair', color: '#F59E0B', bg: '#FFFBEB' };
   if (score >= 35) return { label: 'Poor', color: '#F97316', bg: '#FFF7ED' };
-  return { label: 'Very Low', color: '#EF4444', bg: '#FEF2F2' };
+  return { label: 'Very Low', color: 'var(--color-error)', bg: 'var(--color-error-bg)' };
 }
 
 const BREAKDOWN_LABELS: Record<string, { label: string; tip: string }> = {

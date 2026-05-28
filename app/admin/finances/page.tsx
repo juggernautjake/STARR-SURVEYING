@@ -762,7 +762,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   exportBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -855,7 +855,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignSelf: 'flex-start',
     fontSize: 10,
     fontWeight: 700,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     background: '#E0E7FF',

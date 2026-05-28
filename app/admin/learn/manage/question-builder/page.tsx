@@ -1297,7 +1297,7 @@ export default function QuestionBuilderPage() {
 
             {/* Simulated Practice Quiz */}
             {showSimQuiz && simQuestions.length > 0 && (
-              <div style={{ background: 'var(--color-bg-card)', border: '2px solid #1D3095', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem' }}>
+              <div style={{ background: 'var(--color-bg-card)', border: '2px solid var(--color-brand-navy)', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem' }}>
                 <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.95rem', fontWeight: 700, color: 'var(--color-brand-navy)', marginBottom: '.75rem' }}>
                   Practice Quiz ({simQuestions.length} questions)
                 </h4>
@@ -1317,9 +1317,9 @@ export default function QuestionBuilderPage() {
                           let border = 'var(--border-light)';
                           if (simRevealed) {
                             if (opt === q.correct_answer) { bg = 'var(--color-success-bg)'; border = '1.5px solid #10B981'; }
-                            else if (opt === answered && !isCorrect) { bg = 'var(--color-error-bg)'; border = '1.5px solid #EF4444'; }
+                            else if (opt === answered && !isCorrect) { bg = 'var(--color-error-bg)'; border = '1.5px solid var(--color-error)'; }
                           } else if (opt === answered) {
-                            bg = 'var(--color-info-bg)'; border = '1.5px solid #1D3095';
+                            bg = 'var(--color-info-bg)'; border = '1.5px solid var(--color-brand-navy)';
                           }
                           return (
                             <button key={oi} onClick={() => { if (!simRevealed) setSimAnswers(prev => ({ ...prev, [q.id]: opt })); }}

@@ -24,7 +24,7 @@ interface DiscussionThread {
 const ESCALATION_COLORS: Record<string, string> = {
   low: '#10B981',
   medium: '#F59E0B',
-  high: '#EF4444',
+  high: 'var(--color-error)',
   critical: '#7C3AED',
 };
 

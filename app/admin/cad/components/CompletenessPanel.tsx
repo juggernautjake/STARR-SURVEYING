@@ -308,7 +308,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.4,
   },
   markReadyBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,

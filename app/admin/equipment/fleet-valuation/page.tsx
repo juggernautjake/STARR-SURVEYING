@@ -502,7 +502,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   refreshBtn: {
     padding: '8px 14px',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-bg-card)',
     color: 'var(--color-brand-navy)',
     borderRadius: 6,

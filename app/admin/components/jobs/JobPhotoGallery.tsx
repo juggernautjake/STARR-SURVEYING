@@ -165,7 +165,7 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
         onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files) upload(e.dataTransfer.files); }}
         style={{
           marginTop: '1rem', padding: '1rem', borderRadius: 8,
-          border: `2px dashed ${dragOver ? 'var(--brand-blue, #1D3095)' : 'var(--border, #cbd5e1)'}`,
+          border: `2px dashed ${dragOver ? 'var(--color-brand-navy)' : 'var(--border, #cbd5e1)'}`,
           background: dragOver ? 'rgba(29,48,149,0.05)' : 'transparent',
           textAlign: 'center', color: 'var(--text-secondary, #64748b)', fontSize: '0.85rem',
         }}

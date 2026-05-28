@@ -44,7 +44,7 @@ const STATUS_LABELS: Record<Ticket['status'], string> = {
 };
 
 const STATUS_COLORS: Record<Ticket['status'], string> = {
-  open: '#1D3095',
+  open: 'var(--color-brand-navy)',
   awaiting_reply: '#D97706',
   awaiting_customer: '#7C3AED',
   resolved: '#059669',
@@ -237,7 +237,7 @@ const styles = `
     text-decoration: none;
     font-size: 0.85rem;
   }
-  .thread-back:hover { color: #1D3095; }
+  .thread-back:hover { color: var(--color-brand-navy); }
   .thread-error, .thread-loading {
     padding: 2rem;
     text-align: center;
@@ -311,7 +311,7 @@ const styles = `
   }
   .thread-reply textarea:focus {
     outline: none;
-    border-color: #1D3095;
+    border-color: var(--color-brand-navy);
     box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
   }
   .thread-actions {
@@ -329,14 +329,14 @@ const styles = `
     cursor: pointer;
     font-family: inherit;
   }
-  .thread-btn--primary { background: #1D3095; color: #FFF; }
+  .thread-btn--primary { background: var(--color-brand-navy); color: #FFF; }
   .thread-btn--primary:disabled { background: #9CA3AF; cursor: not-allowed; }
   .thread-btn--secondary {
     background: #FFF; color: #6B7280;
     border: 1px solid #D1D5DB;
   }
   .thread-btn--secondary:hover:not(:disabled) {
-    border-color: #1D3095; color: #1D3095;
+    border-color: var(--color-brand-navy); color: var(--color-brand-navy);
   }
   .thread-resolved {
     background: #F9FAFB;
@@ -346,5 +346,5 @@ const styles = `
     color: #6B7280;
     font-size: 0.92rem;
   }
-  .thread-resolved a { color: #1D3095; }
+  .thread-resolved a { color: var(--color-brand-navy); }
 `;

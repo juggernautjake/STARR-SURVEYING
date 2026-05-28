@@ -262,7 +262,8 @@ export function substituteTemplate(
         return `${d}\u00B0${m}'${s}"`;
       }
       if (format.startsWith('f') && typeof val === 'number') {
-        const decimals = parseInt(format.slice(1)) || 2;
+        const parsed = parseInt(format.slice(1));
+        const decimals = Number.isFinite(parsed) ? parsed : 2;
         return val.toFixed(decimals);
       }
       if (format === 'abs' && typeof val === 'number') {

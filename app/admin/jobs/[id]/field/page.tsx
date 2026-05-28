@@ -659,7 +659,7 @@ const styles: Record<string, React.CSSProperties> = {
   back: {
     display: 'inline-block',
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     marginBottom: 16,
     textDecoration: 'none',
   },
@@ -687,7 +687,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
   },
   primaryBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -698,8 +698,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   secondaryBtn: {
     background: '#FFFFFF',
-    color: '#1D3095',
-    border: '1px solid #1D3095',
+    color: 'var(--color-brand-navy)',
+    border: '1px solid var(--color-brand-navy)',
     borderRadius: 8,
     padding: '8px 14px',
     cursor: 'pointer',
@@ -784,7 +784,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   noteTemplate: {
     background: '#EEF2FF',
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     fontSize: 11,
     fontWeight: 600,
     textTransform: 'uppercase',
@@ -828,7 +828,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   dlLink: {
     fontSize: 12,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
     fontWeight: 500,
   },

@@ -160,7 +160,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
   },
   btn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,

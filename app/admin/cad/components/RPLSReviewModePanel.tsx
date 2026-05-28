@@ -619,7 +619,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 16px 16px',
   },
   btnPrimary: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,

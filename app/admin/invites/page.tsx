@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending:  '#F59E0B',
   accepted: '#10B981',
   revoked:  '#9CA3AF',
-  expired:  '#EF4444',
+  expired:  'var(--color-error)',
 };
 
 export default function AdminInvitesPage() {

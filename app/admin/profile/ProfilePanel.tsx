@@ -91,7 +91,7 @@ export default function ProfilePanel() {
           {image ? (
             <Image src={image} alt={name || 'User'} width={40} height={40} unoptimized className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB' }} />
           ) : (
-            <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: '#BD1218', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
+            <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-brand-red)', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
               {(name || 'U').charAt(0)}
             </div>
           )}
@@ -107,9 +107,9 @@ export default function ProfilePanel() {
         </div>
         {profile && (
           <div className="profile-page__stats" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>HOURLY RATE</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#1D3095' }}>{fmtCurrency(profile.hourly_rate)}/hr</span></div>
-            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>LEARNING CREDITS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#1D3095' }}>{totalPoints}</span></div>
-            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>CREDENTIALS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#1D3095' }}>{certs.length}</span></div>
+            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>HOURLY RATE</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{fmtCurrency(profile.hourly_rate)}/hr</span></div>
+            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>LEARNING CREDITS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{totalPoints}</span></div>
+            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>CREDENTIALS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{certs.length}</span></div>
             {profile.hire_date && <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>HIRE DATE</span><span style={{ fontSize: '0.9rem', color: '#374151' }}>{fmtDate(profile.hire_date)}</span></div>}
           </div>
         )}
@@ -131,7 +131,7 @@ export default function ProfilePanel() {
           <div className="emp-manage__field"><label>Email</label><span>{email}</span></div>
           <div className="emp-manage__field"><label>Role</label><span>{profile?.job_title || role}</span></div>
           <div className="emp-manage__field"><label>Authentication</label><span>Google Workspace (@starr-surveying.com)</span></div>
-          <div className="emp-manage__field"><label>Status</label><span style={{ color: profile?.is_active !== false ? '#059669' : '#EF4444' }}>{profile?.is_active !== false ? 'Active' : 'Inactive'}</span></div>
+          <div className="emp-manage__field"><label>Status</label><span style={{ color: profile?.is_active !== false ? '#059669' : 'var(--color-error)' }}>{profile?.is_active !== false ? 'Active' : 'Inactive'}</span></div>
           {profile?.available_balance !== undefined && (
             <div className="emp-manage__field"><label>Available Balance</label><span>{fmtCurrency(profile.available_balance)}</span></div>
           )}
@@ -167,7 +167,7 @@ export default function ProfilePanel() {
       {tab === 'credits' && (
         <div className="admin-card">
           <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: '#374151' }}>
-            Total Learning Credits: <strong style={{ color: '#1D3095' }}>{totalPoints}</strong>
+            Total Learning Credits: <strong style={{ color: 'var(--color-brand-navy)' }}>{totalPoints}</strong>
           </div>
           {credits.length === 0 ? (
             <div className="emp-manage__empty">No learning credits earned yet. Complete modules, quizzes, and lessons to earn credits.</div>

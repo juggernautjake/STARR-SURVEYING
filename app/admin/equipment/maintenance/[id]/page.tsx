@@ -2109,7 +2109,7 @@ const attachStyles: Record<string, React.CSSProperties> = {
 function transitionButtonStyle(target: string): React.CSSProperties {
   const base: React.CSSProperties = {
     padding: '6px 12px',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-bg-card)',
     color: 'var(--color-brand-navy)',
     borderRadius: 6,
@@ -2188,7 +2188,7 @@ const transitionStyles: Record<string, React.CSSProperties> = {
   muted: { color: 'var(--color-text-tertiary)', fontSize: 12, marginRight: 4 },
   reopenBtn: {
     padding: '6px 12px',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
     borderRadius: 6,
@@ -2436,7 +2436,7 @@ const styles: Record<string, React.CSSProperties> = {
   editStub: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
   editBtn: {
     padding: '8px 14px',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-bg-card)',
     color: 'var(--color-brand-navy)',
     borderRadius: 6,
@@ -2491,7 +2491,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   linkBtn: {
     background: 'transparent',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     color: 'var(--color-brand-navy)',
     padding: '4px 10px',
     borderRadius: 6,

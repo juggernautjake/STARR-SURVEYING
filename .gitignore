@@ -59,3 +59,12 @@ worker/pnpm-lock.yaml
 # Claude Code per-developer state (permissions cache, hook opt-ins).
 # The shared hook script lives at .claude/hooks/ and IS committed.
 .claude/settings.local.json
+.vercel
+.env*
+
+# Supabase CLI per-developer link state (project ref, pooler URL, version pins).
+supabase/.temp/
+
+# Playwright MCP screenshots + per-session audit artifacts (local only).
+audit-*.png
+.playwright-mcp/

@@ -144,11 +144,11 @@ export default function PayoutLogPage() {
           <span className="payout-log__summary-lbl">Total Paid</span>
         </div>
         <div className="payout-log__summary-card">
-          <span className="payout-log__summary-val" style={{ color: '#EF4444' }}>{fmtCurrency(summary.total_deductions)}</span>
+          <span className="payout-log__summary-val" style={{ color: 'var(--color-error)' }}>{fmtCurrency(summary.total_deductions)}</span>
           <span className="payout-log__summary-lbl">Deductions</span>
         </div>
         <div className="payout-log__summary-card">
-          <span className="payout-log__summary-val" style={{ color: net >= 0 ? '#059669' : '#EF4444' }}>{fmtCurrency(net)}</span>
+          <span className="payout-log__summary-val" style={{ color: net >= 0 ? '#059669' : 'var(--color-error)' }}>{fmtCurrency(net)}</span>
           <span className="payout-log__summary-lbl">Net</span>
         </div>
       </div>

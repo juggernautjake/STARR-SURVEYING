@@ -1970,7 +1970,7 @@ export default function LessonBuilderPage() {
                       {['📖', '📝', '🎯', '📊', '🏠', '⚙', '🔬', '📐'].map(emoji => (
                         <button key={emoji} className={`admin-btn admin-btn--ghost admin-btn--sm ${block.content.icon === emoji ? 'admin-btn--active' : ''}`}
                           onClick={() => updateBlockContent(block.id, { ...block.content, icon: emoji })}
-                          style={{ padding: '.2rem .4rem', fontSize: '1.1rem', border: block.content.icon === emoji ? '2px solid #1D3095' : undefined }}>
+                          style={{ padding: '.2rem .4rem', fontSize: '1.1rem', border: block.content.icon === emoji ? '2px solid var(--color-brand-navy)' : undefined }}>
                           {emoji}
                         </button>
                       ))}

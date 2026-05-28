@@ -379,7 +379,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   toggleActive: {
     padding: '4px 10px',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
     borderRadius: 6,

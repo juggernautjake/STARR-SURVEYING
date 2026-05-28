@@ -783,7 +783,7 @@ const drawerStyles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.04em',
   },
   rowValue: { color: '#111827', wordBreak: 'break-word' as const },
-  link: { color: '#1D3095', textDecoration: 'none' },
+  link: { color: 'var(--color-brand-navy)', textDecoration: 'none' },
   leadBadge: {
     background: '#DBEAFE',
     color: '#1E3A8A',
@@ -852,7 +852,7 @@ function cellStyleFor(
     ...CELL_STATE_STYLES[state],
     ...(inDrag
       ? {
-          outline: '2px solid #1D3095',
+          outline: '2px solid var(--color-brand-navy)',
           outlineOffset: -2,
           background: '#DBEAFE',
           color: '#1E3A8A',
@@ -1139,7 +1139,7 @@ const createStyles: Record<string, React.CSSProperties> = {
     borderRadius: '0 0 12px 12px',
   },
   saveBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -1204,7 +1204,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '6px 12px',
     border: 'none',
     borderRadius: 6,
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     fontSize: 13,
     cursor: 'pointer',

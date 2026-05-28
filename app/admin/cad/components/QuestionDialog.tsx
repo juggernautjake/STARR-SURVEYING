@@ -479,11 +479,11 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'left',
     padding: '8px 12px',
     borderRadius: 6,
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: '#EEF2FF',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     fontWeight: 600,
   },
   input: {
@@ -538,7 +538,7 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.6,
   },
   drawNowBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,

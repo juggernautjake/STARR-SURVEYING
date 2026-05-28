@@ -326,7 +326,7 @@ export default function MileagePage() {
                                   style={{
                                     marginLeft: 6,
                                     background: '#EEF2FF',
-                                    color: '#1D3095',
+                                    color: 'var(--color-brand-navy)',
                                     fontSize: 10,
                                     fontWeight: 600,
                                     padding: '1px 6px',
@@ -447,7 +447,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   exportBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -516,7 +516,7 @@ const styles: Record<string, React.CSSProperties> = {
   userSubtotal: {
     fontSize: 14,
     fontWeight: 600,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
   },
   table: {
     width: '100%',

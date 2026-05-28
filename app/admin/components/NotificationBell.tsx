@@ -36,7 +36,7 @@ const ESCALATION_COLORS: Record<string, string> = {
   low: '#10B981',
   normal: '#6B7280',
   high: '#F59E0B',
-  urgent: '#EF4444',
+  urgent: 'var(--color-error)',
   critical: '#7C3AED',
 };
 

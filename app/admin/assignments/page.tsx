@@ -48,11 +48,11 @@ const STATUS_OPTIONS = [
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
-  low: '#3B82F6', normal: '#6B7280', high: '#F59E0B', urgent: '#EF4444',
+  low: '#3B82F6', normal: '#6B7280', high: '#F59E0B', urgent: 'var(--color-error)',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: '#F59E0B', in_progress: '#3B82F6', completed: '#059669', overdue: '#EF4444', cancelled: '#9CA3AF',
+  pending: '#F59E0B', in_progress: '#3B82F6', completed: '#059669', overdue: 'var(--color-error)', cancelled: '#9CA3AF',
 };
 
 function formatName(email: string): string {
@@ -189,7 +189,7 @@ export default function AssignmentsPage() {
           <h3 className="assign__form-title">Create New Assignment</h3>
           <div className="assign__form-grid">
             <div className="assign__form-field assign__form-field--full">
-              <label>Title <span style={{ color: '#EF4444' }}>*</span></label>
+              <label>Title <span style={{ color: 'var(--color-error)' }}>*</span></label>
               <input type="text" value={formData.title} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))}
                 placeholder="e.g., Complete boundary survey for Job #2024-0032" />
             </div>
@@ -199,7 +199,7 @@ export default function AssignmentsPage() {
                 placeholder="Detailed instructions for the assignee..." rows={3} />
             </div>
             <div className="assign__form-field">
-              <label>Assign To <span style={{ color: '#EF4444' }}>*</span></label>
+              <label>Assign To <span style={{ color: 'var(--color-error)' }}>*</span></label>
               <select value={formData.assigned_to} onChange={e => setFormData(p => ({ ...p, assigned_to: e.target.value }))}>
                 <option value="">Select employee...</option>
                 {employees.map(e => <option key={e} value={e}>{formatName(e)}</option>)}

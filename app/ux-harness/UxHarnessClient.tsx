@@ -87,6 +87,10 @@ const PAGES: Record<string, ComponentType> = {
   billing: nextDynamic(() => import('@/app/admin/billing/page'), { ssr: false }),
   research: nextDynamic(() => import('@/app/admin/research/page'), { ssr: false }),
   finances: nextDynamic(() => import('@/app/admin/finances/page'), { ssr: false }),
+  // Newly registered in route-registry Slice 56 — kept for harness parity.
+  orgs: nextDynamic(() => import('@/app/admin/orgs/page'), { ssr: false }),
+  payouts: nextDynamic(() => import('@/app/admin/payouts/page'), { ssr: false }),
+  support: nextDynamic(() => import('@/app/admin/support/page'), { ssr: false }),
 };
 
 const AdminLayoutClient = nextDynamic(

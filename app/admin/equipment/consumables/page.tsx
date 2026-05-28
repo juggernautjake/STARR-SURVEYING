@@ -1056,7 +1056,7 @@ const styles: Record<string, React.CSSProperties> = {
   actionBtn: {
     padding: '4px 10px',
     background: 'var(--color-bg-card)',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     color: 'var(--color-brand-navy)',
     borderRadius: 6,
     fontSize: 11,

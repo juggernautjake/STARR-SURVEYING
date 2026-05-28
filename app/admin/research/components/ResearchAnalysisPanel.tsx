@@ -1178,7 +1178,7 @@ export default function ResearchAnalysisPanel({
                         className="ra-resource__rating-fill"
                         style={{
                           width: `${r.rating}%`,
-                          background: r.rating >= 80 ? '#059669' : r.rating >= 50 ? '#F59E0B' : '#EF4444',
+                          background: r.rating >= 80 ? '#059669' : r.rating >= 50 ? '#F59E0B' : 'var(--color-error)',
                         }}
                       />
                     </div>

@@ -105,6 +105,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'] },
   { href: '/admin/my-jobs',         label: 'My Jobs',         workspace: 'hub', iconName: 'FolderOpen',     description: 'Jobs assigned to you.', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
   { href: '/admin/my-hours',        label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Your clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet'] },
+  { href: '/admin/time-off',        label: 'Time Off',        workspace: 'hub', iconName: 'Palmtree',       description: 'Request time off + view your PTO balance. Managers see the approval queue here too.', internalOnly: true, keywords: ['pto', 'vacation', 'holiday', 'leave'] },
   { href: '/admin/my-pay',          label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
   { href: '/admin/my-notes',        label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
   { href: '/admin/my-files',        label: 'My Files',        workspace: 'hub', iconName: 'Folder',         description: 'Your file uploads.' },
@@ -183,6 +184,15 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/notes',                 label: 'Company Notes',    workspace: 'office', iconName: 'StickyNote',   description: 'Firm-wide shared notes.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/settings',              label: 'Settings',         workspace: 'office', iconName: 'Settings',     description: 'Firm-wide settings.', roles: ['admin'] },
   { href: '/admin/error-log',             label: 'Error Log',        workspace: 'office', iconName: 'Bug',          description: 'Application error log.', roles: ['admin', 'developer', 'tech_support'] },
+  { href: '/admin/audit',                 label: 'Audit Log',        workspace: 'office', iconName: 'ShieldCheck',  description: 'Customer-org audit trail (user + operator actions).', roles: ['admin', 'developer', 'tech_support'], keywords: ['compliance', 'history', 'log'] },
+  { href: '/admin/invites',               label: 'Invites',          workspace: 'office', iconName: 'UserPlus',     description: 'Pending + historical org user invites.', roles: ['admin', 'tech_support'], keywords: ['onboard', 'invite'] },
+  { href: '/admin/payouts',               label: 'Payouts',          workspace: 'office', iconName: 'Banknote',     description: 'Record employee payouts (Venmo / Stripe / check / cash).', roles: ['admin'], internalOnly: true, keywords: ['pay', 'venmo', 'stripe'] },
+  { href: '/admin/announcements',         label: 'Announcements',    workspace: 'office', iconName: 'Megaphone',    description: 'Published release notes + product announcements.', keywords: ['release', 'changelog', 'news'] },
+  { href: '/admin/billing',               label: 'Billing',          workspace: 'office', iconName: 'CreditCard',   description: 'Subscription, invoices, plan history.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'plan'] },
+  { href: '/admin/org-settings',          label: 'Org Settings',     workspace: 'office', iconName: 'Building',     description: 'Per-organization configuration.', roles: ['admin'], keywords: ['org', 'tenant', 'company'] },
+  { href: '/admin/orgs',                  label: 'Organizations',    workspace: 'office', iconName: 'Building2',    description: 'Cross-org switcher + multi-tenant overview.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['tenants', 'switch'] },
+  { href: '/admin/reports',               label: 'Reports',          workspace: 'office', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
+  { href: '/admin/support',               label: 'Support',          workspace: 'office', iconName: 'LifeBuoy',     description: 'Open support tickets + manage existing ones.', keywords: ['tickets', 'help', 'issues'] },
 ];
 
 // ── Lookup helpers ──────────────────────────────────────────────────

@@ -11,8 +11,13 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding: 1.5rem;
-  max-width: 1280px;
+  /* Fluid horizontal padding: 1rem on phones, 1.5rem mid, 2rem wide. */
+  padding: 1.5rem clamp(1rem, 3vw, 2rem);
+  /* Fluid width: stay narrow on tablets/phones, expand up to 1600 px on
+   * widescreen desktops, never crush into the viewport edges.
+   * Slice 80 — the 1280 px cap was leaving 320 px of empty gutter on
+   * each side at 1920 px, which makes the panels feel undersized. */
+  max-width: min(100%, 1600px);
   margin: 0 auto;
   font-family: var(--font-body);
   color: var(--color-text-primary);
@@ -55,12 +60,24 @@
 
 .hub-greeting {
   display: flex;
+  /* Slice 80 — left column (heading) stretches, right column (actions) wraps.
+   * The previous align-items: center placed a single-row actions strip across
+   * from a 2-line heading, which lined up oddly when the actions wrapped and
+   * crushed everything together. flex-start + align-items: center keeps the
+   * heading text aligned to its baseline and lets actions grow downward. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: 1rem 1.5rem;
   background: linear-gradient(135deg, var(--color-brand-navy) 0%, #2949C7 100%);
   color: var(--color-text-on-brand);
   border-color: transparent;
+}
+
+.hub-greeting > div:first-child {
+  /* Heading column — grows but doesn't crush the actions */
+  flex: 1 1 18rem;
+  min-width: 0;
 }
 
 .hub-greeting__heading {
@@ -150,16 +167,26 @@
   color: var(--color-text-on-brand);
 }
 
+/* Slice 80 — persona dropdown styled to sit visually beside the action
+ * buttons (uniform height, no double-border look). The inline label
+ * stays as a small uppercase tag inside the dropdown for context. */
 .hub-greeting__persona {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.6rem;
+  gap: 0.5rem;
+  height: 2.1rem;          /* matches hub-btn (padding + line-height) */
+  padding: 0 0.85rem;
   border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.85);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
+  flex: 0 1 auto;
+}
+
+.hub-greeting__persona:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.7);
 }
 
 .hub-greeting__persona-label {
@@ -167,6 +194,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
 }
 
 .hub-greeting__persona-select {
@@ -178,6 +206,9 @@
   font-weight: var(--weight-medium);
   outline: none;
   cursor: pointer;
+  min-width: 0;
+  max-width: 12rem;
+  text-overflow: ellipsis;
 }
 
 .hub-greeting__persona-select option {
@@ -262,7 +293,17 @@
   color: #4B5BB0;
 }
 
-@media (max-width: 900px) {
+/* Slice 80 — graceful 3 → 2 → 1 column collapse instead of 3 → 1.
+ * At a half-screen 960 px we lose a column rather than stacking
+ * everything. At 640 px (large phone landscape / small tablet
+ * portrait) we go single column. */
+@media (max-width: 1100px) {
+  .hub-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
   .hub-columns {
     grid-template-columns: 1fr;
   }

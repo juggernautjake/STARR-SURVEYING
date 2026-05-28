@@ -33,9 +33,9 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
-  info:     '#1D3095',
+  info:     'var(--color-brand-navy)',
   warning:  '#D97706',
-  critical: '#BD1218',
+  critical: 'var(--color-brand-red)',
 };
 
 function timeAgo(d: string): string {
@@ -101,7 +101,7 @@ export default function HubNotifications() {
             <span style={{
               marginLeft: '0.5rem',
               padding: '0.1rem 0.5rem',
-              background: '#1D3095',
+              background: 'var(--color-brand-navy)',
               color: '#FFF',
               borderRadius: 999,
               fontSize: '0.72rem',
@@ -169,7 +169,7 @@ export default function HubNotifications() {
                     {n.actionUrl && (
                       <a
                         href={n.actionUrl}
-                        style={{ fontSize: '0.78rem', color: '#1D3095', textDecoration: 'none', fontWeight: 600 }}
+                        style={{ fontSize: '0.78rem', color: 'var(--color-brand-navy)', textDecoration: 'none', fontWeight: 600 }}
                       >
                         {n.actionLabel ?? 'Open →'}
                       </a>

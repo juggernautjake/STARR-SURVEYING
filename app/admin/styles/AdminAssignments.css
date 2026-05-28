@@ -42,11 +42,33 @@
 .assign__filters { display:flex; align-items:center; gap:1rem; padding:.65rem 1rem; background:#F9FAFB; border:1px solid #E5E7EB; border-radius:8px; margin-bottom:1rem; flex-wrap:wrap; }
 .assign__filter-group { display:flex; align-items:center; gap:.5rem; }
 .assign__filter-label { font-size:.75rem; font-weight:600; color:#6B7280; white-space:nowrap; }
-.assign__filter-pills { display:flex; gap:.3rem; flex-wrap:wrap; }
-.assign__filter-pill { padding:.3rem .65rem; font-size:.75rem; font-weight:500; background:#fff; border:1px solid #D1D5DB; border-radius:14px; cursor:pointer; color:#374151; transition:all .15s; }
+.assign__filter-pills { display:flex; gap:.3rem; flex-wrap:wrap; align-items:center; }
+/* Slice 83 — pill buttons + select share an explicit 28 px height,
+ * matching font-size, and matching border-radius so they line up on the
+ * filter row instead of the select sticking out as the tallest control. */
+.assign__filter-pill,
+.assign__filter-select {
+  box-sizing:border-box;
+  height:28px;
+  line-height:1;
+  font-size:.75rem;
+  font-weight:500;
+  font-family:inherit;
+  background:#fff;
+  border:1px solid #D1D5DB;
+  border-radius:14px;
+  color:#374151;
+  outline:none;
+}
+.assign__filter-pill { padding:0 .75rem; cursor:pointer; transition:all .15s; }
 .assign__filter-pill:hover { border-color:#9CA3AF; }
 .assign__filter-pill--active { background:#1D3095; color:#fff; border-color:#1D3095; }
-.assign__filter-select { padding:.3rem .5rem; font-size:.78rem; border:1px solid #D1D5DB; border-radius:6px; outline:none; background:#fff; }
+.assign__filter-select {
+  /* Native arrow lives inside the right edge; leave room for it. */
+  padding:0 1.6rem 0 .75rem;
+  appearance:auto;
+  cursor:pointer;
+}
 
 /* Empty state */
 .assign__empty { text-align:center; padding:3rem 2rem; color:#9CA3AF; }

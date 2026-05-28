@@ -359,7 +359,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#374151',
   },
   runBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,

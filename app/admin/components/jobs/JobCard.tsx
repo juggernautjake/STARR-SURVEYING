@@ -1,6 +1,8 @@
 // app/admin/components/jobs/JobCard.tsx — Job summary card/widget
 'use client';
 
+import { withAlpha } from '@/lib/admin/color-alpha';
+
 interface JobTeamMember {
   user_email: string;
   user_name?: string;
@@ -33,7 +35,7 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; icon: string 
   legal: { label: 'Legal', color: '#6366F1', icon: '⚖️' },
   delivery: { label: 'Delivery', color: '#10B981', icon: '📦' },
   completed: { label: 'Completed', color: '#6B7280', icon: '✅' },
-  cancelled: { label: 'Cancelled', color: '#EF4444', icon: '❌' },
+  cancelled: { label: 'Cancelled', color: 'var(--color-error)', icon: '❌' },
   on_hold: { label: 'On Hold', color: '#F97316', icon: '⏸️' },
 };
 
@@ -61,7 +63,7 @@ export default function JobCard({ job, onClick }: { job: Job; onClick?: () => vo
         <span className="job-card__number">{job.job_number}</span>
         <span
           className="job-card__stage"
-          style={{ background: stageInfo.color + '20', color: stageInfo.color }}
+          style={{ background: withAlpha(stageInfo.color, 12.55), color: stageInfo.color }}
         >
           {stageInfo.icon} {stageInfo.label}
         </span>

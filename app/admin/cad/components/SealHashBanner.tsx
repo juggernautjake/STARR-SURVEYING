@@ -118,7 +118,7 @@ const styles: Record<string, React.CSSProperties> = {
   detail: { fontSize: 11, color: '#92400E' },
   actions: { display: 'flex', gap: 6 },
   btnReseal: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 6,

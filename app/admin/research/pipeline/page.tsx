@@ -39,7 +39,7 @@ const STATUS_COLORS: Record<BatchJob['status'], string> = {
   queued:    '#F59E0B',
   running:   '#3B82F6',
   completed: '#10B981',
-  failed:    '#EF4444',
+  failed:    'var(--color-error)',
   cancelled: '#9CA3AF',
 };
 

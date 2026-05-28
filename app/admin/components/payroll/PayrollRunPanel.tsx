@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { formatCurrency, formatDate, formatDateTime, PAYROLL_STATUSES } from './PayrollConstants';
+import { withAlpha } from '@/lib/admin/color-alpha';
 
 interface PayrollRun {
   id: string;
@@ -170,7 +171,7 @@ export default function PayrollRunPanel() {
                   <div className="payroll-runs__item-period">
                     {formatDate(run.pay_period_start)} — {formatDate(run.pay_period_end)}
                   </div>
-                  <span className="payroll-badge" style={{ backgroundColor: statusInfo.color + '20', color: statusInfo.color }}>
+                  <span className="payroll-badge" style={{ backgroundColor: withAlpha(statusInfo.color, 12.55), color: statusInfo.color }}>
                     {statusInfo.label}
                   </span>
                 </div>

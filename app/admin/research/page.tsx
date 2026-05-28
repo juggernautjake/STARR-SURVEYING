@@ -325,7 +325,7 @@ export default function ResearchListPage() {
               <div className="research-modal__field">
                 <label className="research-modal__label">
                   <span className="job-form__label-row">
-                    Property ID <span style={{ color: '#BD1218' }}>*</span>
+                    Property ID <span style={{ color: 'var(--color-brand-red)' }}>*</span>
                     <Tooltip text="The county appraisal district property ID. This is the primary identifier used to look up the exact parcel, retrieve deed/plat records, and center the GIS viewer. Find it on the county appraisal district website." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>

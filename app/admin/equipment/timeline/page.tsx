@@ -477,7 +477,7 @@ export default function EquipmentTimelinePage() {
                           outline: bar.is_override
                             ? '2px solid #F59E0B'
                             : isDraggingThis
-                            ? '2px solid #1D3095'
+                            ? '2px solid var(--color-brand-navy)'
                             : 'none',
                         }}
                       >
@@ -694,7 +694,7 @@ const BAR_STATE_STYLES: Record<string, React.CSSProperties> = {
   checked_out: {
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
   },
   returned: {
     background: '#E5E7EB',
@@ -764,7 +764,7 @@ const styles: Record<string, React.CSSProperties> = {
   filterLabel: { fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 },
   toggleActive: {
     padding: '4px 10px',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
     borderRadius: 6,

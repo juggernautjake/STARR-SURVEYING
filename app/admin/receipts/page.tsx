@@ -213,7 +213,7 @@ export default function ReceiptsApprovalPage() {
   }, [tab]);
 
   const counters = data?.counters ?? zeroCounters();
-  const receipts = data?.receipts ?? [];
+  const receipts = useMemo(() => data?.receipts ?? [], [data?.receipts]);
 
   const onToggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -2038,7 +2038,7 @@ const styles: Record<string, React.CSSProperties> = {
   refreshButton: {
     padding: '8px 16px',
     borderRadius: 6,
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
     cursor: 'pointer',
@@ -2048,7 +2048,7 @@ const styles: Record<string, React.CSSProperties> = {
   exportButton: {
     padding: '8px 16px',
     borderRadius: 6,
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-bg-card)',
     color: 'var(--color-brand-navy)',
     fontSize: 14,

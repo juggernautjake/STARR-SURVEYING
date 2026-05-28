@@ -80,7 +80,7 @@ const TIER_PRICES: Record<SubscriptionInfo['tier'], string> = {
 const STATUS_COLORS: Record<SubscriptionInfo['status'], string> = {
   active: '#10B981',
   trialing: '#F59E0B',
-  past_due: '#EF4444',
+  past_due: 'var(--color-error)',
   cancelled: '#9CA3AF',
   none: '#9CA3AF',
 };
@@ -271,7 +271,7 @@ export default function ResearchBillingPage() {
               { label: 'Total Reports', value: usage.totalReports, color: '#3B82F6' },
               { label: 'This Month', value: usage.reportsThisMonth, color: '#10B981' },
               { label: 'Docs Purchased', value: usage.totalDocumentsPurchased, color: '#F59E0B' },
-              { label: 'Doc Spend', value: formatCurrency(usage.totalDocumentSpend), color: '#EF4444' },
+              { label: 'Doc Spend', value: formatCurrency(usage.totalDocumentSpend), color: 'var(--color-error)' },
             ].map(stat => (
               <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                 <div className="text-2xl font-bold" style={{ color: stat.color }}>

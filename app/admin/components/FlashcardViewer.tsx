@@ -143,7 +143,7 @@ export default function FlashcardViewer({ cards, deckName, onBack }: FlashcardVi
         </h2>
         <button
           onClick={() => setStudyType(null)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter,sans-serif', fontSize: '.78rem', color: '#1D3095', padding: 0 }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter,sans-serif', fontSize: '.78rem', color: 'var(--color-brand-navy)', padding: 0 }}
         >
           Change study mode
         </button>

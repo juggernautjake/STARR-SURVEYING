@@ -1,6 +1,8 @@
 // app/admin/components/jobs/JobQuoteBuilder.tsx — Quote creation and display
 'use client';
 
+import { withAlpha } from '@/lib/admin/color-alpha';
+
 interface Payment {
   id: string;
   amount: number;
@@ -26,7 +28,7 @@ interface Props {
 export default function JobQuoteBuilder({ quoteAmount, finalAmount, amountPaid, paymentStatus, payments, onUpdateQuote, onAddPayment, editable }: Props) {
   const owed = (finalAmount || quoteAmount || 0) - (amountPaid || 0);
   const statusColors: Record<string, string> = {
-    unpaid: '#EF4444',
+    unpaid: 'var(--color-error)',
     partial: '#F59E0B',
     paid: '#10B981',
     waived: '#6B7280',
@@ -38,7 +40,7 @@ export default function JobQuoteBuilder({ quoteAmount, finalAmount, amountPaid, 
         <h3 className="job-quote__title">Financial Summary</h3>
         <span
           className="job-quote__status"
-          style={{ background: (statusColors[paymentStatus || 'unpaid'] || '#6B7280') + '20', color: statusColors[paymentStatus || 'unpaid'] }}
+          style={{ background: withAlpha(statusColors[paymentStatus || 'unpaid'] || '#6B7280', 12.55), color: statusColors[paymentStatus || 'unpaid'] }}
         >
           {paymentStatus === 'paid' ? '✅ Paid' :
            paymentStatus === 'partial' ? '⏳ Partial' :

@@ -25,7 +25,7 @@ const STATUS_OPTIONS = [
   { key: 'contacted', label: 'Contacted', color: '#8B5CF6' },
   { key: 'quoted', label: 'Quoted', color: '#F59E0B' },
   { key: 'accepted', label: 'Accepted', color: '#059669' },
-  { key: 'declined', label: 'Declined', color: '#EF4444' },
+  { key: 'declined', label: 'Declined', color: 'var(--color-error)' },
   { key: 'lost', label: 'Lost', color: '#6B7280' },
 ];
 
@@ -225,7 +225,7 @@ export default function LeadsPage() {
                 </select>
                 <button
                   className="jobs-page__btn"
-                  style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: '#EF4444' }}
+                  style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: 'var(--color-error)' }}
                   onClick={() => void deleteLead(lead.id)}
                 >
                   Delete

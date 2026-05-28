@@ -1379,7 +1379,7 @@ export default function EquipmentInventoryPage() {
     void fetchInventory();
   }, [fetchInventory]);
 
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
 
   // Selection state derives off the visible items so toggling
   // filters drops out-of-view rows from selection automatically

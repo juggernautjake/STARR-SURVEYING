@@ -79,27 +79,27 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
     setDragging(false);
   }, []);
 
-  function resetView() {
+  const resetView = useCallback(() => {
     console.log(`[FileViewer] Reset view — scale: ${scale.toFixed(2)} → 1.00, position: (${position.x}, ${position.y}) → (0, 0)`, { file: file.file_name });
     setScale(1);
     setPosition({ x: 0, y: 0 });
-  }
+  }, [scale, position, file.file_name]);
 
-  function zoomIn() {
+  const zoomIn = useCallback(() => {
     setScale(prev => {
       const next = Math.min(prev + 0.1, 3);
       console.log(`[FileViewer] Zoom IN: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, { file: file.file_name });
       return next;
     });
-  }
+  }, [file.file_name]);
 
-  function zoomOut() {
+  const zoomOut = useCallback(() => {
     setScale(prev => {
       const next = Math.max(prev - 0.1, 0.05);
       console.log(`[FileViewer] Zoom OUT: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, { file: file.file_name });
       return next;
     });
-  }
+  }, [file.file_name]);
 
   function handleZoomInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     setZoomInput(e.target.value);
@@ -128,7 +128,7 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [onClose, zoomIn, zoomOut, resetView]);
 
   return (
     <div className="file-viewer__overlay" onClick={onClose}>
