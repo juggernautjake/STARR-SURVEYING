@@ -124,7 +124,7 @@ export default function HowItWorksPage() {
             <p>{milestoneDesc} Keep earning!</p>
           </div>
           <div className="hiw__pay-path">
-            <div className="hiw__pay-path-icon" style={{ background: '#BD1218' }}>4</div>
+            <div className="hiw__pay-path-icon" style={{ background: 'var(--color-brand-red)' }}>4</div>
             <h4>Education</h4>
             <p>Each surveying college class passed = +$0.50/hr. The company pays for classes you pass on the first try!</p>
           </div>

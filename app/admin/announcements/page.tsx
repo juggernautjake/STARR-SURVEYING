@@ -28,7 +28,7 @@ interface Release {
 const TYPE_COLORS: Record<string, string> = {
   feature: 'var(--color-brand-navy)',
   bugfix: '#059669',
-  breaking: '#BD1218',
+  breaking: 'var(--color-brand-red)',
   security: '#7F1D1D',
 };
 

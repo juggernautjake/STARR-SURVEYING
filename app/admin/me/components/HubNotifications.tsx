@@ -35,7 +35,7 @@ const TYPE_ICONS: Record<string, string> = {
 const SEVERITY_COLORS: Record<string, string> = {
   info:     'var(--color-brand-navy)',
   warning:  '#D97706',
-  critical: '#BD1218',
+  critical: 'var(--color-brand-red)',
 };
 
 function timeAgo(d: string): string {

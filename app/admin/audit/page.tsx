@@ -29,7 +29,7 @@ interface AuditRow {
 const SEVERITY_COLORS: Record<AuditRow['severity'], string> = {
   info: '#6B7280',
   warning: '#D97706',
-  critical: '#BD1218',
+  critical: 'var(--color-brand-red)',
 };
 
 export default function CustomerAuditPage() {

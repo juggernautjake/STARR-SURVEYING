@@ -361,7 +361,7 @@ export default function PayoutsPage() {
         .payouts-error {
           background: #FEE2E2;
           border: 1px solid #FCA5A5;
-          color: #BD1218;
+          color: var(--color-brand-red);
           padding: 0.55rem 0.85rem;
           border-radius: 6px;
           margin-bottom: 0.85rem;

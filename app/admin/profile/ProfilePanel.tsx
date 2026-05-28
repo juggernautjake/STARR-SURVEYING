@@ -91,7 +91,7 @@ export default function ProfilePanel() {
           {image ? (
             <Image src={image} alt={name || 'User'} width={40} height={40} unoptimized className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB' }} />
           ) : (
-            <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: '#BD1218', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
+            <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-brand-red)', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
               {(name || 'U').charAt(0)}
             </div>
           )}

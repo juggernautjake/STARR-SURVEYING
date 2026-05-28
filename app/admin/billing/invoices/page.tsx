@@ -31,7 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
   open:          'var(--color-brand-navy)',
   draft:         '#6B7280',
   void:          '#9CA3AF',
-  uncollectible: '#BD1218',
+  uncollectible: 'var(--color-brand-red)',
 };
 
 export default function InvoicesPage() {
@@ -112,7 +112,7 @@ export default function InvoicesPage() {
                 <td>
                   {fmtMoney(inv.amountDueCents, inv.currency)}
                   {inv.amountRefundedCents > 0 ? (
-                    <em style={{ color: '#BD1218', fontSize: '0.78rem', marginLeft: '0.4rem' }}>
+                    <em style={{ color: 'var(--color-brand-red)', fontSize: '0.78rem', marginLeft: '0.4rem' }}>
                       (− {fmtMoney(inv.amountRefundedCents, inv.currency)})
                     </em>
                   ) : null}

@@ -42,7 +42,7 @@ const EVENT_COLORS: Record<string, string> = {
   bundle_removed:         '#6B7280',
   plan_changed:           'var(--color-brand-navy)',
   payment_succeeded:      '#059669',
-  payment_failed:         '#BD1218',
+  payment_failed:         'var(--color-brand-red)',
 };
 
 export default function PlanHistoryPage() {

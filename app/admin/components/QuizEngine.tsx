@@ -137,7 +137,7 @@ export default function QuizEngine({ questions, title, onComplete, onBack }: Qui
         {q.question_type === 'fill_blank' && submitted && (
           <div style={{ marginTop: '.5rem' }}>
             <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.9rem' }}>
-              Your answer: <strong style={{ color: isCorrect ? '#065F46' : '#BD1218' }}>{userAnswer}</strong>
+              Your answer: <strong style={{ color: isCorrect ? '#065F46' : 'var(--color-brand-red)' }}>{userAnswer}</strong>
             </p>
             <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.9rem' }}>
               Correct answer: <strong style={{ color: '#065F46' }}>{q.correct_answer}</strong>

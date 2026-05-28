@@ -694,7 +694,7 @@ export default function PropertySearchPanel({
             </div>
             <div className="research-search__field research-search__field--half">
               <label className="research-search__label" htmlFor="ps-parcel">
-                Property ID <span style={{ color: '#BD1218' }}>*</span>
+                Property ID <span style={{ color: 'var(--color-brand-red)' }}>*</span>
               </label>
               <input
                 id="ps-parcel"
