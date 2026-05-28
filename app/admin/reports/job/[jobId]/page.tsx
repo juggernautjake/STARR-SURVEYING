@@ -275,7 +275,7 @@ export default function JobReportPage({ params }: PageProps) {
           margin-bottom: 1.25rem;
         }
         header.job-no-print :global(a) {
-          color: #1D3095;
+          color: var(--color-brand-navy);
           font-size: 0.85rem;
           text-decoration: none;
           font-weight: 600;
@@ -283,7 +283,7 @@ export default function JobReportPage({ params }: PageProps) {
         .job-btn-primary {
           margin-left: auto;
           padding: 0.55rem 1.1rem;
-          background: #1D3095;
+          background: var(--color-brand-navy);
           color: #FFF;
           border: 0;
           border-radius: 6px;

@@ -711,7 +711,7 @@ function FileCardItem({ file }: { file: FileRow }) {
             display: 'inline-block',
             marginTop: 8,
             fontSize: 12,
-            color: '#1D3095',
+            color: 'var(--color-brand-navy)',
             textDecoration: 'none',
           }}
         >
@@ -1229,7 +1229,7 @@ const styles: Record<string, React.CSSProperties> = {
   back: {
     display: 'inline-block',
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     marginBottom: 16,
     textDecoration: 'none',
   },
@@ -1262,7 +1262,7 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     background: '#EEF2FF',
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     padding: '3px 8px',
     borderRadius: 4,
   },
@@ -1278,9 +1278,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   jobLink: {
     fontSize: 13,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     textDecoration: 'none',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     borderRadius: 8,
     padding: '8px 14px',
   },
@@ -1382,7 +1382,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   noteTemplate: {
     background: '#EEF2FF',
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     fontSize: 11,
     fontWeight: 600,
     textTransform: 'uppercase',
@@ -1503,7 +1503,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fullLink: {
     fontSize: 12,
-    color: '#1D3095',
+    color: 'var(--color-brand-navy)',
     marginTop: 6,
     textDecoration: 'none',
   },
