@@ -353,6 +353,12 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 
 ---
 
+---
+
+## Phase 4 — User-requested continuation (2026-05-28 night, ~01:30 CDT)
+
+> User: "Okay, just keep working on the planning file. move it back to the in progress folder and do what you can without browser access. Keep auditing, refactoring, testing until 3 am in the morning." This phase is the result. Twenty-nine slices (Slices 38–66) shipped without browser access — pure code audit + refactor + test work. Doc is back in `in-progress/` for the duration. Summary at the bottom of the phase.
+
 ### Slice 38 — Token-ize the hardcoded navy hex (sweep): CAD components batch ✅ shipped
 - [x] Continued the per-file sweep started in Slices 36/37. Batched the 11 `app/admin/cad/components/*.tsx` files that referenced `#1D3095` (`AIDrawingDialog`, `AISidebar`, `CompletenessPanel`, `ElementExplanationPopup`, `QuestionDialog`, `RPLSReviewModePanel`, `RPLSSubmissionDialog`, `RecentRecoveriesDialog`, `SealHashBanner`, `SealImageUploader`, `SurveyDescriptionPanel` — 18 occurrences total) into a single slice because they're all inline `styles` consts inside a single subsystem and a future brand-navy change should land in one commit for that surface. Every literal is `background`, `border`, or `color` on a styles object; no template-literal interpolation or external concatenation to worry about. 126 `#1D3095` literals across 45 admin .tsx files remain. `tsc` + `eslint` clean (the four pre-existing warnings on untouched files persist: `employees/page.tsx`, `equipment/inventory/page.tsx`, `learn/quiz-history/page.tsx`, `receipts/page.tsx`).
 
@@ -516,3 +522,49 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ## Phase 2 wrap-up (2026-05-28)
 
 > Every action item in this doc — original twenty-one slices plus the seven follow-ups (Slices 22–30) that retired the deferred bullets — is shipped. The remaining open work (live-deployment runtime verification of the Google Calendar sync; cron scheduling for `POST /api/admin/pto?action=accrue`; the per-occurrence overrides for recurring events explicitly marked out of scope above) is deployment / ops work rather than backend code, so this doc closes here and moves back to `completed/`.
+
+---
+
+## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
+
+> User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
+
+**Design-token sweeps (Slices 38–47, 49, 59–61):**
+
+- **Navy hex (`#1D3095`) → `var(--color-brand-navy)`:** 152 occurrences across 55 files converted; 3 documented intentional remaining (TipTapEditor palette swatch, JobMessagesPanel CSS-var fallback, FieldWorkView SVG-fill attribute). Sweeps grouped by area: CAD components (38), equipment (39), billing (40), learn (41), rewards + support (42), jobs/field/reports (43), team/profile/settings/employees/notes (44), remaining top-level admin pages (45), shared components + crew-calendar (46), intentional-remains documentation (47).
+- **Brand red (`#BD1218`) → `var(--color-brand-red)`:** 12 files / 13 occurrences (49). 1 documented intentional remaining (TipTapEditor palette).
+- **Error red (`#EF4444`) → `var(--color-error)`:** 26 files / 36 occurrences in three batches (59 admin pages, 60 research subsystem, 61 shared components + dialogs). 8 documented intentional remaining (2 color-picker palettes, 3 SVG fill/stroke attributes, 3 hex+alpha `color + '20'` concatenations, 1 cohesive quality gradient ramp).
+
+**Lint cleanup + bug fixes (Slices 48, 54):**
+
+- Cleared all four pre-existing `react-hooks/exhaustive-deps` warnings (FileViewer keyboard handler missing zoom-fn deps; equipment-inventory + receipts unstable `?? []` defaults; learn quiz-history unused `role` dep). Net: 4 → 0 actionable lint warnings. Only the two `<img>` warnings (Supabase signed-URL avatars) remain, both documented decisions.
+- Found + fixed a real bug in `lib/problemEngine.ts:f0`: the format specifier for "zero decimals" silently rendered two decimals because `parseInt(format.slice(1)) || 2` treats `0` as falsy.
+
+**Registry / navigation gaps (Slices 55–58, 65):**
+
+- `lib/admin/route-registry.ts`: added 10 missing routes (`/admin/time-off` — Slice 27 gap; plus `/admin/audit`, `invites`, `payouts`, `announcements`, `billing`, `org-settings`, `orgs`, `reports`, `support`).
+- `AdminLayoutClient.PAGE_TITLES`: 32 entries added (20 in Slice 57, 12 in Slice 65) so 97 non-dynamic admin pages now have specific browser-tab titles (only `/admin` + `/admin/login` fall through, intentionally).
+- `UxHarnessClient.PAGES`: 3 office routes mounted (orgs / payouts / support).
+- Caught a fragile test (`recentRoutes boosts a matching route over an equally-scoring fresh one`) that depended on `baseline[baseline.length - 1]` always being a route with high-enough score for the +25 boost to push it to first — exposed by adding any low-scoring route. Documented as a follow-up rather than rewriting the existing test.
+
+**Unit-test coverage (Slices 50–54, 62–64, 66):**
+
+- Added 9 new test files, **147 new vitest specs**, all green:
+  - `__tests__/schedule/pto-hours.test.ts` (13) — pins the Slice-33 over-count fix.
+  - `__tests__/schedule/recurrence.test.ts` (22) — RRULE expander contract incl. the subtle "don't back-fill days earlier than the series start" + 366-cap properties.
+  - `__tests__/lib/decodeUnicode.test.ts` (8) — strict 4-digit / supplementary-plane / 3-digit-reject contract.
+  - `__tests__/lib/solutionChecker.test.ts` (21) — all four scoring paths + the dispatch logic that picks them.
+  - `__tests__/lib/problemEngine.test.ts` (25) — math sandbox + template substitution + the `f0` regression test.
+  - `__tests__/lib/photoAnnotationRenderer.test.ts` (14) — SVG path emission for the mobile-shared annotation format.
+  - `__tests__/lib/quote-attachments.test.ts` (14) — public-form attachment validator (`bad-type` before `too-large` ordering pinned).
+  - `__tests__/lib/research-confidence.test.ts` (20) — the 5-level / 5-symbol confidence buckets + the `dominantSymbol = average bucket, not mode` quirk.
+  - `__tests__/lib/geometry-engine.test.ts` (10) — bounding-box + canvas-scale fitters, incl. the min-dim guard that hides the public-API "degenerate bbox" branch.
+
+**What still can't ship from this sandbox (unchanged from Phase-3 wrap-up):**
+
+- Apply `seeds/296`/`297`/`298` to live Supabase — needs SQL Editor / `supabase` CLI access.
+- Vercel env vars for the Slice-29 Google Calendar OAuth round-trip.
+- The live in-browser audit of every `app/admin/**` page + screenshots — needs a real Chrome session.
+- Live walkthrough of Slices 24–30 against real production data.
+
+> Phase-4 changes are all on branch `claude/gifted-ramanujan-lQaEI`. HEAD at session end pushed; doc stays in `in-progress/` because the deployment-side gaps above still apply.
