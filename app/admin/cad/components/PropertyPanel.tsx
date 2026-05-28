@@ -485,8 +485,10 @@ export default function PropertyPanel() {
                 className="w-14 h-6 bg-gray-700 text-white rounded px-1 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
                 type="number" step="0.5" min="0.1" max="20"
                 placeholder="—"
-                onBlur={(e) => {
-                  const v = parseFloat(e.target.value);
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') return;
+                  const v = parseFloat(raw);
                   if (!isNaN(v)) bulkApplyStyle(subset, { lineWeight: Math.max(0.1, Math.min(20, v)) }, `Set weight on ${subset.length} ${active.label.toLowerCase()}`);
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
@@ -498,8 +500,10 @@ export default function PropertyPanel() {
                 className="w-14 h-6 bg-gray-700 text-white rounded px-1 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
                 type="number" step="5" min="0" max="100"
                 placeholder="—"
-                onBlur={(e) => {
-                  const v = parseFloat(e.target.value);
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') return;
+                  const v = parseFloat(raw);
                   if (!isNaN(v)) bulkApplyStyle(subset, { opacity: Math.max(0, Math.min(1, v / 100)) }, `Set opacity on ${subset.length} ${active.label.toLowerCase()}`);
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
