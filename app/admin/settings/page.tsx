@@ -199,7 +199,8 @@ export default function SettingsPage() {
         {activeSection === 'integrations' && (
           <div className="job-detail__section">
             <h3>External Integrations</h3>
-            <div className="job-detail__integration-cards">
+            <GoogleCalendarConnectCard />
+            <div className="job-detail__integration-cards" style={{ marginTop: '1rem' }}>
               <div className="job-detail__integration-card">
                 <span className="job-detail__integration-icon">📡</span>
                 <h4>Trimble Access</h4>
@@ -242,3 +243,128 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+// Google Calendar OAuth connect/disconnect card. Reads status on mount,
+// kicks off the OAuth flow on Connect (POST → redirect URL), drops the
+// connection on Disconnect (DELETE), and triggers a manual sync (POST).
+function GoogleCalendarConnectCard() {
+  const [status, setStatus] = useState<{ connected: boolean; last_synced_at: string | null } | null>(null);
+  const [busy, setBusy] = useState<'connect' | 'disconnect' | 'sync' | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const res = await fetch('/api/admin/google-calendar', { cache: 'no-store' });
+    if (res.ok) {
+      const data = (await res.json()) as { connected: boolean; last_synced_at: string | null };
+      setStatus(data);
+    }
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  // Surface ?gcal=connected/error/state-mismatch flash from the OAuth callback.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const flag = params.get('gcal');
+    if (flag === 'connected') setMessage('Google Calendar connected.');
+    else if (flag === 'error') setMessage('Google declined the request.');
+    else if (flag === 'state-mismatch') setMessage('Could not verify the callback — try again.');
+    if (flag) {
+      params.delete('gcal');
+      const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
+
+  async function connect() {
+    setBusy('connect');
+    try {
+      const res = await fetch('/api/admin/google-calendar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'connect' }),
+      });
+      if (!res.ok) {
+        setMessage('Connect failed — check Google client env vars.');
+        return;
+      }
+      const data = (await res.json()) as { url: string };
+      window.location.href = data.url;
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function disconnect() {
+    if (!window.confirm('Disconnect Google Calendar? Future schedule changes won\'t sync.')) return;
+    setBusy('disconnect');
+    try {
+      await fetch('/api/admin/google-calendar', { method: 'DELETE' });
+      await refresh();
+      setMessage('Disconnected.');
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function sync() {
+    setBusy('sync');
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/google-calendar/sync', { method: 'POST' });
+      const data = (await res.json().catch(() => ({}))) as { pushed?: number; updated?: number; pulled?: number; error?: string };
+      if (!res.ok) {
+        setMessage(data.error ?? `Sync failed (${res.status}).`);
+        return;
+      }
+      setMessage(`Synced — pushed ${data.pushed ?? 0}, updated ${data.updated ?? 0}, pulled ${data.pulled ?? 0}.`);
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="job-detail__integration-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <span className="job-detail__integration-icon" style={{ fontSize: '1.6rem' }}>📅</span>
+        <div>
+          <h4 style={{ margin: 0 }}>Google Calendar</h4>
+          <p style={{ margin: '0.15rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>
+            Two-way sync between your schedule and your Google Calendar.
+          </p>
+          {status?.connected ? (
+            <p style={{ margin: '0.25rem 0 0', color: '#059669', fontSize: '0.8rem', fontWeight: 600 }}>
+              Connected{status.last_synced_at ? ` · last sync ${new Date(status.last_synced_at).toLocaleString()}` : ''}
+            </p>
+          ) : (
+            <p style={{ margin: '0.25rem 0 0', color: '#6B7280', fontSize: '0.8rem' }}>Not connected</p>
+          )}
+          {message && <p style={{ margin: '0.4rem 0 0', color: '#1D3095', fontSize: '0.8rem' }}>{message}</p>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        {status?.connected ? (
+          <>
+            <button onClick={() => void sync()} disabled={busy === 'sync'} style={btnPrimary}>
+              {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+            </button>
+            <button onClick={() => void disconnect()} disabled={busy === 'disconnect'} style={btnSecondary}>
+              {busy === 'disconnect' ? '…' : 'Disconnect'}
+            </button>
+          </>
+        ) : (
+          <button onClick={() => void connect()} disabled={busy === 'connect'} style={btnPrimary}>
+            {busy === 'connect' ? 'Redirecting…' : 'Connect'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const btnPrimary: React.CSSProperties = {
+  padding: '0.45rem 0.9rem', background: '#1D3095', color: '#FFF',
+  border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem',
+};
+const btnSecondary: React.CSSProperties = {
+  padding: '0.45rem 0.9rem', background: '#FFF', color: '#1D3095',
+  border: '1px solid #1D3095', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem',
+};
