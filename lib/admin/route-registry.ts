@@ -184,6 +184,15 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/notes',                 label: 'Company Notes',    workspace: 'office', iconName: 'StickyNote',   description: 'Firm-wide shared notes.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/settings',              label: 'Settings',         workspace: 'office', iconName: 'Settings',     description: 'Firm-wide settings.', roles: ['admin'] },
   { href: '/admin/error-log',             label: 'Error Log',        workspace: 'office', iconName: 'Bug',          description: 'Application error log.', roles: ['admin', 'developer', 'tech_support'] },
+  { href: '/admin/audit',                 label: 'Audit Log',        workspace: 'office', iconName: 'ShieldCheck',  description: 'Customer-org audit trail (user + operator actions).', roles: ['admin', 'developer', 'tech_support'], keywords: ['compliance', 'history', 'log'] },
+  { href: '/admin/invites',               label: 'Invites',          workspace: 'office', iconName: 'UserPlus',     description: 'Pending + historical org user invites.', roles: ['admin', 'tech_support'], keywords: ['onboard', 'invite'] },
+  { href: '/admin/payouts',               label: 'Payouts',          workspace: 'office', iconName: 'Banknote',     description: 'Record employee payouts (Venmo / Stripe / check / cash).', roles: ['admin'], internalOnly: true, keywords: ['pay', 'venmo', 'stripe'] },
+  { href: '/admin/announcements',         label: 'Announcements',    workspace: 'office', iconName: 'Megaphone',    description: 'Published release notes + product announcements.', keywords: ['release', 'changelog', 'news'] },
+  { href: '/admin/billing',               label: 'Billing',          workspace: 'office', iconName: 'CreditCard',   description: 'Subscription, invoices, plan history.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'plan'] },
+  { href: '/admin/org-settings',          label: 'Org Settings',     workspace: 'office', iconName: 'Building',     description: 'Per-organization configuration.', roles: ['admin'], keywords: ['org', 'tenant', 'company'] },
+  { href: '/admin/orgs',                  label: 'Organizations',    workspace: 'office', iconName: 'Building2',    description: 'Cross-org switcher + multi-tenant overview.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['tenants', 'switch'] },
+  { href: '/admin/reports',               label: 'Reports',          workspace: 'office', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
+  { href: '/admin/support',               label: 'Support',          workspace: 'office', iconName: 'LifeBuoy',     description: 'Open support tickets + manage existing ones.', keywords: ['tickets', 'help', 'issues'] },
 ];
 
 // ── Lookup helpers ──────────────────────────────────────────────────

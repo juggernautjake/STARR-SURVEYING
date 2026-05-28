@@ -425,6 +425,19 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 - [x] **Caught a fragile test along the way:** my first attempt at the description (which contained the word "admin") tripped `__tests__/admin/route-registry.test.ts:163-172` — that spec picks `baseline[baseline.length - 1]` for query `'admin'` and asserts the recency-boost lifts it to first place. Any route that scores low-but-positive on 'admin' can take that slot, but the +25 boost isn't enough to outrank routes whose base score is already >30. Reworded the description so 'admin' isn't in it (the new copy says "Managers" instead); the route now scores 0 on the 'admin' query, is filtered out of baseline, and the previously-last route is back as the test target. All 24 registry specs pass. `tsc` + `eslint` clean.
 - [x] (Followup note: that test could be rewritten to use a known-low-scoring route explicitly rather than `baseline[baseline.length - 1]`, but that's a refactor of a passing test and out of scope here.)
 
+### Slice 56 — Route registry: register 9 missing top-level admin pages ✅ shipped
+- [x] Re-audit of the registry vs `find app/admin -name "page.tsx"` found 9 non-dynamic top-level admin pages that exist as real, navigable surfaces but weren't in `lib/admin/route-registry.ts` — so the new IconRail / WorkspaceFlyout / Cmd+K palette / breadcrumb resolver can't find them. Added under the `office` workspace next to the existing payout-log / receipts / settings entries:
+  - `/admin/audit` — customer-org audit trail (distinct from `/admin/error-log` which is the application-tech error stream). Icon: `ShieldCheck`.
+  - `/admin/invites` — pending + historical org user invites. Icon: `UserPlus`.
+  - `/admin/payouts` — record employee payouts. Icon: `Banknote`. (Registry already had `/admin/payout-log` for the historical view; payouts is the recording form.)
+  - `/admin/announcements` — published release notes + announcements. Icon: `Megaphone`.
+  - `/admin/billing` — subscription / invoices / plan history landing. Icon: `CreditCard`.
+  - `/admin/org-settings` — per-organization config. Icon: `Building`.
+  - `/admin/orgs` — multi-tenant org switcher + overview. Icon: `Building2`.
+  - `/admin/reports` — owner reports + KPI dashboards. Icon: `FileBarChart`.
+  - `/admin/support` — support tickets. Icon: `LifeBuoy`.
+- [x] All 24 registry tests pass. `tsc` + `eslint` clean. The "page exists but isn't registered" coverage gap is now down to dynamic-segment routes (`[id]`, `[email]`) and intentionally-deep sub-pages (e.g. `/admin/billing/invoices`, `/admin/learn/exam-prep/sit/mock-exam`), which are designed to be navigated *to* from a parent route rather than from the global rail — those staying out of the registry is correct.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
