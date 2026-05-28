@@ -559,6 +559,13 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 72 — Unit tests for `effectiveChannels()` (notification dispatcher fanout) ✅ shipped
 - [x] Added `__tests__/saas/notifications-prefs.test.ts` for `lib/saas/notifications/prefs.ts:effectiveChannels` — the pure-function resolver the dispatcher runs on every notification fanout to decide which channels (email / in_app / sms) the user actually receives. The matrix has three inputs (user override, event default, event-allowed) and a strict priority order (allowed gate → explicit pref → fallback to default); a regression here either silently drops notifications or fans out to a channel the user opted out of, both user-trust eroding. 8 specs cover: event-not-supported drop, user opt-in pass, fallback-to-default, opt-out-beats-default, opt-in-beats-off-default, canonical channel ordering (email / in_app / sms), empty-allowed, and the subtle "allowed but not defaulted on and no user pref → off" case. `tsc` + `eslint` clean.
 
+### Slice 73 — Unit tests for the CAD LOD bbox primitives ✅ shipped
+- [x] Added `__tests__/cad/geometry/lod-bbox.test.ts` for the three pure helpers underpinning the viewport-culling hot path: `isEmptyBBox`, `bboxesOverlap`, `expandBBox`. A bug here either drops visible features (rendering hole) or keeps every feature (frame-rate cliff), both directly user-visible. 17 specs cover:
+  - `isEmptyBBox`: non-degenerate valid; min>max inversion on x or y; the canonical `±Infinity` "initial" bbox; NaN edges; single-point degenerate (min===max) is NOT empty.
+  - `bboxesOverlap`: classic overlap, containment, left-of / above non-overlap; edge-touching counts as overlap (conservative — keeps boundary features visible); either-side-empty short-circuits to false.
+  - `expandBBox`: symmetric grow by fraction; asymmetric for non-square bbox; zero/negative-fraction no-ops (returns the SAME ref, not a copy); empty-input pass-through.
+- [x] `tsc` + `eslint` clean. `lod.ts` previously had no test coverage; this slice adds the three primitives that the other 7 LOD helpers all rely on.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
