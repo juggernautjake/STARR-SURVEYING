@@ -314,40 +314,6 @@ export default function PayrollPage() {
 
       {/* Payroll Runs Tab */}
       {activeTab === 'payroll' && <PayrollRunPanel />}
-
-      {/* Setup Guide */}
-      <div className="payroll-setup-guide">
-        <h3>Payroll System Setup Guide</h3>
-        <div className="payroll-setup-guide__content">
-          <h4>1. Run Database Migration</h4>
-          <p>Payroll tables are created by the database migrations. To re-seed data, run <code>./seeds/run_all.sh</code>.</p>
-
-          <h4>2. Configure Employee Profiles</h4>
-          <p>Add employees with their job title, hourly rate, and hire date. Each employee&apos;s pay is automatically calculated based on time entries from the job management system.</p>
-
-          <h4>3. Set Up Pay Rates</h4>
-          <p>Standard rates are pre-loaded for each position. Role-based adjustments are also configured (e.g., a technician acting as party chief gets a $5/hr bump).</p>
-
-          <h4>4. Add Certifications</h4>
-          <p>Record employee certifications (SIT, RPLS, drone pilot, OSHA, etc.). Verified certifications with pay bumps automatically increase the employee&apos;s effective rate.</p>
-
-          <h4>5. Run Payroll</h4>
-          <p>Generate a payroll run for a date range. The system auto-calculates hours from job time entries, applies role adjustments and certification bumps, estimates tax deductions (TX has no state income tax), and generates pay stubs.</p>
-
-          <h4>6. Employee Balances</h4>
-          <p>When a payroll run is completed, net pay is credited to each employee&apos;s balance. Employees can then request transfers to their bank account at any time.</p>
-
-          <h4>API Routes</h4>
-          <ul>
-            <li><code>GET/POST/PUT /api/admin/payroll/employees</code> — Employee profiles</li>
-            <li><code>GET/POST/PUT/DELETE /api/admin/payroll/certifications</code> — Certifications</li>
-            <li><code>GET/POST/PUT/DELETE /api/admin/payroll/rates</code> — Pay rate standards & role adjustments</li>
-            <li><code>GET/POST /api/admin/payroll/raises</code> — Pay raise history</li>
-            <li><code>GET/POST/PUT /api/admin/payroll/runs</code> — Payroll runs & pay stubs</li>
-            <li><code>GET/POST/PUT /api/admin/payroll/balance</code> — Balance & withdrawals</li>
-          </ul>
-        </div>
-      </div>
     </div>
   );
 }
