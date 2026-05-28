@@ -20,20 +20,20 @@ interface ErrorReportDialogProps {
 }
 
 const ERROR_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  render: { label: 'Display Error', icon: '🖥️', color: '#EF4444' },
+  render: { label: 'Display Error', icon: '🖥️', color: 'var(--color-error)' },
   api: { label: 'Server Error', icon: '🌐', color: '#F59E0B' },
-  runtime: { label: 'Application Error', icon: '⚠️', color: '#EF4444' },
+  runtime: { label: 'Application Error', icon: '⚠️', color: 'var(--color-error)' },
   promise: { label: 'Background Error', icon: '🔄', color: '#8B5CF6' },
   network: { label: 'Network Error', icon: '📡', color: '#3B82F6' },
   validation: { label: 'Validation Error', icon: '📝', color: '#F59E0B' },
-  auth: { label: 'Authentication Error', icon: '🔒', color: '#EF4444' },
+  auth: { label: 'Authentication Error', icon: '🔒', color: 'var(--color-error)' },
   unknown: { label: 'Unexpected Error', icon: '❓', color: '#6B7280' },
 };
 
 const SEVERITY_OPTIONS: { value: ErrorReport['severity']; label: string; color: string; desc: string }[] = [
   { value: 'low', label: 'Low', color: '#3B82F6', desc: 'Minor issue, can work around it' },
   { value: 'medium', label: 'Medium', color: '#F59E0B', desc: 'Noticeable issue, slows me down' },
-  { value: 'high', label: 'High', color: '#EF4444', desc: 'Major issue, can\'t complete my task' },
+  { value: 'high', label: 'High', color: 'var(--color-error)', desc: 'Major issue, can\'t complete my task' },
   { value: 'critical', label: 'Critical', color: '#991B1B', desc: 'Everything is broken' },
 ];
 

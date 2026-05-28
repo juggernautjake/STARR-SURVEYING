@@ -1317,7 +1317,7 @@ export default function QuestionBuilderPage() {
                           let border = 'var(--border-light)';
                           if (simRevealed) {
                             if (opt === q.correct_answer) { bg = 'var(--color-success-bg)'; border = '1.5px solid #10B981'; }
-                            else if (opt === answered && !isCorrect) { bg = 'var(--color-error-bg)'; border = '1.5px solid #EF4444'; }
+                            else if (opt === answered && !isCorrect) { bg = 'var(--color-error-bg)'; border = '1.5px solid var(--color-error)'; }
                           } else if (opt === answered) {
                             bg = 'var(--color-info-bg)'; border = '1.5px solid var(--color-brand-navy)';
                           }

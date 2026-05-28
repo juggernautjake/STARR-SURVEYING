@@ -327,7 +327,7 @@ export default function AdminRewardsPage() {
               </div>
               <div className="mng__row-actions">
                 <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => handlePurchaseAction(p.id, 'fulfilled')} disabled={saving === p.id}>Fulfill</button>
-                <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: '#EF4444' }} onClick={() => handlePurchaseAction(p.id, 'cancelled')} disabled={saving === p.id}>Cancel &amp; Refund</button>
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: 'var(--color-error)' }} onClick={() => handlePurchaseAction(p.id, 'cancelled')} disabled={saving === p.id}>Cancel &amp; Refund</button>
               </div>
             </div>
           ))}
@@ -418,7 +418,7 @@ export default function AdminRewardsPage() {
                       Save
                     </button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingId(null); setEditImageUrl(''); }}>Cancel</button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: '#EF4444' }} onClick={() => deleteEntity('store_item', item.id)}>Delete</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: 'var(--color-error)' }} onClick={() => deleteEntity('store_item', item.id)}>Delete</button>
                   </div>
                 </>
               ) : (
@@ -485,7 +485,7 @@ export default function AdminRewardsPage() {
                     <button className="admin-btn admin-btn--primary admin-btn--sm" disabled={saving === m.id}
                       onClick={() => saveEntity('milestone', m.id, { label: m.label, description: m.description, xp_threshold: m.xp_threshold, bonus_per_hour: m.bonus_per_hour })}>Save</button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: '#EF4444' }} onClick={() => deleteEntity('milestone', m.id)}>Delete</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: 'var(--color-error)' }} onClick={() => deleteEntity('milestone', m.id)}>Delete</button>
                   </div>
                 </>
               ) : (
@@ -733,7 +733,7 @@ export default function AdminRewardsPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Total Spent</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#EF4444' }}>{manageXpData.total_spent.toLocaleString()}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-error)' }}>{manageXpData.total_spent.toLocaleString()}</div>
                 </div>
               </div>
             </div>
