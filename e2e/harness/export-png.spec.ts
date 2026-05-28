@@ -1,6 +1,6 @@
 // e2e/harness/export-png.spec.ts
 // Verifies the Print/Export dialog produces a real PNG download (Slice 1 of
-// docs/planning/in-progress/backend-audit-and-improvements-2026-05-27.md).
+// docs/planning/completed/backend-audit-and-improvements-2026-05-27.md).
 
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';

@@ -1,6 +1,8 @@
 # Backend Audit & Continuous Improvements — 2026-05-27
 
-> **Status:** live working doc. Each `### Slice` is a shippable unit: build → typecheck + lint → (harness/Playwright + screenshot verify where possible) → commit + push → annotate with a completion note. When every item in the doc is shipped or explicitly deferred, move it to `docs/planning/completed/` per `docs/planning/README.md`. This doc is intentionally open-ended: new improvement slices get appended as the audit continues.
+> **Status: COMPLETED.** All 21 slices below are shipped (or explicitly deferred with a one-line rationale), so this doc has been moved from `in-progress/` to `completed/` per `docs/planning/README.md`. Highlights: every "Under Construction"/placeholder across `app/admin/**` resolved; the five stub pages (Notes, Leads, Schedule, Settings, My Files) fully built (table/bucket + API + wired UI); the CAD Print/Export feature made real (PNG, PDF, compact size, paper sizing, plot style, element toggles) with passing Playwright specs; the employee hours/receipts/job-attachment workflows audited + the receipt↔job link completed; Properties-panel style edits render live; and a reusable harness seed/select test hook added. Deferred items are struck through with reasons inline.
+>
+> **(Historical) Status:** live working doc. Each `### Slice` is a shippable unit: build → typecheck + lint → (harness/Playwright + screenshot verify where possible) → commit + push → annotate with a completion note. This doc was intentionally open-ended: new improvement slices were appended as the audit continued.
 >
 > **Scope:** a sweep of every page under `app/admin/**` (the "backend") plus their API routes and shared components, hunting for placeholders ("coming soon" / "not implemented"), broken or stubbed UX, and concrete polish/build/fix opportunities.
 >
