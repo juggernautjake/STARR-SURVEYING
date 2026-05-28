@@ -35,6 +35,7 @@ export default function AdminDashboardPage() {
   const [activeJobsCount, setActiveJobsCount] = useState<number | null>(null);
   const [hoursThisWeek, setHoursThisWeek] = useState<number | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<number | null>(null);
+  const [ptoBalance, setPtoBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const roles = session?.user?.roles || ['employee'];
@@ -138,6 +139,19 @@ export default function AdminDashboardPage() {
           }
         } catch (err) {
           reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'upcoming events' });
+        }
+
+        // PTO balance for the My Finances card (closes the Slice 4 deferred
+        // PTO tile — seeds/298 provides the accrual + balance schema).
+        try {
+          const ptoRes = await fetch('/api/admin/pto');
+          if (ptoRes.ok) {
+            const pd = await ptoRes.json() as { balance: { balance_hours: number } | null };
+            const hours = Number(pd?.balance?.balance_hours ?? 0);
+            setPtoBalance(Math.round(hours * 10) / 10);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'pto balance' });
         }
       }
 
@@ -336,6 +350,10 @@ export default function AdminDashboardPage() {
               <div className="dashboard-card__metric">
                 <span className="dashboard-card__metric-value">{hoursThisWeek === null ? '--' : hoursThisWeek}</span>
                 <span className="dashboard-card__metric-label">Hours This Week</span>
+              </div>
+              <div className="dashboard-card__metric">
+                <span className="dashboard-card__metric-value">{ptoBalance === null ? '--' : ptoBalance}</span>
+                <span className="dashboard-card__metric-label">PTO Balance (hrs)</span>
               </div>
             </div>
             <p className="dashboard-card__empty-note">

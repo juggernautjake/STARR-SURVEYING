@@ -106,5 +106,43 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+
+  // PTO deduction — approved requests draw down the employee's balance
+  // (Slice 30). Only credit a transaction once per event; if the employee's
+  // balance row doesn't exist yet we auto-create it.
+  if (body.status === 'approved') {
+    const startMs = new Date(data.start_time as string).getTime();
+    const endMs = new Date(data.end_time as string).getTime();
+    const hoursDelta = -Math.max(0, (endMs - startMs) / 3_600_000);
+    if (hoursDelta < 0) {
+      const { data: alreadyLogged } = await supabaseAdmin
+        .from('pto_transactions')
+        .select('id')
+        .eq('schedule_event_id', data.id as string)
+        .maybeSingle();
+      if (!alreadyLogged) {
+        const employee = data.assigned_to as string;
+        await supabaseAdmin.from('pto_balances')
+          .upsert({ user_email: employee }, { onConflict: 'user_email', ignoreDuplicates: true });
+        const { data: bal } = await supabaseAdmin
+          .from('pto_balances')
+          .select('balance_hours')
+          .eq('user_email', employee)
+          .maybeSingle();
+        const next = Number(bal?.balance_hours ?? 0) + hoursDelta;
+        await supabaseAdmin.from('pto_balances')
+          .update({ balance_hours: next, updated_at: new Date().toISOString() })
+          .eq('user_email', employee);
+        await supabaseAdmin.from('pto_transactions').insert({
+          user_email: employee,
+          delta_hours: hoursDelta,
+          kind: 'time_off',
+          reason: `Approved time off: ${data.title ?? ''}`,
+          schedule_event_id: data.id as string,
+          created_by: session.user.email,
+        });
+      }
+    }
+  }
   return NextResponse.json({ request: data });
 }, { routeName: 'admin/time-off' });
