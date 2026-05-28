@@ -729,7 +729,7 @@ export default function AdminRewardsPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Total Earned</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1D3095' }}>{manageXpData.total_earned.toLocaleString()}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{manageXpData.total_earned.toLocaleString()}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Total Spent</div>

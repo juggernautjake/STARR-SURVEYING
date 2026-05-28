@@ -31,7 +31,7 @@ const STATUS_LABELS: Record<TicketRow['status'], string> = {
 };
 
 const STATUS_COLORS: Record<TicketRow['status'], string> = {
-  open: '#1D3095',
+  open: 'var(--color-brand-navy)',
   awaiting_reply: '#D97706',
   awaiting_customer: '#7C3AED',
   resolved: '#059669',
@@ -141,7 +141,7 @@ export default function SupportPage() {
           font-size: 0.92rem;
         }
         .support-btn {
-          background: #1D3095;
+          background: var(--color-brand-navy);
           color: #FFF;
           padding: 0.6rem 1.1rem;
           border-radius: 8px;

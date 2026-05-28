@@ -201,7 +201,7 @@ Captured:   {context.ts}
           text-decoration: none;
           font-size: 0.85rem;
         }
-        .newticket-back:hover { color: #1D3095; }
+        .newticket-back:hover { color: var(--color-brand-navy); }
         .newticket-field {
           display: block;
           margin-bottom: 1.25rem;
@@ -233,7 +233,7 @@ Captured:   {context.ts}
         .newticket-field textarea:focus,
         .newticket-field select:focus {
           outline: none;
-          border-color: #1D3095;
+          border-color: var(--color-brand-navy);
           box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
         }
         .newticket-field textarea { resize: vertical; }
@@ -302,14 +302,14 @@ Captured:   {context.ts}
           cursor: pointer;
           font-family: inherit;
         }
-        .newticket-btn--primary { background: #1D3095; color: #FFF; }
+        .newticket-btn--primary { background: var(--color-brand-navy); color: #FFF; }
         .newticket-btn--primary:disabled { background: #9CA3AF; cursor: not-allowed; }
         .newticket-btn--secondary {
           background: #FFF;
           color: #1F2937;
           border: 1px solid #D1D5DB;
         }
-        .newticket-btn--secondary:hover { border-color: #1D3095; color: #1D3095; }
+        .newticket-btn--secondary:hover { border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
       `}</style>
     </div>
   );

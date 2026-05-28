@@ -114,7 +114,7 @@ export default function HowItWorksPage() {
             <p>Automatic bonuses as you stay with the company. 6 months = +$0.50/hr, 1 year = +$0.50/hr more, growing up to +$12/hr at 20+ years.</p>
           </div>
           <div className="hiw__pay-path">
-            <div className="hiw__pay-path-icon" style={{ background: '#1D3095' }}>2</div>
+            <div className="hiw__pay-path-icon" style={{ background: 'var(--color-brand-navy)' }}>2</div>
             <h4>Credentials</h4>
             <p>Each certification adds to your pay. SIT = +$2/hr, RPLS = +$3/hr, OSHA = +$0.25-0.75/hr, and more. These all stack!</p>
           </div>
