@@ -102,7 +102,7 @@ function confidenceColor(score: number): string {
   if (score >= 80) return '#059669';
   if (score >= 60) return '#2563EB';
   if (score >= 40) return '#F59E0B';
-  return '#EF4444';
+  return 'var(--color-error)';
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
           <h2 className="research-briefing__title">Survey Briefing</h2>
           {onClose && <button className="research-briefing__close" onClick={onClose} aria-label="Close">×</button>}
         </div>
-        <div style={{ padding: '1rem', color: '#EF4444', fontSize: '0.9rem' }}>
+        <div style={{ padding: '1rem', color: 'var(--color-error)', fontSize: '0.9rem' }}>
           {error}
           <button onClick={loadBriefing} style={{ marginLeft: '1rem', color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
             Retry
@@ -345,7 +345,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                           <span style={{ color: confidenceColor(mon.confidence), fontSize: '0.75rem' }}>
                             {Math.round(mon.confidence)}% confidence
                           </span>
-                          {mon.has_discrepancy && <span style={{ color: '#EF4444' }}>⚠ discrepancy</span>}
+                          {mon.has_discrepancy && <span style={{ color: 'var(--color-error)' }}>⚠ discrepancy</span>}
                         </div>
                       </div>
                     </div>
@@ -438,7 +438,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                 <div className="research-briefing__disc-summary">
                   <span><strong>{sections.discrepancies.open}</strong> open</span>
                   {sections.discrepancies.critical > 0 && (
-                    <span style={{ color: '#EF4444' }}><strong>{sections.discrepancies.critical}</strong> critical</span>
+                    <span style={{ color: 'var(--color-error)' }}><strong>{sections.discrepancies.critical}</strong> critical</span>
                   )}
                   <span style={{ color: '#9CA3AF' }}>{sections.discrepancies.total} total</span>
                 </div>

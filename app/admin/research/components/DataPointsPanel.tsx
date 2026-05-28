@@ -47,7 +47,7 @@ function confidenceColor(score: number | null | undefined): string {
   if (score == null) return '#9CA3AF';
   if (score >= 85) return '#059669';
   if (score >= 60) return '#F59E0B';
-  return '#EF4444';
+  return 'var(--color-error)';
 }
 
 function confidenceLabel(score: number | null | undefined): string {

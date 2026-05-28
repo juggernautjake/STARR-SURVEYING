@@ -32,7 +32,7 @@ const PROCESSING_STATUS_LABELS: Record<string, { label: string; color: string }>
   extracted:  { label: 'Extracted', color: '#3B82F6' },
   analyzing:  { label: 'Analyzing...', color: '#F59E0B' },
   analyzed:   { label: 'Analyzed', color: '#059669' },
-  error:      { label: 'Error', color: '#EF4444' },
+  error:      { label: 'Error', color: 'var(--color-error)' },
 };
 
 function formatFileSize(bytes: number | null): string {

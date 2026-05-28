@@ -110,7 +110,7 @@ export default function ExportPanel({
             <span className="research-export__summary-value" style={{
               color: comparison.overall_confidence >= 75 ? '#059669'
                 : comparison.overall_confidence >= 55 ? '#F59E0B'
-                : '#EF4444',
+                : 'var(--color-error)',
               fontWeight: 700,
             }}>
               {comparison.overall_confidence}%
