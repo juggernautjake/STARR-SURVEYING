@@ -74,6 +74,7 @@ const PAGES: Record<string, ComponentType> = {
   users: nextDynamic(() => import('@/app/admin/users/page'), { ssr: false }),
   discussions: nextDynamic(() => import('@/app/admin/discussions/page'), { ssr: false }),
   'hours-approval': nextDynamic(() => import('@/app/admin/hours-approval/page'), { ssr: false }),
+  'time-off': nextDynamic(() => import('@/app/admin/time-off/page'), { ssr: false }),
   announcements: nextDynamic(() => import('@/app/admin/announcements/page'), { ssr: false }),
   audit: nextDynamic(() => import('@/app/admin/audit/page'), { ssr: false }),
   'error-log': nextDynamic(() => import('@/app/admin/error-log/page'), { ssr: false }),
