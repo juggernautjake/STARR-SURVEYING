@@ -256,9 +256,21 @@
   display: flex;
   gap: 0.35rem;
 }
+/* Slice 86 — search input + search button + view toggle share a 36 px
+ * box-sizing:border-box height so the /admin/jobs top controls row sits
+ * on a clean baseline. Before this, the search input rendered 2 px taller
+ * than its submit button (1 px border each side without an explicit
+ * height) and the view-toggle was a 3rd height again. Continues the
+ * filter-row sweep started in Slices 83-85. */
+.jobs-page__search,
+.jobs-page__search-btn,
+.jobs-page__view-toggle {
+  box-sizing: border-box;
+  height: 36px;
+}
 .jobs-page__search {
   flex: 1;
-  padding: 0.5rem 0.75rem;
+  padding: 0 0.75rem;
   border: var(--border-light);
   border-radius: 8px;
   font-size: 0.85rem;
@@ -272,7 +284,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.85rem;
+  padding: 0 0.85rem;
   background: var(--color-brand-navy);
   color: #fff;
   border: none;
@@ -297,9 +309,11 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0.4rem 0.6rem;
+  /* Inner buttons span the toggle's 36 px height; padding only on x-axis. */
+  padding: 0 0.6rem;
   font-size: 1rem;
   color: var(--color-text-muted);
+  height: 100%;
 }
 .jobs-page__view-btn--active {
   background: #EBF0FF;

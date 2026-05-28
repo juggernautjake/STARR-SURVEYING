@@ -292,7 +292,11 @@
 .qb__study-ref-remove { background:none; border:none; color:var(--color-error); cursor:pointer; font-size:1rem; line-height:1; padding:0 .15rem; }
 .qb__study-ref-remove:hover { color:#DC2626; }
 .qb__study-refs-add { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
-.qb__select--sm { font-size:.8rem; padding:.3rem .5rem; max-width:280px; }
+/* Slice 88 — qb__input--sm and qb__select--sm both appear on the
+ * question-builder filter row; before this, they rendered ~2 px apart
+ * because of differing font-size + padding. Both now share a 32 px
+ * box-sizing:border-box height so they line up cleanly. */
+.qb__select--sm { box-sizing:border-box; height:32px; font-size:.8rem; padding:0 1.6rem 0 .5rem; max-width:280px; appearance:auto; }
 /* Tags */
 .qb__tags-section { margin-top:.75rem; }
 .qb__tags-list { display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.5rem; }
@@ -300,7 +304,7 @@
 .qb__tag-item button { background:none; border:none; color:var(--color-text-tertiary); cursor:pointer; font-size:.85rem; line-height:1; padding:0; }
 .qb__tag-item button:hover { color:var(--color-error); }
 .qb__tag-add { display:flex; gap:.5rem; }
-.qb__input--sm { font-size:.82rem; padding:.35rem .6rem; max-width:200px; }
+.qb__input--sm { box-sizing:border-box; height:32px; font-size:.82rem; padding:0 .6rem; max-width:200px; }
 
 /* === QUESTION BUILDER: Tabs === */
 .qb__tabs { display:flex; gap:0; border-bottom:2px solid #E5E7EB; margin-bottom:1.5rem; }
@@ -553,7 +557,7 @@
 
 /* === FIELDBOOK BUTTON (floating) === */
 .fieldbook-btn { position:fixed; bottom:1.5rem; right:1.5rem; z-index:100; padding:.65rem 1.1rem; background:var(--color-brand-navy); color:#FFF; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(29,48,149,.3); transition:all .15s; display:flex; align-items:center; gap:.4rem; }
-.fieldbook-btn:hover { background:#162473; transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
+.fieldbook-btn:hover { background:var(--color-brand-navy-d); transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
 
 /* === FIELDBOOK PANEL (overlay from FieldbookButton) === */
 .fieldbook-panel { position:fixed; bottom:5rem; right:1.5rem; z-index:101; width:380px; max-width:calc(100vw - 2rem); background:#FFF; border: var(--border-light); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.15); animation:slideUp .2s ease; }
@@ -572,9 +576,24 @@
 /* === FIELDBOOK FULL PAGE === */
 .fbfull__actions-bar { display:flex; gap:.75rem; margin-bottom:1.25rem; flex-wrap:wrap; }
 .fbfull__filters { display:flex; gap:.5rem; margin-bottom:.75rem; flex-wrap:wrap; align-items:center; }
-.fbfull__search { flex:1; min-width:200px; padding:.55rem .75rem; border:2px solid #E5E7EB; border-radius:8px; font-family:'Inter',sans-serif; font-size:.88rem; color:var(--color-text-primary); }
-.fbfull__search:focus { outline:none; border-color:var(--color-brand-navy); }
-.fbfull__date { padding:.55rem .6rem; border:2px solid #E5E7EB; border-radius:8px; font-family:'Inter',sans-serif; font-size:.82rem; color:#374151; }
+/* Slice 85 — search input + date input share an explicit 40 px height
+ * (= --input-height token), matching font-size, padding-y, border, and
+ * border-radius so they line up on the filter row. Same alignment pattern
+ * Slices 83 + 84 fixed elsewhere. Before this, the date input rendered
+ * shorter because its font-size was .82rem vs the search's .88rem. */
+.fbfull__search,
+.fbfull__date {
+  box-sizing:border-box;
+  height:40px;
+  font-family:'Inter',sans-serif;
+  font-size:.85rem;
+  border:2px solid #E5E7EB;
+  border-radius:8px;
+  color:var(--color-text-primary);
+}
+.fbfull__search { flex:1; min-width:200px; padding:0 .75rem; }
+.fbfull__date { padding:0 .6rem; color:#374151; }
+.fbfull__search:focus,
 .fbfull__date:focus { outline:none; border-color:var(--color-brand-navy); }
 
 /* Category filter chips */
@@ -665,7 +684,7 @@
 /* === ADMIN BUTTONS === */
 .admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; padding:.5rem 1rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; border:1px solid transparent; text-decoration:none; }
 .admin-btn--primary { background:var(--color-brand-navy); color:#FFF; border-color:var(--color-brand-navy); }
-.admin-btn--primary:hover { background:#162473; }
+.admin-btn--primary:hover { background:var(--color-brand-navy-d); }
 .admin-btn--primary:disabled { opacity:.5; cursor:not-allowed; }
 .admin-btn--secondary { background:#FFF; color:var(--color-brand-navy); border-color:var(--color-brand-navy); }
 .admin-btn--secondary:hover { background:var(--color-info-bg); }
@@ -695,7 +714,7 @@
 
 /* === FIELDBOOK INLINE BUTTON + OVERLAY (from FieldbookButton component) === */
 .fieldbook-inline-btn { position:fixed; bottom:1.5rem; right:1.5rem; z-index:100; padding:.6rem 1rem; background:var(--color-brand-navy); color:#FFF; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(29,48,149,.3); transition:all .15s; display:flex; align-items:center; gap:.35rem; }
-.fieldbook-inline-btn:hover { background:#162473; transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
+.fieldbook-inline-btn:hover { background:var(--color-brand-navy-d); transform:translateY(-1px); box-shadow:0 6px 20px rgba(29,48,149,.4); }
 .fieldbook-overlay { position:fixed; inset:0; background:rgba(0,0,0,.25); z-index:200; display:flex; align-items:flex-end; justify-content:flex-end; padding:1.5rem; }
 .fieldbook-panel { z-index:201; }
 .fieldbook-panel__context { padding:.5rem 1.15rem; font-family:'Inter',sans-serif; font-size:.72rem; color:var(--color-text-muted); display:flex; flex-wrap:wrap; gap:.65rem; }

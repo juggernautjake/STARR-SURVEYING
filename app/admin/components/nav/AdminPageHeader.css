@@ -30,7 +30,7 @@
 }
 
 .admin-page-header__crumb:hover {
-  color: var(--brand-blue);
+  color: var(--color-brand-navy);
 }
 
 .admin-page-header__crumb--active {

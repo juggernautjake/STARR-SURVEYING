@@ -133,7 +133,7 @@
 
 /* ── Button variants ── */
 .fw__btn--primary { background: #1D3095; color: #fff; border-color: #1D3095; }
-.fw__btn--primary:hover { background: #162575; border-color: #162575; }
+.fw__btn--primary:hover { background: var(--color-brand-navy-d); border-color: var(--color-brand-navy-d); }
 .fw__btn--active { background: #EFF6FF; border-color: #1D3095; color: #1D3095; }
 
 /* ── Label toggle active state ── */

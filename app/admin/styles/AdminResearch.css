@@ -1419,7 +1419,7 @@
   transition: background 0.15s, transform 0.1s;
   white-space: nowrap;
 }
-.research-analyzing__copy-btn:hover { background: #152050; }
+.research-analyzing__copy-btn:hover { background: var(--color-brand-navy-d); }
 .research-analyzing__copy-btn:active { transform: scale(0.97); }
 .research-analyzing__copy-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 

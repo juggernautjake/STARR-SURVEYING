@@ -269,7 +269,7 @@
 }
 
 .err-dialog__btn--primary:hover {
-  background: #162575;
+  background: var(--color-brand-navy-d);
 }
 
 .err-dialog__btn--primary:disabled {
@@ -385,7 +385,7 @@
 }
 
 .err-boundary__btn--primary:hover {
-  background: #162575;
+  background: var(--color-brand-navy-d);
 }
 
 .err-boundary__btn--primary:disabled {
@@ -552,14 +552,31 @@
   white-space: nowrap;
 }
 
-.err-log__filter-select {
-  padding: 0.35rem 0.6rem;
+/* Slice 84 — selects + search input share an explicit 32 px height,
+ * matching font-size, border, and border-radius so they line up on the
+ * filter row. Same alignment pattern Slice 83 fixed on /admin/assignments,
+ * here applied to /admin/error-log (3 selects + 1 search input).
+ *
+ * 32 px (= --button-height-sm) was chosen over Slice 83's 28 px because the
+ * search input carries an inline icon + longer text and reads cramped at
+ * 28 px; the assignments row is a pure pill cluster so 28 px reads natural
+ * there. */
+.err-log__filter-select,
+.err-log__search {
+  box-sizing: border-box;
+  height: 32px;
+  font-size: 0.8rem;
   border: 1px solid #D1D5DB;
   border-radius: 6px;
-  font-size: 0.8rem;
-  outline: none;
   background: #fff;
   color: #374151;
+  outline: none;
+}
+
+.err-log__filter-select {
+  /* Native arrow lives inside the right edge; leave room for it. */
+  padding: 0 1.6rem 0 0.6rem;
+  appearance: auto;
   cursor: pointer;
 }
 
@@ -570,11 +587,8 @@
 .err-log__search {
   flex: 1;
   min-width: 180px;
-  padding: 0.4rem 0.65rem 0.4rem 2rem;
-  border: 1px solid #D1D5DB;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  outline: none;
+  /* Left padding reserves room for the inline search-icon background. */
+  padding: 0 0.65rem 0 2rem;
   background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat .5rem center;
   background-size: 14px 14px;
 }

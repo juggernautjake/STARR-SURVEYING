@@ -1,4 +1,4 @@
-.admin-login { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#152050 0%,#1D3095 50%,#BD1218 100%); padding:2rem; }
+.admin-login { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--color-brand-navy-d) 0%,var(--color-brand-navy) 50%,var(--color-brand-red) 100%); padding:2rem; }
 .admin-login__card { background:#FFF; border-radius:16px; padding:2.5rem; max-width:420px; width:100%; box-shadow:0 16px 48px rgba(0,0,0,.25); text-align:center; }
 .admin-login__logo { width:80px; height:80px; margin:0 auto 1.25rem; object-fit:contain; }
 .admin-login__title { font-family:'Sora',sans-serif; font-size:1.5rem; font-weight:700; color:#0F1419; margin-bottom:.35rem; }
@@ -20,7 +20,7 @@
 .admin-login__input:focus { border-color:#1D3095; }
 .admin-login__input::placeholder { color:#9CA3AF; }
 .admin-login__submit { width:100%; padding:.85rem 1.5rem; font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600; color:#FFF; background:#1D3095; border:none; border-radius:8px; cursor:pointer; transition:all .2s; }
-.admin-login__submit:hover { background:#152050; }
+.admin-login__submit:hover { background:var(--color-brand-navy-d); }
 .admin-login__submit:disabled { background:#9CA3AF; cursor:not-allowed; }
 .admin-login__register-prompt { font-family:'Inter',sans-serif; font-size:.85rem; color:#6B7280; margin-top:1.25rem; }
 .admin-login__register-link { color:#1D3095; font-weight:600; text-decoration:none; }
@@ -29,7 +29,7 @@
 .admin-login__back:hover { color:#1D3095; }
 
 /* ===== Register Page ===== */
-.register-page { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#152050 0%,#1D3095 50%,#BD1218 100%); padding:2rem; }
+.register-page { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--color-brand-navy-d) 0%,var(--color-brand-navy) 50%,var(--color-brand-red) 100%); padding:2rem; }
 .register-card { background:#FFF; border-radius:16px; padding:2.5rem; max-width:440px; width:100%; box-shadow:0 16px 48px rgba(0,0,0,.25); text-align:center; }
 .register-card__logo { width:70px; height:70px; margin:0 auto 1rem; object-fit:contain; }
 .register-card__title { font-family:'Sora',sans-serif; font-size:1.35rem; font-weight:700; color:#0F1419; margin-bottom:.35rem; }
@@ -42,7 +42,7 @@
 .register-card__input:focus { border-color:#1D3095; }
 .register-card__input::placeholder { color:#9CA3AF; }
 .register-card__submit { width:100%; margin-top:.5rem; padding:.85rem 1.5rem; font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600; color:#FFF; background:#1D3095; border:none; border-radius:8px; cursor:pointer; transition:all .2s; }
-.register-card__submit:hover { background:#152050; }
+.register-card__submit:hover { background:var(--color-brand-navy-d); }
 .register-card__submit:disabled { background:#9CA3AF; cursor:not-allowed; }
 .register-card__divider { margin:1.25rem 0 .75rem; display:flex; align-items:center; gap:.75rem; }
 .register-card__divider::before,.register-card__divider::after { content:''; flex:1; height:1px; background:#E5E7EB; }

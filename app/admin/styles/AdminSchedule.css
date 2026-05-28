@@ -6,21 +6,34 @@
 .sched__controls { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
 .sched__controls-left { display:flex; align-items:center; gap:.5rem; }
 .sched__controls-right { display:flex; align-items:center; gap:.5rem; }
-.sched__nav-btn { width:36px; height:36px; display:flex; align-items:center; justify-content:center; border: var(--border-light); border-radius:6px; background:#fff; color:#374151; font-size:1rem; cursor:pointer; transition:all .15s; }
+/* Slice 90 — every control in the schedule toolbar (.sched__controls)
+ * shares an explicit 36 px box-sizing:border-box height so the row sits
+ * on a clean baseline. Before this, the nav arrows were 36 px (fixed)
+ * while .sched__today-btn (~27.5 px), .sched__view-toggle (~27.5 px),
+ * and .sched__add-btn (~25.5 px) all rendered shorter — a ~10 px gap
+ * between the nav buttons and the rest. */
+.sched__nav-btn,
+.sched__today-btn,
+.sched__view-toggle,
+.sched__add-btn {
+  box-sizing:border-box;
+  height:36px;
+}
+.sched__nav-btn { width:36px; display:flex; align-items:center; justify-content:center; border: var(--border-light); border-radius:6px; background:#fff; color:#374151; font-size:1rem; cursor:pointer; transition:all .15s; }
 .sched__nav-btn:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); background:#F5F7FF; }
-.sched__today-btn { padding:.4rem .85rem; font-size:.82rem; font-weight:600; border: var(--border-light); border-radius:6px; background:#fff; color:#374151; cursor:pointer; transition:all .15s; }
+.sched__today-btn { padding:0 .85rem; font-size:.82rem; font-weight:600; border: var(--border-light); border-radius:6px; background:#fff; color:#374151; cursor:pointer; transition:all .15s; }
 .sched__today-btn:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); background:#F5F7FF; }
 .sched__month-label { margin:0; font-family:'Sora',sans-serif; font-size:1.1rem; font-weight:600; color:#1F2937; }
 
 /* ── View toggle ── */
 .sched__view-toggle { display:flex; border: var(--border-light); border-radius:6px; overflow:hidden; }
-.sched__view-btn { padding:.4rem .85rem; font-size:.82rem; font-weight:500; background:#fff; border:none; color:var(--color-text-tertiary); cursor:pointer; transition:all .15s; border-right:1px solid #E5E7EB; }
+.sched__view-btn { padding:0 .85rem; font-size:.82rem; font-weight:500; background:#fff; border:none; color:var(--color-text-tertiary); cursor:pointer; transition:all .15s; border-right:1px solid #E5E7EB; height:100%; display:inline-flex; align-items:center; }
 .sched__view-btn:last-child { border-right:none; }
 .sched__view-btn:hover { background:var(--color-bg-app); color:var(--color-brand-navy); }
 .sched__view-btn--active { background:var(--color-brand-navy); color:#fff; font-weight:600; }
-.sched__view-btn--active:hover { background:#162575; color:#fff; }
-.sched__add-btn { padding:.4rem .85rem; font-size:.82rem; font-weight:600; background:var(--color-brand-navy); color:#fff; border:none; border-radius:6px; cursor:pointer; transition:background .15s; }
-.sched__add-btn:hover { background:#162575; }
+.sched__view-btn--active:hover { background:var(--color-brand-navy-d); color:#fff; }
+.sched__add-btn { padding:0 .85rem; font-size:.82rem; font-weight:600; background:var(--color-brand-navy); color:#fff; border:none; border-radius:6px; cursor:pointer; transition:background .15s; display:inline-flex; align-items:center; }
+.sched__add-btn:hover { background:var(--color-brand-navy-d); }
 
 /* ── Legend ── */
 .sched__legend { display:flex; flex-wrap:wrap; gap:.75rem; padding:.65rem 1rem; background:#fff; border: var(--border-light); border-radius:8px; margin-bottom:1rem; }
@@ -47,7 +60,7 @@
 /* ── Buttons ── */
 .sched__btn { padding:.45rem 1rem; font-size:.85rem; font-weight:600; border:none; border-radius:6px; cursor:pointer; transition:all .15s; font-family:inherit; }
 .sched__btn--primary { background:var(--color-brand-navy); color:#fff; }
-.sched__btn--primary:hover { background:#162575; }
+.sched__btn--primary:hover { background:var(--color-brand-navy-d); }
 .sched__btn--primary:disabled { opacity:.5; cursor:not-allowed; }
 .sched__btn--secondary { background:var(--color-bg-subtle); color:#374151; border: var(--border-light); }
 .sched__btn--secondary:hover { background:#E5E7EB; }

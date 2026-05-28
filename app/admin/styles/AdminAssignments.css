@@ -8,7 +8,7 @@
 .assign__title { margin:0; font-size:1.1rem; font-weight:700; color:#1F2937; }
 .assign__count { font-size:.75rem; color:#9CA3AF; background:#F3F4F6; padding:.15rem .5rem; border-radius:10px; }
 .assign__create-btn { padding:.5rem 1.1rem; font-size:.85rem; font-weight:600; background:#1D3095; color:#fff; border:none; border-radius:6px; cursor:pointer; transition:background .15s; }
-.assign__create-btn:hover { background:#162575; }
+.assign__create-btn:hover { background:var(--color-brand-navy-d); }
 
 /* Create form */
 .assign__form { background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:1.5rem; margin-bottom:1.25rem; }
@@ -29,7 +29,7 @@
 /* Buttons */
 .assign__btn { padding:.5rem 1rem; font-size:.82rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; border:1px solid transparent; }
 .assign__btn--primary { background:#1D3095; color:#fff; border-color:#1D3095; }
-.assign__btn--primary:hover { background:#162575; }
+.assign__btn--primary:hover { background:var(--color-brand-navy-d); }
 .assign__btn--primary:disabled { background:#9CA3AF; border-color:#9CA3AF; cursor:not-allowed; }
 .assign__btn--secondary { background:#fff; color:#374151; border-color:#D1D5DB; }
 .assign__btn--secondary:hover { background:#F3F4F6; }
