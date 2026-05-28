@@ -438,6 +438,14 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - `/admin/support` — support tickets. Icon: `LifeBuoy`.
 - [x] All 24 registry tests pass. `tsc` + `eslint` clean. The "page exists but isn't registered" coverage gap is now down to dynamic-segment routes (`[id]`, `[email]`) and intentionally-deep sub-pages (e.g. `/admin/billing/invoices`, `/admin/learn/exam-prep/sit/mock-exam`), which are designed to be navigated *to* from a parent route rather than from the global rail — those staying out of the registry is correct.
 
+### Slice 57 — Admin layout page-titles: 20 missing entries → no more "Admin" fallback ✅ shipped
+- [x] `app/admin/components/AdminLayoutClient.tsx`'s `PAGE_TITLES` map controls the document title (and the topbar breadcrumb) for every admin route; anything missing falls through to the generic `"Admin"` string. Several real, navigable pages were falling through, so the browser tab showed "Admin" on jobs-financial deep-links, equipment sub-pages, vehicles, etc.
+- [x] Added 20 entries to close the obvious gaps:
+  - From Slice 56 (newly-registered office routes): `/admin/invites`, `/admin/payouts`, `/admin/reports`, `/admin/org-settings`, `/admin/orgs`
+  - Equipment sub-pages: `/admin/equipment`, `inventory`, `consumables`, `maintenance`, `timeline`, `fleet-valuation`, `overrides`, `templates`, `today`, `import`
+  - Other landings that fell through: `/admin/field-data`, `/admin/finances`, `/admin/mileage`, `/admin/team`, `/admin/timeline`, `/admin/vehicles`
+- [x] `tsc` + `eslint` clean. Dynamic-segment routes (`/admin/jobs/[id]`, `/admin/payroll/[email]`, etc.) still use the path-prefix fallbacks (`/admin/jobs/` → `"Job Detail"`, etc.) that were already in the `getTitle()` helper.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:

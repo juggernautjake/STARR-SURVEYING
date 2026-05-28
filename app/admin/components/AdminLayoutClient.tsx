@@ -97,6 +97,29 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/fieldbook': 'My Fieldbook',
   '/admin/research': 'Property Research',
   '/admin/research/new': 'New Research Project',
+  // Office workspace pages added to route-registry in Slice 56
+  '/admin/invites': 'Invites',
+  '/admin/payouts': 'Payouts',
+  '/admin/reports': 'Reports',
+  '/admin/org-settings': 'Org Settings',
+  '/admin/orgs': 'Organizations',
+  // Work + equipment + finances landings — also previously falling back to "Admin"
+  '/admin/equipment': 'Equipment',
+  '/admin/equipment/inventory': 'Inventory',
+  '/admin/equipment/consumables': 'Consumables',
+  '/admin/equipment/maintenance': 'Maintenance',
+  '/admin/equipment/timeline': 'Equipment Timeline',
+  '/admin/equipment/fleet-valuation': 'Fleet Valuation',
+  '/admin/equipment/overrides': 'Equipment Overrides',
+  '/admin/equipment/templates': 'Equipment Templates',
+  '/admin/equipment/today': "Today's Equipment",
+  '/admin/equipment/import': 'Import Equipment',
+  '/admin/field-data': 'Field Data',
+  '/admin/finances': 'Finances',
+  '/admin/mileage': 'Mileage',
+  '/admin/team': 'Field Team',
+  '/admin/timeline': 'Activity Timeline',
+  '/admin/vehicles': 'Vehicles',
 };
 
 function getTitle(p: string): string {
