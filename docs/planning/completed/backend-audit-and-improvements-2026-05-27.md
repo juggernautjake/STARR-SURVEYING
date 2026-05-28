@@ -353,6 +353,29 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 
 ---
 
+## Phase 3 wrap-up (2026-05-28, user-requested close)
+
+> User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
+
+**Shipped in Phase 3 (six slices, code-only on the remote sandbox):**
+- Slice 31 — admin navy link colour scoped override
+- Slice 32 — `/admin/time-off` page token-ized + dangling `exhaustive-deps` warning resolved
+- Slice 33 — PTO PATCH: 8h × weekday-count for all-day requests (fixed the 24h × calendar-day over-count)
+- Slice 34 — Schedule month view: drag-to-move + click-to-create (mirrored Slice 28's week-view handlers)
+- Slice 35 — Time-off page surfaces the requester's PTO balance + a live requested-hours preview; shared math in `lib/schedule/pto-hours.ts`
+- Slices 36 + 37 — Hardcoded navy hex → `var(--color-brand-navy)` for `app/admin/team/page.tsx` and `app/admin/jobs/[id]/page.tsx`
+
+**Deferred (closed per user request; resume from local Claude Code with browser + machine access):**
+- ~~Apply `seeds/296`/`297`/`298` to live Supabase~~ — runbook at the top of this doc still applies; needs Supabase SQL Editor access this sandbox doesn't have. Slice-29 OAuth and Slice-30 PTO accrual won't work in production until applied.
+- ~~Vercel env vars for Slice 29 OAuth~~ — `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` still need to be set in Vercel; OAuth callback will return an env-missing error until then.
+- ~~Live end-to-end audit of every `app/admin/**` page~~ — needs a logged-in browser session; not achievable from the network-restricted sandbox.
+- ~~Live walkthrough of Slices 24–30 against real data~~ — same constraint; all six features are code-verified, none are live-verified.
+- ~~Remaining navy hex sweep~~ — 144 occurrences across 56 admin `.tsx` files. Mechanically straightforward; the slice 36/37 pattern is the template. Deferred because (a) the user explicitly asked to stop, (b) each file is cosmetic-only with no behaviour change, (c) the remaining work is best done in batches by a local agent with `tsc` + visual-regression checks per file rather than 50+ remote round-trips. The grep-replace command is `find app/admin -name "*.tsx" -exec sed -i "s/'#1D3095'/'var(--color-brand-navy)'/g" {} \;` for a one-shot sweep, but per the handoff that's discouraged — prefer the per-file commit cadence so each diff is reviewable.
+
+> All shipped Phase-3 slices are on branch `claude/gifted-ramanujan-lQaEI` (HEAD `ecbb442` at the time of this wrap-up). Closing the doc here.
+
+---
+
 ## Phase 2 wrap-up (2026-05-28)
 
 > Every action item in this doc — original twenty-one slices plus the seven follow-ups (Slices 22–30) that retired the deferred bullets — is shipped. The remaining open work (live-deployment runtime verification of the Google Calendar sync; cron scheduling for `POST /api/admin/pto?action=accrue`; the per-occurrence overrides for recurring events explicitly marked out of scope above) is deployment / ops work rather than backend code, so this doc closes here and moves back to `completed/`.
