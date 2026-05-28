@@ -34,13 +34,13 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 const EVENT_COLORS: Record<string, string> = {
-  trial_started:          '#1D3095',
+  trial_started:          'var(--color-brand-navy)',
   trial_converted:        '#059669',
   schedule_cancel:        '#D97706',
   reactivate_canceled:    '#059669',
   bundle_added:           '#059669',
   bundle_removed:         '#6B7280',
-  plan_changed:           '#1D3095',
+  plan_changed:           'var(--color-brand-navy)',
   payment_succeeded:      '#059669',
   payment_failed:         '#BD1218',
 };
@@ -133,7 +133,7 @@ export default function PlanHistoryPage() {
         }
         .history-back {
           font-size: 0.85rem;
-          color: #1D3095;
+          color: var(--color-brand-navy);
           text-decoration: none;
         }
         header { margin: 0.4rem 0 1.5rem; }

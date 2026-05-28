@@ -359,6 +359,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 39 — Token-ize the hardcoded navy hex (sweep): equipment area batch ✅ shipped
 - [x] All six `app/admin/equipment/**/*.tsx` files that referenced `#1D3095` — `consumables/page.tsx`, `fleet-valuation/page.tsx`, `maintenance/[id]/page.tsx` (4 occurrences), `overrides/page.tsx`, `templates/cleanup-queue/page.tsx`, `timeline/page.tsx` (3 occurrences) — converted. Every literal was a `border` value on a styles object; timeline also had a `'2px solid #1D3095'` inside a conditional `outline` expression that I handled in a separate edit. 115 `#1D3095` literals across 39 admin .tsx files remain. `tsc` + `eslint` clean.
 
+### Slice 40 — Token-ize the hardcoded navy hex (sweep): billing area batch ✅ shipped
+- [x] All four `app/admin/billing/**/*.tsx` files — `invoices/page.tsx` (3), `page.tsx` (8), `plan-history/page.tsx` (3), `upgrade/page.tsx` (6) — converted (20 occurrences total). Mix of JS string literals in `STATUS_COLORS` / `EVENT_COLORS` config maps and bare hex inside `<style jsx>` template-literal CSS. CSS-vars work in both contexts (the runtime sets the variable on `:root`, and `var(...)` resolves inside JSX style blocks too). 95 `#1D3095` literals across 35 admin .tsx files remain. `tsc` + `eslint` clean.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:

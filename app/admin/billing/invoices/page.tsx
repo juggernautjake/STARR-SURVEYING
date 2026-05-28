@@ -28,7 +28,7 @@ interface Invoice {
 
 const STATUS_COLORS: Record<string, string> = {
   paid:          '#059669',
-  open:          '#1D3095',
+  open:          'var(--color-brand-navy)',
   draft:         '#6B7280',
   void:          '#9CA3AF',
   uncollectible: '#BD1218',
@@ -139,7 +139,7 @@ export default function InvoicesPage() {
           color: #0F1419;
         }
         .invoices-back { color: #6B7280; text-decoration: none; font-size: 0.85rem; }
-        .invoices-back:hover { color: #1D3095; }
+        .invoices-back:hover { color: var(--color-brand-navy); }
         header { margin: 0.75rem 0 1.5rem; }
         header h1 {
           font-family: 'Sora', sans-serif;
@@ -186,7 +186,7 @@ export default function InvoicesPage() {
           color: #4B5563;
         }
         .invoices-table a {
-          color: #1D3095;
+          color: var(--color-brand-navy);
           text-decoration: none;
           font-size: 0.85rem;
         }

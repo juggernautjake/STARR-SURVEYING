@@ -32,7 +32,7 @@ interface BillingState {
 
 const STATUS_COLORS: Record<string, string> = {
   active:     '#059669',
-  trialing:   '#1D3095',
+  trialing:   'var(--color-brand-navy)',
   past_due:   '#D97706',
   suspended:  '#9CA3AF',
   canceled:   '#6B7280',
@@ -272,10 +272,10 @@ export default function CustomerBillingPage() {
           text-decoration: none;
           border-bottom: 2px solid transparent;
         }
-        .billing-tab:hover { color: #1D3095; }
+        .billing-tab:hover { color: var(--color-brand-navy); }
         .billing-tab--active {
-          color: #1D3095;
-          border-bottom-color: #1D3095;
+          color: var(--color-brand-navy);
+          border-bottom-color: var(--color-brand-navy);
         }
         .billing-error, .billing-loading, .billing-empty {
           padding: 2rem;
@@ -340,7 +340,7 @@ export default function CustomerBillingPage() {
         }
         .billing-bundles li {
           background: #F0F4FF;
-          color: #1D3095;
+          color: var(--color-brand-navy);
           padding: 0.45rem 0.95rem;
           border-radius: 6px;
           font-weight: 500;
@@ -371,10 +371,10 @@ export default function CustomerBillingPage() {
         }
         .billing-action--enabled {
           background: #FFF;
-          color: #1D3095;
+          color: var(--color-brand-navy);
           cursor: pointer;
         }
-        .billing-action--enabled span { color: #1D3095; }
+        .billing-action--enabled span { color: var(--color-brand-navy); }
         .billing-action--enabled:hover { background: #F0F4FF; }
         .billing-action--enabled[disabled] { opacity: 0.6; cursor: progress; }
         .billing-action-message {
@@ -393,7 +393,7 @@ export default function CustomerBillingPage() {
           text-decoration: none;
           font-weight: 600;
         }
-        .billing-btn--primary { background: #1D3095; color: #FFF; }
+        .billing-btn--primary { background: var(--color-brand-navy); color: #FFF; }
       `}</style>
     </div>
   );
