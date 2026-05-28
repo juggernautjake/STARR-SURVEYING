@@ -344,7 +344,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   editBtn: {
     padding: '6px 12px',
-    border: '1px solid #1D3095',
+    border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-bg-card)',
     color: 'var(--color-brand-navy)',
     borderRadius: 6,
