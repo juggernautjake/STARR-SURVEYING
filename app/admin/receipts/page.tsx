@@ -213,7 +213,7 @@ export default function ReceiptsApprovalPage() {
   }, [tab]);
 
   const counters = data?.counters ?? zeroCounters();
-  const receipts = data?.receipts ?? [];
+  const receipts = useMemo(() => data?.receipts ?? [], [data?.receipts]);
 
   const onToggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) => {
