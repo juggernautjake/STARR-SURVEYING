@@ -169,6 +169,54 @@ export default function SchedulePanel() {
     await load();
   }
 
+  // Drag-to-move: shift an event's start/end to land on the dropped day,
+  // preserving the original time-of-day + duration. Server-side conflict
+  // detection runs as usual; we re-PATCH with ?force=1 if the user agrees.
+  async function moveEvent(eventId: string, newDayIso: string, force = false) {
+    const ev = events.find(e => e.id === eventId || e.id.split(':')[0] === eventId);
+    if (!ev) return;
+    const oldStart = new Date(ev.start_time);
+    const oldEnd = new Date(ev.end_time);
+    const duration = oldEnd.getTime() - oldStart.getTime();
+    const newDay = new Date(newDayIso);
+    newDay.setHours(oldStart.getHours(), oldStart.getMinutes(), oldStart.getSeconds(), 0);
+    const newStart = newDay;
+    const newEnd = new Date(newStart.getTime() + duration);
+    const url = force ? '/api/admin/schedule?force=1' : '/api/admin/schedule';
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: ev.id.split(':')[0], start_time: newStart.toISOString(), end_time: newEnd.toISOString() }),
+    });
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { conflicts?: Array<{ title: string; start_time: string; end_time: string }> };
+      const list = (body.conflicts ?? []).map(c =>
+        `• ${c.title} (${new Date(c.start_time).toLocaleString()})`
+      ).join('\n');
+      if (window.confirm(`Moving this event would overlap ${body.conflicts?.length ?? 0} existing event(s):\n\n${list}\n\nMove anyway?`)) {
+        void moveEvent(eventId, newDayIso, true);
+      }
+      return;
+    }
+    if (!res.ok) {
+      const msg = (await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`;
+      await safeAction('moving event', async () => { throw new Error(msg); });
+      return;
+    }
+    await load();
+  }
+
+  // Click an empty day → open the create form pre-filled with that date.
+  function startCreateOnDay(d: Date) {
+    if (!isAdmin) return;
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setFormData(p => ({ ...p, start_date: iso, end_date: iso }));
+    setShowEventForm(true);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLInputElement>('.sched__event-form input[type="text"]')?.focus();
+    });
+  }
+
   function navigatePrev() {
     const d = new Date(currentDate);
     if (viewMode === 'week') d.setDate(d.getDate() - 7);
@@ -321,12 +369,39 @@ export default function SchedulePanel() {
             {weekDates.map((d, i) => {
               const dayEvents = events.filter(e => isSameDay(new Date(e.start_time), d));
               return (
-                <div key={i} className={`sched__week-day ${isToday(d) ? 'sched__week-day--today' : ''}`}>
+                <div
+                  key={i}
+                  className={`sched__week-day ${isToday(d) ? 'sched__week-day--today' : ''}`}
+                  onClick={(ev) => {
+                    // Only trigger create when clicking the cell background,
+                    // not an event card or its delete button.
+                    if ((ev.target as HTMLElement).closest('.sched__event-card')) return;
+                    startCreateOnDay(d);
+                  }}
+                  onDragOver={isAdmin ? (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; } : undefined}
+                  onDrop={isAdmin ? (ev) => {
+                    ev.preventDefault();
+                    const eventId = ev.dataTransfer.getData('text/plain');
+                    if (eventId) void moveEvent(eventId, d.toISOString());
+                  } : undefined}
+                  style={isAdmin ? { cursor: 'copy' } : undefined}
+                  title={isAdmin ? 'Click to add an event on this day; drop another event here to move it' : undefined}
+                >
                   {dayEvents.length === 0 && (
                     <div className="sched__week-empty">No events</div>
                   )}
                   {dayEvents.map(e => (
-                    <div key={e.id} className="sched__event-card" style={{ borderLeftColor: e.color, position: 'relative' }}>
+                    <div
+                      key={e.id}
+                      className="sched__event-card"
+                      style={{ borderLeftColor: e.color, position: 'relative', cursor: isAdmin ? 'grab' : 'default' }}
+                      draggable={isAdmin}
+                      onDragStart={isAdmin ? (ev) => {
+                        ev.stopPropagation();
+                        ev.dataTransfer.effectAllowed = 'move';
+                        ev.dataTransfer.setData('text/plain', e.id);
+                      } : undefined}
+                    >
                       <span className="sched__event-title">{e.title}</span>
                       <span className="sched__event-time">
                         {e.all_day ? 'All day' : `${new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
@@ -336,7 +411,7 @@ export default function SchedulePanel() {
                           className="sched__event-delete"
                           title="Delete event"
                           style={{ position: 'absolute', top: 2, right: 4, border: 'none', background: 'transparent', color: 'var(--color-text-tertiary)', cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1 }}
-                          onClick={() => void deleteEvent(e.id)}
+                          onClick={(ev) => { ev.stopPropagation(); void deleteEvent(e.id); }}
                         >
                           ×
                         </button>
