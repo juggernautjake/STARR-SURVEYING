@@ -13,9 +13,13 @@
    admin pages otherwise. Scoped to .admin-layout so the marketing site,
    error pages, and unauthenticated harness routes are untouched. Excludes
    .btn / .btn-* / [class*="dashboard-card"] so colored action buttons keep
-   their own foreground. */
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]) { color: var(--color-brand-navy, #1D3095); }
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):hover { color: var(--color-brand-navy-d, #152050); }
+   their own foreground.
+
+   Added [class*="admin-rail"] (admin-nav redesign Phase 3 slice 3b — the
+   48 px IconRail uses navy gradient bg, so its child <a> icons must keep
+   their own white-70%-opacity color or they vanish navy-on-navy). */
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]) { color: var(--color-brand-navy, #1D3095); }
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):hover { color: var(--color-brand-navy-d, #152050); }
 
 /* === SIDEBAR === */
 .admin-sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; height:100dvh; background:linear-gradient(180deg,#152050,#1D3095); display:flex; flex-direction:column; z-index:50; transition:transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
