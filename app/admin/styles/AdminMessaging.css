@@ -1367,10 +1367,21 @@
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
+/* Slice 102 — search input + filter-button row share an explicit 36 px
+ * height on the /admin/messages/contacts controls bar. Before this the
+ * search rendered ~36 px while the filter buttons (padding .35rem
+ * .65rem + font .8rem) rendered ~28 px — an 8 px gap with the buttons
+ * floating in the search's vertical band. Continues the alignment
+ * sweep started in Slices 83-87/90. */
+.msg-contacts-page__search,
+.msg-contacts-page__filter {
+  box-sizing: border-box;
+  height: 36px;
+}
 .msg-contacts-page__search {
   flex: 1;
   min-width: 200px;
-  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  padding: 0 0.75rem 0 2.25rem;
   border: 1px solid #E5E7EB;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -1391,7 +1402,7 @@
   background: none;
   border: 1px solid #E5E7EB;
   border-radius: 6px;
-  padding: 0.35rem 0.65rem;
+  padding: 0 0.85rem;
   font-size: 0.8rem;
   color: #6B7280;
   cursor: pointer;
