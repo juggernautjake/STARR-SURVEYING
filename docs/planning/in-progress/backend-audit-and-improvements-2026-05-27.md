@@ -538,6 +538,16 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - `app/admin/jobs/[id]/page.tsx` (3 sites — stage badge + result-color background + draft-result palette button — and tokenized `lost: '#EF4444' → var(--color-error)` in the colors map)
 - [x] Net effect on the deferred EF4444 list from Slice 61: 3 of the 8 documented intentional remains are now properly converted (the 3 `color + '20'` ones). The remaining 5 are still legitimate exceptions (2 color-picker palettes, 2 SVG fill/stroke attributes, 1 cohesive quality-ramp tier). `tsc` + `eslint` clean. `withAlpha()` specs continue to pass.
 
+### Slice 69 — Unit tests for `sanitizeBody()` (error-report PII guard) ✅ shipped (+ doc'd an array-handling quirk)
+- [x] Added `__tests__/lib/errorHandler-sanitize.test.ts` for `lib/errorHandler.ts:sanitizeBody`, the redactor that runs on every error-report body before it's POSTed to `/api/admin/errors`. A miss in this allowlist means a user-typed password or Bearer token can land in the error log — making this worth a regression pin. 9 specs covering:
+  - Non-object inputs (null / undefined / string / number / boolean) → `undefined`.
+  - Every key in the sensitive set: `password`, `token`, `secret`, `api_key`, `authorization`, `cookie`, `credit_card`, `ssn` → `'[REDACTED]'`.
+  - Case-insensitive matching (`Password`, `TOKEN` also redacted).
+  - Recursion into nested objects.
+  - Non-redaction of lookalike keys (`old_password`, `user_token_id` stay verbatim — the contract is exact lowercase set membership, NOT substring match).
+  - Non-sensitive primitives pass through.
+- [x] **Quirk surfaced + documented:** when the input contains an **array** value, `sanitizeBody` recurses (because `typeof [] === 'object'`) and the array gets flattened to an index-keyed plain object — `{ tags: ['a', 'b'] }` sanitizes to `{ tags: { 0: 'a', 1: 'b' } }`. Output is used only for error-report logging (not re-serialised), so this doesn't matter in practice, but a future contributor refactoring `sanitizeBody` should know this is the existing behaviour the tests now pin. `tsc` + `eslint` clean.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
