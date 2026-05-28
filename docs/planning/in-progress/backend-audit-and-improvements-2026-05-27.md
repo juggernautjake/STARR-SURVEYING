@@ -345,6 +345,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 35 — Time-off page: show PTO balance + requested-hours preview ✅ shipped
 - [x] Phase-3 audit follow-up. Before this, an employee opening the request form couldn't see whether they had the PTO to spend — only the dashboard tile (Slice 30) showed it, and only after a roundtrip. Now the time-off page itself fetches `/api/admin/pto` on load and surfaces the balance as a pill next to the "+ Request time off" button. When the request form is open with valid dates, a live preview computes the deduction the same way the server does on approve, and renders one of two banners: green (would-leave-X hours) under-budget, red (exceeds-balance-by-Y) over-budget. Per the user note, the over-budget banner is a soft warn — the submit button stays enabled because admins occasionally approve negative-balance requests by policy. To keep the page calc and the PATCH calc honest about agreeing, extracted the math into `lib/schedule/pto-hours.ts` (`ptoHoursForRequest({ startTime, endTime, allDay })`) — Slice 33's PATCH branch now calls the same helper. `tsc` + `eslint` clean.
 
+### Slice 36 — Token-ize the hardcoded navy hex (sweep): `app/admin/team/page.tsx` ✅ shipped
+- [x] Phase-3 audit follow-up. There are 152 `#1D3095` literals across 58 `.tsx` files in `app/admin/**` (as of this commit). The handoff prompt explicitly called for an incremental sweep — one page per commit — so this slice handles only `app/admin/team/page.tsx` (5 occurrences in the local `styles` const: active-tab `background` + `borderColor`, ping-button `background`, secondary ping-button `color` + `border`). All five now read `var(--color-brand-navy)` so a future brand-colour change in `tokens.css` propagates. Continue the sweep one file per slice. `tsc` + `eslint` clean.
+
 ---
 
 ## Phase 2 wrap-up (2026-05-28)

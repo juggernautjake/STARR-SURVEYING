@@ -515,8 +515,8 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6B7280',
   },
   tabActive: {
-    background: '#1D3095',
-    borderColor: '#1D3095',
+    background: 'var(--color-brand-navy)',
+    borderColor: 'var(--color-brand-navy)',
     color: '#FFFFFF',
   },
   error: {
@@ -614,7 +614,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
   },
   pingBtn: {
-    background: '#1D3095',
+    background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -625,8 +625,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pingBtnSecondary: {
     background: 'transparent',
-    color: '#1D3095',
-    border: '1px solid #1D3095',
+    color: 'var(--color-brand-navy)',
+    border: '1px solid var(--color-brand-navy)',
     borderRadius: 8,
     padding: '8px 14px',
     cursor: 'pointer',
