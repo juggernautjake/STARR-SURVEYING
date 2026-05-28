@@ -11717,42 +11717,153 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }, [toolStore]);
 
   // ─────────────────────────────────────────────
-  // Scroll → zoom canvas at cursor position (non-passive, prevents page scroll)
-  // Zooms toward the cursor location (or toward the centroid of selected elements
-  // if any are selected and the cursor is not over the canvas center area).
+  // Wheel events. Three distinct gestures land here:
+  //   • mouse wheel        → zoom at cursor (legacy behaviour)
+  //   • trackpad pinch     → zoom at cursor (browsers synthesise ctrlKey=true)
+  //   • trackpad two-finger drag → pan the viewport
+  // Heuristic for distinguishing trackpad pan from mouse-wheel zoom:
+  // mouse-wheel ticks arrive as deltaY = ±100 (or multiples) with deltaX=0;
+  // trackpad two-finger scrolling produces small, often fractional deltas and
+  // commonly populates deltaX as well. Listener is non-passive so we can
+  // suppress page scrolling over the canvas in every case.
   // ─────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault(); // Always prevent page scroll when over canvas
-      const rect = canvas.getBoundingClientRect();
-      let sx = e.clientX - rect.left;
-      let sy = e.clientY - rect.top;
-
+    const applyZoom = (sx: number, sy: number, deltaY: number) => {
       const zoomSettings = useDrawingStore.getState().document.settings;
       const speed = zoomSettings.zoomSpeed ?? 1.0;
       const invert = zoomSettings.invertScrollZoom ?? false;
       const zoomTowardCursor = zoomSettings.zoomTowardCursor ?? true;
       const baseFactor = 1.0 + 0.15 * speed;
-      const scrollUp = invert ? (e.deltaY > 0) : (e.deltaY < 0);
+      const scrollUp = invert ? (deltaY > 0) : (deltaY < 0);
       const factor = scrollUp ? baseFactor : 1 / baseFactor;
       if (!zoomTowardCursor) {
-        // Cursor-focused zoom disabled in settings → zoom about the
-        // viewport center instead.
         const vp = useViewportStore.getState();
         sx = vp.screenWidth / 2;
         sy = vp.screenHeight / 2;
       }
-      // Anchor the world point under the cursor so the drawing moves
-      // toward the cursor on zoom-in and away on zoom-out, exactly
-      // tracking the cursor's offset from the screen center.
       useViewportStore.getState().zoomAt(sx, sy, factor);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault(); // Always prevent page scroll when over canvas
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      // Trackpad pinch arrives as wheel + synthesised ctrlKey. Treat as zoom.
+      if (e.ctrlKey) {
+        // Pinch deltas are tiny; amplify so a normal pinch feels right.
+        applyZoom(sx, sy, e.deltaY * 4);
+        return;
+      }
+
+      // Heuristic: trackpad two-finger drag → pan; everything else → zoom.
+      // Mouse wheels emit large integer deltaY (≥ ~50) with deltaX = 0.
+      const looksLikeTrackpadPan =
+        e.deltaX !== 0 ||
+        (e.deltaMode === 0 && Math.abs(e.deltaY) < 50);
+
+      if (looksLikeTrackpadPan) {
+        // Two-finger scroll on a trackpad: drag the drawing. The viewport's
+        // pan() takes screen-space deltas in the direction the user dragged,
+        // so negate the scroll deltas (scrolling down moves the page up).
+        useViewportStore.getState().pan(-e.deltaX, -e.deltaY);
+        return;
+      }
+
+      applyZoom(sx, sy, e.deltaY);
     };
 
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // ─────────────────────────────────────────────
+  // Touch gestures for iPad / phone / touchscreen laptops.
+  // Two-finger drag → pan; two-finger pinch → zoom at the gesture centroid.
+  // Single-touch taps/drags fall through to the existing pointer-event path
+  // (which Pixi already routes to the active tool).
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let lastCentroid: { x: number; y: number } | null = null;
+    let lastDistance = 0;
+
+    const centroidOf = (touches: TouchList): { x: number; y: number } => {
+      const rect = canvas.getBoundingClientRect();
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < touches.length; i++) {
+        cx += touches[i].clientX - rect.left;
+        cy += touches[i].clientY - rect.top;
+      }
+      return { x: cx / touches.length, y: cy / touches.length };
+    };
+    const distanceOf = (touches: TouchList): number => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) {
+        lastCentroid = null;
+        lastDistance = 0;
+        return;
+      }
+      e.preventDefault();
+      lastCentroid = centroidOf(e.touches);
+      lastDistance = distanceOf(e.touches);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !lastCentroid) return;
+      e.preventDefault();
+      const centroid = centroidOf(e.touches);
+      const distance = distanceOf(e.touches);
+      const vp = useViewportStore.getState();
+
+      // Pan by the centroid delta (positive dx/dy = fingers moved right/down,
+      // so the drawing follows in the same direction).
+      const dx = centroid.x - lastCentroid.x;
+      const dy = centroid.y - lastCentroid.y;
+      if (dx !== 0 || dy !== 0) {
+        vp.pan(dx, dy);
+      }
+
+      // Zoom by the distance ratio, anchored on the centroid so the world
+      // point under the fingers stays put while spreading or pinching.
+      if (lastDistance > 0 && distance > 0) {
+        const factor = distance / lastDistance;
+        if (factor !== 1) {
+          vp.zoomAt(centroid.x, centroid.y, factor);
+        }
+      }
+
+      lastCentroid = centroid;
+      lastDistance = distance;
+    };
+
+    const reset = () => {
+      lastCentroid = null;
+      lastDistance = 0;
+    };
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    canvas.addEventListener('touchend', reset);
+    canvas.addEventListener('touchcancel', reset);
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', reset);
+      canvas.removeEventListener('touchcancel', reset);
+    };
   }, []);
 
   // ─────────────────────────────────────────────

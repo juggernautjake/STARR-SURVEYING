@@ -19,6 +19,7 @@
 
 import { useEffect } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { useViewportStore } from '@/lib/cad/store/viewport-store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
@@ -26,6 +27,14 @@ import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 export default function CadTestHooks() {
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_E2E_HARNESS !== '1') return;
+
+    // Expose the stores to Playwright so gesture specs can read centerX/Y
+    // and zoom directly. Harness-only — guarded by the same env flag.
+    (window as unknown as { __cad?: Record<string, unknown> }).__cad = {
+      viewportStore: useViewportStore,
+      drawingStore: useDrawingStore,
+      selectionStore: useSelectionStore,
+    };
 
     const onSeedLine = (e: Event) => {
       const detail = (e as CustomEvent).detail as { start?: Point2D; end?: Point2D } | undefined;
