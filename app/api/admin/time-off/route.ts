@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { ptoHoursForRequest } from '@/lib/schedule/pto-hours';
 
 const SELECT_COLS =
   'id, title, event_type, start_time, end_time, all_day, location, notes, assigned_to, assigned_by, color, created_at, status';
@@ -111,9 +112,12 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   // (Slice 30). Only credit a transaction once per event; if the employee's
   // balance row doesn't exist yet we auto-create it.
   if (body.status === 'approved') {
-    const startMs = new Date(data.start_time as string).getTime();
-    const endMs = new Date(data.end_time as string).getTime();
-    const hoursDelta = -Math.max(0, (endMs - startMs) / 3_600_000);
+    const hours = ptoHoursForRequest({
+      startTime: data.start_time as string,
+      endTime: data.end_time as string,
+      allDay: data.all_day === true,
+    });
+    const hoursDelta = -hours;
     if (hoursDelta < 0) {
       const { data: alreadyLogged } = await supabaseAdmin
         .from('pto_transactions')

@@ -333,6 +333,49 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 
 ---
 
+### Slice 32 — Time-off page: token-ize the hardcoded brand colours ✅ shipped
+- [x] Phase-3 audit follow-up. `app/admin/time-off/page.tsx` had four hardcoded `#1D3095` (request + submit buttons, schedule deep-link, the request-form border colour) and three `#B91C1C` (error message, deny-button text + border) inline-style literals — so the page wouldn't track a brand-colour change in `tokens.css`. Converted all four navy references to `var(--color-brand-navy)` and all three reds to `var(--color-error)`, matching the same tokens the shared forms / dashboard cards already consume. While in the file, replaced the dangling `// eslint-disable-next-line react-hooks/exhaustive-deps` (it was on the same line as the body, so it suppressed nothing) by wrapping `loadAll` in `useCallback([safeFetch, isAdmin])` and adding it to the `useEffect` deps — the pre-existing `exhaustive-deps` warning called out in the handoff is now actually gone. `tsc` + `eslint` clean (remaining warnings are all on unrelated files: `employees/page.tsx`, `equipment/inventory/page.tsx`, `learn/quiz-history/page.tsx`, `receipts/page.tsx`).
+
+### Slice 33 — PTO: deduct 8h × weekday-count for all-day requests (not 24h × calendar-day) ✅ shipped
+- [x] Phase-3 audit follow-up to Slice 30. `app/api/admin/time-off/route.ts:114-116` computed the deduction as `(endMs - startMs) / 3_600_000`. The POST handler stores all-day requests as `start_date T00:00 → end_date T23:59`, so the raw duration was ~24h per calendar day, and a Fri→Mon all-day request charged ~96h instead of the intended 16h (Fri + Mon × 8h). Weekend days inside a span were also charged. Added `countWeekdaysUtc()` that walks the inclusive UTC date range and counts Mon-Fri only; the PATCH branch now uses `8h × weekdayCount` when `data.all_day === true` and keeps the existing minute-based formula for partial-day requests. A single all-day Monday now deducts 8h; a five-day Mon-Fri all-day request deducts 40h; a request straddling Sat+Sun deducts 0h. UTC-based to avoid server-timezone drift (POST normalizes the date the same way). `tsc` + `eslint` clean.
+
+### Slice 34 — Schedule month view: drag-to-move + click-to-create ✅ shipped
+- [x] Phase-3 audit follow-up to Slice 28 (which only wired the week view). `app/admin/schedule/SchedulePanel.tsx` month-cell render previously had no `onClick` / `onDragOver` / `onDrop` and the per-event chip wasn't `draggable`, so admins on the month view were stuck with a read-only grid. Wired the same admin-gated handlers as the week view: cell `onClick` (background only — skips when the click target is inside `.sched__month-event`) opens the create form pre-filled with that date, cell `onDragOver`/`onDrop` accept a dropped event id and call the existing `moveEvent()` (which already strips the recurring-occurrence `:idx` suffix and surfaces 409 conflicts), and each event chip is now `draggable` with the matching `onDragStart`/`dataTransfer.setData` pair. Same cursor + title affordance as week view (`cursor: copy` on the cell, `cursor: grab` on the chip). `tsc` + `eslint` clean.
+
+### Slice 35 — Time-off page: show PTO balance + requested-hours preview ✅ shipped
+- [x] Phase-3 audit follow-up. Before this, an employee opening the request form couldn't see whether they had the PTO to spend — only the dashboard tile (Slice 30) showed it, and only after a roundtrip. Now the time-off page itself fetches `/api/admin/pto` on load and surfaces the balance as a pill next to the "+ Request time off" button. When the request form is open with valid dates, a live preview computes the deduction the same way the server does on approve, and renders one of two banners: green (would-leave-X hours) under-budget, red (exceeds-balance-by-Y) over-budget. Per the user note, the over-budget banner is a soft warn — the submit button stays enabled because admins occasionally approve negative-balance requests by policy. To keep the page calc and the PATCH calc honest about agreeing, extracted the math into `lib/schedule/pto-hours.ts` (`ptoHoursForRequest({ startTime, endTime, allDay })`) — Slice 33's PATCH branch now calls the same helper. `tsc` + `eslint` clean.
+
+### Slice 36 — Token-ize the hardcoded navy hex (sweep): `app/admin/team/page.tsx` ✅ shipped
+- [x] Phase-3 audit follow-up. There are 152 `#1D3095` literals across 58 `.tsx` files in `app/admin/**` (as of this commit). The handoff prompt explicitly called for an incremental sweep — one page per commit — so this slice handles only `app/admin/team/page.tsx` (5 occurrences in the local `styles` const: active-tab `background` + `borderColor`, ping-button `background`, secondary ping-button `color` + `border`). All five now read `var(--color-brand-navy)` so a future brand-colour change in `tokens.css` propagates. Continue the sweep one file per slice. `tsc` + `eslint` clean.
+
+### Slice 37 — Token-ize the hardcoded navy hex (sweep): `app/admin/jobs/[id]/page.tsx` ✅ shipped
+- [x] Second file in the sweep. The job-detail page had 3 hex literals: the inline "View field captures →" Link (`color` + `border`) at ~line 380, and the Save button on the result-change dialog (`background`) at ~line 872. All three now read `var(--color-brand-navy)`. 144 `#1D3095` literals across 56 admin .tsx files remain. `tsc` + `eslint` clean.
+
+---
+
+## Phase 3 wrap-up (2026-05-28, user-requested close)
+
+> User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
+
+**Shipped in Phase 3 (six slices, code-only on the remote sandbox):**
+- Slice 31 — admin navy link colour scoped override
+- Slice 32 — `/admin/time-off` page token-ized + dangling `exhaustive-deps` warning resolved
+- Slice 33 — PTO PATCH: 8h × weekday-count for all-day requests (fixed the 24h × calendar-day over-count)
+- Slice 34 — Schedule month view: drag-to-move + click-to-create (mirrored Slice 28's week-view handlers)
+- Slice 35 — Time-off page surfaces the requester's PTO balance + a live requested-hours preview; shared math in `lib/schedule/pto-hours.ts`
+- Slices 36 + 37 — Hardcoded navy hex → `var(--color-brand-navy)` for `app/admin/team/page.tsx` and `app/admin/jobs/[id]/page.tsx`
+
+**Deferred (closed per user request; resume from local Claude Code with browser + machine access):**
+- ~~Apply `seeds/296`/`297`/`298` to live Supabase~~ — runbook at the top of this doc still applies; needs Supabase SQL Editor access this sandbox doesn't have. Slice-29 OAuth and Slice-30 PTO accrual won't work in production until applied.
+- ~~Vercel env vars for Slice 29 OAuth~~ — `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` still need to be set in Vercel; OAuth callback will return an env-missing error until then.
+- ~~Live end-to-end audit of every `app/admin/**` page~~ — needs a logged-in browser session; not achievable from the network-restricted sandbox.
+- ~~Live walkthrough of Slices 24–30 against real data~~ — same constraint; all six features are code-verified, none are live-verified.
+- ~~Remaining navy hex sweep~~ — 144 occurrences across 56 admin `.tsx` files. Mechanically straightforward; the slice 36/37 pattern is the template. Deferred because (a) the user explicitly asked to stop, (b) each file is cosmetic-only with no behaviour change, (c) the remaining work is best done in batches by a local agent with `tsc` + visual-regression checks per file rather than 50+ remote round-trips. The grep-replace command is `find app/admin -name "*.tsx" -exec sed -i "s/'#1D3095'/'var(--color-brand-navy)'/g" {} \;` for a one-shot sweep, but per the handoff that's discouraged — prefer the per-file commit cadence so each diff is reviewable.
+
+> All shipped Phase-3 slices are on branch `claude/gifted-ramanujan-lQaEI` (HEAD `ecbb442` at the time of this wrap-up). Closing the doc here.
+
+---
+
 ## Phase 2 wrap-up (2026-05-28)
 
 > Every action item in this doc — original twenty-one slices plus the seven follow-ups (Slices 22–30) that retired the deferred bullets — is shipped. The remaining open work (live-deployment runtime verification of the Google Calendar sync; cron scheduling for `POST /api/admin/pto?action=accrue`; the per-occurrence overrides for recurring events explicitly marked out of scope above) is deployment / ops work rather than backend code, so this doc closes here and moves back to `completed/`.

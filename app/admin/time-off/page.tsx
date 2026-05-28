@@ -8,10 +8,11 @@
 //
 // Backed by app/api/admin/time-off/route.ts.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePageError } from '../hooks/usePageError';
+import { ptoHoursForRequest } from '@/lib/schedule/pto-hours';
 
 interface TimeOffRequest {
   id: string;
@@ -49,20 +50,41 @@ export default function TimeOffPage() {
 
   const [mine, setMine] = useState<TimeOffRequest[]>([]);
   const [queue, setQueue] = useState<TimeOffRequest[]>([]);
+  const [balance, setBalance] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ start_date: '', end_date: '', all_day: true, start_time: '08:00', end_time: '17:00', notes: '' });
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     const mineRes = await safeFetch<{ requests: TimeOffRequest[] }>('/api/admin/time-off');
     setMine(mineRes?.requests ?? []);
+    const ptoRes = await safeFetch<{ balance: { balance_hours: number | string } | null }>('/api/admin/pto');
+    setBalance(ptoRes?.balance ? Number(ptoRes.balance.balance_hours) : null);
     if (isAdmin) {
       const queueRes = await safeFetch<{ requests: TimeOffRequest[] }>('/api/admin/time-off?queue=1');
       setQueue(queueRes?.requests ?? []);
     }
-  }
-  useEffect(() => { if (session?.user) void loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [session?.user, isAdmin]);
+  }, [safeFetch, isAdmin]);
+
+  // Live preview of how many PTO hours the open form would deduct.
+  // Matches the server's calc in /api/admin/time-off PATCH (Slice 33).
+  const requestedHours = useMemo(() => {
+    if (!form.start_date || !form.end_date) return 0;
+    const startIso = form.all_day
+      ? `${form.start_date}T00:00`
+      : `${form.start_date}T${form.start_time}`;
+    const endIso = form.all_day
+      ? `${form.end_date}T23:59`
+      : `${form.end_date}T${form.end_time}`;
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
+    return ptoHoursForRequest({ startTime: start, endTime: end, allDay: form.all_day });
+  }, [form.start_date, form.end_date, form.start_time, form.end_time, form.all_day]);
+
+  const overBalance = balance !== null && requestedHours > balance;
+  useEffect(() => { if (session?.user) void loadAll(); }, [session?.user, loadAll]);
 
   async function submit() {
     if (!form.start_date || !form.end_date || saving) return;
@@ -111,13 +133,20 @@ export default function TimeOffPage() {
         </p>
       </header>
 
-      <button
-        type="button"
-        onClick={() => setShowForm(v => !v)}
-        style={{ padding: '0.5rem 0.9rem', background: '#1D3095', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}
-      >
-        {showForm ? 'Cancel' : '+ Request time off'}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => setShowForm(v => !v)}
+          style={{ padding: '0.5rem 0.9rem', background: 'var(--color-brand-navy)', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}
+        >
+          {showForm ? 'Cancel' : '+ Request time off'}
+        </button>
+        {balance !== null && (
+          <span style={{ padding: '0.35rem 0.7rem', background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 999, fontSize: '0.8rem', color: '#374151' }}>
+            PTO balance: <strong style={{ color: balance > 0 ? 'var(--color-brand-navy)' : 'var(--color-error)' }}>{balance.toFixed(1)} h</strong>
+          </span>
+        )}
+      </div>
 
       {showForm && (
         <div style={{ marginTop: '1rem', padding: '1rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8 }}>
@@ -151,12 +180,21 @@ export default function TimeOffPage() {
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
             </label>
           </div>
+          {requestedHours > 0 && (
+            <div style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: 6, fontSize: '0.8rem', background: overBalance ? '#FEF2F2' : '#F3F4F6', border: `1px solid ${overBalance ? 'var(--color-error)' : '#E5E7EB'}`, color: overBalance ? 'var(--color-error)' : '#374151' }}>
+              Requesting <strong>{requestedHours.toFixed(1)} h</strong>
+              {balance !== null && (overBalance
+                ? <> · exceeds your {balance.toFixed(1)} h balance by {(requestedHours - balance).toFixed(1)} h. You can still submit; an admin will decide.</>
+                : <> · {(balance - requestedHours).toFixed(1)} h would remain after approval.</>
+              )}
+            </div>
+          )}
           <div style={{ marginTop: '0.75rem' }}>
             <button type="button" disabled={saving || !form.start_date || !form.end_date} onClick={() => void submit()}
-              style={{ padding: '0.45rem 0.9rem', background: '#1D3095', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
+              style={{ padding: '0.45rem 0.9rem', background: 'var(--color-brand-navy)', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
               {saving ? 'Submitting…' : 'Submit request'}
             </button>
-            {error && <span style={{ marginLeft: '0.75rem', color: '#B91C1C', fontSize: '0.85rem' }}>{error}</span>}
+            {error && <span style={{ marginLeft: '0.75rem', color: 'var(--color-error)', fontSize: '0.85rem' }}>{error}</span>}
           </div>
         </div>
       )}
@@ -174,7 +212,7 @@ export default function TimeOffPage() {
         <section style={{ marginTop: '2rem' }}>
           <h2 style={sectionTitle}>Pending approvals</h2>
           {queue.length === 0 ? (
-            <p style={emptyStyle}>No pending requests. <Link href="/admin/schedule" style={{ color: '#1D3095' }}>View schedule →</Link></p>
+            <p style={emptyStyle}>No pending requests. <Link href="/admin/schedule" style={{ color: 'var(--color-brand-navy)' }}>View schedule →</Link></p>
           ) : (
             <RequestTable rows={queue} onApprove={(id) => void decide(id, 'approved')} onDeny={(id) => void decide(id, 'denied')} />
           )}
@@ -239,4 +277,4 @@ const emptyStyle: React.CSSProperties = { padding: '1rem', background: '#F9FAFB'
 const th: React.CSSProperties = { textAlign: 'left', padding: '0.5rem 0.75rem', fontWeight: 600, color: '#4B5563' };
 const td: React.CSSProperties = { padding: '0.5rem 0.75rem', verticalAlign: 'top' };
 const btnApprove: React.CSSProperties = { marginRight: 8, padding: '0.3rem 0.6rem', background: '#059669', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 };
-const btnDeny: React.CSSProperties = { padding: '0.3rem 0.6rem', background: '#FFF', color: '#B91C1C', border: '1px solid #B91C1C', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 };
+const btnDeny: React.CSSProperties = { padding: '0.3rem 0.6rem', background: '#FFF', color: 'var(--color-error)', border: '1px solid var(--color-error)', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 };
