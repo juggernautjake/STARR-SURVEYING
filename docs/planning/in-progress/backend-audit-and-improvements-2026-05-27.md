@@ -583,6 +583,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - `expandBounds`: symmetric grow, negative-margin shrink (caller responsibility, documented as "expand" but math is reversible).
 - [x] `tsc` + `eslint` clean.
 
+### Slice 76 — Unit tests for the SMS phone-number sanity-check ✅ shipped
+- [x] Added `__tests__/saas/sms-phone-validation.test.ts` for `lib/saas/notifications/sms.ts:isValidPhoneNumber` — the cheap regex guard that runs before Twilio dispatch (real validation lives in Twilio Verify at enrollment, but a malformed number should fail without paying for the round trip). 11 specs cover happy paths (US + 10/15-digit boundaries + whitespace trim), and rejections (missing `+`, 9 digits, 16 digits, formatted-with-spaces-or-dashes, letters, empty string, just-`+`). `tsc` + `eslint` clean.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
