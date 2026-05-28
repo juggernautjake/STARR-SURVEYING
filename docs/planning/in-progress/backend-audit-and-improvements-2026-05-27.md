@@ -1,6 +1,72 @@
 # Backend Audit & Continuous Improvements — 2026-05-27
 
-> **Status: COMPLETED (2026-05-28 re-close, plus a 2026-05-28-pm second pass that retired every previously-deferred item).** All 30 slices below are shipped (deferred bullets that survived the second pass are struck through with reasons inline). Highlights: every "Under Construction"/placeholder across `app/admin/**` resolved; the five stub pages (Notes, Leads, Schedule, Settings, My Files) fully built (table/bucket + API + wired UI); the CAD Print/Export feature made real (PNG, PDF, compact size, paper sizing, plot style, **every element toggle including the previously-deferred Border / Legend / Certification / Notes**) with passing Playwright specs; the employee hours/receipts/job-attachment workflows audited + the receipt↔job link completed; Properties-panel style edits render live; a reusable harness seed/select test hook added; a per-page UI/UX sweep across 35 admin pages with a dozen runtime-crash / missing-CSS / dropzone / label-style fixes shipped; touchpad + touchscreen two-finger pan and pinch-zoom added to the CAD canvas; and the previously-deferred **Schedule** items (server-side conflict detection, recurring events, drag-to-move + click-to-create, time-off request + approval flow, Google Calendar OAuth + bidirectional sync) and the **PTO Balance** dashboard tile (built on a real accrual schema with deduction on time-off approval) are all live.
+> **Status (2026-05-28 reopen):** moved back to `in-progress/` per user request — Phase 3 is a static code/style audit against the shipped slices, and a runbook for the user to apply `seeds/296–298` to Supabase. Earlier Phase 2 wrap-up text retained below for history.
+>
+> **Previously (2026-05-28 close):** All 30 slices below are shipped (deferred bullets that survived the second pass are struck through with reasons inline). Highlights: every "Under Construction"/placeholder across `app/admin/**` resolved; the five stub pages (Notes, Leads, Schedule, Settings, My Files) fully built (table/bucket + API + wired UI); the CAD Print/Export feature made real (PNG, PDF, compact size, paper sizing, plot style, **every element toggle including the previously-deferred Border / Legend / Certification / Notes**) with passing Playwright specs; the employee hours/receipts/job-attachment workflows audited + the receipt↔job link completed; Properties-panel style edits render live; a reusable harness seed/select test hook added; a per-page UI/UX sweep across 35 admin pages with a dozen runtime-crash / missing-CSS / dropzone / label-style fixes shipped; touchpad + touchscreen two-finger pan and pinch-zoom added to the CAD canvas; and the previously-deferred **Schedule** items (server-side conflict detection, recurring events, drag-to-move + click-to-create, time-off request + approval flow, Google Calendar OAuth + bidirectional sync) and the **PTO Balance** dashboard tile (built on a real accrual schema with deduction on time-off approval) are all live.
+
+---
+
+## Phase 3 — runbook for the user (apply seeds 296–298 to Supabase)
+
+> The Phase 2 slices added three SQL migrations that haven't been applied to the live Supabase project yet. This agent does not have a Supabase connection from its sandbox, so the apply step is on the user. Two options, both safe to re-run (every statement uses `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`):
+
+**Option A — Supabase SQL Editor (browser, easiest)**
+
+1. Open the project's SQL Editor: `https://supabase.com/dashboard/project/<your-project-ref>/sql/new`.
+2. For each file in order — `seeds/296_schedule_recurring.sql`, `seeds/297_google_calendar_connections.sql`, `seeds/298_pto_accrual.sql` — paste the file contents, click **Run**, and confirm "Success. No rows returned." appears.
+3. After all three, run the verification block at the bottom of this section in a fresh tab.
+
+**Option B — Supabase CLI (if linked locally)**
+
+```bash
+# from repo root, on a machine that has `supabase` CLI linked to the project
+supabase db execute --file seeds/296_schedule_recurring.sql
+supabase db execute --file seeds/297_google_calendar_connections.sql
+supabase db execute --file seeds/298_pto_accrual.sql
+```
+
+**Option C — psql against the pooled connection**
+
+```bash
+# DATABASE_URL is the "Connection string" from Project Settings → Database
+psql "$DATABASE_URL" -f seeds/296_schedule_recurring.sql
+psql "$DATABASE_URL" -f seeds/297_google_calendar_connections.sql
+psql "$DATABASE_URL" -f seeds/298_pto_accrual.sql
+```
+
+**Verification (run after all three):**
+
+```sql
+-- 296: schedule_events gained 4 columns
+SELECT column_name FROM information_schema.columns
+ WHERE table_name = 'schedule_events'
+   AND column_name IN ('recurrence_rule', 'recurrence_end', 'series_id', 'status')
+ ORDER BY column_name;
+-- expect: recurrence_end, recurrence_rule, series_id, status   (4 rows)
+
+-- 297: two new tables exist
+SELECT table_name FROM information_schema.tables
+ WHERE table_schema = 'public'
+   AND table_name IN ('google_calendar_connections', 'google_calendar_event_links');
+-- expect both rows
+
+-- 298: PTO tables + function exist
+SELECT table_name FROM information_schema.tables
+ WHERE table_schema = 'public'
+   AND table_name IN ('pto_balances', 'pto_transactions');
+SELECT proname FROM pg_proc WHERE proname IN ('pto_accrue_user', 'pto_accrual_interval');
+-- expect 2 rows + 2 rows
+```
+
+**After apply, env vars to set in Vercel for the Slice 29 OAuth round-trip:**
+
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REDIRECT_URI` (e.g. `https://app.starrsurveying.com/api/admin/google-calendar/callback`)
+
+(The agent intentionally does not log into Vercel for you; set these from the Vercel UI / `vercel env add`.)
+
+---
 >
 > **(Historical) Status:** live working doc. Each `### Slice` is a shippable unit: build → typecheck + lint → (harness/Playwright + screenshot verify where possible) → commit + push → annotate with a completion note. This doc was intentionally open-ended: new improvement slices were appended as the audit continued.
 >
@@ -248,6 +314,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   Settings → Integrations gets a Google Calendar card with Connect / Disconnect / Sync-now buttons + the last-sync timestamp; the `?gcal=...` flash messages from the callback are surfaced inline.
   
   **Runtime caveat:** verification against the real Google Calendar API needs egress to `googleapis.com` (the request/response shapes follow GCal v3); `tsc` + `eslint` clean. Commit `a011ddf`.
+
+### Slice 31 — Admin sections: navy link colour (kill the global red bleed) ✅ shipped
+- [x] `app/styles/globals.css:114` sets `a { color: var(--brand-red) }` as a marketing-site default, which bled into every admin page that didn't override per-link with an inline style. Closes the user's "consistent navy link colour (not the global red)" audit note. Fix: add a scoped rule in `app/admin/styles/AdminLayout.css` that overrides anchor colour to `var(--color-brand-navy)` within `.admin-layout`, excluding `.btn`, sidebar/topbar (which intentionally have white-on-navy), and dashboard-card variants (which set their own colours). Inline-style overrides remain untouched — those are addressed slice-by-slice as the audit walks individual pages. `tsc` + `eslint` clean (one pre-existing harmless `react-hooks/exhaustive-deps` warning on `/admin/time-off/page.tsx` unrelated to this change).
 
 ### Slice 30 — PTO Balance: accrual schema, dashboard tile, auto-deduction on approval ✅ shipped
 - [x] Closes the Slice 4 deferred PTO Balance dashboard tile (originally deferred for lack of an accrual schema). `seeds/298` adds:
