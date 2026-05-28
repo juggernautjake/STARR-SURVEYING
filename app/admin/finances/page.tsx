@@ -273,9 +273,9 @@ export default function FinancesPage() {
           type="button"
           style={styles.exportBtn}
           onClick={() => exportCsv()}
-          disabled={exporting || loading || !data || data.receipts.count === 0}
+          disabled={exporting || loading || !data?.receipts || data.receipts.count === 0}
           title={
-            !data || data.receipts.count === 0
+            !data?.receipts || data.receipts.count === 0
               ? 'No receipts in this period to export'
               : 'Download a tax-prep-friendly CSV (Schedule C lines, mileage, totals)'
           }

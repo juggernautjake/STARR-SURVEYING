@@ -178,7 +178,7 @@ export default function ReportsPage() {
       {/* Print-only header */}
       <div className="reports-print-only">
         <h1>Operations Report</h1>
-        {data && <p>{data.org.name} — {range.from} to {range.to}</p>}
+        {data?.org && <p>{data.org.name} — {range.from} to {range.to}</p>}
       </div>
 
       <section className="reports-range reports-no-print">

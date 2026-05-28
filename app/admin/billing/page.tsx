@@ -120,7 +120,7 @@ export default function CustomerBillingPage() {
     <div className="billing-page">
       <header>
         <h1>Billing</h1>
-        {state ? <p>{state.org.name}</p> : null}
+        {state?.org ? <p>{state.org.name}</p> : null}
         <nav className="billing-tabs">
           <span className="billing-tab billing-tab--active">Overview</span>
           <Link href="/admin/billing/invoices" className="billing-tab">Invoices</Link>
