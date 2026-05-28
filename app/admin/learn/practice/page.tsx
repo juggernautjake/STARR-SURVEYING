@@ -318,7 +318,7 @@ export default function PracticeSessionPage() {
           return (
             <button key={p.id} onClick={() => setCurrentIdx(i)} style={{
               width: 28, height: 28, borderRadius: '50%', fontSize: '.7rem', fontWeight: 700, cursor: 'pointer',
-              border: isCurrent ? '2px solid #1D3095' : 'var(--border-light)',
+              border: isCurrent ? '2px solid var(--color-brand-navy)' : 'var(--border-light)',
               background: isSkipped ? 'var(--color-error-bg)' : isAnswered ? 'var(--color-info-bg)' : '#FFF',
               color: isSkipped ? 'var(--color-brand-red)' : isAnswered ? 'var(--color-brand-navy)' : 'var(--color-text-tertiary)',
             }}>
@@ -389,7 +389,7 @@ export default function PracticeSessionPage() {
             </div>
             <div style={{ fontSize: '.85rem', color: '#374151', lineHeight: 1.7 }}>
               {solutionViewed[currentProblem.id].steps.map(step => (
-                <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid #1D3095' }}>
+                <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid var(--color-brand-navy)' }}>
                   <div style={{ fontWeight: 600, color: 'var(--color-brand-navy)', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
                   {step.description && <div style={{ whiteSpace: 'pre-line' }}>{step.description}</div>}
                   {step.formula && <div style={{ fontFamily: 'monospace', background: 'var(--color-bg-subtle)', padding: '.3rem .6rem', borderRadius: 4, margin: '.25rem 0', fontSize: '.82rem' }}>{step.formula}</div>}
@@ -492,7 +492,7 @@ export default function PracticeSessionPage() {
               {isExpanded && r.solution_steps && r.solution_steps.length > 0 && (
                 <div style={{ marginTop: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: 8, border: 'var(--border-light)' }}>
                   {r.solution_steps.map(step => (
-                    <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid #1D3095' }}>
+                    <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid var(--color-brand-navy)' }}>
                       <div style={{ fontWeight: 600, color: 'var(--color-brand-navy)', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
                       {step.description && <div style={{ fontSize: '.85rem', color: '#374151', whiteSpace: 'pre-line' }}>{step.description}</div>}
                       {step.formula && <div style={{ fontFamily: 'monospace', background: 'var(--color-bg-card)', padding: '.3rem .6rem', borderRadius: 4, margin: '.25rem 0', fontSize: '.82rem', border: 'var(--border-light)' }}>{step.formula}</div>}

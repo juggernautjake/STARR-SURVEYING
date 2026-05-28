@@ -158,7 +158,7 @@ export default function StudentDetailPage() {
             style={{
               fontFamily: "'Inter',sans-serif", fontSize: '.85rem', fontWeight: 600,
               padding: '.6rem 1rem', cursor: 'pointer', border: 'none', background: 'none',
-              borderBottom: tab === t.key ? '3px solid #1D3095' : '3px solid transparent',
+              borderBottom: tab === t.key ? '3px solid var(--color-brand-navy)' : '3px solid transparent',
               color: tab === t.key ? 'var(--color-brand-navy)' : 'var(--color-text-tertiary)',
               marginBottom: '-2px', transition: 'all .15s',
             }}

@@ -362,6 +362,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 40 — Token-ize the hardcoded navy hex (sweep): billing area batch ✅ shipped
 - [x] All four `app/admin/billing/**/*.tsx` files — `invoices/page.tsx` (3), `page.tsx` (8), `plan-history/page.tsx` (3), `upgrade/page.tsx` (6) — converted (20 occurrences total). Mix of JS string literals in `STATUS_COLORS` / `EVENT_COLORS` config maps and bare hex inside `<style jsx>` template-literal CSS. CSS-vars work in both contexts (the runtime sets the variable on `:root`, and `var(...)` resolves inside JSX style blocks too). 95 `#1D3095` literals across 35 admin .tsx files remain. `tsc` + `eslint` clean.
 
+### Slice 41 — Token-ize the hardcoded navy hex (sweep): learn area batch ✅ shipped
+- [x] All four `app/admin/learn/**/*.tsx` files — `students/[studentEmail]/page.tsx` (1 — active-tab underline), `practice/page.tsx` (3 — palette button border + two step border-lefts), `manage/lesson-builder/[id]/page.tsx` (1 — emoji-pick selection ring), `manage/question-builder/page.tsx` (2 — sim-quiz outer card + answered-pick highlight) — converted. 88 `#1D3095` literals across 31 admin .tsx files remain. `tsc` + `eslint` clean.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
