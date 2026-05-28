@@ -1870,7 +1870,7 @@
 /* FAB button — leftmost in the bottom-right toolbar row */
 .messenger-fab-wrap { position:fixed; bottom:1.5rem; right:calc(1.5rem + 120px); z-index:90; display:flex; flex-direction:column; align-items:center; }
 .messenger-fab { width:48px; height:48px; border-radius:12px; background:#1D3095; color:#FFF; border:none; font-size:1.2rem; cursor:pointer; box-shadow:0 4px 16px rgba(29,48,149,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
-.messenger-fab:hover { background:#152050; transform:translateY(-2px); box-shadow:0 6px 20px rgba(29,48,149,.45); }
+.messenger-fab:hover { background:var(--color-brand-navy-d); transform:translateY(-2px); box-shadow:0 6px 20px rgba(29,48,149,.45); }
 .messenger-fab__badge { position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; padding:0 5px; background:#EF4444; color:#FFF; font-size:.65rem; font-weight:700; border-radius:10px; display:flex; align-items:center; justify-content:center; border:2px solid #FFF; line-height:1; font-family:'Inter',sans-serif; }
 .messenger-fab-tooltip { position:absolute; bottom:calc(100% + 8px); white-space:nowrap; background:#EFF6FF; color:#1D3095; font-family:'Inter',sans-serif; font-size:.75rem; font-weight:600; padding:.35rem .7rem; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.1); opacity:0; transform:translateY(4px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .messenger-fab-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#EFF6FF; border-bottom:none; }
@@ -1929,7 +1929,7 @@
 .messenger-panel__input { flex:1; padding:.45rem .65rem; font-family:'Inter',sans-serif; font-size:.82rem; border:1.5px solid #E5E7EB; border-radius:20px; color:#0F1419; }
 .messenger-panel__input:focus { outline:none; border-color:#1D3095; }
 .messenger-panel__send { background:#1D3095; color:#FFF; border:none; width:32px; height:32px; border-radius:50%; font-size:.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-.messenger-panel__send:hover { background:#152050; }
+.messenger-panel__send:hover { background:var(--color-brand-navy-d); }
 .messenger-panel__send:disabled { opacity:.4; cursor:not-allowed; }
 
 /* Emoji picker in messenger */
@@ -1979,7 +1979,7 @@
 
 /* Start conversation button */
 .messenger-panel__start-btn { display:block; width:calc(100% - 1.5rem); margin:.5rem auto; padding:.55rem; background:#1D3095; color:#FFF; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; cursor:pointer; transition:background .15s; }
-.messenger-panel__start-btn:hover { background:#152050; }
+.messenger-panel__start-btn:hover { background:var(--color-brand-navy-d); }
 
 /* Search view */
 .messenger-panel__search-view { display:flex; flex-direction:column; flex:1; overflow:hidden; }

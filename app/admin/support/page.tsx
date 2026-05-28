@@ -149,7 +149,7 @@ export default function SupportPage() {
           font-weight: 600;
           font-size: 0.9rem;
         }
-        .support-btn:hover { background: #152050; }
+        .support-btn:hover { background: var(--color-brand-navy-d); }
         .support-error, .support-loading, .support-empty {
           padding: 2rem;
           text-align: center;

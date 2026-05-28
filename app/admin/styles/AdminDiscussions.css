@@ -92,7 +92,7 @@
 .thread-detail__reply textarea { flex:1; min-height:60px; max-height:120px; padding:.6rem .75rem; font-family:'Inter',sans-serif; font-size:.85rem; border:2px solid #E5E7EB; border-radius:8px; resize:vertical; color:#0F1419; }
 .thread-detail__reply textarea:focus { outline:none; border-color:#1D3095; }
 .thread-detail__reply-btn { padding:.6rem 1rem; background:#1D3095; color:#FFF; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; cursor:pointer; white-space:nowrap; }
-.thread-detail__reply-btn:hover { background:#152050; }
+.thread-detail__reply-btn:hover { background:var(--color-brand-navy-d); }
 .thread-detail__reply-btn:disabled { opacity:.5; cursor:not-allowed; }
 
 /* === THREAD ACTIONS BAR === */
