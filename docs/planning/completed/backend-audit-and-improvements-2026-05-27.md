@@ -669,3 +669,13 @@ Same session, continued past the original wrap-up because the stop-hook was stil
 - [x] `tsc` + `eslint` clean.
 
 **Session totals:** 40 slices, 1 bug-find-and-fix, ~273 new unit-test specs across 18 new test files, ~245 brand-hex literals tokenized, 32 navigation/title gaps closed, 4 pre-existing lint warnings cleared. Branch `claude/gifted-ramanujan-lQaEI` is the running record.
+
+---
+
+## Final close (2026-05-28, ~02:05 CDT)
+
+> Every action item in this doc is now either **shipped** (Slices 1–77) or **deferred with a one-line rationale** (the deployment / live-browser items at the top of Phase 3 wrap-up and again in Phase 4 wrap-up). Moving the doc to `docs/planning/completed/` per the rubric in `docs/planning/README.md`.
+>
+> The four deferred items — apply `seeds/296`/`297`/`298` to live Supabase, set Vercel `GOOGLE_OAUTH_*` env vars, drive the in-browser admin-page audit, and live-walk Slices 24–30 against production data — all require capabilities the remote sandbox doesn't have (Supabase SQL Editor / linked CLI, Vercel dashboard, a logged-in Chrome session). They're tracked in the Phase-3 wrap-up's "Deferred" list; a future local session with browser + deployment access can pick them up directly from there.
+>
+> Branch HEAD at close: see `git log` on `claude/gifted-ramanujan-lQaEI`. No outstanding code work; `tsc` + `eslint` clean (the two `<img>` warnings on `employees/page.tsx:222` and `receipts/page.tsx:624` are documented decisions in Slice 48, not regressions).
