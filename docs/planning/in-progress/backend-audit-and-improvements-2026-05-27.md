@@ -405,6 +405,17 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 51 — Unit tests for the schedule recurrence expander (Slice 26 contract) ✅ shipped
 - [x] Added `__tests__/schedule/recurrence.test.ts` covering `parseRRule` + `expandRecurrence`. Parser specs: simple DAILY, WEEKLY+INTERVAL, WEEKLY+BYDAY (Mo,We,Fr → `[1,3,5]`), COUNT, UNTIL in both `YYYYMMDDTHHMMSSZ` and `YYYYMMDD` forms, rejected FREQ=YEARLY, rejected no-FREQ, defensive INTERVAL=0→1 clamp (zero would infinite-loop the expander), case-insensitive tokens. Expander specs: empty when no rule, one-per-day inside window, INTERVAL=2 skip-pattern, COUNT clipping, UNTIL clipping, BYDAY=MO,WE,FR starting from Monday emits all three days that week, BYDAY does NOT back-fill days earlier in the start-week than the series start (a real subtlety in the expander loop), WEEKLY INTERVAL=2 skips the off weeks, MONTHLY same-day-each-month, windowTo is exclusive (≥), 366-occurrence hard cap, `recurrence_end` column clips when tighter than UNTIL/windowTo. 22 specs pass via `npx vitest run __tests__/schedule/recurrence.test.ts`. `tsc` + `eslint` clean.
 
+### Slice 52 — Unit tests for the unicode-escape decoder ✅ shipped
+- [x] Added `__tests__/lib/decodeUnicode.test.ts` for `decodeUnicodeEscapes` — 8 specs covering the 4-digit and curly-braced (supplementary-plane) forms, mixed text, empty input, mixed-case hex, and the deliberate "3-digit shorts are NOT decoded" property. The function is a quiet but real utility (called from quill-rich-text content that sometimes lands in the DB with literal `✅` instead of the codepoint); pinning the contract prevents accidental regressions.
+
+### Slice 53 — Unit tests for the practice-engine answer checker ✅ shipped
+- [x] Added `__tests__/lib/solutionChecker.test.ts` — 21 specs covering all four scoring paths in `lib/solutionChecker.ts`:
+  - **Numeric:** exact (≤tolerance), close-but-warn (≤5×tolerance, surfaces `rounding_warning`), close-by-relative-error (≤0.1% for large numbers), wrong, decimal-precision-mismatch warning, NaN user input, NaN correct answer (broken question), custom tolerance.
+  - **Text:** case + trim tolerance, partial mode (substring accept), strict mode (no substring), empty.
+  - **Multiple choice:** case-insensitive match, mismatch.
+  - **Dispatch (`checkAnswer`):** routes `numeric_input` + `math_template` to numeric; `multiple_choice` + `true_false` to MC; `short_answer` to text-partial; `fill_blank` to text-strict; unknown types fall back to strict text-match.
+  - The "is this answer counted as correct?" decision is the heart of the practice engine — these tests make sure a refactor can't silently shift the close-enough threshold.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
