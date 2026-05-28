@@ -446,6 +446,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - Other landings that fell through: `/admin/field-data`, `/admin/finances`, `/admin/mileage`, `/admin/team`, `/admin/timeline`, `/admin/vehicles`
 - [x] `tsc` + `eslint` clean. Dynamic-segment routes (`/admin/jobs/[id]`, `/admin/payroll/[email]`, etc.) still use the path-prefix fallbacks (`/admin/jobs/` → `"Job Detail"`, etc.) that were already in the `getTitle()` helper.
 
+### Slice 58 — Ux harness: 3 missing pages from Slice 56 added ✅ shipped
+- [x] The `app/ux-harness/UxHarnessClient.tsx` `PAGES` registry mounts each admin page so the static UI audit can render them under mocked auth. After Slice 56 added 9 office-workspace routes to `lib/admin/route-registry.ts`, three of them (`/admin/orgs`, `/admin/payouts`, `/admin/support`) were also missing from the harness registry — meaning the harness would 404 the `?page=orgs` etc. preset and a future Phase-3 in-browser audit couldn't load them in the screen-shot pipeline. Added all three. The other six newly-registered routes (`announcements`, `audit`, `billing`, `invites`, `org-settings`, `reports`) were already in the harness. `tsc` + `eslint` clean.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
