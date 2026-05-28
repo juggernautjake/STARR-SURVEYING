@@ -416,6 +416,10 @@ Live authenticated screenshots of the admin pages are **not currently possible f
   - **Dispatch (`checkAnswer`):** routes `numeric_input` + `math_template` to numeric; `multiple_choice` + `true_false` to MC; `short_answer` to text-partial; `fill_blank` to text-strict; unknown types fall back to strict text-match.
   - The "is this answer counted as correct?" decision is the heart of the practice engine — these tests make sure a refactor can't silently shift the close-enough threshold.
 
+### Slice 54 — Tests for problemEngine + real `{{x:f0}}` bug fix ✅ shipped (bug-find via test)
+- [x] Added `__tests__/lib/problemEngine.test.ts` for the two pure-function pillars of the problem-template engine: `evalFormula` (math sandbox — arithmetic, NaN-on-error, Math helpers like `sqrt`/`hypot`/`atan2`, and surveying helpers `toRad` / `toDeg` / `dmsToDecimal` / `round(n,d)`) and `substituteTemplate` (the `{{name[:format]}}` placeholder renderer — plain subs, missing-var-stays-as-placeholder, `f2`/`f0` decimal formats, `dms` degrees-minutes-seconds glyph, `abs`, `sign`). 25 specs.
+- [x] **Bug found and fixed:** the `f0` format specifier (zero decimals) was silently rendering 2 decimals because of `parseInt(format.slice(1)) || 2` — the JS `||` operator treats `0` as falsy, so `f0` mapped to `f2`. A solution template that did `{{count:f0}}` to render "5 segments" instead of "5.00 segments" would have shipped the latter. Switched to `Number.isFinite(parsed) ? parsed : 2` so 0 means "zero decimals" exactly. `tsc` + `eslint` clean. All 25 problem-engine specs pass.
+
 ## Phase 3 wrap-up (2026-05-28, user-requested close)
 
 > User: "Please get to a quick stopping point on auditing and working on the code. Move the file into the complete folder and just answer my questions." Closing the doc here. Phase 3 status:
