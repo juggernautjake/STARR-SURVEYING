@@ -525,6 +525,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 
 ---
 
+### Slice 67 — `withAlpha()` helper unblocks the `color + '20'` alpha pattern ✅ shipped
+- [x] Slice 61 documented 3 files where `var(--color-error)` couldn't replace `#EF4444` because the values were concatenated with the alpha-channel literal `'20'` (`color + '20'` → `#EF444420`). Concatenating onto a `var()` produces invalid CSS. Added `lib/admin/color-alpha.ts` with `withAlpha(color, alphaPct)` — hex input uses the fast `color + alphaHex` append (preserving the historical render exactly for `alphaPct ≈ 12.55%`); anything else (CSS vars, named colors, existing `color-mix()` exprs) falls through to `color-mix(in srgb, COLOR PCT%, transparent)` which all modern browsers (Chrome 111+, Firefox 113+, Safari 16.2+) resolve correctly. Eleven specs in `__tests__/lib/color-alpha.test.ts` pin the contract: 0x20-byte parity at 12.55%, hex 50% / 0% / 100% boundaries, defensive clamping for out-of-range pct, fall-through behaviour for CSS-var / named-color / short-hex / nested-color-mix inputs. Next slice retrofits the 11 admin call sites that use the hex-concat pattern. `tsc` + `eslint` clean.
+
 ## Phase 4 wrap-up (2026-05-28 night, ~02:30 CDT)
 
 > User explicitly re-opened the doc and asked for continued audit / refactor / test work without browser access "until 3 am". This phase summary lists every slice shipped in that window (Slices 38–66, 29 slices total).
