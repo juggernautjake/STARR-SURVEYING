@@ -348,6 +348,9 @@ Live authenticated screenshots of the admin pages are **not currently possible f
 ### Slice 36 — Token-ize the hardcoded navy hex (sweep): `app/admin/team/page.tsx` ✅ shipped
 - [x] Phase-3 audit follow-up. There are 152 `#1D3095` literals across 58 `.tsx` files in `app/admin/**` (as of this commit). The handoff prompt explicitly called for an incremental sweep — one page per commit — so this slice handles only `app/admin/team/page.tsx` (5 occurrences in the local `styles` const: active-tab `background` + `borderColor`, ping-button `background`, secondary ping-button `color` + `border`). All five now read `var(--color-brand-navy)` so a future brand-colour change in `tokens.css` propagates. Continue the sweep one file per slice. `tsc` + `eslint` clean.
 
+### Slice 37 — Token-ize the hardcoded navy hex (sweep): `app/admin/jobs/[id]/page.tsx` ✅ shipped
+- [x] Second file in the sweep. The job-detail page had 3 hex literals: the inline "View field captures →" Link (`color` + `border`) at ~line 380, and the Save button on the result-change dialog (`background`) at ~line 872. All three now read `var(--color-brand-navy)`. 144 `#1D3095` literals across 56 admin .tsx files remain. `tsc` + `eslint` clean.
+
 ---
 
 ## Phase 2 wrap-up (2026-05-28)

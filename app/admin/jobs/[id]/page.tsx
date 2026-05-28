@@ -377,8 +377,8 @@ export default function JobDetailPage() {
             style={{
               fontSize: 13,
               fontWeight: 600,
-              color: '#1D3095',
-              border: '1px solid #1D3095',
+              color: 'var(--color-brand-navy)',
+              border: '1px solid var(--color-brand-navy)',
               borderRadius: 8,
               padding: '6px 12px',
               textDecoration: 'none',
@@ -869,7 +869,7 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
           <button
             onClick={save}
             disabled={submitting || ((draftResult === 'lost' || draftResult === 'abandoned') && !draftReason.trim())}
-            style={{ padding: '0.25rem 0.7rem', background: '#1D3095', color: '#FFF', border: 0, borderRadius: 4, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ padding: '0.25rem 0.7rem', background: 'var(--color-brand-navy)', color: '#FFF', border: 0, borderRadius: 4, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             {submitting ? 'Saving…' : 'Save'}
           </button>
