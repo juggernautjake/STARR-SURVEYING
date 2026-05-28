@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import '../styles/AdminDiscussions.css';
 
 interface Thread {
   id: string;
