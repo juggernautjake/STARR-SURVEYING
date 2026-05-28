@@ -64,3 +64,7 @@ worker/pnpm-lock.yaml
 
 # Supabase CLI per-developer link state (project ref, pooler URL, version pins).
 supabase/.temp/
+
+# Playwright MCP screenshots + per-session audit artifacts (local only).
+audit-*.png
+.playwright-mcp/

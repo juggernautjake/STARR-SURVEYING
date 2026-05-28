@@ -730,4 +730,22 @@ Same session, continued past the original wrap-up because the stop-hook was stil
 
 **Verification** (25/25 ✅ — all artifacts present, all functions registered).
 
-### Phase 5.2 — Vercel `GOOGLE_OAUTH_*` env vars — IN PROGRESS
+### Phase 5.2 — Vercel `GOOGLE_OAUTH_*` env vars ✅ NO-OP (runbook outdated)
+
+**Finding:** the Phase-3 runbook asks for `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `GOOGLE_OAUTH_REDIRECT_URI`, but the **code uses different names**:
+
+| Runbook asked for | Actual code reference | Vercel state |
+|---|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | `GOOGLE_CLIENT_ID` (in `lib/auth.ts:400` for NextAuth Google sign-in AND `lib/integrations/google-calendar.ts:46,68,86` for the Calendar OAuth — same client for both) | ✅ set on Production + Preview + Development (34d + 111d old, two separate entries) |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | `GOOGLE_CLIENT_SECRET` (same locations) | ✅ set on Production + Preview + Development |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Not used. The redirect URI is derived per-request in `app/api/admin/google-calendar/route.ts:19-22` and `…/callback/route.ts:13-15` as `process.env.NEXTAUTH_URL ?? '${req.protocol}//${req.host}'` + `/api/admin/google-calendar/callback`. The `NEXTAUTH_URL` env var falls back to the request host, which is `app.starrsurveying.com` for prod and the preview-deploy URL for previews — so the callback URL works for both without explicit config. | n/a |
+
+**So:** no Vercel env vars to add; no `vercel --prod` redeploy needed (Production was last deployed 10h ago, after PR #474 merge that brought in the Slice-29 OAuth code; that deploy is `Ready`).
+
+**Remaining GCP-side checks (deferred to Phase 5.4 live walkthrough):**
+- The OAuth client (GCP project that issued the client id 34+ days ago) must list `https://app.starrsurveying.com/api/admin/google-calendar/callback` as an authorized redirect URI — verified live by clicking "Connect Google Calendar" in prod and observing whether the GCP consent screen loads cleanly or returns `redirect_uri_mismatch`.
+- The OAuth consent screen must include Calendar scopes (`https://www.googleapis.com/auth/calendar.events`). Same live-test verifies this — if scopes are missing, the user sees an unverified-scope warning or the post-consent token has insufficient grants.
+
+Action plan if either check fails: open the OAuth client in GCP Console, add the callback URI + scopes. User has authorized "yes proceed" on follow-ups, so I'll record what would need to happen rather than asking.
+
+### Phase 5.3 — Live in-browser admin audit (Playwright MCP) — IN PROGRESS
