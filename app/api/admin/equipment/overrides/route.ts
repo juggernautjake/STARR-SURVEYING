@@ -68,7 +68,10 @@ interface PersonnelOverrideRow {
   state: string | null;
   override_reason: string | null;
   notes: string | null;
-  created_at: string;
+  // The live job_team schema has no created_at column; assigned_at is
+  // the closest equivalent (always set on insert). The unified output
+  // still surfaces this as `created_at` to keep the API stable.
+  assigned_at: string;
 }
 
 interface UnifiedOverride {
@@ -173,11 +176,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .select(
         'id, job_id, user_email, user_name, slot_role, ' +
           'assigned_from, assigned_to, state, override_reason, ' +
-          'notes, created_at'
+          'notes, assigned_at'
       )
       .eq('is_override', true)
-      .gte('created_at', sinceIso)
-      .order('created_at', { ascending: false })
+      .gte('assigned_at', sinceIso)
+      .order('assigned_at', { ascending: false })
       .limit(limit);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -263,7 +266,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     unified.push({
       kind: 'personnel',
       override_id: r.id,
-      created_at: r.created_at,
+      created_at: r.assigned_at,
       // job_team has no historical actor column — F10.4-c logs
       // the actor at insert time but doesn't persist; surface
       // null so the page UI shows '—'. Future polish: add a
