@@ -11,10 +11,15 @@ import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/co
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
+import { describeOffsetSection } from '@/lib/cad/operations/describe-offset-section';
 import SymbolPicker, { SymbolThumbnail } from './SymbolPicker';
 import LineTypePicker, { LineTypePreview } from './LineTypePicker';
 import { getSymbolById } from '@/lib/cad/styles/symbol-library';
 import { getLineTypeById } from '@/lib/cad/styles/linetype-library';
+
+const OFFSET_UNIT_LABELS: Record<'FT' | 'IN' | 'MILE' | 'M' | 'CM' | 'MM', string> = {
+  FT: 'ft', IN: 'in', MILE: 'mi', M: 'm', CM: 'cm', MM: 'mm',
+};
 
 // ── Inline editable coordinate input ────────────────────────────────────────
 function fmtCoord(n: number): string {
@@ -990,6 +995,71 @@ export default function PropertyPanel() {
             </div>
           )}
         </div>
+
+        {/* Offset Source — surfaces when the feature was created by
+            the OFFSET tool (Slice 3 stamps the metadata). Slice 4
+            renders the source link + distance + unit; Slice 5 wires
+            the inputs into a live recompute. */}
+        {(() => {
+          const desc = describeOffsetSection(feature, drawingStore.getFeature);
+          if (!desc) return null;
+          return (
+            <div className="space-y-2 border-t border-gray-700 pt-2" data-testid="offset-source-section">
+              <div className="text-gray-500 text-[10px] uppercase tracking-wider">Offset Source</div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0 text-[10px]">Source</span>
+                <button
+                  type="button"
+                  disabled={desc.sourceMissing}
+                  onClick={() => {
+                    if (desc.sourceMissing) return;
+                    selectionStore.select(desc.metadata.sourceId, 'REPLACE');
+                  }}
+                  className={`flex-1 text-left px-1.5 py-0.5 rounded border text-[10px] font-mono truncate transition-colors ${
+                    desc.sourceMissing
+                      ? 'bg-gray-800 border-gray-700 text-yellow-500 cursor-not-allowed'
+                      : 'bg-gray-700 border-gray-600 text-blue-300 hover:bg-gray-600'
+                  }`}
+                  title={desc.sourceMissing ? 'Source feature deleted' : `Select source feature ${desc.metadata.sourceId}`}
+                >
+                  {desc.sourceLabel}
+                </button>
+              </div>
+              {desc.sourceMissing && (
+                <div className="text-[9px] text-yellow-500">⚠ Source feature deleted — offset is stale</div>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0 text-[10px]">Distance</span>
+                <input
+                  type="number"
+                  step="any"
+                  min={0}
+                  disabled={desc.sourceMissing}
+                  defaultValue={desc.metadata.distance}
+                  className="w-20 h-6 bg-gray-700 text-white rounded px-1 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs disabled:opacity-50"
+                  aria-label="Offset distance"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0 text-[10px]">Unit</span>
+                <select
+                  disabled={desc.sourceMissing}
+                  defaultValue={desc.metadata.unit}
+                  className="w-20 h-6 bg-gray-700 text-white rounded px-1 outline-none border border-gray-600 focus:border-blue-500 text-xs disabled:opacity-50"
+                  aria-label="Offset unit"
+                >
+                  {(Object.keys(OFFSET_UNIT_LABELS) as Array<keyof typeof OFFSET_UNIT_LABELS>).map((u) => (
+                    <option key={u} value={u}>{OFFSET_UNIT_LABELS[u]}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-500">
+                <span>Side: <span className="text-gray-300">{desc.metadata.side}</span></span>
+                <span>Corner: <span className="text-gray-300">{desc.metadata.cornerHandling}</span></span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Text properties (editable for TEXT features) */}
         {feature.type === 'TEXT' && (
