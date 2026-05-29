@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { useHubData } from '@/lib/hub/use-hub-data';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -80,6 +81,14 @@ function MyJobsWidget({ size, content }: WidgetProps<MyJobsContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
 
+  // Slice 198 — read the aggregator-fed cache. When the surveyor's
+  // settings match the aggregator's default request
+  // (`my_jobs=true&limit=10`) we render directly from the cached
+  // payload + skip the per-widget fetch entirely. Custom settings
+  // (different filter / sort / rowLimit) still fetch on their own.
+  const hubData = useHubData('my-jobs');
+  const canUseAggregator = matchesAggregatorDefaults(settings);
+
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [jobs, setJobs] = useState<JobRow[]>([]);
 
@@ -103,8 +112,23 @@ function MyJobsWidget({ size, content }: WidgetProps<MyJobsContent>) {
   }, [settings.filter, settings.stage, settings.rowLimit, settings.sortBy]);
 
   useEffect(() => {
+    // When the aggregator covered us AND it succeeded, render from
+    // its payload. When it failed or skipped us, fall through to
+    // the per-widget fetch.
+    if (canUseAggregator && hubData.status === 'ok') {
+      const data = hubData.data as { jobs?: JobRow[] } | null;
+      const list = data?.jobs ?? [];
+      const sorted = sortJobs(list, settings.sortBy);
+      setJobs(sorted);
+      setStatus(sorted.length === 0 ? 'empty' : 'ok');
+      return;
+    }
+    if (canUseAggregator && hubData.status === 'loading') {
+      // Wait for the aggregator before doing our own fetch.
+      return;
+    }
     fetchJobs();
-  }, [fetchJobs]);
+  }, [canUseAggregator, hubData.status, hubData.data, settings.sortBy, fetchJobs]);
 
   if (status === 'loading') {
     return <WidgetSkeleton rows={Math.min(4, settings.rowLimit)} />;
@@ -275,6 +299,14 @@ defineWidget<MyJobsContent>({
 });
 
 // ─── Helpers (exported for tests) ────────────────────────────────────
+
+/** Returns true when the widget's settings produce the same request
+ *  the hub-data aggregator already made (`/admin/jobs?my_jobs=true&
+ *  limit=10`). When this matches, the widget can render directly
+ *  from the cached payload + skip its own fetch. */
+export function matchesAggregatorDefaults(settings: MyJobsContent): boolean {
+  return settings.filter === 'mine' && settings.rowLimit === 10;
+}
 
 export function capForBucket(bucket: SizeBucket): number {
   switch (bucket) {

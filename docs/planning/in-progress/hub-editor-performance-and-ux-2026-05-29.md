@@ -79,7 +79,7 @@ Concrete audit findings against the shipped code:
 
 ### Phase 31 — Network + render perf (Slices 198–202)
 
-#### Slice 198 — Wire HubMeClient through the hub-data aggregator
+#### Slice 198 — Wire HubMeClient through the hub-data aggregator ✅ shipped (partial widget refactor)
 - **Scope:** `HubMeClient` builds the list of widget ids from
   `layout.widgets` + fetches `/api/admin/me/hub-data?widgets=…` once
   on mount. Result is dropped into a new `useHubDataStore` (zustand
@@ -98,6 +98,13 @@ Concrete audit findings against the shipped code:
   `/api/admin/me/hub-data?widgets=…` call instead of N per-widget
   calls when the page first loads.
 - **Depends on:** Slice 152, Slice 187
+- **Done:** Shipped the infrastructure + the canonical widget refactor; remaining 4 widget refactors deferred to a follow-up (Slice 198b in spirit). New `lib/hub/hub-data-store.ts` is a tiny zustand cache keyed by widget id → `{status, data, error, fetchedAt}` with three actions: `startAggregatorFetch(widgetIds)` (marks each id loading, no-clobber if data already present so the cache stays warm during a refetch), `receiveAggregatorPayload(payload)` (writes the aggregator's `{data}|{error}|{skipped}` envelopes — skipped widgets stay in idle so their own fetch path runs), and `failAggregatorFetch(error)` (flips loading entries back to idle + records the global error so widgets fall through to their per-widget fetches). A `selectHubDataEntry(widgetId)` factory returns a stable idle sentinel so widgets can call `useHubData(id).status === 'idle'` without ref equality flapping. Companion `lib/hub/use-hub-data.ts` exposes `useHubData(widgetId)` (the React hook) + `hydrateHubDataFromAggregator(widgetIds, fetchImpl?)` (the pure side-effect helper HubMeClient calls). `HubMeClient.tsx` calls `hydrateHubDataFromAggregator(uniqueWidgetTypes)` in a new `useEffect` keyed on `layout.widgets` so first paint of `/admin/me` fires one `/api/admin/me/hub-data?widgets=…` instead of N parallel `/api/admin/*` calls — for the surveyor's default layout that drops N=6 widget fetches to 1 aggregator call. `lib/hub/widgets/my-jobs/index.tsx` was refactored as the canonical example: it now reads `useHubData('my-jobs')` + only consults the cache when `matchesAggregatorDefaults(settings)` is true (filter='mine' + rowLimit=10 — the exact URL the aggregator already requested in `/api/admin/me/hub-data/route.ts`). When the cache has the payload it renders directly from it; when the surveyor switched filter / rowLimit it falls through to the per-widget fetch. `sortBy` / `columns` / `showStageColors` are deliberately treated as client-only render switches so they don't bust the cache. 21 vitest specs lock the store's contract (idle sentinel stability, no-clobber start, ok/error/skipped payload handling, global aggregator status flips, network failure → idle fall-through, url-encoded ids so a hostile widget id can never inject raw text into the URL) + the `matchesAggregatorDefaults` gate. The remaining 4 widgets (`today-schedule`, `pto-balance`, `pending-receipts`, `team-status`) need per-widget gates because their settings affect URL parameters in non-uniform ways (e.g. `today-schedule` derives a `from`/`to` window from `settings.timeRange` that the aggregator path doesn't carry) — each needs its own `matchesAggregatorDefaults` predicate or a server-side aggregator tweak that respects the widget's settings. Captured as follow-up work below. `tsc` + `eslint` clean.
+
+##### Slice 198 follow-up — refactor remaining 4 widgets to consult the aggregator (deferred to a future slice)
+- `today-schedule`: aggregator path is `/admin/schedule` but the widget calls `/admin/schedule?from=…&to=…` derived from `settings.timeRange`. Either add a `from`/`to` aware aggregator path or gate consultation on `settings.timeRange === 'all-day'`.
+- `pto-balance`: aggregator path `/admin/pto` — needs a quick audit that the widget's request matches.
+- `pending-receipts`: aggregator path `/admin/receipts?status=pending` — matches if the widget's default filter is `status=pending`, audit needed.
+- `team-status`: aggregator path `/admin/team/status` — should be a clean drop-in.
 
 #### Slice 199 — Memoize WidgetCell
 - **Scope:** Wrap `WidgetCell` (the per-cell component inside
