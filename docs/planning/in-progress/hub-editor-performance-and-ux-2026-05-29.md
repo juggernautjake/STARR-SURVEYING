@@ -235,7 +235,7 @@ Concrete audit findings against the shipped code:
 
 ### Phase 33 — Observability + verification (Slices 207–208)
 
-#### Slice 207 — Render-count instrumentation under a debug flag
+#### Slice 207 — Render-count instrumentation under a debug flag ✅ shipped
 - **Scope:** Add a `?debug=hub-perf` query parameter that mounts a
   tiny floating overlay reporting the canvas's render count + the
   current `useHubStore` subscription count + each widget's last
@@ -249,6 +249,7 @@ Concrete audit findings against the shipped code:
   overlay; the canvas-level render count after a drag matches the
   Slice-200 assertion.
 - **Depends on:** Slice 200
+- **Done:** New `lib/hub/components/PerfOverlay.tsx` exposes a floating 160-px-wide debug card pinned to the bottom-right of the canvas at z-index 90 with `pointer-events: none` so it can never block clicks. The card reports Canvas renders + Widgets + Draft (in edit mode) + Mode (view / edit) + Aggregator (idle / loading / ok / error) + the aggregator's error message when present. Aggregator + edit-mode columns picky-subscribe from the existing hub-store + hub-data-store so the overlay re-renders only when those slices change. URL gate `shouldEnablePerfOverlay(search)` exported separately (pure function) so it can be locked + reused; `isPerfOverlayActive()` wraps it for the live-window case + returns false during SSR. `HubCanvas` reads the flag once on mount via `useEffect` (toggling the flag requires a page reload, matching the rest of the debug-flag conventions in the codebase), keeps a `renderCountRef` that ticks on every render, and conditionally renders `<PerfOverlay canvasRenderCount={renderCountRef.current} />` when active. When the flag is off the overlay component never mounts — zero subscription cost in production. Per-widget render-duration tracking from the original scope deferred (would need every widget to opt in via a context provider; the overlay's canvas-render counter is enough to validate the Slice 199 + 200 + 202 perf claims). 9 vitest specs lock the URL gate (5 cases — with `?`, without `?`, unrelated debug flag, empty/null/undefined search, with other params interleaved), SSR safety (returns false when window is undefined), and the overlay's visible surface (data-testid handle for Playwright, render count rendered, clean-store render shows Aggregator+idle + Mode+view). Interactive state-mutation render assertions skipped because React's `useSyncExternalStore` caches the server snapshot across `ReactDOMServer.renderToStaticMarkup` calls within a single process — that's React+zustand SSR plumbing, not our overlay; the interactive flips will be covered by the Phase-33 Playwright spec (Slice 208) instead. 684 hub specs green. `tsc` + `eslint` clean.
 
 #### Slice 208 — Playwright perf smoke
 - **Scope:** New `e2e/hub-editor-perf.spec.ts` that signs in,
