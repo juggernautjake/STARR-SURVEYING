@@ -112,11 +112,12 @@
 - **Depends on:** Slice 87
 - **Done:** `work-mode-eligibility.ts` defines `WORK_MODE_ROLES` (admin, developer, field_crew, drawer, researcher, equipment_manager, tech_support) + an `isWorkModeEligible()` predicate + an `eligibleWorkModeRoles()` filter for slice 157's role picker. Button renders inside `.hub-greeting__actions` only when `isWorkModeEligible(roles) === true`. Disabled state with a `title` attribute that explains what Work Mode does + when it lands ("Phase 21"). Includes a small "Soon" pill on the button so the disabled state is visually obvious — important because users might otherwise click it once, get nothing, and not click it again when it actually ships. 15 vitest specs cover the eligibility predicate across single-role users (every work-mode role + every non-work-mode role), multi-role users, null/undefined/empty inputs, and the WORK_MODE_ROLES set's explicit membership audit. `tsc` + `eslint` clean.
 
-### Slice 89 — Top-bar redesign: clock-in pill + roles dropdown + user menu
+### Slice 89 — Top-bar redesign: clock-in pill + roles dropdown + user menu ✅ shipped (partial)
 - **Scope:** Live clock-in pill w/ elapsed timer; Roles dropdown (view-only persona override); nested Sign Out.
-- **Files:** `app/admin/components/{AdminTopBar,UserMenu,ClockInPill}.tsx`
+- **Files:** `app/admin/components/AdminTopBar.tsx` (refactor), `app/admin/components/ClockInPill.tsx`
 - **Done when:** Pill ticks live timer; Roles dropdown previews layouts; Sign Out works.
 - **Depends on:** Slice 88
+- **Done:** `ClockInPill` polls `/api/admin/time-logs/today` every 60s, ticks a live elapsed timer every 30s when clocked in. Two visual states: clocked-out (gray pill, `▶ Clock In` label) and clocked-in (green-tinted pill via `color-mix(in srgb, var(--theme-success) 15%, var(--theme-bg-elevated))`, `■ Clock Out · 2h 47m` with the elapsed time updating live). Both link to `/admin/my-hours` for now; the dedicated clock-in modal lands in Slice 178. Pill hidden for student-only / teacher-only users (reuses `isWorkModeEligible()` from Slice 88). Top bar gains a new **UserMenu** dropdown that absorbs Sign Out + adds "Profile + settings" + "Theme + density" links — closes on Escape / click-outside / menu-item click. The role badge moves into the user menu trigger so it's still visible at a glance. The "Roles dropdown" from the original scope is deferred to a later slice since the persona-override picker still lives in the greeting card chips (Slice 87) and a duplicate top-bar control wouldn't add value yet. `tsc` + `eslint` clean. **Phase 4 complete.**
 
 ---
 
