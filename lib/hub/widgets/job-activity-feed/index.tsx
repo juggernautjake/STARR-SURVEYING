@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type ActivityKind = 'stage' | 'file' | 'team' | 'comment' | 'tag';
 
@@ -54,7 +59,26 @@ function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedCon
   useEffect(() => { fetchActivity(); }, [fetchActivity]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="📜" title="No recent activity" description="Job events appear here as they happen." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>events</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="📜" title="No recent activity" description="Job events appear here as they happen." />;
+  }
+
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{items.length}</span>
+        <span style={tinyStatLabelStyle()}>{items.length === 1 ? 'event' : 'events'}</span>
+      </div>
+    );
+  }
 
   const visible = items.slice(0, capForBucket(bucket));
   return (
@@ -64,11 +88,9 @@ function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedCon
           <span style={{ color: colorForKind(it.type) }} aria-hidden>{iconForKind(it.type)}</span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
             <span style={titleStyle}>{it.label}</span>
-            {bucket !== 'tiny' && (
-              <span style={mutedStyle}>
+            <span style={mutedStyle}>
                 {it.job_name ?? it.job_id ?? 'job'} · {it.actor ?? 'system'}
               </span>
-            )}
           </span>
         </li>
       ))}
@@ -112,7 +134,8 @@ defineWidget<JobActivityFeedContent>({
   category: 'work',
   iconName: 'Activity',
   defaultSize: { w: 4, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 216 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'tech_support'],

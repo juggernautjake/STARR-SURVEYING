@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 import { bucketCap } from '@/lib/hub/widgets/_shared/simple-list-widget';
 
 export interface RecentDrawingsContent extends Record<string, unknown> {
@@ -36,7 +41,26 @@ function RecentDrawingsWidget({ size, content }: WidgetProps<RecentDrawingsConte
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="📐" title="No recent drawings" description="Drawings open here as you work in CAD." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>drawings</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="📐" title="No recent drawings" description="Drawings open here as you work in CAD." />;
+  }
+
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{items.length}</span>
+        <span style={tinyStatLabelStyle()}>{items.length === 1 ? 'drawing' : 'drawings'}</span>
+      </div>
+    );
+  }
 
   const visible = items.slice(0, capForBucket(bucket));
   return (
@@ -44,7 +68,7 @@ function RecentDrawingsWidget({ size, content }: WidgetProps<RecentDrawingsConte
       {visible.map((d) => (
         <li key={d.id} style={{ padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
           <span style={{ display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{d.name}</span>
-          {bucket !== 'tiny' && d.job_name && (
+          {d.job_name && (
             <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{d.job_name}</span>
           )}
         </li>
@@ -73,7 +97,8 @@ defineWidget<RecentDrawingsContent>({
   category: 'cad',
   iconName: 'PenTool',
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 216 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'],

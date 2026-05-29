@@ -12,6 +12,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export interface RecentAnnouncementsContent extends Record<string, unknown> {
   unreadOnly: boolean;
@@ -56,7 +61,24 @@ function RecentAnnouncementsWidget({ size, content }: WidgetProps<RecentAnnounce
 
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
   if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>updates</span>
+        </div>
+      );
+    }
     return <WidgetEmpty icon="📢" title="No announcements" description="New org-wide updates will show up here." />;
+  }
+
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-info)')}>{items.length}</span>
+        <span style={tinyStatLabelStyle()}>{items.length === 1 ? 'update' : 'updates'}</span>
+      </div>
+    );
   }
 
   const visible = items.slice(0, capForBucket(bucket));
@@ -69,7 +91,7 @@ function RecentAnnouncementsWidget({ size, content }: WidgetProps<RecentAnnounce
           )}
           <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
             <span style={titleStyle}>{a.title}</span>
-            {bucket !== 'tiny' && a.body && (
+            {a.body && (
               <span style={previewStyle}>{a.body}</span>
             )}
           </span>
@@ -112,7 +134,8 @@ defineWidget<RecentAnnouncementsContent>({
   category: 'communication',
   iconName: 'Megaphone',
   defaultSize: { w: 4, h: 2 },
-  minSize: { w: 2, h: 1 },
+  // Slice 216 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 8, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: [],
