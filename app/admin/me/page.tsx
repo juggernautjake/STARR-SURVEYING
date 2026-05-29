@@ -25,7 +25,10 @@ import HubGreeting from './components/HubGreeting';
 import HubMeClient from './HubMeClient';
 import { fetchHubLayoutForUser } from '@/lib/hub/server/fetch-hub-layout';
 
-import './AdminMe.css';
+// HubGreeting still relies on the `.hub-greeting*` selectors from
+// the legacy stylesheet. The rest of AdminMe.css covers the archived
+// Phase-2 components (Slice 189 — see `_archive/README.md`).
+import './_archive/AdminMe.css';
 
 export default async function HubPage() {
   const session = await auth();

@@ -1,15 +1,18 @@
-// __tests__/admin/hub-tabs.test.ts
+// __tests__/_archive/admin/me/hub-tabs.test.ts
 //
-// Phase 2 slice 2a — locks the `?tab=…` parser so deep-links into a
-// specific Hub tab always resolve to a known tab (or fall back to
-// 'overview' safely). UI behavior tests will land alongside JSDOM
-// setup in a later slice.
+// Archived 2026-05-29 in Slice 189 — HubTabs is one of the Phase-2
+// legacy primitives that the widget canvas (Slices 78-184) replaced.
+// The component + this test live under `_archive/` to document the
+// pre-migration behaviour without polluting the active codebase.
+//
+// Originally Phase 2 slice 2a — locks the `?tab=…` parser so
+// deep-links into a specific Hub tab always resolve to a known tab.
 //
 // Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §5.1 + §8 Phase 2.
 
 import { describe, expect, it } from 'vitest';
 
-import { HUB_TABS, parseHubTab } from '@/app/admin/me/components/HubTabs';
+import { HUB_TABS, parseHubTab } from '@/app/admin/me/_archive/components/HubTabs';
 
 describe('hub tabs — parseHubTab', () => {
   it('defaults to overview when no value is present', () => {
