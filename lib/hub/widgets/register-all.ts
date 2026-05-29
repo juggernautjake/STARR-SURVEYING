@@ -21,3 +21,4 @@ import './class-assignments';
 import './today-schedule';
 import './pto-balance';
 import './hours-this-week';
+import './recent-activity';
