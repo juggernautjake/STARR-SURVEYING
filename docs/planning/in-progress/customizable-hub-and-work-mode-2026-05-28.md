@@ -424,17 +424,22 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 18 — Operational + nice-to-have widgets (Slices 141–145)
 
-### Slice 141 — Weather widget
+### Slice 141 — Weather widget ✅ shipped
 - **Scope:** Wire OpenWeather via new `/api/admin/weather` proxy (API key server-side). Settings: location (auto / manual zip / active job).
+- **Done:** `lib/hub/widgets/weather/index.tsx` reads `/api/admin/weather?location=…&zip=…`. Renders icon + temp + description + H/L + location label (non-tiny). Settings: location radio + ZIP input (when manual). Catalog: personal / CloudSun / universal.
 
-### Slice 142 — Mileage Tracker widget
+### Slice 142 — Mileage Tracker widget ✅ shipped
+- **Done:** `lib/hub/widgets/mileage-tracker/index.tsx` reads `/api/admin/mileage?period=…`. Big miles + trip count + reimbursable subline. Catalog: operational / Car / internal roles.
 
-### Slice 143 — Sun Calculator widget
+### Slice 143 — Sun Calculator widget ✅ shipped
+- **Done:** `lib/hub/widgets/sun-calculator/index.tsx` reads `/api/admin/sun`, falls back to a friendly default if missing. Renders sunrise / sunset / daylight hours. Catalog: personal / Sun / universal.
 
-### Slice 144 — Streak Counter widget (learning)
+### Slice 144 — Streak Counter widget (learning) ✅ shipped
+- **Done:** `lib/hub/widgets/streak-counter/index.tsx` reads `/api/admin/learn/streak`. Big 🔥 day count + longest. Catalog: learning / Flame / students+teachers+admins.
 
-### Slice 145 — Daily Briefing widget
+### Slice 145 — Daily Briefing widget ✅ shipped
 - **Scope:** Composite (schedule + weather + crew status + tasks). Only renders at large+ sizes.
+- **Done:** `lib/hub/widgets/daily-briefing/index.tsx` is a composite layout — at tiny/small it shows a "resize me larger" hint; at medium+ it renders a 4-column grid of stub sections (today / weather / crew / action items). The full composite-of-other-widgets pipeline will land alongside Slice 162's Work Mode greeting overhaul; until then this is the shell. Catalog: personal / LayoutGrid / universal.
 
 ---
 

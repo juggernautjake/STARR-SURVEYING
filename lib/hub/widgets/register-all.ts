@@ -48,3 +48,8 @@ import './pending-time-off';
 import './pending-hours';
 import './monthly-revenue';
 import './outstanding-invoices';
+import './weather';
+import './mileage-tracker';
+import './sun-calculator';
+import './streak-counter';
+import './daily-briefing';
