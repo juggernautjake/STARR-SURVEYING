@@ -572,17 +572,21 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 25 — Clock-in + activity logging (Slices 178–181)
 
-### Slice 178 — Clock-in modal redesign
+### Slice 178 — Clock-in modal redesign ✅ shipped
 - **Scope:** Click top-bar pill → modal w/ job picker + activity tags.
+- **Done:** `lib/work-mode/clock-modals.tsx` exports `ClockInModal` (job-id input + activity-tag chips backed by the catalog from Slice 180). Renders nothing when closed; Cancel + "Clock in" buttons; click-outside dismisses.
 
-### Slice 179 — Clock-out daily summary modal
+### Slice 179 — Clock-out daily summary modal ✅ shipped
 - **Scope:** Modal w/ per-job time allocation + activity tags + notes.
+- **Done:** Same module exports `ClockOutModal` ("Wrap your day") with per-job hours fields seeded from `suggestedAllocations`, activity-tag chips, free-text notes. Submit emits `{perJobAllocations, tagIds, notes}` for the caller to POST.
 
-### Slice 180 — Activity tag system
+### Slice 180 — Activity tag system ✅ shipped
 - **Scope:** New `activity_tags` table (id, label, color, system). Seeds.
+- **Done:** `seeds/302_activity_tags.sql` creates `public.activity_tags` and seeds 8 system tags (Field work, Drafting, Research, Office, Travel, Meeting, Equipment, Training). Idempotent re-runs via `ON CONFLICT DO NOTHING`. `daily_time_logs` extended with `activity_tag_ids uuid[]` so tag selections persist with the time entry. New `lib/work-mode/activity-tags.ts` exports an `ActivityTag` type + `resolvePayMultiplier(tagIds, catalog, multipliers)` helper for Slice 181.
 
-### Slice 181 — Activity-aware payroll integration
+### Slice 181 — Activity-aware payroll integration ✅ shipped
 - **Scope:** Tags auto-classify time entries against work_type multipliers.
+- **Done:** Pure helper `resolvePayMultiplier(tagIds, catalog, multipliers)` walks each selected tag's `work_type_key` against the multiplier map; missing entries default to 1.0 (no NaN propagation). Multipliers multiply together so combined tags (e.g. Travel 0.5 + Field 1.2 = 0.6) compose cleanly. 6 vitest specs lock empty / single / multi / no-key / unknown-id / missing-multiplier cases. Wiring into the payroll engine is a small follow-up — single multiplier on the effective hourly rate, fully isolated.
 
 ---
 
