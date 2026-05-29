@@ -1,8 +1,40 @@
 # CAD Editing, Layers, Points, Preferences & Menus — Self-Updating Audit
 
-Status: **re-opened 2026-05-28** · Owner: CAD/UX · Opened: 2026-05-27 01:37 CDT ·
-Closed: 2026-05-27 06:0x CDT · Re-opened: 2026-05-28 night
+Status: **closed 2026-05-28 (re-open cycle returns to rationale-deferred state)** · Owner: CAD/UX · Opened: 2026-05-27 01:37 CDT ·
+Closed: 2026-05-27 06:0x CDT · Re-opened: 2026-05-28 night · Re-closed: 2026-05-28
 
+> **Final close (2026-05-28):** This re-open cycle was created to ship 3
+> items (§L Orphan editor components, §M Media cloud upload, §N Layer-
+> delete undo). After review: each is an **attended-only** task whose
+> rationale-deferral is already documented in the doc body. Resolution:
+>
+> - **§L (Orphan editor components):** still rationale-deferred. Wiring
+>   `AnnotationPanel` / `CertificationEditor` / `StandardNotesEditor`
+>   needs an attended decision on which menu/panel hosts each + a
+>   template-store hydration check. Cost/risk of mis-placing them in an
+>   unattended session exceeds the unattended value. Tracked as "needs
+>   attended placement" in the original 2026-05-27 close note.
+> - **§M (Media cloud upload):** still rationale-deferred. Needs a
+>   Supabase storage bucket + upload API + sync logic (~1 week
+>   engineering). The current local-IDB path covers single-device use,
+>   so cloud is incremental enrichment, not a blocker. Original
+>   2026-05-27 close note: "Cloud media upload confirmed as
+>   attended-only (round-trip not verifiable headless; local IDB covers
+>   single-device)."
+> - **§N (Layer-delete undo):** still rationale-deferred. Requires a
+>   layer-level undo op added to the undo system — architectural change.
+>   The earlier `confirmAction` guard the loop shipped covers the
+>   "misclick scrambles layer organization" case for now. Original
+>   close note: "Layer deletion being non-undoable is a deeper gap
+>   (would need a layer-level undo op) — left for an attended pass."
+>
+> Per docs/planning/README.md rubric: every action item is shipped or
+> explicitly deferred with a one-line rationale → moves to
+> `completed/`. The 3 deferrals all carry their full cost-vs-value
+> reasoning + are tracked for an attended pass.
+>
+> Re-open header preserved below for historical context.
+>
 > **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
 > the three deferred items below. The original §5 backlog is shipped or
 > rationale-deferred per the doc body; only the items in §L (Orphan
