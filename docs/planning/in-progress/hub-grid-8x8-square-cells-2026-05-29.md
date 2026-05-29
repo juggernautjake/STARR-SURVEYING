@@ -140,14 +140,28 @@ approach keeps each slice reviewable. The doc closes only when all
 - **Depends on:** Slice 212.
 - **Done:** Four widgets adopted the shared `_shared/stat-bucket` helpers with proper tiny + non-tiny branches. `weather`: tiny shows the weather emoji + rounded temperature with °F; small+ adds the description + location + high/low row; empty state at tiny shows `—° / weather`. `mentions-inbox`: tiny shows `@{count} mentions` with accent color when there are any (or fg-secondary muted color when none); small+ keeps the existing list with body previews (the redundant `bucket !== 'tiny'` preview guard was removed since tiny is handled above). `messages`: tiny shows the total unread count (accent color) or total conversation count (primary) with the appropriate label; small+ keeps the unread-dot list with the redundant tiny guards removed from the group badge + timestamp. `recent-activity`: tiny shows the recent-page count + "recent" label; small+ keeps the existing href-subtitle list with the redundant `bucket !== 'tiny'` guard removed. All four minSize values lowered to 1×1 so the tiny bucket is reachable. 14 vitest specs in the new contract test (4 lowered-minSize + 4 maxSize-fits-envelope + 4 defaultSize-still-sensible + 2 from the messages/recent-activity test rewrites) plus the existing widget-registry tests updated for the new 1×1 minSize. 892 hub specs green. `tsc` + `eslint` clean.
 
-**Remaining audit work (Slices 214+):** ~15 widgets still show the
-full WidgetEmpty illustration at every size (assignments-due,
-drawings-in-progress, equipment-out, field-data-pending,
-flashcards-due, job-activity-feed, low-consumables, maintenance-due,
-open-discussions, recent-announcements, recent-drawings,
-roadmap-progress, vehicles-status, active-research-projects, plus a
-few more). Each follow-up slice picks 3-4 with similar bucket-cap
-patterns and adds the tiny-counter mode.
+#### Slice 214 — tiny counter modes for 4 admin office / work widgets ✅ shipped
+- **Scope:** Apply the established tiny-counter pattern to the
+  4 admin-facing list widgets where the count alone is the most
+  scannable thing: assignments-due, pending-time-off,
+  pending-hours, open-discussions.
+- **Files:** `lib/hub/widgets/assignments-due/index.tsx`,
+  `lib/hub/widgets/pending-time-off/index.tsx` (rewrite),
+  `lib/hub/widgets/pending-hours/index.tsx` (rewrite),
+  `lib/hub/widgets/open-discussions/index.tsx`,
+  `__tests__/hub/widgets-responsive-214.test.ts`.
+- **Done when:** Each widget renders a meaningful tiny mode at 1×1
+  + still works at every larger bucket; row text truncates with
+  ellipsis instead of overflowing.
+- **Depends on:** Slice 213.
+- **Done:** Four admin widgets adopted the shared stat-bucket helpers. `assignments-due` got a new `isOverdue(iso, nowMs?)` helper that powers a smart tiny-mode label: if any tasks are overdue, the count is rendered in danger color with "{N} overdue" subtitle; otherwise it's primary fg with the "due" label. Empty state at tiny shows `0 / due` in success color. The redundant `bucket !== 'tiny'` guard on the row due-date span was removed. `pending-time-off` was rewritten end-to-end: tiny shows `{count} request(s)` in warning color (or muted `0 requests` when empty); non-tiny renders a row list with the new `nameStyle` + `mutedStyle` carrying `text-overflow: ellipsis` so long emails don't overflow. minSize 1×1. `pending-hours` followed the same pattern with `0 to approve` (success) when empty and `{count} to approve` (warning) when populated. `open-discussions` got a smart tiny mode: when any conversations have `has_mention`, the count is accent-colored with `{N} @you` subtitle; otherwise it's `{N} open`. The redundant `bucket !== 'tiny'` guard on the `@` mention indicator was removed. 13 vitest specs: 4 lowered-minSize + 4 maxSize-fits-envelope + 5 for the new `isOverdue` helper (null/undefined/empty input, future date, past date, injected nowMs determinism, malformed ISO). 905 hub specs green. `tsc` + `eslint` clean.
+
+**Remaining audit work (Slices 215+):** ~11 widgets still show the
+full WidgetEmpty illustration at every size (drawings-in-progress,
+equipment-out, field-data-pending, flashcards-due,
+job-activity-feed, low-consumables, maintenance-due,
+recent-announcements, recent-drawings, roadmap-progress,
+vehicles-status, active-research-projects).
 
 ---
 

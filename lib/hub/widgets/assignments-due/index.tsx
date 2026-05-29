@@ -11,6 +11,11 @@ import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type AssignedToFilter = 'me' | 'all';
 export type AssignmentsDueWindow = 'today' | 'week' | 'month' | 'all';
@@ -59,7 +64,28 @@ function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueConte
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
   if (status === 'error') return <WidgetError message="Couldn't load assignments." onRetry={fetchTasks} />;
-  if (status === 'empty') return <WidgetEmpty icon="✅" title="No assignments due" description="Everything in scope is on schedule." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-success)')}>0</span>
+          <span style={tinyStatLabelStyle()}>due</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="✅" title="No assignments due" description="Everything in scope is on schedule." />;
+  }
+
+  if (bucket === 'tiny') {
+    const overdue = tasks.filter((t) => isOverdue(t.due_date)).length;
+    const color = overdue > 0 ? 'var(--theme-danger)' : 'var(--theme-fg-primary)';
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, color)}>{tasks.length}</span>
+        <span style={tinyStatLabelStyle()}>{overdue > 0 ? `${overdue} overdue` : 'due'}</span>
+      </div>
+    );
+  }
 
   return (
     <ul role="list" style={listStyle}>
@@ -69,7 +95,7 @@ function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueConte
             <span aria-label="High priority" style={{ color: 'var(--theme-danger)' }}>!</span>
           )}
           <span style={titleStyle}>{t.title}</span>
-          {t.due_date && bucket !== 'tiny' && (
+          {t.due_date && (
             <span style={dueStyle(t.due_date)}>{formatDue(t.due_date)}</span>
           )}
         </li>
@@ -109,7 +135,8 @@ defineWidget<AssignmentsDueContent>({
   category: 'work',
   iconName: 'ClipboardList',
   defaultSize: { w: 4, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 214 — minSize lowered to 1×1 with the tiny due-count mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
@@ -155,6 +182,12 @@ function formatDue(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+export function isOverdue(iso: string | null | undefined, nowMs: number = Date.now()): boolean {
+  if (!iso) return false;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) && ms < nowMs;
 }
 
 function dueStyle(iso: string): React.CSSProperties {
