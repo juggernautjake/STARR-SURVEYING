@@ -98,11 +98,12 @@
 
 ## Phase 4 — Greeting + top bar (Slices 87–89)
 
-### Slice 87 — Greeting widget (fixed, top of canvas)
+### Slice 87 — Greeting widget (fixed, top of canvas) ✅ shipped
 - **Scope:** `HubGreeting` w/ time-of-day greeting + date + clock-in status. Profile-setting override for greeting prefix.
-- **Files:** `app/admin/me/components/HubGreeting.tsx` (rewrite), `app/admin/me/page.tsx`, `__tests__/hub/greeting.test.tsx`
+- **Files:** `app/admin/me/components/HubGreeting.tsx` (rewrite), `__tests__/hub/greeting.test.ts`
 - **Done when:** Greeting reflects time-of-day across timezones; date follows locale; clock status reads from time-logs API.
 - **Depends on:** Slice 82
+- **Done:** Stripped the slice-2a stub that mixed greeting + nav toggle + persona dropdown. New `HubGreeting` is greeting-only: time-of-day prefix ("Good morning/afternoon/evening/night" + an optional `greetingPrefix` override prop the user can configure in profile settings later), first-name extraction, the date in `Thursday, May 28` long form (locale-aware via `toLocaleDateString`), and a clock-in status line ("You're not currently clocked in" OR "You're clocked in to <Job> — Xh YYm elapsed" with a small accent-tinted live dot). Clock state fetched best-effort from the existing `/api/admin/time-logs/today` endpoint; slice 89 swaps in a store-backed source. Role-chip strip at the bottom: shows the active persona + any override chip + an "Auto" reset chip when an override is present. The `Enter Work Mode` button is intentionally left blank in this slice — slice 88 wires the placeholder + slice 158 wires the real entry. Pure helpers exported (`partOfDay`, `firstName`, `formatElapsed`); 14 vitest specs cover them (boundary hours, custom prefix override, empty/null names, < 1h vs ≥ 1h elapsed formatting w/ zero-pad, defensive `now < start` case, unparseable iso string). `tsc` + `eslint` clean.
 
 ### Slice 88 — "Enter Work Mode" button (placeholder)
 - **Scope:** Button on greeting card. Disabled w/ tooltip "Coming soon" until Phase 21. Visible only if user has at least one work-eligible role.
