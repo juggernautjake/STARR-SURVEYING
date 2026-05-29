@@ -26,9 +26,9 @@ import HubMeClient from './HubMeClient';
 import { fetchHubLayoutForUser } from '@/lib/hub/server/fetch-hub-layout';
 
 // HubGreeting still relies on the `.hub-greeting*` selectors from
-// the legacy stylesheet. The rest of AdminMe.css covers the archived
-// Phase-2 components (Slice 189 — see `_archive/README.md`).
-import './_archive/AdminMe.css';
+// this stylesheet. The Phase-2 selectors it also contains target the
+// archived components and harmlessly no-op against the new tree.
+import './AdminMe.css';
 
 export default async function HubPage() {
   const session = await auth();
@@ -37,12 +37,12 @@ export default async function HubPage() {
   const roles: UserRole[] = (session.user.roles ??
     (session.user.role ? [session.user.role] : [])) as UserRole[];
 
-  const { layout } = await fetchHubLayoutForUser(session.user.email, roles);
+  const { layout, isSeeded } = await fetchHubLayoutForUser(session.user.email, roles);
 
   return (
     <div className="hub-page">
       <HubGreeting />
-      <HubMeClient layout={layout} roles={roles} />
+      <HubMeClient layout={layout} roles={roles} isSeeded={isSeeded} />
     </div>
   );
 }

@@ -28,10 +28,14 @@ export interface HubMeClientProps {
   layout: HubLayoutRow;
   roles: UserRole[];
   activeBundles?: BundleId[] | null;
+  /** True when the layout is the persona-default seed (no saved row).
+   *  Drives the Slice 196 welcome tip. */
+  isSeeded?: boolean;
 }
 
-export default function HubMeClient({ layout, roles, activeBundles = null }: HubMeClientProps) {
+export default function HubMeClient({ layout, roles, activeBundles = null, isSeeded = false }: HubMeClientProps) {
   const hydrate = useHubStore((s) => s.hydrate);
+  const enterEditMode = useHubStore((s) => s.enterEditMode);
 
   // Push the server-fetched layout into the store on mount. Subsequent
   // theme/density/font-scale changes from the picker flow through the
@@ -48,6 +52,22 @@ export default function HubMeClient({ layout, roles, activeBundles = null }: Hub
     });
   }, [hydrate, layout]);
 
+  // Slice 197 — honor `?edit=1` deep-links from the user-menu
+  // "Customize Hub" entry. Read window.location.search directly so
+  // the page doesn't need a Suspense boundary (Next.js 14+ requires
+  // one for the useSearchParams hook). Strip the param after
+  // triggering edit mode so a refresh doesn't re-fire.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('edit') !== '1') return;
+    enterEditMode();
+    params.delete('edit');
+    const search = params.toString();
+    const next = `${window.location.pathname}${search ? `?${search}` : ''}`;
+    window.history.replaceState(null, '', next);
+  }, [enterEditMode]);
+
   return (
     <HubProviders
       initialTheme={layout.theme}
@@ -55,7 +75,7 @@ export default function HubMeClient({ layout, roles, activeBundles = null }: Hub
       initialDensity={layout.density}
       initialFontScale={layout.fontScale}
     >
-      <HubCanvas roles={roles} activeBundles={activeBundles} />
+      <HubCanvas roles={roles} activeBundles={activeBundles} isSeeded={isSeeded} />
     </HubProviders>
   );
 }

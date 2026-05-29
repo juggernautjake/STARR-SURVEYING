@@ -118,6 +118,17 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
             >
               Theme + density
             </Link>
+            {/* Slice 197 — entry into hub edit mode from anywhere in
+                the admin app. /admin/me?edit=1 auto-triggers
+                useHubStore.enterEditMode() in HubMeClient. */}
+            <Link
+              role="menuitem"
+              href="/admin/me?edit=1"
+              onClick={() => setOpen(false)}
+              style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+            >
+              ✏️ Customize Hub
+            </Link>
             <button
               role="menuitem"
               type="button"
