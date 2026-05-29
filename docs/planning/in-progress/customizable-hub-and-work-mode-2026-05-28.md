@@ -348,8 +348,9 @@
 
 ## Phase 13 — Work / Job widgets (Slices 120–123)
 
-### Slice 120 — Assignments Due widget
+### Slice 120 — Assignments Due widget ✅ shipped
 - **Scope:** Action items / tasks. Settings: assignedTo, dueWithin.
+- **Done:** `lib/hub/widgets/assignments-due/index.tsx` reads `/api/admin/assignments?mine=true|false`. Each row shows priority `!` (danger) if high-priority, title, due-date chip colored danger when overdue. `assignedTo` (me/all), `dueWithin` (today/week/month/all). `filterByDueWindow` keeps overdue always + future-in-window. `byDueAscending` puts nulls last. `capForBucket` 2/4/6/12/24. Catalog: work / ClipboardList / internal roles. 7 vitest specs. `tsc` + `eslint` clean.
 
 ### Slice 121 — Crew Calendar widget
 - **Scope:** Multi-employee schedule. Settings: employeeFilter, weekRange.
