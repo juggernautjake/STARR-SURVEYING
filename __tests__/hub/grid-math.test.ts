@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
   breakpointForWidth,
   collapseLayout,
+  compactLayout,
   layoutBounds,
   type GridBreakpoint,
 } from '@/lib/hub/grid-math';
@@ -109,6 +110,64 @@ describe('layoutBounds', () => {
 
   it('returns at least 1 row even for an empty layout', () => {
     expect(layoutBounds([], 12).rows).toBe(1);
+  });
+});
+
+describe('compactLayout — drag-end reflow', () => {
+  it('packs widgets in array order starting at (0, 0)', () => {
+    const out = compactLayout([
+      w('a', 999, 999, 6, 2),
+      w('b', 999, 999, 6, 2),
+      w('c', 999, 999, 12, 2),
+    ], 12);
+    expect(out.map((x) => x.id)).toEqual(['a', 'b', 'c']);
+    expect(out[0]).toMatchObject({ id: 'a', x: 0, y: 0, w: 6, h: 2 });
+    expect(out[1]).toMatchObject({ id: 'b', x: 6, y: 0, w: 6, h: 2 });
+    expect(out[2]).toMatchObject({ id: 'c', x: 0, y: 2, w: 12, h: 2 });
+  });
+
+  it('preserves array order even when sizes vary', () => {
+    const out = compactLayout([
+      w('big', 0, 0, 12, 2),
+      w('small1', 0, 0, 3, 2),
+      w('small2', 0, 0, 3, 2),
+      w('small3', 0, 0, 3, 2),
+      w('small4', 0, 0, 3, 2),
+    ], 12);
+    expect(out.map((x) => x.id)).toEqual(['big', 'small1', 'small2', 'small3', 'small4']);
+  });
+
+  it('produces no overlaps regardless of input', () => {
+    const out = compactLayout([
+      w('a', 0, 0, 12, 2),
+      w('b', 0, 0, 8, 3),
+      w('c', 0, 0, 5, 2),
+      w('d', 0, 0, 4, 1),
+      w('e', 0, 0, 3, 2),
+    ], 12);
+    expect(noOverlaps(out)).toBe(true);
+  });
+
+  it('clamps widths wider than the grid to the grid width', () => {
+    const out = compactLayout([w('a', 0, 0, 99, 2)], 12);
+    expect(out[0].w).toBe(12);
+  });
+
+  it('clamps non-positive widths/heights to 1', () => {
+    const out = compactLayout([w('a', 0, 0, 0, 0)], 12);
+    expect(out[0].w).toBe(1);
+    expect(out[0].h).toBe(1);
+  });
+
+  it('an empty array returns empty', () => {
+    expect(compactLayout([], 12)).toEqual([]);
+  });
+
+  it('does not mutate the input', () => {
+    const input = [w('a', 5, 7, 6, 2)];
+    const before = JSON.stringify(input);
+    compactLayout(input, 12);
+    expect(JSON.stringify(input)).toBe(before);
   });
 });
 

@@ -76,6 +76,35 @@ export function layoutBounds(
   return { cols: breakpoint, rows: Math.max(1, maxRow) };
 }
 
+/** Pack widgets in their array order into a grid, ignoring their
+ *  current (x, y). Used after a drag-and-drop reorder so the new
+ *  sequence flows top-to-bottom without overlap. Widget widths/heights
+ *  are preserved; widths wider than the grid are clamped. The first
+ *  cell scanned is (0, 0) — the result is auto-compacted (no holes
+ *  except where a wider widget forces a gap). */
+export function compactLayout(
+  widgets: WidgetInstance[],
+  cols: number,
+): WidgetInstance[] {
+  const placed: WidgetInstance[] = [];
+  for (const w of widgets) {
+    const width = Math.max(1, Math.min(cols, Math.floor(w.w)));
+    const height = Math.max(1, Math.floor(w.h));
+    let placedThis = false;
+    for (let y = 0; !placedThis; y++) {
+      for (let x = 0; x + width <= cols; x++) {
+        const candidate: WidgetInstance = { ...w, x, y, w: width, h: height };
+        if (!collidesWithAny(candidate, placed)) {
+          placed.push(candidate);
+          placedThis = true;
+          break;
+        }
+      }
+    }
+  }
+  return placed;
+}
+
 // ─── Internals ─────────────────────────────────────────────────────────
 
 /** Greedy re-flow when widths or x's overlap. Walks widgets in
