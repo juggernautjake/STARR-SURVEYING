@@ -14,7 +14,7 @@
 // Slice 92 of customizable-hub-and-work-mode-2026-05-28.md.
 // Slice 98 adds drag-and-drop. Slice 99 adds the resize handle.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -35,8 +35,8 @@ import { CSS } from '@dnd-kit/utilities';
 
 import { getWidget, type WidgetDefinition } from '@/lib/hub/widget-registry';
 import type { WidgetCustomization } from '@/lib/hub/types';
+import { useElementSize } from '@/lib/hub/use-element-size';
 import {
-  breakpointForWidth,
   collapseLayout,
   compactLayout,
   layoutBounds,
@@ -73,36 +73,15 @@ export default function WidgetGrid({
   onReorder,
   onResize,
 }: WidgetGridProps) {
-  // Track viewport width client-side so we collapse responsively. SSR
-  // renders at the 12-col breakpoint; the first effect ticks the real
-  // value.
-  const [viewportPx, setViewportPx] = useState<number>(1280);
-  useEffect(() => {
-    function update() { setViewportPx(window.innerWidth); }
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+  // Slice 202 — single ResizeObserver. The hook returns the grid
+  // container's contentRect width + the breakpoint derived from
+  // that width. One observer, one state, one re-render per resize
+  // frame (React batches the setState).
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const { widthPx: gridWidthPx, breakpoint } = useElementSize(gridRef);
 
-  const breakpoint = breakpointForWidth(viewportPx);
   const collapsed = collapseLayout(widgets, breakpoint);
   const bounds = layoutBounds(collapsed, breakpoint);
-
-  // Measure the actual rendered grid width to derive cellW. Resize
-  // observer keeps it accurate across breakpoint changes + window
-  // resizes.
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const [gridWidthPx, setGridWidthPx] = useState<number>(0);
-  useEffect(() => {
-    const el = gridRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      if (!entry) return;
-      setGridWidthPx(entry.contentRect.width);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const cellW = gridWidthPx > 0
     ? Math.max(1, (gridWidthPx - (bounds.cols - 1) * gap) / bounds.cols)
