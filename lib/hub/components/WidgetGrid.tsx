@@ -3,18 +3,18 @@
 //
 // Renders an array of WidgetInstances on a 12-column grid (or its
 // collapsed breakpoints). When `editMode` is on and `onReorder` is
-// provided, widgets become drag-and-drop sortable via @dnd-kit. Drop
-// ends trigger a greedy compaction so the new sequence flows top-to-
-// bottom without overlap.
+// provided, widgets become drag-and-drop sortable via @dnd-kit. When
+// `onResize` is provided, a bottom-right resize handle snaps each
+// widget to grid cells on pointer-up.
 //
 // Renders widgets via `getWidget(type)` from the registry. Unknown
 // widget types render an inline placeholder so a layout with a
 // retired widget doesn't blow up.
 //
 // Slice 92 of customizable-hub-and-work-mode-2026-05-28.md.
-// Slice 98 adds the drag-and-drop wiring.
+// Slice 98 adds drag-and-drop. Slice 99 adds the resize handle.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -40,7 +40,9 @@ import {
   compactLayout,
   layoutBounds,
 } from '@/lib/hub/grid-math';
+import type { CellDimensions, GridSize } from '@/lib/hub/grid-resize';
 import WidgetFrame from './WidgetFrame';
+import WidgetResizeHandle from './WidgetResizeHandle';
 import type { WidgetInstance } from '@/lib/hub/types';
 
 export interface WidgetGridProps {
@@ -54,6 +56,9 @@ export interface WidgetGridProps {
   /** When provided + editMode is on, widgets become draggable. Called
    *  with the new compacted widget array on every drop. */
   onReorder?: (widgets: WidgetInstance[]) => void;
+  /** When provided + editMode is on, each widget gets a resize handle.
+   *  Called with the widget id + new size on pointer-up commit. */
+  onResize?: (id: string, next: GridSize) => void;
 }
 
 const DEFAULT_ROW_HEIGHT = 64;
@@ -65,6 +70,7 @@ export default function WidgetGrid({
   rowHeight = DEFAULT_ROW_HEIGHT,
   gap = DEFAULT_GAP,
   onReorder,
+  onResize,
 }: WidgetGridProps) {
   // Track viewport width client-side so we collapse responsively. SSR
   // renders at the 12-col breakpoint; the first effect ticks the real
@@ -81,11 +87,31 @@ export default function WidgetGrid({
   const collapsed = collapseLayout(widgets, breakpoint);
   const bounds = layoutBounds(collapsed, breakpoint);
 
-  const dragEnabled = editMode && typeof onReorder === 'function';
+  // Measure the actual rendered grid width to derive cellW. Resize
+  // observer keeps it accurate across breakpoint changes + window
+  // resizes.
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [gridWidthPx, setGridWidthPx] = useState<number>(0);
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      setGridWidthPx(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
-  // Sensors must always be initialized (hook order rule) — they just
-  // sit idle when drag isn't enabled because the DndContext isn't
-  // rendered.
+  const cellW = gridWidthPx > 0
+    ? Math.max(1, (gridWidthPx - (bounds.cols - 1) * gap) / bounds.cols)
+    : 0;
+  const cellDimensions: CellDimensions = { cellW, cellH: rowHeight, gap };
+
+  const dragEnabled = editMode && typeof onReorder === 'function';
+  const resizeEnabled = editMode && typeof onResize === 'function' && cellW > 0;
+
+  // Sensors must always be initialized (hook order rule).
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -100,8 +126,6 @@ export default function WidgetGrid({
     const newIndex = widgets.findIndex((w) => w.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(widgets, oldIndex, newIndex);
-    // Compact in 12-col space — the saved layout is always stored
-    // 12-col regardless of the active breakpoint.
     const compacted = compactLayout(reordered, 12);
     onReorder(compacted);
   }
@@ -114,19 +138,20 @@ export default function WidgetGrid({
     width: '100%',
   };
 
+  const cells = collapsed.map((instance) => (
+    <WidgetCell
+      key={instance.id}
+      instance={instance}
+      editMode={editMode}
+      dragEnabled={dragEnabled}
+      resizeEnabled={resizeEnabled}
+      cellDimensions={cellDimensions}
+      onResize={onResize}
+    />
+  ));
+
   if (!dragEnabled) {
-    return (
-      <div style={gridStyle}>
-        {collapsed.map((instance) => (
-          <WidgetCell
-            key={instance.id}
-            instance={instance}
-            editMode={editMode}
-            dragEnabled={false}
-          />
-        ))}
-      </div>
-    );
+    return <div ref={gridRef} style={gridStyle}>{cells}</div>;
   }
 
   return (
@@ -136,16 +161,7 @@ export default function WidgetGrid({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
-        <div style={gridStyle}>
-          {collapsed.map((instance) => (
-            <WidgetCell
-              key={instance.id}
-              instance={instance}
-              editMode={editMode}
-              dragEnabled
-            />
-          ))}
-        </div>
+        <div ref={gridRef} style={gridStyle}>{cells}</div>
       </SortableContext>
     </DndContext>
   );
@@ -155,31 +171,55 @@ interface WidgetCellProps {
   instance: WidgetInstance;
   editMode: boolean;
   dragEnabled: boolean;
+  resizeEnabled: boolean;
+  cellDimensions: CellDimensions;
+  onResize?: (id: string, next: GridSize) => void;
 }
 
-function WidgetCell({ instance, editMode, dragEnabled }: WidgetCellProps) {
-  // useSortable returns no-op refs/listeners when used inside a sortable
-  // context that doesn't include this id — but here we conditionally
-  // render the sortable wrapper instead.
+function WidgetCell({ instance, editMode, dragEnabled, resizeEnabled, cellDimensions, onResize }: WidgetCellProps) {
   if (!dragEnabled) {
-    return <StaticWidgetCell instance={instance} editMode={editMode} />;
+    return (
+      <StaticWidgetCell
+        instance={instance}
+        editMode={editMode}
+        resizeEnabled={resizeEnabled}
+        cellDimensions={cellDimensions}
+        onResize={onResize}
+      />
+    );
   }
-  return <SortableWidgetCell instance={instance} editMode={editMode} />;
+  return (
+    <SortableWidgetCell
+      instance={instance}
+      editMode={editMode}
+      resizeEnabled={resizeEnabled}
+      cellDimensions={cellDimensions}
+      onResize={onResize}
+    />
+  );
+}
+
+interface StaticWidgetCellProps {
+  instance: WidgetInstance;
+  editMode: boolean;
+  resizeEnabled: boolean;
+  cellDimensions: CellDimensions;
+  onResize?: (id: string, next: GridSize) => void;
+  style?: React.CSSProperties;
+  setNodeRef?: (node: HTMLDivElement | null) => void;
+  dragListeners?: React.HTMLAttributes<HTMLButtonElement>;
 }
 
 function StaticWidgetCell({
   instance,
   editMode,
+  resizeEnabled,
+  cellDimensions,
+  onResize,
   style,
   setNodeRef,
   dragListeners,
-}: {
-  instance: WidgetInstance;
-  editMode: boolean;
-  style?: React.CSSProperties;
-  setNodeRef?: (node: HTMLDivElement | null) => void;
-  dragListeners?: React.HTMLAttributes<HTMLButtonElement>;
-}) {
+}: StaticWidgetCellProps) {
   const definition = getWidget(instance.type);
 
   const cellStyle: React.CSSProperties = {
@@ -187,8 +227,13 @@ function StaticWidgetCell({
     gridRow: `${instance.y + 1} / span ${instance.h}`,
     minHeight: 0,
     overflow: 'hidden',
+    position: 'relative',
     ...style,
   };
+
+  function commitResize(next: GridSize) {
+    if (onResize) onResize(instance.id, next);
+  }
 
   if (!definition) {
     return (
@@ -205,6 +250,15 @@ function StaticWidgetCell({
             layout or pick a replacement.
           </div>
         </WidgetFrame>
+        {resizeEnabled && onResize && (
+          <WidgetResizeHandle
+            currentSize={{ w: instance.w, h: instance.h }}
+            minSize={{ w: 1, h: 1 }}
+            maxSize={{ w: 12, h: 4 }}
+            cell={cellDimensions}
+            onCommit={commitResize}
+          />
+        )}
       </div>
     );
   }
@@ -237,11 +291,32 @@ function StaticWidgetCell({
           content={content}
         />
       </WidgetFrame>
+      {resizeEnabled && onResize && (
+        <WidgetResizeHandle
+          currentSize={{ w: instance.w, h: instance.h }}
+          minSize={definition.minSize}
+          maxSize={definition.maxSize}
+          cell={cellDimensions}
+          onCommit={commitResize}
+        />
+      )}
     </div>
   );
 }
 
-function SortableWidgetCell({ instance, editMode }: { instance: WidgetInstance; editMode: boolean }) {
+function SortableWidgetCell({
+  instance,
+  editMode,
+  resizeEnabled,
+  cellDimensions,
+  onResize,
+}: {
+  instance: WidgetInstance;
+  editMode: boolean;
+  resizeEnabled: boolean;
+  cellDimensions: CellDimensions;
+  onResize?: (id: string, next: GridSize) => void;
+}) {
   const {
     attributes,
     listeners,
@@ -262,6 +337,9 @@ function SortableWidgetCell({ instance, editMode }: { instance: WidgetInstance; 
     <StaticWidgetCell
       instance={instance}
       editMode={editMode}
+      resizeEnabled={resizeEnabled}
+      cellDimensions={cellDimensions}
+      onResize={onResize}
       style={dynamicStyle}
       setNodeRef={setNodeRef as (node: HTMLDivElement | null) => void}
       dragListeners={{ ...attributes, ...listeners }}
