@@ -21,6 +21,7 @@ import { useHubStore } from '@/lib/hub/hub-store';
 import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import WidgetFrame from './WidgetFrame';
 import SettingsTabs, { type SettingsTabId } from './SettingsTabs';
+import LayoutTab from './settings/LayoutTab';
 
 export interface SettingsPanelProps {
   /** The widget instance the user clicked. When null, the panel
@@ -187,7 +188,8 @@ function TabPlaceholder({
 }) {
   if (tab === 'layout') {
     return (
-      <LayoutTabSeed
+      <LayoutTab
+        instance={instance}
         customization={customization}
         onChange={onChange}
       />
@@ -229,60 +231,6 @@ function tabSliceFor(tab: SettingsTabId): string {
     case 'layout':      return 'this slice'; // unreachable
     case 'content':     return 'this slice';
   }
-}
-
-/** Minimal showTitle + custom-title pair shipped in this slice so the
- *  shell can be exercised end-to-end. The full size grid + density
- *  override land in Slice 102. */
-function LayoutTabSeed({
-  customization,
-  onChange,
-}: {
-  customization: WidgetCustomization;
-  onChange: (next: WidgetCustomization) => void;
-}) {
-  const showTitle = customization.layout?.showTitle ?? true;
-  const titleOverride = customization.layout?.titleOverride ?? '';
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-3, 12px)' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input
-          type="checkbox"
-          checked={showTitle}
-          onChange={(e) =>
-            onChange({
-              ...customization,
-              layout: { ...customization.layout, showTitle: e.target.checked },
-            })
-          }
-        />
-        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>
-          Show widget title
-        </span>
-      </label>
-
-      <label>
-        <span style={settingsLabelStyle}>Custom title (optional)</span>
-        <input
-          type="text"
-          value={titleOverride}
-          onChange={(e) =>
-            onChange({
-              ...customization,
-              layout: { ...customization.layout, titleOverride: e.target.value },
-            })
-          }
-          placeholder="Defaults to the catalog label"
-          style={textInputStyle}
-        />
-      </label>
-
-      <p style={placeholderStyle}>
-        Size grid + density override land in Slice 102.
-      </p>
-    </div>
-  );
 }
 
 // ─── Style fragments ───────────────────────────────────────────────────
@@ -365,21 +313,4 @@ const panelBodyStyle: React.CSSProperties = {
 const placeholderStyle: React.CSSProperties = {
   fontSize: 'var(--hub-font-sm, 0.875rem)',
   color: 'var(--theme-fg-secondary)',
-};
-
-const settingsLabelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 'var(--hub-font-sm, 0.875rem)',
-  fontWeight: 600,
-  marginBottom: 4,
-};
-
-const textInputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '6px 10px',
-  borderRadius: 6,
-  border: '1px solid var(--theme-border)',
-  background: 'var(--theme-bg-elevated)',
-  color: 'var(--theme-fg-primary)',
-  fontSize: 'var(--hub-font-sm, 0.875rem)',
 };
