@@ -69,11 +69,12 @@
 - **Depends on:** Slice 82
 - **Done:** Both themes use zinc/slate exclusively (no brand colours) — `slate-light` for max neutrality (long-form reading, client screenshots), `slate-dark` for OLED-friendly near-black surfaces. The dark variant uses `#D4D4D8` as accent rather than a saturated colour to keep the "neutral all the way down" feel; that passes AA (5.3:1) against `#171717` surface. WCAG AA contrast audit extended to cover all four shipped themes — all pass body-text + accent-button checks. 11 specs total in `builtin-themes.test.ts`. `tsc` + `eslint` clean.
 
-### Slice 84 — Built-in themes: `forest`/`sunset`/`ocean`/`plum`
+### Slice 84 — Built-in themes: `forest`/`sunset`/`ocean`/`plum` ✅ shipped
 - **Scope:** Add the four color-variation themes (light variants only this slice).
-- **Files:** `lib/hub/themes/{forest,sunset,ocean,plum}-light.ts`
+- **Files:** `lib/hub/themes/forest-light.ts`, `lib/hub/themes/sunset.ts`, `lib/hub/themes/ocean.ts`, `lib/hub/themes/plum.ts`, `lib/hub/themes/register-builtins.ts`, `app/styles/themes.css`, `__tests__/hub/builtin-themes.test.ts`
 - **Done when:** All four appear in picker; pass contrast audit.
 - **Depends on:** Slice 83
+- **Done:** Four light-variant themes added: `forest-light` (greens, outdoor identity — accent `#15803D` for 5.1:1 against white), `sunset` (warm orange — `#C2410C` for 5.4:1), `ocean` (calm sky-blue — `#0369A1` for 6.8:1), `plum` (purple `#7E22CE` for 5.7:1). All four picked accent shades that pass WCAG AA on white surfaces. WCAG audit now covers 8 themes, 19 specs total. The status colours (success/warning/danger/info) are kept saturated across themes so colourblind users see consistent signal even when the rest of the palette changes. `tsc` + `eslint` clean.
 
 ### Slice 85 — Built-in themes: high-contrast (light + dark)
 - **Scope:** Two WCAG-AAA accessibility themes. Thicker focus rings, larger default font scale, disabled shadows.

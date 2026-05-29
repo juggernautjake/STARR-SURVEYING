@@ -116,3 +116,75 @@
   --theme-danger:         #F87171;
   --theme-info:           #60A5FA;
 }
+
+/* ── forest-light (earthy, light) — surveyor outdoor identity */
+[data-theme="forest-light"] {
+  --theme-bg-page:        #F0FDF4;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #DCFCE7;
+  --theme-fg-primary:     #14532D;
+  --theme-fg-secondary:   #166534;
+  --theme-fg-muted:       #65A30D;
+  --theme-accent:         #15803D;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #BBF7D0;
+  --theme-border-strong:  #4ADE80;
+  --theme-success:        #15803D;
+  --theme-warning:        #CA8A04;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #1D4ED8;
+}
+
+/* ── sunset (warm, light) — AM-leaning */
+[data-theme="sunset"] {
+  --theme-bg-page:        #FFF7ED;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #FFEDD5;
+  --theme-fg-primary:     #7C2D12;
+  --theme-fg-secondary:   #9A3412;
+  --theme-fg-muted:       #A16207;
+  --theme-accent:         #C2410C;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #FED7AA;
+  --theme-border-strong:  #FB923C;
+  --theme-success:        #15803D;
+  --theme-warning:        #A16207;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #1D4ED8;
+}
+
+/* ── ocean (cool, light) — reading-friendly */
+[data-theme="ocean"] {
+  --theme-bg-page:        #F0F9FF;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #E0F2FE;
+  --theme-fg-primary:     #0C4A6E;
+  --theme-fg-secondary:   #075985;
+  --theme-fg-muted:       #0891B2;
+  --theme-accent:         #0369A1;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #BAE6FD;
+  --theme-border-strong:  #38BDF8;
+  --theme-success:        #15803D;
+  --theme-warning:        #A16207;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #0369A1;
+}
+
+/* ── plum (distinctive, light) — purple accents */
+[data-theme="plum"] {
+  --theme-bg-page:        #FAF5FF;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F3E8FF;
+  --theme-fg-primary:     #581C87;
+  --theme-fg-secondary:   #6B21A8;
+  --theme-fg-muted:       #9333EA;
+  --theme-accent:         #7E22CE;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E9D5FF;
+  --theme-border-strong:  #C084FC;
+  --theme-success:        #15803D;
+  --theme-warning:        #A16207;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #1D4ED8;
+}

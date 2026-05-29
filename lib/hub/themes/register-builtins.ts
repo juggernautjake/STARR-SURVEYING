@@ -11,7 +11,10 @@ import './starr-default';
 import './starr-dark';
 import './slate-light';
 import './slate-dark';
+import './forest-light';
+import './sunset';
+import './ocean';
+import './plum';
 
 // More themes land in:
-//   Slice 84 — forest-light + sunset + ocean + plum
 //   Slice 85 — high-contrast-light + high-contrast-dark

@@ -71,6 +71,7 @@ describe('built-in themes pass WCAG AA spot-check', () => {
   for (const id of [
     'starr-default', 'starr-dark',
     'slate-light', 'slate-dark',
+    'forest-light', 'sunset', 'ocean', 'plum',
   ] as const) {
     it(`${id}: fgPrimary on bgSurface ≥ 4.5:1 (WCAG AA body text)`, () => {
       const def = getTheme(id)!;
