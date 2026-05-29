@@ -123,11 +123,12 @@
 
 ## Phase 5 — Widget infrastructure (Slices 90–93)
 
-### Slice 90 — Widget registry + size-bucket helper
+### Slice 90 — Widget registry + size-bucket helper ✅ shipped
 - **Scope:** `lib/hub/widget-registry.ts` w/ `WidgetDefinition` contract. `sizeBucket()` helper w/ comprehensive tests covering every supported (w,h) combo.
-- **Files:** `lib/hub/widget-registry.ts`, `lib/hub/size-bucket.ts`, `__tests__/hub/size-bucket.test.ts`
+- **Files:** `lib/hub/size-bucket.ts`, `lib/hub/widget-registry.ts`, `__tests__/hub/size-bucket.test.ts`, `__tests__/hub/widget-registry.test.ts`
 - **Done when:** Registry compiles; `sizeBucket()` tests cover boundaries (3×1=tiny, 6×2=medium, etc.).
 - **Depends on:** Slice 78
+- **Done:** `sizeBucket(w, h)` is area-based (w×h) so a 3×3 widget gets the same content treatment as a 6×2. Thresholds: ≤3 tiny, ≤6 small, ≤12 medium, ≤24 large, >24 xlarge. Inputs are clamped (`Math.max(1, Math.floor(...))`) so a deleted widget can't compute a zero-area bucket. Companion helpers: `bucketIsLarger()` for fallback ordering + `ALL_BUCKETS` in ascending order. `widget-registry.ts` declares `WidgetDefinition<TContent>` with `id`/`label`/`category`/`iconName`/`defaultSize`/`min`+`maxSize`/`defaultContent`/`allowedRoles[]`/`requiresBundle?`/`Widget` component/`SettingsForm?`. `defineWidget()` registers (idempotent via Map.set), `getWidget()` looks up, `allWidgets()` returns insertion order, `widgetsForRoles(roles)` filters for catalog modal, `widgetsByCategory()` groups (returns every category key even when empty so the catalog modal renders consistent tabs). 35 vitest specs cover every documented (w,h)→bucket mapping + boundary edges + clamp behaviour for the size bucket; registry round-trip + role filtering (admin sees admin+everyone, student sees only everyone, multi-role sees union) + category grouping. `tsc` + `eslint` clean.
 
 ### Slice 91 — `WidgetFrame` base component
 - **Scope:** Shared widget shell: header + body + footer. Supports all `colorMode` values. Empty/loading/error sub-renders. ARIA correctness.
