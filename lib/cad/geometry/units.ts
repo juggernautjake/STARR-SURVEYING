@@ -19,6 +19,15 @@ const FT_TO_MM   = FT_TO_M * 1000;
 const SQFT_TO_ACRES  = 1 / 43560;
 const SQFT_TO_SQM    = FT_TO_M * FT_TO_M;
 const SQFT_TO_HECTARES = SQFT_TO_SQM / 10000;
+// Slice 227 — extra units. sq-in derived directly from 12 in / ft;
+// sq-yd / sq-mi from the linear conversions; sq-mm / sq-cm / sq-km
+// derived from the SI metric chain.
+const SQFT_TO_SQIN  = 12 * 12;                       // 144
+const SQFT_TO_SQYD  = 1 / 9;                          // 9 sq ft per sq yd
+const SQFT_TO_SQMI  = 1 / (5280 * 5280);              // sq ft per sq mi inverse
+const SQFT_TO_SQCM  = SQFT_TO_SQM * 10000;            // 1 sq m = 10⁴ sq cm
+const SQFT_TO_SQMM  = SQFT_TO_SQM * 1_000_000;        // 1 sq m = 10⁶ sq mm
+const SQFT_TO_SQKM  = SQFT_TO_SQM / 1_000_000;        // 1 sq km = 10⁶ sq m
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Linear distance — world feet → display value
@@ -257,8 +266,14 @@ export function formatCoordinates(
 /** Convert sq-ft to user's preferred area unit. */
 export function sqFtToAreaUnit(sqFt: number, prefs: DisplayPreferences): number {
   switch (prefs.areaUnit) {
-    case 'ACRES':    return sqFt * SQFT_TO_ACRES;
+    case 'SQ_IN':    return sqFt * SQFT_TO_SQIN;
+    case 'SQ_YD':    return sqFt * SQFT_TO_SQYD;
+    case 'SQ_MI':    return sqFt * SQFT_TO_SQMI;
+    case 'SQ_MM':    return sqFt * SQFT_TO_SQMM;
+    case 'SQ_CM':    return sqFt * SQFT_TO_SQCM;
     case 'SQ_M':     return sqFt * SQFT_TO_SQM;
+    case 'SQ_KM':    return sqFt * SQFT_TO_SQKM;
+    case 'ACRES':    return sqFt * SQFT_TO_ACRES;
     case 'HECTARES': return sqFt * SQFT_TO_HECTARES;
     default:         return sqFt; // SQ_FT
   }
@@ -267,8 +282,14 @@ export function sqFtToAreaUnit(sqFt: number, prefs: DisplayPreferences): number 
 /** Abbreviated area unit label */
 export function areaUnitLabel(prefs: DisplayPreferences): string {
   switch (prefs.areaUnit) {
-    case 'ACRES':    return 'ac';
+    case 'SQ_IN':    return 'in²';
+    case 'SQ_YD':    return 'yd²';
+    case 'SQ_MI':    return 'mi²';
+    case 'SQ_MM':    return 'mm²';
+    case 'SQ_CM':    return 'cm²';
     case 'SQ_M':     return 'm²';
+    case 'SQ_KM':    return 'km²';
+    case 'ACRES':    return 'ac';
     case 'HECTARES': return 'ha';
     default:         return 'sf';
   }
