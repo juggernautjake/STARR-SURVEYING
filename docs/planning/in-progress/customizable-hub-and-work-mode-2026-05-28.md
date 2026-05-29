@@ -336,8 +336,9 @@
 - **Scope:** Last 3 org announcements. Settings: unreadOnly. Wire to announcements API.
 - **Done:** `lib/hub/widgets/recent-announcements/index.tsx` reads `/api/admin/announcements?limit=N` (the endpoint is anticipated — the widget gracefully degrades to the empty state when the endpoint 404s instead of erroring, so the data layer can land later without breaking saved layouts). Each row shows an accent-tinted unread dot when `unread`, the title, and (non-tiny) a 2-line clamped preview body. Settings: `unreadOnly` checkbox, `itemLimit` (1-10). `capForBucket` returns 1/2/3/5/10. `filterAnnouncements` is the pure unreadOnly filter. Catalog: communication / Megaphone / universal. 4 vitest specs cover registry, capForBucket per bucket, filter passthrough vs unreadOnly. `tsc` + `eslint` clean.
 
-### Slice 118 — Team Status widget
+### Slice 118 — Team Status widget ✅ shipped
 - **Scope:** Who's clocked in. Settings: groupBy (role/shift/none).
+- **Done:** `lib/hub/widgets/team-status/index.tsx` reads `/api/admin/team/status` (gracefully empty when 404), filters to clocked-in + on-break, renders rows with a success/warning dot + name + role. **Group by** role / shift / none (non-tiny only — tiny always flat). `capForBucket` returns 3/6/10/18/30. `groupMembers` exported for tests (role/shift bucketing with No-role/shift fallback). Catalog: operational / Users / manager roles (admin, developer, tech_support, equipment_manager). 4 vitest specs cover registry, every bucket, and role/shift grouping. `tsc` + `eslint` clean.
 
 ### Slice 119 — Mentions Inbox widget
 - **Scope:** DMs/threads w/ direct mentions. Settings: dateRange.
