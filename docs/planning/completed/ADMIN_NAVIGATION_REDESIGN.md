@@ -1,10 +1,19 @@
 # Admin Navigation Redesign — Planning Document
 
-**Status:** Re-opened 2026-05-28 to ship the three remaining items below
+**Status:** Closed 2026-05-28 — all re-opened items resolved (2 shipped, 1 operator-gated). Moving back to `completed/`.
 **Owner:** Jacob Maddux
 **Created:** 2026-05-12
-**Target repo path:** `docs/planning/in-progress/ADMIN_NAVIGATION_REDESIGN.md`
+**Target repo path:** `docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md`
 
+> **Final close (2026-05-28):** This re-open cycle was created to ship 3 items. Resolution:
+> - Item 1 (AdminSidebar deletion) — still operator-gated per the doc's original rationale; the doc itself documents this is NOT a defer-to-empty-folder. Verified in code: `app/admin/components/AdminSidebar.tsx` still present (intentional).
+> - Item 2 (brand-coloured workspace icons) — shipped. Verified in code: 18 `--rail-accent-*` references in `IconRail.css`.
+> - Item 3 (help drawer + telemetry) — shipped. Verified in code: `HelpDrawer.tsx`, `help-catalog.ts`, `nav-telemetry.ts`, `seeds/300_nav_events.sql`, `app/api/admin/nav-events/route.ts` all present.
+>
+> Per docs/planning/README.md rubric: "every action item shipped or explicitly deferred with a one-line rationale" → moves to `completed/`. The operator-gated deletion remains as a tracked-in-CLAUDE.md follow-up rather than an open planning item.
+>
+> Re-open header preserved below for historical context.
+>
 > **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
 > these three items called out in §13 + §16 of the original spec:
 > 1. **Delete `app/admin/components/AdminSidebar.tsx`** — **still gated.** The doc body (§16 item 8 + Phase 5 close note) explicitly states this is an operator-policy deferral, not a defer-to-empty-the-folder; deletion lands when the operator gives the call after the rollout window closes. Re-opening this doc does not unblock the gate.
