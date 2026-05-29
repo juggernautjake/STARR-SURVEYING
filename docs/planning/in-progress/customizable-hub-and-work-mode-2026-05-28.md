@@ -368,7 +368,8 @@
 
 ## Phase 14 — Equipment widgets (Slices 124–127)
 
-### Slice 124 — My Equipment Out widget
+### Slice 124 — My Equipment Out widget ✅ shipped
+- **Done:** `lib/hub/widgets/equipment-out/index.tsx` reads `/api/admin/equipment/today?status=checked-out&mine=true|false`. `scope` toggles mine/all. New `_shared/simple-list-widget.ts` exports `bucketCap(bucket, caps)` so future list-style widgets stay DRY. Catalog: equipment / Wrench / equipment manager + admin + tech_support + field_crew. id is `equipment-out-today` (matches Slice 93 default layout). 2 vitest specs.
 ### Slice 125 — Maintenance Due widget
 ### Slice 126 — Low Consumables widget
 ### Slice 127 — Vehicles Status widget
