@@ -85,7 +85,7 @@ function OpenDiscussionsSettings({ value, onChange }: WidgetSettingsFormProps<Op
       <span style={labelStyle}>Scope</span>
       <select value={settings.scope} onChange={(e) => onChange({ ...settings, scope: e.target.value as DiscussionScope })}>
         <option value="mine">Awaiting my reply</option>
-        <option value="mentions">Where I'm mentioned</option>
+        <option value="mentions">Where I&apos;m mentioned</option>
         <option value="all">All open discussions</option>
       </select>
     </label>

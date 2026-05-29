@@ -145,28 +145,13 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
 
       <div className="hub-greeting__actions">
         {isWorkModeEligible(roles) && (
-          <button
-            type="button"
+          <a
             className="hub-btn hub-btn--primary hub-greeting__work-mode-btn"
-            disabled
-            title="Work Mode is coming soon — a focused environment for whatever you're heads-down on (field work, drafting, research, etc.). Lands in Phase 21."
-            aria-label="Enter Work Mode (coming soon)"
+            href="/admin/work-mode/start"
+            aria-label="Enter Work Mode"
           >
             Enter Work Mode
-            <span style={{
-              marginLeft: 8,
-              padding: '1px 6px',
-              borderRadius: 999,
-              background: 'var(--theme-bg-elevated)',
-              color: 'var(--theme-fg-muted)',
-              fontSize: '0.65rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: 0.4,
-            }}>
-              Soon
-            </span>
-          </button>
+          </a>
         )}
       </div>
 

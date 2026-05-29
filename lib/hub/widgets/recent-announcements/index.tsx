@@ -37,19 +37,20 @@ function RecentAnnouncementsWidget({ size, content }: WidgetProps<RecentAnnounce
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [items, setItems] = useState<Announcement[]>([]);
 
+  const { unreadOnly, itemLimit } = settings;
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch(`${ENDPOINT}?limit=${settings.itemLimit}`);
+      const res = await fetch(`${ENDPOINT}?limit=${itemLimit}`);
       if (!res.ok) { setStatus('empty'); return; }
       const data: { announcements?: Announcement[] } = await res.json();
-      const list = filterAnnouncements(data.announcements ?? [], settings);
+      const list = filterAnnouncements(data.announcements ?? [], { unreadOnly });
       setItems(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('empty');
     }
-  }, [settings.unreadOnly, settings.itemLimit]);
+  }, [unreadOnly, itemLimit]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 

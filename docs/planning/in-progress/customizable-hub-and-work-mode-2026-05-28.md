@@ -489,21 +489,21 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 21 — Work Mode foundations (Slices 155–158)
 
-### Slice 155 — Work Mode Zustand store + persistence
+### Slice 155 — Work Mode Zustand store + persistence ✅ shipped
 - **Scope:** `useWorkModeStore: { mode, jobId?, enteredAt }`. localStorage persistence.
-- **Depends on:** Slice 154
+- **Done:** New `lib/work-mode/work-mode-store.ts` exports `useWorkModeStore` (persisted under `starr-work-mode` v1) with `mode`, `jobId`, `enteredAt`, and actions `enterWorkMode(mode, jobId?)`, `exitWorkMode()`, `setJobId(jobId)`. `timeInModeMs(enteredAt, now)` helper returns elapsed ms or null. 8 vitest specs cover lifecycle + edge cases.
 
-### Slice 156 — Work Mode route shell
+### Slice 156 — Work Mode route shell ✅ shipped
 - **Scope:** `app/admin/work-mode/layout.tsx` separate from `AdminLayoutClient`. Top bar w/ Exit pill + clock-in timer.
-- **Depends on:** Slice 155
+- **Done:** `app/admin/work-mode/layout.tsx` is a server component that gates on `isWorkModeEligible(session.roles)` and redirects ineligible roles back to `/admin/me`. Renders just a `WorkModeTopBar` (client) + page children — no admin sidebar / IconRail to compete for visual space. Top bar shows role label + elapsed timer (updates every 30s) + Exit button. `app/admin/work-mode/page.tsx` redirects to the start picker.
 
-### Slice 157 — Work Mode role picker
+### Slice 157 — Work Mode role picker ✅ shipped
 - **Scope:** `/admin/work-mode/start`. Eligible-role tiles. Single-role fast-path.
-- **Depends on:** Slice 156
+- **Done:** `app/admin/work-mode/start/page.tsx` reads the eligible roles via `eligibleWorkModeRoles(session.roles)` — when the list is length 1, redirects directly to `/admin/work-mode/{role}` (fast-path); otherwise renders `RolePicker` with each role as a tile (icon + label + short description). On pick, calls `useWorkModeStore.enterWorkMode(role)` + routes to the role-specific shell.
 
-### Slice 158 — "Enter Work Mode" wired + Exit confirmation flow
+### Slice 158 — "Enter Work Mode" wired + Exit confirmation flow ✅ shipped
 - **Scope:** Wire button from Slice 88 to actual entry. Exit confirm modal w/ "Clock out too?" option.
-- **Depends on:** Slice 157
+- **Done:** `app/admin/me/components/HubGreeting.tsx` now renders the Slice 88 placeholder button as an `<a href="/admin/work-mode/start">` link (removed the disabled + "Soon" pill). `WorkModeTopBar` Exit button opens a modal: Cancel ("Stay") / Exit only / Exit + clock out (the latter fires DELETE `/api/admin/time-logs/today` then exits). Exit clears the work-mode store + routes back to `/admin/me`.
 
 ---
 
