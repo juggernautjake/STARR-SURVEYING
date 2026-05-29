@@ -26,6 +26,7 @@ import {
   SHADOW_DEPTHS,
   STATUS_TINTS,
 } from '@/lib/hub/widget-color-modes';
+import CustomColorPicker from './CustomColorPicker';
 
 export interface StyleTabProps {
   customization: WidgetCustomization;
@@ -107,26 +108,10 @@ export default function StyleTab({ customization, onChange, instanceId }: StyleT
       {colorMode === 'custom' && (
         <fieldset style={fieldsetStyle}>
           <legend style={legendStyle}>Custom colors</legend>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={colorRowStyle}>
-              <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>Background</span>
-              <input
-                type="color"
-                value={style.customBg ?? '#FFFFFF'}
-                onChange={(e) => patchStyle({ customBg: e.target.value })}
-                aria-label="Custom background color"
-              />
-            </label>
-            <label style={colorRowStyle}>
-              <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>Text</span>
-              <input
-                type="color"
-                value={style.customFg ?? '#000000'}
-                onChange={(e) => patchStyle({ customFg: e.target.value })}
-                aria-label="Custom text color"
-              />
-            </label>
-          </div>
+          <CustomColorPicker
+            customization={customization}
+            onChange={onChange}
+          />
         </fieldset>
       )}
 
@@ -217,9 +202,3 @@ const radiusOptionStyle: React.CSSProperties = {
   border: '1px solid var(--theme-border)',
 };
 
-const colorRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-};
