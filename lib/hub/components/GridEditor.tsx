@@ -60,7 +60,7 @@ interface GridEditorBodyProps {
 
 function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) {
   const draftWidgets = useHubStore((s) => s.draftWidgets);
-  const { saveDraft, cancelEdit, addWidget } = useHubActions();
+  const { saveDraft, cancelEdit, addWidget, removeWidget } = useHubActions();
 
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -69,6 +69,10 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   // Both are null when not placing.
   const [placeAnchor, setPlaceAnchor] = useState<{ x: number; y: number } | null>(null);
   const [placeHover, setPlaceHover] = useState<{ x: number; y: number } | null>(null);
+  // Slice 224 — id of the currently-selected painted widget, or null
+  // when nothing is selected. Drives the highlight outline + the
+  // delete-key handler.
+  const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -78,11 +82,22 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Slice 224 — Delete / Backspace removes the selected widget.
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedPlacedId) {
+        e.preventDefault();
+        removeWidget(selectedPlacedId);
+        setSelectedPlacedId(null);
+        return;
+      }
       if (e.key === 'Escape') {
-        // Esc clears mid-place state before closing.
+        // Esc cascades through pending states before closing:
+        // (1) mid-place rectangle, (2) painted-widget selection,
+        // (3) close the editor entirely.
         if (placeAnchor) {
           setPlaceAnchor(null);
           setPlaceHover(null);
+        } else if (selectedPlacedId) {
+          setSelectedPlacedId(null);
         } else {
           onClose();
         }
@@ -90,13 +105,17 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, placeAnchor]);
+  }, [onClose, placeAnchor, selectedPlacedId, removeWidget]);
 
   // Slice 223 — cancel placement when the surveyor picks a different
   // widget type so the partial anchor doesn't leak between selections.
   useEffect(() => {
     setPlaceAnchor(null);
     setPlaceHover(null);
+    // Slice 224 — arming a new widget for placement also drops any
+    // existing painted-widget selection so the two modes stay
+    // mutually exclusive in the surveyor's mental model.
+    setSelectedPlacedId(null);
   }, [selectedType]);
 
   const catalog = useMemo(() => allWidgets(), []);
@@ -128,7 +147,13 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     : false;
 
   function handleCellPointerDown(x: number, y: number) {
-    if (!selected) return;
+    if (!selected) {
+      // Slice 224 — clicking an empty cell with nothing armed for
+      // placement deselects whatever painted widget is currently
+      // selected (background-click-to-deselect).
+      if (selectedPlacedId) setSelectedPlacedId(null);
+      return;
+    }
     if (!placeAnchor) {
       setPlaceAnchor({ x, y });
       setPlaceHover({ x, y });
@@ -254,7 +279,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                     aria-label={`Grid cell ${x + 1}, ${y + 1}`}
                     role={selected ? 'button' : undefined}
                     tabIndex={selected ? 0 : undefined}
-                    onPointerDown={selected ? () => handleCellPointerDown(x, y) : undefined}
+                    onPointerDown={() => handleCellPointerDown(x, y)}
                     onPointerEnter={selected ? () => handleCellPointerEnter(x, y) : undefined}
                   />
                 );
@@ -280,21 +305,55 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
               {(draftWidgets ?? []).map((inst) => {
                 const def = catalog.find((w) => w.id === inst.type);
                 const label = def?.label ?? inst.type;
+                const isSelected = selectedPlacedId === inst.id;
                 return (
                   <div
                     key={inst.id}
-                    role="region"
+                    role="button"
+                    tabIndex={0}
                     aria-label={`${label} at ${inst.x + 1}, ${inst.y + 1}`}
+                    aria-pressed={isSelected}
                     data-testid="grid-editor-placed-widget"
                     data-widget-id={inst.id}
+                    data-selected={isSelected ? 'true' : 'false'}
+                    onPointerDown={(e) => {
+                      // Slice 224 — stop the pointer-down from
+                      // bubbling to the cell underneath so click-to-
+                      // select doesn't double as a placement anchor.
+                      e.stopPropagation();
+                      setSelectedPlacedId(isSelected ? null : inst.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedPlacedId(isSelected ? null : inst.id);
+                      }
+                    }}
                     style={{
-                      ...placedWidgetStyle,
+                      ...(isSelected ? placedWidgetSelectedStyle : placedWidgetStyle),
                       gridColumn: `${inst.x + 1} / span ${inst.w}`,
                       gridRow: `${inst.y + 1} / span ${inst.h}`,
                     }}
                   >
                     <span style={placedLabelStyle}>{label}</span>
                     <span style={placedSizeStyle}>{inst.w}×{inst.h}</span>
+                    {isSelected && (
+                      <button
+                        type="button"
+                        aria-label="Remove widget from layout"
+                        title="Remove widget (Delete)"
+                        data-testid="grid-editor-placed-remove"
+                        onPointerDown={(e) => { e.stopPropagation(); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeWidget(inst.id);
+                          setSelectedPlacedId(null);
+                        }}
+                        style={placedRemoveButtonStyle}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -627,6 +686,49 @@ const placedWidgetStyle: React.CSSProperties = {
   textAlign: 'center',
   minWidth: 0,
   overflow: 'hidden',
+  cursor: 'pointer',
+  // Slice 224 — placed widgets sit above the cell layer so click-to-
+  // select wins over the cell's placement handler.
+  position: 'relative',
+  zIndex: 1,
+  transition: 'box-shadow 120ms ease, transform 120ms ease',
+};
+
+/** Slice 224 — Selected painted widget: thicker accent ring + lift +
+ *  brighter fill so the user can see at a glance which widget the
+ *  Delete key will remove. */
+const placedWidgetSelectedStyle: React.CSSProperties = {
+  ...placedWidgetStyle,
+  background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 32%, transparent)',
+  border: '3px solid var(--theme-accent, #3b82f6)',
+  boxShadow: '0 6px 18px rgba(0, 0, 0, 0.22), 0 0 0 4px color-mix(in srgb, var(--theme-accent, #3b82f6) 22%, transparent)',
+  transform: 'translateY(-1px)',
+  zIndex: 2,
+};
+
+/** Slice 224 — Per-widget delete button. Sits inside the painted
+ *  block at the top-right; only renders while the widget is
+ *  selected. */
+const placedRemoveButtonStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 4,
+  right: 4,
+  width: 24,
+  height: 24,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 6,
+  border: 'none',
+  background: 'var(--theme-danger, #ef4444)',
+  color: '#ffffff',
+  fontWeight: 700,
+  fontSize: '0.8rem',
+  lineHeight: 1,
+  cursor: 'pointer',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.22)',
+  zIndex: 3,
 };
 
 const placedLabelStyle: React.CSSProperties = {
