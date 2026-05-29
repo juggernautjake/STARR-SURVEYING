@@ -89,6 +89,10 @@ import {
   unmountLinkedInstanceSubscriber,
 } from '@/lib/cad/operations/linked-instances';
 import {
+  mountOffsetPropagator,
+  unmountOffsetPropagator,
+} from '@/lib/cad/operations/offset-propagator';
+import {
   clearAutosave,
   readAutosave,
   summarizeDocument,
@@ -442,6 +446,17 @@ export default function CADLayout() {
     return () => {
       unsub();
       unmountLinkedInstanceSubscriber();
+    };
+  }, []);
+
+  // Slice 6 of cad-offset-tool-2026-05-29.md — mount the
+  // offset propagator so editing a source feature's geometry
+  // regenerates every offset that points at it.
+  useEffect(() => {
+    const unsub = mountOffsetPropagator();
+    return () => {
+      unsub();
+      unmountOffsetPropagator();
     };
   }, []);
 
