@@ -90,7 +90,9 @@ export interface LegendTemplateConfig {
 }
 
 export interface CertificationTemplateConfig {
-  position: Point2D;
+  /** Optional so Slice 226's "Reset position" action can clear it
+   *  back to the renderer's default layout. */
+  position?: Point2D;
   width: number;
   visible: boolean;
   certificationText: string;
@@ -107,8 +109,14 @@ export interface CertificationTemplateConfig {
 }
 
 export interface StandardNotesTemplateConfig {
-  position: Point2D;
+  /** Slice 226 — optional so Reset position can clear it back to
+   *  the renderer's default layout. */
+  position?: Point2D;
   width: number;
+  /** Slice 226 — surveyor-toggleable visibility for the Survey Notes
+   *  block, mirroring `CertificationTemplateConfig.visible`. Undefined
+   *  is treated as visible to preserve every existing saved template. */
+  visible?: boolean;
   title: string;
   font: string;
   fontSize: number;

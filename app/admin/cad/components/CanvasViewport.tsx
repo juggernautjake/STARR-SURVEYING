@@ -149,6 +149,8 @@ import OffsetPanel from './OffsetPanel';
 import ImageInsertDialog from './ImageInsertDialog';
 import TitleBlockEditorModal from './TitleBlockEditorModal';
 import ScaleBarEditorModal from './ScaleBarEditorModal';
+import CertificationEditor from './CertificationEditor';
+import StandardNotesEditor from './StandardNotesEditor';
 import { TB_ELEM_SCALE_MIN, TB_ELEM_SCALE_MAX } from './TitleBlockEditorModal';
 import type { ProjectImage } from '@/lib/cad/types';
 
@@ -603,6 +605,53 @@ function drawTransformedFeaturePreview(
   }
 }
 
+// Slice 226 — pure hit-test for the title-block + paper-furniture
+// element bounds. Extracted so the test suite can lock the priority
+// ordering (officialSealLabel above signature, etc.) without
+// mounting Pixi. Returns the element under the screen point, or null.
+export type TBElementBounds = {
+  northArrow:        { screenX: number; screenY: number; w: number; h: number } | null;
+  titleBlock:        { screenX: number; screenY: number; w: number; h: number } | null;
+  scaleBar:          { screenX: number; screenY: number; w: number; h: number } | null;
+  signatureBlock:    { screenX: number; screenY: number; w: number; h: number } | null;
+  officialSealLabel: { screenX: number; screenY: number; w: number; h: number } | null;
+  certification:     { screenX: number; screenY: number; w: number; h: number } | null;
+  notes:             { screenX: number; screenY: number; w: number; h: number } | null;
+};
+
+export type TBHitTarget =
+  | 'northArrow'
+  | 'titleBlock'
+  | 'scaleBar'
+  | 'signatureBlock'
+  | 'officialSealLabel'
+  | 'certification'
+  | 'notes';
+
+export function hitTestTBElementPure(
+  sx: number,
+  sy: number,
+  b: TBElementBounds,
+): TBHitTarget | null {
+  function inside(r: { screenX: number; screenY: number; w: number; h: number } | null): boolean {
+    if (!r) return false;
+    return sx >= r.screenX && sx <= r.screenX + r.w
+        && sy >= r.screenY && sy <= r.screenY + r.h;
+  }
+  if (inside(b.northArrow)) return 'northArrow';
+  if (inside(b.titleBlock)) return 'titleBlock';
+  if (inside(b.scaleBar))   return 'scaleBar';
+  // Sub-elements above their containing signature block so they
+  // take priority on the way in.
+  if (inside(b.officialSealLabel)) return 'officialSealLabel';
+  if (inside(b.signatureBlock))    return 'signatureBlock';
+  // Slice 226 — paper-furniture blocks tested last so they don't
+  // shadow the more-specific TB elements on overlap.
+  if (inside(b.certification)) return 'certification';
+  if (inside(b.notes))         return 'notes';
+  return null;
+}
+
 export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsumed }: CanvasViewportProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -783,7 +832,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Hovered label key (featureId:labelId or text:featureId) for blue highlight
   const hoveredLabelKeyRef = useRef<string | null>(null);
   // Hovered title-block overlay element
-  const hoveredTBElemRef = useRef<'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null>(null);
+  // Slice 226 — widened to include the paper-furniture blocks (Cert
+  // + Notes) so hover hit-testing reports them too. The existing
+  // hover-styled redraws (titleBlock / signatureBlock / scaleBar)
+  // gate on the specific value, so the wider type is a no-op for
+  // those branches while letting the cursor hint reflect cert/notes.
+  const hoveredTBElemRef = useRef<TBHitTarget | null>(null);
   // Screen bounding boxes of each TB element (updated each render frame)
   const tbBoundsRef = useRef<{
     northArrow:       { screenX: number; screenY: number; w: number; h: number } | null;
@@ -791,7 +845,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     scaleBar:         { screenX: number; screenY: number; w: number; h: number } | null;
     signatureBlock:   { screenX: number; screenY: number; w: number; h: number } | null;
     officialSealLabel:{ screenX: number; screenY: number; w: number; h: number } | null;
-  }>({ northArrow: null, titleBlock: null, scaleBar: null, signatureBlock: null, officialSealLabel: null });
+    // Slice 226 — paper furniture (Cert + Notes) bounds. Captured
+    // during renderPaperFurniture so right-click hit-testing can
+    // surface a context menu for each block.
+    certification:    { screenX: number; screenY: number; w: number; h: number } | null;
+    notes:            { screenX: number; screenY: number; w: number; h: number } | null;
+  }>({ northArrow: null, titleBlock: null, scaleBar: null, signatureBlock: null, officialSealLabel: null, certification: null, notes: null });
   // Screen bounding boxes of each individually-editable title block field (rebuilt each frame)
   const tbFieldBoundsRef = useRef<Array<{
     key: keyof import('@/lib/cad/types').TitleBlockConfig;
@@ -888,7 +947,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     screenX: number; screenY: number; w: number; h: number;
   } | null>(null);
   // Title block element right-click context menu
-  type TBElemType = 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
+  // Slice 226 — paper furniture (Cert + Notes) joined the menu so the
+  // surveyor can hide / edit / reset either block by right-clicking.
+  type TBElemType = 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | 'certification' | 'notes';
   const [tbContextMenu, setTbContextMenu] = useState<{
     x: number; y: number;
     element: TBElemType;
@@ -897,6 +958,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const [tbEditorOpen, setTbEditorOpen] = useState<{ focusElement?: 'titleBlock' | 'signatureBlock' | 'northArrow' } | null>(null);
   // Scale bar editor modal
   const [scaleBarEditorOpen, setScaleBarEditorOpen] = useState(false);
+  // Slice 226 — Cert + Notes editor modals (mounted lazily).
+  const [certEditorOpen, setCertEditorOpen] = useState(false);
+  const [notesEditorOpen, setNotesEditorOpen] = useState(false);
   // Interactive rotate/scale HUD: drives the InteractiveOpPanel
   const [interactivePanel, setInteractivePanel] = useState<{
     type: 'ROTATE' | 'SCALE';
@@ -2085,30 +2149,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────────────────────────
   // Helper: hit-test screen (sx,sy) against a TB element bounding box
   // ─────────────────────────────────────────────────────────────────
-  function hitTestTBElement(sx: number, sy: number): 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null {
-    const b = tbBoundsRef.current;
-    if (b.northArrow) {
-      const { screenX, screenY, w, h } = b.northArrow;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'northArrow';
-    }
-    if (b.titleBlock) {
-      const { screenX, screenY, w, h } = b.titleBlock;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'titleBlock';
-    }
-    if (b.scaleBar) {
-      const { screenX, screenY, w, h } = b.scaleBar;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'scaleBar';
-    }
-    // Test sub-elements before the container so they take priority
-    if (b.officialSealLabel) {
-      const { screenX, screenY, w, h } = b.officialSealLabel;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'officialSealLabel';
-    }
-    if (b.signatureBlock) {
-      const { screenX, screenY, w, h } = b.signatureBlock;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'signatureBlock';
-    }
-    return null;
+  function hitTestTBElement(sx: number, sy: number): TBElemType | null {
+    return hitTestTBElementPure(sx, sy, tbBoundsRef.current);
   }
 
   /** Returns the editable title-block field hit at screen coords, or null.
@@ -2229,7 +2271,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // ── NOTES (left margin, below legend) ──────────────────────────
-    if (printVisible('printNotes')) {
+    // Slice 226 — the surveyor-toggleable `visible` flag (default
+    // true) gates the on-canvas render alongside the print toggle.
+    if (printVisible('printNotes') && tpl.standardNotes?.visible !== false) {
       const noteIds = tpl.standardNotes?.selectedNoteIds ?? [];
       const customNotes = tpl.standardNotes?.customNotes ?? [];
       const stdLib = STANDARD_NOTES_LIB;
@@ -2268,6 +2312,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         ng.lineStyle(0.5, 0x000000, 0.7);
         ng.drawRect(nx, ny, widthPx, heightPx);
         ng.endFill();
+        // Slice 226 — record bounds so right-click + select can hit it.
+        tbBoundsRef.current.notes = { screenX: nx, screenY: ny, w: widthPx, h: heightPx };
         const title = mkText(pixi.tbNotesContainer, (tpl.standardNotes?.title ?? 'NOTES').toUpperCase(), {
           fontFamily: tpl.standardNotes?.font ?? 'Arial',
           fontSize: titleFontPx, fontWeight: '700', fill: '#000',
@@ -2328,6 +2374,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         cg.lineStyle(0.5, 0x000000, 0.7);
         cg.drawRect(clampedX, cy, widthPx, heightPx);
         cg.endFill();
+        // Slice 226 — record bounds so right-click + select can hit it.
+        tbBoundsRef.current.certification = { screenX: clampedX, screenY: cy, w: widthPx, h: heightPx };
         const title = mkText(pixi.tbCertificationContainer, 'CERTIFICATION', {
           fontFamily: tpl.certification?.font ?? 'Arial',
           fontSize: titleFontPx, fontWeight: '700', fill: '#000',
@@ -2396,6 +2444,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbBoundsRef.current.scaleBar        = null;
     tbBoundsRef.current.signatureBlock  = null;
     tbBoundsRef.current.officialSealLabel = null;
+    // Slice 226 — paper furniture bounds reset every render. Each
+    // block's render path (Notes / Cert below) re-populates these
+    // when the block is visible; when hidden they stay null so the
+    // hit-test correctly reports no hit.
+    tbBoundsRef.current.certification = null;
+    tbBoundsRef.current.notes         = null;
     // Reset editable field bounds
     tbFieldBoundsRef.current = [];
 
@@ -8497,7 +8551,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // ── Title-block overlay element drag (SELECT mode) ──────────────
       if (activeTool === 'SELECT') {
-        const tbHit = hitTestTBElement(sx, sy);
+        const tbHitWide = hitTestTBElement(sx, sy);
+        // Slice 226 — Cert + Notes are right-click-only for now;
+        // drag-to-move ships in Slice 227. Treat them as "no drag
+        // target" here so the SELECT flow falls through cleanly.
+        const tbHit: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null =
+          tbHitWide === 'certification' || tbHitWide === 'notes' ? null : tbHitWide;
         if (tbHit) {
           const doc        = useDrawingStore.getState().document;
           const tb         = doc.settings.titleBlock;
@@ -12552,6 +12611,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const isSig        = tbContextMenu.element === 'signatureBlock';
         const isNA         = tbContextMenu.element === 'northArrow';
         const isSeal       = tbContextMenu.element === 'officialSealLabel';
+        // Slice 226 — right-click on the paper-furniture blocks
+        // (Cert + Notes) surfaces Hide / Edit text… / Reset position.
+        const isCert       = tbContextMenu.element === 'certification';
+        const isNotes      = tbContextMenu.element === 'notes';
         const focusEl = isTitleBlock ? 'titleBlock' : isSig || isSeal ? 'signatureBlock' : isNA ? 'northArrow' : undefined;
         return (
           <>
@@ -12567,7 +12630,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             style={{ left: tbContextMenu.x, top: tbContextMenu.y }}
           >
             <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700 mb-1">
-              {isScaleBar ? 'Graphic Scale Bar' : isTitleBlock ? 'Title Block' : isSig ? 'Signature / Seal Block' : isNA ? 'North Arrow' : 'Official Seal Label'}
+              {isScaleBar ? 'Graphic Scale Bar'
+                : isTitleBlock ? 'Title Block'
+                : isSig ? 'Signature / Seal Block'
+                : isNA ? 'North Arrow'
+                : isSeal ? 'Official Seal Label'
+                : isCert ? 'Certification Block'
+                : isNotes ? 'Survey Notes Block'
+                : 'Element'}
             </div>
             {isScaleBar && (
               <button
@@ -12584,6 +12654,60 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               >
                 ✏️ Edit Title Block…
               </button>
+            )}
+            {/* Slice 226 — Cert + Notes actions */}
+            {(isCert || isNotes) && (
+              <>
+                <button
+                  data-testid="tb-ctx-hide-block"
+                  className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    const ts = useTemplateStore.getState();
+                    if (isCert) {
+                      ts.updateActiveTemplate({
+                        certification: { ...ts.activeTemplate.certification, visible: false },
+                      });
+                    } else {
+                      ts.updateActiveTemplate({
+                        standardNotes: { ...ts.activeTemplate.standardNotes, visible: false },
+                      });
+                    }
+                    setTbContextMenu(null);
+                  }}
+                >
+                  🙈 Hide block
+                </button>
+                <button
+                  data-testid="tb-ctx-edit-block"
+                  className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    if (isCert) setCertEditorOpen(true);
+                    else setNotesEditorOpen(true);
+                    setTbContextMenu(null);
+                  }}
+                >
+                  ✏️ Edit {isCert ? 'Certification Text' : 'Survey Notes'}…
+                </button>
+                <button
+                  data-testid="tb-ctx-reset-pos"
+                  className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    const ts = useTemplateStore.getState();
+                    if (isCert) {
+                      ts.updateActiveTemplate({
+                        certification: { ...ts.activeTemplate.certification, position: undefined },
+                      });
+                    } else {
+                      ts.updateActiveTemplate({
+                        standardNotes: { ...ts.activeTemplate.standardNotes, position: undefined },
+                      });
+                    }
+                    setTbContextMenu(null);
+                  }}
+                >
+                  ↩ Reset position
+                </button>
+              </>
             )}
             <div className="border-t border-gray-700 my-1" />
             <button
@@ -12635,6 +12759,76 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         <ScaleBarEditorModal
           onClose={() => setScaleBarEditorOpen(false)}
         />
+      )}
+
+      {/* Slice 226 — Certification editor modal */}
+      {certEditorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit certification block"
+          data-testid="cert-editor-modal"
+          className="fixed inset-0 z-[150] bg-black/60 flex items-start justify-center pt-12 overflow-y-auto"
+          onClick={(e) => { if (e.target === e.currentTarget) setCertEditorOpen(false); }}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-[520px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
+              <h2 className="text-sm font-semibold text-gray-100">Edit Certification Block</h2>
+              <button
+                type="button"
+                className="text-gray-400 hover:text-white text-lg leading-none"
+                onClick={() => setCertEditorOpen(false)}
+                aria-label="Close"
+              >×</button>
+            </header>
+            <CertificationEditor />
+            <footer className="flex justify-end mt-3 pt-2 border-t border-gray-700">
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium"
+                onClick={() => setCertEditorOpen(false)}
+              >Done</button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Slice 226 — Survey Notes editor modal */}
+      {notesEditorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit survey notes block"
+          data-testid="notes-editor-modal"
+          className="fixed inset-0 z-[150] bg-black/60 flex items-start justify-center pt-12 overflow-y-auto"
+          onClick={(e) => { if (e.target === e.currentTarget) setNotesEditorOpen(false); }}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-[520px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
+              <h2 className="text-sm font-semibold text-gray-100">Edit Survey Notes Block</h2>
+              <button
+                type="button"
+                className="text-gray-400 hover:text-white text-lg leading-none"
+                onClick={() => setNotesEditorOpen(false)}
+                aria-label="Close"
+              >×</button>
+            </header>
+            <StandardNotesEditor />
+            <footer className="flex justify-end mt-3 pt-2 border-t border-gray-700">
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium"
+                onClick={() => setNotesEditorOpen(false)}
+              >Done</button>
+            </footer>
+          </div>
+        </div>
       )}
 
       {/* DRAW_TEXT inline input overlay */}
