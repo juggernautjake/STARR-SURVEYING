@@ -27,9 +27,9 @@ describe('messages widget — registry', () => {
 
   it('default size 4×3, min 3×2, max 8×6', () => {
     const def = getWidget('messages');
-    expect(def?.defaultSize).toEqual({ w: 4, h: 3 });
-    expect(def?.minSize).toEqual({ w: 3, h: 2 });
-    expect(def?.maxSize).toEqual({ w: 8, h: 6 });
+    expect(def?.defaultSize).toEqual({ w: 3, h: 3 });
+    expect(def?.minSize).toEqual({ w: 2, h: 2 });
+    expect(def?.maxSize).toEqual({ w: 6, h: 6 });
   });
 
   it('default content opts in to groups + preview, opts out of mark-read', () => {

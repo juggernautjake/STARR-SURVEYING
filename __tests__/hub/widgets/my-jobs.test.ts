@@ -24,9 +24,9 @@ describe('my-jobs widget — registry', () => {
 
   it('default size 6×3, min 3×2, max 12×6', () => {
     const def = getWidget('my-jobs');
-    expect(def?.defaultSize).toEqual({ w: 6, h: 3 });
-    expect(def?.minSize).toEqual({ w: 3, h: 2 });
-    expect(def?.maxSize).toEqual({ w: 12, h: 6 });
+    expect(def?.defaultSize).toEqual({ w: 4, h: 3 });
+    expect(def?.minSize).toEqual({ w: 2, h: 2 });
+    expect(def?.maxSize).toEqual({ w: 8, h: 8 });
   });
 });
 

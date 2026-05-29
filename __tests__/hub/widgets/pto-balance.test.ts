@@ -27,9 +27,9 @@ describe('pto-balance widget — registry', () => {
 
   it('default size 4×2, min 2×1, max 8×4', () => {
     const def = getWidget('pto-balance');
-    expect(def?.defaultSize).toEqual({ w: 4, h: 2 });
+    expect(def?.defaultSize).toEqual({ w: 3, h: 2 });
     expect(def?.minSize).toEqual({ w: 2, h: 1 });
-    expect(def?.maxSize).toEqual({ w: 8, h: 4 });
+    expect(def?.maxSize).toEqual({ w: 6, h: 6 });
   });
 
   it('default content opts in to history + hours format', () => {

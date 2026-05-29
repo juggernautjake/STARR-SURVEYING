@@ -21,7 +21,7 @@ export interface ElementSize {
   breakpoint: GridBreakpoint;
 }
 
-const INITIAL: ElementSize = { widthPx: 0, heightPx: 0, breakpoint: 12 };
+const INITIAL: ElementSize = { widthPx: 0, heightPx: 0, breakpoint: 8 };
 
 /** Track an element's contentRect via a single ResizeObserver.
  *  Returns the current width + height + the breakpoint computed

@@ -2,7 +2,8 @@
 //
 // Coverage for the sizeBucket() mapping. Every supported (w, h) combo
 // listed in the widget-grid spec lands in its expected bucket, and the
-// edge cases (zero, negative, fractional) clamp safely.
+// edge cases (zero, negative, fractional) clamp safely. Slice 209
+// rebalanced thresholds for the 8×8 square-cell grid.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -12,22 +13,21 @@ import {
   type SizeBucket,
 } from '@/lib/hub/size-bucket';
 
-describe('sizeBucket — documented thresholds', () => {
-  // From the doc / lib comment:
+describe('sizeBucket — documented thresholds (8×8 grid)', () => {
   const expectations: { w: number; h: number; expected: SizeBucket }[] = [
-    { w: 3, h: 1, expected: 'tiny' },     // area 3
-    { w: 4, h: 1, expected: 'small' },    // area 4
+    { w: 1, h: 1, expected: 'tiny' },     // area 1 — single square
+    { w: 2, h: 1, expected: 'tiny' },     // area 2
+    { w: 2, h: 2, expected: 'small' },    // area 4
     { w: 3, h: 2, expected: 'small' },    // area 6
-    { w: 6, h: 1, expected: 'small' },    // area 6
     { w: 4, h: 2, expected: 'medium' },   // area 8
-    { w: 6, h: 2, expected: 'medium' },   // area 12
     { w: 3, h: 3, expected: 'medium' },   // area 9
+    { w: 4, h: 3, expected: 'medium' },   // area 12
+    { w: 4, h: 4, expected: 'large' },    // area 16
     { w: 6, h: 3, expected: 'large' },    // area 18
-    { w: 8, h: 2, expected: 'large' },    // area 16
-    { w: 12, h: 2, expected: 'large' },   // area 24
-    { w: 8, h: 4, expected: 'xlarge' },   // area 32
-    { w: 12, h: 3, expected: 'xlarge' },  // area 36
-    { w: 12, h: 4, expected: 'xlarge' },  // area 48
+    { w: 5, h: 4, expected: 'large' },    // area 20
+    { w: 8, h: 3, expected: 'xlarge' },   // area 24
+    { w: 6, h: 4, expected: 'xlarge' },   // area 24
+    { w: 8, h: 8, expected: 'xlarge' },   // area 64 — full canvas
   ];
 
   for (const { w, h, expected } of expectations) {
@@ -38,32 +38,31 @@ describe('sizeBucket — documented thresholds', () => {
 });
 
 describe('sizeBucket — boundaries', () => {
-  it('area = 3 is the upper bound of tiny', () => {
-    expect(sizeBucket(3, 1)).toBe('tiny');
-    expect(sizeBucket(4, 1)).not.toBe('tiny');
+  it('area = 2 is the upper bound of tiny', () => {
+    expect(sizeBucket(2, 1)).toBe('tiny');
+    expect(sizeBucket(3, 1)).not.toBe('tiny');
   });
 
   it('area = 6 is the upper bound of small', () => {
     expect(sizeBucket(3, 2)).toBe('small');
     expect(sizeBucket(6, 1)).toBe('small');
-    expect(sizeBucket(7, 1)).not.toBe('small'); // area 7 → medium
+    expect(sizeBucket(7, 1)).not.toBe('small');
   });
 
   it('area = 12 is the upper bound of medium', () => {
-    expect(sizeBucket(6, 2)).toBe('medium');
     expect(sizeBucket(4, 3)).toBe('medium');
-    expect(sizeBucket(12, 1)).toBe('medium');
+    expect(sizeBucket(6, 2)).toBe('medium');
     expect(sizeBucket(13, 1)).not.toBe('medium');
   });
 
-  it('area = 24 is the upper bound of large', () => {
-    expect(sizeBucket(8, 3)).toBe('large');
-    expect(sizeBucket(12, 2)).toBe('large');
-    expect(sizeBucket(25, 1)).not.toBe('large');
+  it('area = 20 is the upper bound of large', () => {
+    expect(sizeBucket(4, 4)).toBe('large');
+    expect(sizeBucket(5, 4)).toBe('large');
+    expect(sizeBucket(7, 3)).toBe('xlarge');
   });
 
-  it('area > 24 is xlarge', () => {
-    expect(sizeBucket(12, 3)).toBe('xlarge');
+  it('area > 20 is xlarge', () => {
+    expect(sizeBucket(8, 3)).toBe('xlarge');
     expect(sizeBucket(100, 100)).toBe('xlarge');
   });
 });

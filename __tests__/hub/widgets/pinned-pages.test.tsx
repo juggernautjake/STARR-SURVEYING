@@ -45,9 +45,9 @@ describe('pinned-pages widget — registry', () => {
 
   it('default size matches the planning doc (6×2, min 3×1, max 12×4)', () => {
     const def = getWidget('pinned-pages');
-    expect(def?.defaultSize).toEqual({ w: 6, h: 2 });
-    expect(def?.minSize).toEqual({ w: 3, h: 1 });
-    expect(def?.maxSize).toEqual({ w: 12, h: 4 });
+    expect(def?.defaultSize).toEqual({ w: 4, h: 2 });
+    expect(def?.minSize).toEqual({ w: 2, h: 1 });
+    expect(def?.maxSize).toEqual({ w: 8, h: 6 });
   });
 });
 
@@ -94,7 +94,7 @@ describe('pinned-pages widget — empty-state render', () => {
     const html = ReactDOMServer.renderToStaticMarkup(
       React.createElement(def.Widget, {
         customization: { layout: {}, style: {}, content: {}, interaction: {} },
-        size: { w: 6, h: 2 },
+        size: { w: 4, h: 2 },
         editMode: false,
         content: { layoutStyle: 'grid', iconStyle: 'lucide' },
       }),

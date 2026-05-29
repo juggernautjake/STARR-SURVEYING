@@ -37,7 +37,8 @@ const DENSITY_LABELS: Record<Density | 'inherit', string> = {
 export default function LayoutTab({ instance, customization, onChange }: LayoutTabProps) {
   const definition = getWidget(instance.type);
   const minSize = definition?.minSize ?? { w: 1, h: 1 };
-  const maxSize = definition?.maxSize ?? { w: 12, h: 4 };
+  // Slice 209 — fallback caps follow the 8×8 grid.
+  const maxSize = definition?.maxSize ?? { w: 8, h: 8 };
 
   const showTitle = customization.layout?.showTitle ?? true;
   const titleOverride = customization.layout?.titleOverride ?? '';
@@ -76,7 +77,7 @@ export default function LayoutTab({ instance, customization, onChange }: LayoutT
     const updated = draftWidgets.map((w) =>
       w.id === instance.id ? { ...w, w: next.w, h: next.h } : w,
     );
-    const compacted = compactLayout(updated, 12);
+    const compacted = compactLayout(updated, 8);
     setDraftWidgets(compacted);
   }
 

@@ -83,7 +83,7 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   const handleResize = useCallback((id: string, next: GridSize) => {
     const source = draftWidgets ?? widgets;
     const updated = source.map((w) => w.id === id ? { ...w, w: next.w, h: next.h } : w);
-    setDraftWidgets(compactLayout(updated, 12));
+    setDraftWidgets(compactLayout(updated, 8));
   }, [draftWidgets, widgets, setDraftWidgets]);
 
   // Event-delegated click: in edit mode, a click anywhere inside a

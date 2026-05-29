@@ -4,26 +4,26 @@
 // components switch sub-renders based on the bucket so content
 // adapts to the user's chosen size without clipping or empty padding.
 //
-// Buckets are computed from area (w × h) rather than width alone —
-// a 3×3 widget has the same area as a 6×1.5 strip (well, 4×2), so it
-// gets the same content treatment. The thresholds are tuned so the
-// common widget sizes land in their intuitive buckets:
+// Buckets are computed from area (w × h). Tuned for the 8×8 square-
+// cell grid (Slice 209) so the common widget sizes land in their
+// intuitive buckets:
 //
-//   3×1 → tiny     (3 area)
-//   4×1 → small    (4 area)
+//   1×1 → tiny     (1 area — single square pip)
+//   2×1 → tiny     (2 area)
+//   2×2 → small    (4 area)
 //   3×2 → small    (6 area)
-//   6×1 → small    (6 area)
 //   4×2 → medium   (8 area)
-//   6×2 → medium   (12 area)
 //   3×3 → medium   (9 area)
+//   4×3 → medium   (12 area)
 //   6×3 → large    (18 area)
-//   8×2 → large    (16 area)
-//  12×2 → large    (24 area)
-//   8×4 → xlarge   (32 area)
-//  12×3 → xlarge   (36 area)
-//  12×4 → xlarge   (48 area)
+//   4×4 → large    (16 area)
+//   8×3 → xlarge   (24 area, max-width strip)
+//   6×4 → xlarge   (24 area)
+//   8×8 → xlarge   (64 area, full-canvas)
 //
-// Slice 90 of customizable-hub-and-work-mode-2026-05-28.md.
+// Slice 209 rebalanced these from the old 12×4 thresholds so a
+// 1×1 still lands in tiny + a 4×4 (the new "comfortable big") is
+// firmly in the large bucket.
 
 export type SizeBucket = 'tiny' | 'small' | 'medium' | 'large' | 'xlarge';
 
@@ -35,10 +35,10 @@ export function sizeBucket(w: number, h: number): SizeBucket {
   const safeW = Math.max(1, Math.floor(w));
   const safeH = Math.max(1, Math.floor(h));
   const area = safeW * safeH;
-  if (area <= 3) return 'tiny';
+  if (area <= 2) return 'tiny';
   if (area <= 6) return 'small';
   if (area <= 12) return 'medium';
-  if (area <= 24) return 'large';
+  if (area <= 20) return 'large';
   return 'xlarge';
 }
 

@@ -164,9 +164,9 @@ defineWidget<PtoBalanceContent>({
   description: 'Your current PTO balance + accrual rate.',
   category: 'time-pay',
   iconName: 'Palmtree',
-  defaultSize: { w: 4, h: 2 },
+  defaultSize: { w: 3, h: 2 },
   minSize: { w: 2, h: 1 },
-  maxSize: { w: 8, h: 4 },
+  maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   // Internal roles only — students/teachers don't accrue PTO.
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],

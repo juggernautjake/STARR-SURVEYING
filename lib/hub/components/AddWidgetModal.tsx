@@ -112,7 +112,7 @@ function AddWidgetModalBody({ onClose, roles, activeBundles }: AddWidgetModalBod
       h: def.defaultSize.h,
       customization: { content: def.defaultContent },
     };
-    const compacted = compactLayout([...existing, newInstance], 12);
+    const compacted = compactLayout([...existing, newInstance], 8);
     setDraftWidgets(compacted);
     onClose();
   }

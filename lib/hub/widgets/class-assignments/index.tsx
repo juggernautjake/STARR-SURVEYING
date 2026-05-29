@@ -254,9 +254,9 @@ defineWidget<ClassAssignmentsContent>({
   description: 'Your outstanding lessons + assignments with due-date status.',
   category: 'learning',
   iconName: 'GraduationCap',
-  defaultSize: { w: 6, h: 3 },
-  minSize: { w: 3, h: 2 },
-  maxSize: { w: 12, h: 6 },
+  defaultSize: { w: 4, h: 3 },
+  minSize: { w: 2, h: 2 },
+  maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   // Students + teachers see the widget. Hidden for internal-only roles
   // (admins still see it because the role-picker treats admin as a
