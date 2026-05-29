@@ -11,10 +11,10 @@
 // is the title of /admin/me). Per §5.6 those pages keep their custom
 // header and embed the star button directly when they want one.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Star } from 'lucide-react';
+import { Star, HelpCircle } from 'lucide-react';
 
 import {
   WORKSPACES,
@@ -27,6 +27,7 @@ import {
 } from '@/lib/admin/nav-store';
 import { useToast } from '../Toast';
 
+import HelpDrawer from './HelpDrawer';
 import './AdminPageHeader.css';
 
 const HIDE_ON_PATHS = new Set<string>([
@@ -39,6 +40,7 @@ export default function AdminPageHeader() {
   const pinnedRoutes = useAdminNavStore((s) => s.pinnedRoutes);
   const togglePin = useAdminNavStore((s) => s.togglePin);
   const { addToast } = useToast();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const trail = useMemo(() => {
     if (HIDE_ON_PATHS.has(pathname)) return null;
@@ -92,17 +94,36 @@ export default function AdminPageHeader() {
           </>
         ) : null}
       </ol>
-      <button
-        type="button"
-        className={`admin-page-header__star${isPinned ? ' admin-page-header__star--active' : ''}`}
-        onClick={handleTogglePin}
-        disabled={pinDisabled}
-        aria-pressed={isPinned}
-        aria-label={isPinned ? `Unpin ${route?.label ?? 'this page'}` : `Pin ${route?.label ?? 'this page'}`}
-        title={isPinned ? 'Unpin from your nav' : `Pin to your nav (max ${MAX_PINNED_ROUTES})`}
-      >
-        <Star size={14} fill={isPinned ? 'currentColor' : 'transparent'} strokeWidth={1.75} />
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+        <button
+          type="button"
+          className="admin-page-header__star"
+          onClick={() => setHelpOpen(true)}
+          aria-label="Open help for this page"
+          title="Help for this page (§13.7)"
+        >
+          <HelpCircle size={14} strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
+          className={`admin-page-header__star${isPinned ? ' admin-page-header__star--active' : ''}`}
+          onClick={handleTogglePin}
+          disabled={pinDisabled}
+          aria-pressed={isPinned}
+          aria-label={isPinned ? `Unpin ${route?.label ?? 'this page'}` : `Pin ${route?.label ?? 'this page'}`}
+          title={isPinned ? 'Unpin from your nav' : `Pin to your nav (max ${MAX_PINNED_ROUTES})`}
+        >
+          <Star size={14} fill={isPinned ? 'currentColor' : 'transparent'} strokeWidth={1.75} />
+        </button>
+      </div>
+      <HelpDrawer
+        open={helpOpen}
+        pathname={pathname}
+        workspaceHref={workspace.href}
+        workspaceLabel={workspace.label}
+        routeLabel={route?.label ?? null}
+        onClose={() => setHelpOpen(false)}
+      />
     </nav>
   );
 }

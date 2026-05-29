@@ -7,9 +7,11 @@
 
 > **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
 > these three items called out in §13 + §16 of the original spec:
-> 1. Delete `app/admin/components/AdminSidebar.tsx` (PR-cycle grace expired)
-> 2. Brand-coloured workspace icons (§13.1)
-> 3. `?` help drawer content + `nav.*` telemetry events (§13.7 / §13.8)
+> 1. **Delete `app/admin/components/AdminSidebar.tsx`** — **still gated.** The doc body (§16 item 8 + Phase 5 close note) explicitly states this is an operator-policy deferral, not a defer-to-empty-the-folder; deletion lands when the operator gives the call after the rollout window closes. Re-opening this doc does not unblock the gate.
+> 2. **Brand-coloured workspace icons (§13.1)** — **shipped 2026-05-28 (Slice 108).** Per-workspace `--rail-accent-*` CSS variables on `.admin-rail`; hover + active border-left-color picks the matching token (hub=navy, work=success, equipment=warning, research-cad=sky #38BDF8, knowledge=violet #7C3AED, office=brand-red). Operator can swap any of the six in one CSS variable change.
+> 3. **`?` help drawer content + `nav.*` telemetry events (§13.7 / §13.8)** — **both shipped 2026-05-28** (Slices 110 + 109).
+>    - **Help drawer (Slice 110):** `?` button on `AdminPageHeader.tsx` opens `HelpDrawer.tsx`. Content sourced from `lib/admin/help-catalog.ts` (initial entries for 6 workspace landings + `/admin/dashboard` + `/admin/pay-progression`; pages without a specific entry fall back to their workspace landing, then to a "no help curated yet" notice). Catalog is a plain constant so the operator extends content in-repo.
+>    - **Telemetry (Slice 109):** `seeds/300_nav_events.sql` (new `public.nav_events` table — event_name + user_email + pathname + props JSONB + created_at, RLS enabled, idempotent). Client emitter `lib/admin/nav-telemetry.ts` uses `sendBeacon` with `keepalive: true` fallback. `POST /api/admin/nav-events` validates + writes. The 5 specified events are all wired: `nav.cmdk.open` (shortcut + button paths), `nav.workspace.click`, `nav.pin.add`, `nav.pin.remove`, `nav.persona.override`.
 
 > **One-sentence pitch:** Collapse the current 11-section, ~50-link sidebar into a 7-workspace icon rail + a `/admin/me` central hub + a `Cmd+K` command palette, so every surveyor lands somewhere useful in ≤ 1 click and can reach any page in ≤ 1 keystroke chord.
 
