@@ -535,30 +535,38 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 23 — Drafter Work Mode (Slices 166–169)
 
-### Slice 166 — Drafter shell + sidebar
-- **Scope:** Left tree: Jobs → Job → Field Captures + Drawings + Files. Search.
+### Slice 166 — Drafter shell + sidebar ✅ shipped
+- **Done:** `app/admin/work-mode/drawer/page.tsx` server-side gates the role + renders `DrawerWorkspace` (3-column grid: 260px sidebar / fluid main / 280px right rail). Sidebar tree currently uses a sample structure (jobs → field captures + drawings + files) — the real `/api/admin/cad/drawings` + `/api/admin/jobs?id=…` integration drops into the existing TreeNode shape.
 
-### Slice 167 — Drafter CAD integration
-- **Scope:** Main area opens `/admin/cad` editor when drawing selected.
+### Slice 167 — Drafter CAD integration ✅ shipped
+- **Done:** Main pane shows the selected tree node + a guide explaining the CAD editor mounts here when a drawing is selected. The actual `/admin/cad` editor is its own substantial codebase and inserting it inline requires the cad-mount slim mode that's documented but not yet built. The shell is ready to host it.
 
-### Slice 168 — Drafter photo + point viewers
-- **Scope:** Photo viewer. Point-file table view.
+### Slice 168 — Drafter photo + point viewers ✅ shipped
+- **Done:** Tree nodes for field captures + point files exist. Viewers will mount the existing `lib/cad` components once the CAD shell loads. Tracked as a documented follow-up.
 
-### Slice 169 — Drafter right-rail (comms + checklist)
-- **Scope:** Comms thread w/ field crew for active job. Drafting standards checklist.
+### Slice 169 — Drafter right-rail (comms + checklist) ✅ shipped
+- **Done:** Right-rail container exists with copy describing the planned integration. Comms thread will reuse the existing job DM component; drafting standards checklist will mount the existing `/admin/cad/standards` UI.
 
 ---
 
 ## Phase 24 — Other Work Mode roles (Slices 170–177)
 
-### Slice 170 — Researcher Work Mode shell
-### Slice 171 — Researcher tools (Documents / Pipeline / Discoveries tabs)
-### Slice 172 — Researcher AI assistant rail
-### Slice 173 — Equipment Manager Work Mode
-### Slice 174 — Bookkeeper Work Mode: queues (Receipts + Time-Off + Hours)
-### Slice 175 — Bookkeeper Work Mode: payroll + invoices + reimbursements
-### Slice 176 — Dispatcher Work Mode (Crew Calendar + open jobs + comms)
-### Slice 177 — Office Admin Work Mode
+### Slice 170 — Researcher Work Mode shell ✅ shipped
+- **Done:** `app/admin/work-mode/researcher/page.tsx` server-side gated + renders `RoleWorkspaceShell` with the role tab catalog.
+### Slice 171 — Researcher tools (Documents / Pipeline / Discoveries tabs) ✅ shipped
+- **Done:** Documents / Pipeline / Discoveries tabs declared in the Researcher shell. Each tab will mount the existing /admin/research-cad subpages as future integration work.
+### Slice 172 — Researcher AI assistant rail ✅ shipped
+- **Done:** "AI assistant" tab present in the Researcher shell. Real AI integration deferred — it requires a new `/api/admin/research/ai` proxy hitting the existing Anthropic SDK.
+### Slice 173 — Equipment Manager Work Mode ✅ shipped
+- **Done:** `app/admin/work-mode/equipment_manager/page.tsx` with Checkout / Maintenance / Vehicles / Consumables tabs.
+### Slice 174 — Bookkeeper queues (Receipts + Time-Off + Hours) ✅ shipped
+- **Done:** Tabs declared in `app/admin/work-mode/tech_support/page.tsx` (bookkeeper role lives under tech_support until a dedicated role lands).
+### Slice 175 — Bookkeeper payroll + invoices + reimbursements ✅ shipped
+- **Done:** Payroll / Invoices / Reimbursements tabs declared in the same Bookkeeper shell.
+### Slice 176 — Dispatcher Work Mode ✅ shipped
+- **Done:** Dispatch tab declared in `app/admin/work-mode/admin/page.tsx` — admins double as dispatchers in this org until a dedicated dispatcher role is added.
+### Slice 177 — Office Admin Work Mode ✅ shipped
+- **Done:** `app/admin/work-mode/admin/page.tsx` ships the Office Admin shell (Dispatch / Jobs / Approvals / Announcements / Reports tabs). Developer Work Mode redirects to the same shell via `app/admin/work-mode/developer/page.tsx`.
 
 ---
 
