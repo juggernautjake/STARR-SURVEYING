@@ -16,13 +16,11 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import {
   type HubLayoutPutPayload,
   type HubLayoutDbRow,
-  type HubLayoutRow,
   dbRowToHubLayout,
   LAYOUT_VERSION,
 } from '@/lib/hub/types';
 import { validateHubLayoutPutPayload, clampFontScale } from '@/lib/hub/validate-layout';
-import { defaultLayoutForPersona } from '@/lib/hub/defaults';
-import { inferPersona } from '@/lib/admin/personas';
+import { fetchHubLayoutForUser } from '@/lib/hub/server/fetch-hub-layout';
 import type { UserRole } from '@/lib/auth';
 
 const SELECT_COLS =
@@ -34,42 +32,18 @@ export const GET = withErrorHandler(async () => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from('user_hub_layouts')
-    .select(SELECT_COLS)
-    .eq('user_email', session.user.email)
-    .maybeSingle();
+  const roles: UserRole[] = (session.user.roles ??
+    (session.user.role ? [session.user.role] : [])) as UserRole[];
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const { layout, isSeeded } = await fetchHubLayoutForUser(session.user.email, roles);
+    return isSeeded
+      ? NextResponse.json({ layout, isSeeded: true })
+      : NextResponse.json({ layout });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Layout fetch failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  if (!data) {
-    // No saved layout. Build a seed layout from the user's inferred
-    // persona so first-time users land on a sensible canvas without
-    // having to configure anything. The seed is returned WITHOUT
-    // persisting — that happens the first time the user saves
-    // customizations via PUT, distinguishing "first-time auto-default"
-    // from "user explicitly wanted these widgets".
-    const roles: UserRole[] = (session.user.roles ??
-      (session.user.role ? [session.user.role] : [])) as UserRole[];
-    const persona = inferPersona(roles);
-    const seed: HubLayoutRow = {
-      userEmail: session.user.email,
-      layoutVersion: LAYOUT_VERSION,
-      widgets: defaultLayoutForPersona(persona),
-      activePersona: null,
-      theme: 'starr-default',
-      customTheme: null,
-      density: 'comfortable',
-      fontScale: 1.0,
-      hubSettings: {},
-      updatedAt: new Date().toISOString(),
-    };
-    return NextResponse.json({ layout: seed, isSeeded: true });
-  }
-
-  return NextResponse.json({ layout: dbRowToHubLayout(data as HubLayoutDbRow) });
 }, { routeName: 'admin/me/hub-layout/GET' });
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {
