@@ -54,4 +54,10 @@ This file is the audit trail. Updated when the picture changes.
 
 ---
 
-**Last reviewed:** 2026-05-15 (after seeds 220-282 applied to `pmpjaqrmxnbfdayddrha`)
+**Last reviewed:** 2026-05-29 — full seed-vs-live audit of `pmpjaqrmxnbfdayddrha`:
+all 97 seed-defined tables present. Applied the 5 that were still missing
+(`098`, `299`, `300`, `301`, `302`); seed `299` was corrected first (it mapped
+drone/UAS modules to a nonexistent `drone_pilot` credential — now `faa_part107`,
+which exists in `credential_bonuses`).
+
+**Prior:** 2026-05-15 (after seeds 220-282 applied to `pmpjaqrmxnbfdayddrha`)
