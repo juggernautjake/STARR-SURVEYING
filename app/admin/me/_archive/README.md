@@ -25,7 +25,7 @@ route detection. Nothing here is reachable by URL.
 | `HubTabs` + tab panels  | Independent widgets in the canvas (no tab navigation) |
 | `HubNotifications`      | Notifications surface in `AdminTopBar` + per-widget badges |
 | `HubQuickActions`       | `QuickActions` widget (Slice 95)                      |
-| `AdminMe.css`           | Still imported by `app/admin/me/page.tsx` because `HubGreeting` reuses the `.hub-greeting*` selectors. Trim or fold into the greeting component when that surface gets its own redesign. |
+| `AdminMe.css`           | Restored to `app/admin/me/AdminMe.css` in Slice 195 — Next.js's underscore-prefix convention is documented for route folders only and the standalone bundler under prod builds wouldn't reliably resolve an `import './_archive/AdminMe.css'` from a server component. The file still carries the legacy selectors alongside the `.hub-greeting*` classes the new page needs. |
 
 ## Safe to delete?
 
