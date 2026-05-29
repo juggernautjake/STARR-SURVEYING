@@ -82,7 +82,7 @@ Two asks:
 
 ### Phase 39 — Grid-painter widget editor (Slices 222–225)
 
-#### Slice 222 — `GridEditor` shell + 8×8 grid + widget palette
+#### Slice 222 — `GridEditor` shell + 8×8 grid + widget palette ✅ shipped (entry button, not yet primary)
 - **Scope:** New `lib/hub/components/GridEditor.tsx` that renders
   as a full-screen modal when the surveyor clicks
   `CustomizeHubButton`. Left: scrollable widget palette (uses the
@@ -93,6 +93,7 @@ Two asks:
   mode". The grid renders any widgets already in the draft layout
   so the surveyor can pick up an in-progress edit. This slice
   ships the layout shell only — clicking grid cells is a no-op.
+- **Done:** Inner `GridEditorBody` uses Slice 201's lazy-mount pattern (outer returns null when closed; the body never runs hooks until open). Two-column layout (280px palette + 1fr grid wrapper). Palette is a `<ul role="listbox">` of `role="option"` palette entries that toggle `aria-selected` + swap to the accent background when selected. The 8×8 grid renders 64 `<div>` cells with `data-grid-x` / `data-grid-y` coordinates + 1-indexed `aria-label`s ("Grid cell 1, 1" through "Grid cell 8, 8"). Every widget in `draftWidgets` overlays as a colored block via CSS-grid `gridColumn: x+1 / span w` + `gridRow: y+1 / span h` with its label centered + size badge underneath. Footer shows live status (count + cells-used / 64); Save uses `var(--gradient-green)` to match the Slice-221 work-mode CTA. Esc + the × close button both call `onClose`. New `cellsUsed()` pure helper exported. `HubCanvas` mounts the editor next to the existing `AddWidgetModal` + adds a new accent-tinted `▦ Grid editor` button to the edit-mode header (keeps both entry points so the existing flow doesn't regress). 15 vitest specs lock: mount gate (null when closed; dialog role + modal markup when open); palette structure (listbox + search + role-option entries + at least one widget from register-all); 8×8 grid invariants (`GRID_EDITOR_COLS === 8`, `GRID_EDITOR_ROWS === 8`, 64 cells, accessible corner labels); footer baseline + Save uses gradient-green + Cancel always present; 3 `cellsUsed` purity checks. Interactive state-mutation render assertions skipped — same React + zustand SSR snapshot caching constraint we hit in `perf-overlay.test.tsx` (Slice 207); the placed-widget render path will be locked by a Playwright spec once placement (Slice 223) lands. 1058 hub specs green. `tsc` + `eslint` clean.
 - **Files:** new `lib/hub/components/GridEditor.tsx`,
   `lib/hub/components/HubCanvas.tsx` (replace the AddWidgetModal
   mount with a GridEditor mount gated on edit-mode), new
