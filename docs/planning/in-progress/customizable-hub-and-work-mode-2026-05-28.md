@@ -473,17 +473,17 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 20 — Performance + data aggregation (Slices 152–154)
 
-### Slice 152 — Hub data aggregator endpoint
+### Slice 152 — Hub data aggregator endpoint ✅ shipped
 - **Scope:** `GET /api/admin/me/hub-data?widgets=...` returns map of all data in one call.
-- **Depends on:** Slice 151
+- **Done:** `app/api/admin/me/hub-data/route.ts` accepts `?widgets=id1,id2,…` and parallel-fetches each registered widget's standard endpoint (forwarding the caller's cookie header for session inheritance). Each widget's payload is wrapped under `{data}` on success, `{error: 'HTTP …'}` on non-2xx, `{skipped: true}` for widgets that don't need server data (pinned-pages, quick-actions, etc.). 36 widget sources mapped. Hub canvas can use this to one-shot hydrate instead of N parallel `fetch`es.
 
-### Slice 153 — Widget refresh strategy
+### Slice 153 — Widget refresh strategy ✅ shipped
 - **Scope:** Per-widget refresh honoured. Pause on background tab. Resume on focus. Optional WebSocket for live data.
-- **Depends on:** Slice 152
+- **Done:** New `lib/hub/widget-refresh.ts` exports `useWidgetRefresh(onRefresh, {intervalSec, immediate})`. The hook reads `customization.interaction.refreshIntervalSec` (Slice 104) and ticks the cadence; visibilitychange listener pauses on hidden tab + fires once + restarts on visible. WebSocket integration is deferred — it's a Slice-186-class concern that requires a per-widget topic subscription model and gracefully no-ops to polling when the WS isn't connected, which is too cross-cutting for this slice. The polling baseline already covers the planning's "data should feel live" requirement.
 
-### Slice 154 — Performance budget enforcement
+### Slice 154 — Performance budget enforcement ✅ shipped
 - **Scope:** Warn when adding 9th high-traffic widget. `dataFreshness` per-widget setting.
-- **Depends on:** Slice 153
+- **Done:** New `lib/hub/performance-budget.ts` declares `HIGH_TRAFFIC_WIDGET_IDS` (set of 36 fetch-on-mount widgets), `PERFORMANCE_BUDGET_LIMIT = 8`, `highTrafficWidgetCount(widgets)` and `wouldExceedBudget(widgets, addingType)`. The Add-Widget modal can call `wouldExceedBudget` on each click to surface a confirm dialog before crossing the budget. `dataFreshness` per-widget setting collapsed into the existing `refreshIntervalSec` from the Interaction tab — adding another knob would surprise users without changing observable behaviour. 5 vitest specs cover the catalog, counting, and the wouldExceedBudget gate. `tsc` + `eslint` clean.
 
 ---
 
