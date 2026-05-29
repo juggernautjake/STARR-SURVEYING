@@ -69,7 +69,7 @@ Five concrete asks:
 
 ### Phase 37 — Edit-mode chrome polish (Slices 219+)
 
-#### Slice 219 — Larger drag handle + visible edit outline + remove button
+#### Slice 219 — Larger drag handle + visible edit outline + remove button ✅ shipped
 - **Scope:** When `editMode` is on, every widget cell gets a 2px
   dashed `--theme-accent` outline + offset, the drag handle gets
   bigger (24×24, accent background, white glyph), and a new "✕
@@ -81,6 +81,7 @@ Five concrete asks:
   `__tests__/hub/widget-grid-edit-affordances.test.tsx`.
 - **Done when:** A surveyor in edit mode immediately sees which
   cells are draggable/resizable/removable.
+- **Done:** `StaticWidgetCell`'s `cellStyle` now paints three distinct ring states: drop-target → solid 2px accent ring (Slice 203); edit-mode-not-target → 2px dashed accent ring with -2px offset + 8px border-radius; view mode → no outline. Switching `overflow` to `visible` in edit mode unclips the bottom-right resize grip so it sits proud of the cell instead of getting trimmed at the boundary. The `DragHandle` helper grew from a 4px-padded transparent button to a 28×28 accent pill with white glyph + `box-shadow: 0 1px 3px rgba(0,0,0,0.18)` so the ⋮⋮ glyph reads as a deliberate affordance instead of a faint detail. A new `RemoveButton` renders a 28×28 danger-tinted outlined button with the ✕ glyph + stops propagation on both `click` and `pointerdown` so removing a widget doesn't trigger the canvas's event-delegated `[data-widget-id]` click that opens the SettingsPanel. The two buttons compose inside a new `CellEditActions` flex group that lives in `WidgetFrame`'s `headerAction` slot whenever `editMode` is on (replacing the bare `<DragHandle>` mount); the wrapper only conditionally renders the DragHandle when dragListeners are present (e.g. the dnd-kit sortable wrapper has hydrated) but always renders the RemoveButton so a surveyor can delete a widget even before sortable kicks in. `CellEditActions` pulls `removeWidget` via the existing `useHubActions()` helper (Slice 200) — no new subscription, no extra re-render. Both branches of the cell renderer (the in-catalog + the unknown-widget fallback) feed through the new headerAction. 14 vitest specs lock the source-level contracts (dashed-outline string, -2px offset, overflow:visible in edit mode, drag handle 28×28 + accent background + glyph + grab cursor, remove button ✕ glyph + danger color + propagation guards + onRemove signature + aria-label, CellEditActions composition + guard semantics + the useHubActions wiring). 1029 hub specs green. `tsc` + `eslint` clean.
 
 #### Slice 220 — Bigger resize grip + size badge on hover
 - **Scope:** The 18×18 resize handle grows to 28×28 in edit mode +

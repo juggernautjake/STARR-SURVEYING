@@ -39,6 +39,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { getWidget, type WidgetDefinition } from '@/lib/hub/widget-registry';
 import type { WidgetCustomization } from '@/lib/hub/types';
 import { useElementSize } from '@/lib/hub/use-element-size';
+import { useHubActions } from '@/lib/hub/use-hub-actions';
 import {
   collapseLayout,
   compactLayout,
@@ -305,16 +306,23 @@ function StaticWidgetCell({
     gridColumn: `${instance.x + 1} / span ${instance.w}`,
     gridRow: `${instance.y + 1} / span ${instance.h}`,
     minHeight: 0,
-    overflow: 'hidden',
+    // Slice 219 — the cell needs `visible` overflow in edit mode so
+    // the resize grip + the drop-target outline aren't clipped at
+    // the cell boundary.
+    overflow: editMode ? 'visible' : 'hidden',
     position: 'relative',
-    // Slice 203 — 2px accent outline when this cell is the current
-    // drop destination. Uses `outline` instead of `border` so the
-    // cell's box-model doesn't shift, which would cause visual jank
-    // on every drag tick. The outline-offset pulls it inside the
-    // cell padding so the highlight reads as "you'll land here".
-    outline: isDropTarget ? '2px solid var(--theme-accent, #3b82f6)' : undefined,
-    outlineOffset: isDropTarget ? '-2px' : undefined,
-    borderRadius: isDropTarget ? 8 : undefined,
+    // Slice 203 + Slice 219 — drop-target → solid 2px accent ring;
+    // edit-mode (not the target) → dashed 2px accent ring so every
+    // cell reads as "I can be dragged + resized" instead of being a
+    // static tile. `outline` (not border) keeps the box-model stable
+    // so drag ticks don't reflow neighbours.
+    outline: isDropTarget
+      ? '2px solid var(--theme-accent, #3b82f6)'
+      : editMode
+        ? '2px dashed var(--theme-accent, #3b82f6)'
+        : undefined,
+    outlineOffset: isDropTarget ? '-2px' : editMode ? '-2px' : undefined,
+    borderRadius: isDropTarget || editMode ? 8 : undefined,
     transition: 'outline-color 80ms ease-out',
     ...style,
   };
@@ -335,7 +343,14 @@ function StaticWidgetCell({
           colorMode="status"
           statusTint="warning"
           editMode={editMode}
-          headerAction={editMode && dragListeners ? <DragHandle {...dragListeners} /> : undefined}
+          headerAction={
+          editMode ? (
+            <CellEditActions
+              instanceId={instance.id}
+              dragListeners={dragListeners}
+            />
+          ) : undefined
+        }
         >
           <div style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>
             This widget is no longer in the catalog. Remove it from your
@@ -374,7 +389,14 @@ function StaticWidgetCell({
         borderRadius={customization.style?.borderRadius}
         shadowDepth={customization.style?.shadowDepth}
         editMode={editMode}
-        headerAction={editMode && dragListeners ? <DragHandle {...dragListeners} /> : undefined}
+        headerAction={
+          editMode ? (
+            <CellEditActions
+              instanceId={instance.id}
+              dragListeners={dragListeners}
+            />
+          ) : undefined
+        }
       >
         {/* Slice 199 — MemoWidgetRender's equality compares
             size.w + size.h as primitives, so a fresh { w, h } each
@@ -492,25 +514,98 @@ const MemoWidgetRender = React.memo(MemoWidgetRenderImpl, (prev, next) => {
  *  React internals. */
 export { MemoWidgetRender as __MemoWidgetRender };
 
+/** Slice 219 — Drag handle. Bigger + accent-colored so the surveyor
+ *  immediately reads "I can drag this." */
 function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type="button"
       aria-label="Drag to reorder"
       title="Drag to reorder"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        cursor: 'grab',
-        padding: 4,
-        borderRadius: 4,
-        color: 'var(--theme-fg-muted)',
-        fontSize: '1rem',
-        lineHeight: 1,
-      }}
+      style={dragHandleStyle}
       {...props}
     >
       ⋮⋮
     </button>
   );
 }
+
+const dragHandleStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 28,
+  height: 28,
+  padding: 0,
+  borderRadius: 6,
+  background: 'var(--theme-accent, #3b82f6)',
+  color: 'var(--theme-accent-fg, #fff)',
+  border: 'none',
+  cursor: 'grab',
+  fontSize: '1rem',
+  fontWeight: 700,
+  lineHeight: 1,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+  flexShrink: 0,
+};
+
+/** Slice 219 — Remove button. Surfaces the `removeWidget` action in
+ *  the cell's header strip so the surveyor doesn't have to open the
+ *  settings panel + scroll to find the delete control. */
+function RemoveButton({ onRemove }: { onRemove: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Remove widget"
+      title="Remove widget"
+      onClick={(e) => { e.stopPropagation(); onRemove(); }}
+      onPointerDown={(e) => { e.stopPropagation(); }}
+      style={removeButtonStyle}
+    >
+      ✕
+    </button>
+  );
+}
+
+const removeButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 28,
+  height: 28,
+  padding: 0,
+  borderRadius: 6,
+  background: 'transparent',
+  color: 'var(--theme-danger, #ef4444)',
+  border: '1px solid var(--theme-danger, #ef4444)',
+  cursor: 'pointer',
+  fontSize: '0.85rem',
+  fontWeight: 700,
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+/** Slice 219 — Compound edit-mode header strip. Wraps the drag
+ *  handle + the remove button so they sit together in `WidgetFrame`'s
+ *  `headerAction` slot. */
+function CellEditActions({
+  instanceId,
+  dragListeners,
+}: {
+  instanceId: string;
+  dragListeners?: React.HTMLAttributes<HTMLButtonElement>;
+}) {
+  const { removeWidget } = useHubActions();
+  return (
+    <div style={cellEditActionsStyle}>
+      {dragListeners && <DragHandle {...dragListeners} />}
+      <RemoveButton onRemove={() => removeWidget(instanceId)} />
+    </div>
+  );
+}
+
+const cellEditActionsStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+};
