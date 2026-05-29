@@ -19,3 +19,4 @@ import './my-jobs';
 import './messages';
 import './class-assignments';
 import './today-schedule';
+import './pto-balance';
