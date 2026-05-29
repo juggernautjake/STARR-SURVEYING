@@ -17,6 +17,7 @@
 import { create } from 'zustand';
 
 import type {
+  CustomThemePayload,
   Density,
   FontScale,
   HubSettings,
@@ -44,6 +45,9 @@ interface HubStore {
    *  (theme picker, density picker) but echoed here so a Save from
    *  edit mode doesn't accidentally blow them away. */
   theme: ThemeId | null;
+  /** Resolved palette for `theme === 'custom'`. Null for built-in
+   *  themes (the registry resolves the palette by id). */
+  customTheme: CustomThemePayload | null;
   density: Density | null;
   fontScale: FontScale | null;
   hubSettings: HubSettings;
@@ -55,6 +59,7 @@ interface HubStore {
   hydrate: (input: {
     widgets: WidgetInstance[];
     theme?: ThemeId | null;
+    customTheme?: CustomThemePayload | null;
     density?: Density | null;
     fontScale?: FontScale | null;
     hubSettings?: HubSettings;
@@ -94,12 +99,13 @@ export const useHubStore = create<HubStore>((set, get) => ({
   saveStatus: 'idle',
   saveError: null,
   theme: null,
+  customTheme: null,
   density: null,
   fontScale: null,
   hubSettings: {},
   activePersona: null,
 
-  hydrate: ({ widgets, theme, density, fontScale, hubSettings, activePersona }) => {
+  hydrate: ({ widgets, theme, customTheme, density, fontScale, hubSettings, activePersona }) => {
     set({
       widgets,
       draftWidgets: null,
@@ -108,6 +114,7 @@ export const useHubStore = create<HubStore>((set, get) => ({
       saveStatus: 'idle',
       saveError: null,
       theme: theme ?? null,
+      customTheme: customTheme ?? null,
       density: density ?? null,
       fontScale: fontScale ?? null,
       hubSettings: hubSettings ?? {},
@@ -170,7 +177,7 @@ export const useHubStore = create<HubStore>((set, get) => ({
   },
 
   saveDraft: async () => {
-    const { draftWidgets, theme, density, fontScale, hubSettings, activePersona, isEditMode } = get();
+    const { draftWidgets, theme, customTheme, density, fontScale, hubSettings, activePersona, isEditMode } = get();
     if (!isEditMode || !draftWidgets) return;
 
     set({ saveStatus: 'saving', saveError: null });
@@ -178,6 +185,7 @@ export const useHubStore = create<HubStore>((set, get) => ({
     try {
       const body: Record<string, unknown> = { widgets: draftWidgets };
       if (theme !== null) body.theme = theme;
+      if (customTheme !== null) body.customTheme = customTheme;
       if (density !== null) body.density = density;
       if (fontScale !== null) body.fontScale = fontScale;
       if (hubSettings && Object.keys(hubSettings).length > 0) body.hubSettings = hubSettings;

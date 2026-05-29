@@ -23,6 +23,7 @@ function reset() {
     saveStatus: 'idle',
     saveError: null,
     theme: null,
+    customTheme: null,
     density: null,
     fontScale: null,
     hubSettings: {},
