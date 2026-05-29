@@ -649,11 +649,12 @@ Slices 78–184 shipped every widget, every helper, every store, every modal —
 
 ## Phase 28 — Work Mode chrome isolation + endpoint stubs (Slices 190–191)
 
-### Slice 190 — AdminLayoutClient bypass for Work Mode paths
+### Slice 190 — AdminLayoutClient bypass for Work Mode paths ✅ shipped
 - **Scope:** `app/admin/components/AdminLayoutClient.tsx` reads `usePathname()` and short-circuits its sidebar + IconRail when the path matches `/admin/work-mode/...`. Work Mode shell from Slice 156 then owns the screen end-to-end (its own `WorkModeTopBar` is the only chrome). The greeting bar / Cmd+K palette / nav-store side effects still register so `Exit Work Mode` → `/admin/me` lands on a fully-hydrated hub.
-- **Files:** `app/admin/components/AdminLayoutClient.tsx`, `__tests__/admin/admin-layout-client.test.tsx`
+- **Files:** `app/admin/components/AdminLayoutClient.tsx`, `lib/admin/chrome-bypass.ts`, `__tests__/admin/chrome-bypass.test.ts`
 - **Done when:** Visiting `/admin/work-mode/field_crew` shows the Work Mode top bar + the field-crew tab grid with **no admin sidebar or IconRail visible**; navigating back to `/admin/me` brings the regular admin chrome back.
 - **Depends on:** Slice 156
+- **Done:** Extracted the existing CAD-editor bypass into a tiny pure helper `lib/admin/chrome-bypass.ts` exporting `shouldBypassAdminChrome(pathname)` + `CHROME_BYPASS_PREFIXES` (currently `['/admin/cad', '/admin/work-mode']`), then routed `AdminLayoutClient` through it — one line at the top of `Inner()` short-circuits the entire tree (sidebar + IconRail + AdminTopBar + FloatingActionMenu + AdminPageHeader) on either prefix, returning `<>{children}</>` inside the still-present `SessionProvider` so authenticated fetches in the Work Mode shells keep working. Navigating back to `/admin/me` re-renders the layout with the full admin chrome restored; nav-store recents + the CommandPaletteProvider re-mount on the hub side. The helper uses exact-or-prefix matching (`pathname === prefix || pathname.startsWith(prefix + '/')`) so a hypothetical `/admin/work-mode-settings` route wouldn't accidentally bypass. 9 vitest specs lock the predicate: CAD exact + subpath, Work Mode start + every role page + index, regular admin paths stay chromed, near-misses don't false-positive, null/undefined/empty are safe, and the `CHROME_BYPASS_PREFIXES` catalog is asserted. `tsc` + `eslint` clean.
 
 ### Slice 191 — Stub the 4 missing endpoints
 - **Scope:** Add `app/api/admin/team/status/route.ts`, `app/api/admin/weather/route.ts`, `app/api/admin/sun/route.ts`, `app/api/admin/research/pipeline/route.ts` as **graceful empty-response stubs** so the widgets that depend on them render their empty state instead of throwing fetch errors in dev tools. Each stub returns 200 with a shape-correct empty payload (`{members: []}` / `{}` / `{sunrise: …}` / `{runs: []}`) and a comment pointing at the real implementation slice in a future planning doc.
