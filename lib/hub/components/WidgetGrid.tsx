@@ -235,9 +235,13 @@ function StaticWidgetCell({
     if (onResize) onResize(instance.id, next);
   }
 
+  // data-widget-id lets a parent canvas capture clicks via event
+  // delegation (Slice 185 — HubCanvas reads closest('[data-widget-id]')
+  // on click to open the SettingsPanel against that instance in edit
+  // mode).
   if (!definition) {
     return (
-      <div ref={setNodeRef} style={cellStyle}>
+      <div ref={setNodeRef} style={cellStyle} data-widget-id={instance.id}>
         <WidgetFrame
           title={`Unknown widget: ${instance.type}`}
           colorMode="status"
@@ -271,7 +275,7 @@ function StaticWidgetCell({
   const title = titleOverride && titleOverride.trim().length > 0 ? titleOverride : definition.label;
 
   return (
-    <div ref={setNodeRef} style={cellStyle}>
+    <div ref={setNodeRef} style={cellStyle} data-widget-id={instance.id}>
       <WidgetFrame
         title={title}
         showTitle={showTitle}
