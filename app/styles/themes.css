@@ -1,0 +1,46 @@
+/* ============================================================================
+ * app/styles/themes.css — Customizable Hub theme system
+ *
+ * 14 CSS custom properties that ALL hub widgets read from. Each built-in
+ * theme + the user's saved custom theme set these on a scoped
+ * `[data-theme="..."]` wrapper. Widgets style themselves with
+ * `var(--theme-fg-primary)` etc. — they never reference brand tokens
+ * directly so swapping the theme swaps every widget at once.
+ *
+ * Relationship to tokens.css: tokens.css defines brand + neutral palettes
+ * (one source of truth for the marketing site + admin shell). themes.css
+ * binds the SUBSET of variables that the customizable hub needs into
+ * a theme-scoped layer so users can override.
+ *
+ * Slice 80 of customizable-hub-and-work-mode-2026-05-28.md.
+ *
+ * Adding a new theme? Drop a `[data-theme="<id>"] { ... }` block here
+ * with all 14 vars set, then register the id in lib/hub/themes/index.ts.
+ * ============================================================================
+ */
+
+/* ── Default fallback — used when no [data-theme] wrapper is present.
+ *    Mirrors `starr-default`. Lets components rendered outside the
+ *    ThemeProvider (e.g., the marketing site) still resolve var(--theme-*). */
+:root {
+  --theme-bg-page:        #F8FAFC;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F1F5F9;
+  --theme-fg-primary:     #0F172A;
+  --theme-fg-secondary:   #475569;
+  --theme-fg-muted:       #94A3B8;
+  --theme-accent:         #1D3095;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E2E8F0;
+  --theme-border-strong:  #94A3B8;
+  --theme-success:        #10B981;
+  --theme-warning:        #F59E0B;
+  --theme-danger:         #EF4444;
+  --theme-info:           #3B82F6;
+}
+
+/* ── Theme blocks (one per theme id) live below this line.
+ *    Slice 81 adds starr-default + starr-dark.
+ *    Slices 83–85 add the other 9 built-ins.
+ *    Custom themes are inlined on the ThemeProvider element rather than
+ *    being declared here. ───────────────────────────────────────────── */
