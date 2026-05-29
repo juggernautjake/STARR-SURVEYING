@@ -16,6 +16,7 @@ import { usePathname, useRouter } from 'next/navigation';
 
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { WORKSPACES, WORKSPACE_ORDER } from '@/lib/admin/route-registry';
+import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 
 import CommandPalette from './CommandPalette';
 
@@ -40,7 +41,13 @@ export default function CommandPaletteProvider({ children }: { children: React.R
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        // §13.8 telemetry — fire only on open (not close) so dashboards
+        // can count opens; the store toggle is one statement either way.
+        // Use a microtask read of the state after toggling so we know
+        // which transition just happened.
+        const wasOpen = useAdminNavStore.getState().paletteOpen;
         togglePalette();
+        if (!wasOpen) trackNavEvent('nav.cmdk.open', { trigger: 'shortcut' });
         return;
       }
       // Cmd+1..6 → jump to the matching workspace landing. Gated to

@@ -16,6 +16,7 @@ import {
   accessibleRoutes,
   type Workspace,
 } from '@/lib/admin/route-registry';
+import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import type { UserRole } from '@/lib/auth';
 
 const SHOW_DELAY_MS = 200;
@@ -86,6 +87,7 @@ export default function WorkspaceFlyout({
         aria-current={isActive ? 'page' : undefined}
         data-workspace={workspace}
         className={`admin-rail__icon admin-rail__icon--workspace${isActive ? ' admin-rail__icon--active' : ''}`}
+        onClick={() => trackNavEvent('nav.workspace.click', { workspace, href: meta.href })}
       >
         <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
       </Link>

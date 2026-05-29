@@ -34,6 +34,7 @@ import {
   type Workspace,
 } from '@/lib/admin/route-registry';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
+import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import { railOrderFor } from '@/lib/admin/personas';
 import type { UserRole } from '@/lib/auth';
 
@@ -126,7 +127,10 @@ export default function IconRail() {
           className="admin-rail__icon admin-rail__icon--button"
           title="Search (⌘K)"
           aria-label="Open command palette"
-          onClick={openPalette}
+          onClick={() => {
+            openPalette();
+            trackNavEvent('nav.cmdk.open', { trigger: 'button' });
+          }}
         >
           <Search size={20} strokeWidth={1.75} aria-hidden="true" />
         </button>
