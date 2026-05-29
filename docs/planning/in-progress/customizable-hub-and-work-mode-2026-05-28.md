@@ -155,11 +155,12 @@
 
 ## Phase 6 — First three widgets (Slices 94–96)
 
-### Slice 94 — Pinned Pages widget
+### Slice 94 — Pinned Pages widget ✅ shipped
 - **Scope:** All 5 size variants. Wires to existing `pinnedRoutes` from nav-store. Settings: pinnedIds, layoutStyle, iconStyle.
 - **Files:** `lib/hub/widgets/pinned-pages/{index,Widget,Settings}.tsx`, `__tests__/hub/widgets/pinned-pages.test.tsx`
 - **Done when:** Each size variant renders correctly; settings persist.
 - **Depends on:** Slice 93
+- **Done:** Shipped as a single-file widget (`lib/hub/widgets/pinned-pages/index.tsx`) since the body + settings form fit comfortably together (the planning's split-file path was just a guideline). All five `sizeBucket` variants covered: **tiny** renders two text links stacked, no icons; **small/medium/large/xlarge** render either a vertical list or a grid whose column count + item cap scale per bucket (cols 1/2/3/4/6, caps 2/4/6/12/24). The widget reads pinned hrefs from `useAdminNavStore(s => s.pinnedRoutes)` and resolves each via `findRoute()` from the route registry — retired hrefs fall back to the trailing slug so a stale layout doesn't break. Empty state surfaces a 📌 + CTA into `/admin/work`. Settings form exposes `layoutStyle` (grid / list) + `iconStyle` (lucide / emoji / none); emoji icons resolve via a small fallback map until the lucide-component registry pipe lands in slice 100. Pure helpers `colsForBucket` + `capForBucket` exported for downstream consumers. New side-effect barrel `lib/hub/widgets/register-all.ts` registers every shipped widget — future slices just append a new `import './<id>';` line; the hub canvas imports this once so the renderer can resolve every saved widget type via `getWidget(id)`. 14 vitest specs cover the registry round-trip (id, label, category, allowed roles, defaultSize), `colsForBucket` + `capForBucket` across all five buckets, and the empty-state render (CTA + icon). State-dependent render branches are exercised by the upcoming playwright suite — `useSyncExternalStore`'s server snapshot doesn't reflect post-import `setState` updates inside vitest's `environment: 'node'`, and the widget is `'use client'` so it never hits SSR in production anyway. `tsc` + `eslint` clean.
 
 ### Slice 95 — Quick Actions widget
 - **Scope:** Action catalog (8 starters: clock in/out, new job, approve receipts, view reports, open CAD, send message, capture receipt, schedule). All size variants. Settings: actions, display style, color per action, keyboard shortcuts.
