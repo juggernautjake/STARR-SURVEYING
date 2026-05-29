@@ -35,15 +35,19 @@ import { CustomizeHubButton, EditModeBar } from './EditMode';
 import AddWidgetModal from './AddWidgetModal';
 import SettingsPanel from './SettingsPanel';
 import MobileBanner from './MobileBanner';
+import WelcomeTip from './WelcomeTip';
 
 export interface HubCanvasProps {
   /** Roles for the Add-Widget modal's catalog filter. */
   roles: UserRole[];
   /** Active subscription bundles. `null` skips the gate. */
   activeBundles?: BundleId[] | null;
+  /** True when the user is rendering the persona-default seed (no
+   *  saved layout row yet). Drives the Slice 196 welcome tip. */
+  isSeeded?: boolean;
 }
 
-export default function HubCanvas({ roles, activeBundles = null }: HubCanvasProps) {
+export default function HubCanvas({ roles, activeBundles = null, isSeeded = false }: HubCanvasProps) {
   const widgets = useHubStore((s) => s.widgets);
   const draftWidgets = useHubStore((s) => s.draftWidgets);
   const isEditMode = useHubStore((s) => s.isEditMode);
@@ -106,6 +110,8 @@ export default function HubCanvas({ roles, activeBundles = null }: HubCanvasProp
           <CustomizeHubButton />
         </div>
       </header>
+
+      <WelcomeTip show={isSeeded} />
 
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div onClick={handleGridClick}>

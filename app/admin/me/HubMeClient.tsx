@@ -28,9 +28,12 @@ export interface HubMeClientProps {
   layout: HubLayoutRow;
   roles: UserRole[];
   activeBundles?: BundleId[] | null;
+  /** True when the layout is the persona-default seed (no saved row).
+   *  Drives the Slice 196 welcome tip. */
+  isSeeded?: boolean;
 }
 
-export default function HubMeClient({ layout, roles, activeBundles = null }: HubMeClientProps) {
+export default function HubMeClient({ layout, roles, activeBundles = null, isSeeded = false }: HubMeClientProps) {
   const hydrate = useHubStore((s) => s.hydrate);
 
   // Push the server-fetched layout into the store on mount. Subsequent
@@ -55,7 +58,7 @@ export default function HubMeClient({ layout, roles, activeBundles = null }: Hub
       initialDensity={layout.density}
       initialFontScale={layout.fontScale}
     >
-      <HubCanvas roles={roles} activeBundles={activeBundles} />
+      <HubCanvas roles={roles} activeBundles={activeBundles} isSeeded={isSeeded} />
     </HubProviders>
   );
 }

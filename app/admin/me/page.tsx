@@ -37,12 +37,12 @@ export default async function HubPage() {
   const roles: UserRole[] = (session.user.roles ??
     (session.user.role ? [session.user.role] : [])) as UserRole[];
 
-  const { layout } = await fetchHubLayoutForUser(session.user.email, roles);
+  const { layout, isSeeded } = await fetchHubLayoutForUser(session.user.email, roles);
 
   return (
     <div className="hub-page">
       <HubGreeting />
-      <HubMeClient layout={layout} roles={roles} />
+      <HubMeClient layout={layout} roles={roles} isSeeded={isSeeded} />
     </div>
   );
 }
