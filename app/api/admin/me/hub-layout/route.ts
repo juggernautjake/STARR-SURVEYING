@@ -16,10 +16,14 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import {
   type HubLayoutPutPayload,
   type HubLayoutDbRow,
+  type HubLayoutRow,
   dbRowToHubLayout,
   LAYOUT_VERSION,
 } from '@/lib/hub/types';
 import { validateHubLayoutPutPayload, clampFontScale } from '@/lib/hub/validate-layout';
+import { defaultLayoutForPersona } from '@/lib/hub/defaults';
+import { inferPersona } from '@/lib/admin/personas';
+import type { UserRole } from '@/lib/auth';
 
 const SELECT_COLS =
   'user_email, layout_version, widgets, active_persona, theme, custom_theme, density, font_scale, hub_settings, updated_at';
@@ -41,11 +45,28 @@ export const GET = withErrorHandler(async () => {
   }
 
   if (!data) {
-    // No saved layout. Caller (the hub renderer) will seed from the
-    // persona default. Distinguishing "no row" from "empty row" matters
-    // because an empty row means "I customized to no widgets" while no
-    // row means "I never configured anything".
-    return NextResponse.json({ layout: null });
+    // No saved layout. Build a seed layout from the user's inferred
+    // persona so first-time users land on a sensible canvas without
+    // having to configure anything. The seed is returned WITHOUT
+    // persisting — that happens the first time the user saves
+    // customizations via PUT, distinguishing "first-time auto-default"
+    // from "user explicitly wanted these widgets".
+    const roles: UserRole[] = (session.user.roles ??
+      (session.user.role ? [session.user.role] : [])) as UserRole[];
+    const persona = inferPersona(roles);
+    const seed: HubLayoutRow = {
+      userEmail: session.user.email,
+      layoutVersion: LAYOUT_VERSION,
+      widgets: defaultLayoutForPersona(persona),
+      activePersona: null,
+      theme: 'starr-default',
+      customTheme: null,
+      density: 'comfortable',
+      fontScale: 1.0,
+      hubSettings: {},
+      updatedAt: new Date().toISOString(),
+    };
+    return NextResponse.json({ layout: seed, isSeeded: true });
   }
 
   return NextResponse.json({ layout: dbRowToHubLayout(data as HubLayoutDbRow) });
