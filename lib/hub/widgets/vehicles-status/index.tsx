@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 import { bucketCap } from '@/lib/hub/widgets/_shared/simple-list-widget';
 
 export type VehicleStatusFilter = 'all' | 'in-use' | 'available' | 'maintenance';
@@ -45,7 +50,26 @@ function VehiclesStatusWidget({ size, content }: WidgetProps<VehiclesStatusConte
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="🚚" title="No vehicles" description="Fleet rows appear here as drivers check in." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>vehicles</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="🚚" title="No vehicles" description="Fleet rows appear here as drivers check in." />;
+  }
+
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-fg-primary)')}>{items.length}</span>
+        <span style={tinyStatLabelStyle()}>{items.length === 1 ? 'vehicle' : 'vehicles'}</span>
+      </div>
+    );
+  }
 
   const visible = items.slice(0, capForBucket(bucket));
   return (
@@ -54,7 +78,7 @@ function VehiclesStatusWidget({ size, content }: WidgetProps<VehiclesStatusConte
         <li key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
           <span aria-label={v.status} style={{ width: 8, height: 8, borderRadius: 8, background: vehicleColor(v.status) }} />
           <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{v.name}</span>
-          {v.driver && bucket !== 'tiny' && (
+          {v.driver && (
             <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{v.driver}</span>
           )}
         </li>
@@ -85,7 +109,8 @@ defineWidget<VehiclesStatusContent>({
   category: 'equipment',
   iconName: 'Truck',
   defaultSize: { w: 4, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 215 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'equipment_manager', 'tech_support'],

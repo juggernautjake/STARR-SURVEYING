@@ -7,6 +7,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type FieldDataType = 'photos' | 'gps' | 'notes' | 'measurements';
 
@@ -54,7 +59,26 @@ function FieldDataPendingWidget({ size, content }: WidgetProps<FieldDataPendingC
   useEffect(() => { fetchCaptures(); }, [fetchCaptures]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="📍" title="No field data pending" description="Field captures appear here as they upload." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>captures</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="📍" title="No field data pending" description="Field captures appear here as they upload." />;
+  }
+
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{captures.length}</span>
+        <span style={tinyStatLabelStyle()}>{captures.length === 1 ? 'capture' : 'captures'}</span>
+      </div>
+    );
+  }
 
   const visible = captures.slice(0, capForBucket(bucket));
   return (
@@ -64,9 +88,7 @@ function FieldDataPendingWidget({ size, content }: WidgetProps<FieldDataPendingC
           <span style={typeIconStyle} aria-hidden>{iconForType(c.data_type)}</span>
           <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
             <span style={titleStyle}>{c.job_name ?? c.job_id}</span>
-            {bucket !== 'tiny' && (
-              <span style={mutedStyle}>{labelForType(c.data_type)} · {c.captured_by ?? 'crew'}</span>
-            )}
+            <span style={mutedStyle}>{labelForType(c.data_type)} · {c.captured_by ?? 'crew'}</span>
           </span>
         </li>
       ))}
@@ -115,7 +137,8 @@ defineWidget<FieldDataPendingContent>({
   category: 'work',
   iconName: 'MapPin',
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 215 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'tech_support'],

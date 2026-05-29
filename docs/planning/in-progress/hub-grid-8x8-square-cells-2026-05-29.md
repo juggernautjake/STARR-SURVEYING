@@ -156,12 +156,27 @@ approach keeps each slice reviewable. The doc closes only when all
 - **Depends on:** Slice 213.
 - **Done:** Four admin widgets adopted the shared stat-bucket helpers. `assignments-due` got a new `isOverdue(iso, nowMs?)` helper that powers a smart tiny-mode label: if any tasks are overdue, the count is rendered in danger color with "{N} overdue" subtitle; otherwise it's primary fg with the "due" label. Empty state at tiny shows `0 / due` in success color. The redundant `bucket !== 'tiny'` guard on the row due-date span was removed. `pending-time-off` was rewritten end-to-end: tiny shows `{count} request(s)` in warning color (or muted `0 requests` when empty); non-tiny renders a row list with the new `nameStyle` + `mutedStyle` carrying `text-overflow: ellipsis` so long emails don't overflow. minSize 1×1. `pending-hours` followed the same pattern with `0 to approve` (success) when empty and `{count} to approve` (warning) when populated. `open-discussions` got a smart tiny mode: when any conversations have `has_mention`, the count is accent-colored with `{N} @you` subtitle; otherwise it's `{N} open`. The redundant `bucket !== 'tiny'` guard on the `@` mention indicator was removed. 13 vitest specs: 4 lowered-minSize + 4 maxSize-fits-envelope + 5 for the new `isOverdue` helper (null/undefined/empty input, future date, past date, injected nowMs determinism, malformed ISO). 905 hub specs green. `tsc` + `eslint` clean.
 
-**Remaining audit work (Slices 215+):** ~11 widgets still show the
-full WidgetEmpty illustration at every size (drawings-in-progress,
-equipment-out, field-data-pending, flashcards-due,
-job-activity-feed, low-consumables, maintenance-due,
-recent-announcements, recent-drawings, roadmap-progress,
-vehicles-status, active-research-projects).
+#### Slice 215 — tiny counter modes for 6 equipment + work-status widgets (batched) ✅ shipped
+- **Scope:** Apply the established tiny-counter pattern to 6 more
+  similarly-structured list widgets via a tokenized batch script
+  since the per-file diff is identical (import + empty-state
+  wrapper + populated-state branch + minSize lowered).
+- **Files:** `lib/hub/widgets/equipment-out/index.tsx`,
+  `lib/hub/widgets/low-consumables/index.tsx`,
+  `lib/hub/widgets/maintenance-due/index.tsx`,
+  `lib/hub/widgets/vehicles-status/index.tsx`,
+  `lib/hub/widgets/drawings-in-progress/index.tsx`,
+  `lib/hub/widgets/field-data-pending/index.tsx`,
+  `__tests__/hub/widgets-responsive-215.test.ts`.
+- **Done when:** All 6 reach the tiny bucket cleanly + still fit
+  inside the 8×8 envelope at max.
+- **Depends on:** Slice 214.
+- **Done:** Wrote a Python batch script that, for each of the 6 widgets, (a) added the shared `_shared/stat-bucket` imports after the existing `WidgetSkeleton` import, (b) wrapped the inline empty-state return with `if (bucket === 'tiny') { … counter … }` showing `0 / {label}` in muted color, (c) inserted a populated-state tiny branch above the `const visible = …` line showing the count in the widget's color of choice (warning / danger / accent / primary depending on semantic), and (d) lowered minSize from `{w: 2, h: 2}` to `{w: 1, h: 1}` with the standard slice-tagged comment. A second TypeScript pass surfaced 6 leftover `bucket !== 'tiny'` guards in the populated row renders (unreachable code since tiny is handled before falling through) — a follow-up regex pass stripped those guards + a third pass cleaned up the dangling JSX wrapper parens that remained where `{(bucket !== 'tiny' && <span>…)}` was reduced to `{( <span>…)}`. Per-widget tiny labels: equipment-out → "checked out" (warning), low-consumables → "low items" (danger), maintenance-due → "due" (warning), vehicles-status → "vehicles" (primary fg), drawings-in-progress → "in progress" (accent), field-data-pending → "captures" (warning). The equipment-out registry id is actually `equipment-out-today` (the folder name doesn't match the registered id) — caught by the test on the first run + corrected. 12 vitest specs in the new contract test (6 lowered-minSize + 6 maxSize-fits-envelope). 917 hub specs green. `tsc` + `eslint` clean.
+
+**Remaining audit work (Slices 216+):** ~6 widgets still show the
+full WidgetEmpty illustration at every size (flashcards-due,
+job-activity-feed, recent-announcements, recent-drawings,
+roadmap-progress, active-research-projects).
 
 ---
 
