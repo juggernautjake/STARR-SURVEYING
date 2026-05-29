@@ -35,3 +35,7 @@ import './equipment-out';
 import './maintenance-due';
 import './low-consumables';
 import './vehicles-status';
+import './recent-drawings';
+import './drawings-in-progress';
+import './active-research-projects';
+import './pipeline-status';

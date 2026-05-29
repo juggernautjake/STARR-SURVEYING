@@ -383,10 +383,14 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 15 — CAD + Research widgets (Slices 128–131)
 
-### Slice 128 — Recent Drawings widget (drawer + admin)
-### Slice 129 — Drawings In Progress widget
-### Slice 130 — Active Research Projects widget
-### Slice 131 — Pipeline Status widget
+### Slice 128 — Recent Drawings widget (drawer + admin) ✅ shipped
+- **Done:** `lib/hub/widgets/recent-drawings/index.tsx` reads `/api/admin/cad/drawings?mine=true|false`. Catalog: cad / PenTool / drawer + admin + researcher + field_crew + tech_support.
+### Slice 129 — Drawings In Progress widget ✅ shipped
+- **Done:** `lib/hub/widgets/drawings-in-progress/index.tsx` reads `/api/admin/cad/drawings?status=in-progress&mine=…`. Renders progress bar (`color: accent`) when `percent_complete` is reported. Scope: mine/team. Catalog: cad / Layers / drawer + admin + tech_support.
+### Slice 130 — Active Research Projects widget ✅ shipped
+- **Done:** `lib/hub/widgets/active-research-projects/index.tsx` reads `/api/admin/research?status=active&county=…`. Settings: countyFilter text input. Catalog: research / Microscope / researcher + admin.
+### Slice 131 — Pipeline Status widget ✅ shipped
+- **Done:** `lib/hub/widgets/pipeline-status/index.tsx` reads `/api/admin/research/pipeline`. Each run shows a status dot via `pipelineColor` (success/running/failed/queued → success/accent/danger/muted). Setting: showFailedOnly. Catalog: research / Workflow / researcher + admin.
 
 ---
 
