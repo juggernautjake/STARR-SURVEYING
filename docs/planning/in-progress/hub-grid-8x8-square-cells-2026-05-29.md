@@ -83,6 +83,26 @@ existing code renders the same thing or overflows. This phased
 approach keeps each slice reviewable. The doc closes only when all
 36 widgets have been verified at every bucket.
 
+#### Slice 210 — pending-receipts + monthly-revenue + team-status (the 3 visible-on-screenshot widgets) ✅ shipped
+- **Scope:** Audit the three widgets in the user's first hub
+  screenshot (`pending-receipts`, `monthly-revenue`,
+  `team-status`) at every bucket and add bucket-aware rendering
+  where they currently render the same thing or overflow.
+- **Files:** `lib/hub/widgets/pending-receipts/index.tsx`,
+  `lib/hub/widgets/monthly-revenue/index.tsx`,
+  `lib/hub/widgets/team-status/index.tsx`,
+  `__tests__/hub/widgets-responsive-210.test.ts`.
+- **Done when:** Each widget reads cleanly at every bucket
+  including 1×1; the visible-on-screenshot widgets no longer
+  share the same generic look at every size.
+- **Depends on:** Slice 209.
+- **Done:** `pending-receipts` now branches on bucket — tiny renders a centered counter card (count + "pending" label + total dollar amount, no list); small/medium/large/xlarge render a vertical list with ellipsis-truncated vendor names, a `+ N more` row when items overflow the cap, and an optional submitter column at medium+ (small drops it to keep the row from wrapping at narrow cells). The cap was tightened to `0 / 3 / 6 / 12 / 24` so the list never overflows the container. minSize lowered to 1×1 so the tiny mode is reachable. `monthly-revenue` got bucket-aware typography via the new `amountStyleForBucket(bucket)` helper (`clamp(1.5rem, 3.5vw, 2.25rem)` at tiny through `2.5rem` at xlarge) so the dollar amount reads at every size; tiny mode shows a compact dollar value (`$1.2K` / `$3.8M`) via a new `formatCompact` helper plus a triangle trend indicator. Medium+ shows the goal progress bar; small omits it to save vertical space. minSize lowered to 1×1 + defaultSize tightened to 2×2 so the widget reads as a stat card by default. `team-status` got an explicit tiny branch (counter + "clocked in" label, same pattern as pending-receipts) for both the empty + the populated state, and minSize lowered to 1×1 so the tiny bucket is reachable. The grouped render for `groupBy !== 'none'` no longer needs to special-case `bucket !== 'tiny'` because tiny is handled above. 12 vitest specs lock the helpers: `receiptsCap` returns 0 at tiny + grows monotonically across buckets + fits the bucket envelope; `formatCompact` round-trips small values verbatim + abbreviates thousands as K + millions as M; `amountStyleForBucket` returns a distinct fontSize per bucket + always returns the success color; the three widgets' minSize is `1×1` so the tiny bucket is actually pickable. 863 hub specs green. `tsc` + `eslint` clean.
+
+**Remaining audit work (Slices 211+):** ~33 widgets still pending a
+bucket-by-bucket review. The pattern is established by Slice 210 —
+each follow-up slice picks 3-5 widgets, runs them through tiny →
+xlarge, and adds branches where needed.
+
 ---
 
 ## TL;DR

@@ -50,11 +50,34 @@ function TeamStatusWidget({ size, content }: WidgetProps<TeamStatusContent>) {
   useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
   if (status === 'loading') return <TeamStatusSkeleton size={size} content={settings} />;
-  if (status === 'empty') return <WidgetEmpty icon="👥" title="No one's clocked in" description="Team members appear here as they start their day." />;
+  if (status === 'empty') {
+    // Slice 210 — tiny mode shows the zero-count badge so the cell
+    // doesn't display the full empty-state illustration.
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyWrapStyle}>
+          <span style={tinyCountStyle}>0</span>
+          <span style={tinyLabelStyle}>clocked in</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="👥" title="No one's clocked in" description="Team members appear here as they start their day." />;
+  }
+
+  // Slice 210 — tiny mode: counter only, no row list (a name + role
+  // doesn't fit in a 1×1/2×1 cell).
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyWrapStyle}>
+        <span style={tinyCountStyle}>{members.length}</span>
+        <span style={tinyLabelStyle}>clocked in</span>
+      </div>
+    );
+  }
 
   const visible = members.slice(0, capForBucket(bucket));
 
-  if (settings.groupBy !== 'none' && bucket !== 'tiny') {
+  if (settings.groupBy !== 'none') {
     const grouped = groupMembers(visible, settings.groupBy);
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-3, 12px)' }}>
@@ -135,7 +158,9 @@ defineWidget<TeamStatusContent>({
   category: 'operational',
   iconName: 'Users',
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 210 — minSize lowered to 1×1 now that we have a proper
+  // tiny-bucket render (just a clocked-in counter).
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'tech_support', 'equipment_manager'],
@@ -171,3 +196,25 @@ const nameStyle: React.CSSProperties = { flex: 1, fontSize: 'var(--hub-font-sm, 
 const mutedStyle: React.CSSProperties = { fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' };
 const sectionTitleStyle: React.CSSProperties = { margin: 0, marginBottom: 6, fontSize: 'var(--hub-font-xs, 0.75rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--theme-fg-secondary)' };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, marginBottom: 4 };
+
+// Slice 210 — tiny-bucket layout.
+const tinyWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  gap: 2,
+};
+const tinyCountStyle: React.CSSProperties = {
+  fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+  fontWeight: 700,
+  lineHeight: 1,
+  color: 'var(--theme-success)',
+};
+const tinyLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+};

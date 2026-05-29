@@ -1,9 +1,11 @@
 'use client';
 // Slice 136 of customizable-hub-and-work-mode-2026-05-28.md.
+// Slice 210 of hub-grid-8x8-square-cells-2026-05-29.md — bucket-aware
+// rendering so the widget reads cleanly at every size.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
-import { sizeBucket } from '@/lib/hub/size-bucket';
+import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 
@@ -29,20 +31,53 @@ function PendingReceiptsWidget({ size }: WidgetProps<PendingReceiptsContent>) {
   }, []);
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="🧾" title="Receipts clear" description="Pending receipts appear here for approval." />;
+  if (status === 'loading') return <WidgetSkeleton rows={Math.min(3, capForBucket(bucket))} />;
+  if (status === 'empty') return <PendingReceiptsEmpty bucket={bucket} />;
 
-  const cap = bucket === 'tiny' ? 2 : bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  // Tiny — single big number + total. No list room.
+  if (bucket === 'tiny') {
+    const total = items.reduce((s, r) => s + r.amount, 0);
+    return (
+      <div style={tinyWrapStyle}>
+        <span style={tinyCountStyle}>{items.length}</span>
+        <span style={tinyLabelStyle}>pending</span>
+        <span style={tinyTotalStyle}>${total.toFixed(0)}</span>
+      </div>
+    );
+  }
+
+  const cap = capForBucket(bucket);
+  const visible = items.slice(0, cap);
+  // Small — compact rows, no submitter / date columns.
+  // Medium+ — adds submitter or date depending on space.
   return (
-    <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
-      {items.slice(0, cap).map((r) => (
-        <li key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
-          <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{r.vendor ?? 'Vendor'}</span>
-          <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, color: 'var(--theme-warning)' }}>${r.amount.toFixed(2)}</span>
+    <ul role="list" style={listStyle}>
+      {visible.map((r) => (
+        <li key={r.id} style={rowStyle}>
+          <span style={vendorStyle}>{r.vendor ?? 'Vendor'}</span>
+          {bucket !== 'small' && r.submitted_by && (
+            <span style={mutedStyle}>{r.submitted_by}</span>
+          )}
+          <span style={amountStyle}>${r.amount.toFixed(2)}</span>
         </li>
       ))}
+      {items.length > cap && (
+        <li style={moreRowStyle}>+ {items.length - cap} more</li>
+      )}
     </ul>
   );
+}
+
+function PendingReceiptsEmpty({ bucket }: { bucket: SizeBucket }) {
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyWrapStyle}>
+        <span style={tinyCountStyle}>0</span>
+        <span style={tinyLabelStyle}>clear</span>
+      </div>
+    );
+  }
+  return <WidgetEmpty icon="🧾" title="Receipts clear" description="Pending receipts appear here for approval." />;
 }
 
 defineWidget<PendingReceiptsContent>({
@@ -52,9 +87,104 @@ defineWidget<PendingReceiptsContent>({
   category: 'office',
   iconName: 'Receipt',
   defaultSize: { w: 4, h: 2 },
-  minSize: { w: 2, h: 1 },
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'tech_support'],
   Widget: PendingReceiptsWidget,
 });
+
+// ─── Helpers (exported for tests) ────────────────────────────────────
+
+export function capForBucket(bucket: SizeBucket): number {
+  switch (bucket) {
+    case 'tiny':   return 0;  // tiny renders the counter, not a list
+    case 'small':  return 3;
+    case 'medium': return 6;
+    case 'large':  return 12;
+    case 'xlarge': return 24;
+  }
+}
+
+// ─── Style fragments ─────────────────────────────────────────────────
+
+const listStyle: React.CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--hub-spc-2, 8px)',
+  minWidth: 0,
+};
+
+const rowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  padding: '6px 12px',
+  borderRadius: 6,
+  background: 'var(--theme-bg-elevated)',
+  minWidth: 0,
+};
+
+const vendorStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-sm, 0.875rem)',
+  fontWeight: 500,
+  flex: 1,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const mutedStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  flexShrink: 0,
+};
+
+const amountStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-sm, 0.875rem)',
+  fontWeight: 600,
+  color: 'var(--theme-warning)',
+  flexShrink: 0,
+};
+
+const moreRowStyle: React.CSSProperties = {
+  textAlign: 'center',
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  padding: '4px 0',
+};
+
+const tinyWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  gap: 2,
+};
+
+const tinyCountStyle: React.CSSProperties = {
+  fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+  fontWeight: 700,
+  lineHeight: 1,
+  color: 'var(--theme-warning)',
+};
+
+const tinyLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+};
+
+const tinyTotalStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  fontWeight: 600,
+  color: 'var(--theme-fg-primary)',
+  marginTop: 2,
+};
