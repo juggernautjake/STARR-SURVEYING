@@ -11,6 +11,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useHubStore } from '@/lib/hub/hub-store';
+import { useHubActions } from '@/lib/hub/use-hub-actions';
 
 /** Slice 151 — desktop-only edit mode. Below this px the canvas
  *  becomes read-only (saved layout, single-column stack, no edit
@@ -33,7 +34,8 @@ function useIsMobile(breakpoint: number = HUB_EDIT_MODE_BREAKPOINT_PX): boolean 
  *  "Customize Hub" in view mode and "Editing…" in edit mode. */
 export function CustomizeHubButton({ className }: { className?: string }) {
   const isEditMode = useHubStore((s) => s.isEditMode);
-  const enterEditMode = useHubStore((s) => s.enterEditMode);
+  // Slice 200 — actions via getState (stable closures), no wasted subscription.
+  const { enterEditMode } = useHubActions();
   const isMobile = useIsMobile();
 
   // Hide the customize button on mobile — editing is desktop-only.
@@ -71,8 +73,8 @@ export function EditModeBar() {
   const isDirty = useHubStore((s) => s.isDirty);
   const saveStatus = useHubStore((s) => s.saveStatus);
   const saveError = useHubStore((s) => s.saveError);
-  const cancelEdit = useHubStore((s) => s.cancelEdit);
-  const saveDraft = useHubStore((s) => s.saveDraft);
+  // Slice 200 — actions via getState (stable closures), no wasted subscription.
+  const { cancelEdit, saveDraft } = useHubActions();
 
   // Esc cancels editing — matches the modal-style "press Esc to back
   // out" intuition. Only attaches while editing so the global Esc

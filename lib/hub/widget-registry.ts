@@ -78,6 +78,23 @@ export interface WidgetDefinition<TContent = Record<string, unknown>> {
   /** Optional. When omitted the widget has no Content tab; users
    *  still get Layout / Style / Interaction. */
   SettingsForm?: ComponentType<WidgetSettingsFormProps<TContent>>;
+  /** Slice 204 — optional per-widget skeleton shape rendered while
+   *  the widget is loading its first payload. When omitted, the
+   *  cell falls back to the generic `<WidgetSkeleton rows={3} />`.
+   *  Declare one that matches the widget's actual content layout
+   *  (rows of list items, calendar grid, bar chart) so the
+   *  loading state previews what's about to appear instead of
+   *  three identical bars. */
+  Skeleton?: ComponentType<WidgetSkeletonProps<TContent>>;
+}
+
+/** Props passed to a widget's declarative skeleton. Receives the
+ *  same size + content the actual Widget body gets so the skeleton
+ *  can adapt to the surveyor's customization (e.g. show 5 row
+ *  placeholders when `content.rowLimit === 5`). */
+export interface WidgetSkeletonProps<TContent = Record<string, unknown>> {
+  size: { w: number; h: number };
+  content: TContent;
 }
 
 const REGISTRY = new Map<string, WidgetDefinition<Record<string, unknown>>>();
@@ -107,6 +124,15 @@ export function widgetsForRoles(roles: UserRole[]): WidgetDefinition<Record<stri
     if (w.allowedRoles.length === 0) return true;
     return w.allowedRoles.some((r) => roles.includes(r));
   });
+}
+
+/** Returns the skeleton component to render while a widget is
+ *  loading its first payload. Falls back to a sentinel `null` when
+ *  the registry entry doesn't declare one — the caller renders the
+ *  generic `<WidgetSkeleton rows={3} />` in that case. Slice 204. */
+export function getWidgetSkeleton(id: string): ComponentType<WidgetSkeletonProps> | null {
+  const def = REGISTRY.get(id);
+  return def?.Skeleton ?? null;
 }
 
 /** Group registered widgets by category for the Add-Widget catalog

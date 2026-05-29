@@ -103,6 +103,13 @@ export default function WidgetFrame({
             justifyContent: 'space-between',
             padding: 'var(--hub-spc-3, 12px) var(--hub-spc-4, 16px)',
             borderBottom: `1px solid ${border}`,
+            // Slice 206 — `min-width: 0` lets the title's flex slot
+            // shrink below its content's intrinsic width so the
+            // ellipsis applies + the drag handle / config gear in
+            // `headerAction` can never get pushed out of the header
+            // at narrow viewports.
+            minWidth: 0,
+            gap: 'var(--hub-spc-2, 8px)',
           }}
         >
           <h2
@@ -112,12 +119,26 @@ export default function WidgetFrame({
               fontSize: 'var(--hub-font-sm, 0.875rem)',
               fontWeight: 600,
               color: 'inherit',
+              // Slice 206 — clip + ellipsis instead of wrap so a long
+              // surveyor-typed custom title doesn't push the
+              // headerAction out or make the title bar grow into a
+              // 2-line block at narrow widths.
+              minWidth: 0,
+              flex: '1 1 auto',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
             }}
+            title={title}
           >
             {title}
           </h2>
           {headerAction && (
-            <div style={{ display: 'flex', gap: 'var(--hub-spc-2, 8px)' }}>
+            <div style={{
+              display: 'flex',
+              gap: 'var(--hub-spc-2, 8px)',
+              flexShrink: 0,
+            }}>
               {headerAction}
             </div>
           )}
@@ -127,6 +148,14 @@ export default function WidgetFrame({
         style={{
           flex: 1,
           padding: 'var(--hub-spc-4, 16px)',
+          // Slice 206 — `min-width: 0` lets a widget body shrink
+          // below its content's intrinsic width so the body's own
+          // `overflow: auto` actually engages instead of the body
+          // expanding the cell. Each widget is responsible for
+          // its own row-level truncation (long job names, etc.)
+          // via `text-overflow: ellipsis` + `min-width: 0` on the
+          // flex children that hold long strings.
+          minWidth: 0,
           overflow: 'auto',
         }}
       >

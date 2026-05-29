@@ -14,7 +14,7 @@
 //
 // Slice 102 of customizable-hub-and-work-mode-2026-05-28.md.
 
-import React from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import type { Density, WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import { getWidget } from '@/lib/hub/widget-registry';
 import { compactLayout } from '@/lib/hub/grid-math';
@@ -45,6 +45,29 @@ export default function LayoutTab({ instance, customization, onChange }: LayoutT
 
   const draftWidgets = useHubStore((s) => s.draftWidgets);
   const setDraftWidgets = useHubStore((s) => s.setDraftWidgets);
+
+  // Slice 205 — keep the typed title in local state so the keystroke
+  // updates the input instantly; the heavier store flush + every
+  // re-render it triggers (SettingsPanel, PreviewFrame, the
+  // corresponding WidgetGrid cell) runs as a non-urgent transition
+  // so React can interrupt it for the next keystroke. The
+  // useEffect resyncs the local value when the upstream customization
+  // changes from a different source (e.g. settings reset).
+  const [localTitle, setLocalTitle] = useState(titleOverride);
+  const [, startTransition] = useTransition();
+  useEffect(() => {
+    setLocalTitle(titleOverride);
+  }, [titleOverride]);
+
+  function handleTitleChange(value: string) {
+    setLocalTitle(value);
+    startTransition(() => {
+      onChange({
+        ...customization,
+        layout: { ...customization.layout, titleOverride: value },
+      });
+    });
+  }
 
   function commitSize(next: { w: number; h: number }) {
     // Resize writes back to the draft layout directly + reflows so
@@ -89,13 +112,8 @@ export default function LayoutTab({ instance, customization, onChange }: LayoutT
         <span style={legendStyle}>Custom title (optional)</span>
         <input
           type="text"
-          value={titleOverride}
-          onChange={(e) =>
-            onChange({
-              ...customization,
-              layout: { ...customization.layout, titleOverride: e.target.value },
-            })
-          }
+          value={localTitle}
+          onChange={(e) => handleTitleChange(e.target.value)}
           placeholder="Defaults to the catalog label"
           style={textInputStyle}
         />

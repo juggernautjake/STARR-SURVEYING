@@ -18,6 +18,7 @@ import type { HubLayoutRow } from '@/lib/hub/types';
 import HubProviders from '@/lib/hub/components/HubProviders';
 import HubCanvas from '@/lib/hub/components/HubCanvas';
 import { useHubStore } from '@/lib/hub/hub-store';
+import { hydrateHubDataFromAggregator } from '@/lib/hub/use-hub-data';
 
 // Side-effect import: every shipped widget calls defineWidget at module
 // evaluation. Mounting this once at the canvas entry point means the
@@ -51,6 +52,17 @@ export default function HubMeClient({ layout, roles, activeBundles = null, isSee
       activePersona: layout.activePersona,
     });
   }, [hydrate, layout]);
+
+  // Slice 198 of hub-editor-performance-and-ux-2026-05-29.md —
+  // collapse N parallel per-widget /api/* calls on first paint into
+  // a single /api/admin/me/hub-data call. Each widget that's been
+  // refactored to read from the hub-data store skips its own fetch
+  // when the aggregator returns a payload for it.
+  useEffect(() => {
+    const widgetIds = Array.from(new Set(layout.widgets.map((w) => w.type)));
+    if (widgetIds.length === 0) return;
+    void hydrateHubDataFromAggregator(widgetIds);
+  }, [layout.widgets]);
 
   // Slice 197 — honor `?edit=1` deep-links from the user-menu
   // "Customize Hub" entry. Read window.location.search directly so

@@ -5,10 +5,10 @@
 // Slice 118 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
+import { defineWidget, type WidgetProps, type WidgetSettingsFormProps, type WidgetSkeletonProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
-import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import { SkeletonBlock } from '@/lib/hub/components/WidgetSkeleton';
 
 export type TeamGroupBy = 'role' | 'shift' | 'none';
 
@@ -49,7 +49,7 @@ function TeamStatusWidget({ size, content }: WidgetProps<TeamStatusContent>) {
 
   useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
-  if (status === 'loading') return <WidgetSkeleton rows={3} />;
+  if (status === 'loading') return <TeamStatusSkeleton size={size} content={settings} />;
   if (status === 'empty') return <WidgetEmpty icon="👥" title="No one's clocked in" description="Team members appear here as they start their day." />;
 
   const visible = members.slice(0, capForBucket(bucket));
@@ -104,6 +104,30 @@ function TeamStatusSettings({ value, onChange }: WidgetSettingsFormProps<TeamSta
   );
 }
 
+/** Slice 204 — custom skeleton matching the actual member-row
+ *  layout: status dot + name + role chip. Falls back to the same
+ *  `capForBucket` cap the live widget uses so the loading preview
+ *  shows roughly the same number of rows that will appear. */
+export function TeamStatusSkeleton({ size }: WidgetSkeletonProps<TeamStatusContent>) {
+  const bucket = sizeBucket(size.w, size.h);
+  const rows = Math.min(capForBucket(bucket), 5);
+  return (
+    <ul
+      role="status"
+      aria-label="Loading team status"
+      style={listStyle}
+    >
+      {Array.from({ length: rows }).map((_, i) => (
+        <li key={i} style={rowStyle}>
+          <SkeletonBlock width={8} height={8} borderRadius={8} />
+          <SkeletonBlock width="50%" height={13} style={{ flex: 1 }} />
+          <SkeletonBlock width={48} height={11} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 defineWidget<TeamStatusContent>({
   id: 'team-status',
   label: 'Team Status',
@@ -117,6 +141,7 @@ defineWidget<TeamStatusContent>({
   allowedRoles: ['admin', 'developer', 'tech_support', 'equipment_manager'],
   Widget: TeamStatusWidget,
   SettingsForm: TeamStatusSettings,
+  Skeleton: TeamStatusSkeleton,
 });
 
 export function capForBucket(bucket: SizeBucket): number {

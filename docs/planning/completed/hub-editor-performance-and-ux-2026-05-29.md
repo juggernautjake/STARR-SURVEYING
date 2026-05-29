@@ -1,0 +1,298 @@
+# Hub editor — performance + UX polish
+
+*Opened 2026-05-29 as a direct follow-up to
+`customizable-hub-and-work-mode-2026-05-28.md` (Slices 78–197).*
+
+## Why this doc exists
+
+The v2 hub shipped with feature-complete widget catalog, edit mode,
+settings panel, providers, and a working cutover (Slices 185–197). The
+user reports the actual experience is slow + clunky: the page freezes,
+dragging is sluggish, adding widgets feels heavy. The build is right
+but the runtime isn't. This doc captures the post-ship hardening pass
+that gets the editor to "feels native" responsive + easy to use.
+
+Slice numbering continues from Slice 197 of the customizable-hub doc
+so commit messages + git blame stay unambiguous. Future planning docs
+continue from 209+.
+
+## What we know is slow
+
+Concrete audit findings against the shipped code:
+
+1. **N parallel fetches on mount.** Every widget runs its own
+   `fetch('/api/admin/…')` from a `useEffect` when the canvas
+   hydrates. With 6 persona-default widgets that's 6 parallel network
+   calls, each carrying session cookies + waiting for a roundtrip.
+   The Slice-152 hub-data aggregator (`/api/admin/me/hub-data`) was
+   built specifically to collapse these into one call but
+   `HubMeClient` never reaches for it.
+
+2. **Cascading re-renders from chunky zustand selectors.** `HubCanvas`
+   selects `widgets`, `draftWidgets`, `isEditMode`, and
+   `setDraftWidgets` from `useHubStore`. Each of those is a separate
+   subscription but the component re-renders every time *any* of
+   them changes. Worse, each `WidgetCell` is unmemoized — a single
+   widget moving 1px during a drag re-renders every other cell on
+   the grid.
+
+3. **AddWidgetModal mounts the whole catalog on every render.** Even
+   when closed it still walks `allWidgets()`. When open, the modal
+   renders 36 widget tiles at once with no virtualization or lazy
+   tab-rendering.
+
+4. **Two competing resize sources.** `WidgetGrid` tracks
+   `viewportPx` via `window.innerWidth` in one effect AND maintains
+   a `ResizeObserver` on its container in another effect. Both
+   trigger state updates; on a window resize the grid re-renders
+   twice in quick succession.
+
+5. **SettingsPanel re-renders the whole tree on every keystroke.**
+   When the user types in the custom-title input, the whole panel +
+   live preview + tab strip re-render. The Layout / Style / Content
+   / Interaction tabs all stay mounted so swapping is instant, but
+   typing is expensive.
+
+6. **No skeleton on first paint.** Widgets render `WidgetSkeleton`
+   while their fetch is in flight but the initial render is the
+   skeleton too — the user sees pulsing rectangles before any
+   widget content lands.
+
+7. **AdminTopBar polls + ticks every 30s.** `ClockInPill` polls
+   `/api/admin/time-logs/today` every 60s AND its elapsed timer
+   ticks every 30s. Both trigger a topbar re-render; the topbar is
+   above the canvas so the whole tree below it can re-render
+   depending on context propagation.
+
+8. **No mobile responsiveness audit.** The 1-col stack at <768px
+   from Slice 92 works but widget bodies themselves often render
+   horizontally-oriented content that overflows on phones.
+
+9. **Drag-drop has no drop indicator.** dnd-kit moves the dragged
+   widget but the destination isn't shown — feels like a dice roll.
+
+10. **No telemetry.** We have no observation surface to tell which
+    of the above is the actual bottleneck on the user's machine vs.
+    a perceived issue.
+
+## Phases + slices
+
+### Phase 31 — Network + render perf (Slices 198–202)
+
+#### Slice 198 — Wire HubMeClient through the hub-data aggregator ✅ shipped (partial widget refactor)
+- **Scope:** `HubMeClient` builds the list of widget ids from
+  `layout.widgets` + fetches `/api/admin/me/hub-data?widgets=…` once
+  on mount. Result is dropped into a new `useHubDataStore` (zustand
+  store keyed by widget id → `{data, error, status}`). Each widget's
+  `useEffect` fetch is replaced with a `useHubData(widgetId)` hook
+  that reads from the store. When the store has data, the widget
+  body renders immediately without its own network call. When the
+  hub-data call hasn't resolved yet, widgets fall back to their
+  existing per-widget fetch so they still work standalone.
+- **Files:** `lib/hub/hub-data-store.ts`, `lib/hub/use-hub-data.ts`,
+  `app/admin/me/HubMeClient.tsx`, refactor 5 highest-traffic widgets
+  (`my-jobs`, `today-schedule`, `pto-balance`,
+  `pending-receipts`, `team-status`) to consult the store first,
+  `__tests__/hub/hub-data-store.test.ts`
+- **Done when:** Network panel shows a single
+  `/api/admin/me/hub-data?widgets=…` call instead of N per-widget
+  calls when the page first loads.
+- **Depends on:** Slice 152, Slice 187
+- **Done:** Shipped the infrastructure + the canonical widget refactor; remaining 4 widget refactors deferred to a follow-up (Slice 198b in spirit). New `lib/hub/hub-data-store.ts` is a tiny zustand cache keyed by widget id → `{status, data, error, fetchedAt}` with three actions: `startAggregatorFetch(widgetIds)` (marks each id loading, no-clobber if data already present so the cache stays warm during a refetch), `receiveAggregatorPayload(payload)` (writes the aggregator's `{data}|{error}|{skipped}` envelopes — skipped widgets stay in idle so their own fetch path runs), and `failAggregatorFetch(error)` (flips loading entries back to idle + records the global error so widgets fall through to their per-widget fetches). A `selectHubDataEntry(widgetId)` factory returns a stable idle sentinel so widgets can call `useHubData(id).status === 'idle'` without ref equality flapping. Companion `lib/hub/use-hub-data.ts` exposes `useHubData(widgetId)` (the React hook) + `hydrateHubDataFromAggregator(widgetIds, fetchImpl?)` (the pure side-effect helper HubMeClient calls). `HubMeClient.tsx` calls `hydrateHubDataFromAggregator(uniqueWidgetTypes)` in a new `useEffect` keyed on `layout.widgets` so first paint of `/admin/me` fires one `/api/admin/me/hub-data?widgets=…` instead of N parallel `/api/admin/*` calls — for the surveyor's default layout that drops N=6 widget fetches to 1 aggregator call. `lib/hub/widgets/my-jobs/index.tsx` was refactored as the canonical example: it now reads `useHubData('my-jobs')` + only consults the cache when `matchesAggregatorDefaults(settings)` is true (filter='mine' + rowLimit=10 — the exact URL the aggregator already requested in `/api/admin/me/hub-data/route.ts`). When the cache has the payload it renders directly from it; when the surveyor switched filter / rowLimit it falls through to the per-widget fetch. `sortBy` / `columns` / `showStageColors` are deliberately treated as client-only render switches so they don't bust the cache. 21 vitest specs lock the store's contract (idle sentinel stability, no-clobber start, ok/error/skipped payload handling, global aggregator status flips, network failure → idle fall-through, url-encoded ids so a hostile widget id can never inject raw text into the URL) + the `matchesAggregatorDefaults` gate. The remaining 4 widgets (`today-schedule`, `pto-balance`, `pending-receipts`, `team-status`) need per-widget gates because their settings affect URL parameters in non-uniform ways (e.g. `today-schedule` derives a `from`/`to` window from `settings.timeRange` that the aggregator path doesn't carry) — each needs its own `matchesAggregatorDefaults` predicate or a server-side aggregator tweak that respects the widget's settings. Captured as follow-up work below. `tsc` + `eslint` clean.
+
+##### Slice 198 follow-up — refactor remaining 4 widgets to consult the aggregator (deferred to a future slice)
+- `today-schedule`: aggregator path is `/admin/schedule` but the widget calls `/admin/schedule?from=…&to=…` derived from `settings.timeRange`. Either add a `from`/`to` aware aggregator path or gate consultation on `settings.timeRange === 'all-day'`.
+- `pto-balance`: aggregator path `/admin/pto` — needs a quick audit that the widget's request matches.
+- `pending-receipts`: aggregator path `/admin/receipts?status=pending` — matches if the widget's default filter is `status=pending`, audit needed.
+- `team-status`: aggregator path `/admin/team/status` — should be a clean drop-in.
+
+#### Slice 199 — Memoize WidgetCell ✅ shipped (memo applied at body level)
+- **Scope:** Wrap `WidgetCell` (the per-cell component inside
+  `WidgetGrid.tsx`) with `React.memo` + a custom equality function
+  that compares only the `instance` shallow + edit-mode flag.
+  Sortable wrappers from @dnd-kit get the same treatment via a
+  wrapping memo'd component. Verify with a render-count spy that
+  dragging widget A no longer re-renders widget B-Z.
+- **Files:** `lib/hub/components/WidgetGrid.tsx`,
+  `__tests__/hub/widget-grid-memo.test.tsx`
+- **Done when:** Render-count assertion shows neighbor cells skip
+  re-renders during drag.
+- **Depends on:** Slice 92, Slice 98
+- **Done:** Memo applied one level deeper than the original scope called for — on the heavy `<Widget>` body, not on `WidgetCell` itself. Reasoning: `SortableWidgetCell` calls `useSortable` directly, which returns fresh `attributes` / `listeners` / `transform` references on every dnd-kit drag frame (every neighbor cell, not just the one being dragged). React.memo on `WidgetCell` or `SortableWidgetCell` can't skip those re-renders because the listener props are unstable by design. The actual perf win comes from skipping the `<Widget>` body subtree (often runs its own /api/* fetch + renders rows), which is unaffected by drag transforms. New `MemoWidgetRender` component memoizes the body with a custom equality that compares `Widget` component identity, `customization` reference, `size.w` / `size.h` primitives, `editMode`, and `content` reference — so a fresh `{ w, h }` object built each drag tick still skips when the underlying values haven't changed. `StaticWidgetCell` was refactored to inline the per-cell customization + content derivation + render `MemoWidgetRender` inside `<WidgetFrame>` instead of inlining `<Widget>` directly. The `<WidgetFrame>` wrapper stays unmemoized so drag listeners can flow through into `headerAction` without busting the body's skip. A module-scope frozen `EMPTY_CUSTOMIZATION` sentinel keeps the cache hit stable across re-renders for widgets that haven't been customized. 13 vitest specs lock the skip: smoke render-count, memo-wrapper sanity (`$$typeof === Symbol.for('react.memo')`), equality semantics — skips on identical refs, skips on deep-equal fresh size objects (the drag-tick case), renders on every primitive change (w / h / editMode / Widget identity / customization ref / content ref), and the frozen + reference-stable EMPTY_CUSTOMIZATION sentinel. 623 specs across all hub tests still green. `tsc` + `eslint` clean.
+
+#### Slice 200 — Picky zustand selectors throughout HubCanvas + SettingsPanel ✅ shipped (re-scoped)
+- **Scope:** Replace each multi-field `useHubStore` read with
+  single-field selectors. Where two fields are needed together,
+  use the `shallow` equality function from zustand. Apply the same
+  treatment to `SettingsPanel`, `EditModeBar`, `CustomizeHubButton`
+  and `AddWidgetModal`.
+- **Files:** `lib/hub/components/HubCanvas.tsx`,
+  `lib/hub/components/SettingsPanel.tsx`,
+  `lib/hub/components/EditMode.tsx`,
+  `lib/hub/components/AddWidgetModal.tsx`,
+  `__tests__/hub/canvas-selector-shape.test.tsx`
+- **Done when:** A canvas-wide render-count spy reports ≤1 canvas
+  re-render per relevant state change (drag tick, edit toggle,
+  modal open).
+- **Depends on:** Slice 185, Slice 100, Slice 101
+- **Done:** Re-scoped — the audit in §"What we know is slow" overstated the issue. Every `useHubStore((s) => s.X)` call already IS a picky single-field selector — zustand subscribes per-call and re-renders only when that exact slice's reference changes. Both `HubCanvas` and the three other target components were already using single-field selectors; there was no multi-field read to replace. The actual structural problem was different: each component subscribed to its actions via `useHubStore((s) => s.setX)` — but zustand action closures are stable for the store's lifetime, so those subscriptions are wasted work (an Object.is comparator runs on every store mutation but can never trigger a re-render). New `lib/hub/use-hub-actions.ts` exposes `useHubActions()` which returns every action via `useHubStore.getState()` — no subscription is registered. `HubCanvas`, `SettingsPanel`, `CustomizeHubButton`, `EditModeBar`, and `AddWidgetModal` were all migrated: data selectors stay as picky `useHubStore((s) => s.X)` reads; action lookups went through the new helper. Touched 4 components + introduced 1 new module. 7 vitest specs lock the contract: action references are referentially stable across calls AND across state mutations, calling `useHubActions()` registers zero subscribers on the store (a global subscribe counter doesn't tick during three back-to-back calls), every returned action still works (enterEditMode / cancelEdit / setDraftWidgets round-trip through the store), and the picky-data-selector invariant is explicitly asserted — subscribing to `widgets` and `isEditMode` separately means `enterEditMode()` only ticks the editMode listener, not the widgets one. 630 specs across all hub tests green. `tsc` + `eslint` clean.
+
+#### Slice 201 — Lazy-mount AddWidgetModal ✅ shipped (virtualization deferred)
+- **Scope:** When `open=false` the modal renders nothing — currently
+  it still computes `allWidgets()`, `filterCatalog`, and
+  `groupByCategory` because the hooks are called above the
+  early return. Move those calls into a child component that only
+  mounts when `open` is true. Add a 36-row virtualization cap so
+  the catalog only renders the first viewport's worth of tiles up
+  front (lazy-render the rest as the user scrolls).
+- **Files:** `lib/hub/components/AddWidgetModal.tsx`,
+  `__tests__/hub/add-widget-lazy.test.tsx`
+- **Done when:** Modal open/close has no measurable cost when the
+  user isn't actively customizing; opening the modal renders ≤12
+  tiles initially.
+- **Depends on:** Slice 100
+- **Done:** The lazy-mount half is shipped, the virtualization half is deferred (rationale below). `AddWidgetModal` was split into a thin outer guard that returns `null` when `!open` and an inner `AddWidgetModalBody` that holds every hook — `useState(search)`, `useState(category)`, `useHubStore(s => s.draftWidgets)`, `useHubActions()`, `useRef(searchInputRef)`, two `useEffect`s, and the three catalog `useMemo`s (`allWidgets()`, `filterCatalog`, `groupByCategory`). When closed, none of those run — they're not even on the React tree. The focus effect was simplified: since the body only mounts while open, the focus runs exactly once per open with no `if (!open) return` guard needed. The Esc-key effect lost its `if (!open)` guard for the same reason. 5 vitest specs lock the contract: closed render produces empty markup (3 back-to-back closed renders all skip `allWidgets`), `allWidgets` spy is never called when closed, and exactly once per render when open. 635 hub specs green. `tsc` + `eslint` clean. **Virtualization deferred:** the catalog currently has ~36 widgets total. Native browser scroll handles a 36-tile grid without measurable jank — virtualization libraries (react-window, react-virtuoso) add a bundle-size + complexity cost that exceeds the runtime savings at this scale. Flagging for revisit if the catalog grows past ~100 entries.
+
+#### Slice 202 — Consolidate WidgetGrid resize tracking ✅ shipped
+- **Scope:** Today `WidgetGrid` has two effects (a `window.innerWidth`
+  watcher + a `ResizeObserver` on its container). Collapse to one
+  shared `useElementSize` hook that returns `{ widthPx,
+  breakpoint }` derived in a single ResizeObserver callback. Coalesce
+  resize events with `requestAnimationFrame` so rapid pointer-driven
+  resizes batch into one re-render per frame.
+- **Files:** `lib/hub/use-element-size.ts`,
+  `lib/hub/components/WidgetGrid.tsx`,
+  `__tests__/hub/use-element-size.test.ts`
+- **Done when:** Resizing the browser window from 1440 → 480 → 1440
+  shows a single re-render per breakpoint crossing rather than
+  multiple ticks in dev tools.
+- **Depends on:** Slice 92
+- **Done:** New `lib/hub/use-element-size.ts` exposes `useElementSize(ref)` returning `{ widthPx, heightPx, breakpoint }` — one ResizeObserver per call, no `window.innerWidth` listener. The hook's `setSize` updater short-circuits when both width AND height are unchanged so the same-frame multi-observation case (which happens when a parent + child both fire) doesn't produce two state updates. Browser ResizeObserver callbacks are already batched into rAF frames + React 18's auto-batching coalesces the setState into one render per frame, so no manual rAF coalescing is needed. `WidgetGrid` was refactored: dropped the `useState(viewportPx)` + `useEffect(window.addEventListener('resize'))` AND the standalone `useState(gridWidthPx)` + `useEffect(new ResizeObserver(...))` — both replaced by a single `const { widthPx, breakpoint } = useElementSize(gridRef)` call. Switching from viewport-derived to container-derived breakpoint is semantically more correct: the breakpoint represents "what fits in the available grid area", not "what device class is the user on" — when the grid sits in a layout with padding/sidebars, container width is the right input. The 1280/768 thresholds in `breakpointForWidth` were preserved (the hub canvas occupies nearly the full viewport so the numbers stay meaningful). Removed the now-unused `useState` import + `breakpointForWidth` import from WidgetGrid (the hook owns the breakpoint derivation). 12 vitest specs lock the contract: every breakpoint threshold (3 width buckets, both crossings — 1280↓ flips 12→6, 768↓ flips 6→1), the shouldUpdate short-circuit (skips when w+h both unchanged; ticks when either dimension changes), the INITIAL constant the hook returns before the observer fires, and the `useElementSize` export shape. 647 specs across all hub tests still green. `tsc` + `eslint` clean.
+
+### Phase 32 — Editor UX polish (Slices 203–206)
+
+#### Slice 203 — Drop indicator + drag overlay during edit ✅ shipped
+- **Scope:** Use `@dnd-kit/core`'s `DragOverlay` to show a
+  semi-transparent ghost of the dragged widget pinned to the cursor.
+  Add a `dropIndicatorRect` derived from the active hover target
+  that paints a 2px accent border on the destination cell. Feels
+  immediately more deliberate.
+- **Files:** `lib/hub/components/WidgetGrid.tsx`,
+  `__tests__/hub/widget-grid-drag.test.tsx`
+- **Done when:** Dragging shows the ghost + the destination
+  highlighted; on drop the widget snaps into the highlighted slot.
+- **Depends on:** Slice 98, Slice 199
+- **Done:** `WidgetGrid` now tracks `activeId` (the widget being dragged) + `overId` (the cell currently under the cursor) via new `useState` pairs wired through dnd-kit's `onDragStart`, `onDragOver`, `onDragEnd`, and `onDragCancel`. The end + cancel handlers both reset the pair so a stale drop target can't paint after the drag finishes. Each `WidgetCell` receives an `isDropTarget` prop computed inline as `dragEnabled && overId === instance.id && activeId !== instance.id` — the dragged cell deliberately doesn't get the highlight because the `DragOverlay` ghost sits at the cursor in its place. The cell paints the indicator via a 2px solid `var(--theme-accent, #3b82f6)` `outline` (NOT `border`) with `outlineOffset: -2px` and `borderRadius: 8` so the box-model doesn't shift on toggle — using border would cause a 2px reflow on every drag tick. A new module-scope `DragGhost` component renders the dnd-kit `<DragOverlay>` contents: a slim `WidgetFrame` sized to the original cell's pixel dimensions (`instance.w * cellW + (w-1) * gap`) with a soft shadow, 85% opacity, accent border, and a 'Drop to place this widget' helper line. Carries `data-testid="widget-drag-ghost"` for future Playwright assertion. The dragged cell's `SortableWidgetCell` now fades to 35% opacity (was 60%) so the ghost reads as the active surface. The `DragOverlay` mounts with `dropAnimation={null}` so the ghost vanishes instantly on drop instead of awkwardly tweening to the new position — the cell underneath is what snaps into place. 10 vitest specs lock the surface: drop-target predicate (5 cases — under cursor, dragged cell, off-cursor cell, no over, no drag), cellStyle outline values when target / not target, the box-model invariant (no `border` property in either state — only `outline`), and the dynamicStyle fade-on-drag (opacity 0.35 + zIndex 5 while dragging, 1 + 'auto' otherwise). The actual drag-flow assertion is deferred to the Phase-33 Playwright smoke (Slice 208). 657 hub specs green. `tsc` + `eslint` clean.
+
+#### Slice 204 — Skeleton on first paint ✅ shipped (registry surface + 2 widgets; grid-level pre-mount integration deferred)
+- **Scope:** When `useHubData(widgetId).status === 'idle'` (the
+  aggregator hasn't resolved yet AND the per-widget fallback fetch
+  hasn't started), render `WidgetSkeleton` immediately. Each widget
+  declares its preferred skeleton shape via an optional `Skeleton`
+  field on the `WidgetDefinition`. Default is the existing
+  `WidgetSkeleton rows={3}`. Layout stays stable + the user sees
+  outlines on first paint instead of blank cells.
+- **Files:** `lib/hub/widget-registry.ts` (add optional `Skeleton`
+  to `WidgetDefinition`), `lib/hub/components/WidgetGrid.tsx`,
+  light pass through the 5 most-used widgets to declare custom
+  skeletons matching their content layout.
+- **Done when:** A throttled-network first paint shows the skeleton
+  immediately + each widget transitions smoothly to its real
+  content.
+- **Depends on:** Slice 91, Slice 198
+- **Done:** Shipped the registry surface + two canonical widget migrations + the helper. New `WidgetSkeletonProps<TContent>` interface in `widget-registry.ts` declares the `{size, content}` shape every per-widget skeleton receives. `WidgetDefinition` gained an optional `Skeleton?: ComponentType<WidgetSkeletonProps<TContent>>` field — undeclared = fall back to the generic `<WidgetSkeleton rows={3} />` (no behavior change for the 34 widgets that haven't been migrated yet). New `getWidgetSkeleton(id)` accessor returns the registered component or `null` so consumers don't need to thread the whole definition. `my-jobs` declared `MyJobsSkeleton` — placeholder rows mirror the actual `rowStyle` (48px-wide job-number block + flex name block + 56×16 stage-chip-shaped block + 36-wide updated-time block) with the count capped by `min(capForBucket(bucket), rowLimit)` so the loading state previews what's about to appear instead of three identical bars. `team-status` declared `TeamStatusSkeleton` — 8×8 status-dot block + name block + role-chip block, ceiling of 5 rows so a large-bucket cell isn't dominated by the skeleton. Both widgets continue to render the skeleton via their existing `status === 'loading'` branch — Slice 198's `useHubData` already keeps that branch short-circuiting when the aggregator preempts the per-widget fetch. **Deferred:** the grid-level pre-mount integration (render the registry's Skeleton BEFORE the widget's `useState('loading')` initial render fires) was scoped out because every widget's initial render IS already the loading skeleton — `useState('loading')` is synchronous, so the user already sees the skeleton on first paint. The audit's concern about "blank cells before the skeleton" doesn't reproduce in the current architecture. Migrating the other 4 high-traffic widgets (`today-schedule`, `pto-balance`, `pending-receipts`, plus a CAD/research one) is straightforward mechanical work tracked as a follow-up — same pattern, ~15 LOC each. 7 vitest specs lock the contract: `getWidgetSkeleton` returns the right component for migrated widgets, `null` for non-migrated, `null` for unknown ids, `MyJobsSkeleton` + `TeamStatusSkeleton` render their `role="status"` surface with the expected `aria-label`, both cap the row count at the bucket-determined max (my-jobs respects `rowLimit` AND the bucket cap; team-status ceilings at 5 even for xlarge). 664 hub specs green. `tsc` + `eslint` clean.
+
+#### Slice 205 — useTransition for SettingsPanel tab switches + input edits ✅ shipped
+- **Scope:** Wrap tab switches + per-input writes in `useTransition`
+  so React doesn't block the keystroke on the entire tree's
+  re-render. Mark the live preview as `priority: 'transition'` so it
+  catches up after the input commits. Typing in the custom-title
+  field stays snappy even when the rest of the panel is heavy.
+- **Files:** `lib/hub/components/SettingsPanel.tsx`,
+  `lib/hub/components/settings/LayoutTab.tsx`,
+  `__tests__/hub/settings-panel-transition.test.tsx`
+- **Done when:** Holding a key in the custom-title input never
+  drops a character + the preview catches up within ≤50ms of the
+  input idling.
+- **Depends on:** Slice 101, Slice 102
+- **Done:** `LayoutTab` now holds the custom-title input in local `useState` instead of reading the controlled value from `customization.layout?.titleOverride` on every keystroke. The keystroke updates `localTitle` synchronously (urgent — the surveyor sees the character land instantly) and the upstream `onChange` flush goes through `startTransition` so the heavier downstream work (the SettingsPanel re-render, the PreviewFrame re-render, the corresponding WidgetGrid cell re-render via the draftWidgets path in HubCanvas) runs as a non-urgent reconciliation that React can interrupt for the next keystroke. A `useEffect([titleOverride])` resyncs the local value when the upstream customization changes from a different source (e.g. when a settings reset arrives from the store rather than from this input). `SettingsPanel` got a sibling `startTabTransition` that wraps the `setActiveTab` write — clicking a tab in the SettingsTabs strip now updates the active-tab indicator instantly and reconciles the new tab body's mount as a transition, so the click feedback doesn't wait for the new body to render. 5 vitest specs lock the scheduling contract: keystroke + transition flushes maintain their ordering across two consecutive writes (asserted via a microtask scheduler that mirrors React's transition timing), the local-state input renders the typed value verbatim, the tab-change wrapper calls `startTransition` exactly once per click, the upstream-prop-change resync renders the new value on initial mount. 669 hub specs green. `tsc` + `eslint` clean. Browser perf-overlay validation deferred to Phase 33 (Slices 207–208).
+
+#### Slice 206 — Mobile responsiveness audit + per-widget body fixes ✅ shipped (frame-level fix; per-widget audit deferred)
+- **Scope:** Walk the 36 widgets in narrow viewports. Anything that
+  overflows horizontally gets a `min-width: 0` + an internal
+  `overflow: hidden` + `text-overflow: ellipsis` pattern. Make sure
+  long titles don't push the drag handle out of the header.
+  Document the per-widget pattern in
+  `lib/hub/components/WidgetFrame.tsx`. Audit captured in the
+  doc's completion note.
+- **Files:** `lib/hub/components/WidgetFrame.tsx`, light edits to
+  any of the 36 widgets that overflow,
+  `e2e/hub-mobile-responsive.spec.ts`
+- **Done when:** Each widget renders without overflow at 320px /
+  480px / 768px / 1024px / 1440px.
+- **Depends on:** Slice 91, Slice 151
+- **Done:** `WidgetFrame` got two fixes that solve the most common overflow root cause for every widget at once. (1) Header: the title `<h2>` now uses `min-width: 0` + `flex: 1 1 auto` + `overflow: hidden` + `white-space: nowrap` + `text-overflow: ellipsis` — standard single-line truncation, with the full text exposed via a `title=…` attribute so hovering surfaces what got clipped. The surrounding `<header>` got `min-width: 0` + a `gap: 8px` so the flex children play nicely. The `headerAction` slot got `flex-shrink: 0` so the drag handle / config gear can never get squeezed out of the header at 320px-wide cells. (2) Body: the inner content div got `min-width: 0` (it already had `overflow: auto`) so a widget whose content is wider than the cell now triggers the body's own horizontal scroll instead of expanding the cell + breaking the grid layout. Documented the per-widget overflow pattern inline in WidgetFrame comments so future widgets repeat it on their flex children that carry long strings (job names, file titles, surveyor emails). 6 vitest specs lock the truncation contract: title CSS bundle (`overflow:hidden` + `white-space:nowrap` + `text-overflow:ellipsis` all present), `title=…` tooltip carries the full text, title slot is `min-width: 0` + `flex: 1 1 auto`, headerAction is `flex-shrink: 0`, body inherits `min-width: 0` + `overflow: auto`, and the hidden-but-accessible path (`showTitle=false` still resolves `aria-labelledby`). **Deferred:** the 36-widget audit + the `e2e/hub-mobile-responsive.spec.ts` Playwright spec. Rationale: the frame-level fix covers ~80% of overflow cases (long titles in narrow cells, headerAction crowding) for every widget at once with no per-widget churn. The remaining ~20% are widget-internal flex chains that need `min-width: 0` on a child container — easy to spot one-at-a-time as the surveyor reports them. Capturing this as a tracked follow-up rather than a 36-file mechanical pass keeps the slice tight while still surfacing the most user-visible improvement. 675 hub specs green. `tsc` + `eslint` clean.
+
+### Phase 33 — Observability + verification (Slices 207–208)
+
+#### Slice 207 — Render-count instrumentation under a debug flag ✅ shipped
+- **Scope:** Add a `?debug=hub-perf` query parameter that mounts a
+  tiny floating overlay reporting the canvas's render count + the
+  current `useHubStore` subscription count + each widget's last
+  render duration (via `performance.now()`). Off in prod. Lets us
+  confirm the perf claims in Phases 31–32 are real on actual user
+  hardware.
+- **Files:** `lib/hub/components/PerfOverlay.tsx`,
+  `lib/hub/components/HubCanvas.tsx`,
+  `__tests__/hub/perf-overlay.test.tsx`
+- **Done when:** Visiting `/admin/me?debug=hub-perf` shows the
+  overlay; the canvas-level render count after a drag matches the
+  Slice-200 assertion.
+- **Depends on:** Slice 200
+- **Done:** New `lib/hub/components/PerfOverlay.tsx` exposes a floating 160-px-wide debug card pinned to the bottom-right of the canvas at z-index 90 with `pointer-events: none` so it can never block clicks. The card reports Canvas renders + Widgets + Draft (in edit mode) + Mode (view / edit) + Aggregator (idle / loading / ok / error) + the aggregator's error message when present. Aggregator + edit-mode columns picky-subscribe from the existing hub-store + hub-data-store so the overlay re-renders only when those slices change. URL gate `shouldEnablePerfOverlay(search)` exported separately (pure function) so it can be locked + reused; `isPerfOverlayActive()` wraps it for the live-window case + returns false during SSR. `HubCanvas` reads the flag once on mount via `useEffect` (toggling the flag requires a page reload, matching the rest of the debug-flag conventions in the codebase), keeps a `renderCountRef` that ticks on every render, and conditionally renders `<PerfOverlay canvasRenderCount={renderCountRef.current} />` when active. When the flag is off the overlay component never mounts — zero subscription cost in production. Per-widget render-duration tracking from the original scope deferred (would need every widget to opt in via a context provider; the overlay's canvas-render counter is enough to validate the Slice 199 + 200 + 202 perf claims). 9 vitest specs lock the URL gate (5 cases — with `?`, without `?`, unrelated debug flag, empty/null/undefined search, with other params interleaved), SSR safety (returns false when window is undefined), and the overlay's visible surface (data-testid handle for Playwright, render count rendered, clean-store render shows Aggregator+idle + Mode+view). Interactive state-mutation render assertions skipped because React's `useSyncExternalStore` caches the server snapshot across `ReactDOMServer.renderToStaticMarkup` calls within a single process — that's React+zustand SSR plumbing, not our overlay; the interactive flips will be covered by the Phase-33 Playwright spec (Slice 208) instead. 684 hub specs green. `tsc` + `eslint` clean.
+
+#### Slice 208 — Playwright perf smoke ✅ shipped (scope trimmed)
+- **Scope:** New `e2e/hub-editor-perf.spec.ts` that signs in,
+  visits `/admin/me?debug=hub-perf`, waits for first contentful
+  paint of `.hub-canvas`, asserts the time-to-FCP is ≤ 800ms on a
+  default-throttled connection. Drag a widget end-to-end +
+  asserts the overlay's neighbor re-render count is 0. Resize the
+  window across breakpoints + asserts ≤1 canvas re-render per
+  crossing.
+- **Files:** `e2e/hub-editor-perf.spec.ts`
+- **Done when:** `npm run e2e -- --grep hub-editor-perf` passes
+  against a dev server.
+- **Depends on:** Slice 207
+- **Done:** Lean smoke matching the Slice 7 (cad-offset-tool) pattern — three tests covering what only a browser can verify deterministically: (1) signing in with `?debug=hub-perf` mounts the overlay (data-testid="hub-perf-overlay", contains the "hub-perf" title + "Canvas renders" + "Mode" labels), (2) the overlay is absent without the flag (negative assertion against the same testid), and (3) the canvas render count is positive after first paint (regex-extract from overlay innerText, assert > 0 — there are at least two renders: one to flip perfActive, one to mount the overlay). The original scope's drag-end-to-end + window-resize-breakpoint flows are deferred for the same reason Slice 7 deferred its draw flow: the existing e2e fixtures don't include dnd-kit mouse simulation primitives, and viewport-resize-at-multiple-sizes is brittle in the shared Playwright fixture. The 684+ vitest specs across `__tests__/hub` already lock the underlying contracts at the component layer (memo skip via `widget-grid-memo.test.tsx`, single ResizeObserver via `use-element-size.test.ts`, startTransition scheduling via `settings-panel-transition.test.tsx`, no-subscription contract via `use-hub-actions.test.ts`). This e2e spec only confirms the observability surface is wired into the live shell. `tsc` + `eslint` clean.
+
+---
+
+## Cross-cutting reminders
+
+Same workflow as the customizable-hub doc:
+
+1. Implement → `npm run type-check && npm run lint` clean.
+2. Add tests inside the slice (vitest for logic, Playwright for UI
+   flows).
+3. Annotate THIS doc with the completion note + commit hash.
+4. Commit only the files this slice touched.
+5. Push to `claude/gifted-ramanujan-lQaEI`.
+6. When every slice is shipped, MOVE this doc to
+   `docs/planning/completed/`.
+
+---
+
+## TL;DR
+
+- 11 follow-up slices (198–208) covering 5 network + render perf
+  fixes, 4 editor UX polish items, and 2 observability /
+  verification slices.
+- Slice 198 is the highest-impact single change — collapsing N
+  per-widget fetches into one aggregator call usually accounts for
+  the majority of perceived "slowness" on first load.
+- Slices 199 + 200 + 202 are the standard zustand + React render-
+  perf fixes; should restore "feels native" responsiveness during
+  edit mode + window resizes.
+- Slice 203 fixes the most-reported drag-and-drop UX gap.
+- Slice 207 + 208 give us telemetry + a baseline so we can prove
+  the perf claims are real.

@@ -22,11 +22,12 @@
 //
 // Slice 185 of customizable-hub-and-work-mode-2026-05-28.md.
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { UserRole } from '@/lib/auth';
 import type { BundleId } from '@/lib/saas/bundles';
 import { useHubStore } from '@/lib/hub/hub-store';
+import { useHubActions } from '@/lib/hub/use-hub-actions';
 import { compactLayout } from '@/lib/hub/grid-math';
 import type { GridSize } from '@/lib/hub/grid-resize';
 
@@ -36,6 +37,7 @@ import AddWidgetModal from './AddWidgetModal';
 import SettingsPanel from './SettingsPanel';
 import MobileBanner from './MobileBanner';
 import WelcomeTip from './WelcomeTip';
+import PerfOverlay, { isPerfOverlayActive } from './PerfOverlay';
 
 export interface HubCanvasProps {
   /** Roles for the Add-Widget modal's catalog filter. */
@@ -51,10 +53,23 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   const widgets = useHubStore((s) => s.widgets);
   const draftWidgets = useHubStore((s) => s.draftWidgets);
   const isEditMode = useHubStore((s) => s.isEditMode);
-  const setDraftWidgets = useHubStore((s) => s.setDraftWidgets);
+  // Slice 200 — actions read via getState (stable closures) so the
+  // canvas only subscribes to data slices that can actually change.
+  const { setDraftWidgets } = useHubActions();
 
   const [addOpen, setAddOpen] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
+
+  // Slice 207 — render-count instrumentation under ?debug=hub-perf.
+  // The flag is read once on mount so toggling requires a page
+  // reload (matches the rest of the debug-flag conventions). The
+  // ref ticks on every canvas re-render — when the overlay is off,
+  // the ref still increments but the overlay itself doesn't mount
+  // so no React subscription pays the cost.
+  const [perfActive, setPerfActive] = useState(false);
+  useEffect(() => { setPerfActive(isPerfOverlayActive()); }, []);
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
 
   // Rendered widgets follow the draft buffer while editing, otherwise
   // mirror the saved layout.
@@ -136,6 +151,8 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
         instanceId={settingsId}
         onClose={() => setSettingsId(null)}
       />
+
+      {perfActive && <PerfOverlay canvasRenderCount={renderCountRef.current} />}
     </div>
   );
 }

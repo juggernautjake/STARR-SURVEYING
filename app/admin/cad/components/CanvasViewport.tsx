@@ -145,6 +145,7 @@ import FeatureContextMenu from './FeatureContextMenu';
 import PickModeContextMenu from './PickModeContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
 import OnLineOffsetPanel from './OnLineOffsetPanel';
+import OffsetPanel from './OffsetPanel';
 import ImageInsertDialog from './ImageInsertDialog';
 import TitleBlockEditorModal from './TitleBlockEditorModal';
 import ScaleBarEditorModal from './ScaleBarEditorModal';
@@ -12508,6 +12509,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       {/* On-line offset (PERPENDICULAR) numeric panel */}
       {toolStore.state.activeTool === 'PERPENDICULAR' && toolStore.state.perpStartPoint && (
         <OnLineOffsetPanel onCommit={commitPerp} onCancel={() => toolStore.clearPerp()} />
+      )}
+
+      {/* Slice 1 of cad-offset-tool-2026-05-29.md — floating offset
+          panel. Mounts when the OFFSET tool has a source feature
+          picked. Apply hands off to applyInteractiveOffset via the
+          panel's own helper; cancel + commit both release the source
+          + return the tool-store to the awaiting-pick state. */}
+      {toolStore.state.activeTool === 'OFFSET' && toolStore.state.offsetSourceId && (
+        <OffsetPanel
+          onCommit={() => toolStore.setOffsetSourceId(null)}
+          onCancel={() => toolStore.setOffsetSourceId(null)}
+        />
       )}
 
       {/* Rich right-click context menu */}

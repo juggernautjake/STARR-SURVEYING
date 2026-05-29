@@ -15,9 +15,10 @@
 //
 // Slice 101 of customizable-hub-and-work-mode-2026-05-28.md.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { getWidget } from '@/lib/hub/widget-registry';
 import { useHubStore } from '@/lib/hub/hub-store';
+import { useHubActions } from '@/lib/hub/use-hub-actions';
 import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import WidgetFrame from './WidgetFrame';
 import SettingsTabs, { type SettingsTabId } from './SettingsTabs';
@@ -39,10 +40,21 @@ export interface SettingsPanelProps {
 export default function SettingsPanel({ instanceId, onClose, mobileBreakpoint = 768 }: SettingsPanelProps) {
   const draftWidgets = useHubStore((s) => s.draftWidgets);
   const isEditMode = useHubStore((s) => s.isEditMode);
-  const patchWidgetCustomization = useHubStore((s) => s.patchWidgetCustomization);
+  // Slice 200 — actions read via getState (stable closures) so
+  // keystroke-driven re-renders aren't compounded by a wasted
+  // subscription.
+  const { patchWidgetCustomization } = useHubActions();
 
   const [activeTab, setActiveTab] = useState<SettingsTabId>('layout');
   const [viewportPx, setViewportPx] = useState<number>(1280);
+  // Slice 205 — tab swap can be expensive (mounts a fresh tab body
+  // that may reach for catalog metadata); wrap in startTransition so
+  // the click feedback in the tab strip doesn't wait for the new
+  // body to render.
+  const [, startTabTransition] = useTransition();
+  function handleTabChange(next: SettingsTabId) {
+    startTabTransition(() => setActiveTab(next));
+  }
 
   useEffect(() => {
     function tick() { setViewportPx(window.innerWidth); }
@@ -113,7 +125,7 @@ export default function SettingsPanel({ instanceId, onClose, mobileBreakpoint = 
 
         <SettingsTabs
           activeTab={activeTab}
-          onChange={setActiveTab}
+          onChange={handleTabChange}
           contentTabEnabled={hasContentTab}
           labelledById={headingId}
         />
