@@ -10,6 +10,10 @@ import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { usePageError } from '../hooks/usePageError';
+import { ThemePicker } from './components/ThemePicker';
+import { DensityPicker } from './components/DensityPicker';
+import { FontScaleSlider } from './components/FontScaleSlider';
+import type { Density, HubLayoutRow, ThemeId } from '@/lib/hub/types';
 
 interface Profile {
   user_name: string; job_title: string; hire_date: string | null;
@@ -22,7 +26,7 @@ interface LearningCredit { entity_label: string; points_earned: number; earned_a
 const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString() : '—';
 const fmtCurrency = (n: number) => '$' + (n || 0).toFixed(2);
 
-type Tab = 'info' | 'credentials' | 'credits' | 'changes';
+type Tab = 'info' | 'credentials' | 'credits' | 'changes' | 'themes';
 
 export default function ProfilePanel() {
   const { data: session } = useSession();
@@ -36,6 +40,7 @@ export default function ProfilePanel() {
   const [totalPoints, setTotalPoints] = useState(0);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('info');
+  const [hubLayout, setHubLayout] = useState<HubLayoutRow | null>(null);
 
   useEffect(() => {
     if (!email) return;
@@ -70,6 +75,24 @@ export default function ProfilePanel() {
     loadProfile();
   }, [email, safeFetch, reportPageError]);
 
+  useEffect(() => {
+    // Hub layout fetch is best-effort — if it fails the picker falls
+    // back to the starr-default theme and the user can still browse the
+    // other profile tabs.
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/me/hub-layout', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as { layout: HubLayoutRow | null };
+        if (!cancelled) setHubLayout(data.layout);
+      } catch {
+        /* swallow — picker handles the null case */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   if (!session?.user) return null;
   const { name, image, role } = session.user;
   const roles = session.user.roles || ['employee'];
@@ -81,7 +104,12 @@ export default function ProfilePanel() {
     { key: 'credentials', label: 'Credentials' },
     { key: 'credits', label: 'Learning Credits' },
     { key: 'changes', label: 'Recent Changes' },
+    { key: 'themes', label: 'Themes' },
   ];
+
+  const initialThemeId: ThemeId = hubLayout?.theme ?? 'starr-default';
+  const initialDensity: Density = hubLayout?.density ?? 'comfortable';
+  const initialFontScale: number = hubLayout?.fontScale ?? 1.0;
 
   return (
     <div className="profile-page">
@@ -216,6 +244,17 @@ export default function ProfilePanel() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Themes (Hub theme picker — Slice 82) + Density + Font scale (Slice 86) */}
+      {tab === 'themes' && (
+        <>
+          <ThemePicker initialThemeId={initialThemeId} />
+          <div className="admin-card" style={{ marginTop: '0.75rem' }}>
+            <DensityPicker initialDensity={initialDensity} />
+            <FontScaleSlider initialFontScale={initialFontScale} />
+          </div>
+        </>
       )}
     </div>
   );

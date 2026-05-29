@@ -1,59 +1,48 @@
-'use client';
 // app/admin/me/page.tsx
 //
-// The Hub — admin-nav redesign Phase 2. Six panels stacked top-to-bottom
-// per §5.1. Live now: greeting (session name + time of day), Recent
-// column (nav-store), Workspaces column (route registry), and the
-// Profile tab body (slice 2b). Placeholder until later slices: clock
-// state, today data, notifications snapshot, quick-action set,
-// remaining personal-tab bodies.
+// The Hub. Server component that fetches the saved layout (so first
+// paint already has the user's widgets — no client-side loading
+// flash), then renders:
 //
-// Spec: docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md §5.1 + §8 Phase 2.
+//   - `HubGreeting` — time-of-day greeting + clock-in status + roles
+//     (non-customizable per v2 §5.1; lives outside the widget canvas).
+//   - `HubMeClient` — hydrates the hub store + mounts the providers +
+//     the customizable widget canvas (Slices 185 / 186).
+//
+// ClockInPill stays in the AdminLayoutClient top bar; it's part of
+// the chrome rather than the canvas.
+//
+// Slice 187 of customizable-hub-and-work-mode-2026-05-28.md. Replaces
+// the legacy Phase-2 tab-and-panel hub (WhatsNewBanner / HubToday /
+// HubPinnedRecent / HubTabs / HubNotifications / HubQuickActions) —
+// those components are scheduled for archival in Slice 189.
 
-import ProfilePanel from '../profile/ProfilePanel';
-import MyJobsPanel from '../my-jobs/MyJobsPanel';
-import MyFilesPanel from '../my-files/MyFilesPanel';
-import SchedulePanel from '../schedule/SchedulePanel';
-import MyPayPanel from '../my-pay/MyPayPanel';
-import MyNotesPanel from '../my-notes/MyNotesPanel';
-import MyHoursPanel from '../my-hours/MyHoursPanel';
-import FieldbookPanel from '../learn/fieldbook/FieldbookPanel';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import type { UserRole } from '@/lib/auth';
 
 import HubGreeting from './components/HubGreeting';
-import HubToday from './components/HubToday';
-import HubPinnedRecent from './components/HubPinnedRecent';
-import HubTabs from './components/HubTabs';
-import HubNotifications from './components/HubNotifications';
-import HubQuickActions from './components/HubQuickActions';
-import WhatsNewBanner from './components/WhatsNewBanner';
+import HubMeClient from './HubMeClient';
+import { fetchHubLayoutForUser } from '@/lib/hub/server/fetch-hub-layout';
 
-import './AdminMe.css';
+// HubGreeting still relies on the `.hub-greeting*` selectors from
+// the legacy stylesheet. The rest of AdminMe.css covers the archived
+// Phase-2 components (Slice 189 — see `_archive/README.md`).
+import './_archive/AdminMe.css';
 
-export default function HubPage() {
-  // The HubTabs `children` map only renders the active tab's element,
-  // so unmounted panels never fetch their data. Each tab gets migrated
-  // here as its panel component lands (slice 2b → profile; later slices
-  // → schedule, jobs, hours, pay, notes, files, fieldbook).
+export default async function HubPage() {
+  const session = await auth();
+  if (!session?.user?.email) redirect('/login');
+
+  const roles: UserRole[] = (session.user.roles ??
+    (session.user.role ? [session.user.role] : [])) as UserRole[];
+
+  const { layout } = await fetchHubLayoutForUser(session.user.email, roles);
+
   return (
     <div className="hub-page">
-      <WhatsNewBanner />
       <HubGreeting />
-      <HubToday />
-      <HubPinnedRecent />
-      <HubTabs
-        panels={{
-          schedule: <SchedulePanel />,
-          jobs: <MyJobsPanel />,
-          hours: <MyHoursPanel />,
-          pay: <MyPayPanel />,
-          notes: <MyNotesPanel />,
-          files: <MyFilesPanel />,
-          profile: <ProfilePanel />,
-          fieldbook: <FieldbookPanel />,
-        }}
-      />
-      <HubNotifications />
-      <HubQuickActions />
+      <HubMeClient layout={layout} roles={roles} />
     </div>
   );
 }

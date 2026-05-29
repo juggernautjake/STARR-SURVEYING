@@ -1,29 +1,35 @@
 'use client';
 // app/admin/me/components/HubGreeting.tsx
 //
-// Hub panel 1 (§5.1) — time-of-day greeting + clock-state stub. A live
-// useTimeStore isn't in the repo yet (the team page reads clock state
-// per-API-call); slice 2a renders the greeting + a placeholder clock
-// card. Slice 2b wires a real clock fetch.
+// Hub greeting card. Time-of-day greeting + date + clock-in status +
+// role-chip strip. Replaces the slice-2a stub that mixed greeting +
+// nav toggle. Lives fixed at the top of the hub canvas — not
+// draggable, not removable.
 //
-// Slice 3b/c — small "Try the new nav" toggle so users can preview
-// the IconRail without flipping `adminNavV2Enabled` via the browser
-// console. Phase 4's persona-override picker absorbs this into the
-// proper Profile-tab settings UI.
+// Slice 87 of customizable-hub-and-work-mode-2026-05-28.md.
+// Slice 88 adds the Enter Work Mode button next to this component.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-
-import { useAdminNavStore } from '@/lib/admin/nav-store';
 import {
   PERSONAS,
   PERSONA_ORDER,
   inferPersona,
   type Persona,
 } from '@/lib/admin/personas';
+import { useAdminNavStore } from '@/lib/admin/nav-store';
+import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
+import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/work-mode/clock-session';
 import type { UserRole } from '@/lib/auth';
 
-function partOfDay(date: Date): string {
+interface ClockState {
+  clockedIn: boolean;
+  startedAt?: string;
+  jobLabel?: string | null;
+}
+
+export function partOfDay(date: Date, customPrefix?: string): string {
+  if (customPrefix) return customPrefix;
   const h = date.getHours();
   if (h < 5) return 'Good night';
   if (h < 12) return 'Good morning';
@@ -31,19 +37,43 @@ function partOfDay(date: Date): string {
   return 'Good evening';
 }
 
-function firstName(name?: string | null): string {
+export function firstName(name?: string | null): string {
   if (!name) return 'there';
   const first = name.trim().split(/\s+/)[0];
   return first || 'there';
 }
 
-export default function HubGreeting() {
+export function formatElapsed(startedAtIso: string, nowMs = Date.now()): string {
+  const startedMs = new Date(startedAtIso).getTime();
+  if (!Number.isFinite(startedMs)) return '';
+  const elapsedSec = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+  const h = Math.floor(elapsedSec / 3600);
+  const m = Math.floor((elapsedSec % 3600) / 60);
+  if (h === 0) return `${m} min`;
+  return `${h}h ${m.toString().padStart(2, '0')}m`;
+}
+
+function formatLongDate(date: Date): string {
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+interface HubGreetingProps {
+  /** Optional override for the greeting prefix (e.g., "Howdy"). When
+   *  absent the prefix is computed from time-of-day. */
+  greetingPrefix?: string;
+}
+
+export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
   const { data: session } = useSession();
-  const navV2 = useAdminNavStore((s) => s.adminNavV2Enabled);
-  const setNavV2 = useAdminNavStore((s) => s.setNavV2);
   const personaOverride = useAdminNavStore((s) => s.personaOverride);
   const setPersonaOverride = useAdminNavStore((s) => s.setPersonaOverride);
+
   const [now, setNow] = useState<Date | null>(null);
+  const [clock, setClock] = useState<ClockState | null>(null);
 
   const roles: UserRole[] = useMemo(
     () => (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[],
@@ -52,73 +82,117 @@ export default function HubGreeting() {
   const inferredPersona = useMemo(() => inferPersona(roles), [roles]);
   const activePersona: Persona = personaOverride ?? inferredPersona;
 
-  // Defer the time-of-day computation to the client so the SSR render
-  // doesn't drift from the rehydrated render. (`new Date()` on the
-  // server and the client can sit on opposite sides of a part-of-day
-  // boundary.)
+  // Defer time-of-day to the client so SSR doesn't drift across a
+  // part-of-day boundary, and tick every 30s so the elapsed timer
+  // refreshes.
   useEffect(() => {
     setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 60_000);
+    const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
 
-  const greeting = now ? partOfDay(now) : 'Welcome';
+  // Mirror the ClockInPill's localStorage-backed clock session
+  // (Slice 188). The greeting picks it up on mount + on storage
+  // events so opening a second tab + clocking out keeps the greeting
+  // in sync.
+  useEffect(() => {
+    function sync() {
+      const s = readClockSession();
+      setClock(s
+        ? { clockedIn: true, startedAt: s.startedAt, jobLabel: s.jobId }
+        : { clockedIn: false });
+    }
+    sync();
+    function onStorage(e: StorageEvent) {
+      if (e.key === CLOCK_SESSION_KEY) sync();
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const greeting = now ? partOfDay(now, greetingPrefix) : (greetingPrefix ?? 'Welcome');
   const name = firstName(session?.user?.name);
+  const dateLine = now ? `It's ${formatLongDate(now)}.` : null;
 
   return (
-    <section className="hub-panel hub-greeting">
-      <div>
-        <h1 className="hub-greeting__heading">
+    <section
+      className="hub-panel hub-greeting"
+      aria-labelledby="hub-greeting-heading"
+    >
+      <div className="hub-greeting__primary">
+        <h1 id="hub-greeting-heading" className="hub-greeting__heading">
           {greeting}, {name}.
         </h1>
-        <p className="hub-greeting__subtitle">
-          You&apos;re not currently clocked in.
-          {' '}
-          <span className="hub-greeting__hint">
-            Clock-state widget lands in slice 2b.
-          </span>
+        {dateLine && <p className="hub-greeting__date">{dateLine}</p>}
+        <p className="hub-greeting__clock-status">
+          {clock?.clockedIn ? (
+            <>
+              <span className="hub-greeting__clock-dot" aria-hidden />
+              You&apos;re clocked in
+              {clock.jobLabel ? ` to ${clock.jobLabel}` : ''}
+              {clock.startedAt ? (
+                <>
+                  {' — '}
+                  <time dateTime={clock.startedAt}>
+                    {formatElapsed(clock.startedAt)}
+                  </time>
+                  {' elapsed'}
+                </>
+              ) : null}
+            </>
+          ) : (
+            <>You&apos;re not currently clocked in.</>
+          )}
         </p>
       </div>
+
       <div className="hub-greeting__actions">
-        <a className="hub-btn hub-btn--primary" href="/admin/my-hours">
-          Open timesheet
-        </a>
-        <a className="hub-btn" href="/admin/schedule">
-          View schedule
-        </a>
-        <button
-          type="button"
-          className="hub-btn hub-greeting__nav-toggle"
-          onClick={() => setNavV2(!navV2)}
-          aria-pressed={navV2}
-          title={navV2
-            ? 'Currently using the new nav rail. Click to revert to the legacy sidebar.'
-            : 'Try the new icon rail (preview). Reverts on click.'}
-        >
-          {navV2 ? 'Revert to old nav' : 'Try new nav (beta)'}
-        </button>
-        {navV2 ? (
-          <label className="hub-greeting__persona">
-            <span className="hub-greeting__persona-label">Persona</span>
-            <select
-              className="hub-greeting__persona-select"
-              value={personaOverride ?? ''}
-              onChange={(e) =>
-                setPersonaOverride(e.target.value === '' ? null : (e.target.value as Persona))
-              }
-              aria-label="Override your persona (rail ordering)"
-            >
-              <option value="">Auto ({PERSONAS[inferredPersona].label})</option>
-              {PERSONA_ORDER.map((id) => (
-                <option key={id} value={id}>
-                  {PERSONAS[id].label}
-                  {id === activePersona && personaOverride ? ' (active)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+        {isWorkModeEligible(roles) && (
+          <a
+            className="hub-btn hub-btn--primary hub-greeting__work-mode-btn"
+            href="/admin/work-mode/start"
+            aria-label="Enter Work Mode"
+          >
+            Enter Work Mode
+          </a>
+        )}
       </div>
+
+      <ul
+        className="hub-greeting__roles"
+        role="list"
+        aria-label="Your roles — click to preview the hub for that persona"
+      >
+        {PERSONA_ORDER
+          .filter((id) => id === inferredPersona || personaOverride === id)
+          .map((id) => {
+            const active = id === activePersona;
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  className={`role-chip${active ? ' role-chip--active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => setPersonaOverride(active && personaOverride ? null : id)}
+                >
+                  {PERSONAS[id].label}
+                </button>
+              </li>
+            );
+          })}
+        {personaOverride && (
+          <li>
+            <button
+              type="button"
+              className="role-chip"
+              onClick={() => setPersonaOverride(null)}
+              title={`Reset to inferred persona (${PERSONAS[inferredPersona].label})`}
+            >
+              Auto
+            </button>
+          </li>
+        )}
+      </ul>
     </section>
   );
 }

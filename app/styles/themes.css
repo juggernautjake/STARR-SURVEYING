@@ -1,0 +1,230 @@
+/* ============================================================================
+ * app/styles/themes.css — Customizable Hub theme system
+ *
+ * 14 CSS custom properties that ALL hub widgets read from. Each built-in
+ * theme + the user's saved custom theme set these on a scoped
+ * `[data-theme="..."]` wrapper. Widgets style themselves with
+ * `var(--theme-fg-primary)` etc. — they never reference brand tokens
+ * directly so swapping the theme swaps every widget at once.
+ *
+ * Relationship to tokens.css: tokens.css defines brand + neutral palettes
+ * (one source of truth for the marketing site + admin shell). themes.css
+ * binds the SUBSET of variables that the customizable hub needs into
+ * a theme-scoped layer so users can override.
+ *
+ * Slice 80 of customizable-hub-and-work-mode-2026-05-28.md.
+ *
+ * Adding a new theme? Drop a `[data-theme="<id>"] { ... }` block here
+ * with all 14 vars set, then register the id in lib/hub/themes/index.ts.
+ * ============================================================================
+ */
+
+/* ── Default fallback — used when no [data-theme] wrapper is present.
+ *    Mirrors `starr-default`. Lets components rendered outside the
+ *    ThemeProvider (e.g., the marketing site) still resolve var(--theme-*). */
+:root {
+  --theme-bg-page:        #F8FAFC;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F1F5F9;
+  --theme-fg-primary:     #0F172A;
+  --theme-fg-secondary:   #475569;
+  --theme-fg-muted:       #94A3B8;
+  --theme-accent:         #1D3095;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E2E8F0;
+  --theme-border-strong:  #94A3B8;
+  --theme-success:        #10B981;
+  --theme-warning:        #F59E0B;
+  --theme-danger:         #EF4444;
+  --theme-info:           #3B82F6;
+}
+
+/* ── Theme blocks (one per theme id) live below this line.
+ *    Slices 83–85 add the remaining 9 built-ins.
+ *    Custom themes are inlined on the ThemeProvider element rather than
+ *    being declared here. ───────────────────────────────────────────── */
+
+/* ── starr-default (light, brand) ──────────────────────────────────── */
+[data-theme="starr-default"] {
+  --theme-bg-page:        #F8FAFC;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F1F5F9;
+  --theme-fg-primary:     #0F172A;
+  --theme-fg-secondary:   #475569;
+  --theme-fg-muted:       #94A3B8;
+  --theme-accent:         #1D3095;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E2E8F0;
+  --theme-border-strong:  #94A3B8;
+  --theme-success:        #10B981;
+  --theme-warning:        #F59E0B;
+  --theme-danger:         #EF4444;
+  --theme-info:           #3B82F6;
+}
+
+/* ── starr-dark (dark, brand) — accent is lightened so it passes WCAG
+ *    AA against the dark surface ─────────────────────────────────── */
+[data-theme="starr-dark"] {
+  --theme-bg-page:        #0B1020;
+  --theme-bg-surface:     #111935;
+  --theme-bg-elevated:    #1A2347;
+  --theme-fg-primary:     #F1F5F9;
+  --theme-fg-secondary:   #CBD5E1;
+  --theme-fg-muted:       #94A3B8;
+  --theme-accent:         #5A7BE5;
+  --theme-accent-fg:      #0B1020;
+  --theme-border:         #1F2A4D;
+  --theme-border-strong:  #3A4A75;
+  --theme-success:        #34D399;
+  --theme-warning:        #FBBF24;
+  --theme-danger:         #F87171;
+  --theme-info:           #60A5FA;
+}
+
+/* ── slate-light (neutral, light) — strips brand navy for max neutrality */
+[data-theme="slate-light"] {
+  --theme-bg-page:        #F5F5F7;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F1F1F4;
+  --theme-fg-primary:     #18181B;
+  --theme-fg-secondary:   #3F3F46;
+  --theme-fg-muted:       #71717A;
+  --theme-accent:         #3F3F46;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E4E4E7;
+  --theme-border-strong:  #A1A1AA;
+  --theme-success:        #10B981;
+  --theme-warning:        #F59E0B;
+  --theme-danger:         #EF4444;
+  --theme-info:           #3B82F6;
+}
+
+/* ── slate-dark (neutral, dark) — OLED-friendly near-black surfaces */
+[data-theme="slate-dark"] {
+  --theme-bg-page:        #0A0A0A;
+  --theme-bg-surface:     #171717;
+  --theme-bg-elevated:    #262626;
+  --theme-fg-primary:     #FAFAFA;
+  --theme-fg-secondary:   #D4D4D8;
+  --theme-fg-muted:       #A1A1AA;
+  --theme-accent:         #D4D4D8;
+  --theme-accent-fg:      #0A0A0A;
+  --theme-border:         #262626;
+  --theme-border-strong:  #52525B;
+  --theme-success:        #34D399;
+  --theme-warning:        #FBBF24;
+  --theme-danger:         #F87171;
+  --theme-info:           #60A5FA;
+}
+
+/* ── forest-light (earthy, light) — surveyor outdoor identity */
+[data-theme="forest-light"] {
+  --theme-bg-page:        #F0FDF4;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #DCFCE7;
+  --theme-fg-primary:     #14532D;
+  --theme-fg-secondary:   #166534;
+  --theme-fg-muted:       #65A30D;
+  --theme-accent:         #15803D;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #BBF7D0;
+  --theme-border-strong:  #4ADE80;
+  --theme-success:        #15803D;
+  --theme-warning:        #CA8A04;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #1D4ED8;
+}
+
+/* ── sunset (warm, light) — AM-leaning */
+[data-theme="sunset"] {
+  --theme-bg-page:        #FFF7ED;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #FFEDD5;
+  --theme-fg-primary:     #7C2D12;
+  --theme-fg-secondary:   #9A3412;
+  --theme-fg-muted:       #A16207;
+  --theme-accent:         #C2410C;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #FED7AA;
+  --theme-border-strong:  #FB923C;
+  --theme-success:        #15803D;
+  --theme-warning:        #A16207;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #1D4ED8;
+}
+
+/* ── ocean (cool, light) — reading-friendly */
+[data-theme="ocean"] {
+  --theme-bg-page:        #F0F9FF;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #E0F2FE;
+  --theme-fg-primary:     #0C4A6E;
+  --theme-fg-secondary:   #075985;
+  --theme-fg-muted:       #0891B2;
+  --theme-accent:         #0369A1;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #BAE6FD;
+  --theme-border-strong:  #38BDF8;
+  --theme-success:        #15803D;
+  --theme-warning:        #A16207;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #0369A1;
+}
+
+/* ── plum (distinctive, light) — purple accents */
+[data-theme="plum"] {
+  --theme-bg-page:        #FAF5FF;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F3E8FF;
+  --theme-fg-primary:     #581C87;
+  --theme-fg-secondary:   #6B21A8;
+  --theme-fg-muted:       #9333EA;
+  --theme-accent:         #7E22CE;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E9D5FF;
+  --theme-border-strong:  #C084FC;
+  --theme-success:        #15803D;
+  --theme-warning:        #A16207;
+  --theme-danger:         #B91C1C;
+  --theme-info:           #1D4ED8;
+}
+
+/* ── high-contrast-light (WCAG AAA, light) — pure white surface,
+ *    pure black text, classic system-link blue. Shadows hidden in
+ *    consumer components when isDark === false and theme prefix is
+ *    'high-contrast'. ───────────────────────────────────────────── */
+[data-theme="high-contrast-light"] {
+  --theme-bg-page:        #FFFFFF;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #FFFFFF;
+  --theme-fg-primary:     #000000;
+  --theme-fg-secondary:   #000000;
+  --theme-fg-muted:       #222222;
+  --theme-accent:         #0000EE;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #000000;
+  --theme-border-strong:  #000000;
+  --theme-success:        #006400;
+  --theme-warning:        #664D00;
+  --theme-danger:         #8B0000;
+  --theme-info:           #000080;
+}
+
+/* ── high-contrast-dark (WCAG AAA, dark) — pure black surface, pure
+ *    white text, pure yellow accent (classic OS high-contrast night) */
+[data-theme="high-contrast-dark"] {
+  --theme-bg-page:        #000000;
+  --theme-bg-surface:     #000000;
+  --theme-bg-elevated:    #000000;
+  --theme-fg-primary:     #FFFFFF;
+  --theme-fg-secondary:   #FFFFFF;
+  --theme-fg-muted:       #DDDDDD;
+  --theme-accent:         #FFFF00;
+  --theme-accent-fg:      #000000;
+  --theme-border:         #FFFFFF;
+  --theme-border-strong:  #FFFFFF;
+  --theme-success:        #00FF00;
+  --theme-warning:        #FFA500;
+  --theme-danger:         #FF6464;
+  --theme-info:           #87CEEB;
+}
