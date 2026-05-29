@@ -23,6 +23,7 @@ import WidgetFrame from './WidgetFrame';
 import SettingsTabs, { type SettingsTabId } from './SettingsTabs';
 import LayoutTab from './settings/LayoutTab';
 import StyleTab from './settings/StyleTab';
+import InteractionTab from './settings/InteractionTab';
 
 export interface SettingsPanelProps {
   /** The widget instance the user clicked. When null, the panel
@@ -207,6 +208,15 @@ function TabPlaceholder({
     );
   }
 
+  if (tab === 'interaction') {
+    return (
+      <InteractionTab
+        customization={customization}
+        onChange={onChange}
+      />
+    );
+  }
+
   if (tab === 'content') {
     if (!hasContentTab) {
       return (
@@ -228,20 +238,9 @@ function TabPlaceholder({
     );
   }
 
-  return (
-    <div style={placeholderStyle}>
-      The {tab} tab will arrive in {tabSliceFor(tab)}.
-    </div>
-  );
-}
-
-function tabSliceFor(tab: SettingsTabId): string {
-  switch (tab) {
-    case 'interaction': return 'Slice 104';
-    case 'style':       return 'this slice'; // unreachable
-    case 'layout':      return 'this slice'; // unreachable
-    case 'content':     return 'this slice'; // unreachable
-  }
+  // All four tabs ship Slice 104+; this branch is unreachable but
+  // keeps the type checker happy for future tabs.
+  return null;
 }
 
 // ─── Style fragments ───────────────────────────────────────────────────
