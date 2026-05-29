@@ -60,7 +60,7 @@ interface GridEditorBodyProps {
 
 function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) {
   const draftWidgets = useHubStore((s) => s.draftWidgets);
-  const { saveDraft, cancelEdit, addWidget, removeWidget } = useHubActions();
+  const { saveDraft, cancelEdit, addWidget, removeWidget, setDraftWidgets } = useHubActions();
 
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -73,6 +73,12 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   // when nothing is selected. Drives the highlight outline + the
   // delete-key handler.
   const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
+  // Slice 225 — live target dimensions during a corner-drag resize.
+  // Null when no resize is in progress. The grid renders the
+  // selected widget using these dimensions while the drag is active
+  // so the surveyor sees the candidate footprint immediately.
+  const [resizeTarget, setResizeTarget] = useState<{ id: string; w: number; h: number } | null>(null);
+  const gridContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -180,6 +186,73 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     if (selected && placeAnchor) setPlaceHover({ x, y });
   }
 
+  function startResize(
+    e: React.PointerEvent<HTMLButtonElement>,
+    inst: { id: string; x: number; y: number; w: number; h: number },
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    const def = catalog.find((w) => w.id === inst.id) ?? null; // unused but kept for symmetry
+    void def;
+    const widgetDef = catalog.find((w) => w.id === (draftWidgets ?? []).find((dw) => dw.id === inst.id)?.type);
+    if (!widgetDef) return;
+    const gridEl = gridContainerRef.current;
+    if (!gridEl) return;
+
+    setResizeTarget({ id: inst.id, w: inst.w, h: inst.h });
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+
+    function pointerToCell(clientX: number, clientY: number): { x: number; y: number } {
+      const cell = cellUnderPointer(
+        gridEl!.getBoundingClientRect(),
+        clientX,
+        clientY,
+        GRID_EDITOR_COLS,
+        GRID_EDITOR_ROWS,
+      );
+      return cell;
+    }
+
+    function handleMove(ev: PointerEvent) {
+      const cell = pointerToCell(ev.clientX, ev.clientY);
+      const target = computeResizedRect(
+        { x: inst.x, y: inst.y, w: inst.w, h: inst.h },
+        cell,
+        widgetDef!.minSize,
+        widgetDef!.maxSize,
+      );
+      setResizeTarget({ id: inst.id, w: target.w, h: target.h });
+    }
+
+    function handleUp(ev: PointerEvent) {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+      const cell = pointerToCell(ev.clientX, ev.clientY);
+      const final = computeResizedRect(
+        { x: inst.x, y: inst.y, w: inst.w, h: inst.h },
+        cell,
+        widgetDef!.minSize,
+        widgetDef!.maxSize,
+      );
+      setResizeTarget(null);
+      const current = useHubStore.getState().draftWidgets ?? [];
+      const candidate = { x: inst.x, y: inst.y, w: final.w, h: final.h };
+      // Skip the commit when the new rect would overlap a sibling
+      // OR when nothing actually changed.
+      const siblings = current.filter((w) => w.id !== inst.id);
+      if (overlapsAny(candidate, siblings)) return;
+      if (final.w === inst.w && final.h === inst.h) return;
+      setDraftWidgets(
+        current.map((w) => (w.id === inst.id ? { ...w, w: final.w, h: final.h } : w)),
+      );
+    }
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+  }
+
   async function handleSave() {
     await saveDraft();
     onClose();
@@ -259,6 +332,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
           {/* ── 8×8 Grid (right) ────────────────────────────────────── */}
           <section aria-label="Hub grid" style={gridWrapperStyle}>
             <div
+              ref={gridContainerRef}
               style={selected ? gridContainerPlacingStyle : gridContainerStyle}
               data-testid="grid-editor-grid"
               data-placing={selected ? 'true' : 'false'}
@@ -306,6 +380,13 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                 const def = catalog.find((w) => w.id === inst.type);
                 const label = def?.label ?? inst.type;
                 const isSelected = selectedPlacedId === inst.id;
+                // Slice 225 — while this widget is being resized,
+                // render at the target dimensions so the surveyor
+                // sees the live footprint without round-tripping
+                // through the store on every pointer-move tick.
+                const liveW = resizeTarget?.id === inst.id ? resizeTarget.w : inst.w;
+                const liveH = resizeTarget?.id === inst.id ? resizeTarget.h : inst.h;
+                const isResizing = resizeTarget?.id === inst.id;
                 return (
                   <div
                     key={inst.id}
@@ -316,6 +397,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                     data-testid="grid-editor-placed-widget"
                     data-widget-id={inst.id}
                     data-selected={isSelected ? 'true' : 'false'}
+                    data-resizing={isResizing ? 'true' : 'false'}
                     onPointerDown={(e) => {
                       // Slice 224 — stop the pointer-down from
                       // bubbling to the cell underneath so click-to-
@@ -331,28 +413,41 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                     }}
                     style={{
                       ...(isSelected ? placedWidgetSelectedStyle : placedWidgetStyle),
-                      gridColumn: `${inst.x + 1} / span ${inst.w}`,
-                      gridRow: `${inst.y + 1} / span ${inst.h}`,
+                      gridColumn: `${inst.x + 1} / span ${liveW}`,
+                      gridRow: `${inst.y + 1} / span ${liveH}`,
                     }}
                   >
                     <span style={placedLabelStyle}>{label}</span>
-                    <span style={placedSizeStyle}>{inst.w}×{inst.h}</span>
+                    <span style={placedSizeStyle}>{liveW}×{liveH}</span>
                     {isSelected && (
-                      <button
-                        type="button"
-                        aria-label="Remove widget from layout"
-                        title="Remove widget (Delete)"
-                        data-testid="grid-editor-placed-remove"
-                        onPointerDown={(e) => { e.stopPropagation(); }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeWidget(inst.id);
-                          setSelectedPlacedId(null);
-                        }}
-                        style={placedRemoveButtonStyle}
-                      >
-                        ✕
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          aria-label="Remove widget from layout"
+                          title="Remove widget (Delete)"
+                          data-testid="grid-editor-placed-remove"
+                          onPointerDown={(e) => { e.stopPropagation(); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeWidget(inst.id);
+                            setSelectedPlacedId(null);
+                          }}
+                          style={placedRemoveButtonStyle}
+                        >
+                          ✕
+                        </button>
+                        {/* Slice 225 — corner drag handle. */}
+                        <button
+                          type="button"
+                          aria-label={`Resize widget. Current ${liveW} by ${liveH}.`}
+                          title="Drag to resize"
+                          data-testid="grid-editor-placed-resize"
+                          onPointerDown={(e) => startResize(e, inst)}
+                          style={placedResizeHandleStyle}
+                        >
+                          <span aria-hidden style={resizeGlyphStyle}>⤡</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 );
@@ -466,6 +561,47 @@ export function generatePlacementId(): string {
  *  validation. */
 export function cellsUsed(widgets: Array<{ w: number; h: number }>): number {
   return widgets.reduce((s, w) => s + Math.max(1, w.w) * Math.max(1, w.h), 0);
+}
+
+/** Slice 225 — compute the grid cell the pointer is currently over,
+ *  given the grid container's bounding rect. Used by the corner-drag
+ *  resize so the user can drag past the grid edge without producing
+ *  off-grid coordinates. Pure / no DOM access. */
+export function cellUnderPointer(
+  bounds: { left: number; top: number; width: number; height: number },
+  clientX: number,
+  clientY: number,
+  cols: number = GRID_EDITOR_COLS,
+  rows: number = GRID_EDITOR_ROWS,
+): { x: number; y: number } {
+  const cellW = bounds.width / cols;
+  const cellH = bounds.height / rows;
+  const rawX = Math.floor((clientX - bounds.left) / Math.max(1, cellW));
+  const rawY = Math.floor((clientY - bounds.top) / Math.max(1, cellH));
+  return {
+    x: Math.max(0, Math.min(cols - 1, rawX)),
+    y: Math.max(0, Math.min(rows - 1, rawY)),
+  };
+}
+
+/** Slice 225 — derive the new rectangle for a widget being resized
+ *  by dragging its bottom-right corner. The anchor cell stays at
+ *  the existing (x, y); the new width + height are read from the
+ *  cell currently under the pointer + clamped to the widget's
+ *  envelope (and the grid bounds). */
+export function computeResizedRect(
+  current: PlacementRect,
+  pointerCell: { x: number; y: number },
+  minSize: { w: number; h: number },
+  maxSize: { w: number; h: number },
+  cols: number = GRID_EDITOR_COLS,
+  rows: number = GRID_EDITOR_ROWS,
+): PlacementRect {
+  const rawW = pointerCell.x - current.x + 1;
+  const rawH = pointerCell.y - current.y + 1;
+  const w = Math.max(minSize.w, Math.min(maxSize.w, Math.min(cols - current.x, rawW)));
+  const h = Math.max(minSize.h, Math.min(maxSize.h, Math.min(rows - current.y, rawH)));
+  return { x: current.x, y: current.y, w, h };
 }
 
 // ─── Style fragments ─────────────────────────────────────────────────
@@ -704,6 +840,37 @@ const placedWidgetSelectedStyle: React.CSSProperties = {
   boxShadow: '0 6px 18px rgba(0, 0, 0, 0.22), 0 0 0 4px color-mix(in srgb, var(--theme-accent, #3b82f6) 22%, transparent)',
   transform: 'translateY(-1px)',
   zIndex: 2,
+};
+
+/** Slice 225 — Corner-drag resize handle, only rendered while a
+ *  painted widget is selected. Same accent surface + ⤡ glyph as
+ *  the canvas's WidgetResizeHandle so the surveyor's muscle memory
+ *  transfers between the editor + the live grid. */
+const placedResizeHandleStyle: React.CSSProperties = {
+  position: 'absolute',
+  bottom: 4,
+  right: 4,
+  width: 24,
+  height: 24,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 6,
+  border: 'none',
+  background: 'var(--theme-accent, #3b82f6)',
+  color: 'var(--theme-accent-fg, #ffffff)',
+  cursor: 'nwse-resize',
+  fontSize: '0.8rem',
+  fontWeight: 700,
+  lineHeight: 1,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.22)',
+  zIndex: 3,
+};
+
+const resizeGlyphStyle: React.CSSProperties = {
+  transform: 'rotate(90deg)',
+  display: 'inline-block',
 };
 
 /** Slice 224 — Per-widget delete button. Sits inside the painted

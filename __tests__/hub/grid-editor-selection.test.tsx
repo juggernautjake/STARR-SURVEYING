@@ -22,7 +22,10 @@ describe('Slice 224 — selectedPlacedId state', () => {
   });
 
   it('removeWidget action is destructured from useHubActions', () => {
-    expect(SRC).toMatch(/const \{ saveDraft, cancelEdit, addWidget, removeWidget \} = useHubActions\(\);/);
+    // Slice 225 appended setDraftWidgets to the same destructuring;
+    // the assertion accepts both Slice-224-original and the post-
+    // Slice-225 shape so the lock survives the layered slice.
+    expect(SRC).toMatch(/removeWidget[^}]*\} = useHubActions\(\);/);
   });
 
   it('selectedPlacedId is cleared when the surveyor picks a new widget type', () => {
@@ -73,7 +76,10 @@ describe('Slice 224 — Delete key removes the selected widget', () => {
 
 describe('Slice 224 — inline ✕ remove button', () => {
   it('only renders the ✕ button while the widget is selected', () => {
-    expect(SRC).toMatch(/\{isSelected && \(\s*<button[\s\S]*?aria-label="Remove widget from layout"/);
+    // Slice 225 wrapped the conditional in a fragment to add the
+    // resize handle alongside the delete button, so the assertion
+    // anchors on the aria-label rather than the exact wrapper.
+    expect(SRC).toMatch(/\{isSelected && \([\s\S]*?aria-label="Remove widget from layout"/);
   });
 
   it('the button click calls removeWidget + clears selection', () => {
