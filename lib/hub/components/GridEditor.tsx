@@ -60,10 +60,15 @@ interface GridEditorBodyProps {
 
 function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) {
   const draftWidgets = useHubStore((s) => s.draftWidgets);
-  const { saveDraft, cancelEdit } = useHubActions();
+  const { saveDraft, cancelEdit, addWidget } = useHubActions();
 
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  // Slice 223 — two-click placement: anchor = first cell clicked,
+  // hover = currently-hovered cell that drives the preview rectangle.
+  // Both are null when not placing.
+  const [placeAnchor, setPlaceAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [placeHover, setPlaceHover] = useState<{ x: number; y: number } | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -73,11 +78,26 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        // Esc clears mid-place state before closing.
+        if (placeAnchor) {
+          setPlaceAnchor(null);
+          setPlaceHover(null);
+        } else {
+          onClose();
+        }
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, placeAnchor]);
+
+  // Slice 223 — cancel placement when the surveyor picks a different
+  // widget type so the partial anchor doesn't leak between selections.
+  useEffect(() => {
+    setPlaceAnchor(null);
+    setPlaceHover(null);
+  }, [selectedType]);
 
   const catalog = useMemo(() => allWidgets(), []);
   const filtered = useMemo(
@@ -91,6 +111,49 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   const placedCount = draftWidgets?.length ?? 0;
   const cellCountUsed = (draftWidgets ?? []).reduce((sum, w) => sum + w.w * w.h, 0);
   const cellCountTotal = GRID_EDITOR_COLS * GRID_EDITOR_ROWS;
+
+  // Slice 223 — preview rectangle the surveyor is currently painting.
+  // Derived as `null` whenever placement isn't viable; the render
+  // path uses it for the ghost outline + the click-2 handler uses it
+  // as the committed footprint.
+  const previewRect = (() => {
+    if (!selected) return null;
+    if (!placeAnchor) return null;
+    const hover = placeHover ?? placeAnchor;
+    const raw = rectFromAnchors(placeAnchor, hover);
+    return clampRectToEnvelope(raw, selected.minSize, selected.maxSize);
+  })();
+  const previewBlocked = previewRect
+    ? overlapsAny(previewRect, draftWidgets ?? [])
+    : false;
+
+  function handleCellPointerDown(x: number, y: number) {
+    if (!selected) return;
+    if (!placeAnchor) {
+      setPlaceAnchor({ x, y });
+      setPlaceHover({ x, y });
+      return;
+    }
+    // Second click commits — but only when the candidate doesn't
+    // overlap an existing widget.
+    if (previewRect && !previewBlocked) {
+      addWidget({
+        id: generatePlacementId(),
+        type: selected.id,
+        x: previewRect.x,
+        y: previewRect.y,
+        w: previewRect.w,
+        h: previewRect.h,
+        customization: { content: selected.defaultContent },
+      });
+      setPlaceAnchor(null);
+      setPlaceHover(null);
+    }
+  }
+
+  function handleCellPointerEnter(x: number, y: number) {
+    if (selected && placeAnchor) setPlaceHover({ x, y });
+  }
 
   async function handleSave() {
     await saveDraft();
@@ -170,20 +233,48 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
           {/* ── 8×8 Grid (right) ────────────────────────────────────── */}
           <section aria-label="Hub grid" style={gridWrapperStyle}>
-            <div style={gridContainerStyle} data-testid="grid-editor-grid">
+            <div
+              style={selected ? gridContainerPlacingStyle : gridContainerStyle}
+              data-testid="grid-editor-grid"
+              data-placing={selected ? 'true' : 'false'}
+            >
               {Array.from({ length: GRID_EDITOR_ROWS * GRID_EDITOR_COLS }).map((_, idx) => {
                 const x = idx % GRID_EDITOR_COLS;
                 const y = Math.floor(idx / GRID_EDITOR_COLS);
+                const isAnchor = placeAnchor?.x === x && placeAnchor?.y === y;
                 return (
                   <div
                     key={`${x}-${y}`}
-                    style={gridCellStyle}
+                    style={
+                      isAnchor ? gridCellAnchorStyle :
+                      selected ? gridCellArmedStyle : gridCellStyle
+                    }
                     data-grid-x={x}
                     data-grid-y={y}
                     aria-label={`Grid cell ${x + 1}, ${y + 1}`}
+                    role={selected ? 'button' : undefined}
+                    tabIndex={selected ? 0 : undefined}
+                    onPointerDown={selected ? () => handleCellPointerDown(x, y) : undefined}
+                    onPointerEnter={selected ? () => handleCellPointerEnter(x, y) : undefined}
                   />
                 );
               })}
+
+              {/* Slice 223 — preview rectangle the surveyor is currently
+                  painting. Solid accent outline when the placement is
+                  viable; danger outline when it would collide. */}
+              {previewRect && (
+                <div
+                  aria-hidden
+                  data-testid="grid-editor-preview"
+                  data-blocked={previewBlocked ? 'true' : 'false'}
+                  style={{
+                    ...(previewBlocked ? previewBlockedStyle : previewStyle),
+                    gridColumn: `${previewRect.x + 1} / span ${previewRect.w}`,
+                    gridRow: `${previewRect.y + 1} / span ${previewRect.h}`,
+                  }}
+                />
+              )}
 
               {/* Render every placed widget as a labelled block. */}
               {(draftWidgets ?? []).map((inst) => {
@@ -239,6 +330,77 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 }
 
 // ─── Helpers (exported for tests) ─────────────────────────────────────
+
+export interface PlacementRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Slice 223 — derive the (x, y, w, h) rectangle between two click
+ *  anchors. Either click order produces the same rectangle (the
+ *  surveyor can paint top-left → bottom-right OR bottom-right →
+ *  top-left). Coordinates are clamped to the grid bounds. */
+export function rectFromAnchors(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  cols: number = GRID_EDITOR_COLS,
+  rows: number = GRID_EDITOR_ROWS,
+): PlacementRect {
+  const x1 = Math.max(0, Math.min(cols - 1, Math.min(a.x, b.x)));
+  const x2 = Math.max(0, Math.min(cols - 1, Math.max(a.x, b.x)));
+  const y1 = Math.max(0, Math.min(rows - 1, Math.min(a.y, b.y)));
+  const y2 = Math.max(0, Math.min(rows - 1, Math.max(a.y, b.y)));
+  return { x: x1, y: y1, w: x2 - x1 + 1, h: y2 - y1 + 1 };
+}
+
+/** Clamp a raw placement rect to the widget's minSize / maxSize
+ *  envelope. Grows from the top-left so the anchor cell always
+ *  stays inside the final rectangle. */
+export function clampRectToEnvelope(
+  rect: PlacementRect,
+  minSize: { w: number; h: number },
+  maxSize: { w: number; h: number },
+  cols: number = GRID_EDITOR_COLS,
+  rows: number = GRID_EDITOR_ROWS,
+): PlacementRect {
+  const w = Math.max(minSize.w, Math.min(maxSize.w, rect.w));
+  const h = Math.max(minSize.h, Math.min(maxSize.h, rect.h));
+  // Clamp so the widget still fits inside the grid.
+  const x = Math.max(0, Math.min(cols - w, rect.x));
+  const y = Math.max(0, Math.min(rows - h, rect.y));
+  return { x, y, w, h };
+}
+
+/** Slice 223 — true when `a` overlaps any rect in `others`. The
+ *  same rectangle-overlap formula used by `grid-math.compactLayout`. */
+export function overlapsAny(
+  a: PlacementRect,
+  others: ReadonlyArray<{ x: number; y: number; w: number; h: number }>,
+): boolean {
+  for (const b of others) {
+    const overlap =
+      a.x < b.x + b.w &&
+      a.x + a.w > b.x &&
+      a.y < b.y + b.h &&
+      a.y + a.h > b.y;
+    if (overlap) return true;
+  }
+  return false;
+}
+
+/** Generate a stable id for a freshly-placed widget instance. Uses
+ *  `crypto.randomUUID` when available, with a `Date.now` +
+ *  `Math.random` fallback for older runtimes. Slice 223 — extracted
+ *  so the test suite can stub it without touching the global. */
+export function generatePlacementId(): string {
+  if (typeof globalThis !== 'undefined'
+    && typeof (globalThis as { crypto?: Crypto }).crypto?.randomUUID === 'function') {
+    return (globalThis as { crypto: Crypto }).crypto.randomUUID();
+  }
+  return `w_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+}
 
 /** Pure: given a draft widget list, compute the count of grid cells
  *  consumed. Useful for the status indicator + future "doesn't fit"
@@ -405,6 +567,48 @@ const gridCellStyle: React.CSSProperties = {
   background: 'var(--theme-bg-surface, #ffffff)',
   border: '1px dashed var(--theme-border, #e5e7eb)',
   borderRadius: 6,
+};
+
+/** Slice 223 — when a widget is armed for placement, every cell
+ *  becomes a click target so the surveyor can paint a rectangle. */
+const gridCellArmedStyle: React.CSSProperties = {
+  ...gridCellStyle,
+  cursor: 'crosshair',
+  background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 6%, var(--theme-bg-surface, #ffffff))',
+};
+
+const gridCellAnchorStyle: React.CSSProperties = {
+  ...gridCellStyle,
+  cursor: 'crosshair',
+  background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 18%, var(--theme-bg-surface, #ffffff))',
+  borderColor: 'var(--theme-accent, #3b82f6)',
+};
+
+const gridContainerPlacingStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: `repeat(${GRID_EDITOR_COLS}, minmax(0, 1fr))`,
+  gridTemplateRows: `repeat(${GRID_EDITOR_ROWS}, minmax(0, 1fr))`,
+  gap: 6,
+  width: 'min(720px, 100%)',
+  aspectRatio: '1 / 1',
+  padding: 8,
+  border: '1px solid var(--theme-accent, #3b82f6)',
+  borderRadius: 12,
+  background: 'var(--theme-bg-page, #f7f9fb)',
+  boxShadow: '0 0 0 3px color-mix(in srgb, var(--theme-accent, #3b82f6) 18%, transparent)',
+};
+
+const previewStyle: React.CSSProperties = {
+  border: '2px dashed var(--theme-accent, #3b82f6)',
+  borderRadius: 8,
+  background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 14%, transparent)',
+  pointerEvents: 'none',
+};
+
+const previewBlockedStyle: React.CSSProperties = {
+  ...previewStyle,
+  border: '2px dashed var(--theme-danger, #ef4444)',
+  background: 'color-mix(in srgb, var(--theme-danger, #ef4444) 14%, transparent)',
 };
 
 const placedWidgetStyle: React.CSSProperties = {
