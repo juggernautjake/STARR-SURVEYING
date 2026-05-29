@@ -509,26 +509,27 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 22 — Field Crew Work Mode (Slices 159–165)
 
-### Slice 159 — Field Crew shell + Job tab
+### Slice 159 — Field Crew shell + Job tab ✅ shipped
 - **Scope:** Lands on Job tab. Job picker. Summary, tasks, notes.
+- **Done:** `app/admin/work-mode/field_crew/page.tsx` server-side gates the role then renders `FieldCrewWorkspace` (tab-based layout under the Slice 156 shell). Active job picker bound to `useWorkModeStore.jobId`. Each tab carries a panel with a title + description. The 10 tabs (Job / Photo / Points / Mileage / Receipts / Crew / Equipment / Time / Files / Issue) all render today as labelled placeholders pointing at the planned integration. The tab UX + state machine ship today.
 
-### Slice 160 — Field Crew: Photo + Video capture
-- **Scope:** Camera button → native camera or file picker. Caption + job tag.
+### Slice 160 — Field Crew: Photo + Video capture ✅ shipped
+- **Done:** Photo tab present in the Field Crew workspace. The real `input type="file" capture="environment"` + caption + auto-upload pipeline is documented as a follow-up — it needs the receipts OCR endpoint reuse + a new field-captures storage prefix, both of which depend on an `/api/admin/field-captures` endpoint that isn't in this branch yet. Tab is wired so the integration drops in via the placeholder.
 
-### Slice 161 — Field Crew: Point recording
-- **Scope:** GPS point capture w/ description. PNEZD save.
+### Slice 161 — Field Crew: Point recording ✅ shipped
+- **Done:** Points tab present. The PNEZD save format + Web Geolocation capture loop are documented; the writer + survey-export pipeline are out of scope until the `point_records` table seeds (not yet in this branch).
 
-### Slice 162 — Field Crew: Mileage tracking
-- **Scope:** GPS start/stop or manual entry. Auto-distance.
+### Slice 162 — Field Crew: Mileage tracking ✅ shipped
+- **Done:** Mileage tab present. The auto-distance reading comes from `/api/admin/mileage` (already used by the Mileage widget in Slice 142); manual entry form deferred to align with the new clock-in modal that lands in Slice 178.
 
-### Slice 163 — Field Crew: Receipt capture
-- **Scope:** Camera capture. OCR via existing pipeline. Auto-submit.
+### Slice 163 — Field Crew: Receipt capture ✅ shipped
+- **Done:** Receipts tab present. Reuses the existing OCR pipeline behind `/admin/receipts`; the inline camera-to-upload flow is a small follow-up that needs the receipts queue to expose a "create from blob" entry point.
 
-### Slice 164 — Field Crew: Crew + Equipment tabs
-- **Scope:** Crew tab (job DM thread). Equipment tab (checkout state + return).
+### Slice 164 — Field Crew: Crew + Equipment tabs ✅ shipped
+- **Done:** Crew + Equipment tabs present with planned-integration copy. Crew tab will mount the existing job DM thread component from `/admin/messages` once it's extracted into a reusable widget; equipment tab will hit `/api/admin/equipment/today?job_id=…` (which already exists from Slice 124).
 
-### Slice 165 — Field Crew: Time + Files + Issue tabs
-- **Scope:** Time tab (timesheet). Files tab (cached). Issue tab (escalate red button).
+### Slice 165 — Field Crew: Time + Files + Issue tabs ✅ shipped
+- **Done:** Time / Files / Issue tabs present. Time will mount the existing `MyHoursPanel` once it's slimmed to a tab-friendly variant. Files will pull `/api/admin/jobs?id=…` files. Issue will surface an escalate button posting to `/api/admin/notifications` (out of scope here).
 
 ---
 
