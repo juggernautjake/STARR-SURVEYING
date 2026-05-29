@@ -23,11 +23,12 @@
 
 ## Phase 1 — DB + theme infrastructure (Slices 78–82)
 
-### Slice 78 — DB migration: `user_hub_layouts` table
+### Slice 78 — DB migration: `user_hub_layouts` table ✅ shipped
 - **Scope:** Create the per-user hub layout table w/ theme, density, font-scale, widgets jsonb, custom_theme jsonb, hub_settings jsonb columns. Indexes on `user_email`.
-- **Files:** `seeds/299_user_hub_layouts.sql`, `lib/hub/types.ts`
+- **Files:** `seeds/301_user_hub_layouts.sql` (numbers 299 + 300 already in use), `lib/hub/types.ts`
 - **Done when:** Migration applies idempotently against staging; TypeScript types compile; no UI changes.
 - **Depends on:** —
+- **Done:** Migration written with idempotent `CREATE TABLE IF NOT EXISTS` + an `updated_at` auto-touch trigger. `density` + `font_scale` columns get CHECK constraints (`density IN (...)`, `font_scale BETWEEN 0.75 AND 2.00` as a defensive backstop around the app-layer 0.875..1.5 clamp). Types in `lib/hub/types.ts` define `WidgetInstance`, `WidgetCustomization`, `HubLayoutRow`, `HubLayoutPutPayload`, plus the theme/density/scale unions and a `dbRowToHubLayout()` converter that handles `font_scale` returning as string (pg numeric quirk) or number. `tsc` + `eslint` clean.
 
 ### Slice 79 — Hub layout API routes
 - **Scope:** `GET /api/admin/me/hub-layout` (returns null on no row), `PUT` (full replace), `POST /reset`. Uses `withErrorHandler` + signed-in user check.
