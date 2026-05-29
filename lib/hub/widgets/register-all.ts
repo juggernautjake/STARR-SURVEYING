@@ -32,3 +32,4 @@ import './crew-calendar';
 import './field-data-pending';
 import './job-activity-feed';
 import './equipment-out';
+import './maintenance-due';
