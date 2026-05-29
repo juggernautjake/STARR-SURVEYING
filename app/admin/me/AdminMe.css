@@ -83,9 +83,18 @@
 .hub-greeting__heading {
   font-family: var(--font-heading);
   font-size: var(--text-2xl);
-  font-weight: var(--weight-semibold);
+  font-weight: 700;
   letter-spacing: -0.02em;
   margin: 0 0 0.35rem;
+  /* Slice 218 — explicit white + tiny shadow so the heading punches
+   * through the navy gradient at any color-mode the user picks. */
+  color: #FFFFFF;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.hub-greeting__date,
+.hub-greeting__clock-status {
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .hub-greeting__subtitle {
@@ -103,6 +112,74 @@
   display: flex;
   gap: 0.6rem;
   flex-wrap: wrap;
+  /* Slice 218 — center the Enter Work Mode CTA in its column so the
+   * action reads as the main affordance on the greeting card. */
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+/* Slice 218 / 221 — Enter Work Mode CTA. Slice 221 swaps the flat
+ * --color-success for the same `--gradient-green` the landing-page
+ * estimate-banner CTA lives on (#10B981 → #059669) so the admin
+ * button reads as a sibling of the marketing green system. Hover
+ * + active feedback mirror that banner's lift + brightness.
+ *
+ * Two-layer shadow + a tint-matched glow so the button feels
+ * planted on the navy gradient instead of flat. Hover lifts the
+ * card 2px + boosts brightness 5%; active resets to a pressed
+ * state with a quick 80ms transition so the click registers. */
+.hub-greeting__work-mode-btn.hub-btn,
+.hub-greeting__work-mode-btn.hub-btn--primary {
+  background: var(--gradient-green);
+  border-color: transparent;
+  color: #FFFFFF;
+  padding: 0.95rem 2.1rem;
+  border-radius: 9999px;
+  font-size: 1.08rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  min-width: 13rem;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.38),
+              0 2px 4px rgba(0, 0, 0, 0.22);
+  transition: transform 180ms ease,
+              box-shadow 180ms ease,
+              filter 180ms ease;
+  /* Prevent text-shadow from previous heading rules cascading. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  /* Slice 221 — sit above the cell stacking context so the
+   * shadow can render outside the greeting card. */
+  position: relative;
+  z-index: 1;
+}
+
+.hub-greeting__work-mode-btn.hub-btn:hover,
+.hub-greeting__work-mode-btn.hub-btn--primary:hover {
+  background: var(--gradient-green);
+  border-color: transparent;
+  color: #FFFFFF;
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5),
+              0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+.hub-greeting__work-mode-btn.hub-btn:active,
+.hub-greeting__work-mode-btn.hub-btn--primary:active {
+  transform: translateY(0);
+  filter: brightness(0.97);
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.32),
+              0 1px 2px rgba(0, 0, 0, 0.22);
+  transition: transform 80ms ease,
+              box-shadow 80ms ease,
+              filter 80ms ease;
+}
+
+.hub-greeting__work-mode-btn.hub-btn:focus-visible,
+.hub-greeting__work-mode-btn.hub-btn--primary:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
 }
 
 /* ── Buttons (shared across hub panels) ──────────────────────────── */

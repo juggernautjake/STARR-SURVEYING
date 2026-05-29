@@ -34,6 +34,7 @@ import type { GridSize } from '@/lib/hub/grid-resize';
 import WidgetGrid from './WidgetGrid';
 import { CustomizeHubButton, EditModeBar } from './EditMode';
 import AddWidgetModal from './AddWidgetModal';
+import GridEditor from './GridEditor';
 import SettingsPanel from './SettingsPanel';
 import MobileBanner from './MobileBanner';
 import WelcomeTip from './WelcomeTip';
@@ -58,6 +59,7 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   const { setDraftWidgets } = useHubActions();
 
   const [addOpen, setAddOpen] = useState(false);
+  const [gridEditorOpen, setGridEditorOpen] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
 
   // Slice 207 — render-count instrumentation under ?debug=hub-perf.
@@ -114,13 +116,25 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
         <h1 style={canvasTitleStyle}>Your hub</h1>
         <div style={{ display: 'flex', gap: 'var(--hub-spc-2, 8px)' }}>
           {isEditMode && (
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              style={addButtonStyle}
-            >
-              + Add widget
-            </button>
+            <>
+              {/* Slice 222 — Grid Editor entry point. Opens the
+                  full-screen 8×8 painter. */}
+              <button
+                type="button"
+                onClick={() => setGridEditorOpen(true)}
+                style={gridEditorButtonStyle}
+                data-testid="open-grid-editor"
+              >
+                ▦ Grid editor
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                style={addButtonStyle}
+              >
+                + Add widget
+              </button>
+            </>
           )}
           <CustomizeHubButton />
         </div>
@@ -143,6 +157,13 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
       <AddWidgetModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
+        roles={roles}
+        activeBundles={activeBundles}
+      />
+
+      <GridEditor
+        open={gridEditorOpen}
+        onClose={() => setGridEditorOpen(false)}
         roles={roles}
         activeBundles={activeBundles}
       />
@@ -191,4 +212,21 @@ const addButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 'var(--hub-font-sm, 0.875rem)',
   fontWeight: 500,
+};
+
+/** Slice 222 — Grid Editor entry button. Accent-tinted so it reads
+ *  as the primary "open the painter" action while in edit mode. */
+const gridEditorButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 14px',
+  borderRadius: 6,
+  border: 'none',
+  background: 'var(--theme-accent, #3b82f6)',
+  color: 'var(--theme-accent-fg, #ffffff)',
+  cursor: 'pointer',
+  fontSize: 'var(--hub-font-sm, 0.875rem)',
+  fontWeight: 600,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
 };

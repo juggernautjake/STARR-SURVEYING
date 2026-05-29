@@ -96,16 +96,26 @@ export default function WidgetResizeHandle({
         type="button"
         onPointerDown={onPointerDown}
         aria-label={`Resize widget. Current size ${currentSize.w} by ${currentSize.h}.`}
-        title="Drag to resize"
+        title={`Drag to resize · ${currentSize.w}×${currentSize.h}`}
         style={handleStyle}
+        data-testid="widget-resize-handle"
       >
         <span aria-hidden style={glyphStyle}>⤡</span>
       </button>
-      {active && (
-        <div role="status" aria-live="polite" style={badgeStyle}>
-          {target.w} × {target.h}
-        </div>
-      )}
+      {/* Slice 220 — size badge is now ALWAYS visible in edit mode
+       *  (the wrapping cell only renders the handle when edit mode
+       *  is on), so the surveyor knows what size the cell is at
+       *  without having to start a drag. The badge shows the
+       *  drag-target size while resizing and the current cell size
+       *  otherwise. */}
+      <div
+        role="status"
+        aria-live={active ? 'polite' : 'off'}
+        style={active ? badgeActiveStyle : badgeStyle}
+        data-testid="widget-resize-badge"
+      >
+        {(active ? target.w : currentSize.w)} × {(active ? target.h : currentSize.h)}
+      </div>
     </>
   );
 }
@@ -114,24 +124,31 @@ export default function WidgetResizeHandle({
 
 const handleStyle: React.CSSProperties = {
   position: 'absolute',
-  bottom: 4,
-  right: 4,
-  width: 18,
-  height: 18,
+  // Slice 220 — bigger 28×28 grip in the accent color so the resize
+  // affordance reads as deliberate. The handle sits flush with the
+  // bottom-right corner of the cell (offset by 6px so it never gets
+  // clipped by the dashed edit ring).
+  bottom: 6,
+  right: 6,
+  width: 28,
+  height: 28,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   padding: 0,
-  background: 'var(--theme-bg-elevated)',
-  color: 'var(--theme-fg-secondary)',
-  border: '1px solid var(--theme-border)',
-  borderRadius: 4,
+  background: 'var(--theme-accent, #3b82f6)',
+  color: 'var(--theme-accent-fg, #fff)',
+  border: 'none',
+  borderRadius: 6,
   cursor: 'nwse-resize',
-  fontSize: 12,
+  fontSize: 14,
+  fontWeight: 700,
   lineHeight: 1,
-  // Hide the focus ring from native button styles so the affordance is
-  // entirely owned by the box style + cursor.
   outline: 'none',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+  // Slice 220 — make sure the grip stacks ABOVE the cell body so a
+  // wide widget body can't render over it.
+  zIndex: 2,
 };
 
 const glyphStyle: React.CSSProperties = {
@@ -139,15 +156,31 @@ const glyphStyle: React.CSSProperties = {
   display: 'inline-block',
 };
 
+/** Slice 220 — Always-on size badge. Renders as a subtle muted chip
+ *  in the top-left corner so the cell announces its current size
+ *  without competing with the resize grip in the bottom-right. */
 const badgeStyle: React.CSSProperties = {
   position: 'absolute',
-  bottom: 28,
-  right: 8,
+  top: 6,
+  left: 6,
   padding: '2px 8px',
-  borderRadius: 4,
-  background: 'var(--theme-accent)',
-  color: 'var(--theme-accent-fg)',
-  fontSize: 12,
+  borderRadius: 999,
+  background: 'rgba(0,0,0,0.55)',
+  color: '#fff',
+  fontSize: 11,
   fontWeight: 600,
+  lineHeight: 1.4,
+  letterSpacing: 0.2,
   pointerEvents: 'none',
+  zIndex: 2,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+
+/** Slice 220 — While actively resizing, the badge swaps to the
+ *  accent color so the live target reads as a "you're at" signal. */
+const badgeActiveStyle: React.CSSProperties = {
+  ...badgeStyle,
+  background: 'var(--theme-accent, #3b82f6)',
+  color: 'var(--theme-accent-fg, #fff)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.22)',
 };
