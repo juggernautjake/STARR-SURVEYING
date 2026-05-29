@@ -360,8 +360,9 @@
 - **Scope:** Field captures awaiting review. Settings: jobFilter, dataTypes.
 - **Done:** `lib/hub/widgets/field-data-pending/index.tsx` reads `/api/admin/jobs/field-data?status=pending`. Each row has an emoji type-icon, job name, and captured-by + type subline (non-tiny). Settings: optional jobFilter + checkbox dataTypes (photos/gps/notes/measurements). `iconForType` + `labelForType` exported. Catalog: work / MapPin / internal roles. 3 vitest specs. `tsc` + `eslint` clean.
 
-### Slice 123 — Job Activity Feed widget
+### Slice 123 — Job Activity Feed widget ✅ shipped
 - **Scope:** Recent activity across jobs. Settings: jobFilter, activityTypes.
+- **Done:** `lib/hub/widgets/job-activity-feed/index.tsx` reads `/api/admin/jobs/activity?job_id=…`. Each row shows a kind-tinted emoji + label + (non-tiny) job name + actor subline. Settings: jobFilter + 5-checkbox activityTypes (stage/file/team/comment/tag). `iconForKind`/`colorForKind`/`labelForKind` exported. Catalog: work / Activity / internal roles. 3 vitest specs. `tsc` + `eslint` clean.
 
 ---
 
