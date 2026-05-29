@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export interface PipelineStatusContent extends Record<string, unknown> {
   showFailedOnly: boolean;
@@ -34,9 +39,28 @@ function PipelineStatusWidget({ size, content }: WidgetProps<PipelineStatusConte
   useEffect(() => { fetchRuns(); }, [fetchRuns]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="🔁" title="Pipelines quiet" description="Recent runs appear here." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>runs</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="🔁" title="Pipelines quiet" description="Recent runs appear here." />;
+  }
 
-  const cap = bucket === 'tiny' ? 2 : bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, runs.some((r) => r.status === 'failed') ? 'var(--theme-danger)' : 'var(--theme-accent)')}>{runs.length}</span>
+        <span style={tinyStatLabelStyle()}>{runs.filter((r) => r.status === 'failed').length > 0 ? `${runs.filter((r) => r.status === 'failed').length} failed` : runs.length === 1 ? 'run' : 'runs'}</span>
+      </div>
+    );
+  }
+
+  const cap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
   return (
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
       {runs.slice(0, cap).map((r) => (
@@ -67,7 +91,8 @@ defineWidget<PipelineStatusContent>({
   category: 'research',
   iconName: 'Workflow',
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 217 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'researcher', 'tech_support'],

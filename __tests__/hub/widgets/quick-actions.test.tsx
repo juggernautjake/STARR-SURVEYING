@@ -104,7 +104,7 @@ describe('quick-actions widget — registry', () => {
   it('default size matches planning doc (6×2, min 3×1, max 12×4)', () => {
     const def = getWidget('quick-actions');
     expect(def?.defaultSize).toEqual({ w: 4, h: 2 });
-    expect(def?.minSize).toEqual({ w: 2, h: 1 });
+    expect(def?.minSize).toEqual({ w: 1, h: 1 });  // Slice 217
     expect(def?.maxSize).toEqual({ w: 8, h: 6 });
   });
 

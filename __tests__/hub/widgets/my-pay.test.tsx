@@ -40,7 +40,7 @@ describe('my-pay widget — registry', () => {
   it('default size matches planning doc (4×2, min 2×1, max 12×4)', () => {
     const def = getWidget('my-pay');
     expect(def?.defaultSize).toEqual({ w: 3, h: 2 });
-    expect(def?.minSize).toEqual({ w: 2, h: 1 });
+    expect(def?.minSize).toEqual({ w: 1, h: 1 });  // Slice 217
     expect(def?.maxSize).toEqual({ w: 8, h: 6 });
   });
 

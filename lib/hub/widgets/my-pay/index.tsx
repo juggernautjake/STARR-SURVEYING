@@ -287,7 +287,8 @@ defineWidget<MyPayContent>({
   category: 'time-pay',
   iconName: 'Wallet',
   defaultSize: { w: 3, h: 2 },
-  minSize: { w: 2, h: 1 },
+  // Slice 217 — minSize lowered to 1×1; widget already had a tiny bucket render.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 8, h: 6 },
   defaultContent: DEFAULTS,
   // Only roles paid by the hour. Salaried roles + students see the

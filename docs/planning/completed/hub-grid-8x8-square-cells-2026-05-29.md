@@ -194,15 +194,28 @@ approach keeps each slice reviewable. The doc closes only when all
 - **Depends on:** Slice 215.
 - **Done:** Two stat-style widgets handled with Edit calls (no batch script needed because their populated paths differ from the list-style template). `flashcards-due` tiny renders `{count} card(s)` in warning color; the Slice 198–style `bucket !== 'tiny'` guard around the "Start review →" link was removed because tiny now renders before the link. `roadmap-progress` tiny renders `{percent}%` in accent + "roadmap" label; the redundant `bucket !== 'tiny'` guard around the "Now on:" current-module line was removed. Both minSize lowered to 1×1. The 4 list-style widgets went through the established Python batch (imports + empty-state wrapper + populated-state branch + minSize lowered) with the auto follow-up TypeScript-driven strip of redundant `bucket !== 'tiny'` guards and JSX wrapper-paren cleanup. Per-widget tiny labels: job-activity-feed → "events" (accent), recent-announcements → "updates" (info), recent-drawings → "drawings" (accent), active-research-projects → "projects" (info). The catalog-wide baseline contract was initially written as `every widget supports 1×1` but failed for 12 widgets that still pin minSize at 2×1, 2×2, 3×2, or 4×2; rewritten to the looser `minSize area ≤ 8` (small-bucket ceiling) which passes for every shipped widget and documents the residual minSize-lowering opportunity as Slice 217+ follow-up. 12 vitest specs in the new contract test (6 lowered-minSize + the catalog-wide baseline iterating every widget). 964 hub specs green. `tsc` + `eslint` clean.
 
-**Remaining audit work (Slices 217+):** ~10 widgets still pin
-minSize at 2×1 or 2×2 despite having proper bucket logic in their
-render path (my-jobs, my-pay, quick-actions, pinned-pages,
-bookmarks, class-assignments, pipeline-status, quiz-history,
-recommended-lessons, outstanding-invoices). Most of these would
-work fine at 1×1 with a small tiny-counter addition. Two
-composites (daily-briefing 4×2 + crew-calendar 3×2) are
-documented exceptions whose multi-row layouts legitimately need
-more than a tiny cell.
+#### Slice 217 — final 10 widgets reach 1×1; Phase 35 done ✅ shipped
+- **Scope:** Lower minSize on the remaining 10 widgets — 4 needed
+  new tiny counter modes (pipeline-status, quiz-history,
+  recommended-lessons, outstanding-invoices) + 6 already had
+  proper tiny render branches and just needed the minSize
+  floor dropped (my-jobs, my-pay, quick-actions, pinned-pages,
+  bookmarks, class-assignments). Add the Phase 35 done-when
+  contract test that asserts every catalog entry reaches 1×1
+  EXCEPT two documented composite exceptions (daily-briefing 4×2 +
+  crew-calendar 3×2).
+- **Files:** `lib/hub/widgets/pipeline-status/index.tsx`,
+  `lib/hub/widgets/quiz-history/index.tsx`,
+  `lib/hub/widgets/recommended-lessons/index.tsx`,
+  `lib/hub/widgets/outstanding-invoices/index.tsx`,
+  6 other widget index files (minSize-only edit),
+  5 existing widget test files (updated expected minSize),
+  `__tests__/hub/widgets-responsive-217.test.ts`.
+- **Done when:** Every widget except daily-briefing + crew-calendar
+  has minSize `{w: 1, h: 1}`; the catalog-wide done-when contract
+  passes.
+- **Depends on:** Slice 216.
+- **Done:** Batched the 4 widgets needing new tiny modes (pipeline-status renders unique smart label — `{N} failed` in danger color when any runs have failed status, else `{N} runs` in accent; quiz-history → `{N} attempts` in accent; recommended-lessons → `{N} lessons` in info; outstanding-invoices → `{N} unpaid` in warning). Two automated fixup passes: the first batch left a JSX `{{...}}` double-brace error in pipeline-status's smart-label expression that was fixed by Edit, plus the empty-state wrappers for quiz-history + recommended-lessons didn't match because their empty-state icons differ from the populated label keyword (📝 / ✨ vs the populated-label `attempts` / `lessons`); a follow-up Python pass applied the wrappers directly. After the TypeScript-driven `bucket !== 'tiny'` strip a fourth pass had to remove the unreachable `bucket === 'tiny' ? N : ...` segment from every `const cap = ...` ternary because tiny is now handled before the cap line. minSize-only batch applied to the other 6 widgets (`{w:1,h:1}` with a slice-tagged comment); 5 existing widget-registry test files updated to expect the new minSize. New `Phase 35 done-when contract` test iterates every `allWidgets()` entry and asserts `minSize === {w:1,h:1}` for everything except the 2 documented composites (`daily-briefing` and `crew-calendar`), which assert `area > 1` instead. **Phase 35 is now complete** — every widget that can reasonably render at 1×1 does, and the two exceptions are explicit + tested. 1015 hub specs green. `tsc` + `eslint` clean.
 
 ---
 

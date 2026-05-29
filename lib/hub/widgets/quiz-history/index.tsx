@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export interface QuizHistoryContent extends Record<string, unknown> { /* none */ }
 const DEFAULTS: QuizHistoryContent = {};
@@ -30,9 +35,28 @@ function QuizHistoryWidget({ size }: WidgetProps<QuizHistoryContent>) {
   useEffect(() => { fetchAttempts(); }, [fetchAttempts]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="📝" title="No quiz history" description="Quiz attempts will land here." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>attempts</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="📝" title="No quiz history" description="Quiz attempts will land here." />;
+  }
 
-  const cap = bucket === 'tiny' ? 2 : bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{attempts.length}</span>
+        <span style={tinyStatLabelStyle()}>{attempts.length === 1 ? 'attempt' : 'attempts'}</span>
+      </div>
+    );
+  }
+
+  const cap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
   return (
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
       {attempts.slice(0, cap).map((a) => {
@@ -56,7 +80,8 @@ defineWidget<QuizHistoryContent>({
   category: 'learning',
   iconName: 'ClipboardCheck',
   defaultSize: { w: 2, h: 1 },
-  minSize: { w: 2, h: 1 },
+  // Slice 217 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 8, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['student', 'teacher', 'admin', 'developer'],
