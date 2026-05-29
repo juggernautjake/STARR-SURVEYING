@@ -13,3 +13,4 @@
 // entry: Pinned Pages.
 
 import './pinned-pages';
+import './quick-actions';
