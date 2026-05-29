@@ -352,8 +352,9 @@
 - **Scope:** Action items / tasks. Settings: assignedTo, dueWithin.
 - **Done:** `lib/hub/widgets/assignments-due/index.tsx` reads `/api/admin/assignments?mine=true|false`. Each row shows priority `!` (danger) if high-priority, title, due-date chip colored danger when overdue. `assignedTo` (me/all), `dueWithin` (today/week/month/all). `filterByDueWindow` keeps overdue always + future-in-window. `byDueAscending` puts nulls last. `capForBucket` 2/4/6/12/24. Catalog: work / ClipboardList / internal roles. 7 vitest specs. `tsc` + `eslint` clean.
 
-### Slice 121 — Crew Calendar widget
+### Slice 121 — Crew Calendar widget ✅ shipped
 - **Scope:** Multi-employee schedule. Settings: employeeFilter, weekRange.
+- **Done:** `lib/hub/widgets/crew-calendar/index.tsx` reads `/api/admin/personnel/crew-calendar?range=this-week|next-week|two-weeks&employee=…`, renders one row per employee with a horizontal strip of theme-tinted dots (accent=assigned / success=available / warning=pto / muted=off). Settings: weekRange + optional email filter. Catalog: operational / CalendarDays / manager roles. 3 vitest specs. `tsc` + `eslint` clean.
 
 ### Slice 122 — Field Data Pending widget
 - **Scope:** Field captures awaiting review. Settings: jobFilter, dataTypes.

@@ -28,3 +28,4 @@ import './recent-announcements';
 import './team-status';
 import './mentions-inbox';
 import './assignments-due';
+import './crew-calendar';
