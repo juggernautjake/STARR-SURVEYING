@@ -65,6 +65,18 @@ export interface ProjectData {
 
   // Phase 9 updated reconciliation (null if no purchases)
   reconciliationV2: any | null;
+
+  // Phase 13: USGS topographic data (elevation, contours, NHD water, slope, aspect)
+  // Loaded from `topo.json` in the project dir when present. null/undefined when
+  // the project never ran the topo query — PDF generator gracefully skips its
+  // section in that case.
+  topo?: any | null;
+
+  // Phase 13: TX Comptroller property-tax data (taxing units, exemptions, delinquency)
+  // Loaded from `tax.json` in the project dir when present. null/undefined when
+  // the project never ran the tax query — PDF generator gracefully skips its
+  // section in that case.
+  tax?: any | null;
 }
 
 export interface ReportHarvestedDocument {

@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { getDrawingWithElements } from '@/lib/research/drawing.service';
 import { renderDrawingSVG } from '@/lib/research/svg.renderer';
-import { renderToPng, renderToPdf, renderToDxf } from '@/lib/research/export.service';
+import { renderToPng, renderToPdf, renderToDxf, persistExportToStorage, type ExportFormat as StorageExportFormat } from '@/lib/research/export.service';
 import { compareDrawingToSources } from '@/lib/research/comparison.service';
 import type { ExportFormat, ViewMode } from '@/types/research';
 
@@ -199,6 +199,38 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const showTitleBlock = body.showTitleBlock !== false;
     const drawingName = result.drawing.name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
+    // Phase 12 deferred: when the caller sets `persist: true` we upload the
+    // export buffer to the `research-exports` Supabase Storage bucket and
+    // return a signed URL instead of base64. Saves the client from streaming
+    // multi-MB rasters through a JSON body. The legacy base64 path is the
+    // default so existing callers don't break.
+    const persist = body.persist === true || body.persist === 'true';
+
+    const maybePersist = async (buffer: Buffer, fmt: StorageExportFormat, filename: string) => {
+      if (!persist) {
+        return {
+          format: fmt,
+          filename,
+          blob_data: buffer.toString('base64'),
+          size_bytes: buffer.length,
+        };
+      }
+      const stored = await persistExportToStorage(buffer, {
+        projectId,
+        format: fmt,
+        name: drawingName,
+        signedUrlSeconds: 3600,
+      });
+      return {
+        format: fmt,
+        filename,
+        size_bytes: buffer.length,
+        storage_url: stored.signedUrl ?? stored.publicUrl,
+        storage_path: stored.path,
+        storage_bucket: stored.bucket,
+      };
+    };
+
     switch (format) {
       case 'svg': {
         const svg = renderDrawingSVG(result.drawing, result.elements, viewMode, {
@@ -209,15 +241,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           showConfidenceBar: viewMode === 'confidence',
           interactive: false,
         });
-        const data = Buffer.from(svg).toString('base64');
-        return NextResponse.json({
-          export: {
-            format: 'svg',
-            filename: `${drawingName}.svg`,
-            blob_data: data,
-            size_bytes: Buffer.byteLength(svg),
-          },
-        });
+        const svgBuffer = Buffer.from(svg);
+        return NextResponse.json({ export: await maybePersist(svgBuffer, 'svg', `${drawingName}.svg`) });
       }
 
       case 'json': {
@@ -227,6 +252,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           exported_at: new Date().toISOString(),
           version: '1.0',
         }, null, 2);
+        // JSON exports stay base64-in-body; they're tiny + the storage
+        // path is geared toward raster/vector deliverables.
         const data = Buffer.from(jsonData).toString('base64');
         return NextResponse.json({
           export: {
@@ -240,41 +267,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
       case 'png': {
         const pngBuffer = await renderToPng(result.drawing, result.elements, viewMode, showTitleBlock);
-        const data = pngBuffer.toString('base64');
-        return NextResponse.json({
-          export: {
-            format: 'png',
-            filename: `${drawingName}.png`,
-            blob_data: data,
-            size_bytes: pngBuffer.length,
-          },
-        });
+        return NextResponse.json({ export: await maybePersist(pngBuffer, 'png', `${drawingName}.png`) });
       }
 
       case 'pdf': {
         const pdfBuffer = await renderToPdf(result.drawing, result.elements, viewMode, showTitleBlock);
-        const data = pdfBuffer.toString('base64');
-        return NextResponse.json({
-          export: {
-            format: 'pdf',
-            filename: `${drawingName}.pdf`,
-            blob_data: data,
-            size_bytes: pdfBuffer.length,
-          },
-        });
+        return NextResponse.json({ export: await maybePersist(pdfBuffer, 'pdf', `${drawingName}.pdf`) });
       }
 
       case 'dxf': {
         const dxfBuffer = renderToDxf(result.drawing, result.elements);
-        const data = dxfBuffer.toString('base64');
-        return NextResponse.json({
-          export: {
-            format: 'dxf',
-            filename: `${drawingName}.dxf`,
-            blob_data: data,
-            size_bytes: dxfBuffer.length,
-          },
-        });
+        return NextResponse.json({ export: await maybePersist(dxfBuffer, 'dxf', `${drawingName}.dxf`) });
       }
 
       default:

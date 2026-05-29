@@ -31,6 +31,14 @@ export const MAINTENANCE_DOCUMENTS_BUCKET = 'maintenance-documents';
 // fast to save/load. Provisioned by seeds/290 or auto-created on first use.
 export const CAD_IMAGES_BUCKET = 'cad-images';
 
+// Research drawing exports bucket — PNG/PDF/DXF outputs of
+// `lib/research/export.service.ts`, plus drawing-template thumbnail
+// previews. Routes that previously returned base64 in the JSON body
+// can now persist to this bucket and return a signed URL instead, so
+// the client doesn't pay the base64 transfer overhead on large
+// 300-DPI rasters. Auto-created on first upload via ensureStorageBucket.
+export const RESEARCH_EXPORTS_BUCKET = 'research-exports';
+
 // In-memory set of bucket names that have been verified to exist in this
 // process lifetime.  Avoids redundant Supabase calls on every upload.
 const _verifiedBuckets = new Set<string>();

@@ -73,7 +73,19 @@ export class PDFReportGenerator {
       this.writePurchaseSummary(doc, data, contentWidth);
     }
 
-    // ── Section 8: Appendix ─────────────────────────────────────────────
+    // ── Section 8: Topographic Context (Phase 13 USGS) ──────────────────
+    if (data.topo) {
+      doc.addPage();
+      this.writeTopoSection(doc, data, contentWidth);
+    }
+
+    // ── Section 9: Property Tax Context (Phase 13 TX Comptroller) ───────
+    if (data.tax) {
+      doc.addPage();
+      this.writeTaxSection(doc, data, contentWidth);
+    }
+
+    // ── Section 10: Appendix ────────────────────────────────────────────
     if (config.pdf.includeAppendix) {
       doc.addPage();
       this.writeAppendix(doc, data, contentWidth);
@@ -604,6 +616,221 @@ export class PDFReportGenerator {
     }
   }
 
+  // ── Topographic Context (Phase 13 — USGS) ───────────────────────────────
+
+  private writeTopoSection(
+    doc: any,
+    data: ProjectData,
+    _width: number,
+  ): void {
+    doc.fillColor('#000000');
+    this.sectionHeader(doc, '7. Topographic Context (USGS)');
+
+    const topo = data.topo;
+    if (!topo) return;
+
+    // Elevation summary
+    const elev = topo.elevation;
+    if (elev) {
+      doc.fontSize(11).font('Helvetica-Bold').text('Elevation at Property');
+      doc.moveDown(0.3);
+      doc.fontSize(10).font('Helvetica');
+      doc.text(
+        `${this.fmtNum(elev.elevation_ft)} ft (${this.fmtNum(elev.elevation_m)} m)` +
+        ` — source: ${elev.data_source || 'unknown'}`,
+      );
+      doc.moveDown(0.6);
+    }
+
+    // Slope / aspect / range
+    const slope = topo.slope_pct;
+    const aspect = topo.aspect_deg;
+    const range = topo.elevation_range_ft;
+    if (slope !== null || aspect !== null || range !== null) {
+      doc.fontSize(11).font('Helvetica-Bold').text('Terrain');
+      doc.moveDown(0.3);
+      doc.fontSize(10).font('Helvetica');
+      if (slope !== null && slope !== undefined) {
+        doc.text(`Slope: ${this.fmtNum(slope)}%`);
+      }
+      if (aspect !== null && aspect !== undefined) {
+        doc.text(`Aspect: ${this.fmtNum(aspect)}° (${this.aspectLabel(aspect)})`);
+      }
+      if (range !== null && range !== undefined) {
+        doc.text(`Elevation range within search radius: ${this.fmtNum(range)} ft`);
+      }
+      doc.moveDown(0.6);
+    }
+
+    // Contours
+    const contours: any[] = Array.isArray(topo.contours) ? topo.contours : [];
+    if (contours.length > 0) {
+      doc.fontSize(11).font('Helvetica-Bold').text(`Contours (${contours.length})`);
+      doc.moveDown(0.3);
+      doc.fontSize(9).font('Helvetica').fillColor('#444444');
+      const sample = contours.slice(0, 8).map((c) => `${this.fmtNum(c.elevation_ft)} ft${c.is_index ? ' (index)' : ''}`);
+      doc.text(sample.join(', ') + (contours.length > 8 ? `, +${contours.length - 8} more` : ''));
+      doc.fillColor('#000000');
+      doc.moveDown(0.6);
+    }
+
+    // Water features
+    const water: any[] = Array.isArray(topo.water_features) ? topo.water_features : [];
+    if (water.length > 0) {
+      doc.fontSize(11).font('Helvetica-Bold').text(`NHD Water Features (${water.length})`);
+      doc.moveDown(0.3);
+      doc.fontSize(9).font('Helvetica');
+      for (const w of water.slice(0, 10)) {
+        if (doc.y > 720) { doc.addPage(); }
+        const name = w.name || w.gnis_name || '(unnamed)';
+        doc.text(`• ${name} — ${w.feature_type || 'unknown'}`);
+      }
+      if (water.length > 10) {
+        doc.fillColor('#666666').text(`(${water.length - 10} additional features omitted for brevity)`);
+        doc.fillColor('#000000');
+      }
+      doc.moveDown(0.6);
+    }
+
+    // Land cover
+    const cover = topo.land_cover;
+    if (cover) {
+      doc.fontSize(11).font('Helvetica-Bold').text('Land Cover (NLCD)');
+      doc.moveDown(0.3);
+      doc.fontSize(10).font('Helvetica');
+      doc.text(`Dominant class: ${cover.dominant_class_label || cover.dominant_class || 'N/A'}`);
+      if (cover.imperviousness_pct !== undefined && cover.imperviousness_pct !== null) {
+        doc.text(`Imperviousness: ${this.fmtNum(cover.imperviousness_pct)}%`);
+      }
+      doc.moveDown(0.6);
+    }
+
+    // Errors disclosure
+    const errors: string[] = Array.isArray(topo.errors) ? topo.errors : [];
+    if (errors.length > 0) {
+      doc.fontSize(9).font('Helvetica-Oblique').fillColor('#888888');
+      doc.text(`Partial result — ${errors.length} upstream error(s) during query.`);
+      doc.fillColor('#000000');
+    }
+
+    // Provenance footer
+    const queriedAt = topo.queried_at;
+    if (queriedAt) {
+      doc.moveDown(0.5);
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor('#666666');
+      doc.text(`Source: USGS 3DEP / NHD / NLCD via the National Map API. Queried ${queriedAt}.`);
+      doc.fillColor('#000000');
+    }
+  }
+
+  // ── Property Tax Context (Phase 13 — TX Comptroller) ────────────────────
+
+  private writeTaxSection(
+    doc: any,
+    data: ProjectData,
+    _width: number,
+  ): void {
+    doc.fillColor('#000000');
+    this.sectionHeader(doc, '8. Property Tax Context (TX Comptroller)');
+
+    const tax = data.tax;
+    if (!tax) return;
+
+    // County / CAD header
+    doc.fontSize(11).font('Helvetica-Bold').text(
+      `${tax.county_name || 'County'} — ${tax.appraisal_district_name || 'CAD'}`,
+    );
+    doc.moveDown(0.3);
+    doc.fontSize(10).font('Helvetica');
+    doc.text(`County FIPS: ${tax.county_fips || 'N/A'}    Tax year: ${tax.tax_year || 'N/A'}`);
+    if (tax.appraisal_district_url) {
+      doc.fillColor('#0033A0').text(tax.appraisal_district_url, { link: tax.appraisal_district_url, underline: true });
+      doc.fillColor('#000000');
+    }
+    doc.moveDown(0.6);
+
+    // Combined rate
+    if (typeof tax.combined_rate === 'number') {
+      doc.fontSize(11).font('Helvetica-Bold').text(
+        `Combined Tax Rate: $${this.fmtNum(tax.combined_rate)} per $100 valuation`,
+      );
+      doc.moveDown(0.6);
+    }
+
+    // Taxing units table
+    const units: any[] = Array.isArray(tax.taxing_units) ? tax.taxing_units : [];
+    if (units.length > 0) {
+      doc.fontSize(11).font('Helvetica-Bold').text(`Taxing Units (${units.length})`);
+      doc.moveDown(0.3);
+      doc.fontSize(9).font('Helvetica');
+      for (const u of units) {
+        if (doc.y > 720) { doc.addPage(); }
+        const rate = typeof u.tax_rate === 'number' ? `$${u.tax_rate.toFixed(6)}` : 'N/A';
+        doc.text(`• ${u.unit_name || '(unnamed)'} (${u.unit_type || 'other'}) — ${rate}`);
+      }
+      doc.moveDown(0.6);
+    }
+
+    // Exemptions
+    const exemptions: any[] = Array.isArray(tax.exemptions) ? tax.exemptions : [];
+    if (exemptions.length > 0) {
+      doc.fontSize(11).font('Helvetica-Bold').text(`Standard Exemptions (${exemptions.length})`);
+      doc.moveDown(0.3);
+      doc.fontSize(9).font('Helvetica');
+      for (const e of exemptions.slice(0, 8)) {
+        if (doc.y > 720) { doc.addPage(); }
+        const applies = Array.isArray(e.applies_to) && e.applies_to.length > 0
+          ? e.applies_to.slice(0, 3).join(', ') + (e.applies_to.length > 3 ? ', …' : '')
+          : 'all units';
+        doc.text(`• ${e.exemption_type || 'other'}: ${e.amount_or_pct || 'N/A'} — applies to ${applies}`);
+      }
+      if (exemptions.length > 8) {
+        doc.fillColor('#666666').text(`(${exemptions.length - 8} additional exemptions omitted)`);
+        doc.fillColor('#000000');
+      }
+      doc.moveDown(0.6);
+    }
+
+    // Delinquency
+    const delinq = tax.delinquency;
+    if (delinq) {
+      doc.fontSize(11).font('Helvetica-Bold').text('Delinquency');
+      doc.moveDown(0.3);
+      doc.fontSize(10).font('Helvetica');
+      if (delinq.is_delinquent) {
+        doc.fillColor('#CC0000');
+        const years = Array.isArray(delinq.delinquent_years) ? delinq.delinquent_years.join(', ') : 'unknown';
+        const due = typeof delinq.total_amount_due === 'number' ? `$${delinq.total_amount_due.toFixed(2)}` : 'unknown';
+        doc.text(`DELINQUENT — years: ${years} — total due: ${due}`);
+        doc.fillColor('#000000');
+      } else {
+        doc.text('No outstanding delinquency reported.');
+      }
+      doc.moveDown(0.4);
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor('#666666');
+      doc.text(`Source: ${delinq.source || 'unknown'} · last checked ${delinq.last_checked_at || 'N/A'}`);
+      doc.fillColor('#000000');
+      doc.moveDown(0.4);
+    }
+
+    // Errors disclosure
+    const errors: string[] = Array.isArray(tax.errors) ? tax.errors : [];
+    if (errors.length > 0) {
+      doc.fontSize(9).font('Helvetica-Oblique').fillColor('#888888');
+      doc.text(`Partial result — ${errors.length} upstream error(s) during query.`);
+      doc.fillColor('#000000');
+    }
+
+    // Provenance footer
+    const queriedAt = tax.queried_at;
+    if (queriedAt) {
+      doc.moveDown(0.5);
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor('#666666');
+      doc.text(`Source: Texas Comptroller PTAD transparency portal. Queried ${queriedAt}.`);
+      doc.fillColor('#000000');
+    }
+  }
+
   // ── Appendix ────────────────────────────────────────────────────────────
 
   private writeAppendix(
@@ -686,5 +913,20 @@ export class PDFReportGenerator {
   private avgScore(items?: Array<{ score: number }>): number | undefined {
     if (!items?.length) return undefined;
     return Math.round(items.reduce((s, c) => s + c.score, 0) / items.length);
+  }
+
+  /** Format a number with sensible defaults for the topo/tax sections. */
+  private fmtNum(n: number | null | undefined, digits = 2): string {
+    if (n === null || n === undefined || Number.isNaN(n)) return 'N/A';
+    if (Math.abs(n) >= 100) return Math.round(n).toString();
+    return n.toFixed(digits);
+  }
+
+  /** Map a degree (0-360) to a compass-direction label (8-way). */
+  private aspectLabel(deg: number): string {
+    if (deg === null || deg === undefined || Number.isNaN(deg)) return '';
+    const normalized = ((deg % 360) + 360) % 360;
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return dirs[Math.round(normalized / 45) % 8];
   }
 }

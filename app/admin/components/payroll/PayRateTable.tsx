@@ -2,7 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { JOB_TITLES, formatCurrency } from './PayrollConstants';
+import { formatCurrency } from './PayrollConstants';
+import { useJobTitles } from './useJobTitles';
 
 interface PayRate {
   id: string;
@@ -33,6 +34,7 @@ export default function PayRateTable({ isAdmin }: PayRateTableProps) {
   const [loading, setLoading] = useState(true);
   const [editingRate, setEditingRate] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const jobTitles = useJobTitles();
 
   useEffect(() => {
     loadData();
@@ -85,7 +87,7 @@ export default function PayRateTable({ isAdmin }: PayRateTableProps) {
           </thead>
           <tbody>
             {rates.map(rate => {
-              const titleInfo = JOB_TITLES[rate.job_title] || { label: rate.job_title, icon: '👤' };
+              const titleInfo = jobTitles[rate.job_title] || { label: rate.job_title, icon: '👤' };
               const isEditing = editingRate === rate.id;
 
               return (
@@ -187,8 +189,8 @@ export default function PayRateTable({ isAdmin }: PayRateTableProps) {
           </thead>
           <tbody>
             {adjustments.map(adj => {
-              const baseInfo = JOB_TITLES[adj.base_title] || { label: adj.base_title, icon: '👤' };
-              const roleInfo = JOB_TITLES[adj.role_on_job] || { label: adj.role_on_job, icon: '👤' };
+              const baseInfo = jobTitles[adj.base_title] || { label: adj.base_title, icon: '👤' };
+              const roleInfo = jobTitles[adj.role_on_job] || { label: adj.role_on_job, icon: '👤' };
               return (
                 <tr key={adj.id}>
                   <td>{baseInfo.icon} {baseInfo.label}</td>

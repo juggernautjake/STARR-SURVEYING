@@ -1,8 +1,15 @@
 # Pay Progression Overhaul
 
-**Status:** Planning — slices below ship one at a time per the in-progress / completed cycle.
-**Total estimate:** ~7 engineering days across 26 slices + 6 verification checkpoints.
+**Status:** Re-opened 2026-05-28 to ship the three remaining items below
+**Total estimate:** original ~7 engineering days across 26 slices + 6 verification checkpoints — Slices 1-25 shipped. Remainder below.
 **Related:** previous `docs/planning/completed/UI_UX_OVERHAUL.md` established the token system this plan builds on.
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to retire
+> the three "Recommend reopening as a fresh slice" callouts surfaced in
+> Slice P-25/P-26:
+> 1. **Drop `employee_profiles.job_title` column** once tier-derivation is fully migrated — **status: still gated**. 14 call sites across `app/admin/payroll/**`, `app/admin/pay-progression/**`, `app/admin/employees/**`, `app/admin/components/payroll/**`, `app/api/admin/payroll/**`, `app/api/admin/employees/**`, and `app/api/admin/time-logs/route.ts` still read `employee_profiles.job_title` as their tier key. Migrating each call site to `employee_profiles.tier_key` (the `role_tiers` FK added in seed 285) is its own slice-or-series; the DROP COLUMN seed is held until that batch lands.
+> 2. **Delete the `JOB_TITLES` hardcoded constant + migrate the 3 remaining importers** — **shipped 2026-05-28 (Slice 106).** `EmployeePayCard`, `MyPayPanel`, and `PayRateTable` now consume the `useJobTitles()` hook (live `role_tiers` data with the `JOB_TITLES_FALLBACK` map as the offline default). The `export const JOB_TITLES = JOB_TITLES_FALLBACK` re-export in `PayrollConstants.tsx` is gone; the identifier no longer leaks to importers.
+> 3. **Module → credential mapping + pay-impact callout** — **shipped 2026-05-28 (Slice 107).** `seeds/299_module_credential_mapping.sql` adds a nullable `learning_modules.credential_key` (FK to `credential_bonuses`) + index + best-effort backfill for the seeded SIT/RPLS/drone modules. `lib/learn/moduleCredentialBonus.ts` resolves a module to its credential + hourly bonus (single and bulk variants). New `GET /api/admin/learn/modules/[id]/credential` returns `{ credential: …|null }`. `app/admin/learn/modules/[id]/PayImpactCallout.tsx` renders a green callout — "Completing this earns the {label} credential — adds +${bonus}/hr" — on the module detail page; hidden when the module isn't linked.
 
 ---
 

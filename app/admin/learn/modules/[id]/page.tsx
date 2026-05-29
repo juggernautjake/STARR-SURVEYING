@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SmartSearch from '../../components/SmartSearch';
+import PayImpactCallout from './PayImpactCallout';
 
 // Use session role instead of hardcoded email list
 
@@ -190,6 +191,9 @@ export default function ModuleDetailPage() {
             <span className="modules__card-progress-text">{Math.round((completedCount / totalCount) * 100)}%</span>
           </div>
         )}
+
+        {/* Pay-impact callout — shown only when this module awards a credential */}
+        <PayImpactCallout moduleId={mod.id} />
       </div>
 
       {/* Smart Search */}

@@ -2,7 +2,12 @@
 
 **Starr Software — AI Property Research Pipeline Phase**
 
-**Status:** ✅ COMPLETE v1.0 (March 2026)
+**Status:** ✅ COMPLETE v1.0 (March 2026) · Re-opened 2026-05-28 night to ship the 2 deferred deliverables below
+
+> **Re-opened (2026-05-28 night):** moved back to `in-progress/` to ship
+> the two `- [ ]` items still open in the deliverables checklist:
+> 1. Template preview thumbnail rendering (no render-to-thumbnail endpoint in `lib/research/export.service.ts`)
+> 2. Supabase Storage persistence of exports (current implementation returns base64; no Storage upload path)
 
 **Goal:** Enable surveyors to export plat drawings in all industry-standard formats — SVG, JSON (already done), PNG (print quality), PDF (print-ready), and DXF (AutoCAD/Civil 3D). Provide reusable drawing templates for consistent output.
 
@@ -109,8 +114,8 @@ All five formats (svg, json, png, pdf, dxf) are now fully implemented and return
 - [x] User can select which view mode to export — ExportPanel view mode selector
 - [x] All formats enabled in ExportPanel UI
 - [x] 31 unit tests covering all export functions
-- [ ] Template preview renders a thumbnail — deferred (requires additional render-to-thumbnail endpoint)
-- [ ] Export files stored in Supabase Storage — currently returns base64 blob; S3/Storage persistence deferred
+- [x] Template preview renders a thumbnail — shipped 2026-05-28 (Slice 105) via `renderTemplateThumbnail()` in `lib/research/export.service.ts` + new GET route `/api/admin/research/templates/drawing/[id]/thumbnail?w=&h=` returning `image/png` directly.
+- [x] Export files stored in Supabase Storage — shipped 2026-05-28 (Slice 105) via `persistExportToStorage()` in `lib/research/export.service.ts` + opt-in `persist: true` on the existing POST `/api/admin/research/[projectId]/drawings/[drawingId]` export action. Bucket is `research-exports` (constant `RESEARCH_EXPORTS_BUCKET` in `lib/supabase.ts`, auto-created via `ensureStorageBucket`). Persist mode returns `storage_url` (1 h signed) + `storage_path` instead of `blob_data`. Legacy base64 path is the default so existing callers don't break.
 
 ---
 

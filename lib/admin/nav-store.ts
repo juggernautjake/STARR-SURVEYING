@@ -93,6 +93,12 @@ export const useAdminNavStore = create<AdminNavStore>()(
         if (state.pinnedRoutes.includes(href)) return false;
         if (state.pinnedRoutes.length >= MAX_PINNED_ROUTES) return false;
         set({ pinnedRoutes: [...state.pinnedRoutes, href] });
+        // §13.8 telemetry — track pin add. Dynamic-import the emitter so
+        // the store stays SSR-clean and any rendering import cycle is
+        // short-circuited.
+        void import('./nav-telemetry').then((m) =>
+          m.trackNavEvent('nav.pin.add', { href }),
+        ).catch(() => { /* swallow */ });
         return true;
       },
 
@@ -100,6 +106,9 @@ export const useAdminNavStore = create<AdminNavStore>()(
         const state = get();
         if (!state.pinnedRoutes.includes(href)) return false;
         set({ pinnedRoutes: state.pinnedRoutes.filter((r) => r !== href) });
+        void import('./nav-telemetry').then((m) =>
+          m.trackNavEvent('nav.pin.remove', { href }),
+        ).catch(() => { /* swallow */ });
         return true;
       },
 
@@ -107,17 +116,29 @@ export const useAdminNavStore = create<AdminNavStore>()(
         const state = get();
         if (state.pinnedRoutes.includes(href)) {
           set({ pinnedRoutes: state.pinnedRoutes.filter((r) => r !== href) });
+          void import('./nav-telemetry').then((m) =>
+            m.trackNavEvent('nav.pin.remove', { href }),
+          ).catch(() => { /* swallow */ });
           return false;
         }
         if (!href || !href.startsWith('/admin/')) return false;
         if (state.pinnedRoutes.length >= MAX_PINNED_ROUTES) return false;
         set({ pinnedRoutes: [...state.pinnedRoutes, href] });
+        void import('./nav-telemetry').then((m) =>
+          m.trackNavEvent('nav.pin.add', { href }),
+        ).catch(() => { /* swallow */ });
         return true;
       },
 
       setNavV2: (enabled) => set({ adminNavV2Enabled: !!enabled }),
 
-      setPersonaOverride: (persona) => set({ personaOverride: persona }),
+      setPersonaOverride: (persona) => {
+        const prev = get().personaOverride;
+        set({ personaOverride: persona });
+        void import('./nav-telemetry').then((m) =>
+          m.trackNavEvent('nav.persona.override', { from: prev, to: persona }),
+        ).catch(() => { /* swallow */ });
+      },
     }),
     {
       name: 'starr-admin-nav',
