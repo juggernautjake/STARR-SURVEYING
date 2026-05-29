@@ -87,11 +87,12 @@
 
 ## Phase 3 — Density + font scale (Slice 86)
 
-### Slice 86 — Density + font-scale system
+### Slice 86 — Density + font-scale system ✅ shipped
 - **Scope:** Spacing token sets per density (compact/comfortable/spacious). Font-scale CSS variable. Pickers in profile settings.
-- **Files:** `app/styles/density.css`, `app/admin/profile/components/{DensityPicker,FontScaleSlider}.tsx`
+- **Files:** `app/styles/density.css`, `app/layout.tsx`, `app/admin/profile/components/DensityPicker.tsx`, `app/admin/profile/components/FontScaleSlider.tsx`, `app/admin/profile/ProfilePanel.tsx`
 - **Done when:** Density visibly changes spacing; font scale updates type proportionally; saved + persisted.
 - **Depends on:** Slice 82
+- **Done:** `density.css` declares `--hub-spc-1..5` spacing tokens per density (`[data-density="compact|comfortable|spacious"]`) plus a `--hub-font-base-rem` per density. Derived font sizes (`--hub-font-xs..3xl`) cascade off `--hub-font-base-rem` × `--hub-font-scale` so the user's slider applies on top of the density's base. **DensityPicker** is a 3-button radiogroup (compact/comfortable/spacious); each tile shows label + 1-line description; click saves immediately via PUT. **FontScaleSlider** is a range input [0.875, 1.5] stepped 0.0625 — fires save on `mouseup`/`touchend`/`blur` (not on every drag tick) so we don't hammer the API. Both wired into the "Themes" tab below the ThemePicker. Layout fetched once in ProfilePanel + passed down as initial values. `tsc` + `eslint` clean. **Phase 3 complete.**
 
 ---
 

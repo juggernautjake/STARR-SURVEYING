@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './styles/globals.css';
 import './styles/tokens.css';
 import './styles/themes.css';
+import './styles/density.css';
 import './styles/forms.css';
 import LayoutShell from './components/LayoutShell';
 

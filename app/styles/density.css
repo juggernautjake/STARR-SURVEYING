@@ -1,0 +1,71 @@
+/* ============================================================================
+ * app/styles/density.css — Hub density + font-scale tokens
+ *
+ * Three densities (compact / comfortable / spacious) and a font-scale
+ * multiplier. The hub root reads `data-density` + `--font-scale` from
+ * the saved layout row and applies them via the [data-density] selectors
+ * below. Widgets style themselves with var(--hub-spc-*) and var(--hub-font-*).
+ *
+ * Slice 86 of customizable-hub-and-work-mode-2026-05-28.md.
+ * ============================================================================
+ */
+
+/* ── Fallback when no [data-density] wrapper is present. Mirrors
+ *    `comfortable` since that's the default. ──────────────────────── */
+:root {
+  --hub-spc-1: 4px;
+  --hub-spc-2: 8px;
+  --hub-spc-3: 12px;
+  --hub-spc-4: 16px;
+  --hub-spc-5: 24px;
+  --hub-font-base-rem: 1rem;
+  --hub-font-scale: 1.0;
+  --hub-row-height: 64px;
+}
+
+/* ── compact — power users, big monitors ──────────────────────────── */
+[data-density="compact"] {
+  --hub-spc-1: 2px;
+  --hub-spc-2: 4px;
+  --hub-spc-3: 6px;
+  --hub-spc-4: 8px;
+  --hub-spc-5: 12px;
+  --hub-font-base-rem: 0.875rem;
+  --hub-row-height: 56px;
+}
+
+/* ── comfortable — default ────────────────────────────────────────── */
+[data-density="comfortable"] {
+  --hub-spc-1: 4px;
+  --hub-spc-2: 8px;
+  --hub-spc-3: 12px;
+  --hub-spc-4: 16px;
+  --hub-spc-5: 24px;
+  --hub-font-base-rem: 1rem;
+  --hub-row-height: 64px;
+}
+
+/* ── spacious — a11y / presentations / low-vision ─────────────────── */
+[data-density="spacious"] {
+  --hub-spc-1: 6px;
+  --hub-spc-2: 12px;
+  --hub-spc-3: 16px;
+  --hub-spc-4: 24px;
+  --hub-spc-5: 32px;
+  --hub-font-base-rem: 1.125rem;
+  --hub-row-height: 72px;
+}
+
+/* ── Derived font sizes — widgets use these via var() ──────────────
+ *    Multiplied by --hub-font-scale (set inline as a style prop) so the
+ *    user's slider applies on top of the density's base. ───────────── */
+:root,
+[data-density] {
+  --hub-font-xs: calc(var(--hub-font-base-rem) * 0.75 * var(--hub-font-scale));
+  --hub-font-sm: calc(var(--hub-font-base-rem) * 0.875 * var(--hub-font-scale));
+  --hub-font-base: calc(var(--hub-font-base-rem) * 1.0 * var(--hub-font-scale));
+  --hub-font-lg: calc(var(--hub-font-base-rem) * 1.125 * var(--hub-font-scale));
+  --hub-font-xl: calc(var(--hub-font-base-rem) * 1.5 * var(--hub-font-scale));
+  --hub-font-2xl: calc(var(--hub-font-base-rem) * 2.0 * var(--hub-font-scale));
+  --hub-font-3xl: calc(var(--hub-font-base-rem) * 2.5 * var(--hub-font-scale));
+}

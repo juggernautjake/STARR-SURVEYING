@@ -11,7 +11,9 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { usePageError } from '../hooks/usePageError';
 import { ThemePicker } from './components/ThemePicker';
-import type { HubLayoutRow, ThemeId } from '@/lib/hub/types';
+import { DensityPicker } from './components/DensityPicker';
+import { FontScaleSlider } from './components/FontScaleSlider';
+import type { Density, HubLayoutRow, ThemeId } from '@/lib/hub/types';
 
 interface Profile {
   user_name: string; job_title: string; hire_date: string | null;
@@ -106,6 +108,8 @@ export default function ProfilePanel() {
   ];
 
   const initialThemeId: ThemeId = hubLayout?.theme ?? 'starr-default';
+  const initialDensity: Density = hubLayout?.density ?? 'comfortable';
+  const initialFontScale: number = hubLayout?.fontScale ?? 1.0;
 
   return (
     <div className="profile-page">
@@ -242,9 +246,15 @@ export default function ProfilePanel() {
         </div>
       )}
 
-      {/* Themes (Hub theme picker — Slice 82) */}
+      {/* Themes (Hub theme picker — Slice 82) + Density + Font scale (Slice 86) */}
       {tab === 'themes' && (
-        <ThemePicker initialThemeId={initialThemeId} />
+        <>
+          <ThemePicker initialThemeId={initialThemeId} />
+          <div className="admin-card" style={{ marginTop: '0.75rem' }}>
+            <DensityPicker initialDensity={initialDensity} />
+            <FontScaleSlider initialFontScale={initialFontScale} />
+          </div>
+        </>
       )}
     </div>
   );
