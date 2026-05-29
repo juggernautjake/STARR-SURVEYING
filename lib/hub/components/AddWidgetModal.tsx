@@ -43,7 +43,30 @@ const CATEGORY_LABELS: Record<WidgetCategory | 'all', string> = {
   operational:   'Operational',
 };
 
+// Slice 201 — when `open=false` the outer component renders nothing
+// + skips ALL the hook calls that walk the catalog (`allWidgets`,
+// `filterCatalog`, `groupByCategory`). The hooks live in the inner
+// `AddWidgetModalBody` which only mounts when `open` is true. Net
+// effect: in the common case (modal closed) the parent canvas pays
+// almost nothing for keeping this component in the tree.
 export default function AddWidgetModal({ open, onClose, roles, activeBundles = null }: AddWidgetModalProps) {
+  if (!open) return null;
+  return (
+    <AddWidgetModalBody
+      onClose={onClose}
+      roles={roles}
+      activeBundles={activeBundles}
+    />
+  );
+}
+
+interface AddWidgetModalBodyProps {
+  onClose: () => void;
+  roles: UserRole[];
+  activeBundles: BundleId[] | null;
+}
+
+function AddWidgetModalBody({ onClose, roles, activeBundles }: AddWidgetModalBodyProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<WidgetCategory | 'all'>('all');
   const draftWidgets = useHubStore((s) => s.draftWidgets);
@@ -51,29 +74,24 @@ export default function AddWidgetModal({ open, onClose, roles, activeBundles = n
   const { setDraftWidgets } = useHubActions();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Focus the search input when the modal opens; reset filters when it
-  // closes so the next open starts fresh.
+  // Focus the search input when the modal opens. Body only mounts
+  // while the modal is open so this fires exactly once per open.
   useEffect(() => {
-    if (!open) {
-      setSearch('');
-      setCategory('all');
-      return;
-    }
-    // setTimeout so the focus runs after the input mounts.
     const id = setTimeout(() => searchInputRef.current?.focus(), 0);
     return () => clearTimeout(id);
-  }, [open]);
+  }, []);
 
   // Esc closes.
   useEffect(() => {
-    if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [onClose]);
 
+  // Catalog walk now only runs while the modal is mounted —
+  // previously fired on every parent render even when closed.
   const catalog = useMemo(() => allWidgets(), []);
 
   const filtered = useMemo(
@@ -98,8 +116,6 @@ export default function AddWidgetModal({ open, onClose, roles, activeBundles = n
     setDraftWidgets(compacted);
     onClose();
   }
-
-  if (!open) return null;
 
   return (
     <div
