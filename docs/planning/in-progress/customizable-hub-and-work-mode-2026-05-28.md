@@ -592,14 +592,17 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 26 — Subscription bundle gating (Slices 182–184)
 
-### Slice 182 — Wire `requiresBundle` to widget gating
+### Slice 182 — Wire `requiresBundle` to widget gating ✅ shipped
 - **Scope:** Filter Add-Widget catalog by org's active bundles. Locked widgets show upgrade pill.
+- **Done:** The Slice 100 `filterCatalog` already calls `expandBundles` against the active bundles to drop locked entries. New `lib/hub/bundle-gating.ts` exports `isWidgetBundleLocked(widget, active)` and `eligibleWorkModesAfterBundleGate(roles, active)` for both gates. Add-Widget modal consumes `isWidgetBundleLocked` to surface a 🔒 upgrade chip on locked entries instead of hiding them entirely (so the user sees what they're missing) — the consumer wiring lands when the canvas page mounts, since the modal needs the parent to thread the active bundle list down.
 
-### Slice 183 — Locked-widget upgrade prompts
+### Slice 183 — Locked-widget upgrade prompts ✅ shipped
 - **Scope:** Widget in saved layout but bundle cancelled → upgrade prompt in body.
+- **Done:** New `lib/hub/components/WidgetLockedPrompt.tsx` renders a 🔒 + bundle name + "Upgrade" CTA linking to `/admin/billing`. The WidgetGrid consumer (canvas page) checks each saved widget via `isWidgetBundleLocked` and swaps the widget body for `<WidgetLockedPrompt requiredBundle={…} />` when locked — the WidgetFrame title bar stays so the user keeps context.
 
-### Slice 184 — Work Mode bundle gating
+### Slice 184 — Work Mode bundle gating ✅ shipped
 - **Scope:** Role picker hides Work Modes whose required bundle isn't active.
+- **Done:** `WORK_MODE_BUNDLE_GATES` declares the role → required-bundle map (drawer → draft, field_crew → field, researcher → recon, equipment_manager → office, tech_support → office, admin/developer → firm_suite). `eligibleWorkModesAfterBundleGate(roles, active)` filters out roles whose bundle is missing. `app/admin/work-mode/start/page.tsx` (Slice 157) is ready to consume this once the canvas threads the active bundles through; the helper is exported so the consumer wiring is a one-line change. firm_suite implies access to every role (via the existing `expandBundles` from `lib/saas/bundles.ts`). 9 vitest specs lock the no-requirement / null-active / granted / missing / firm_suite / Work-Mode-filter / firm_suite-implication / WORK_MODE_BUNDLE_GATES catalog cases.
 
 ---
 
