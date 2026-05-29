@@ -27,6 +27,7 @@ import React, { useCallback, useState } from 'react';
 import type { UserRole } from '@/lib/auth';
 import type { BundleId } from '@/lib/saas/bundles';
 import { useHubStore } from '@/lib/hub/hub-store';
+import { useHubActions } from '@/lib/hub/use-hub-actions';
 import { compactLayout } from '@/lib/hub/grid-math';
 import type { GridSize } from '@/lib/hub/grid-resize';
 
@@ -51,7 +52,9 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   const widgets = useHubStore((s) => s.widgets);
   const draftWidgets = useHubStore((s) => s.draftWidgets);
   const isEditMode = useHubStore((s) => s.isEditMode);
-  const setDraftWidgets = useHubStore((s) => s.setDraftWidgets);
+  // Slice 200 — actions read via getState (stable closures) so the
+  // canvas only subscribes to data slices that can actually change.
+  const { setDraftWidgets } = useHubActions();
 
   const [addOpen, setAddOpen] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);

@@ -14,6 +14,7 @@ import type { BundleId } from '@/lib/saas/bundles';
 import { allWidgets, type WidgetCategory, type WidgetDefinition } from '@/lib/hub/widget-registry';
 import { filterCatalog, groupByCategory } from '@/lib/hub/widget-catalog-filter';
 import { useHubStore } from '@/lib/hub/hub-store';
+import { useHubActions } from '@/lib/hub/use-hub-actions';
 import { compactLayout } from '@/lib/hub/grid-math';
 import type { WidgetInstance } from '@/lib/hub/types';
 
@@ -46,7 +47,8 @@ export default function AddWidgetModal({ open, onClose, roles, activeBundles = n
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<WidgetCategory | 'all'>('all');
   const draftWidgets = useHubStore((s) => s.draftWidgets);
-  const setDraftWidgets = useHubStore((s) => s.setDraftWidgets);
+  // Slice 200 — actions via getState (stable closures), no wasted subscription.
+  const { setDraftWidgets } = useHubActions();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Focus the search input when the modal opens; reset filters when it
