@@ -43,3 +43,8 @@ import './roadmap-progress';
 import './flashcards-due';
 import './quiz-history';
 import './recommended-lessons';
+import './pending-receipts';
+import './pending-time-off';
+import './pending-hours';
+import './monthly-revenue';
+import './outstanding-invoices';

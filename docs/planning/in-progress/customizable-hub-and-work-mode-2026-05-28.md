@@ -409,11 +409,16 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 17 — Office + Financial widgets (Slices 136–140)
 
-### Slice 136 — Pending Receipts widget (admin + tech_support)
-### Slice 137 — Pending Time-Off widget
-### Slice 138 — Pending Hours widget
-### Slice 139 — Monthly Revenue widget (admin-only)
-### Slice 140 — Outstanding Invoices widget
+### Slice 136 — Pending Receipts widget ✅ shipped
+- **Done:** `lib/hub/widgets/pending-receipts/index.tsx` reads `/api/admin/receipts?status=pending`. Each row shows vendor + warning-colored amount. Catalog: office / Receipt / admin + dev + tech_support.
+### Slice 137 — Pending Time-Off widget ✅ shipped
+- **Done:** `lib/hub/widgets/pending-time-off/index.tsx` reads `/api/admin/time-off?status=pending`. Shows name + date range + hours. Catalog: office / CalendarMinus.
+### Slice 138 — Pending Hours widget ✅ shipped
+- **Done:** `lib/hub/widgets/pending-hours/index.tsx` reads `/api/admin/time-logs/approve?status=pending`. Shows name + hours + week. Catalog: office / TimerReset.
+### Slice 139 — Monthly Revenue widget ✅ shipped
+- **Done:** `lib/hub/widgets/monthly-revenue/index.tsx` reads `/api/admin/reports?metric=monthly-revenue`. Big MTD + trend % (success/danger) + goal progress bar. Catalog: financial / DollarSign / admin-only.
+### Slice 140 — Outstanding Invoices widget ✅ shipped
+- **Done:** `lib/hub/widgets/outstanding-invoices/index.tsx` reads `/api/admin/invoices?status=outstanding`. Total at top in warning color + per-invoice list (tiny hides the list). Catalog: financial / Coins.
 
 ---
 
