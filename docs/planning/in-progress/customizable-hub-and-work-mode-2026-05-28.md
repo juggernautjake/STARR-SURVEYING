@@ -51,11 +51,12 @@
 - **Depends on:** Slice 80
 - **Done:** Each theme is its own file (`starr-default.ts`, `starr-dark.ts`) ending with `defineTheme(...)` — importing the file registers the theme as a side effect. `register-builtins.ts` is a barrel that imports all built-in theme files; future slices add to this barrel rather than editing call sites. CSS blocks added to `themes.css`: starr-default mirrors the `:root` fallback; starr-dark uses lightened accent (#5A7BE5 instead of #1D3095) so accent-fg-on-accent passes WCAG AA against the dark surface. Note: the URL-param hack from the original scope wasn't needed — the existing `ThemeProvider` (Slice 80) already supports prop-driven switching, and slice 82 wires the picker UI directly. 7 vitest specs cover registration round-trip + a hex-format audit on all 14 palette fields + WCAG AA spot-check (4.5:1 minimum) for both `fgPrimary on bgSurface` and `accentFg on accent`. Both themes pass. `tsc` + `eslint` clean.
 
-### Slice 82 — Theme picker UI in profile settings
+### Slice 82 — Theme picker UI in profile settings ✅ shipped
 - **Scope:** Add Themes tab to `/admin/profile`. Preview tiles for each theme. Save selection to `user_hub_layouts.theme`. On hub load, apply saved theme. Remove `?theme=` URL hack.
 - **Files:** `app/admin/profile/components/ThemePicker.tsx`, `app/admin/profile/ProfilePanel.tsx`
 - **Done when:** User picks theme, refreshes, theme persists. Default fallback on no row.
 - **Depends on:** Slices 79, 81
+- **Done:** `ThemePicker` renders one preview tile per registered theme as `role=radio` buttons inside a `radiogroup`. Each tile shows six swatches (bg-page · bg-surface · accent · success · warning · danger) so users can eyeball the palette without applying it. Selecting a tile fires a PUT to `/api/admin/me/hub-layout` that echoes the user's current `widgets` + `activePersona` + `density` + `fontScale` + `hubSettings` (fetched once on mount) so we don't clobber unrelated state. Save shows a "✓ Saved" flash for 1.5s; errors render an inline message with the server's reason. Wired into `ProfilePanel.tsx` as a new `themes` tab; the parent loads the hub layout once so it can pass `initialThemeId` to the picker (falls back to `starr-default` if no row exists). Two themes show up in the picker right now (`starr-default` + `starr-dark`); slices 83–85 will populate the rest of the catalog. `tsc` + `eslint` clean (the two long-standing `<img>` warnings unchanged).
 
 ---
 
