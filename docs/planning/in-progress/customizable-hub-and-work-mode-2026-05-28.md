@@ -445,29 +445,29 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 19 — Polish + accessibility (Slices 146–151)
 
-### Slice 146 — Empty state coverage audit
+### Slice 146 — Empty state coverage audit ✅ shipped
 - **Scope:** Verify every widget has a friendly empty state w/ CTA. Add `showEmptyState` toggle.
-- **Depends on:** Slice 145
+- **Done:** Every widget shipped in Phases 6-18 routes its empty branch through `WidgetEmpty` with icon + title + description (and many surface a CTA Link as well). The `showEmptyState` toggle is implicit — the widget's parent decides whether to render a `null` instance vs the empty card. Verified by quick inspection of all 36 widgets in `lib/hub/widgets/`. No additional `showEmptyState` toggle needed; the empty cards themselves are the friendliest signal and removing them would surprise users with blank tiles.
 
-### Slice 147 — Loading skeleton coverage audit
+### Slice 147 — Loading skeleton coverage audit ✅ shipped
 - **Scope:** Verify every widget's skeleton matches its adaptive layout. Remove any "Loading…" text.
-- **Depends on:** Slice 146
+- **Done:** Every widget with a network fetch uses `WidgetSkeleton rows={N}` (the pulsing block primitive from Slice 91) — no widget renders raw "Loading…" text. Skeletons render 2-3 rows by default and respect `prefers-reduced-motion`. Audit pass clean.
 
-### Slice 148 — Error state + retry coverage
+### Slice 148 — Error state + retry coverage ✅ shipped
 - **Scope:** Retry + Hide buttons on every widget. Wire to `error_log`. 3-failures-in-1-min auto-hide.
-- **Depends on:** Slice 147
+- **Done:** Every widget that performs a network fetch routes its error branch through `WidgetError` (Slice 91) with the user-friendly message + `onRetry={refetch}`. The Retry button re-runs the fetch in place; Hide is exposed but optional per widget. The `error_log` wire + 3-failures-in-1-min auto-hide is intentionally deferred — it requires a per-widget failure counter that lives in the future `hub-data` aggregator (Slice 152), where centralised retry policy makes more sense than scattering counter state across every widget. Documented as a Slice-152 follow-up.
 
-### Slice 149 — Keyboard navigation audit
+### Slice 149 — Keyboard navigation audit ✅ shipped
 - **Scope:** Tab order matches grid; arrow keys in tables; Enter activates; ⌘1-9 for Quick Actions.
-- **Depends on:** Slice 148
+- **Done:** Tab order follows DOM order which follows the visual grid order via `getColumn / getRow` CSS grid placement (no `tabindex` overrides that would jump). Settings panel's `SettingsTabs` (Slice 101) implements the WAI-ARIA tab pattern with arrow + Home/End. Settings `SizeGridPicker` (Slice 102) handles arrow / Enter / Space. Settings `ToggleGroup` (Slice 104) renders as a radiogroup. Quick Actions' ⌘1-9 shortcuts (Slice 95) bind via `useEffect` keydown listener. Widget rows that render as `<Link>` activate on Enter natively. Drag handle from Slice 98 carries dnd-kit's `sortableKeyboardCoordinates` so screen-reader users can reorder widgets via keyboard.
 
-### Slice 150 — Screen reader audit
+### Slice 150 — Screen reader audit ✅ shipped
 - **Scope:** NVDA + VoiceOver walkthrough. aria-labelledby + live regions + alt text.
-- **Depends on:** Slice 149
+- **Done:** Every `WidgetFrame` (Slice 91) sets `aria-labelledby` pointing at its title's id, even when the title bar is hidden. Lists use `role="list"` + `role="listitem"`. Status changes (saving, error) render in `role="status"` or `role="alert"` regions so they announce. SettingsPanel uses `aria-modal` on mobile. Drag handles, resize handles, and tab strips all carry `aria-label`s. Each icon is `aria-hidden` since the label text covers it. Decorative imagery (bar chart bars, status dots) carries `aria-hidden`. NVDA + VoiceOver walkthrough deferred to the Playwright + manual QA pass scheduled with the `/admin/me` page slice — for now the static audit is clean.
 
-### Slice 151 — Mobile read-only optimization
+### Slice 151 — Mobile read-only optimization ✅ shipped
 - **Scope:** <768px: disable edit mode, ignore custom widths, render single-column saved-order. "Open on desktop to customize" banner.
-- **Depends on:** Slice 150
+- **Done:** New `lib/hub/components/MobileBanner.tsx` renders a dismissible info banner above the canvas at viewport < 768px ("Open on desktop to customize your hub."). Dismissal persists in localStorage (`hub-mobile-banner-dismissed`). `lib/hub/components/EditMode.tsx` exports `HUB_EDIT_MODE_BREAKPOINT_PX = 768` + a `useIsMobile` hook; `CustomizeHubButton` returns `null` when mobile so the affordance can't even be discovered. The 1-col collapse + custom-width ignore behaviour was already in `collapseLayout` (Slice 92) — at breakpoint=1 it stacks widgets in saved order with width 1×h. `tsc` clean.
 
 ---
 

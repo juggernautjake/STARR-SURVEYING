@@ -9,14 +9,35 @@
 //
 // Slice 97 of customizable-hub-and-work-mode-2026-05-28.md.
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHubStore } from '@/lib/hub/hub-store';
+
+/** Slice 151 — desktop-only edit mode. Below this px the canvas
+ *  becomes read-only (saved layout, single-column stack, no edit
+ *  affordances). Matches the breakpoint at which WidgetGrid collapses
+ *  to one column. */
+export const HUB_EDIT_MODE_BREAKPOINT_PX = 768;
+
+function useIsMobile(breakpoint: number = HUB_EDIT_MODE_BREAKPOINT_PX): boolean {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    function tick() { setMobile(window.innerWidth < breakpoint); }
+    tick();
+    window.addEventListener('resize', tick);
+    return () => window.removeEventListener('resize', tick);
+  }, [breakpoint]);
+  return mobile;
+}
 
 /** Toggle button shown at the canvas top-right. Renders as
  *  "Customize Hub" in view mode and "Editing…" in edit mode. */
 export function CustomizeHubButton({ className }: { className?: string }) {
   const isEditMode = useHubStore((s) => s.isEditMode);
   const enterEditMode = useHubStore((s) => s.enterEditMode);
+  const isMobile = useIsMobile();
+
+  // Hide the customize button on mobile — editing is desktop-only.
+  if (isMobile) return null;
 
   if (isEditMode) {
     return (
