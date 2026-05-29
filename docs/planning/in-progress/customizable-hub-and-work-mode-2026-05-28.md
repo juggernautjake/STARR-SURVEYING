@@ -294,10 +294,11 @@
 
 ## Phase 11 — Daily-workflow widgets (Slices 111–115)
 
-### Slice 111 — Today's Schedule widget
+### Slice 111 — Today's Schedule widget ✅ shipped
 - **Scope:** All 5 size variants. Wire to schedule_events. Settings: showAllDay, timeRange.
 - **Files:** `lib/hub/widgets/today-schedule/...`, tests
 - **Depends on:** Slice 104
+- **Done:** Single-file widget at `lib/hub/widgets/today-schedule/index.tsx`. Fetches `/api/admin/schedule?from=…&to=…` for the active day window. Each event row renders a 4px theme-tinted vertical stripe (success / accent / warning / info / danger based on `event_type`), the title, and (everywhere except tiny bucket) a time + location subline. **Settings:** `showAllDay` checkbox (hides all-day rows from the list); `timeRange` dropdown narrows the fetched window — `all-day`, `morning (6am-noon)`, `afternoon (noon-6pm)`, `evening (6pm-midnight)`. **Pure helpers:** `todayWindow(range, now)` (returns ISO from/to strings for the chosen window — used in the fetch URL + testable), `sortByStart(events)` (all-day events float to the top, the rest sort by start_time ascending). **Five size buckets:** `capForBucket` returns 2 / 4 / 6 / 12 / 24 rows. Tiny bucket drops the time/location subline so each event renders in a single line. Catalog category `personal`, icon `Calendar`. 14 vitest specs cover the registry round-trip, every `capForBucket` bucket, `todayWindow` for all four ranges (asserts the local-time start/end hours), `sortByStart` (all-day floats up + non-all-day sorts ascending). `tsc` + `eslint` clean.
 
 ### Slice 112 — PTO Balance widget
 - **Scope:** Adapt existing Slice-30 dashboard tile. Settings: format (hours/days), showHistory.
