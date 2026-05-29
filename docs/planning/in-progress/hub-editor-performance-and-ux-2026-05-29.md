@@ -171,7 +171,7 @@ Concrete audit findings against the shipped code:
 
 ### Phase 32 — Editor UX polish (Slices 203–206)
 
-#### Slice 203 — Drop indicator + drag overlay during edit
+#### Slice 203 — Drop indicator + drag overlay during edit ✅ shipped
 - **Scope:** Use `@dnd-kit/core`'s `DragOverlay` to show a
   semi-transparent ghost of the dragged widget pinned to the cursor.
   Add a `dropIndicatorRect` derived from the active hover target
@@ -182,6 +182,7 @@ Concrete audit findings against the shipped code:
 - **Done when:** Dragging shows the ghost + the destination
   highlighted; on drop the widget snaps into the highlighted slot.
 - **Depends on:** Slice 98, Slice 199
+- **Done:** `WidgetGrid` now tracks `activeId` (the widget being dragged) + `overId` (the cell currently under the cursor) via new `useState` pairs wired through dnd-kit's `onDragStart`, `onDragOver`, `onDragEnd`, and `onDragCancel`. The end + cancel handlers both reset the pair so a stale drop target can't paint after the drag finishes. Each `WidgetCell` receives an `isDropTarget` prop computed inline as `dragEnabled && overId === instance.id && activeId !== instance.id` — the dragged cell deliberately doesn't get the highlight because the `DragOverlay` ghost sits at the cursor in its place. The cell paints the indicator via a 2px solid `var(--theme-accent, #3b82f6)` `outline` (NOT `border`) with `outlineOffset: -2px` and `borderRadius: 8` so the box-model doesn't shift on toggle — using border would cause a 2px reflow on every drag tick. A new module-scope `DragGhost` component renders the dnd-kit `<DragOverlay>` contents: a slim `WidgetFrame` sized to the original cell's pixel dimensions (`instance.w * cellW + (w-1) * gap`) with a soft shadow, 85% opacity, accent border, and a 'Drop to place this widget' helper line. Carries `data-testid="widget-drag-ghost"` for future Playwright assertion. The dragged cell's `SortableWidgetCell` now fades to 35% opacity (was 60%) so the ghost reads as the active surface. The `DragOverlay` mounts with `dropAnimation={null}` so the ghost vanishes instantly on drop instead of awkwardly tweening to the new position — the cell underneath is what snaps into place. 10 vitest specs lock the surface: drop-target predicate (5 cases — under cursor, dragged cell, off-cursor cell, no over, no drag), cellStyle outline values when target / not target, the box-model invariant (no `border` property in either state — only `outline`), and the dynamicStyle fade-on-drag (opacity 0.35 + zIndex 5 while dragging, 1 + 'auto' otherwise). The actual drag-flow assertion is deferred to the Phase-33 Playwright smoke (Slice 208). 657 hub specs green. `tsc` + `eslint` clean.
 
 #### Slice 204 — Skeleton on first paint
 - **Scope:** When `useHubData(widgetId).status === 'idle'` (the

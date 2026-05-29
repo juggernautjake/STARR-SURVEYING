@@ -14,15 +14,18 @@
 // Slice 92 of customizable-hub-and-work-mode-2026-05-28.md.
 // Slice 98 adds drag-and-drop. Slice 99 adds the resize handle.
 
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
   closestCenter,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -99,7 +102,25 @@ export default function WidgetGrid({
 
   const sortableIds = useMemo(() => collapsed.map((w) => w.id), [collapsed]);
 
+  // Slice 203 — track which widget is being dragged + which cell
+  // is currently under the cursor so we can paint a ghost via
+  // DragOverlay and a 2px accent border on the destination cell.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+  }
+  function handleDragOver(event: DragOverEvent) {
+    setOverId(event.over ? String(event.over.id) : null);
+  }
+  function handleDragCancel() {
+    setActiveId(null);
+    setOverId(null);
+  }
   function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    setOverId(null);
     const { active, over } = event;
     if (!over || active.id === over.id || !onReorder) return;
     const oldIndex = widgets.findIndex((w) => w.id === active.id);
@@ -127,6 +148,10 @@ export default function WidgetGrid({
       resizeEnabled={resizeEnabled}
       cellDimensions={cellDimensions}
       onResize={onResize}
+      // Slice 203 — highlight the destination cell during drag.
+      // Don't highlight the dragged cell itself; the DragOverlay
+      // ghost is what sits at the cursor in its place.
+      isDropTarget={dragEnabled && overId === instance.id && activeId !== instance.id}
     />
   ));
 
@@ -134,16 +159,65 @@ export default function WidgetGrid({
     return <div ref={gridRef} style={gridStyle}>{cells}</div>;
   }
 
+  const activeInstance = activeId ? collapsed.find((w) => w.id === activeId) : null;
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
         <div ref={gridRef} style={gridStyle}>{cells}</div>
       </SortableContext>
+      <DragOverlay dropAnimation={null}>
+        {activeInstance ? (
+          <DragGhost instance={activeInstance} cellDimensions={cellDimensions} />
+        ) : null}
+      </DragOverlay>
     </DndContext>
+  );
+}
+
+/** Slice 203 — semi-transparent ghost of the dragged widget pinned
+ *  to the cursor via dnd-kit's `DragOverlay`. Renders just the
+ *  `WidgetFrame` with the original cell's pixel dimensions so the
+ *  drag feels weighty without dragging the real widget body. */
+function DragGhost({
+  instance,
+  cellDimensions,
+}: {
+  instance: WidgetInstance;
+  cellDimensions: CellDimensions;
+}) {
+  const definition = getWidget(instance.type);
+  const widthPx = Math.max(1, instance.w * cellDimensions.cellW + (instance.w - 1) * cellDimensions.gap);
+  const heightPx = Math.max(1, instance.h * cellDimensions.cellH + (instance.h - 1) * cellDimensions.gap);
+  const title = definition?.label ?? instance.type;
+  return (
+    <div
+      style={{
+        width: widthPx,
+        height: heightPx,
+        opacity: 0.85,
+        cursor: 'grabbing',
+        boxShadow: '0 12px 28px rgba(0,0,0,0.28)',
+        border: '1px solid var(--theme-accent, #3b82f6)',
+        borderRadius: 8,
+        background: 'var(--theme-bg-surface, #fff)',
+        pointerEvents: 'none',
+      }}
+      data-testid="widget-drag-ghost"
+    >
+      <WidgetFrame title={title} editMode={true}>
+        <div style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-muted)' }}>
+          Drop to place this widget
+        </div>
+      </WidgetFrame>
+    </div>
   );
 }
 
@@ -154,9 +228,13 @@ interface WidgetCellProps {
   resizeEnabled: boolean;
   cellDimensions: CellDimensions;
   onResize?: (id: string, next: GridSize) => void;
+  /** Slice 203 — true when this cell is the current dnd-kit drag
+   *  destination. Paints a 2px accent border so the surveyor sees
+   *  where the dragged widget will land. */
+  isDropTarget?: boolean;
 }
 
-function WidgetCell({ instance, editMode, dragEnabled, resizeEnabled, cellDimensions, onResize }: WidgetCellProps) {
+function WidgetCell({ instance, editMode, dragEnabled, resizeEnabled, cellDimensions, onResize, isDropTarget = false }: WidgetCellProps) {
   if (!dragEnabled) {
     return (
       <StaticWidgetCell
@@ -165,6 +243,7 @@ function WidgetCell({ instance, editMode, dragEnabled, resizeEnabled, cellDimens
         resizeEnabled={resizeEnabled}
         cellDimensions={cellDimensions}
         onResize={onResize}
+        isDropTarget={isDropTarget}
       />
     );
   }
@@ -175,6 +254,7 @@ function WidgetCell({ instance, editMode, dragEnabled, resizeEnabled, cellDimens
       resizeEnabled={resizeEnabled}
       cellDimensions={cellDimensions}
       onResize={onResize}
+      isDropTarget={isDropTarget}
     />
   );
 }
@@ -188,6 +268,9 @@ interface StaticWidgetCellProps {
   style?: React.CSSProperties;
   setNodeRef?: (node: HTMLDivElement | null) => void;
   dragListeners?: React.HTMLAttributes<HTMLButtonElement>;
+  /** Slice 203 — current dnd-kit drop target. Paints a 2px accent
+   *  outline. */
+  isDropTarget?: boolean;
 }
 
 function StaticWidgetCell({
@@ -199,6 +282,7 @@ function StaticWidgetCell({
   style,
   setNodeRef,
   dragListeners,
+  isDropTarget = false,
 }: StaticWidgetCellProps) {
   const definition = getWidget(instance.type);
 
@@ -208,6 +292,15 @@ function StaticWidgetCell({
     minHeight: 0,
     overflow: 'hidden',
     position: 'relative',
+    // Slice 203 — 2px accent outline when this cell is the current
+    // drop destination. Uses `outline` instead of `border` so the
+    // cell's box-model doesn't shift, which would cause visual jank
+    // on every drag tick. The outline-offset pulls it inside the
+    // cell padding so the highlight reads as "you'll land here".
+    outline: isDropTarget ? '2px solid var(--theme-accent, #3b82f6)' : undefined,
+    outlineOffset: isDropTarget ? '-2px' : undefined,
+    borderRadius: isDropTarget ? 8 : undefined,
+    transition: 'outline-color 80ms ease-out',
     ...style,
   };
 
@@ -298,12 +391,14 @@ function SortableWidgetCell({
   resizeEnabled,
   cellDimensions,
   onResize,
+  isDropTarget = false,
 }: {
   instance: WidgetInstance;
   editMode: boolean;
   resizeEnabled: boolean;
   cellDimensions: CellDimensions;
   onResize?: (id: string, next: GridSize) => void;
+  isDropTarget?: boolean;
 }) {
   const {
     attributes,
@@ -317,7 +412,9 @@ function SortableWidgetCell({
   const dynamicStyle: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
-    opacity: isDragging ? 0.6 : 1,
+    // Slice 203 — fade the original cell while it's being dragged
+    // so the DragOverlay ghost reads as the active surface.
+    opacity: isDragging ? 0.35 : 1,
     zIndex: isDragging ? 5 : 'auto',
   };
 
@@ -331,6 +428,7 @@ function SortableWidgetCell({
       style={dynamicStyle}
       setNodeRef={setNodeRef as (node: HTMLDivElement | null) => void}
       dragListeners={{ ...attributes, ...listeners }}
+      isDropTarget={isDropTarget}
     />
   );
 }
