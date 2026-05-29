@@ -72,6 +72,7 @@ describe('built-in themes pass WCAG AA spot-check', () => {
     'starr-default', 'starr-dark',
     'slate-light', 'slate-dark',
     'forest-light', 'sunset', 'ocean', 'plum',
+    'high-contrast-light', 'high-contrast-dark',
   ] as const) {
     it(`${id}: fgPrimary on bgSurface ≥ 4.5:1 (WCAG AA body text)`, () => {
       const def = getTheme(id)!;
@@ -83,6 +84,17 @@ describe('built-in themes pass WCAG AA spot-check', () => {
       const def = getTheme(id)!;
       const r = ratio(def.palette.accentFg, def.palette.accent);
       expect(r, `${id} accent-fg on accent = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
+  // The two high-contrast themes claim WCAG AAA (7:1 for body text).
+  // Verify that's actually true so renaming them later isn't accidentally
+  // a downgrade.
+  for (const id of ['high-contrast-light', 'high-contrast-dark'] as const) {
+    it(`${id}: fgPrimary on bgSurface ≥ 7:1 (WCAG AAA body text)`, () => {
+      const def = getTheme(id)!;
+      const r = ratio(def.palette.fgPrimary, def.palette.bgSurface);
+      expect(r, `${id} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(7);
     });
   }
 });

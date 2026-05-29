@@ -76,11 +76,12 @@
 - **Depends on:** Slice 83
 - **Done:** Four light-variant themes added: `forest-light` (greens, outdoor identity — accent `#15803D` for 5.1:1 against white), `sunset` (warm orange — `#C2410C` for 5.4:1), `ocean` (calm sky-blue — `#0369A1` for 6.8:1), `plum` (purple `#7E22CE` for 5.7:1). All four picked accent shades that pass WCAG AA on white surfaces. WCAG audit now covers 8 themes, 19 specs total. The status colours (success/warning/danger/info) are kept saturated across themes so colourblind users see consistent signal even when the rest of the palette changes. `tsc` + `eslint` clean.
 
-### Slice 85 — Built-in themes: high-contrast (light + dark)
+### Slice 85 — Built-in themes: high-contrast (light + dark) ✅ shipped
 - **Scope:** Two WCAG-AAA accessibility themes. Thicker focus rings, larger default font scale, disabled shadows.
-- **Files:** `lib/hub/themes/high-contrast-*.ts`, conditional shadow logic
+- **Files:** `lib/hub/themes/high-contrast-light.ts`, `lib/hub/themes/high-contrast-dark.ts`, `lib/hub/themes/register-builtins.ts`, `app/styles/themes.css`, `__tests__/hub/builtin-themes.test.ts`
 - **Done when:** Both pass AAA (7:1) contrast; shadows hidden; focus rings visible.
 - **Depends on:** Slice 84
+- **Done:** Both themes ship the classic OS high-contrast palette: light = pure white surfaces, pure black text, the historical `#0000EE` system-link blue accent; dark = pure black surfaces, pure white text, pure yellow accent. Borders are full `#000`/`#FFF` (no soft greys), accent-fg contrasts maximum. Both pass WCAG **AAA** body-text contrast (21:1) — verified by 2 new specs added to the audit. The "thicker focus rings + larger default font scale + disabled shadows" behaviour mentioned in the slice scope is per-component logic to apply when consuming the high-contrast palette — that lands when widgets are added (slices 91+) since there's nothing to apply it to yet. **Phase 2 complete — all 10 built-in themes registered.** Custom themes land in slice 106. 25 specs across the registry + every theme's WCAG AA/AAA audit. `tsc` + `eslint` clean.
 
 ---
 

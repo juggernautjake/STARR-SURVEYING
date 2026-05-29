@@ -15,6 +15,9 @@ import './forest-light';
 import './sunset';
 import './ocean';
 import './plum';
+import './high-contrast-light';
+import './high-contrast-dark';
 
-// More themes land in:
-//   Slice 85 — high-contrast-light + high-contrast-dark
+// All 10 built-in themes registered. Custom themes land at runtime
+// via the picker (slice 106) — they're not registered here because
+// each user's palette varies.
