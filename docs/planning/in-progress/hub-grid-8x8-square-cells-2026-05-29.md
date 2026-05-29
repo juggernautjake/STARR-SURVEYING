@@ -127,12 +127,27 @@ approach keeps each slice reviewable. The doc closes only when all
 - **Depends on:** Slice 211.
 - **Done:** All three widgets adopted the shared `_shared/stat-bucket` helpers + got tiny + non-tiny branches. `streak-counter`: tiny renders `{count}🔥 days` centered; small+ keeps the existing two-line layout but with `statNumberStyle(bucket)` so the count scales from 1.25rem at tiny through 2.5rem at xlarge. Empty state at tiny shows `0🔥 days` so the cell never goes blank. `mileage-tracker`: tiny renders the rounded mile count + a short period label ("today" / "this wk" / "this mo") via a new `periodLabel(period)` helper; small+ keeps the existing trip + reimbursement line. Empty state at tiny shows `— miles`. `sun-calculator`: tiny renders just the `{daylight_hours}h daylight` stat; small+ keeps the sunrise/sunset pair with a bucket-scaled font (`var(--hub-font-base)` at small through `1.75rem` at xlarge) and hides the location label at small to save horizontal space. All three minSize lowered from 2×1 to 1×1 so the tiny bucket is reachable. 7 vitest specs lock the new contracts (3 lowered-minSize checks + 3 periodLabel branches + 1 maxSize-stays-within-envelope assertion). 880 hub specs green. `tsc` + `eslint` clean.
 
-**Remaining audit work (Slices 213+):** Every widget in the
-catalog now imports `sizeBucket` — no "no bucket logic at all"
-widgets remain. The remaining audit is incremental polish per
-widget (column-drop on overflow, alternate layouts at xlarge,
-empty-state tiny modes for the few list widgets that still show
-the full empty illustration at 1×1).
+#### Slice 213 — tiny counter modes for 4 communication / personal widgets ✅ shipped
+- **Scope:** Audit + add tiny-bucket counter modes to widgets that
+  still showed the full WidgetEmpty illustration at 1×1.
+- **Files:** `lib/hub/widgets/weather/index.tsx`,
+  `lib/hub/widgets/mentions-inbox/index.tsx`,
+  `lib/hub/widgets/messages/index.tsx`,
+  `lib/hub/widgets/recent-activity/index.tsx`,
+  `__tests__/hub/widgets-responsive-213.test.ts`.
+- **Done when:** Each widget renders a compact tiny mode at 1×1 +
+  shows the full layout from small onward.
+- **Depends on:** Slice 212.
+- **Done:** Four widgets adopted the shared `_shared/stat-bucket` helpers with proper tiny + non-tiny branches. `weather`: tiny shows the weather emoji + rounded temperature with °F; small+ adds the description + location + high/low row; empty state at tiny shows `—° / weather`. `mentions-inbox`: tiny shows `@{count} mentions` with accent color when there are any (or fg-secondary muted color when none); small+ keeps the existing list with body previews (the redundant `bucket !== 'tiny'` preview guard was removed since tiny is handled above). `messages`: tiny shows the total unread count (accent color) or total conversation count (primary) with the appropriate label; small+ keeps the unread-dot list with the redundant tiny guards removed from the group badge + timestamp. `recent-activity`: tiny shows the recent-page count + "recent" label; small+ keeps the existing href-subtitle list with the redundant `bucket !== 'tiny'` guard removed. All four minSize values lowered to 1×1 so the tiny bucket is reachable. 14 vitest specs in the new contract test (4 lowered-minSize + 4 maxSize-fits-envelope + 4 defaultSize-still-sensible + 2 from the messages/recent-activity test rewrites) plus the existing widget-registry tests updated for the new 1×1 minSize. 892 hub specs green. `tsc` + `eslint` clean.
+
+**Remaining audit work (Slices 214+):** ~15 widgets still show the
+full WidgetEmpty illustration at every size (assignments-due,
+drawings-in-progress, equipment-out, field-data-pending,
+flashcards-due, job-activity-feed, low-consumables, maintenance-due,
+open-discussions, recent-announcements, recent-drawings,
+roadmap-progress, vehicles-status, active-research-projects, plus a
+few more). Each follow-up slice picks 3-4 with similar bucket-cap
+patterns and adds the tiny-counter mode.
 
 ---
 

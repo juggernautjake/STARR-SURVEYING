@@ -13,6 +13,11 @@ import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type MessagesSenderFilter = 'any' | 'team-only' | 'external-only';
 
@@ -80,6 +85,14 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
     return <WidgetError message="Couldn't load messages." onRetry={fetchConversations} />;
   }
   if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>messages</span>
+        </div>
+      );
+    }
     return (
       <WidgetEmpty
         icon="💬"
@@ -89,9 +102,25 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
     );
   }
 
+  const totalUnread = conversations.reduce((s, c) => s + (c.unread_count ?? 0), 0);
+
+  // Tiny — show unread count (or convo count when fully read) as a
+  // single big number.
+  if (bucket === 'tiny') {
+    const showUnread = totalUnread > 0;
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, showUnread ? 'var(--theme-accent)' : 'var(--theme-fg-primary)')}>
+          {showUnread ? totalUnread : conversations.length}
+        </span>
+        <span style={tinyStatLabelStyle()}>{showUnread ? 'unread' : 'messages'}</span>
+      </div>
+    );
+  }
+
   const cap = capForBucket(bucket);
   const visible = conversations.slice(0, cap);
-  const renderPreview = settings.showPreview && bucket !== 'tiny';
+  const renderPreview = settings.showPreview;
 
   return (
     <ul role="list" style={listStyle}>
@@ -116,7 +145,7 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
               <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                 <span style={titleStyle}>
                   {c.title ?? 'Conversation'}
-                  {c.is_group && bucket !== 'tiny' && (
+                  {c.is_group && (
                     <span style={badgeStyle} aria-label="Group conversation">group</span>
                   )}
                 </span>
@@ -125,7 +154,7 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
                 )}
               </span>
             </span>
-            {c.last_message_at && bucket !== 'tiny' && (
+            {c.last_message_at && (
               <span style={timestampStyle}>{formatRelative(c.last_message_at)}</span>
             )}
           </li>
@@ -195,7 +224,8 @@ defineWidget<MessagesContent>({
   category: 'communication',
   iconName: 'MessageSquare',
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 213 — minSize lowered to 1×1 with the tiny unread-count mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],

@@ -10,6 +10,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type MentionDateRange = 'today' | 'week' | 'month' | 'all';
 
@@ -52,7 +57,27 @@ function MentionsInboxWidget({ size, content }: WidgetProps<MentionsInboxContent
   useEffect(() => { fetchMentions(); }, [fetchMentions]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="@" title="No mentions" description="Direct @-mentions appear here for quick reply." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>@0</span>
+          <span style={tinyStatLabelStyle()}>mentions</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="@" title="No mentions" description="Direct @-mentions appear here for quick reply." />;
+  }
+
+  // Tiny — counter card with the mention count.
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>@{mentions.length}</span>
+        <span style={tinyStatLabelStyle()}>{mentions.length === 1 ? 'mention' : 'mentions'}</span>
+      </div>
+    );
+  }
 
   const visible = mentions.slice(0, capForBucket(bucket));
   return (
@@ -62,7 +87,7 @@ function MentionsInboxWidget({ size, content }: WidgetProps<MentionsInboxContent
           <span style={mentionBadgeStyle} aria-hidden>@</span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
             <span style={titleStyle}>{m.conversation_title ?? 'Conversation'}</span>
-            {bucket !== 'tiny' && m.body_preview && (
+            {m.body_preview && (
               <span style={previewStyle}>{m.body_preview}</span>
             )}
           </span>
@@ -94,7 +119,8 @@ defineWidget<MentionsInboxContent>({
   category: 'communication',
   iconName: 'AtSign',
   defaultSize: { w: 3, h: 3 },
-  minSize: { w: 2, h: 2 },
+  // Slice 213 — minSize lowered to 1×1 with the tiny @-counter mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],

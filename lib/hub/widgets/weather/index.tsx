@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type WeatherLocation = 'auto' | 'manual' | 'active-job';
 
@@ -38,20 +43,36 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
   useEffect(() => { fetchWeather(); }, [fetchWeather]);
 
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
-  if (status === 'empty' || !weather) return <WidgetEmpty icon="☁️" title="Weather unavailable" description="Once /api/admin/weather is wired, the forecast lands here." />;
+  if (status === 'empty' || !weather) {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>—°</span>
+          <span style={tinyStatLabelStyle()}>weather</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="☁️" title="Weather unavailable" description="Once /api/admin/weather is wired, the forecast lands here." />;
+  }
+
+  // Tiny — single line: emoji + rounded temp + the °F unit.
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span aria-hidden style={{ fontSize: 'clamp(1.25rem, 3vw, 2rem)', lineHeight: 1 }}>{weather.icon}</span>
+        <span style={statNumberStyle(bucket)}>{Math.round(weather.temperature_f)}°</span>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span aria-hidden style={{ fontSize: '2rem' }}>{weather.icon}</span>
-        <span style={{ fontSize: 'var(--hub-font-2xl, 1.5rem)', fontWeight: 700 }}>{Math.round(weather.temperature_f)}°</span>
+        <span style={statNumberStyle(bucket)}>{Math.round(weather.temperature_f)}°</span>
       </span>
-      {bucket !== 'tiny' && (
-        <>
-          <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{weather.description}</span>
-          <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{weather.location_label} · H {Math.round(weather.high_f)}° / L {Math.round(weather.low_f)}°</span>
-        </>
-      )}
+      <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{weather.description}</span>
+      <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{weather.location_label} · H {Math.round(weather.high_f)}° / L {Math.round(weather.low_f)}°</span>
     </div>
   );
 }
@@ -85,7 +106,8 @@ defineWidget<WeatherContent>({
   category: 'personal',
   iconName: 'CloudSun',
   defaultSize: { w: 2, h: 2 },
-  minSize: { w: 2, h: 1 },
+  // Slice 213 — minSize lowered to 1×1 with the tiny temp-card mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 4, h: 4 },
   defaultContent: DEFAULTS,
   allowedRoles: [],
