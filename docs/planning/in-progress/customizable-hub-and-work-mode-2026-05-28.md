@@ -30,11 +30,12 @@
 - **Depends on:** —
 - **Done:** Migration written with idempotent `CREATE TABLE IF NOT EXISTS` + an `updated_at` auto-touch trigger. `density` + `font_scale` columns get CHECK constraints (`density IN (...)`, `font_scale BETWEEN 0.75 AND 2.00` as a defensive backstop around the app-layer 0.875..1.5 clamp). Types in `lib/hub/types.ts` define `WidgetInstance`, `WidgetCustomization`, `HubLayoutRow`, `HubLayoutPutPayload`, plus the theme/density/scale unions and a `dbRowToHubLayout()` converter that handles `font_scale` returning as string (pg numeric quirk) or number. `tsc` + `eslint` clean.
 
-### Slice 79 — Hub layout API routes
+### Slice 79 — Hub layout API routes ✅ shipped
 - **Scope:** `GET /api/admin/me/hub-layout` (returns null on no row), `PUT` (full replace), `POST /reset`. Uses `withErrorHandler` + signed-in user check.
-- **Files:** `app/api/admin/me/hub-layout/route.ts`, `app/api/admin/me/hub-layout/reset/route.ts`, `__tests__/api/hub-layout.test.ts`
+- **Files:** `app/api/admin/me/hub-layout/route.ts`, `app/api/admin/me/hub-layout/reset/route.ts`, `lib/hub/validate-layout.ts`, `__tests__/hub/validate-layout.test.ts`
 - **Done when:** Routes return correct shapes; tests pass; PUT validates JSONB structure.
 - **Depends on:** Slice 78
+- **Done:** GET returns `{ layout: HubLayoutRow | null }` — null distinguishes "never customized" from "customized to no widgets" so the renderer can decide between persona-default vs. respecting the user's empty layout. PUT validates the payload via the pure `validateHubLayoutPutPayload()` helper (extracted to `lib/hub/validate-layout.ts` so tests don't need to mock next-auth / supabase). PUT upserts on `user_email` PK and reuses the DB-level `updated_at` trigger from Slice 78. Reset deletes the row. 21 vitest specs cover happy paths (all 11 themes accepted, all 3 density values, valid `customTheme` payload) plus rejections (non-object body, non-integer x/y/w/h, negative coords, zero w/h, unknown theme, unknown density, NaN/Infinity fontScale, theme=custom without payload). `clampFontScale` separately tested across the [0.875, 1.5] envelope. `tsc` + `eslint` clean.
 
 ### Slice 80 — Theme CSS variable layer
 - **Scope:** 14 theme CSS variables to `app/styles/themes.css`. `ThemeProvider` React component wrapping `<div data-theme="...">`. Hook `useTheme()` returns current theme id. Hook `useThemeColors()` returns palette as JS values (for charts/canvases).
