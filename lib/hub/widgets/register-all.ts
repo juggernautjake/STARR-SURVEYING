@@ -24,3 +24,4 @@ import './hours-this-week';
 import './recent-activity';
 import './bookmarks';
 import './open-discussions';
+import './recent-announcements';

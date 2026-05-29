@@ -332,8 +332,9 @@
 - **Scope:** Threads awaiting your reply. Settings: scope (mine/mentions/all).
 - **Done:** `lib/hub/widgets/open-discussions/index.tsx` reads `/api/admin/messages/conversations?limit=20`, applies `filterByScope` (`mine` = unread + last sender ≠ me, `mentions` = `has_mention=true`, `all` = everything), renders rows with the accent-tinted unread dot, title, and an `@` mention badge in non-tiny buckets. **Scope** is the only setting (matches planning) — single-select dropdown. `capForBucket` returns 2/4/6/10/20. Catalog: communication / MessageCircle / internal roles. The real "awaiting my reply" logic lives behind the messaging refactor in Slice 156; until then `mine` uses the unread-dot + sender heuristic, documented in the helper. 6 vitest specs cover registry, every bucket, and all three scope filters. `tsc` + `eslint` clean.
 
-### Slice 117 — Recent Announcements widget
+### Slice 117 — Recent Announcements widget ✅ shipped
 - **Scope:** Last 3 org announcements. Settings: unreadOnly. Wire to announcements API.
+- **Done:** `lib/hub/widgets/recent-announcements/index.tsx` reads `/api/admin/announcements?limit=N` (the endpoint is anticipated — the widget gracefully degrades to the empty state when the endpoint 404s instead of erroring, so the data layer can land later without breaking saved layouts). Each row shows an accent-tinted unread dot when `unread`, the title, and (non-tiny) a 2-line clamped preview body. Settings: `unreadOnly` checkbox, `itemLimit` (1-10). `capForBucket` returns 1/2/3/5/10. `filterAnnouncements` is the pure unreadOnly filter. Catalog: communication / Megaphone / universal. 4 vitest specs cover registry, capForBucket per bucket, filter passthrough vs unreadOnly. `tsc` + `eslint` clean.
 
 ### Slice 118 — Team Status widget
 - **Scope:** Who's clocked in. Settings: groupBy (role/shift/none).
