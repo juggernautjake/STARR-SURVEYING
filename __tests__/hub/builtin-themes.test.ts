@@ -68,7 +68,10 @@ describe('built-in themes pass WCAG AA spot-check', () => {
     return (hi + 0.05) / (lo + 0.05);
   }
 
-  for (const id of ['starr-default', 'starr-dark'] as const) {
+  for (const id of [
+    'starr-default', 'starr-dark',
+    'slate-light', 'slate-dark',
+  ] as const) {
     it(`${id}: fgPrimary on bgSurface ≥ 4.5:1 (WCAG AA body text)`, () => {
       const def = getTheme(id)!;
       const r = ratio(def.palette.fgPrimary, def.palette.bgSurface);

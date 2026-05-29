@@ -80,3 +80,39 @@
   --theme-danger:         #F87171;
   --theme-info:           #60A5FA;
 }
+
+/* ── slate-light (neutral, light) — strips brand navy for max neutrality */
+[data-theme="slate-light"] {
+  --theme-bg-page:        #F5F5F7;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F1F1F4;
+  --theme-fg-primary:     #18181B;
+  --theme-fg-secondary:   #3F3F46;
+  --theme-fg-muted:       #71717A;
+  --theme-accent:         #3F3F46;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E4E4E7;
+  --theme-border-strong:  #A1A1AA;
+  --theme-success:        #10B981;
+  --theme-warning:        #F59E0B;
+  --theme-danger:         #EF4444;
+  --theme-info:           #3B82F6;
+}
+
+/* ── slate-dark (neutral, dark) — OLED-friendly near-black surfaces */
+[data-theme="slate-dark"] {
+  --theme-bg-page:        #0A0A0A;
+  --theme-bg-surface:     #171717;
+  --theme-bg-elevated:    #262626;
+  --theme-fg-primary:     #FAFAFA;
+  --theme-fg-secondary:   #D4D4D8;
+  --theme-fg-muted:       #A1A1AA;
+  --theme-accent:         #D4D4D8;
+  --theme-accent-fg:      #0A0A0A;
+  --theme-border:         #262626;
+  --theme-border-strong:  #52525B;
+  --theme-success:        #34D399;
+  --theme-warning:        #FBBF24;
+  --theme-danger:         #F87171;
+  --theme-info:           #60A5FA;
+}

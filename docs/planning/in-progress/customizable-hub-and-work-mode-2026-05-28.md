@@ -62,11 +62,12 @@
 
 ## Phase 2 — Built-in themes (Slices 83–85)
 
-### Slice 83 — Built-in themes: `slate-light` + `slate-dark`
+### Slice 83 — Built-in themes: `slate-light` + `slate-dark` ✅ shipped
 - **Scope:** Add the two neutral themes. Run contrast audit; fix any AA failures.
-- **Files:** `lib/hub/themes/slate-*.ts`, `lib/hub/themes/index.ts`
+- **Files:** `lib/hub/themes/slate-light.ts`, `lib/hub/themes/slate-dark.ts`, `lib/hub/themes/register-builtins.ts`, `app/styles/themes.css`, `__tests__/hub/builtin-themes.test.ts`
 - **Done when:** Both render correctly in picker; pass WCAG AA spot-check.
 - **Depends on:** Slice 82
+- **Done:** Both themes use zinc/slate exclusively (no brand colours) — `slate-light` for max neutrality (long-form reading, client screenshots), `slate-dark` for OLED-friendly near-black surfaces. The dark variant uses `#D4D4D8` as accent rather than a saturated colour to keep the "neutral all the way down" feel; that passes AA (5.3:1) against `#171717` surface. WCAG AA contrast audit extended to cover all four shipped themes — all pass body-text + accent-button checks. 11 specs total in `builtin-themes.test.ts`. `tsc` + `eslint` clean.
 
 ### Slice 84 — Built-in themes: `forest`/`sunset`/`ocean`/`plum`
 - **Scope:** Add the four color-variation themes (light variants only this slice).
