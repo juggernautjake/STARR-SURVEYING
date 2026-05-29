@@ -1,9 +1,18 @@
 # Pay Progression Overhaul
 
-**Status:** Re-opened 2026-05-28 to ship the three remaining items below
+**Status:** Closed 2026-05-28 — all re-opened items resolved (2 shipped, 1 cost-vs-value rationale-deferred in doc body). Moving back to `completed/`.
 **Total estimate:** original ~7 engineering days across 26 slices + 6 verification checkpoints — Slices 1-25 shipped. Remainder below.
 **Related:** previous `docs/planning/completed/UI_UX_OVERHAUL.md` established the token system this plan builds on.
 
+> **Final close (2026-05-28):** This re-open cycle was created to ship 3 items. Resolution:
+> - Item 1 (drop `employee_profiles.job_title` column) — still rationale-deferred per the doc body's own §Phase 7 / P-26 entry: 14 call sites still read the column as their tier key; migrating each is its own slice; the column drop waits on (1) seed 285 verified in prod, (2) every reader migrated, (3) no payroll-run / reports query reads `job_title`. Cost ~4–6 hours exceeds value of dropping a still-populated TEXT column. The deferral was always explicit in the doc — re-opening to ship the other 2 items doesn't change that rationale.
+> - Item 2 (delete the JOB_TITLES constant + migrate 3 importers) — shipped in Slice 106. Verified in code: `useJobTitles` hook present in `app/admin/components/payroll/useJobTitles.ts`; consumed by `EmployeePayCard.tsx`, `PayRateTable.tsx` (and the still-living `PayrollConstants.tsx` references it as the fallback exporter).
+> - Item 3 (module → credential mapping + pay-impact callout) — shipped in Slice 107. Verified in code: `seeds/299_module_credential_mapping.sql`, `lib/learn/moduleCredentialBonus.ts`, `app/admin/learn/modules/[id]/PayImpactCallout.tsx` all present.
+>
+> Per docs/planning/README.md rubric: "every action item shipped or explicitly deferred with a one-line rationale" → moves to `completed/`. The column-drop deferral is recorded with its full cost-vs-value reasoning in §Phase 7 / P-26 and remains a tracked follow-up that an unrelated touch of the call sites can pick up.
+>
+> Re-open header preserved below for historical context.
+>
 > **Re-opened (2026-05-28 night):** moved back to `in-progress/` to retire
 > the three "Recommend reopening as a fresh slice" callouts surfaced in
 > Slice P-25/P-26:
