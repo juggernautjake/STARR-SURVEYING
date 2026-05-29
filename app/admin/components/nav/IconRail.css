@@ -98,6 +98,46 @@
   border-left-color: #5B7EE6;
 }
 
+/* ── §13.1 brand-coloured workspace icons ──────────────────────────
+ * Each workspace gets a distinct accent that surfaces on hover + when
+ * the workspace is the active one. The accent is the border-left bar
+ * (3 px solid). Inactive icons still inherit the neutral white-tinted
+ * hover from .admin-rail__icon:hover above so the rail keeps its
+ * cohesive look.
+ *
+ * Colour assignments use existing tokens where possible so the brand
+ * sweep keeps tracking. Operator can override per-workspace later by
+ * changing the value of any of these CSS variables:
+ *
+ *   --rail-accent-hub        navy   (personal/home)
+ *   --rail-accent-work       green  (action / operations)
+ *   --rail-accent-equipment  amber  (heavy machinery / safety)
+ *   --rail-accent-research   sky    (technical / exploration)
+ *   --rail-accent-knowledge  violet (academic — matches dashboard schedule card)
+ *   --rail-accent-office     red    (back-office / admin)
+ */
+.admin-rail {
+  --rail-accent-hub:       var(--color-brand-navy);
+  --rail-accent-work:      var(--color-success);
+  --rail-accent-equipment: var(--color-warning);
+  --rail-accent-research:  #38BDF8;
+  --rail-accent-knowledge: #7C3AED;
+  --rail-accent-office:    var(--color-brand-red);
+}
+
+.admin-rail__icon[data-workspace="hub"]:hover,
+.admin-rail__icon[data-workspace="hub"].admin-rail__icon--active        { border-left-color: var(--rail-accent-hub); }
+.admin-rail__icon[data-workspace="work"]:hover,
+.admin-rail__icon[data-workspace="work"].admin-rail__icon--active       { border-left-color: var(--rail-accent-work); }
+.admin-rail__icon[data-workspace="equipment"]:hover,
+.admin-rail__icon[data-workspace="equipment"].admin-rail__icon--active  { border-left-color: var(--rail-accent-equipment); }
+.admin-rail__icon[data-workspace="research-cad"]:hover,
+.admin-rail__icon[data-workspace="research-cad"].admin-rail__icon--active { border-left-color: var(--rail-accent-research); }
+.admin-rail__icon[data-workspace="knowledge"]:hover,
+.admin-rail__icon[data-workspace="knowledge"].admin-rail__icon--active  { border-left-color: var(--rail-accent-knowledge); }
+.admin-rail__icon[data-workspace="office"]:hover,
+.admin-rail__icon[data-workspace="office"].admin-rail__icon--active     { border-left-color: var(--rail-accent-office); }
+
 .admin-rail__icon--button {
   border: 0;
   background: transparent;
