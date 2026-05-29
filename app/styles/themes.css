@@ -40,7 +40,43 @@
 }
 
 /* ── Theme blocks (one per theme id) live below this line.
- *    Slice 81 adds starr-default + starr-dark.
- *    Slices 83–85 add the other 9 built-ins.
+ *    Slices 83–85 add the remaining 9 built-ins.
  *    Custom themes are inlined on the ThemeProvider element rather than
  *    being declared here. ───────────────────────────────────────────── */
+
+/* ── starr-default (light, brand) ──────────────────────────────────── */
+[data-theme="starr-default"] {
+  --theme-bg-page:        #F8FAFC;
+  --theme-bg-surface:     #FFFFFF;
+  --theme-bg-elevated:    #F1F5F9;
+  --theme-fg-primary:     #0F172A;
+  --theme-fg-secondary:   #475569;
+  --theme-fg-muted:       #94A3B8;
+  --theme-accent:         #1D3095;
+  --theme-accent-fg:      #FFFFFF;
+  --theme-border:         #E2E8F0;
+  --theme-border-strong:  #94A3B8;
+  --theme-success:        #10B981;
+  --theme-warning:        #F59E0B;
+  --theme-danger:         #EF4444;
+  --theme-info:           #3B82F6;
+}
+
+/* ── starr-dark (dark, brand) — accent is lightened so it passes WCAG
+ *    AA against the dark surface ─────────────────────────────────── */
+[data-theme="starr-dark"] {
+  --theme-bg-page:        #0B1020;
+  --theme-bg-surface:     #111935;
+  --theme-bg-elevated:    #1A2347;
+  --theme-fg-primary:     #F1F5F9;
+  --theme-fg-secondary:   #CBD5E1;
+  --theme-fg-muted:       #94A3B8;
+  --theme-accent:         #5A7BE5;
+  --theme-accent-fg:      #0B1020;
+  --theme-border:         #1F2A4D;
+  --theme-border-strong:  #3A4A75;
+  --theme-success:        #34D399;
+  --theme-warning:        #FBBF24;
+  --theme-danger:         #F87171;
+  --theme-info:           #60A5FA;
+}
