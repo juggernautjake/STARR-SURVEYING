@@ -17,3 +17,4 @@ import './quick-actions';
 import './my-pay';
 import './my-jobs';
 import './messages';
+import './class-assignments';
