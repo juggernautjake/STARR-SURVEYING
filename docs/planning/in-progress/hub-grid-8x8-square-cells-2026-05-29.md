@@ -113,11 +113,26 @@ approach keeps each slice reviewable. The doc closes only when all
 - **Depends on:** Slice 210.
 - **Done:** New `lib/hub/widgets/_shared/stat-bucket.ts` centralizes the bucket-scaled stat typography that monthly-revenue introduced inline. `statNumberStyle(bucket, color?)` returns a CSS object with `clamp(1.25rem, 3vw, 2rem)` at tiny through `2.5rem` at xlarge plus the standard single-line truncation bundle (`overflow: hidden`, `white-space: nowrap`, `text-overflow: ellipsis`) so a long value can never wrap. `tinyStatWrapStyle()` + `tinyStatLabelStyle()` produce the centered flex column + uppercase muted-label pair every tiny stat card uses. Each helper returns a fresh object so callers can spread additional fields. `hours-this-week` now branches on bucket — tiny renders `{total}h` centered with an "of {goal}h" label, no bar chart; small renders the existing number + chart with the new bucket-aware font; medium+ keeps the optional per-job breakdown. minSize lowered to 1×1. Empty state at tiny shows `0h / this week`. `pto-balance` got the same treatment — tiny renders just the formatted balance + "PTO" label in success color; small+ keeps the accrual + last-accrued lines + the optional history list. minSize lowered to 1×1. Empty state at tiny shows an em-dash + "PTO" label. `today-schedule` got a tiny event-count mode (`{count} event{s} today`), empty state at tiny shows `0 / today`. minSize lowered to 1×1. The redundant `bucket !== 'tiny'` guard on the per-event time/location line was removed because tiny is now handled above. 10 vitest specs lock the shared helpers (distinct fontSize per bucket, fontWeight 700 + line-height 1.1 for every bucket, single-line truncation invariant, default color + override path, fresh-object guarantee, label uppercase + muted) plus the 3 widgets' lowered minSize. The pto-balance + today-schedule registry tests were updated to assert the new 1×1 floor + matching defaultSize. 873 hub specs green. `tsc` + `eslint` clean.
 
-**Remaining audit work (Slices 212+):** ~30 widgets still pending a
-bucket-by-bucket review. The shared stat-bucket helpers from Slice
-211 make the next batches a drop-in apply for any number-driven
-widget; list-style widgets follow the row-cap pattern from Slice
-210.
+#### Slice 212 — bucket-aware rendering for the 3 widgets that had ZERO size logic ✅ shipped
+- **Scope:** Audit + bucket-enable `streak-counter`,
+  `mileage-tracker`, and `sun-calculator` — the only 3 widgets in
+  the catalog that didn't import `sizeBucket` at all. Apply the
+  shared stat-bucket helpers from Slice 211.
+- **Files:** `lib/hub/widgets/streak-counter/index.tsx`,
+  `lib/hub/widgets/mileage-tracker/index.tsx`,
+  `lib/hub/widgets/sun-calculator/index.tsx`,
+  `__tests__/hub/widgets-responsive-212.test.ts`.
+- **Done when:** Each widget renders cleanly at 1×1 and uses the
+  shared `statNumberStyle(bucket)` helper for its main number.
+- **Depends on:** Slice 211.
+- **Done:** All three widgets adopted the shared `_shared/stat-bucket` helpers + got tiny + non-tiny branches. `streak-counter`: tiny renders `{count}🔥 days` centered; small+ keeps the existing two-line layout but with `statNumberStyle(bucket)` so the count scales from 1.25rem at tiny through 2.5rem at xlarge. Empty state at tiny shows `0🔥 days` so the cell never goes blank. `mileage-tracker`: tiny renders the rounded mile count + a short period label ("today" / "this wk" / "this mo") via a new `periodLabel(period)` helper; small+ keeps the existing trip + reimbursement line. Empty state at tiny shows `— miles`. `sun-calculator`: tiny renders just the `{daylight_hours}h daylight` stat; small+ keeps the sunrise/sunset pair with a bucket-scaled font (`var(--hub-font-base)` at small through `1.75rem` at xlarge) and hides the location label at small to save horizontal space. All three minSize lowered from 2×1 to 1×1 so the tiny bucket is reachable. 7 vitest specs lock the new contracts (3 lowered-minSize checks + 3 periodLabel branches + 1 maxSize-stays-within-envelope assertion). 880 hub specs green. `tsc` + `eslint` clean.
+
+**Remaining audit work (Slices 213+):** Every widget in the
+catalog now imports `sizeBucket` — no "no bucket logic at all"
+widgets remain. The remaining audit is incremental polish per
+widget (column-drop on overflow, alternate layouts at xlarge,
+empty-state tiny modes for the few list widgets that still show
+the full empty illustration at 1×1).
 
 ---
 
