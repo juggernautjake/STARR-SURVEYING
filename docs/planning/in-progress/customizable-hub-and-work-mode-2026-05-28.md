@@ -340,8 +340,9 @@
 - **Scope:** Who's clocked in. Settings: groupBy (role/shift/none).
 - **Done:** `lib/hub/widgets/team-status/index.tsx` reads `/api/admin/team/status` (gracefully empty when 404), filters to clocked-in + on-break, renders rows with a success/warning dot + name + role. **Group by** role / shift / none (non-tiny only — tiny always flat). `capForBucket` returns 3/6/10/18/30. `groupMembers` exported for tests (role/shift bucketing with No-role/shift fallback). Catalog: operational / Users / manager roles (admin, developer, tech_support, equipment_manager). 4 vitest specs cover registry, every bucket, and role/shift grouping. `tsc` + `eslint` clean.
 
-### Slice 119 — Mentions Inbox widget
+### Slice 119 — Mentions Inbox widget ✅ shipped
 - **Scope:** DMs/threads w/ direct mentions. Settings: dateRange.
+- **Done:** `lib/hub/widgets/mentions-inbox/index.tsx` reads `/api/admin/messages/mentions` (gracefully empty when endpoint absent), renders accent `@` badge + conversation title + body preview per row. `dateRange` (today / week / month / all). `capForBucket` returns 2/4/6/10/20. Pure `filterByRange(list, range, now)` exported. Catalog: communication / AtSign / internal roles. 6 vitest specs cover registry, capForBucket, and all four date ranges. `tsc` + `eslint` clean.
 
 ---
 

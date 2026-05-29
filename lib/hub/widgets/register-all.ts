@@ -26,3 +26,4 @@ import './bookmarks';
 import './open-discussions';
 import './recent-announcements';
 import './team-status';
+import './mentions-inbox';
