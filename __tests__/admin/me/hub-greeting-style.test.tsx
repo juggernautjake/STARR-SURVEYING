@@ -37,13 +37,17 @@ describe('Greeting date + clock-status — readable on the navy gradient', () =>
   });
 });
 
-describe('Enter Work Mode CTA — green pill', () => {
-  it('overrides the generic primary chrome with the success color', () => {
+describe('Enter Work Mode CTA — gradient green pill (matches estimate banner)', () => {
+  // Slice 221 — the button now uses the same --gradient-green token
+  // the landing-page estimate banner CTA lives on, with rich hover +
+  // active feedback that mirror the marketing button's lift.
+
+  it('uses the --gradient-green token (same emerald gradient as the landing estimate banner)', () => {
     const blockMatch = css.match(
       /\.hub-greeting__work-mode-btn\.hub-btn,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary\s*\{[\s\S]*?\}/,
     );
     expect(blockMatch).not.toBeNull();
-    expect(blockMatch![0]).toMatch(/background:\s*var\(--color-success\)/);
+    expect(blockMatch![0]).toMatch(/background:\s*var\(--gradient-green\)/);
     expect(blockMatch![0]).toMatch(/color:\s*#FFFFFF/i);
   });
 
@@ -54,29 +58,50 @@ describe('Enter Work Mode CTA — green pill', () => {
     expect(blockMatch![0]).toMatch(/border-radius:\s*9999px/);
   });
 
-  it('uses larger padding + heavier weight + min-width so it reads as the primary CTA', () => {
+  it('has larger padding (0.95rem 2.1rem) + heavier weight + min-width so it reads as the primary CTA', () => {
     const blockMatch = css.match(
       /\.hub-greeting__work-mode-btn\.hub-btn,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary\s*\{[\s\S]*?\}/,
     );
-    expect(blockMatch![0]).toMatch(/padding:\s*0\.85rem\s+2rem/);
+    expect(blockMatch![0]).toMatch(/padding:\s*0\.95rem\s+2\.1rem/);
     expect(blockMatch![0]).toMatch(/font-weight:\s*700/);
-    expect(blockMatch![0]).toMatch(/min-width:\s*12rem/);
+    expect(blockMatch![0]).toMatch(/min-width:\s*13rem/);
   });
 
-  it('has a glow shadow tied to the success color so it pops off the navy', () => {
+  it('has a layered green-tinted shadow so it pops off the navy', () => {
     const blockMatch = css.match(
       /\.hub-greeting__work-mode-btn\.hub-btn,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary\s*\{[\s\S]*?\}/,
     );
     expect(blockMatch![0]).toMatch(/box-shadow:[\s\S]*?rgba\(16,\s*185,\s*129/);
   });
 
-  it('hover state darkens the green + lifts the shadow', () => {
+  it('hover lifts the CTA via translateY(-2px) + brightness(1.05) + a bigger glow', () => {
     const hoverMatch = css.match(
       /\.hub-greeting__work-mode-btn\.hub-btn:hover,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary:hover\s*\{[\s\S]*?\}/,
     );
     expect(hoverMatch).not.toBeNull();
-    expect(hoverMatch![0]).toMatch(/background:\s*#059669/);
-    expect(hoverMatch![0]).toMatch(/transform:\s*translateY\(-1px\)/);
+    expect(hoverMatch![0]).toMatch(/transform:\s*translateY\(-2px\)/);
+    expect(hoverMatch![0]).toMatch(/filter:\s*brightness\(1\.05\)/);
+    expect(hoverMatch![0]).toMatch(/box-shadow:[\s\S]*?rgba\(16,\s*185,\s*129/);
+  });
+
+  it('active state presses the CTA back to the base + dims slightly so the click registers', () => {
+    const activeMatch = css.match(
+      /\.hub-greeting__work-mode-btn\.hub-btn:active,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary:active\s*\{[\s\S]*?\}/,
+    );
+    expect(activeMatch).not.toBeNull();
+    expect(activeMatch![0]).toMatch(/transform:\s*translateY\(0\)/);
+    expect(activeMatch![0]).toMatch(/filter:\s*brightness\(0\.97\)/);
+    // Faster transition on press for a snappy click feel.
+    expect(activeMatch![0]).toMatch(/transition:\s*transform\s+80ms/);
+  });
+
+  it('keyboard focus shows a 2px white ring with 3px offset', () => {
+    const focusMatch = css.match(
+      /\.hub-greeting__work-mode-btn\.hub-btn:focus-visible,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary:focus-visible\s*\{[\s\S]*?\}/,
+    );
+    expect(focusMatch).not.toBeNull();
+    expect(focusMatch![0]).toMatch(/outline:\s*2px solid #ffffff/i);
+    expect(focusMatch![0]).toMatch(/outline-offset:\s*3px/);
   });
 });
 
