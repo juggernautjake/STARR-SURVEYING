@@ -372,8 +372,10 @@
 - **Done:** `lib/hub/widgets/equipment-out/index.tsx` reads `/api/admin/equipment/today?status=checked-out&mine=true|false`. `scope` toggles mine/all. New `_shared/simple-list-widget.ts` exports `bucketCap(bucket, caps)` so future list-style widgets stay DRY. Catalog: equipment / Wrench / equipment manager + admin + tech_support + field_crew. id is `equipment-out-today` (matches Slice 93 default layout). 2 vitest specs.
 ### Slice 125 — Maintenance Due widget ✅ shipped
 - **Done:** `lib/hub/widgets/maintenance-due/index.tsx` reads `/api/admin/equipment/maintenance?due=…`. Each row shows asset name + task type subline + due date (danger-tinted "Overdue" when past). `dueWithin` setting: overdue-only / week / month. Catalog: equipment / WrenchSettings / manager roles.
-### Slice 126 — Low Consumables widget
-### Slice 127 — Vehicles Status widget
+### Slice 126 — Low Consumables widget ✅ shipped
+- **Done:** `lib/hub/widgets/low-consumables/index.tsx` reads `/api/admin/equipment/consumables?below=N`. Critical (qty ≤ 0) renders in danger color, others in warning. Settings: threshold number. Catalog: equipment / PackageOpen.
+### Slice 127 — Vehicles Status widget ✅ shipped
+- **Done:** `lib/hub/widgets/vehicles-status/index.tsx` reads `/api/admin/equipment/vehicles?filter=…`. Each row shows status dot (success/accent/warning/muted) + name + driver. Catalog: equipment / Truck / manager roles. `vehicleColor` exported.
 
 All gated by `equipment_manager` or `admin` in the catalog.
 

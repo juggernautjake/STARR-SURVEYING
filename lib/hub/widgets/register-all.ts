@@ -33,3 +33,5 @@ import './field-data-pending';
 import './job-activity-feed';
 import './equipment-out';
 import './maintenance-due';
+import './low-consumables';
+import './vehicles-status';
