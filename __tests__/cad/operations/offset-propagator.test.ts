@@ -236,6 +236,70 @@ describe('findStaleOffsets — source deletion path', () => {
   });
 });
 
+describe('propagation chain — multiple sources in one pass', () => {
+  it('each source change triggers exactly its own offsets', () => {
+    useDrawingStore.getState().addFeatures([
+      makeLineSource('src-a'),
+      makeLineSource('src-b'),
+      makeOffset('off-a', 'src-a', 5),
+      makeOffset('off-b', 'src-b', 7),
+    ]);
+    mountOffsetPropagator();
+    useDrawingStore.getState().updateFeatureGeometry('src-a', {
+      type: 'LINE',
+      start: { x: 0, y: 0 },
+      end:   { x: 20, y: 0 },
+    });
+    const offA = useDrawingStore.getState().getFeature('off-a')!;
+    const offB = useDrawingStore.getState().getFeature('off-b')!;
+    // off-a follows src-a's new x-extent
+    expect(offA.geometry.end!.x).toBeCloseTo(20, 6);
+    expect(offA.geometry.start!.y).toBeCloseTo(5, 6);
+    // off-b stays parked at its original src-b parallel (src-b unchanged)
+    expect(offB.geometry.start!.y).toBeCloseTo(7, 6);
+    expect(offB.geometry.end!.x).toBeCloseTo(10, 6);
+  });
+});
+
+describe('source deletion during propagation', () => {
+  it('deleting the source while the propagator is mounted leaves the offset geometry alone', () => {
+    useDrawingStore.getState().addFeatures([
+      makeLineSource('src-1'),
+      makeOffset('off-1', 'src-1', 5),
+    ]);
+    mountOffsetPropagator();
+    const before = useDrawingStore.getState().getFeature('off-1')!.geometry;
+    useDrawingStore.getState().removeFeature('src-1');
+    const after = useDrawingStore.getState().getFeature('off-1')!.geometry;
+    // Slice 4's PropertyPanel handles the stale display; the
+    // propagator just refuses to republish (no source = no recompute).
+    expect(after).toEqual(before);
+    expect(findStaleOffsets()).toEqual(['off-1']);
+  });
+});
+
+describe('chained source mutations', () => {
+  it('a second source mutation re-propagates from the new geometry', () => {
+    useDrawingStore.getState().addFeatures([
+      makeLineSource('src-1'),
+      makeOffset('off-1', 'src-1', 5),
+    ]);
+    mountOffsetPropagator();
+    useDrawingStore.getState().updateFeatureGeometry('src-1', {
+      type: 'LINE',
+      start: { x: 0, y: 10 },
+      end:   { x: 10, y: 10 },
+    });
+    expect(useDrawingStore.getState().getFeature('off-1')!.geometry.start!.y).toBeCloseTo(15, 6);
+    useDrawingStore.getState().updateFeatureGeometry('src-1', {
+      type: 'LINE',
+      start: { x: 0, y: 20 },
+      end:   { x: 10, y: 20 },
+    });
+    expect(useDrawingStore.getState().getFeature('off-1')!.geometry.start!.y).toBeCloseTo(25, 6);
+  });
+});
+
 describe('unmountOffsetPropagator', () => {
   it('stops the propagator — source changes no longer auto-regenerate offsets', () => {
     useDrawingStore.getState().addFeatures([
