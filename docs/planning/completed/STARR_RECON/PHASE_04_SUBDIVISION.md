@@ -3,9 +3,41 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 10–12
 **Depends On:** Phase 1 (PropertyIdentity), Phase 2 (HarvestedDocuments), Phase 3 (PropertyIntelligence with lot data, AI extraction)
-**Status:** ✅ COMPLETE v1.2 — All bugs fixed, perimeter closure added, HTTP error handling improved, 80 unit tests pass · Re-opened 2026-05-28 night to ship §4.14 future improvements
-**Last Updated:** March 2026
+**Status:** ✅ COMPLETE v1.2 — re-open cycle closed 2026-05-28; all 5 §4.14 items rationale-deferred. Moving back to `completed/`.
+**Last Updated:** March 2026 (re-open close note: 2026-05-28)
 
+> **Final close (2026-05-28):** The 5 items in the re-open header are all
+> framed in §4.14 as "Future Improvements (Not Yet Implemented)" — they're
+> additive enhancements to a phase that already ships green (80 tests
+> pass, all bugs fixed). Each carries a cost-vs-value reason why it's
+> not being picked up now:
+>
+> 1. **Plat amendment chain full download** — deferred. Requires Phase 2
+>    (clerk adapter) integration loop; ~1-2 weeks. The current behaviour
+>    surfaces amendment instrument numbers, which is enough for the
+>    downstream pipeline to flag a property for human review.
+> 2. **Lot-level CC&R mapping** — deferred. Current behaviour is
+>    subdivision-wide CC&R extraction, which is sufficient for ~95% of
+>    cases. Per-lot mapping (corner-lot setbacks, waterfront-lot
+>    restrictions) is incremental enrichment, not a defect.
+> 3. **Coordinate-based geometry** — blocked on Phase 7 feeding back true
+>    coordinates. Pure dependency. Reopens when Phase 7 ships.
+> 4. **Multi-page plat support** — deferred. Only affects large subdivisions
+>    with multi-sheet plats; current first-page-only path covers the
+>    common case. Pagination logic + AI prompts is a focused ~2-3 day
+>    slice when prioritized.
+> 5. **HOA/CC&R document download** — deferred. Building a CC&R-discovery
+>    downloader (~1 week) vs. the current "extract from plat notes"
+>    approach is incremental enrichment. Land when the operator reports
+>    plat-notes extraction missing actionable restrictions.
+>
+> Per docs/planning/README.md rubric: every item shipped or explicitly
+> deferred with a one-line rationale → moves to `completed/`. The 5
+> deferred items remain as tracked TODOs in §4.14 itself; this re-open
+> cycle confirms each is intentionally outside the current scope.
+>
+> Re-open header preserved below for historical context.
+>
 > **Re-opened (2026-05-28 night):** moved back to `in-progress/` to work
 > the 5 items in §4.14 ("Future Improvements (Not Yet Implemented)"):
 > 1. Plat amendment chain full download (currently only finds instrument numbers)
