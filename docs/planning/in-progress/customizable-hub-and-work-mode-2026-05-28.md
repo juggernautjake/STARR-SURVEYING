@@ -606,6 +606,80 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ---
 
+## Phase 27 — Hub canvas integration (Slices 185–189)
+
+Slices 78–184 shipped every widget, every helper, every store, every modal — but a post-build audit (2026-05-29) confirmed **none of it is mounted on a real page**. The `/admin/me/page.tsx` still renders the legacy Phase-2 hub (`HubToday` / `HubPinnedRecent` / `HubTabs` / `HubNotifications` / `HubQuickActions`) and never imports `WidgetGrid`, `register-all`, `useHubStore.hydrate`, `ThemeProvider`, `EditMode*`, `SettingsPanel`, `AddWidgetModal`, or `MobileBanner`. Phase 27 wires the entire build into the canvas so the work actually shows up for users. Reference: the audit summary in commit notes for Slice 185.
+
+### Slice 185 — HubCanvas orchestrator
+- **Scope:** New `lib/hub/components/HubCanvas.tsx` client component that holds the WidgetGrid + EditModeBar + AddWidgetModal + SettingsPanel + MobileBanner together. Reads `useHubStore.widgets` vs `draftWidgets` based on edit mode + threads `onReorder` (`setDraftWidgets(compactLayout)`) and `onResize` ((id, next) → patch in place + compact) into the grid. Click on a widget while in edit mode opens the SettingsPanel against that instance.
+- **Files:** `lib/hub/components/HubCanvas.tsx`, `__tests__/hub/hub-canvas.test.tsx`
+- **Done when:** Component renders WidgetGrid driven by store, edit-mode switches data source, modal/panel open + close end-to-end (vitest specs via react-dom/server for static shape).
+- **Depends on:** Slices 92, 97, 100, 101, 151
+
+### Slice 186 — HubProviders + theme/density wiring
+- **Scope:** New `lib/hub/components/HubProviders.tsx` wraps children with `ThemeProvider` (using `theme` + `customTheme` from `useHubStore`), sets `data-density` + `style={{ '--hub-font-scale': fontScale }}` on its root element so the density.css cascade + font-scale token from Slices 86 + 87 actually apply. Hub canvas mounts inside this. Server side: the layout passes initial theme + density + fontScale so first paint matches the user's saved settings (no flash).
+- **Files:** `lib/hub/components/HubProviders.tsx`, `__tests__/hub/hub-providers.test.tsx`
+- **Done when:** Saved theme renders on first paint; density/font-scale apply to children; `data-theme` swap is observable in the DOM.
+- **Depends on:** Slices 80, 82, 86, 106
+
+### Slice 187 — Cut over `/admin/me` to HubCanvas
+- **Scope:** Rewrite `app/admin/me/page.tsx` as a server component that fetches the saved layout via the server-side helper (so first paint has data, no skeleton on load), passes it into a client `<HubMeClient>` that calls `useHubStore.hydrate()` on mount, imports `lib/hub/widgets/register-all` for its side effect, then renders `<HubProviders>{<HubCanvas />}</HubProviders>`. HubGreeting + ClockInPill stay above the canvas (greeting card is non-customizable per v2 §5.1).
+- **Files:** `app/admin/me/page.tsx`, `app/admin/me/HubMeClient.tsx`, `__tests__/admin/me/page.test.tsx`
+- **Done when:** Visiting `/admin/me` renders the persona-default widgets for a new user; reloads after Save preserve the layout; switching theme in the profile re-renders with the new palette without a refresh.
+- **Depends on:** Slices 78, 79, 93, 185, 186
+
+### Slice 188 — Wire ClockInPill to the clock modals
+- **Scope:** Replace the `ClockInPill`'s `/admin/my-hours` link with onClick handlers that open `ClockInModal` (when not clocked in) or `ClockOutModal` (when clocked in). On submit, POST/PATCH the time-log row + refresh the pill state. Activity tag catalog fetched from `/api/admin/activity-tags` (new — wraps the seed table).
+- **Files:** `app/admin/components/ClockInPill.tsx`, `app/api/admin/activity-tags/route.ts`, `__tests__/admin/clock-in-pill.test.tsx`
+- **Done when:** Click pill → modal opens; submit creates a daily_time_log with selected tags; pill re-renders green; ClockOutModal pre-fills per-job allocations from the day's logs.
+- **Depends on:** Slices 89, 178, 179, 180
+
+### Slice 189 — Archive legacy hub primitives
+- **Scope:** Move `WhatsNewBanner`, `HubToday`, `HubPinnedRecent`, `HubTabs`, `HubNotifications`, `HubQuickActions`, and `AdminMe.css` into `app/admin/me/_archive/` with a short README explaining that their responsibilities migrated to widgets (TodaySchedule / PinnedPages / RecentActivity / QuickActions / Messages / RecentAnnouncements). Strip imports of the archived pieces from anywhere that still references them. The archive directory is `.gitignored` from the next-app's route detection by prefixing with `_` (Next.js convention).
+- **Files:** `app/admin/me/_archive/*` (moved), `app/admin/me/HubMeClient.tsx` (clean import list)
+- **Done when:** Build still passes; nothing in `/app/admin/me/page.tsx` references the legacy components; tests for the archived components still run but live under `__tests__/_archive/admin/me/`.
+- **Depends on:** Slice 187
+
+---
+
+## Phase 28 — Work Mode chrome isolation + endpoint stubs (Slices 190–191)
+
+### Slice 190 — AdminLayoutClient bypass for Work Mode paths
+- **Scope:** `app/admin/components/AdminLayoutClient.tsx` reads `usePathname()` and short-circuits its sidebar + IconRail when the path matches `/admin/work-mode/...`. Work Mode shell from Slice 156 then owns the screen end-to-end (its own `WorkModeTopBar` is the only chrome). The greeting bar / Cmd+K palette / nav-store side effects still register so `Exit Work Mode` → `/admin/me` lands on a fully-hydrated hub.
+- **Files:** `app/admin/components/AdminLayoutClient.tsx`, `__tests__/admin/admin-layout-client.test.tsx`
+- **Done when:** Visiting `/admin/work-mode/field_crew` shows the Work Mode top bar + the field-crew tab grid with **no admin sidebar or IconRail visible**; navigating back to `/admin/me` brings the regular admin chrome back.
+- **Depends on:** Slice 156
+
+### Slice 191 — Stub the 4 missing endpoints
+- **Scope:** Add `app/api/admin/team/status/route.ts`, `app/api/admin/weather/route.ts`, `app/api/admin/sun/route.ts`, `app/api/admin/research/pipeline/route.ts` as **graceful empty-response stubs** so the widgets that depend on them render their empty state instead of throwing fetch errors in dev tools. Each stub returns 200 with a shape-correct empty payload (`{members: []}` / `{}` / `{sunrise: …}` / `{runs: []}`) and a comment pointing at the real implementation slice in a future planning doc.
+- **Files:** `app/api/admin/team/status/route.ts`, `app/api/admin/weather/route.ts`, `app/api/admin/sun/route.ts`, `app/api/admin/research/pipeline/route.ts`
+- **Done when:** Each widget renders without console-noise; integration tests confirm shape match.
+- **Depends on:** Slices 118, 131, 141, 143
+
+---
+
+## Phase 29 — Verification + end-to-end (Slices 192–194)
+
+### Slice 192 — Playwright smoke: customize-hub flow
+- **Scope:** New Playwright spec that signs in as a field-crew user, asserts the persona-default widgets render, opens edit mode via Customize Hub, drags a widget, resizes, opens Add Widget, picks one, opens Settings on a widget + changes its title, hits Save, reloads, asserts all of the above persisted.
+- **Files:** `e2e/hub-customize.spec.ts`
+- **Done when:** `npm run e2e -- --grep 'hub-customize'` passes on a clean dev DB.
+- **Depends on:** Slice 187
+
+### Slice 193 — Playwright smoke: Work Mode flow
+- **Scope:** New Playwright spec that enters Work Mode from the hub greeting, asserts the role picker shows (or fast-paths for a single-role user), opens the field-crew shell, switches tabs, clicks Exit Work Mode, confirms in the modal, lands back on `/admin/me`.
+- **Files:** `e2e/work-mode.spec.ts`
+- **Done when:** `npm run e2e -- --grep 'work-mode'` passes on a clean dev DB.
+- **Depends on:** Slices 156, 157, 158, 190
+
+### Slice 194 — Triage pre-existing recon worker-sync failures
+- **Scope:** 14 specs in `__tests__/recon/phase16-worker-sync.test.ts` have been failing for the duration of the hub arc (since well before Slice 78). Read the test + the worker; either fix the broken mock setup or document why the test is invalid + skip the affected specs. Either way the full test suite returns to 4778/4778 green.
+- **Files:** `__tests__/recon/phase16-worker-sync.test.ts`, possibly `worker/sync/*`
+- **Done when:** `npx vitest run` reports 0 failures.
+- **Depends on:** —
+
+---
+
 ## Cross-cutting reminders for every slice
 
 1. Read the relevant design rationale section before coding.
@@ -620,7 +694,7 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Slice numbering convention
 
-These start at **Slice 78** because Slices 1–77 are in `backend-audit-and-improvements-2026-05-27.md`. Numbering continues across docs so commit messages + git blame remain unambiguous. Future planning docs continue from 185+.
+These start at **Slice 78** because Slices 1–77 are in `backend-audit-and-improvements-2026-05-27.md`. Numbering continues across docs so commit messages + git blame remain unambiguous. Slices 78–184 covered the v2 build itself; Slices 185–194 are the post-build audit (reopened 2026-05-29 after `/admin/me` was found to still render the legacy hub). Future planning docs continue from 195+.
 
 ---
 
@@ -648,9 +722,10 @@ For now, the slice work proceeds with the recommended-defaults from the v2 desig
 
 ## TL;DR
 
-- 107 slices (78 through 184) covering everything in the v2 design.
+- 107 slices (78–184) covering the v2 build: hub canvas, 36 widgets, settings, themes, custom theme, drag/resize/add-widget, Work Mode shells, clock modals, bundle gating.
+- 10 audit slices (185–194) appended 2026-05-29 to wire what the build slices left orphaned: HubCanvas/HubProviders/`/admin/me` cutover, ClockInPill modal wiring, AdminLayoutClient bypass for Work Mode, stubs for the 4 endpoints widgets reference, Playwright smokes, and recon-test triage.
 - Each slice = one commit, one annotation, tsc+lint+tests clean.
 - Phases roughly correspond to v2 section themes.
-- Numbered to continue from Slices 1–77 (backend audit), so all future planning docs increment from 185+.
+- Numbered to continue from Slices 1–77 (backend audit), so all future planning docs increment from 195+.
 - Same workflow as the backend-audit doc: read → edit → typecheck → lint → annotate → commit → push.
 - Branch: `claude/gifted-ramanujan-lQaEI`.
