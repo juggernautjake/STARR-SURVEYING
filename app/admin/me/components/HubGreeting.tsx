@@ -18,6 +18,7 @@ import {
   type Persona,
 } from '@/lib/admin/personas';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
+import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
 import type { UserRole } from '@/lib/auth';
 
 interface ClockState {
@@ -143,8 +144,30 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
       </div>
 
       <div className="hub-greeting__actions">
-        {/* Enter Work Mode button is wired in Slice 88 (placeholder) +
-            Slice 158 (real entry). */}
+        {isWorkModeEligible(roles) && (
+          <button
+            type="button"
+            className="hub-btn hub-btn--primary hub-greeting__work-mode-btn"
+            disabled
+            title="Work Mode is coming soon — a focused environment for whatever you're heads-down on (field work, drafting, research, etc.). Lands in Phase 21."
+            aria-label="Enter Work Mode (coming soon)"
+          >
+            Enter Work Mode
+            <span style={{
+              marginLeft: 8,
+              padding: '1px 6px',
+              borderRadius: 999,
+              background: 'var(--theme-bg-elevated)',
+              color: 'var(--theme-fg-muted)',
+              fontSize: '0.65rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: 0.4,
+            }}>
+              Soon
+            </span>
+          </button>
+        )}
       </div>
 
       <ul
