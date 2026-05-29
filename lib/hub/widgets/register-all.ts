@@ -15,3 +15,4 @@
 import './pinned-pages';
 import './quick-actions';
 import './my-pay';
+import './my-jobs';

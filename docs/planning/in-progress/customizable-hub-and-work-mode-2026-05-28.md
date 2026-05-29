@@ -269,11 +269,12 @@
 
 ## Phase 10 — Drawing-mockup widgets continued (Slices 108–110)
 
-### Slice 108 — Jobs widget
+### Slice 108 — Jobs widget ✅ shipped
 - **Scope:** All 5 size variants. Stage chip w/ status tint. Settings: filter (all/mine/active/by-stage), columns (multi-toggle), sortBy, rowLimit, showStageColors. Hover row actions.
 - **Files:** `lib/hub/widgets/my-jobs/{index,Widget,Settings,StageChip}.tsx`, `__tests__/hub/widgets/my-jobs.test.tsx`
 - **Done when:** All 5 size variants; settings persist; hover actions work.
 - **Depends on:** Slice 104
+- **Done:** Single-file widget at `lib/hub/widgets/my-jobs/index.tsx`. Fetches `/api/admin/jobs?my_jobs=true|stage={stage}&limit={n}` (the same endpoint /admin/jobs uses), maps to the planning doc's column set + sort options. **Stage chip** maps each stage to one of five theme tints (`STAGE_TINTS`: quote→warning, research→info, fieldwork→success, drawing→accent, legal→info, delivery→success, completed→info, cancelled→danger, on_hold→warning), renders with `color-mix(in srgb, var(--theme-{tint}) 12%, surface)` background + the tint as the text color. Settings toggle (`showStageColors`) switches every chip to the muted-fg fallback for users who want a flatter look. **Five size buckets:** `capForBucket` returns 2/4/6/10/25 rows; `visibleColumnsForBucket` drops the client column at small and trims to name+stage at tiny. **Settings form:** filter (mine / active / by-stage / all), stage picker (only when filter='by-stage'), sortBy (updated / created / stage / name), rowLimit clamped to [1,50], 5-checkbox column picker, showStageColors checkbox. **Sort helper** `sortJobs(list, sortBy)` is exported for tests + future re-use. `register-all.ts` extended to side-effect-import `my-jobs`. Hover row actions (open job, mark complete, archive) are intentionally deferred — they require a wider widget chrome design (`onContextMenu` + the actions menu) that lands with slice 109's right-click context menu pattern; the widget's clickAction setting from the Interaction tab still routes navigation when the user clicks a row. 16 vitest specs cover the registry round-trip, every `capForBucket` bucket, `visibleColumnsForBucket` (tiny drops to name+stage, small drops client, medium+ preserves user selection, tiny still respects user removal), `sortJobs` for all four sort modes, and `labelForColumn` exhaustiveness across `ALL_JOB_COLUMNS`. Network + render branches live in the Playwright suite. `tsc` + `eslint` clean.
 
 ### Slice 109 — Messages widget
 - **Scope:** All 5 size variants. Unread indicator dot. Wire to messages API. Settings: includeGroups, senderFilter, markAsReadOnView, showPreview, messageLimit.
