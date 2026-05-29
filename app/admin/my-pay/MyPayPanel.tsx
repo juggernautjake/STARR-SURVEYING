@@ -14,7 +14,8 @@ import PayStubView from '../components/payroll/PayStubView';
 import CertificationsPanel from '../components/payroll/CertificationsPanel';
 import RaiseHistory from '../components/payroll/RaiseHistory';
 import PayRateTable from '../components/payroll/PayRateTable';
-import { JOB_TITLES, formatCurrency, formatDate } from '../components/payroll/PayrollConstants';
+import { formatCurrency, formatDate } from '../components/payroll/PayrollConstants';
+import { useJobTitles } from '../components/payroll/useJobTitles';
 
 interface EmployeeProfile {
   id: string;
@@ -49,6 +50,7 @@ export default function MyPayPanel() {
 
   const email = session?.user?.email || '';
   const isAdmin = session?.user?.roles?.includes('admin') ?? false;
+  const jobTitles = useJobTitles();
 
   const loadProfile = useCallback(async () => {
     try {
@@ -157,7 +159,7 @@ export default function MyPayPanel() {
     );
   }
 
-  const titleInfo = JOB_TITLES[profile.job_title] || { label: profile.job_title, icon: '👤' };
+  const titleInfo = jobTitles[profile.job_title] || { label: profile.job_title, icon: '👤' };
 
   return (
     <div className="payroll-page">

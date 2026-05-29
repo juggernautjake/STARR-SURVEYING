@@ -1,7 +1,8 @@
 // app/admin/components/payroll/EmployeePayCard.tsx
 'use client';
 
-import { JOB_TITLES, formatCurrency, formatDate } from './PayrollConstants';
+import { formatCurrency, formatDate } from './PayrollConstants';
+import { useJobTitles } from './useJobTitles';
 
 interface EmployeeProfile {
   id: string;
@@ -26,7 +27,8 @@ interface EmployeePayCardProps {
 }
 
 export default function EmployeePayCard({ employee, onSelect, compact }: EmployeePayCardProps) {
-  const titleInfo = JOB_TITLES[employee.job_title] || { label: employee.job_title, icon: '👤' };
+  const jobTitles = useJobTitles();
+  const titleInfo = jobTitles[employee.job_title] || { label: employee.job_title, icon: '👤' };
 
   if (compact) {
     return (

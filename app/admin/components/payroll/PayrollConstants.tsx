@@ -25,8 +25,6 @@ export const JOB_TITLES_FALLBACK: Record<string, { label: string; icon: string; 
   it_support:       { label: 'IT / Tech Support',         icon: '🛠️', description: 'IT and software support' },
 };
 
-/** @deprecated Import `useJobTitles` from ./useJobTitles instead — this is kept as a fallback only. */
-export const JOB_TITLES = JOB_TITLES_FALLBACK;
 
 export const CERTIFICATION_TYPES: Record<string, { label: string; icon: string }> = {
   sit_exam: { label: 'SIT Exam (Surveyor in Training)', icon: '📝' },
