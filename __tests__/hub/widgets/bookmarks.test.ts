@@ -15,7 +15,7 @@ describe('bookmarks widget — registry', () => {
   });
 
   it('default size 6×2', () => {
-    expect(getWidget('bookmarks')?.defaultSize).toEqual({ w: 6, h: 2 });
+    expect(getWidget('bookmarks')?.defaultSize).toEqual({ w: 4, h: 2 });
   });
 
   it('default content has zero bookmarks', () => {

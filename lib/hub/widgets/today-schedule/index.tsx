@@ -85,12 +85,30 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
   if (status === 'error')   return <WidgetError message="Couldn't load your schedule." onRetry={fetchEvents} />;
   if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyWrapStyle}>
+          <span style={tinyCountStyle}>0</span>
+          <span style={tinyLabelStyle}>today</span>
+        </div>
+      );
+    }
     return (
       <WidgetEmpty
         icon="🗓"
         title="Nothing scheduled today"
         description="Enjoy the empty calendar — or add an event from /admin/schedule."
       />
+    );
+  }
+
+  // Slice 211 — tiny renders just the event count.
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyWrapStyle}>
+        <span style={tinyCountStyle}>{events.length}</span>
+        <span style={tinyLabelStyle}>{events.length === 1 ? 'event today' : 'events today'}</span>
+      </div>
     );
   }
 
@@ -101,12 +119,10 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
           <TypeStripe type={e.event_type} />
           <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
             <span style={titleStyle}>{e.title}</span>
-            {bucket !== 'tiny' && (
-              <span style={mutedStyle}>
-                {formatTime(e)}
-                {e.location ? ` · ${e.location}` : ''}
-              </span>
-            )}
+            <span style={mutedStyle}>
+              {formatTime(e)}
+              {e.location ? ` · ${e.location}` : ''}
+            </span>
           </span>
         </li>
       ))}
@@ -164,9 +180,10 @@ defineWidget<TodayScheduleContent>({
   description: 'Your events for today in time order.',
   category: 'personal',
   iconName: 'Calendar',
-  defaultSize: { w: 6, h: 3 },
-  minSize: { w: 3, h: 2 },
-  maxSize: { w: 12, h: 6 },
+  defaultSize: { w: 4, h: 3 },
+  // Slice 211 — minSize lowered to 1×1 with the tiny event-count mode.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   allowedRoles: [],
   Widget: TodayScheduleWidget,
@@ -265,4 +282,27 @@ const labelStyle: React.CSSProperties = {
   fontSize: 'var(--hub-font-sm, 0.875rem)',
   fontWeight: 600,
   marginBottom: 4,
+};
+
+// Slice 211 — tiny-bucket counter.
+const tinyWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  gap: 2,
+};
+const tinyCountStyle: React.CSSProperties = {
+  fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+  fontWeight: 700,
+  lineHeight: 1,
+  color: 'var(--theme-fg-primary)',
+};
+const tinyLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  textAlign: 'center',
 };

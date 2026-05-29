@@ -7,6 +7,11 @@ import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export interface RecommendedLessonsContent extends Record<string, unknown> { /* none */ }
 const DEFAULTS: RecommendedLessonsContent = {};
@@ -31,16 +36,35 @@ function RecommendedLessonsWidget({ size }: WidgetProps<RecommendedLessonsConten
   useEffect(() => { fetchLessons(); }, [fetchLessons]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="✨" title="No recommendations" description="Personalised lessons appear here as you progress." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>lessons</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="✨" title="No recommendations" description="Personalised lessons appear here as you progress." />;
+  }
 
-  const cap = bucket === 'tiny' ? 2 : bucket === 'small' ? 3 : bucket === 'medium' ? 5 : bucket === 'large' ? 8 : 12;
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-info)')}>{lessons.length}</span>
+        <span style={tinyStatLabelStyle()}>{lessons.length === 1 ? 'lesson' : 'lessons'}</span>
+      </div>
+    );
+  }
+
+  const cap = bucket === 'small' ? 3 : bucket === 'medium' ? 5 : bucket === 'large' ? 8 : 12;
   return (
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
       {lessons.slice(0, cap).map((l) => (
         <li key={l.id}>
           <Link href={`/admin/learn/lessons/${l.id}`} style={{ display: 'block', padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'var(--theme-fg-primary)' }}>
             <span style={{ display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{l.title}</span>
-            {bucket !== 'tiny' && (l.module_title || l.estimated_minutes) && (
+            {(l.module_title || l.estimated_minutes) && (
               <span style={{ display: 'block', fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
                 {[l.module_title, l.estimated_minutes ? `${l.estimated_minutes} min` : null].filter(Boolean).join(' · ')}
               </span>
@@ -58,9 +82,10 @@ defineWidget<RecommendedLessonsContent>({
   description: 'Suggested next lessons based on your progress.',
   category: 'learning',
   iconName: 'Sparkles',
-  defaultSize: { w: 6, h: 1 },
-  minSize: { w: 3, h: 1 },
-  maxSize: { w: 12, h: 4 },
+  defaultSize: { w: 4, h: 1 },
+  // Slice 217 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 8, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['student', 'teacher', 'admin', 'developer'],
   Widget: RecommendedLessonsWidget,

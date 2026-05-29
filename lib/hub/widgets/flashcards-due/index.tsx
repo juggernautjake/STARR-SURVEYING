@@ -7,6 +7,11 @@ import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export interface FlashcardsDueContent extends Record<string, unknown> { /* none */ }
 const DEFAULTS: FlashcardsDueContent = {};
@@ -31,17 +36,34 @@ function FlashcardsDueWidget({ size }: WidgetProps<FlashcardsDueContent>) {
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
-  if (status === 'empty') return <WidgetEmpty icon="🃏" title="No flashcards due" description="Cards return when their review timer fires." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>cards</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="🃏" title="No flashcards due" description="Cards return when their review timer fires." />;
+  }
+
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{data?.count ?? 0}</span>
+        <span style={tinyStatLabelStyle()}>{data?.count === 1 ? 'card' : 'cards'}</span>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ fontSize: 'var(--hub-font-2xl, 1.5rem)', fontWeight: 700, color: 'var(--theme-warning)' }}>{data?.count}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{data?.count}</span>
       <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>cards ready for review</span>
-      {bucket !== 'tiny' && (
-        <Link href="/admin/learn/flashcards" style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-accent)', fontWeight: 600 }}>
-          Start review →
-        </Link>
-      )}
+      <Link href="/admin/learn/flashcards" style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-accent)', fontWeight: 600 }}>
+        Start review →
+      </Link>
     </div>
   );
 }
@@ -52,9 +74,10 @@ defineWidget<FlashcardsDueContent>({
   description: 'Spaced-repetition cards ready for review.',
   category: 'learning',
   iconName: 'BookOpen',
-  defaultSize: { w: 3, h: 2 },
-  minSize: { w: 2, h: 1 },
-  maxSize: { w: 6, h: 3 },
+  defaultSize: { w: 2, h: 2 },
+  // Slice 216 — minSize lowered to 1×1 with the tiny card-count mode.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 4, h: 4 },
   defaultContent: DEFAULTS,
   allowedRoles: ['student', 'admin', 'developer'],
   Widget: FlashcardsDueWidget,

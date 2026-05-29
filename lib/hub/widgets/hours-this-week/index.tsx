@@ -12,6 +12,11 @@ import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type WeekStart = 'sunday' | 'monday';
 
@@ -69,6 +74,14 @@ function HoursThisWeekWidget({ size, content }: WidgetProps<HoursThisWeekContent
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
   if (status === 'error') return <WidgetError message="Couldn't load hours." onRetry={fetchLogs} />;
   if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket)}>0h</span>
+          <span style={tinyStatLabelStyle()}>this week</span>
+        </div>
+      );
+    }
     return (
       <WidgetEmpty
         icon="⏱"
@@ -78,10 +91,20 @@ function HoursThisWeekWidget({ size, content }: WidgetProps<HoursThisWeekContent
     );
   }
 
+  // Slice 211 — tiny renders just the number + label, no chart.
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket)}>{total.toFixed(1)}h</span>
+        <span style={tinyStatLabelStyle()}>of {settings.goalHours}h</span>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 'var(--hub-spc-2, 8px)' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 'var(--hub-font-2xl, 1.5rem)', fontWeight: 700, color: 'var(--theme-fg-primary)' }}>
+        <span style={statNumberStyle(bucket)}>
           {total.toFixed(1)}h
         </span>
         <span style={mutedStyle}>
@@ -89,11 +112,9 @@ function HoursThisWeekWidget({ size, content }: WidgetProps<HoursThisWeekContent
         </span>
       </div>
 
-      {bucket !== 'tiny' && (
-        <BarChart totals={totals} goalHours={settings.goalHours} />
-      )}
+      <BarChart totals={totals} goalHours={settings.goalHours} />
 
-      {settings.showBreakdownByJob && bucket !== 'tiny' && bucket !== 'small' && (
+      {settings.showBreakdownByJob && bucket !== 'small' && (
         <JobBreakdown logs={logs} />
       )}
     </div>
@@ -185,9 +206,11 @@ defineWidget<HoursThisWeekContent>({
   description: 'Your logged hours per day this week + a goal line.',
   category: 'time-pay',
   iconName: 'Clock',
-  defaultSize: { w: 4, h: 2 },
-  minSize: { w: 2, h: 1 },
-  maxSize: { w: 12, h: 4 },
+  defaultSize: { w: 3, h: 2 },
+  // Slice 211 — minSize lowered to 1×1 now that the tiny bucket
+  // renders a compact stat card instead of a clipped bar chart.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 8, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
   Widget: HoursThisWeekWidget,

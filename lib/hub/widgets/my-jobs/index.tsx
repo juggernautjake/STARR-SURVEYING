@@ -315,9 +315,10 @@ defineWidget<MyJobsContent>({
   description: 'Your active jobs at a glance — stage, last update, drill-in.',
   category: 'work',
   iconName: 'FolderOpen',
-  defaultSize: { w: 6, h: 3 },
-  minSize: { w: 3, h: 2 },
-  maxSize: { w: 12, h: 6 },
+  defaultSize: { w: 4, h: 3 },
+  // Slice 217 — minSize lowered to 1×1; widget already had a tiny bucket render.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   allowedRoles: [],
   Widget: MyJobsWidget,

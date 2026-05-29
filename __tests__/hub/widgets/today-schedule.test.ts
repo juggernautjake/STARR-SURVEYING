@@ -18,11 +18,12 @@ describe('today-schedule widget — registry', () => {
     expect(def?.iconName).toBe('Calendar');
   });
 
-  it('default size 6×3, min 3×2, max 12×6', () => {
+  it('default size 4×3, min 1×1, max 8×8', () => {
     const def = getWidget('today-schedule');
-    expect(def?.defaultSize).toEqual({ w: 6, h: 3 });
-    expect(def?.minSize).toEqual({ w: 3, h: 2 });
-    expect(def?.maxSize).toEqual({ w: 12, h: 6 });
+    expect(def?.defaultSize).toEqual({ w: 4, h: 3 });
+    // Slice 211 — minSize lowered to 1×1 with the tiny event-count mode.
+    expect(def?.minSize).toEqual({ w: 1, h: 1 });
+    expect(def?.maxSize).toEqual({ w: 8, h: 8 });
   });
 
   it('default content surfaces all-day + full day', () => {

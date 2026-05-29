@@ -25,6 +25,6 @@ describe('phase 18 — operational + nice-to-have widgets', () => {
   it('daily-briefing is a wide personal composite', () => {
     const def = getWidget('daily-briefing');
     expect(def?.category).toBe('personal');
-    expect(def?.defaultSize).toEqual({ w: 12, h: 3 });
+    expect(def?.defaultSize).toEqual({ w: 8, h: 3 });
   });
 });

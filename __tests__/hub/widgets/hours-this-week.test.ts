@@ -19,7 +19,7 @@ describe('hours-this-week widget — registry', () => {
 
   it('default size 4×2', () => {
     const def = getWidget('hours-this-week');
-    expect(def?.defaultSize).toEqual({ w: 4, h: 2 });
+    expect(def?.defaultSize).toEqual({ w: 3, h: 2 });
   });
 });
 

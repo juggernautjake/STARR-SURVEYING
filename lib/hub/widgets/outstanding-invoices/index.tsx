@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export interface OutstandingInvoicesContent extends Record<string, unknown> { /* none */ }
 const DEFAULTS: OutstandingInvoicesContent = {};
@@ -30,10 +35,29 @@ function OutstandingInvoicesWidget({ size }: WidgetProps<OutstandingInvoicesCont
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="🧾" title="All paid up" description="Outstanding invoices appear here." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>unpaid</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="🧾" title="All paid up" description="Outstanding invoices appear here." />;
+  }
 
   const total = items.reduce((sum, i) => sum + i.amount, 0);
-  const cap = bucket === 'tiny' ? 0 : bucket === 'small' ? 3 : bucket === 'medium' ? 5 : bucket === 'large' ? 10 : 20;
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{items.length}</span>
+        <span style={tinyStatLabelStyle()}>{'unpaid'}</span>
+      </div>
+    );
+  }
+
+  const cap = bucket === 'small' ? 3 : bucket === 'medium' ? 5 : bucket === 'large' ? 10 : 20;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <span style={{ fontSize: 'var(--hub-font-2xl, 1.5rem)', fontWeight: 700, color: 'var(--theme-warning)' }}>
@@ -60,9 +84,10 @@ defineWidget<OutstandingInvoicesContent>({
   description: 'Invoices awaiting payment.',
   category: 'financial',
   iconName: 'Coins',
-  defaultSize: { w: 4, h: 2 },
-  minSize: { w: 2, h: 1 },
-  maxSize: { w: 12, h: 6 },
+  defaultSize: { w: 3, h: 2 },
+  // Slice 217 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 8, h: 8 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'tech_support'],
   Widget: OutstandingInvoicesWidget,

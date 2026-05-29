@@ -6,6 +6,11 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 import { bucketCap } from '@/lib/hub/widgets/_shared/simple-list-widget';
 
 export interface MaintenanceDueContent extends Record<string, unknown> {
@@ -43,7 +48,26 @@ function MaintenanceDueWidget({ size, content }: WidgetProps<MaintenanceDueConte
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'empty') return <WidgetEmpty icon="🛠" title="All caught up" description="No maintenance due in the chosen window." />;
+  if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>due</span>
+        </div>
+      );
+    }
+    return <WidgetEmpty icon="🛠" title="All caught up" description="No maintenance due in the chosen window." />;
+  }
+
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{items.length}</span>
+        <span style={tinyStatLabelStyle()}>due</span>
+      </div>
+    );
+  }
 
   const visible = items.slice(0, capForBucket(bucket));
   return (
@@ -54,11 +78,9 @@ function MaintenanceDueWidget({ size, content }: WidgetProps<MaintenanceDueConte
           <li key={it.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
             <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{it.asset_name}</span>
-              {bucket !== 'tiny' && (
-                <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{it.task_type}</span>
-              )}
+              <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{it.task_type}</span>
             </span>
-            {it.due_at && bucket !== 'tiny' && (
+            {it.due_at && (
               <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: overdue ? 'var(--theme-danger)' : 'var(--theme-fg-secondary)', fontWeight: overdue ? 600 : 400 }}>
                 {overdue ? 'Overdue' : new Date(it.due_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
               </span>
@@ -90,9 +112,10 @@ defineWidget<MaintenanceDueContent>({
   description: 'Equipment maintenance coming up.',
   category: 'equipment',
   iconName: 'WrenchSettings',
-  defaultSize: { w: 4, h: 3 },
-  minSize: { w: 3, h: 2 },
-  maxSize: { w: 8, h: 6 },
+  defaultSize: { w: 3, h: 3 },
+  // Slice 215 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'equipment_manager', 'tech_support'],
   Widget: MaintenanceDueWidget,

@@ -1,7 +1,7 @@
 // lib/hub/grid-math.ts
 //
 // Pure grid math for the hub widget canvas. No React — these helpers
-// just convert between the 12-column grid (or its collapsed
+// just convert between the 8-column grid (or its collapsed
 // breakpoints) and concrete pixel-grid positions.
 //
 // Two responsibilities:
@@ -10,32 +10,37 @@
 //   2) layoutBounds(widgets) — compute the bottom-most row used, so
 //      the grid container knows how many rows to render.
 //
-// Slice 92 of customizable-hub-and-work-mode-2026-05-28.md.
+// Slice 209 of hub-grid-8x8-square-cells-2026-05-29.md (formerly
+// 12 cols; widened cell + halved column count so a 1×1 widget
+// renders as a literal square and the picker proportions match
+// the on-page reality).
 
 import type { WidgetInstance } from './types';
 
 /** Three breakpoints the grid supports. */
-export type GridBreakpoint = 12 | 6 | 1;
+export type GridBreakpoint = 8 | 4 | 1;
 
-/** Returns the breakpoint corresponding to a viewport width.
+/** Returns the breakpoint corresponding to a container width.
  *  Matches the doc's responsive collapse rule:
- *    ≥ 1280px → 12 cols
- *    768–1279 → 6 cols
- *    < 768   → 1 col
- */
+ *    ≥ 1024px → 8 cols
+ *    640–1023 → 4 cols
+ *    < 640   → 1 col
+ *  The thresholds shifted with the column count: 8 square cells
+ *  at the desktop width keep the same minimum cell size the old
+ *  12-col layout had (≈128px each). */
 export function breakpointForWidth(viewportPx: number): GridBreakpoint {
-  if (viewportPx >= 1280) return 12;
-  if (viewportPx >= 768) return 6;
+  if (viewportPx >= 1024) return 8;
+  if (viewportPx >= 640) return 4;
   return 1;
 }
 
 /** Collapse a layout to fit the given breakpoint. Idempotent — passing
- *  a 12-col layout with breakpoint=12 returns the input unchanged. */
+ *  an 8-col layout with breakpoint=8 returns the input unchanged. */
 export function collapseLayout(
   widgets: WidgetInstance[],
   breakpoint: GridBreakpoint,
 ): WidgetInstance[] {
-  if (breakpoint === 12) return widgets;
+  if (breakpoint === 8) return widgets;
   if (breakpoint === 1) {
     // Mobile: ignore custom widths + positions, render in saved order
     // with full-width 1×h widgets stacked top-to-bottom.
@@ -52,14 +57,14 @@ export function collapseLayout(
       return collapsed;
     });
   }
-  // breakpoint === 6: halve every width (12 → 6, 8 → 6, 6 → 6, 4 → 3,
-  // 3 → 3, etc.) and re-flow positions to avoid overlap.
+  // breakpoint === 4: halve every width (8 → 4, 6 → 3, 4 → 2,
+  // 3 → 2, etc.) and re-flow positions to avoid overlap.
   const scaled = widgets.map((w) => ({
     ...w,
-    w: Math.max(1, Math.min(6, Math.ceil(w.w / 2))),
-    x: Math.max(0, Math.min(6, Math.floor(w.x / 2))),
+    w: Math.max(1, Math.min(4, Math.ceil(w.w / 2))),
+    x: Math.max(0, Math.min(4, Math.floor(w.x / 2))),
   }));
-  return reflow(scaled, 6);
+  return reflow(scaled, 4);
 }
 
 /** Find the total (cols, rows) of grid space the layout occupies.
@@ -107,10 +112,6 @@ export function compactLayout(
 
 // ─── Internals ─────────────────────────────────────────────────────────
 
-/** Greedy re-flow when widths or x's overlap. Walks widgets in
- *  (y, x, originalIndex) order, finds the lowest non-overlapping row
- *  for each, and re-assigns y. The relative order within the same row
- *  is preserved. */
 function reflow(widgets: WidgetInstance[], cols: number): WidgetInstance[] {
   const indexed = widgets.map((w, i) => ({ w, i }));
   indexed.sort((a, b) =>
@@ -123,7 +124,6 @@ function reflow(widgets: WidgetInstance[], cols: number): WidgetInstance[] {
     let xCandidate = Math.min(w.x, cols - w.w);
     if (xCandidate < 0) xCandidate = 0;
     let yCandidate = 0;
-    // Find the lowest y at this x where the widget doesn't collide.
     for (;;) {
       const candidate: WidgetInstance = { ...w, x: xCandidate, y: yCandidate };
       if (!collidesWithAny(candidate, placed)) {

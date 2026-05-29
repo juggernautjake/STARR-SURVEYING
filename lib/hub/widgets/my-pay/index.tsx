@@ -286,9 +286,10 @@ defineWidget<MyPayContent>({
   description: 'Your pay summary at a glance — with a one-tap privacy toggle.',
   category: 'time-pay',
   iconName: 'Wallet',
-  defaultSize: { w: 4, h: 2 },
-  minSize: { w: 2, h: 1 },
-  maxSize: { w: 12, h: 4 },
+  defaultSize: { w: 3, h: 2 },
+  // Slice 217 — minSize lowered to 1×1; widget already had a tiny bucket render.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 8, h: 6 },
   defaultContent: DEFAULTS,
   // Only roles paid by the hour. Salaried roles + students see the
   // widget hidden from the Add-Widget modal but a saved instance still

@@ -166,9 +166,10 @@ defineWidget<BookmarksContent>({
   description: 'Quick links to anywhere — internal or external.',
   category: 'personal',
   iconName: 'Bookmark',
-  defaultSize: { w: 6, h: 2 },
-  minSize: { w: 3, h: 1 },
-  maxSize: { w: 12, h: 4 },
+  defaultSize: { w: 4, h: 2 },
+  // Slice 217 — minSize lowered to 1×1; widget already had a tiny bucket render.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 8, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: [],
   Widget: BookmarksWidget,

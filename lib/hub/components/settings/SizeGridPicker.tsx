@@ -18,8 +18,8 @@ interface SizeGridPickerProps {
   minSize: { w: number; h: number };
   maxSize: { w: number; h: number };
   onChange: (next: { w: number; h: number }) => void;
-  /** Optional. The picker assumes 12×4 — most widgets stay within
-   *  that. Larger widgets clamp to 12×4 in the visual. */
+  /** Optional. The picker defaults to the new 8×8 grid (Slice 209).
+   *  Larger widgets clamp to 8×8 in the visual. */
   cols?: number;
   rows?: number;
 }
@@ -29,8 +29,8 @@ export default function SizeGridPicker({
   minSize,
   maxSize,
   onChange,
-  cols = 12,
-  rows = 4,
+  cols = 8,
+  rows = 8,
 }: SizeGridPickerProps) {
   const [hover, setHover] = useState<{ w: number; h: number } | null>(null);
   const display = hover ?? value;
@@ -133,6 +133,8 @@ const pickerWrapperStyle: React.CSSProperties = {
 
 const cellStyle: React.CSSProperties = {
   padding: 0,
-  height: 18,
+  // Slice 209 — square aspect ratio so the picker visualizes the
+  // same shape the user will see in the canvas (1×1 = square).
+  aspectRatio: '1 / 1',
   borderRadius: 2,
 };

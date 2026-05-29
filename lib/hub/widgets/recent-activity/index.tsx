@@ -15,6 +15,11 @@ import { findRoute, type AdminRoute } from '@/lib/admin/route-registry';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type ActivityType = 'recent-routes';
 
@@ -43,12 +48,30 @@ function RecentActivityWidget({ size, content }: WidgetProps<RecentActivityConte
   }, [recentRoutes, settings.includeTypes, settings.itemLimit, bucket]);
 
   if (items.length === 0) {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>recent</span>
+        </div>
+      );
+    }
     return (
       <WidgetEmpty
         icon="🕘"
         title="No recent activity"
         description="Pages you visit will appear here for quick re-entry."
       />
+    );
+  }
+
+  // Tiny — counter card showing how many recent pages are tracked.
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-fg-primary)')}>{recentRoutes.length}</span>
+        <span style={tinyStatLabelStyle()}>recent</span>
+      </div>
     );
   }
 
@@ -62,9 +85,7 @@ function RecentActivityWidget({ size, content }: WidgetProps<RecentActivityConte
             </span>
             <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
               <span style={titleStyle}>{route?.label ?? trimHref(href)}</span>
-              {bucket !== 'tiny' && (
-                <span style={mutedStyle}>{href}</span>
-              )}
+              <span style={mutedStyle}>{href}</span>
             </span>
           </Link>
         </li>
@@ -101,9 +122,10 @@ defineWidget<RecentActivityContent>({
   description: 'Pages you visited recently and recent events.',
   category: 'personal',
   iconName: 'History',
-  defaultSize: { w: 4, h: 3 },
-  minSize: { w: 3, h: 2 },
-  maxSize: { w: 8, h: 6 },
+  defaultSize: { w: 3, h: 3 },
+  // Slice 213 — minSize lowered to 1×1 with the tiny counter mode.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: [],
   Widget: RecentActivityWidget,

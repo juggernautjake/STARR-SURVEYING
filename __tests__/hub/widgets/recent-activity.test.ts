@@ -15,11 +15,12 @@ describe('recent-activity widget — registry', () => {
     expect(def?.iconName).toBe('History');
   });
 
-  it('default size 4×3, min 3×2, max 8×6', () => {
+  it('default size 3×3, min 1×1, max 6×6', () => {
     const def = getWidget('recent-activity');
-    expect(def?.defaultSize).toEqual({ w: 4, h: 3 });
-    expect(def?.minSize).toEqual({ w: 3, h: 2 });
-    expect(def?.maxSize).toEqual({ w: 8, h: 6 });
+    expect(def?.defaultSize).toEqual({ w: 3, h: 3 });
+    // Slice 213 — minSize lowered to 1×1 with the tiny counter mode.
+    expect(def?.minSize).toEqual({ w: 1, h: 1 });
+    expect(def?.maxSize).toEqual({ w: 6, h: 6 });
   });
 });
 

@@ -65,13 +65,20 @@ export interface WidgetGridProps {
   onResize?: (id: string, next: GridSize) => void;
 }
 
-const DEFAULT_ROW_HEIGHT = 64;
 const DEFAULT_GAP = 16;
+/** Floor used until the ResizeObserver fires so the first paint
+ *  doesn't collapse to 0-height rows. Tracks the 8-col layout's
+ *  cell width at a roughly 1280px container. Slice 209. */
+const INITIAL_ROW_HEIGHT_PX = 140;
 
 export default function WidgetGrid({
   widgets,
   editMode = false,
-  rowHeight = DEFAULT_ROW_HEIGHT,
+  /** Slice 209 — `rowHeight` is now optional + ignored when the
+   *  container width is known; cells are derived as squares
+   *  (`rowHeight = cellW`). Kept in the API so storybook + tests
+   *  can pin a deterministic height. */
+  rowHeight,
   gap = DEFAULT_GAP,
   onReorder,
   onResize,
@@ -89,7 +96,15 @@ export default function WidgetGrid({
   const cellW = gridWidthPx > 0
     ? Math.max(1, (gridWidthPx - (bounds.cols - 1) * gap) / bounds.cols)
     : 0;
-  const cellDimensions: CellDimensions = { cellW, cellH: rowHeight, gap };
+  // Slice 209 — square cells. The row height tracks the column
+  // width so a 1×1 widget renders as a literal square + a 2×1 is
+  // twice the width of its height. When the ResizeObserver hasn't
+  // fired yet (initial render), fall back to the explicit
+  // `rowHeight` prop or the constant INITIAL_ROW_HEIGHT_PX.
+  const effectiveRowHeight = cellW > 0
+    ? cellW
+    : (rowHeight ?? INITIAL_ROW_HEIGHT_PX);
+  const cellDimensions: CellDimensions = { cellW, cellH: effectiveRowHeight, gap };
 
   const dragEnabled = editMode && typeof onReorder === 'function';
   const resizeEnabled = editMode && typeof onResize === 'function' && cellW > 0;
@@ -127,14 +142,14 @@ export default function WidgetGrid({
     const newIndex = widgets.findIndex((w) => w.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(widgets, oldIndex, newIndex);
-    const compacted = compactLayout(reordered, 12);
+    const compacted = compactLayout(reordered, 8);
     onReorder(compacted);
   }
 
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: `repeat(${bounds.cols}, 1fr)`,
-    gridAutoRows: `${rowHeight}px`,
+    gridAutoRows: `${effectiveRowHeight}px`,
     gap: `${gap}px`,
     width: '100%',
   };
@@ -331,7 +346,7 @@ function StaticWidgetCell({
           <WidgetResizeHandle
             currentSize={{ w: instance.w, h: instance.h }}
             minSize={{ w: 1, h: 1 }}
-            maxSize={{ w: 12, h: 4 }}
+            maxSize={{ w: 8, h: 8 }}
             cell={cellDimensions}
             onCommit={commitResize}
           />

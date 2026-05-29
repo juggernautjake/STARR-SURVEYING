@@ -12,6 +12,11 @@ import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type DiscussionScope = 'mine' | 'mentions' | 'all';
 
@@ -55,8 +60,27 @@ function OpenDiscussionsWidget({ size, content }: WidgetProps<OpenDiscussionsCon
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
   if (status === 'error') return <WidgetError message="Couldn't load discussions." onRetry={fetchData} />;
   if (status === 'empty') {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>open</span>
+        </div>
+      );
+    }
     return (
       <WidgetEmpty icon="💭" title="Inbox zero" description="No open discussions in scope." />
+    );
+  }
+
+  if (bucket === 'tiny') {
+    const withMention = conversations.filter((c) => c.has_mention).length;
+    const color = withMention > 0 ? 'var(--theme-accent)' : 'var(--theme-fg-primary)';
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, color)}>{conversations.length}</span>
+        <span style={tinyStatLabelStyle()}>{withMention > 0 ? `${withMention} @you` : 'open'}</span>
+      </div>
     );
   }
 
@@ -69,7 +93,7 @@ function OpenDiscussionsWidget({ size, content }: WidgetProps<OpenDiscussionsCon
             <span aria-label="Unread" style={{ width: 8, height: 8, borderRadius: 8, background: 'var(--theme-accent)' }} />
           )}
           <span style={titleStyle}>{c.title ?? 'Conversation'}</span>
-          {c.has_mention && bucket !== 'tiny' && (
+          {c.has_mention && (
             <span style={mentionStyle} aria-label="You were mentioned">@</span>
           )}
         </li>
@@ -98,9 +122,10 @@ defineWidget<OpenDiscussionsContent>({
   description: 'Conversations awaiting your reply.',
   category: 'communication',
   iconName: 'MessageCircle',
-  defaultSize: { w: 4, h: 3 },
-  minSize: { w: 3, h: 2 },
-  maxSize: { w: 8, h: 6 },
+  defaultSize: { w: 3, h: 3 },
+  // Slice 214 — minSize lowered to 1×1 with the tiny open-count mode.
+  minSize: { w: 1, h: 1 },
+  maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
   Widget: OpenDiscussionsWidget,

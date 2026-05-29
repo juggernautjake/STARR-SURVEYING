@@ -103,9 +103,9 @@ describe('quick-actions widget — registry', () => {
 
   it('default size matches planning doc (6×2, min 3×1, max 12×4)', () => {
     const def = getWidget('quick-actions');
-    expect(def?.defaultSize).toEqual({ w: 6, h: 2 });
-    expect(def?.minSize).toEqual({ w: 3, h: 1 });
-    expect(def?.maxSize).toEqual({ w: 12, h: 4 });
+    expect(def?.defaultSize).toEqual({ w: 4, h: 2 });
+    expect(def?.minSize).toEqual({ w: 1, h: 1 });  // Slice 217
+    expect(def?.maxSize).toEqual({ w: 8, h: 6 });
   });
 
   it('default content selects every starter and ships shortcuts off', () => {
@@ -141,7 +141,7 @@ describe('quick-actions widget — empty-state render', () => {
     const html = ReactDOMServer.renderToStaticMarkup(
       React.createElement(def.Widget, {
         customization: { layout: {}, style: {}, content: {}, interaction: {} },
-        size: { w: 6, h: 2 },
+        size: { w: 4, h: 2 },
         editMode: false,
         content: {
           actionIds: ['nonexistent-one', 'another-fake-id'],
@@ -160,7 +160,7 @@ describe('quick-actions widget — empty-state render', () => {
     const html = ReactDOMServer.renderToStaticMarkup(
       React.createElement(def.Widget, {
         customization: { layout: {}, style: {}, content: {}, interaction: {} },
-        size: { w: 12, h: 4 },
+        size: { w: 8, h: 6 },
         editMode: false,
         content: def.defaultContent,
       }),
@@ -183,7 +183,7 @@ describe('quick-actions widget — empty-state render', () => {
     const html = ReactDOMServer.renderToStaticMarkup(
       React.createElement(def.Widget, {
         customization: { layout: {}, style: {}, content: {}, interaction: {} },
-        size: { w: 6, h: 2 },
+        size: { w: 4, h: 2 },
         editMode: false,
         content: {
           actionIds: ['new-job', 'open-cad'],
