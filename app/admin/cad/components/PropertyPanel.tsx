@@ -10,7 +10,8 @@ import type { Feature } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
-import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
+import { computeFeatureArea } from '@/lib/cad/geometry/area';
+import { sqFtToAreaUnit, areaUnitLabel } from '@/lib/cad/geometry/units';
 import { describeOffsetSection } from '@/lib/cad/operations/describe-offset-section';
 import { recomputeOffsetGeometry } from '@/lib/cad/operations/recompute-offset-feature';
 import { stampOffsetMetadata } from '@/lib/cad/operations/offset-metadata';
@@ -1131,25 +1132,56 @@ export default function PropertyPanel() {
                 </div>
               )}
               {geom.type === 'POLYGON' && geom.vertices.length >= 3 && (
-                <>
-                  <div className="font-mono text-[10px] text-gray-400 pt-0.5">
-                    P: {formatDistance(geom.vertices.reduce((sum, v, i) => {
-                      const n = geom.vertices![(i + 1) % geom.vertices!.length];
-                      return sum + Math.hypot(n.x - v.x, n.y - v.y);
-                    }, 0), displayPrefs)}
-                  </div>
-                  {(() => {
-                    const a = computeAreaFromPoints2D(geom.vertices);
-                    return (
-                      <div className="font-mono text-[10px] text-gray-400">
-                        A: {a.squareFeet.toFixed(2)} sq ft ({a.acres.toFixed(4)} ac)
-                      </div>
-                    );
-                  })()}
-                </>
+                <div className="font-mono text-[10px] text-gray-400 pt-0.5">
+                  P: {formatDistance(geom.vertices.reduce((sum, v, i) => {
+                    const n = geom.vertices![(i + 1) % geom.vertices!.length];
+                    return sum + Math.hypot(n.x - v.x, n.y - v.y);
+                  }, 0), displayPrefs)}
+                </div>
               )}
             </div>
           )}
+
+          {/* Slice 228 — Generic Area readout for every closed shape
+              (POLYGON / CIRCLE / ELLIPSE / closed POLYLINE / closed
+              MIXED_GEOMETRY). Driven by `computeFeatureArea` so the
+              right formula fires per geometry kind. Shows the value
+              in the surveyor's display-pref unit + a sq-ft / acres
+              fallback so the conversion is always one glance away. */}
+          {(() => {
+            const a = computeFeatureArea(feature);
+            if (a.squareFeet <= 0) return null;
+            const userVal = sqFtToAreaUnit(a.squareFeet, displayPrefs);
+            const userLabel = areaUnitLabel(displayPrefs);
+            const dp = displayPrefs.linearDecimalPlaces;
+            const showFallback = displayPrefs.areaUnit !== 'SQ_FT' && displayPrefs.areaUnit !== 'ACRES';
+            return (
+              <div
+                data-testid="property-panel-area"
+                className="space-y-0.5 border-t border-gray-700 pt-1.5 mt-1"
+              >
+                <div className="text-gray-500 text-[10px] uppercase tracking-wider">
+                  Area · {a.geometryKind === 'POLYGON' ? 'shoelace'
+                    : a.geometryKind === 'CIRCLE' ? 'π·r²'
+                    : a.geometryKind === 'ELLIPSE' ? 'π·a·b'
+                    : a.geometryKind === 'POLYLINE_CLOSED' ? 'closed polyline'
+                    : a.geometryKind === 'MIXED_CLOSED' ? 'closed mixed'
+                    : 'computed'}
+                </div>
+                <div className="font-mono text-[11px] text-gray-200">
+                  {userVal.toFixed(Math.min(dp + 2, 4))} {userLabel}
+                </div>
+                <div className="font-mono text-[10px] text-gray-500">
+                  {a.squareFeet.toLocaleString('en-US', { maximumFractionDigits: 2 })} sq ft
+                  {' · '}
+                  {a.acres.toFixed(4)} ac
+                  {showFallback && (
+                    <>{' · '}{(a.squareFeet * 0.0929030).toFixed(2)} m²</>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Offset Source — surfaces when the feature was created by
