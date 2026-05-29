@@ -39,3 +39,7 @@ import './recent-drawings';
 import './drawings-in-progress';
 import './active-research-projects';
 import './pipeline-status';
+import './roadmap-progress';
+import './flashcards-due';
+import './quiz-history';
+import './recommended-lessons';

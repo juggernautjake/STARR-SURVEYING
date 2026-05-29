@@ -396,10 +396,14 @@ All gated by `equipment_manager` or `admin` in the catalog.
 
 ## Phase 16 — Learning widgets (Slices 132–135)
 
-### Slice 132 — Roadmap Progress widget
-### Slice 133 — Flashcards Due widget
-### Slice 134 — Quiz History widget
-### Slice 135 — Recommended Lessons widget
+### Slice 132 — Roadmap Progress widget ✅ shipped
+- **Done:** `lib/hub/widgets/roadmap-progress/index.tsx` reads `/api/admin/learn/roadmap`. Renders big % + name + current module subline + accent progress bar. Catalog: learning / Map / students+teachers+admins.
+### Slice 133 — Flashcards Due widget ✅ shipped
+- **Done:** `lib/hub/widgets/flashcards-due/index.tsx` reads `/api/admin/learn/flashcards?due=true&summary=1`. Big count + "Start review →" link. Catalog: learning / BookOpen / students.
+### Slice 134 — Quiz History widget ✅ shipped
+- **Done:** `lib/hub/widgets/quiz-history/index.tsx` reads `/api/admin/learn/quiz-attempts?limit=20`. Each row shows quiz name + %, color-coded success/warning/danger by score. Catalog: learning / ClipboardCheck.
+### Slice 135 — Recommended Lessons widget ✅ shipped
+- **Done:** `lib/hub/widgets/recommended-lessons/index.tsx` reads `/api/admin/learn/recommended?limit=10`. Each row is a Link tile with title + module + estimated_minutes. Catalog: learning / Sparkles.
 
 ---
 
