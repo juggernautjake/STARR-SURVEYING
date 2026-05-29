@@ -22,6 +22,7 @@ import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import WidgetFrame from './WidgetFrame';
 import SettingsTabs, { type SettingsTabId } from './SettingsTabs';
 import LayoutTab from './settings/LayoutTab';
+import StyleTab from './settings/StyleTab';
 
 export interface SettingsPanelProps {
   /** The widget instance the user clicked. When null, the panel
@@ -196,6 +197,16 @@ function TabPlaceholder({
     );
   }
 
+  if (tab === 'style') {
+    return (
+      <StyleTab
+        instanceId={instance.id}
+        customization={customization}
+        onChange={onChange}
+      />
+    );
+  }
+
   if (tab === 'content') {
     if (!hasContentTab) {
       return (
@@ -226,10 +237,10 @@ function TabPlaceholder({
 
 function tabSliceFor(tab: SettingsTabId): string {
   switch (tab) {
-    case 'style':       return 'Slice 103';
     case 'interaction': return 'Slice 104';
+    case 'style':       return 'this slice'; // unreachable
     case 'layout':      return 'this slice'; // unreachable
-    case 'content':     return 'this slice';
+    case 'content':     return 'this slice'; // unreachable
   }
 }
 
