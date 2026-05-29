@@ -98,10 +98,26 @@ approach keeps each slice reviewable. The doc closes only when all
 - **Depends on:** Slice 209.
 - **Done:** `pending-receipts` now branches on bucket — tiny renders a centered counter card (count + "pending" label + total dollar amount, no list); small/medium/large/xlarge render a vertical list with ellipsis-truncated vendor names, a `+ N more` row when items overflow the cap, and an optional submitter column at medium+ (small drops it to keep the row from wrapping at narrow cells). The cap was tightened to `0 / 3 / 6 / 12 / 24` so the list never overflows the container. minSize lowered to 1×1 so the tiny mode is reachable. `monthly-revenue` got bucket-aware typography via the new `amountStyleForBucket(bucket)` helper (`clamp(1.5rem, 3.5vw, 2.25rem)` at tiny through `2.5rem` at xlarge) so the dollar amount reads at every size; tiny mode shows a compact dollar value (`$1.2K` / `$3.8M`) via a new `formatCompact` helper plus a triangle trend indicator. Medium+ shows the goal progress bar; small omits it to save vertical space. minSize lowered to 1×1 + defaultSize tightened to 2×2 so the widget reads as a stat card by default. `team-status` got an explicit tiny branch (counter + "clocked in" label, same pattern as pending-receipts) for both the empty + the populated state, and minSize lowered to 1×1 so the tiny bucket is reachable. The grouped render for `groupBy !== 'none'` no longer needs to special-case `bucket !== 'tiny'` because tiny is handled above. 12 vitest specs lock the helpers: `receiptsCap` returns 0 at tiny + grows monotonically across buckets + fits the bucket envelope; `formatCompact` round-trips small values verbatim + abbreviates thousands as K + millions as M; `amountStyleForBucket` returns a distinct fontSize per bucket + always returns the success color; the three widgets' minSize is `1×1` so the tiny bucket is actually pickable. 863 hub specs green. `tsc` + `eslint` clean.
 
-**Remaining audit work (Slices 211+):** ~33 widgets still pending a
-bucket-by-bucket review. The pattern is established by Slice 210 —
-each follow-up slice picks 3-5 widgets, runs them through tiny →
-xlarge, and adds branches where needed.
+#### Slice 211 — hours-this-week + pto-balance + today-schedule (stat-card pattern) ✅ shipped
+- **Scope:** Apply the bucket-aware stat pattern from Slice 210 to
+  the three other dashboard-style widgets in the persona default
+  layout. Extract the shared helpers so future stat widgets stay
+  consistent.
+- **Files:** new `lib/hub/widgets/_shared/stat-bucket.ts`,
+  `lib/hub/widgets/hours-this-week/index.tsx`,
+  `lib/hub/widgets/pto-balance/index.tsx`,
+  `lib/hub/widgets/today-schedule/index.tsx`,
+  `__tests__/hub/widgets-responsive-211.test.ts`.
+- **Done when:** All three reach the tiny bucket cleanly + use a
+  single shared helper for stat-card typography.
+- **Depends on:** Slice 210.
+- **Done:** New `lib/hub/widgets/_shared/stat-bucket.ts` centralizes the bucket-scaled stat typography that monthly-revenue introduced inline. `statNumberStyle(bucket, color?)` returns a CSS object with `clamp(1.25rem, 3vw, 2rem)` at tiny through `2.5rem` at xlarge plus the standard single-line truncation bundle (`overflow: hidden`, `white-space: nowrap`, `text-overflow: ellipsis`) so a long value can never wrap. `tinyStatWrapStyle()` + `tinyStatLabelStyle()` produce the centered flex column + uppercase muted-label pair every tiny stat card uses. Each helper returns a fresh object so callers can spread additional fields. `hours-this-week` now branches on bucket — tiny renders `{total}h` centered with an "of {goal}h" label, no bar chart; small renders the existing number + chart with the new bucket-aware font; medium+ keeps the optional per-job breakdown. minSize lowered to 1×1. Empty state at tiny shows `0h / this week`. `pto-balance` got the same treatment — tiny renders just the formatted balance + "PTO" label in success color; small+ keeps the accrual + last-accrued lines + the optional history list. minSize lowered to 1×1. Empty state at tiny shows an em-dash + "PTO" label. `today-schedule` got a tiny event-count mode (`{count} event{s} today`), empty state at tiny shows `0 / today`. minSize lowered to 1×1. The redundant `bucket !== 'tiny'` guard on the per-event time/location line was removed because tiny is now handled above. 10 vitest specs lock the shared helpers (distinct fontSize per bucket, fontWeight 700 + line-height 1.1 for every bucket, single-line truncation invariant, default color + override path, fresh-object guarantee, label uppercase + muted) plus the 3 widgets' lowered minSize. The pto-balance + today-schedule registry tests were updated to assert the new 1×1 floor + matching defaultSize. 873 hub specs green. `tsc` + `eslint` clean.
+
+**Remaining audit work (Slices 212+):** ~30 widgets still pending a
+bucket-by-bucket review. The shared stat-bucket helpers from Slice
+211 make the next batches a drop-in apply for any number-driven
+widget; list-style widgets follow the row-cap pattern from Slice
+210.
 
 ---
 

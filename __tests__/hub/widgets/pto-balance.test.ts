@@ -25,10 +25,11 @@ describe('pto-balance widget — registry', () => {
     ]);
   });
 
-  it('default size 4×2, min 2×1, max 8×4', () => {
+  it('default size 3×2, min 1×1, max 6×6', () => {
     const def = getWidget('pto-balance');
     expect(def?.defaultSize).toEqual({ w: 3, h: 2 });
-    expect(def?.minSize).toEqual({ w: 2, h: 1 });
+    // Slice 211 — minSize lowered to 1×1 with the tiny stat-card mode.
+    expect(def?.minSize).toEqual({ w: 1, h: 1 });
     expect(def?.maxSize).toEqual({ w: 6, h: 6 });
   });
 

@@ -12,6 +12,11 @@ import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
+import {
+  statNumberStyle,
+  tinyStatLabelStyle,
+  tinyStatWrapStyle,
+} from '@/lib/hub/widgets/_shared/stat-bucket';
 
 export type PtoFormat = 'hours' | 'days';
 
@@ -77,6 +82,14 @@ function PtoBalanceWidget({ size, content }: WidgetProps<PtoBalanceContent>) {
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
   if (status === 'error') return <WidgetError message="Couldn't load PTO." onRetry={fetchBalance} />;
   if (status === 'empty' || !balance) {
+    if (bucket === 'tiny') {
+      return (
+        <div style={tinyStatWrapStyle()}>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>—</span>
+          <span style={tinyStatLabelStyle()}>PTO</span>
+        </div>
+      );
+    }
     return (
       <WidgetEmpty
         icon="🏖"
@@ -90,14 +103,24 @@ function PtoBalanceWidget({ size, content }: WidgetProps<PtoBalanceContent>) {
   const accrual = formatAccrual(balance.accrual_rate_hours, balance.accrual_period, settings.format, settings.hoursPerDay);
   const showHistory = settings.showHistory && bucket !== 'tiny' && bucket !== 'small' && history.length > 0;
 
+  // Slice 211 — tiny renders just the balance + a "PTO" label.
+  if (bucket === 'tiny') {
+    return (
+      <div style={tinyStatWrapStyle()}>
+        <span style={statNumberStyle(bucket, 'var(--theme-success)')}>{formatted}</span>
+        <span style={tinyStatLabelStyle()}>PTO</span>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)', height: '100%' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span style={{ fontSize: 'var(--hub-font-2xl, 1.5rem)', fontWeight: 700, color: 'var(--theme-success)' }}>
+        <span style={statNumberStyle(bucket, 'var(--theme-success)')}>
           {formatted}
         </span>
         <span style={mutedStyle}>{accrual}</span>
-        {balance.last_accrued_at && bucket !== 'tiny' && (
+        {balance.last_accrued_at && (
           <span style={mutedStyle}>Last accrued {formatRelative(balance.last_accrued_at)}</span>
         )}
       </div>
@@ -165,7 +188,8 @@ defineWidget<PtoBalanceContent>({
   category: 'time-pay',
   iconName: 'Palmtree',
   defaultSize: { w: 3, h: 2 },
-  minSize: { w: 2, h: 1 },
+  // Slice 211 — minSize lowered to 1×1 with the tiny stat-card mode.
+  minSize: { w: 1, h: 1 },
   maxSize: { w: 6, h: 6 },
   defaultContent: DEFAULTS,
   // Internal roles only — students/teachers don't accrue PTO.
