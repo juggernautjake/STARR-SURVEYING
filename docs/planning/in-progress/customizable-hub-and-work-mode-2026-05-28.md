@@ -356,8 +356,9 @@
 - **Scope:** Multi-employee schedule. Settings: employeeFilter, weekRange.
 - **Done:** `lib/hub/widgets/crew-calendar/index.tsx` reads `/api/admin/personnel/crew-calendar?range=this-week|next-week|two-weeks&employee=…`, renders one row per employee with a horizontal strip of theme-tinted dots (accent=assigned / success=available / warning=pto / muted=off). Settings: weekRange + optional email filter. Catalog: operational / CalendarDays / manager roles. 3 vitest specs. `tsc` + `eslint` clean.
 
-### Slice 122 — Field Data Pending widget
+### Slice 122 — Field Data Pending widget ✅ shipped
 - **Scope:** Field captures awaiting review. Settings: jobFilter, dataTypes.
+- **Done:** `lib/hub/widgets/field-data-pending/index.tsx` reads `/api/admin/jobs/field-data?status=pending`. Each row has an emoji type-icon, job name, and captured-by + type subline (non-tiny). Settings: optional jobFilter + checkbox dataTypes (photos/gps/notes/measurements). `iconForType` + `labelForType` exported. Catalog: work / MapPin / internal roles. 3 vitest specs. `tsc` + `eslint` clean.
 
 ### Slice 123 — Job Activity Feed widget
 - **Scope:** Recent activity across jobs. Settings: jobFilter, activityTypes.
