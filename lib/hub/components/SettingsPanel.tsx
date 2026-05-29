@@ -15,7 +15,7 @@
 //
 // Slice 101 of customizable-hub-and-work-mode-2026-05-28.md.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { getWidget } from '@/lib/hub/widget-registry';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
@@ -47,6 +47,14 @@ export default function SettingsPanel({ instanceId, onClose, mobileBreakpoint = 
 
   const [activeTab, setActiveTab] = useState<SettingsTabId>('layout');
   const [viewportPx, setViewportPx] = useState<number>(1280);
+  // Slice 205 — tab swap can be expensive (mounts a fresh tab body
+  // that may reach for catalog metadata); wrap in startTransition so
+  // the click feedback in the tab strip doesn't wait for the new
+  // body to render.
+  const [, startTabTransition] = useTransition();
+  function handleTabChange(next: SettingsTabId) {
+    startTabTransition(() => setActiveTab(next));
+  }
 
   useEffect(() => {
     function tick() { setViewportPx(window.innerWidth); }
@@ -117,7 +125,7 @@ export default function SettingsPanel({ instanceId, onClose, mobileBreakpoint = 
 
         <SettingsTabs
           activeTab={activeTab}
-          onChange={setActiveTab}
+          onChange={handleTabChange}
           contentTabEnabled={hasContentTab}
           labelledById={headingId}
         />
