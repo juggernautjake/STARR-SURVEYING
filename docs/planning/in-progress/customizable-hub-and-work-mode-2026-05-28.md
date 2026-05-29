@@ -328,8 +328,9 @@
 
 ## Phase 12 — Communication widgets (Slices 116–119)
 
-### Slice 116 — Open Discussions widget
+### Slice 116 — Open Discussions widget ✅ shipped
 - **Scope:** Threads awaiting your reply. Settings: scope (mine/mentions/all).
+- **Done:** `lib/hub/widgets/open-discussions/index.tsx` reads `/api/admin/messages/conversations?limit=20`, applies `filterByScope` (`mine` = unread + last sender ≠ me, `mentions` = `has_mention=true`, `all` = everything), renders rows with the accent-tinted unread dot, title, and an `@` mention badge in non-tiny buckets. **Scope** is the only setting (matches planning) — single-select dropdown. `capForBucket` returns 2/4/6/10/20. Catalog: communication / MessageCircle / internal roles. The real "awaiting my reply" logic lives behind the messaging refactor in Slice 156; until then `mine` uses the unread-dot + sender heuristic, documented in the helper. 6 vitest specs cover registry, every bucket, and all three scope filters. `tsc` + `eslint` clean.
 
 ### Slice 117 — Recent Announcements widget
 - **Scope:** Last 3 org announcements. Settings: unreadOnly. Wire to announcements API.

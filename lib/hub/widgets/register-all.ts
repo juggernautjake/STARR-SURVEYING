@@ -23,3 +23,4 @@ import './pto-balance';
 import './hours-this-week';
 import './recent-activity';
 import './bookmarks';
+import './open-discussions';
