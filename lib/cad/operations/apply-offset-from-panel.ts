@@ -74,7 +74,16 @@ export function applyOffsetFromPanel(inputs: OffsetPanelInputs): boolean {
     distanceFeet,
     inputs.side,
     inputs.cornerHandling,
-    { mode: 'PARALLEL' },
+    {
+      mode: 'PARALLEL',
+      // Slice 3 — stamp the panel's typed value + unit onto every
+      // emitted feature so Phase 2's inspector + the live-edit
+      // propagator can find them.
+      metadata: {
+        typedDistance: inputs.distance,
+        typedUnit: inputs.unit,
+      },
+    },
   );
   return true;
 }

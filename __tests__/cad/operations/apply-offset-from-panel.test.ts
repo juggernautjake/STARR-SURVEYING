@@ -80,7 +80,12 @@ describe('applyOffsetFromPanel — happy path', () => {
       12.5,
       'LEFT',
       'MITER',
-      { mode: 'PARALLEL' },
+      {
+        mode: 'PARALLEL',
+        // Slice 3 — the panel always forwards the typed value + unit
+        // so the engine can stamp the emitted offset feature.
+        metadata: { typedDistance: 12.5, typedUnit: 'FT' },
+      },
     );
   });
 
@@ -110,7 +115,7 @@ describe('applyOffsetFromPanel — happy path', () => {
     expect(corner).toBe('CHAMFER');
   });
 
-  it('always uses PARALLEL mode', () => {
+  it('always uses PARALLEL mode + forwards the typed distance + unit as metadata', () => {
     applyOffsetFromPanel({
       sourceId: 'src-1',
       distance: 1,
@@ -119,7 +124,28 @@ describe('applyOffsetFromPanel — happy path', () => {
       cornerHandling: 'MITER',
     });
     const [, , , , opts] = vi.mocked(applyInteractiveOffset).mock.calls[0];
-    expect(opts).toEqual({ mode: 'PARALLEL' });
+    expect(opts).toEqual({
+      mode: 'PARALLEL',
+      metadata: { typedDistance: 1, typedUnit: 'FT' },
+    });
+  });
+
+  it('forwards the unit token (not the converted feet value) as metadata', () => {
+    // Inches typed; the engine receives feet, but the metadata
+    // keeps the user-facing 6 + 'IN' so the inspector can show
+    // exactly what was typed.
+    applyOffsetFromPanel({
+      sourceId: 'src-1',
+      distance: 6,
+      unit: 'IN',
+      side: 'RIGHT',
+      cornerHandling: 'ROUND',
+    });
+    const [, , , , opts] = vi.mocked(applyInteractiveOffset).mock.calls[0];
+    expect(opts).toMatchObject({
+      mode: 'PARALLEL',
+      metadata: { typedDistance: 6, typedUnit: 'IN' },
+    });
   });
 });
 

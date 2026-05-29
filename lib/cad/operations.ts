@@ -33,6 +33,7 @@ import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
 import { useTraverseStore } from './store/traverse-store';
 import { findLinkedFeatureIds } from './operations/find-linked-geometry';
+import { stampOffsetMetadata } from './operations/offset-metadata';
 import { useViewportStore } from './store/viewport-store';
 
 // ─────────────────────────────────────────────
@@ -3544,6 +3545,20 @@ export function applyInteractiveOffset(
      * modes.
      */
     bearingDeg?: number;
+    /**
+     * Slice 3 of cad-offset-tool-2026-05-29.md. When supplied
+     * and `mode === 'PARALLEL'`, each emitted feature gets
+     * stamped with offsetSourceId / offsetDistance / offsetUnit /
+     * offsetSide / offsetCornerHandling in its `properties` so
+     * the Phase-2 PropertyPanel inspector + Slice 5's
+     * recompute path can find it later. SCALE / TRANSLATE
+     * modes skip the stamp — the relationship to the source
+     * isn't a simple offset.
+     */
+    metadata?: {
+      typedDistance: number;
+      typedUnit: import('./types').LinearUnit;
+    };
   },
 ): void {
   const mode: OffsetMode = opts?.mode ?? 'PARALLEL';
@@ -3569,6 +3584,9 @@ export function applyInteractiveOffset(
   // PARALLEL and SCALE keep the LEFT/RIGHT/BOTH semantics.
   const sides: Array<'LEFT' | 'RIGHT'> =
     mode === 'TRANSLATE' ? ['LEFT'] : side === 'BOTH' ? ['LEFT', 'RIGHT'] : [side];
+  // Slice 3 — only PARALLEL offsets carry a "this is an offset of X"
+  // relationship; SCALE / TRANSLATE skip the stamp.
+  const stampPARALLEL = mode === 'PARALLEL' && opts?.metadata != null;
   for (const s of sides) {
     const newFeatures = buildOffsetFeatures(f, distance, s, cornerHandling, false, {
       mode,
@@ -3578,8 +3596,17 @@ export function applyInteractiveOffset(
       bearingDeg: opts?.bearingDeg,
     });
     for (const nf of newFeatures) {
-      drawingStore.addFeature(nf);
-      addOps.push({ type: 'ADD_FEATURE', data: nf });
+      const stamped = stampPARALLEL
+        ? stampOffsetMetadata(nf, {
+            sourceId,
+            distance: opts!.metadata!.typedDistance,
+            unit: opts!.metadata!.typedUnit,
+            side: s,
+            cornerHandling,
+          })
+        : nf;
+      drawingStore.addFeature(stamped);
+      addOps.push({ type: 'ADD_FEATURE', data: stamped });
     }
   }
 
