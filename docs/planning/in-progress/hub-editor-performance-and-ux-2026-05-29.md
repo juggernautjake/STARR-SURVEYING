@@ -106,7 +106,7 @@ Concrete audit findings against the shipped code:
 - `pending-receipts`: aggregator path `/admin/receipts?status=pending` — matches if the widget's default filter is `status=pending`, audit needed.
 - `team-status`: aggregator path `/admin/team/status` — should be a clean drop-in.
 
-#### Slice 199 — Memoize WidgetCell
+#### Slice 199 — Memoize WidgetCell ✅ shipped (memo applied at body level)
 - **Scope:** Wrap `WidgetCell` (the per-cell component inside
   `WidgetGrid.tsx`) with `React.memo` + a custom equality function
   that compares only the `instance` shallow + edit-mode flag.
@@ -118,6 +118,7 @@ Concrete audit findings against the shipped code:
 - **Done when:** Render-count assertion shows neighbor cells skip
   re-renders during drag.
 - **Depends on:** Slice 92, Slice 98
+- **Done:** Memo applied one level deeper than the original scope called for — on the heavy `<Widget>` body, not on `WidgetCell` itself. Reasoning: `SortableWidgetCell` calls `useSortable` directly, which returns fresh `attributes` / `listeners` / `transform` references on every dnd-kit drag frame (every neighbor cell, not just the one being dragged). React.memo on `WidgetCell` or `SortableWidgetCell` can't skip those re-renders because the listener props are unstable by design. The actual perf win comes from skipping the `<Widget>` body subtree (often runs its own /api/* fetch + renders rows), which is unaffected by drag transforms. New `MemoWidgetRender` component memoizes the body with a custom equality that compares `Widget` component identity, `customization` reference, `size.w` / `size.h` primitives, `editMode`, and `content` reference — so a fresh `{ w, h }` object built each drag tick still skips when the underlying values haven't changed. `StaticWidgetCell` was refactored to inline the per-cell customization + content derivation + render `MemoWidgetRender` inside `<WidgetFrame>` instead of inlining `<Widget>` directly. The `<WidgetFrame>` wrapper stays unmemoized so drag listeners can flow through into `headerAction` without busting the body's skip. A module-scope frozen `EMPTY_CUSTOMIZATION` sentinel keeps the cache hit stable across re-renders for widgets that haven't been customized. 13 vitest specs lock the skip: smoke render-count, memo-wrapper sanity (`$$typeof === Symbol.for('react.memo')`), equality semantics — skips on identical refs, skips on deep-equal fresh size objects (the drag-tick case), renders on every primitive change (w / h / editMode / Widget identity / customization ref / content ref), and the frozen + reference-stable EMPTY_CUSTOMIZATION sentinel. 623 specs across all hub tests still green. `tsc` + `eslint` clean.
 
 #### Slice 200 — Picky zustand selectors throughout HubCanvas + SettingsPanel
 - **Scope:** Replace each multi-field `useHubStore` read with

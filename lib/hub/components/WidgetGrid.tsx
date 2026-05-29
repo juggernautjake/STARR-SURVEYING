@@ -33,7 +33,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import { getWidget } from '@/lib/hub/widget-registry';
+import { getWidget, type WidgetDefinition } from '@/lib/hub/widget-registry';
+import type { WidgetCustomization } from '@/lib/hub/types';
 import {
   breakpointForWidth,
   collapseLayout,
@@ -268,8 +269,8 @@ function StaticWidgetCell({
   }
 
   const { Widget, defaultContent } = definition;
-  const content = (instance.customization?.content ?? defaultContent) as Record<string, unknown>;
-  const customization = instance.customization ?? {};
+  const customization = instance.customization ?? EMPTY_CUSTOMIZATION;
+  const content = (customization.content ?? defaultContent) as Record<string, unknown>;
   const showTitle = customization.layout?.showTitle ?? true;
   const titleOverride = customization.layout?.titleOverride;
   const title = titleOverride && titleOverride.trim().length > 0 ? titleOverride : definition.label;
@@ -288,7 +289,11 @@ function StaticWidgetCell({
         editMode={editMode}
         headerAction={editMode && dragListeners ? <DragHandle {...dragListeners} /> : undefined}
       >
-        <Widget
+        {/* Slice 199 — MemoWidgetRender's equality compares
+            size.w + size.h as primitives, so a fresh { w, h } each
+            drag tick still skips when the values didn't change. */}
+        <MemoWidgetRender
+          Widget={Widget}
           customization={customization}
           size={{ w: instance.w, h: instance.h }}
           editMode={editMode}
@@ -350,6 +355,50 @@ function SortableWidgetCell({
     />
   );
 }
+
+// Slice 199 — memoize the heavy `<Widget>` body. The `<WidgetFrame>`
+// wrapper + the drag handle stay outside the memo because their
+// props change every dnd-kit transform tick during a drag; the
+// frame is cheap to re-render but the widget body (often runs its
+// own fetch + renders rows) is not. With this memo the widget
+// body of widget B skips when widget A is being dragged. Render-
+// count tests in __tests__/hub/widget-grid-memo.test.ts lock the
+// skip.
+export const EMPTY_CUSTOMIZATION: WidgetCustomization = Object.freeze({});
+
+interface MemoWidgetRenderProps {
+  Widget: WidgetDefinition<Record<string, unknown>>['Widget'];
+  customization: WidgetCustomization;
+  size: { w: number; h: number };
+  editMode: boolean;
+  content: Record<string, unknown>;
+}
+
+function MemoWidgetRenderImpl({ Widget, customization, size, editMode, content }: MemoWidgetRenderProps) {
+  return (
+    <Widget
+      customization={customization}
+      size={size}
+      editMode={editMode}
+      content={content}
+    />
+  );
+}
+
+const MemoWidgetRender = React.memo(MemoWidgetRenderImpl, (prev, next) => {
+  return (
+    prev.Widget === next.Widget &&
+    prev.customization === next.customization &&
+    prev.size.w === next.size.w &&
+    prev.size.h === next.size.h &&
+    prev.editMode === next.editMode &&
+    prev.content === next.content
+  );
+});
+
+/** Test-only export so render-count specs can spy without poking
+ *  React internals. */
+export { MemoWidgetRender as __MemoWidgetRender };
 
 function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
   return (
