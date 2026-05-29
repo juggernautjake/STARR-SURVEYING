@@ -19,6 +19,7 @@ import {
 } from '@/lib/admin/personas';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
+import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/work-mode/clock-session';
 import type { UserRole } from '@/lib/auth';
 
 interface ClockState {
@@ -90,21 +91,23 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
     return () => clearInterval(t);
   }, []);
 
-  // Best-effort clock-in state from the existing time-logs endpoint.
-  // Slice 89 swaps in a dedicated store-backed source.
+  // Mirror the ClockInPill's localStorage-backed clock session
+  // (Slice 188). The greeting picks it up on mount + on storage
+  // events so opening a second tab + clocking out keeps the greeting
+  // in sync.
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/admin/time-logs/today', { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = (await res.json()) as ClockState;
-        if (!cancelled) setClock(data);
-      } catch {
-        /* swallow — greeting still works without clock state */
-      }
-    })();
-    return () => { cancelled = true; };
+    function sync() {
+      const s = readClockSession();
+      setClock(s
+        ? { clockedIn: true, startedAt: s.startedAt, jobLabel: s.jobId }
+        : { clockedIn: false });
+    }
+    sync();
+    function onStorage(e: StorageEvent) {
+      if (e.key === CLOCK_SESSION_KEY) sync();
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const greeting = now ? partOfDay(now, greetingPrefix) : (greetingPrefix ?? 'Welcome');

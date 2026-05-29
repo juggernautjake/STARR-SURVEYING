@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkModeStore, timeInModeMs } from '@/lib/work-mode/work-mode-store';
+import { clearClockSession, elapsedHours, readClockSession } from '@/lib/work-mode/clock-session';
 import { ROLE_LABELS } from '@/lib/auth';
 
 interface WorkModeTopBarProps {
@@ -36,7 +37,30 @@ export default function WorkModeTopBar({ userName }: WorkModeTopBarProps) {
     setConfirmOpen(false);
     exitWorkMode();
     if (clockOutToo) {
-      void fetch('/api/admin/time-logs/today', { method: 'DELETE' }).catch(() => {});
+      // Finalize the active clock session — POST one entry against the
+      // job that was open in Work Mode (or "general" when no job), then
+      // clear the local session. Best-effort: the user already wanted
+      // out, so we never block on the post.
+      const session = readClockSession();
+      if (session) {
+        const today = new Date().toISOString().slice(0, 10);
+        const hours = elapsedHours(session.startedAt);
+        const entry = {
+          log_date: today,
+          work_type: 'general',
+          hours,
+          job_id: session.jobId,
+          description: 'Clock-out on Work Mode exit',
+          notes: null,
+          activity_tag_ids: session.tagIds,
+        };
+        void fetch('/api/admin/time-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries: [entry] }),
+        }).catch(() => {});
+        clearClockSession();
+      }
     }
     router.push('/admin/me');
   }
