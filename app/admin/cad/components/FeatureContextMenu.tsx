@@ -57,7 +57,6 @@ import {
   zoomToSelection,
   copyCadSelection,
   translateSelection,
-  offsetSelectionByDistance,
   alignSelection,
   reverseFeature,
   explodeFeature,
@@ -68,6 +67,7 @@ import {
   deleteSegmentAt,
   splitFeatureAt,
 } from '@/lib/cad/operations';
+import { activateOffsetTool } from '@/lib/cad/operations/activate-offset-tool';
 import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 import { generateId } from '@/lib/cad/types';
 
@@ -383,12 +383,13 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     translateSelection(dx, dy);
   }
 
-  // ── Helper: offset copy ───────────────────────────────────────────────────
-  function handleOffset() {
-    const input = window.prompt('Offset distance (positive = left/outward, negative = right/inward):');
-    if (input === null) return;
-    const dist = parseFloat(input);
-    if (!isNaN(dist) && dist !== 0) offsetSelectionByDistance(dist);
+  // ── Helper: create offset ─────────────────────────────────────────────────
+  // Slice 2 of cad-offset-tool-2026-05-29.md. Replaces the previous
+  // window.prompt() flow: the shared `activateOffsetTool` helper
+  // flips into the OFFSET tool + presets the source feature so the
+  // floating OffsetPanel (Slice 1) auto-mounts.
+  function handleCreateOffset() {
+    activateOffsetTool(featureId);
   }
 
   // ── Helper: move to layer ─────────────────────────────────────────────────
@@ -640,7 +641,7 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     { separator: true, id: 'ms3' },
     // ─ Move / Offset ─────────────────────────────────────────────────────
     { id: 'translate', label: 'Move by Offset…',                                              action: handleTranslate                 },
-    { id: 'offset',    label: 'Offset Copy…',                                                 action: handleOffset                    },
+    { id: 'offset',    label: 'Create offset…',     disabled: !featureId,                     action: handleCreateOffset              },
     { separator: true, id: 'ms4' },
     // ─ Align (only useful with 2+ selected) ─────────────────────────────
     { id: 'alignL',   label: 'Align Left Edges',   disabled: selCount < 2,                   action: () => alignSelection('LEFT')    },
