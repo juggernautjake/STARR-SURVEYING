@@ -496,7 +496,7 @@ WidgetCustomization {
   source-regex on the three call sites' imports. 1167 hub specs
   green; typecheck + lint clean.
 
-#### Slice 8 — Pure reflow/packing module
+#### Slice 8 — Pure reflow/packing module ✅ shipped 2026-05-30
 - **Scope:** Extend the existing grid math (`lib/hub/grid-math.ts`
   already exports `compactLayout`; `lib/hub/grid-resize.ts`,
   `lib/hub/grid-8x8.ts`, `lib/hub/validate-layout.ts` also exist —
@@ -512,6 +512,39 @@ WidgetCustomization {
 - **Done when:** Helpers return overlap-free, in-bounds layouts with
   stable ordering; spec covers push, compact, and nearest-slot at fixed
   fixtures.
+- **Outcome:** New `lib/hub/grid-reflow.ts` (149 lines) exports three
+  pure helpers that build on the existing `compactLayout` +
+  `HUB_GRID_COLS` from Slice 7:
+  - `applyMoveWithPush(layout, movingId, target, cols?)` — places the
+    moving widget at `target` and pushes overlapping siblings straight
+    down (cascading through downstream neighbours) until no overlaps
+    remain. No compaction — preserves the user's drag direction during
+    the live preview. Sorts others top-to-bottom, left-to-right
+    before walking so the cascade is deterministic. Clamps the target
+    into column bounds. Returns the moving widget last so iteration
+    order is consistent.
+  - `nearestAvailable(layout, movingId, hover, cols?)` — BFS-by-
+    manhattan-distance: returns `hover` if it already fits (excluding
+    the moving widget itself), otherwise scans outward by increasing
+    radius and returns the first slot whose `w×h` rect doesn't overlap
+    any sibling. Falls back to "below every existing widget" if no
+    nearby slot fits.
+  - `commitDrop(layout, movingId, target, cols?)` — composes
+    `nearestAvailable` + `applyMoveWithPush` + the existing
+    `compactLayout` so a drop snaps to a free slot, settles the
+    cascade, then closes any gaps the push left behind.
+  Standalone module: re-derives `overlaps` instead of exporting it
+  from `grid-math.ts` so the existing internal helpers stay private.
+  `__tests__/hub/grid-reflow.test.ts` (20 cases) covers: empty-grid
+  placement, single-sibling push, multi-row cascade (a→b→c chain),
+  untouched neighbours staying put, column clamping, determinism,
+  ghost-id passthrough, hover-when-free, moving-widget self-overlap
+  exclusion, nearest-slot when blocked, out-of-bounds clamp before
+  snap, gap-closing on commit, fallback-to-bottom when row is dense,
+  plus three fixed-scenario invariant sweeps (no overlaps + in bounds)
+  for both `applyMoveWithPush` and `commitDrop`. 1187 hub specs green;
+  typecheck + lint clean. Slice 9 wires this into `GridEditor`'s
+  pointer pipeline.
 
 #### Slice 9 — Wire full-widget move + live reflow into the modal
 - **Scope:** Add a pointer-based move (grab header / move handle) to
