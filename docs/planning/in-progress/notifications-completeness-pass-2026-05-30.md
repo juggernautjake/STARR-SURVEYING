@@ -101,18 +101,31 @@ widget-links registry.
 - Full hub (1684) + notifications (78) suites green; typecheck + lint
   clean.
 
-### Slice 3 — Role change cleanup
+### Slice 3 — Role change cleanup ✅ shipped 2026-05-30
 
 - New pure `lib/notifications/role-change.ts` →
-  `buildRoleChangeNotification({ user_email, old_role, new_role,
-  changed_by, kind: 'role'|'credential'|'pay_raise'|'note'|'bonus' })`
-  → `{ title, body, link, severity }` returning `/admin/profile` for
-  the general case + `/admin/my-pay` for the pay-raise / bonus case.
-- `/api/admin/employees/manage` swaps the inline `notifyEmployee()`
-  insert for `await notify(buildRoleChangeNotification({...}))` at
-  the 7 sites (role / credential×2 / bonus / raise / credits / note).
-- 6 specs (one per kind + the empty-from→to case that builder skips).
-- Bell-widget-consistency gains the builder entry.
+  `buildRoleChangeNotification({ user_email, kind, label?, amount?,
+  reason?, previous_label?, pay_impact_per_hour? })` handles **6 kinds**:
+  - `role` → 🎉, /admin/my-pay when pay_impact ≠ 0 else /admin/profile;
+    body reads "promoted" / "reassigned" / neutral based on sign.
+  - `credential_added` → 🏅, /admin/my-pay when the credential carries
+    a bonus rate else /admin/profile; mentions the bonus.
+  - `credential_removed` → 📋, /admin/profile.
+  - `bonus` → 🎁 with the money-formatted amount, /admin/my-pay; null
+    on non-positive amount.
+  - `credits` (learning credits) → 📚 with floored points,
+    /admin/profile; null on non-positive.
+  - `note` (admin note visible to employee) → 📋 with the note as the
+    body, /admin/profile; null without a note.
+- `/api/admin/employees/manage` swaps all 7 inline `notifyEmployee()`
+  calls for `recordProfileChange()` (the audit-log half, unchanged)
+  PLUS `await notify(buildRoleChangeNotification(...))` (the bell
+  half, now built by the pure builder). The pay-raise case routes
+  through the EXISTING `buildPayRaiseNotification` so the dedicated
+  raises route + the manage route share one builder.
+- 16 builder specs (per-kind body + link + null guards + email
+  normalization).
+- Full hub (1684) + notifications (92) green; typecheck + lint clean.
 
 ### Slice 4 — Daily briefing morning cron
 

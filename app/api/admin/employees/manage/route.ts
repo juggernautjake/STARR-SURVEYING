@@ -4,9 +4,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildRoleChangeNotification } from '@/lib/notifications/role-change';
+import { buildPayRaiseNotification } from '@/lib/notifications/pay-raise';
 
-// Helper: create notification + profile change for employee
-async function notifyEmployee(
+// notifications-completeness-pass Slice 3 — `recordProfileChange` is
+// the legacy `notifyEmployee` minus the inline notification insert.
+// The notification half is now built by the pure
+// `buildRoleChangeNotification` (or `buildPayRaiseNotification` for
+// the pay-raise case) so the bell payload is shaped + linked
+// consistently with the rest of the system. This helper just writes
+// the audit row to `employee_profile_changes`; callers fire
+// `notify(...)` separately.
+async function recordProfileChange(
   userEmail: string,
   changeType: string,
   title: string,
@@ -14,9 +24,7 @@ async function notifyEmployee(
   changedBy: string,
   oldValue?: string,
   newValue?: string,
-  link?: string
 ) {
-  // Log in employee_profile_changes
   await supabaseAdmin.from('employee_profile_changes').insert({
     user_email: userEmail,
     change_type: changeType,
@@ -25,17 +33,6 @@ async function notifyEmployee(
     old_value: oldValue || null,
     new_value: newValue || null,
     changed_by: changedBy,
-  });
-
-  // Also create a notification
-  await supabaseAdmin.from('notifications').insert({
-    user_email: userEmail,
-    type: 'profile_change',
-    title,
-    body: description,
-    icon: changeType === 'pay_raise' ? '💰' : changeType === 'role_change' ? '🎉' : changeType === 'credential_added' ? '🏅' : changeType === 'bonus_awarded' ? '🎁' : '📋',
-    link: link || '/admin/profile',
-    source_type: 'payroll',
   });
 }
 
@@ -179,12 +176,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       }
 
       // Notify employee
-      await notifyEmployee(
+      const roleLabel = newTierData?.label || new_role;
+      const oldLabel = oldTierData?.label || oldRole;
+      await recordProfileChange(
         email, 'role_change',
-        `Role Updated: ${newTierData?.label || new_role}`,
-        `You have been ${payImpact > 0 ? 'promoted' : 'reassigned'} to ${newTierData?.label || new_role}. ${payImpact !== 0 ? `Pay impact: ${payImpact > 0 ? '+' : ''}$${payImpact.toFixed(2)}/hr` : ''}`,
-        adminEmail, oldTierData?.label || oldRole, newTierData?.label || new_role
+        `Role Updated: ${roleLabel}`,
+        `You have been ${payImpact > 0 ? 'promoted' : 'reassigned'} to ${roleLabel}. ${payImpact !== 0 ? `Pay impact: ${payImpact > 0 ? '+' : ''}$${payImpact.toFixed(2)}/hr` : ''}`,
+        adminEmail, oldLabel, roleLabel,
       );
+      const roleNotice = buildRoleChangeNotification({
+        user_email: email, kind: 'role', label: roleLabel,
+        previous_label: oldLabel, pay_impact_per_hour: payImpact,
+      });
+      if (roleNotice) await notify(roleNotice);
 
       // Activity log
       try {
@@ -229,12 +233,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       }
 
       // Notify employee
-      await notifyEmployee(
+      await recordProfileChange(
         email, 'credential_added',
         `Credential Earned: ${credInfo.label}`,
         `${credInfo.label} has been added to your profile. ${credInfo.bonus_per_hour > 0 ? `This adds +$${credInfo.bonus_per_hour}/hr to your pay.` : ''}`,
-        adminEmail, undefined, credInfo.label
+        adminEmail, undefined, credInfo.label,
       );
+      const credAddedNotice = buildRoleChangeNotification({
+        user_email: email, kind: 'credential_added', label: credInfo.label,
+        amount: credInfo.bonus_per_hour,
+      });
+      if (credAddedNotice) await notify(credAddedNotice);
 
       return NextResponse.json({ success: true, bonus: credInfo.bonus_per_hour });
     }
@@ -248,12 +257,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
       await supabaseAdmin.from('employee_earned_credentials').delete().eq('user_email', email).eq('credential_key', removeKey);
 
-      await notifyEmployee(
+      const removedLabel = credInfo2?.label || removeKey;
+      await recordProfileChange(
         email, 'credential_removed',
-        `Credential Removed: ${credInfo2?.label || removeKey}`,
-        `${credInfo2?.label || removeKey} has been removed from your profile.`,
-        adminEmail, credInfo2?.label || removeKey, undefined
+        `Credential Removed: ${removedLabel}`,
+        `${removedLabel} has been removed from your profile.`,
+        adminEmail, removedLabel, undefined,
       );
+      const credRemovedNotice = buildRoleChangeNotification({
+        user_email: email, kind: 'credential_removed', label: removedLabel,
+      });
+      if (credRemovedNotice) await notify(credRemovedNotice);
 
       return NextResponse.json({ success: true });
     }
@@ -271,12 +285,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         source_type: 'admin_manual', processed_by: adminEmail,
       });
 
-      await notifyEmployee(
+      await recordProfileChange(
         email, 'bonus_awarded',
         `Bonus Awarded: $${amount.toFixed(2)}`,
         `You received a $${amount.toFixed(2)} ${bonus_type?.replace('_', ' ') || 'bonus'}. Reason: ${bonusReason}`,
-        adminEmail
+        adminEmail,
       );
+      const bonusNotice = buildRoleChangeNotification({
+        user_email: email, kind: 'bonus', amount, reason: bonusReason,
+      });
+      if (bonusNotice) await notify(bonusNotice);
 
       return NextResponse.json({ success: true });
     }
@@ -306,12 +324,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         source_type: 'admin_manual', processed_by: adminEmail,
       });
 
-      await notifyEmployee(
+      await recordProfileChange(
         email, 'pay_raise',
         `Pay Raise: +$${raise_amount.toFixed(2)}/hr`,
         `Your hourly rate has been increased from $${oldRate.toFixed(2)} to $${newRate.toFixed(2)}. Reason: ${raiseReason}`,
-        adminEmail, `$${oldRate.toFixed(2)}/hr`, `$${newRate.toFixed(2)}/hr`
+        adminEmail, `$${oldRate.toFixed(2)}/hr`, `$${newRate.toFixed(2)}/hr`,
       );
+      // notifications-completeness-pass Slice 3 — route through the
+      // shared pay-raise builder (already used by the dedicated raises
+      // route) so the bell payload is consistent.
+      const raiseNotice = buildPayRaiseNotification({
+        user_email: email, new_rate: newRate, previous_rate: oldRate,
+      });
+      if (raiseNotice) await notify(raiseNotice);
 
       return NextResponse.json({ success: true, old_rate: oldRate, new_rate: newRate });
     }
@@ -329,12 +354,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         source_type: 'manual', awarded_by: adminEmail, notes: credit_reason,
       });
 
-      await notifyEmployee(
-        email, 'bonus_awarded',
+      await recordProfileChange(
+        email, 'credits_awarded',
         `${points} Learning Credits Awarded`,
         `You earned ${points} learning credits. Reason: ${credit_reason}`,
-        adminEmail
+        adminEmail,
       );
+      const creditsNotice = buildRoleChangeNotification({
+        user_email: email, kind: 'credits', amount: points, reason: credit_reason,
+      });
+      if (creditsNotice) await notify(creditsNotice);
 
       return NextResponse.json({ success: true });
     }
@@ -345,7 +374,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       if (!note) return NextResponse.json({ error: 'note required' }, { status: 400 });
 
       if (visible_to_employee) {
-        await notifyEmployee(email, 'note_added', 'Admin Note', note, adminEmail);
+        await recordProfileChange(email, 'note_added', 'Admin Note', note, adminEmail);
+        const noteNotice = buildRoleChangeNotification({
+          user_email: email, kind: 'note', reason: note,
+        });
+        if (noteNotice) await notify(noteNotice);
       }
 
       // Log in activity
