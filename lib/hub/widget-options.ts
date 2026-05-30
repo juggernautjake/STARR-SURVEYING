@@ -212,6 +212,22 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
         defaultValue: false },
     ],
   },
+  // consolidation Slice 3 (2026-05-30) — unified Approvals widget.
+  'approvals': {
+    source: 'schema',
+    fields: [
+      { key: 'defaultMode', type: 'select', label: 'Default tab',
+        defaultValue: 'auto',
+        options: [
+          { value: 'auto',     label: 'Auto (busiest queue)' },
+          { value: 'hours',    label: 'Hours' },
+          { value: 'receipts', label: 'Receipts' },
+          { value: 'time-off', label: 'Time off' },
+        ] },
+      { key: 'maxItems', type: 'number', label: 'Entries per tab',
+        defaultValue: 5, min: 1, max: 20, step: 1 },
+    ],
+  },
   'pending-receipts': {
     source: 'schema',
     fields: [

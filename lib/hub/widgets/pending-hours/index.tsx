@@ -138,6 +138,11 @@ function PendingHoursWidget({ size, content }: WidgetProps<PendingHoursContent>)
   );
 }
 
+// consolidation Slice 3 (2026-05-30) — SUPERSEDED by `approvals`,
+// the unified hours/receipts/time-off widget. This entry stays
+// registered so saved hub layouts keep their tile; new surveyors
+// should reach for `approvals`. Removal lands in a follow-up after a
+// release.
 defineWidget<PendingHoursContent>({
   id: 'pending-hours',
   label: 'Pending Hours',

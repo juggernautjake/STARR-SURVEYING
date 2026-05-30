@@ -127,6 +127,9 @@ function PendingTimeOffWidget({ size, content }: WidgetProps<PendingTimeOffConte
   );
 }
 
+// consolidation Slice 3 (2026-05-30) — SUPERSEDED by `approvals`,
+// the unified hours/receipts/time-off widget. Stays registered so
+// saved hub layouts keep their tile.
 defineWidget<PendingTimeOffContent>({
   id: 'pending-time-off',
   label: 'Pending Time-Off',

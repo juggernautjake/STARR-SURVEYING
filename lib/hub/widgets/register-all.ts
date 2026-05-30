@@ -46,6 +46,11 @@ import './recommended-lessons';
 import './pending-receipts';
 import './pending-time-off';
 import './pending-hours';
+// consolidation Slice 3 (2026-05-30) — the unified `approvals` widget
+// folds the three `pending-*` widgets above into one tile. The legacy
+// widgets stay registered so saved hub layouts don't lose their tiles;
+// a follow-up slice migrates saved layouts + deletes the legacy ids.
+import './approvals';
 import './monthly-revenue';
 import './outstanding-invoices';
 import './weather';

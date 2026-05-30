@@ -136,23 +136,35 @@ fewer files to grep through.
 - 2030 middleware + notifications + hub + admin + saas + contacts
   + jobs specs green; typecheck + lint clean.
 
-### Slice 3 — Approvals widget (cluster 1 → 1)
+### Slice 3 — Approvals widget (cluster 1 → 1) ✅ shipped 2026-05-30
 
-- New `lib/hub/widgets/approvals/index.tsx` with a `mode: 'hours' |
-  'receipts' | 'time-off'` setting and a header tab-row that lets
-  the surveyor switch on the fly. Default = whichever cluster has
-  the most pending items (computed client-side from the three
-  fetches).
-- Pure helpers stay in
-  `lib/notifications/{hours-decision,receipt-decision,time-off-decision}.ts`
-  — only the widget shell consolidates.
-- Mark the three legacy widgets (`pending-hours`, `pending-
-  receipts`, `pending-time-off`) as superseded in the widget
-  catalog with a one-line deprecation comment. Don't delete them
-  in this slice (existing hub layouts would lose their tiles); a
-  follow-up cleans them up after a release.
-- Tests: 1 spec per mode + 1 default-mode picker + 1 keyboard tab
-  switch.
+- New `lib/hub/widgets/approvals/index.tsx` — single tile that
+  fetches all three pending queues (hours / receipts / time-off) in
+  parallel and renders a tab row + per-tab list. Tab counts show
+  next to each label.
+- Pure `lib/hub/widgets/approvals/pick-mode.ts` exports
+  `pickDefaultMode(counts)` (picks the busiest tab on first mount;
+  tiebreaker order `hours > receipts > time-off`) +
+  `summarizeCounts(counts)` for the tiny-bucket summary string.
+  Three pure data mappers (`aggregateHours`, `mapReceipts`,
+  `mapTimeOff`) consolidate the row-shape logic the three legacy
+  widgets used to do independently.
+- Settings: `defaultMode` (auto / hours / receipts / time-off) +
+  `maxItems` (1-20). Registered in `lib/hub/widget-options.ts`
+  with a select + number schema entry.
+- `minSize: { w: 1, h: 1 }` to satisfy the Phase-35 catalog
+  contract; tiny bucket renders just the total pending count.
+- Widget-links registry gains the `approvals` entry pointing at
+  `/admin/hours-approval` (the most-frequented per-tab landing).
+- The three legacy widgets (`pending-hours`, `pending-receipts`,
+  `pending-time-off`) carry a one-line `SUPERSEDED` comment above
+  their `defineWidget(...)` calls. They stay registered so existing
+  hub layouts don't lose their tiles; a follow-up slice migrates
+  saved layouts + deletes the legacy ids.
+- 12 new spec cases (pick-mode + aggregators). Existing widget-
+  links + widget-options + responsive contracts updated. **2048**
+  middleware + notifications + hub + admin + saas + contacts +
+  jobs specs green; typecheck + lint clean.
 
 ### Slice 4 — Drawings widget (cluster 2 → 1)
 

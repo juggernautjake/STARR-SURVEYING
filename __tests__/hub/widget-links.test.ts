@@ -20,7 +20,8 @@ import {
   researchProjectHref,
 } from '@/lib/hub/widgets/_shared/widget-links';
 
-// The full catalog of 41 widget ids (from the master doc). Declared
+// The full catalog of 42 widget ids (41 from the master doc + the
+// `approvals` cluster widget shipped in consolidation Slice 3). Declared
 // locally so a drift surfaces here as a coverage failure rather than by
 // importing the heavy widget registry.
 const ALL_WIDGET_IDS = [
@@ -31,6 +32,10 @@ const ALL_WIDGET_IDS = [
   // financial
   'monthly-revenue', 'outstanding-invoices',
   // office
+  // consolidation Slice 3 (2026-05-30) — `approvals` is the unified
+  // hours/receipts/time-off tile. The three legacy widgets stay
+  // catalogued until a follow-up migrates saved layouts.
+  'approvals',
   'pending-hours', 'pending-receipts', 'pending-time-off',
   // equipment
   'equipment-out-today', 'low-consumables', 'maintenance-due', 'vehicles-status',
@@ -51,9 +56,9 @@ const ALL_WIDGET_IDS = [
 ];
 
 describe('widget-links — catalog coverage', () => {
-  it('catalog has all 41 widgets', () => {
-    expect(ALL_WIDGET_IDS.length).toBe(41);
-    expect(new Set(ALL_WIDGET_IDS).size).toBe(41);
+  it('catalog has all 42 widgets', () => {
+    expect(ALL_WIDGET_IDS.length).toBe(42);
+    expect(new Set(ALL_WIDGET_IDS).size).toBe(42);
   });
 
   it('every widget is either linked or explicitly link-less (partition)', () => {
