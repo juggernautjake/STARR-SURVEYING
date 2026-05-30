@@ -66,8 +66,16 @@ working."*
 #### Slice 230 — Drag-to-move the area label ✅ shipped
 - **Done:** New `areaLabelDragRef = useRef<{ annotationId; startWorld: Point2D; startPosition: Point2D } | null>(null)` mirrors the existing `labelDragRef` shape but holds an annotation id + the absolute `position` (not an offset). New `hitTestAreaLabel(sx, sy)` walks `pixi.areaLabelTexts`, skips invisible texts (so the Slice-231 Hide path naturally stays un-grabbable), and returns the annotation id whose Pixi Text bounds contain the cursor. SELECT pointer-down runs `hitTestAreaLabel` BEFORE `hitTestLabel`, narrows the store entry to `AreaAnnotation`, captures the world cursor + the annotation's current position, and switches the cursor to `'grabbing'`. Pointer-move branch (placed above the existing label-drag branch so the area-label drag never falls through to the per-feature `textLabel` offset code path) writes `position = startPosition + (cursorWorld - startWorld)` via `useAnnotationStore.getState().updateAnnotation(annotationId, { position })` so the Slice 229 render pass picks up the new spot on the next frame. Pointer-up clears `areaLabelDragRef.current` + resets the cursor to the active tool's default. Hover branch flips the SELECT-mode cursor to `'grab'` over an area label so the affordance is obvious before the surveyor clicks. 13 vitest specs in `__tests__/cad/labels/area-label-drag.test.ts` lock all six wiring points via `fs.readFileSync` regex (drag-ref declaration shape, hitTestAreaLabel signature + bounds loop + invisible skip, pointer-down-area-before-label ordering + ref initializer shape + grabbing cursor + type-narrowing guard, pointer-move delta math + updateAnnotation call + before-labelDrag ordering, pointer-up ref-clear + cursor reset, hover cursor `else if (hitTestAreaLabel(sx, sy)) → 'grab'`). 1639 CAD specs green. `tsc` + `eslint` clean.
 
-#### Slice 231 — Right-click context menu on the area label
-- **Scope:** Right-click on a rendered area label surfaces a menu with **Hide**, **Re-center**, **Change format (sq ft / acres / both)**, **Delete**. Hide flips `ann.visible`; Re-center pushes the position back to `pickFeatureCentroid(linkedFeature)`; Delete calls `useAnnotationStore.removeAnnotation`. (Captured but not yet shipped.)
+#### Slice 231 — Right-click context menu on the area label ✅ shipped
+- **Done:** New `areaLabelContextMenu` state `{ x, y, annotationId } | null` mirrors the existing `tbContextMenu` shape. `handleContextMenu` runs `hitTestAreaLabel` BEFORE `hitTestTBElement` (and therefore before the per-feature menu) so an area label always wins the right-click over the underlying polygon. Menu UI (`data-testid="area-label-context-menu"`) carries a click-away overlay + five action buttons:
+  - **🙈 Hide label** (`area-label-ctx-hide`) → `updateAnnotation(id, { visible: false })`. Slice 229's render path already gates on `visible !== false`, and Slice 230's `hitTestAreaLabel` already skips invisible Pixi texts, so the label vanishes from canvas + can't be re-grabbed until shown again.
+  - **⊙ Re-center on feature** (`area-label-ctx-recenter`) → looks up `linkedFeature` in `drawingStore`, calls `pickFeatureCentroid(linked)` (Slice 229 helper) and writes the result to `position`. Restores the natural centroid in one click after the surveyor has dragged it elsewhere.
+  - **Change format** sub-section with three buttons (`area-label-ctx-format-sqft` / `-acres` / `-both`) — each calls a local `setFormat(fmt)` helper that rebuilds `text` via `buildAreaText(ann.areaSqFt, fmt, ann.lotNumber, ann.blockNumber)` (same builder the initial placement path uses) and writes `{ format, text }`. The currently-active format is highlighted with `text-blue-300` instead of `text-gray-200` so the surveyor can see at a glance which format is in effect.
+  - **🗑 Delete label** (`area-label-ctx-delete`) → `removeAnnotation(id)`. Slice 229's GC sweep destroys the Pixi Text next frame so there's no leak.
+  - **✕ Cancel** plus every action button closes the menu via a single `close = () => setAreaLabelContextMenu(null)` helper so nothing lingers after firing.
+- Defensive guard: if the annotation has vanished from the store between right-click and action (e.g. parallel undo), the JSX returns `null` instead of crashing on undefined.
+- Imports `pickFeatureCentroid` + `buildAreaText` from `@/lib/cad/labels/area-label` alongside the existing `AreaAnnotation` type import so the menu actions stay consistent with the Slice-229 placement path.
+- 11 vitest specs in `__tests__/cad/labels/area-label-context-menu.test.ts` lock all wiring points via `fs.readFileSync` regex (imports; state shape; handleContextMenu ordering vs TB; Hide call; Re-center linked-feature lookup + centroid + position write; format sub-buttons + setFormat builder; active-format highlight class; Delete call; close helper; defensive null guard). 1650 CAD specs green. `tsc` + `eslint` clean.
 
 ---
 
@@ -76,3 +84,8 @@ working."*
 - Slice 227 widens the unit + dispatcher layer so every closed
   geometry can report area in any common surveying unit.
 - Slice 228 surfaces the result in the property panel.
+- Slice 229 places + renders the area-label annotation on canvas.
+- Slice 230 makes the placed label draggable.
+- Slice 231 surfaces a right-click menu (Hide / Re-center / format /
+  Delete). Every captured action item is shipped — moving the doc
+  to `completed/`.

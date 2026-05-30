@@ -23,6 +23,11 @@ import {
 } from '@/lib/cad/store';
 // Slice 229 — AreaAnnotation type for the new render path.
 import type { AreaAnnotation } from '@/lib/cad/labels/annotation-types';
+// Slice 231 — Re-center / Change-format actions in the area-label
+// right-click menu need the same centroid picker + text builder the
+// PropertyPanel placement path uses, so the menu stays consistent
+// with the initial placement.
+import { pickFeatureCentroid, buildAreaText } from '@/lib/cad/labels/area-label';
 import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
 import {
@@ -970,6 +975,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const [tbContextMenu, setTbContextMenu] = useState<{
     x: number; y: number;
     element: TBElemType;
+  } | null>(null);
+  // Slice 231 — right-click context menu on a placed area label.
+  // Surfaces Hide / Re-center / Change format (SQFT / ACRES / BOTH) /
+  // Delete actions. The id is captured so each action can target the
+  // exact annotation under the cursor, even if other state changes
+  // while the menu is open.
+  const [areaLabelContextMenu, setAreaLabelContextMenu] = useState<{
+    x: number; y: number;
+    annotationId: string;
   } | null>(null);
   // Title block full editor modal
   const [tbEditorOpen, setTbEditorOpen] = useState<{ focusElement?: 'titleBlock' | 'signatureBlock' | 'northArrow' } | null>(null);
@@ -12510,6 +12524,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Slice 231 — area-label annotations sit above features on
+      // the labelLayer, so their right-click menu takes priority over
+      // both the TB element menu and the per-feature menu.
+      const areaLabelCtxHit = hitTestAreaLabel(sx, sy);
+      if (areaLabelCtxHit) {
+        setAreaLabelContextMenu({ x: e.clientX, y: e.clientY, annotationId: areaLabelCtxHit.annotationId });
+        return;
+      }
+
       // Right-click with SELECT tool (or any non-drawing tool): check TB elements first
       const tbHitElem = hitTestTBElement(sx, sy);
       if (tbHitElem) {
@@ -12887,6 +12910,101 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             <button
               className="w-full text-left px-3 py-1.5 text-gray-500 hover:bg-gray-700 transition-colors flex items-center gap-2 mt-1 border-t border-gray-700"
               onClick={() => setTbContextMenu(null)}
+            >
+              ✕ Cancel
+            </button>
+          </div>
+          </>
+        );
+      })()}
+
+      {/* Slice 231 — Area-label annotation right-click context menu */}
+      {areaLabelContextMenu && (() => {
+        const annStore = useAnnotationStore.getState();
+        const ann = annStore.annotations[areaLabelContextMenu.annotationId] as AreaAnnotation | undefined;
+        if (!ann || ann.type !== 'AREA_LABEL') return null;
+        const close = () => setAreaLabelContextMenu(null);
+        const setFormat = (fmt: AreaAnnotation['format']) => {
+          const newText = buildAreaText(ann.areaSqFt, fmt, ann.lotNumber ?? undefined, ann.blockNumber ?? undefined);
+          annStore.updateAnnotation(ann.id, { format: fmt, text: newText } as Partial<AreaAnnotation>);
+          close();
+        };
+        return (
+          <>
+          <div
+            className="fixed inset-0 z-[149]"
+            onClick={close}
+            onContextMenu={(e) => { e.preventDefault(); close(); }}
+          />
+          <div
+            data-testid="area-label-context-menu"
+            className="fixed z-[150] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[220px] text-xs"
+            style={{ left: areaLabelContextMenu.x, top: areaLabelContextMenu.y }}
+          >
+            <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700 mb-1">
+              Area Label
+            </div>
+            <button
+              data-testid="area-label-ctx-hide"
+              className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                annStore.updateAnnotation(ann.id, { visible: false } as Partial<AreaAnnotation>);
+                close();
+              }}
+            >
+              🙈 Hide label
+            </button>
+            <button
+              data-testid="area-label-ctx-recenter"
+              className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                const linked = drawingStore.getFeature(ann.linkedFeatureId);
+                if (linked) {
+                  const c = pickFeatureCentroid(linked);
+                  annStore.updateAnnotation(ann.id, { position: c } as Partial<AreaAnnotation>);
+                }
+                close();
+              }}
+            >
+              ⊙ Re-center on feature
+            </button>
+            <div className="border-t border-gray-700 my-1" />
+            <div className="px-3 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Change format</div>
+            <button
+              data-testid="area-label-ctx-format-sqft"
+              className={`w-full text-left px-3 py-1.5 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2 ${ann.format === 'SQFT' ? 'text-blue-300' : 'text-gray-200'}`}
+              onClick={() => setFormat('SQFT')}
+            >
+              ▸ Square feet
+            </button>
+            <button
+              data-testid="area-label-ctx-format-acres"
+              className={`w-full text-left px-3 py-1.5 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2 ${ann.format === 'ACRES' ? 'text-blue-300' : 'text-gray-200'}`}
+              onClick={() => setFormat('ACRES')}
+            >
+              ▸ Acres
+            </button>
+            <button
+              data-testid="area-label-ctx-format-both"
+              className={`w-full text-left px-3 py-1.5 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2 ${ann.format === 'BOTH' ? 'text-blue-300' : 'text-gray-200'}`}
+              onClick={() => setFormat('BOTH')}
+            >
+              ▸ Both (sq ft + acres)
+            </button>
+            <div className="border-t border-gray-700 my-1" />
+            <button
+              data-testid="area-label-ctx-delete"
+              className="w-full text-left px-3 py-1.5 text-red-400 hover:bg-red-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                annStore.removeAnnotation(ann.id);
+                close();
+              }}
+            >
+              🗑 Delete label
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-gray-500 hover:bg-gray-700 transition-colors flex items-center gap-2 mt-1 border-t border-gray-700"
+              onClick={close}
             >
               ✕ Cancel
             </button>
