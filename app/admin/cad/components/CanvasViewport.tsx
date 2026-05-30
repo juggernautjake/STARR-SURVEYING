@@ -902,6 +902,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // code/desc + elevation) move together; captured at grab time.
     siblings?: { labelId: string; startOffset: Point2D }[];
   } | null>(null);
+  // Slice 230 — drag-to-move an AREA_LABEL annotation. Mirrors the
+  // labelDragRef pipeline: capture world-pos delta on pointer-down,
+  // write live position to the annotation store on pointer-move, clear
+  // on pointer-up. The Slice 229 render loop redraws the Pixi Text at
+  // the new position next frame.
+  const areaLabelDragRef = useRef<{
+    annotationId: string;
+    startWorld: Point2D;
+    startPosition: Point2D;
+  } | null>(null);
   // Interactive rotate/scale mode — driven by cursor position
   const interactiveOpRef = useRef<{
     type: 'ROTATE' | 'SCALE';
@@ -7745,6 +7755,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   // ─────────────────────────────────────────────
+  // Slice 230 — Hit test: AREA_LABEL annotations
+  // ─────────────────────────────────────────────
+  // Tests the Pixi Text bounds of every rendered AREA_LABEL on the
+  // labelLayer. Returns the annotation id under the cursor so the
+  // SELECT pointer-down handler can grab it for drag-to-move.
+  function hitTestAreaLabel(sx: number, sy: number): { annotationId: string } | null {
+    const pixi = pixiRef.current;
+    if (!pixi) return null;
+    for (const [id, textObj] of pixi.areaLabelTexts) {
+      if (!textObj.visible) continue;
+      const b = textObj.getBounds();
+      if (sx >= b.x && sx <= b.x + b.width && sy >= b.y && sy <= b.y + b.height) {
+        return { annotationId: id };
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
   // Box selection
   // ─────────────────────────────────────────────
   function boxSelectFeatures(start: Point2D, end: Point2D): string[] {
@@ -8819,6 +8848,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // replacing it. Ctrl is the common surveyor habit for picking
           // several points one-by-one.
           const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+          // Slice 230 — AREA_LABEL annotations sit on the same labelLayer
+          // as bearing/distance labels. Check those first so the surveyor
+          // can grab a placed area label and drag it to a better spot
+          // without hitting the underlying polygon's edge.
+          const areaLabelHit = hitTestAreaLabel(sx, sy);
+          if (areaLabelHit) {
+            const ann = useAnnotationStore.getState().annotations[areaLabelHit.annotationId] as AreaAnnotation | undefined;
+            if (ann && ann.type === 'AREA_LABEL') {
+              const { wx, wy } = screenToDrawingWorld(sx, sy);
+              areaLabelDragRef.current = {
+                annotationId: ann.id,
+                startWorld: { x: wx, y: wy },
+                startPosition: { x: ann.position.x, y: ann.position.y },
+              };
+              setCursorStyle('grabbing');
+              return;
+            }
+          }
           // Check label hit first — labels are on top of features visually
           const labelHit = hitTestLabel(sx, sy);
           if (labelHit) {
@@ -10533,6 +10580,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       const worldPt = getSnappedWorld(sx, sy);
 
+      // Slice 230 — Area-label drag update
+      if (areaLabelDragRef.current) {
+        const { annotationId, startWorld, startPosition } = areaLabelDragRef.current;
+        const { wx, wy } = screenToDrawingWorld(sx, sy);
+        useAnnotationStore.getState().updateAnnotation(annotationId, {
+          position: { x: startPosition.x + (wx - startWorld.x), y: startPosition.y + (wy - startWorld.y) },
+        } as Partial<AreaAnnotation>);
+        setCursorStyle('grabbing');
+        return;
+      }
+
       // Label drag update
       if (labelDragRef.current) {
         const { featureId, labelId, startWorld, startOffset, siblings } = labelDragRef.current;
@@ -10942,6 +11000,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             } else if (labelHover) {
               // Hovering over a label: show grab cursor
               setCursorStyle('grab');
+            } else if (hitTestAreaLabel(sx, sy)) {
+              // Slice 230 — area-label annotations are draggable too.
+              setCursorStyle('grab');
             } else if (hit) {
               // Hovering a selectable element. It's NOT drag-to-move
               // (use the Move tool), so show a pointer, not a grab hand.
@@ -11128,6 +11189,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (moved < 4 && !hitTest(sx, sy) && selectionStore.selectedIds.size > 0) {
           selectionStore.deselectAll();
         }
+        return;
+      }
+
+      // Slice 230 — Commit area-label drag.
+      if (areaLabelDragRef.current) {
+        areaLabelDragRef.current = null;
+        setCursorStyle(TOOL_CURSORS[toolState.activeTool] ?? 'default');
         return;
       }
 
