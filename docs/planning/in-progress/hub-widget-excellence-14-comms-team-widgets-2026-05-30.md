@@ -76,6 +76,20 @@ notification/unread reconciliation in Foundation Doc 03.*
 - **Editor:** dateRange.
 - **Notifications:** mention → bell/reminder (Doc 03).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `/api/admin/messages/mentions` didn't exist** (no mentions table) →
+  the widget always showed empty. **Built the minimal mentions
+  endpoint** — it scans recent messages in the caller's conversations
+  (from other senders) for the user's @-handle via the pure
+  `lib/messages/mentions.ts` → `detectMentions(messages, email,
+  titleByConv)` (matches `@{email}` or `@{local-part}`,
+  case-insensitive) + `mentionHandles(email)`; the route enriches with
+  the conversation title. **Row deep links** to
+  `conversationHref(conversation_id)` → `/admin/messages/{id}`. The
+  widget's date-range filter + count render were already fine. Footer
+  "Go to messages →" is global. 3 specs (handles, detect + enrich +
+  case-insensitive + blank-email guard). Full hub + messages suites
+  (1624) green; typecheck + lint clean. **mentions-inbox is done.**
 
 ## recent-announcements
 - **Endpoint:** `/api/admin/announcements?limit=…`. Fields: id, title,
