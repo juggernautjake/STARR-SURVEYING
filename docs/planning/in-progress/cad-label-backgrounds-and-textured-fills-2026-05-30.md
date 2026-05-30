@@ -148,7 +148,7 @@ this doc starts its CAD slice numbering at **Slice 232**.*
 
 ### Phase 44 — Closed-shape texture / shading fills (Slices 235+)
 
-#### Slice 235 — `FeatureStyle.fillPattern` enum + pattern generators
+#### Slice 235 — `FeatureStyle.fillPattern` enum + pattern generators ✅ shipped 2026-05-30
 - **Scope:** Widen `FeatureStyle` to include an optional
   `fillPattern?: 'SOLID' | 'NONE' | 'DOT_UNIFORM' | 'DOT_GRAVEL' |
   'DIAGONAL_LEFT' | 'DIAGONAL_RIGHT' | 'CROSSHATCH' |
@@ -166,6 +166,19 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   fixtures with fixed seed).
 - **Done when:** Pure helpers exist + return arrays whose lengths +
   bounds are tested at fixed seeds.
+- **Outcome:** `FeatureStyle` gains `fillPattern`, `patternColor`,
+  `patternDensity` optional fields; new `FillPattern` union enumerates
+  all 11 variants. New `lib/cad/styles/fill-patterns.ts` exports a
+  seeded RNG (`SeededRng` — mulberry32 + Box-Muller gaussian), four
+  pure pattern helpers (`generateDotUniform` /
+  `generateDotGravel` with Bridson-flavored Poisson-disk sampling
+  reading mean radius 1.5 px ± 0.6 px Gaussian / `generateHatchLines`
+  / `generateBrickLines` / `generateWaveLines`), and a top-level
+  `generateFillPattern` dispatcher that returns
+  `{ dots, lines }` to feed the Pixi render path (Slice 236). 21 new
+  deterministic specs green (fixed-seed reproducibility, gravel
+  min-distance constraint, gaussian-radius range, dispatcher
+  enum coverage); full CAD sweep at 1737.
 
 #### Slice 236 — Render textured polygons via Pixi Graphics
 - **Scope:** In the polygon render path, after `beginFill(color)
