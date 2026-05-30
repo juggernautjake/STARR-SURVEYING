@@ -98,6 +98,21 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Footer link:** "Go to vehicles →" `/admin/vehicles`.
 - **Editor:** filter.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `/api/admin/equipment/vehicles` doesn't exist** (real: `/api/admin/
+  vehicles`) AND the `vehicles` table has **no status / driver /
+  next_service columns** — only `name` / `license_plate` / `active`. So
+  the widget's status-dots/driver/next-service were all phantom (and it
+  404'd anyway). Honest realignment: fetch `/api/admin/vehicles`, map
+  via a new pure exported `toVehicle` that derives `available`/`offline`
+  status from `active`, and a pure `filterVehicles(rows, filter)` (the
+  editor is now all / active / inactive — the only states the data
+  supports). Rows show the status dot + name + license plate. Footer "Go
+  to vehicles →" is global. 4 new specs (toVehicle active-derived status
+  + name fallback, filterVehicles). Full hub suite (1599) green;
+  typecheck + lint clean. (A real fleet status/driver/service workflow
+  would need new `vehicles` columns — flagged.) **vehicles-status is
+  done.**
 
 ## recent-drawings
 - **Endpoint:** `/api/admin/cad/drawings?mine=true`. Fields: name,
