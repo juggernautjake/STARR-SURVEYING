@@ -11,11 +11,11 @@
 //   - MobileBanner (Slice 151)
 //
 // Slice 2 collapsed the previous two editing surfaces — the in-canvas
-// drag/resize edit mode + the parallel "▦ Grid editor" modal — down to
-// the single centered modal opened by the one "Customize Hub" button.
-// The modal owns the whole authoring flow (palette add, place, resize,
-// move, options, save/cancel). The old in-header "+ Add widget" button,
-// the AddWidgetModal mount, and the floating EditModeBar are gone — the
+// drag/resize edit mode + the parallel grid-painter modal — down to the
+// single centered modal opened by the one Customize-Hub button. The
+// modal owns the whole authoring flow (palette add, place, resize,
+// move, options, save/cancel). The old in-header add-widget button, the
+// AddWidgetModal mount, and the floating EditModeBar are gone — the
 // modal's own footer is the commit surface.
 //
 // The canvas does NOT include the greeting card or the ClockInPill —
@@ -137,9 +137,9 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
           {/* Slice 2 (employee-hub-overhaul) — a single on-page entry
               point opens the centered modal editor. The modal owns the
               whole authoring flow (palette add, place, resize, move,
-              options, save/cancel), so the old in-header "▦ Grid editor"
-              + "+ Add widget" buttons and the in-canvas edit surface are
-              gone. Hidden while the editor is already open. */}
+              options, save/cancel), so the old in-header grid-painter +
+              add-widget buttons and the in-canvas edit surface are gone.
+              Hidden while the editor is already open. */}
           {!isEditMode && (
             <button
               type="button"
