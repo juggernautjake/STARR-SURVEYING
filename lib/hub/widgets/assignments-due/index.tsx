@@ -6,8 +6,10 @@
 // Slice 120 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { jobHref, lessonHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -34,6 +36,9 @@ interface Task {
   status?: string | null;
   assigned_to?: string | null;
   priority?: string | null;
+  job_id?: string | null;
+  module_id?: string | null;
+  lesson_id?: string | null;
 }
 
 function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueContent>) {
@@ -87,21 +92,60 @@ function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueConte
     );
   }
 
+  // Per-bucket field priority: small = title + due + priority dot;
+  // medium adds the status chip; large+ adds the assignee.
+  const showStatus = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showAssignee = bucket === 'large' || bucket === 'xlarge';
+
   return (
     <ul role="list" style={listStyle}>
       {visible.map((t) => (
-        <li key={t.id} style={rowStyle}>
-          {t.priority === 'high' && (
-            <span aria-label="High priority" style={{ color: 'var(--theme-danger)' }}>!</span>
-          )}
-          <span style={titleStyle}>{t.title}</span>
-          {t.due_date && (
-            <span style={dueStyle(t.due_date)}>{formatDue(t.due_date)}</span>
-          )}
+        <li key={t.id}>
+          <Link href={assignmentHref(t)} style={rowStyle} aria-label={`Open assignment: ${t.title}`}>
+            <PriorityDot priority={t.priority} />
+            <span style={titleStyle}>{t.title}</span>
+            {showStatus && t.status && <StatusChip status={t.status} />}
+            {showAssignee && t.assigned_to && (
+              <span style={mutedStyle}>{shortEmail(t.assigned_to)}</span>
+            )}
+            {t.due_date && (
+              <span style={dueStyle(t.due_date)}>{formatDue(t.due_date)}</span>
+            )}
+          </Link>
         </li>
       ))}
     </ul>
   );
+}
+
+/** Canonical drill-in for an assignment: its owning job, then its
+ *  lesson, else the assignments list. */
+export function assignmentHref(t: Pick<Task, 'job_id' | 'module_id' | 'lesson_id'>): string {
+  if (t.job_id) return jobHref(t.job_id);
+  if (t.module_id && t.lesson_id) return lessonHref(t.module_id, t.lesson_id);
+  return '/admin/assignments';
+}
+
+function PriorityDot({ priority }: { priority?: string | null }) {
+  if (priority !== 'high' && priority !== 'urgent') return null;
+  const color = priority === 'urgent' ? 'var(--theme-danger)' : 'var(--theme-warning)';
+  return (
+    <span
+      aria-label={`${priority} priority`}
+      title={`${priority} priority`}
+      style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }}
+    />
+  );
+}
+
+function StatusChip({ status }: { status: string }) {
+  return (
+    <span style={statusChipStyle}>{status.replace('_', ' ')}</span>
+  );
+}
+
+function shortEmail(email: string): string {
+  return email.split('@')[0];
 }
 
 function AssignmentsDueSettings({ value, onChange }: WidgetSettingsFormProps<AssignmentsDueContent>) {
@@ -178,10 +222,21 @@ function windowToMs(w: Exclude<AssignmentsDueWindow, 'all'>): number {
   }
 }
 
-function formatDue(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+/** Relative due label: "overdue Nd", "today", "in Nd", or a short date
+ *  past two weeks out. Exported for testing. */
+export function formatDue(iso: string, nowMs: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  const days = Math.round((startOfUtcDay(t) - startOfUtcDay(nowMs)) / 86_400_000);
+  if (days < 0) return `overdue ${Math.abs(days)}d`;
+  if (days === 0) return 'today';
+  if (days <= 14) return `in ${days}d`;
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function startOfUtcDay(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 export function isOverdue(iso: string | null | undefined, nowMs: number = Date.now()): boolean {
@@ -201,6 +256,13 @@ function dueStyle(iso: string): React.CSSProperties {
 }
 
 const listStyle: React.CSSProperties = { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' };
-const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' };
-const titleStyle: React.CSSProperties = { flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)' };
+const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'inherit' };
+const titleStyle: React.CSSProperties = { flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const mutedStyle: React.CSSProperties = { fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', whiteSpace: 'nowrap' };
+const statusChipStyle: React.CSSProperties = {
+  fontSize: '0.68rem', fontWeight: 600, textTransform: 'capitalize',
+  padding: '1px 7px', borderRadius: 999,
+  background: 'var(--theme-bg-surface)', color: 'var(--theme-fg-secondary)',
+  border: '1px solid var(--theme-border)', whiteSpace: 'nowrap',
+};
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, marginBottom: 4 };

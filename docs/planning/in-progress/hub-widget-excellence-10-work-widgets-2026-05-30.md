@@ -100,6 +100,24 @@ master. Routes + the shared `WidgetGoToLink` / `widget-links` /
 - **Notifications:** due-soon / overdue reminders (Doc 03 cadence).
 - **Slices:** Build/Wire (footer link + bucket priority + relative-due
   + priority chip) + Rounds 1–4.
+- **Build/Wire + Rounds 1–3 ✅ shipped 2026-05-30.** R1 data: the
+  assignments GET is `select('*')`, so `job_id` / `module_id` /
+  `lesson_id` (+ priority/status/assigned_to) are on the row. **R2
+  links:** rows are now `next/link`s via a new exported
+  `assignmentHref(task)` → the owning **job** (`/admin/jobs/{job_id}`),
+  else its **lesson** (`/admin/learn/modules/{m}/{l}`), else the
+  assignments list; footer "Go to assignments →" is global. **R3
+  size/format + Build/Wire display:** `formatDue` is now **relative**
+  ("overdue Nd / today / in Nd", short date past 2 weeks); a priority
+  **dot** (amber high / red urgent) replaces the bare "!"; per-bucket
+  field priority — small = title + due + priority, **medium** adds a
+  status chip, **large+** adds the assignee (short email). Tiny keeps
+  the due/overdue count. The reminder cadence (due-soon/overdue) is
+  already wired by doc-03 Slice 3's `assignments-due-reminder` cron. 9
+  specs (window filter, due sort, `assignmentHref` job/lesson/list
+  fallbacks, relative `formatDue`). Full hub suite (1547) green;
+  typecheck + lint clean. (R4 editor expansion — includeCompleted /
+  priority filter / sortBy / rowLimit — next.)
 
 ---
 
