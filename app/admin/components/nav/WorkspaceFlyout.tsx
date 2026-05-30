@@ -4,7 +4,13 @@
 // Hover fly-out for an IconRail workspace icon (admin-nav redesign
 // Phase 3 slice 3c §5.1). Hovering an icon shows a submenu 200 ms
 // after enter, listing the workspace's accessible pages so users can
-// jump without expanding the rail. Mouse-out closes immediately.
+// jump without expanding the rail.
+//
+// nav-flyout-hover-fix 2026-05-30 — close on a short grace delay (not
+// instantly) so the pointer can cross the small gap between the icon
+// and the menu without it snapping shut. Paired with the CSS bridge
+// (`.admin-rail__flyout::before`) that fills the gap so a straight
+// horizontal move stays inside the hoverable area entirely.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type LucideIcon } from 'lucide-react';
@@ -20,6 +26,10 @@ import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import type { UserRole } from '@/lib/auth';
 
 const SHOW_DELAY_MS = 200;
+// Grace period before the fly-out closes after the pointer leaves the
+// anchor. Long enough to traverse the icon→menu gap, short enough that
+// the menu doesn't linger once the user has truly moved on.
+const HIDE_DELAY_MS = 220;
 
 interface WorkspaceFlyoutProps {
   workspace: Workspace;
@@ -35,6 +45,7 @@ export default function WorkspaceFlyout({
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const meta = WORKSPACES[workspace];
 
@@ -56,19 +67,39 @@ export default function WorkspaceFlyout({
   useEffect(() => {
     return () => {
       if (showTimer.current) clearTimeout(showTimer.current);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
     };
   }, []);
 
+  // Pointer (re)entered the anchor OR the menu — cancel any pending
+  // close + arm the open timer if we're not already open.
   function scheduleShow() {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+    if (open) return;
     if (showTimer.current) clearTimeout(showTimer.current);
     showTimer.current = setTimeout(() => setOpen(true), SHOW_DELAY_MS);
   }
 
-  function dismiss() {
+  // Pointer left the anchor (and the menu). Cancel a pending open, then
+  // close after a short grace period so crossing the icon→menu gap
+  // doesn't snap it shut. Re-entering before the timer fires cancels it.
+  function scheduleHide() {
     if (showTimer.current) {
       clearTimeout(showTimer.current);
       showTimer.current = null;
     }
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setOpen(false), HIDE_DELAY_MS);
+  }
+
+  // Immediate close — used when a menu link is clicked (navigation is
+  // happening, no reason to linger).
+  function dismiss() {
+    if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
+    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
     setOpen(false);
   }
 
@@ -76,9 +107,9 @@ export default function WorkspaceFlyout({
     <div
       className="admin-rail__flyout-anchor"
       onMouseEnter={scheduleShow}
-      onMouseLeave={dismiss}
+      onMouseLeave={scheduleHide}
       onFocus={scheduleShow}
-      onBlur={dismiss}
+      onBlur={scheduleHide}
     >
       <Link
         href={meta.href}
