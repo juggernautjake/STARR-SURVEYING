@@ -5,8 +5,10 @@
 // Slice 118 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps, type WidgetSkeletonProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { teamMemberHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import { SkeletonBlock } from '@/lib/hub/components/WidgetSkeleton';
 
@@ -103,12 +105,15 @@ function TeamStatusWidget({ size, content }: WidgetProps<TeamStatusContent>) {
 function MemberRow({ member }: { member: TeamMember }) {
   const color = member.status === 'clocked-in' ? 'var(--theme-success)' : 'var(--theme-warning)';
   return (
-    <li style={rowStyle}>
-      <span aria-label={member.status} style={{ width: 8, height: 8, borderRadius: 8, background: color }} />
-      <span style={nameStyle}>{member.user_name ?? member.user_email}</span>
-      {member.role && (
-        <span style={mutedStyle}>{member.role}</span>
-      )}
+    <li>
+      {/* Row deep link → the teammate's profile. */}
+      <Link href={teamMemberHref(member.user_email)} style={rowStyle} aria-label={`Open ${member.user_name ?? member.user_email}`}>
+        <span aria-label={member.status} style={{ width: 8, height: 8, borderRadius: 8, background: color, flexShrink: 0 }} />
+        <span style={nameStyle}>{member.user_name ?? member.user_email}</span>
+        {member.role && (
+          <span style={mutedStyle}>{member.role}</span>
+        )}
+      </Link>
     </li>
   );
 }
@@ -191,8 +196,8 @@ export function groupMembers(members: TeamMember[], by: Exclude<TeamGroupBy, 'no
 }
 
 const listStyle: React.CSSProperties = { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' };
-const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' };
-const nameStyle: React.CSSProperties = { flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)' };
+const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'inherit' };
+const nameStyle: React.CSSProperties = { flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const mutedStyle: React.CSSProperties = { fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' };
 const sectionTitleStyle: React.CSSProperties = { margin: 0, marginBottom: 6, fontSize: 'var(--hub-font-xs, 0.75rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--theme-fg-secondary)' };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, marginBottom: 4 };

@@ -128,6 +128,43 @@ notification/unread reconciliation in Foundation Doc 03.*
 - **Row deep link:** → `/admin/team/{email}`.
 - **Editor:** groupBy.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `/api/admin/team/status` was a `{ members: [] }` stub** (it was
+  awaiting a never-built server-side active-clock table) — so the widget
+  always rendered "No one's clocked in". There's no live-clock state on
+  the server, but today's `daily_time_logs` are a real "who's working
+  today" signal. **Wired the real endpoint:** query `daily_time_logs`
+  where `log_date = today` (UTC), de-dupe emails, join
+  `registered_users` (email/name/roles) and map via a new pure exported
+  `lib/team/status.buildTeamStatus(todayLogs, roster)` — anyone who
+  logged time today surfaces as `clocked-in` with name + first role
+  (graceful nulls when off-roster). **Row deep links** (the headline):
+  each member row is now a `next/link` to `teamMemberHref(email)` →
+  `/admin/team/{email}`. The widget's tiny-count, group-by, skeleton, +
+  editor were already fine. Footer "Go to team →" is global. The old
+  stub-endpoints spec's `{ members: [] }` assertion was retired (the
+  route hits the DB now); its 401 guard moved to the still-stubbed
+  weather route. 5 new specs for `buildTeamStatus` (active→clocked-in,
+  dedupe + trim + order, off-roster nulls, blank/empty guard, empty
+  roles → null role). Full hub suite (1627) green; typecheck + lint
+  clean. **team-status is done.**
+
+## Doc 14 complete
+All 5 communication & team widgets shipped (Build/Wire + Rounds 1–4):
+**messages, open-discussions, mentions-inbox, recent-announcements,
+team-status**. R1 in each case exposed a data mismatch and fixed it
+honestly: messages' group flag is the `type` column (not `is_group`);
+open-discussions reads the *separate* discussions feature
+(`/api/admin/discussions` → `{ threads }`), not the messages API;
+mentions-inbox + team-status both had endpoints that were missing/stubs
+and now hit real data (a `messages.content` @-scan and today's
+`daily_time_logs` respectively); recent-announcements' "announcements"
+are the platform release notes (`{ releases }`). Every list row now deep
+links (conversation / discussion / mentioning message / teammate
+profile) and the global "Go to …" footer is wired. New pure helpers —
+`toConversation`, `toDiscussion`, `lib/messages/mentions`,
+`toAnnouncement`/`notesPreview`, `lib/team/status.buildTeamStatus` — are
+each unit-tested. Full hub suite green throughout; typecheck + lint clean.
 
 ## Guardrails
 - Unread counts in these widgets must reconcile with the
