@@ -681,6 +681,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     drawingRotContainer: import('pixi.js').Container;
     gridLayer: import('pixi.js').Container;
     featureLayer: import('pixi.js').Container;
+    /** Slice 233 — sits between featureLayer and labelLayer so the
+     *  opt-in label background rect always draws under its own text. */
+    labelBackgroundLayer: import('pixi.js').Container;
     labelLayer: import('pixi.js').Container;
     selectionLayer: import('pixi.js').Container;
     snapLayer: import('pixi.js').Container;
@@ -715,6 +718,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
      *  annotations, keyed by annotation id. Drawn on labelLayer so
      *  they rotate with the drawing + sit above features. */
     areaLabelTexts: Map<string, import('pixi.js').Text>;
+    /** Slice 233 — opt-in background rect Graphics, one per label
+     *  that opts in (style.backgroundColor != null OR annotation
+     *  backgroundColor != null). Keyed by `label:${labelKey}` for
+     *  per-feature TextLabels and `area:${annotationId}` for area
+     *  annotations. Drawn on labelBackgroundLayer below the text. */
+    labelBackgrounds: Map<string, import('pixi.js').Graphics>;
     /** PixiJS Sprites for IMAGE features, keyed by featureId */
     imageSprites: Map<string, import('pixi.js').Sprite>;
     /** Texture cache keyed by projectImage.id */
@@ -1253,11 +1262,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const drawingRotContainer = new PIXI.Container();
         const gridLayer = new PIXI.Container();
         const featureLayer = new PIXI.Container();
+        // Slice 233 — labelBackgroundLayer sits between featureLayer
+        // and labelLayer so the opt-in rect always draws under its
+        // own label text without z-shuffling per render frame.
+        const labelBackgroundLayer = new PIXI.Container();
         const labelLayer = new PIXI.Container();
         const selectionLayer = new PIXI.Container();
         const snapLayer = new PIXI.Container();
         const toolPreviewLayer = new PIXI.Container();
-        drawingRotContainer.addChild(gridLayer, featureLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        drawingRotContainer.addChild(gridLayer, featureLayer, labelBackgroundLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
         // titleBlockLayer is NOT rotated — title block is paper-fixed
         const titleBlockLayer = new PIXI.Container();
 
@@ -1320,6 +1333,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           drawingRotContainer,
           gridLayer,
           featureLayer,
+          // Slice 233 — labelBackgroundLayer wired into the rotContainer above.
+          labelBackgroundLayer,
           labelLayer,
           selectionLayer,
           snapLayer,
@@ -1345,6 +1360,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           labelTexts: new Map(),
           // Slice 229 — Pixi text objects for area-label annotations.
           areaLabelTexts: new Map(),
+          // Slice 233 — opt-in label background rect Graphics.
+          labelBackgrounds: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
           tbSealSprite: null,
@@ -3489,6 +3506,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         s.fill = ann.color;
       }
       textObj.position.set(sx, sy);
+
+      // Slice 233 — opt-in background rect under the area label. Off
+      // by default (backgroundColor === null) so existing drawings stay
+      // bare. Drawn on labelBackgroundLayer so it sits under the text.
+      const bgKey = `area:${ann.id}`;
+      if (ann.backgroundColor) {
+        let bgGfx = pixi.labelBackgrounds.get(bgKey);
+        if (!bgGfx) {
+          bgGfx = new pixi.GraphicsClass();
+          pixi.labelBackgrounds.set(bgKey, bgGfx);
+          pixi.labelBackgroundLayer.addChild(bgGfx);
+        }
+        drawLabelBackgroundRect(
+          bgGfx,
+          textObj,
+          ann.padding,
+          ann.backgroundColor,
+          ann.borderVisible ? ann.borderColor : null,
+          ann.borderVisible ? 1 : null,
+        );
+      } else {
+        const existing = pixi.labelBackgrounds.get(bgKey);
+        if (existing) {
+          pixi.labelBackgroundLayer.removeChild(existing);
+          try { existing.destroy(); } catch { /* noop */ }
+          pixi.labelBackgrounds.delete(bgKey);
+        }
+      }
     }
 
     // GC: drop any Pixi Text objects whose annotations were
@@ -3498,8 +3543,59 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         pixi.labelLayer.removeChild(txt);
         try { txt.destroy(); } catch { /* noop */ }
         pixi.areaLabelTexts.delete(id);
+        // Slice 233 — drop the matching background rect if any.
+        const bgKey = `area:${id}`;
+        const bg = pixi.labelBackgrounds.get(bgKey);
+        if (bg) {
+          pixi.labelBackgroundLayer.removeChild(bg);
+          try { bg.destroy(); } catch { /* noop */ }
+          pixi.labelBackgrounds.delete(bgKey);
+        }
       }
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // Slice 233 — opt-in label background rect helper
+  // ─────────────────────────────────────────────
+  /** Clear + redraw a Graphics under `textObj` so the rect sits behind
+   *  the text padded by `padding` px on every side. `bgColor` fills the
+   *  rect; `borderColor` + `borderWidth` paint an optional stroke
+   *  (both nullable so a surveyor can pick fill-only, stroke-only, or
+   *  both). The Graphics' x/y is set to the text's screen position so
+   *  it tracks live edits + pans without recomputing bounds. */
+  function drawLabelBackgroundRect(
+    g: import('pixi.js').Graphics,
+    textObj: import('pixi.js').Text,
+    padding: number,
+    bgColor: string | null,
+    borderColor: string | null,
+    borderWidth: number | null,
+  ) {
+    g.clear();
+    const bounds = textObj.getLocalBounds();
+    // Pixi Text anchored at (0.5, 0.5) — bounds origin sits at the
+    // text's natural top-left in local space; offset matches the
+    // anchored render so the rect hugs the visible glyphs.
+    const x = bounds.x - padding;
+    const y = bounds.y - padding;
+    const w = bounds.width + padding * 2;
+    const h = bounds.height + padding * 2;
+    const toInt = (hex: string) => parseInt(hex.replace('#', ''), 16);
+    if (borderColor && borderWidth && borderWidth > 0) {
+      const bi = toInt(borderColor);
+      if (Number.isFinite(bi)) g.lineStyle(borderWidth, bi, 1);
+    }
+    if (bgColor) {
+      const fi = toInt(bgColor);
+      if (Number.isFinite(fi)) g.beginFill(fi, 1);
+    }
+    g.drawRect(x, y, w, h);
+    if (bgColor) g.endFill();
+    g.position.set(textObj.position.x, textObj.position.y);
+    g.rotation = textObj.rotation;
+    g.alpha = textObj.alpha;
+    g.visible = textObj.visible;
   }
 
   // ─────────────────────────────────────────────
@@ -3690,8 +3786,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         textObj.alpha = layer.opacity;
         textObj.visible = true;
 
-        // Add background if specified
-        // (background rendering is handled via the text's own properties for simplicity)
+        // Slice 233 — opt-in label background rect. style.backgroundColor
+        // null = transparent (default), so existing drawings stay bare
+        // until the surveyor opts in via the label editor (Slice 234).
+        const bgKey = `label:${labelKey}`;
+        if (label.style.backgroundColor) {
+          let bgGfx = pixi.labelBackgrounds.get(bgKey);
+          if (!bgGfx) {
+            bgGfx = new pixi.GraphicsClass();
+            pixi.labelBackgrounds.set(bgKey, bgGfx);
+            pixi.labelBackgroundLayer.addChild(bgGfx);
+          }
+          drawLabelBackgroundRect(
+            bgGfx,
+            textObj,
+            label.style.padding,
+            label.style.backgroundColor,
+            label.style.borderColor,
+            label.style.borderWidth,
+          );
+        } else {
+          const existing = pixi.labelBackgrounds.get(bgKey);
+          if (existing) {
+            pixi.labelBackgroundLayer.removeChild(existing);
+            try { existing.destroy(); } catch { /* noop */ }
+            pixi.labelBackgrounds.delete(bgKey);
+          }
+        }
       }
     }
 
@@ -3703,8 +3824,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         pixi.labelLayer.removeChild(textObj);
         textObj.destroy();
         pixi.labelTexts.delete(key);
+        // Slice 233 — drop the matching background rect if any.
+        const bgKey = `label:${key}`;
+        const bg = pixi.labelBackgrounds.get(bgKey);
+        if (bg) {
+          pixi.labelBackgroundLayer.removeChild(bg);
+          try { bg.destroy(); } catch { /* noop */ }
+          pixi.labelBackgrounds.delete(bgKey);
+        }
       } else if (!activeLabelIds.has(key)) {
         textObj.visible = false;
+        const bg = pixi.labelBackgrounds.get(`label:${key}`);
+        if (bg) bg.visible = false;
       } else {
         textObj.visible = true;
       }
