@@ -153,7 +153,10 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
             href="/admin/work-mode/start"
             aria-label="Enter Work Mode"
           >
-            Enter Work Mode
+            {/* Label wrapped so the hover-state conic gradient can be
+                clipped to the glyphs (background-clip: text), matching
+                the spinning red/white/blue border ring. */}
+            <span className="hub-greeting__work-mode-label">Enter Work Mode</span>
           </a>
         )}
       </div>

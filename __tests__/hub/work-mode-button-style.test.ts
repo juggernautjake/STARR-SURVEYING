@@ -80,3 +80,41 @@ describe('Slice 1 — reduced-motion fallback', () => {
     );
   });
 });
+
+describe('2026-05-30 follow-up — white text wins over the global anchor color', () => {
+  it('pins the rest-state label white with !important (beats globals.css a{color:var(--brand-red)})', () => {
+    expect(BTN_REGION).toMatch(/color:\s*#FFFFFF\s*!important/i);
+  });
+
+  it('targets :link / :visited so an <a> in either state stays white', () => {
+    expect(BTN_REGION).toMatch(/\.hub-greeting__work-mode-btn\.hub-btn:link/);
+    expect(BTN_REGION).toMatch(/\.hub-greeting__work-mode-btn\.hub-btn:visited/);
+  });
+});
+
+describe('2026-05-30 follow-up — hover gradient bleeds through the label text', () => {
+  it('declares a label rule that clips a conic gradient to the glyphs on hover', () => {
+    const labelHover = CSS.match(
+      /:hover \.hub-greeting__work-mode-label[\s\S]*?\}/,
+    );
+    expect(labelHover).not.toBeNull();
+    const block = labelHover![0];
+    expect(block).toMatch(/conic-gradient\(\s*from var\(--wm-angle\)/);
+    expect(block).toMatch(/background-clip:\s*text/);
+    expect(block).toMatch(/-webkit-text-fill-color:\s*transparent/);
+    expect(block).toMatch(/animation:\s*wm-spin\s+2\.4s\s+linear\s+infinite/);
+  });
+
+  it('the hover-label gradient uses the same red/white/blue stops as the ring', () => {
+    const labelHover = CSS.match(/:hover \.hub-greeting__work-mode-label[\s\S]*?\}/)![0];
+    expect(labelHover).toMatch(/#E11D2A/i);
+    expect(labelHover).toMatch(/#FFFFFF/i);
+    expect(labelHover).toMatch(/#2447D6/i);
+  });
+
+  it('stops spinning the label gradient under prefers-reduced-motion', () => {
+    expect(CSS).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.hub-greeting__work-mode-label[\s\S]*?animation:\s*none;[\s\S]*?\}/,
+    );
+  });
+});
