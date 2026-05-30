@@ -174,8 +174,19 @@ its dedup.
   Removed the now-unused `fireAndForget` import. 4 specs (priority +
   due-date body + escalation, urgent/normal escalation, due omitted,
   null without assignee/title). typecheck + lint clean.
-- 2f — Lesson/module complete + quiz result — pending.
-- 2g — Pay raise/bonus — pending.
+- **2f — Quiz result ✅ shipped 2026-05-30.** `learn/quizzes` POST now
+  tells the learner their result after the graded `quiz_attempts` row is
+  saved. Pure builder `lib/notifications/quiz-result.ts` →
+  `buildQuizResultNotification(attempt)` (🏆 Passed / 📝 Did not pass at
+  the `QUIZ_PASS_THRESHOLD = 70`, score clamped 0–100 + rounded, body
+  "Score: N%. Great job! / Keep studying…", link
+  `/admin/learn/quiz-history`, `source_type: 'quiz_result'`) + a
+  `quizLabel(type, category)` helper (exam category → exam-prep →
+  lesson). Best-effort. 5 specs (pass/fail copy, label derivation,
+  clamp/round/default, null without learner). typecheck + lint clean.
+- 2g — Lesson/module complete (celebrate the learner, gate on first
+  completion) — pending.
+- 2h — Pay raise/bonus — pending.
 
 ### Slice 3 — Reminder cadence for due/overdue items
 - **Scope:** Where a "due soon / overdue" reminder makes sense

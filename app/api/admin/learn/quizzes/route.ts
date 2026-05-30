@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
+import { notify } from '@/lib/notifications';
+import { buildQuizResultNotification } from '@/lib/notifications/quiz-result';
 import {
   generateDynamicQuestion,
   dbRowToTemplate,
@@ -599,6 +601,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         metadata: { score_percent: scorePercent, correct: correctCount, total: answers.length },
       });
     } catch { /* ignore */ }
+
+    // hub-widget-excellence-03 Slice 2f — tell the learner their quiz
+    // result (passed/failed + score). Best-effort.
+    try {
+      const notice = buildQuizResultNotification({
+        user_email: session.user.email,
+        attempt_type: type || 'lesson_quiz',
+        exam_category: exam_category || null,
+        score_percent: scorePercent,
+      });
+      if (notice) await notify(notice);
+    } catch { /* ignore notification failures */ }
 
     // Auto-award learning credits if quiz passed
     if (scorePercent >= 70) {
