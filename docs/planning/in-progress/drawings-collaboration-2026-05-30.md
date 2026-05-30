@@ -74,17 +74,22 @@ on drawings):*
   with case-insensitive match, empty team, only-actor case).
   Typecheck + lint clean.
 
-### Slice 1 — Schema
+### Slice 1 — Schema ✅ shipped 2026-05-30
 
-- Add `cad_drawings.assigned_to` (text, nullable, FK to `registered_users.email`)
-  + `cad_drawings.due_date` (date, nullable). Migration in
-  `seeds/NNN_cad_drawings_assignment.sql`.
-- Create `drawing_notes` table: `id uuid pk`, `drawing_id uuid` (FK),
-  `author_email text` (FK), `body text not null`, `recipient_emails text[]`,
-  `created_at timestamptz default now()`. Migration in
-  `seeds/NNN_drawing_notes.sql`.
-- No data migration — both fields are nullable / the new table is
-  empty.
+- New migration `seeds/303_cad_drawings_assignment.sql`:
+  - `cad_drawings.assigned_to TEXT` (FK to `registered_users.email`,
+    `ON DELETE SET NULL`) + partial index on `(assigned_to)` for the
+    "my drawings" filter.
+  - `cad_drawings.due_date DATE` + partial index on `(due_date)` for
+    the due-soon cron window scan.
+  - New `drawing_notes` table — `id`, `drawing_id` (FK to
+    `cad_drawings` with `ON DELETE CASCADE`), `author_email`, `body`,
+    `recipient_emails TEXT[]`, `created_at`. Indexed by
+    `(drawing_id, created_at DESC)` for thread reads + by
+    `author_email`. RLS enabled with the same service-role-only
+    pattern other tables use.
+- All new columns nullable / the new table empty, so existing rows /
+  routes keep loading.
 
 ### Slice 2 — API: drawing assignment + due cron
 
