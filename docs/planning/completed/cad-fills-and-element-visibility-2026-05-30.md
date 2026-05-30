@@ -104,18 +104,31 @@ and #4 (fill ignores hidden boundary edges) are Slices 2–4.
   not) + locked by the "fill loop is independent of hidden edges"
   regression test in `segment-visibility.test.ts`.
 
-### Slice 4 — Fill an area bounded by separate line features
+### Slice 4 — Fill an area bounded by separate line features ✅ shipped 2026-05-30
 
-- The hard one: let the user select N line features that form a
-  closed loop + "Fill enclosed area". Build a boundary loop by
-  chaining segment endpoints (within tolerance); if it closes, create
-  (or update) a derived fill region the render path masks to. Likely
-  a new lightweight "area fill from boundary" feature or an overlay
-  that references the contributing line ids.
-- Gated behind a clear affordance ("Fill enclosed area") shown when
-  the selection's segments chain into a closed ring.
-- Tests: the pure loop-assembly (ordered ring from unordered
-  segments, tolerance, open-loop rejection).
+- New pure `lib/cad/geometry/boundary-loop.ts`:
+  `assembleBoundaryLoop(segments, tol)` chains UNORDERED, possibly-
+  flipped segments endpoint-to-endpoint (endpoints merged within
+  tolerance) into a single ordered ring, returning the vertex list
+  only when they form exactly one simple closed loop (rejects open
+  chains, branches/junctions, multiple disjoint loops, < 3 edges).
+  `segmentsFromFeatureLike(features)` pulls segments out of
+  LINE (start→end) + POLYLINE/POLYGON (consecutive vertices).
+- `PropertyPanel` multi-select: when ≥3 selected LINE/POLYLINE
+  features chain into a closed ring, a **"▦ Fill enclosed area"**
+  button appears. Clicking it drops a new POLYGON over the enclosed
+  area (vertices = the assembled ring) with an invisible stroke
+  (so it doesn't double the user's existing boundary lines) + a
+  translucent solid fill, then selects it so the fill-pattern panel
+  (gravel, hatch, etc.) is right there to refine it.
+- Chose a real POLYGON feature (vs. an overlay referencing line ids)
+  so it flows through the existing fill / area / label machinery with
+  zero special-casing; if the user later edits the boundary lines the
+  fill polygon is independent (acceptable for v1 — documented).
+- Tests: 13 cases (ordered + shuffled/flipped rings, tolerance gaps,
+  triangle, open-chain / branch / disjoint / degenerate rejection,
+  `segmentsFromFeatureLike` extraction + round-trip). Full cad suite
+  (1819) green; typecheck + lint clean.
 
 ## Out of scope / placeholder
 

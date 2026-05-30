@@ -12,6 +12,7 @@ import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, for
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { computeFeatureArea } from '@/lib/cad/geometry/area';
 import { segmentCount, toggleHiddenSegment } from '@/lib/cad/geometry/segment-visibility';
+import { assembleBoundaryLoop, segmentsFromFeatureLike } from '@/lib/cad/geometry/boundary-loop';
 import { sqFtToAreaUnit, areaUnitLabel } from '@/lib/cad/geometry/units';
 // Slice 229 — "📐 Place area label" trigger that drops an AreaAnnotation
 // at the feature's centroid (CIRCLE center, ELLIPSE center, polygon
@@ -600,6 +601,53 @@ export default function PropertyPanel() {
           <div className="text-gray-500 text-[10px]">
             Editing {subset.length} {active.label.toLowerCase()} together.
           </div>
+
+          {/* cad-fills Slice 4 — when the selected lines/polylines chain
+              into a closed ring, offer to drop a fillable POLYGON over
+              the enclosed area (the user's case: a quad drawn as N
+              separate line segments, which isn't one closed shape and
+              so had no fill option). */}
+          {(() => {
+            const lineFeatures = features.filter((f) => f.type === 'LINE' || f.type === 'POLYLINE');
+            if (lineFeatures.length < 3) return null;
+            const ring = assembleBoundaryLoop(segmentsFromFeatureLike(lineFeatures));
+            if (!ring || ring.length < 3) return null;
+            return (
+              <button
+                type="button"
+                data-testid="property-panel-fill-enclosed-area"
+                className="w-full text-[11px] px-2 py-1.5 rounded border border-emerald-500 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 transition-colors"
+                title="Create a fillable area inside the boundary these lines form"
+                onClick={() => {
+                  const layerId = features[0].layerId;
+                  const baseColor = features[0].style.color ?? DEFAULT_FEATURE_STYLE.color;
+                  const polygon = {
+                    id: generateId(),
+                    type: 'POLYGON' as const,
+                    layerId,
+                    geometry: { type: 'POLYGON' as const, vertices: ring },
+                    properties: {},
+                    style: {
+                      ...DEFAULT_FEATURE_STYLE,
+                      color: baseColor,
+                      // Invisible stroke so we don't double the user's
+                      // existing boundary lines — only the fill shows.
+                      opacity: 0,
+                      fillColor: baseColor,
+                      fillOpacity: 0.25,
+                      isOverride: true,
+                    },
+                  };
+                  drawingStore.addFeature(polygon);
+                  // Select the new area so the fill-pattern panel (gravel,
+                  // hatch, etc.) is immediately available to refine it.
+                  selectionStore.select(polygon.id, 'REPLACE');
+                }}
+              >
+                ▦ Fill enclosed area
+              </button>
+            );
+          })()}
 
           {/* Bulk style for the active kind */}
           <div className="border-t border-gray-700 pt-2 space-y-2">
