@@ -328,7 +328,7 @@ WidgetCustomization {
   absence of a `gridEditorOpen` mirror. 1144 hub specs green; typecheck
   + lint clean.
 
-#### Slice 3 — Remove the in-canvas drag/resize edit surface
+#### Slice 3 — Remove the in-canvas drag/resize edit surface ✅ shipped 2026-05-30
 - **Scope:** Strip System A's live-canvas editing: `WidgetGrid` stops
   rendering dnd-kit drag + pointer-resize affordances (it becomes
   view-only / read-only render). Keep `WidgetGrid` for the hub render.
@@ -338,6 +338,32 @@ WidgetCustomization {
   affected specs.
 - **Done when:** The live canvas no longer drags/resizes; the modal is
   the only place to edit layout. Typecheck/lint green; specs updated.
+- **Outcome:** `WidgetGrid.tsx` rewritten as a pure view-only renderer
+  (612 → 195 lines). Removed: the entire dnd-kit
+  (`@dnd-kit/{core,sortable,utilities}`) wiring + sensors +
+  drag-start/over/end handlers + `DragGhost` + `SortableWidgetCell`,
+  the `WidgetResizeHandle` import + cell wrapper, the in-cell
+  `CellEditActions`/`DragHandle`/`RemoveButton` chrome, and the
+  edit-mode dashed-outline cell styling. `WidgetGridProps` is now just
+  `{ widgets, rowHeight?, gap? }` — `editMode`/`onReorder`/`onResize`
+  gone. Kept: the `useElementSize`/`collapseLayout`/`layoutBounds`
+  flow, the `WidgetFrame` chrome, `MemoWidgetRender` + its
+  `__MemoWidgetRender` test-export + `EMPTY_CUSTOMIZATION`. HubCanvas
+  trimmed: dropped `handleReorder`/`handleResize`, the `compactLayout`
+  + `GridSize` imports, the `setDraftWidgets` destructure, and the
+  edit-prop wiring on `<WidgetGrid widgets={displayWidgets} />`.
+  Deleted: `lib/hub/components/WidgetResizeHandle.tsx` (186 lines) +
+  three orphan specs (`widget-grid-drag`,
+  `widget-grid-edit-affordances`, `widget-resize-handle`). New spec
+  `widget-grid-readonly.test.ts` (20 cases) locks the absent imports
+  + slim props + missing affordance components + the HubCanvas trim.
+  Live click-delegation handler that opened `SettingsPanel` is kept
+  for now — the modal covers the grid in edit mode so it's not
+  reachable; `SettingsPanel` itself is sequenced for deletion in
+  Slice 4 after HB5 re-hosts per-widget options. 1126 hub specs green
+  (down 18 from the 4-file delete + the 20 added back). Typecheck +
+  lint clean. The path forward: every authoring interaction (drag,
+  resize, options, save) now flows through the modal alone.
 
 #### Slice 4 — Remove the SettingsPanel side rail (after options are re-hosted)
 - **Scope:** *Sequenced after HB5 lands per-widget options in the

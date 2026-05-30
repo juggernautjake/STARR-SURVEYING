@@ -30,8 +30,6 @@ import type { UserRole } from '@/lib/auth';
 import type { BundleId } from '@/lib/saas/bundles';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
-import { compactLayout } from '@/lib/hub/grid-math';
-import type { GridSize } from '@/lib/hub/grid-resize';
 
 import WidgetGrid from './WidgetGrid';
 import GridEditor from './GridEditor';
@@ -62,7 +60,9 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   // path that flips edit mode (the in-canvas button + the AdminTopBar
   // /admin/me?edit=1 deep-link) opens the modal in one click. No
   // parallel local-useState mirror; no second click required.
-  const { setDraftWidgets, enterEditMode, cancelEdit } = useHubActions();
+  // Slice 3 — the canvas's WidgetGrid is view-only now, so setDraftWidgets
+  // no longer wires up through it (the modal owns drag/resize commits).
+  const { enterEditMode, cancelEdit } = useHubActions();
 
   const [settingsId, setSettingsId] = useState<string | null>(null);
 
@@ -93,19 +93,9 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   renderCountRef.current += 1;
 
   // Rendered widgets follow the draft buffer while editing, otherwise
-  // mirror the saved layout.
+  // mirror the saved layout. The grid renders the *current* state
+  // behind the modal so save-cancel feedback is visible underneath.
   const displayWidgets = isEditMode && draftWidgets ? draftWidgets : widgets;
-
-  const handleReorder = useCallback((next: typeof widgets) => {
-    // WidgetGrid already runs compactLayout before calling us.
-    setDraftWidgets(next);
-  }, [setDraftWidgets]);
-
-  const handleResize = useCallback((id: string, next: GridSize) => {
-    const source = draftWidgets ?? widgets;
-    const updated = source.map((w) => w.id === id ? { ...w, w: next.w, h: next.h } : w);
-    setDraftWidgets(compactLayout(updated, 8));
-  }, [draftWidgets, widgets, setDraftWidgets]);
 
   // Event-delegated click: in edit mode, a click anywhere inside a
   // cell opens the SettingsPanel for that widget. `e.preventDefault()`
@@ -157,12 +147,7 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
 
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div onClick={handleGridClick}>
-        <WidgetGrid
-          widgets={displayWidgets}
-          editMode={isEditMode}
-          onReorder={handleReorder}
-          onResize={handleResize}
-        />
+        <WidgetGrid widgets={displayWidgets} />
       </div>
 
       <GridEditor
