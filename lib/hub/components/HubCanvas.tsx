@@ -5,16 +5,18 @@
 //
 //   - WidgetGrid (Slice 92) — driven by `widgets` (view) or
 //     `draftWidgets` (edit)
-//   - CustomizeHubButton + EditModeBar (Slice 97)
-//   - AddWidgetModal (Slice 100)
+//   - GridEditor modal — the single editor surface (Slice 2 of
+//     employee-hub-overhaul-2026-05-30)
 //   - SettingsPanel (Slice 101)
 //   - MobileBanner (Slice 151)
 //
-// Edit-mode interactions:
-//   - drag → setDraftWidgets(compactedReorderedList)
-//   - resize → setDraftWidgets(in-place patch + compactLayout(_, 12))
-//   - click a cell → open SettingsPanel against that instance
-//   - + Add Widget button → opens AddWidgetModal
+// Slice 2 collapsed the previous two editing surfaces — the in-canvas
+// drag/resize edit mode + the parallel "▦ Grid editor" modal — down to
+// the single centered modal opened by the one "Customize Hub" button.
+// The modal owns the whole authoring flow (palette add, place, resize,
+// move, options, save/cancel). The old in-header "+ Add widget" button,
+// the AddWidgetModal mount, and the floating EditModeBar are gone — the
+// modal's own footer is the commit surface.
 //
 // The canvas does NOT include the greeting card or the ClockInPill —
 // those live in `/admin/me/page.tsx` above the canvas (greeting is
@@ -32,8 +34,6 @@ import { compactLayout } from '@/lib/hub/grid-math';
 import type { GridSize } from '@/lib/hub/grid-resize';
 
 import WidgetGrid from './WidgetGrid';
-import { CustomizeHubButton, EditModeBar } from './EditMode';
-import AddWidgetModal from './AddWidgetModal';
 import GridEditor from './GridEditor';
 import SettingsPanel from './SettingsPanel';
 import MobileBanner from './MobileBanner';
@@ -41,7 +41,7 @@ import WelcomeTip from './WelcomeTip';
 import PerfOverlay, { isPerfOverlayActive } from './PerfOverlay';
 
 export interface HubCanvasProps {
-  /** Roles for the Add-Widget modal's catalog filter. */
+  /** Roles for the editor's catalog filter. */
   roles: UserRole[];
   /** Active subscription bundles. `null` skips the gate. */
   activeBundles?: BundleId[] | null;
@@ -56,11 +56,30 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   const isEditMode = useHubStore((s) => s.isEditMode);
   // Slice 200 — actions read via getState (stable closures) so the
   // canvas only subscribes to data slices that can actually change.
-  const { setDraftWidgets } = useHubActions();
+  // Slice 2 (employee-hub-overhaul) — enterEditMode + cancelEdit drive
+  // the single modal-editor entry/exit.
+  const { setDraftWidgets, enterEditMode, cancelEdit } = useHubActions();
 
-  const [addOpen, setAddOpen] = useState(false);
   const [gridEditorOpen, setGridEditorOpen] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
+
+  // Slice 2 — one click on the page opens the modal editor: enter edit
+  // mode (so draftWidgets is populated) AND open the centered modal.
+  // This collapses the old two-step "Customize Hub → ▦ Grid editor"
+  // flow + the parallel in-canvas edit surface into the single modal.
+  const openEditor = useCallback(() => {
+    enterEditMode();
+    setGridEditorOpen(true);
+  }, [enterEditMode]);
+
+  // Closing the modal without an explicit Save/Cancel (backdrop / Esc →
+  // onClose) should also leave edit mode so the store doesn't strand in
+  // an editing state with no visible editor. cancelEdit is a no-op once
+  // GridEditor's own handleSave/handleCancel already exited.
+  const closeEditor = useCallback(() => {
+    setGridEditorOpen(false);
+    if (useHubStore.getState().isEditMode) cancelEdit();
+  }, [cancelEdit]);
 
   // Slice 207 — render-count instrumentation under ?debug=hub-perf.
   // The flag is read once on mount so toggling requires a page
@@ -115,28 +134,22 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
       <header style={canvasHeaderStyle}>
         <h1 style={canvasTitleStyle}>Your hub</h1>
         <div style={{ display: 'flex', gap: 'var(--hub-spc-2, 8px)' }}>
-          {isEditMode && (
-            <>
-              {/* Slice 222 — Grid Editor entry point. Opens the
-                  full-screen 8×8 painter. */}
-              <button
-                type="button"
-                onClick={() => setGridEditorOpen(true)}
-                style={gridEditorButtonStyle}
-                data-testid="open-grid-editor"
-              >
-                ▦ Grid editor
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddOpen(true)}
-                style={addButtonStyle}
-              >
-                + Add widget
-              </button>
-            </>
+          {/* Slice 2 (employee-hub-overhaul) — a single on-page entry
+              point opens the centered modal editor. The modal owns the
+              whole authoring flow (palette add, place, resize, move,
+              options, save/cancel), so the old in-header "▦ Grid editor"
+              + "+ Add widget" buttons and the in-canvas edit surface are
+              gone. Hidden while the editor is already open. */}
+          {!isEditMode && (
+            <button
+              type="button"
+              onClick={openEditor}
+              style={customizeEntryButtonStyle}
+              data-testid="open-grid-editor"
+            >
+              ✏️ Customize Hub
+            </button>
           )}
-          <CustomizeHubButton />
         </div>
       </header>
 
@@ -152,18 +165,9 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
         />
       </div>
 
-      <EditModeBar />
-
-      <AddWidgetModal
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        roles={roles}
-        activeBundles={activeBundles}
-      />
-
       <GridEditor
         open={gridEditorOpen}
-        onClose={() => setGridEditorOpen(false)}
+        onClose={closeEditor}
         roles={roles}
         activeBundles={activeBundles}
       />
@@ -200,23 +204,9 @@ const canvasTitleStyle: React.CSSProperties = {
   color: 'var(--theme-fg-primary)',
 };
 
-const addButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '6px 12px',
-  borderRadius: 6,
-  border: '1px solid var(--theme-border)',
-  background: 'var(--theme-bg-elevated)',
-  color: 'var(--theme-fg-primary)',
-  cursor: 'pointer',
-  fontSize: 'var(--hub-font-sm, 0.875rem)',
-  fontWeight: 500,
-};
-
-/** Slice 222 — Grid Editor entry button. Accent-tinted so it reads
- *  as the primary "open the painter" action while in edit mode. */
-const gridEditorButtonStyle: React.CSSProperties = {
+/** Slice 2 — the single "Customize Hub" entry button. Accent-tinted so
+ *  it reads as the primary action that opens the modal editor. */
+const customizeEntryButtonStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,

@@ -285,7 +285,7 @@ WidgetCustomization {
 
 ### Phase HB2 — Consolidate to the single modal editor
 
-#### Slice 2 — Page button opens the modal directly
+#### Slice 2 — Page button opens the modal directly ✅ shipped 2026-05-30
 - **Scope:** Re-point the on-page entry so one click opens the modal
   editor. Either repurpose `CustomizeHubButton` to
   `enterEditMode()` + open the `GridEditor` modal, or make the modal
@@ -297,6 +297,26 @@ WidgetCustomization {
   `__tests__/hub/single-editor-entry.test.tsx` (new).
 - **Done when:** Exactly one button on the hub opens the modal; spec
   asserts the single entry point + that the modal mounts from it.
+- **Outcome:** `HubCanvas` now renders a single `✏️ Customize Hub`
+  button (`data-testid="open-grid-editor"`, hidden while editing) whose
+  `openEditor` handler calls `enterEditMode()` + `setGridEditorOpen(true)`
+  in one click — so the modal opens with `draftWidgets` already
+  populated. The old two-step "Customize Hub → ▦ Grid editor" flow, the
+  in-header "+ Add widget" button + `AddWidgetModal` mount, and the
+  floating `EditModeBar` mount are all removed from the canvas (the
+  modal's own footer `handleSave`/`handleCancel` — which already call
+  `saveDraft`/`cancelEdit` + `onClose` — are the commit surface). A
+  `closeEditor` handler closes the modal and runs `cancelEdit()` if the
+  store is still mid-edit (covers backdrop/Esc closes). This also
+  delivers most of **Slice 3** (the in-canvas edit surface is no longer
+  reachable since `editMode` only turns on with the modal open). Note:
+  `EditMode.tsx` (`CustomizeHubButton`/`EditModeBar`) + `AddWidgetModal`
+  remain as standalone components with their own passing specs — their
+  file deletion is folded into Slice 3/4 cleanup. `hub-canvas.test.tsx`
+  rewritten for the new model (entry button + enter-edit-on-click +
+  hidden-while-editing). 14 specs green (11 source-regex in
+  `single-editor-entry.test.ts` + 3 render); full hub suite + typecheck
+  + lint clean.
 
 #### Slice 3 — Remove the in-canvas drag/resize edit surface
 - **Scope:** Strip System A's live-canvas editing: `WidgetGrid` stops
