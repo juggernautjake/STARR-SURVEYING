@@ -123,8 +123,8 @@ intentional mode-splitting via query params (`?my_jobs=`, `?stage=`,
 
 | Endpoint                          | Verdict                                                                          | Plan slice |
 |-----------------------------------|----------------------------------------------------------------------------------|------------|
-| `/api/admin/badges`               | Dead — `/api/admin/rewards?section=badges` returns the badges payload too.       | Slice 8    |
-| `/api/admin/team/[email]/today`   | Zero callers in `app/` + `lib/` per the audit grep; likely legacy scaffold.      | Slice 8    |
+| `/api/admin/badges`               | **Slice 8 verified — kept.** GET is duplicated by `/api/admin/rewards?section=badges`, but POST ("Award badge to user", lines 35-87) has NO equivalent in rewards. Deleting the route would erase the only badge-awarding endpoint. A future migration could move the POST into `/api/admin/rewards/award-badge` and then drop /badges; out of scope here. | Slice 8 |
+| `/api/admin/team/[email]/today`   | **Slice 8 verified — kept.** Audit grep missed `app/admin/team/[email]/page.tsx:182` which calls `/api/admin/team/${encodeURIComponent(email)}/today`. The endpoint powers the per-employee drilldown page (clock state, miles, today's stops, captures, receipts, pings — all in one round trip per the route's own docstring). Active and load-bearing. | Slice 8 |
 
 ### Cron routes — no overlap
 

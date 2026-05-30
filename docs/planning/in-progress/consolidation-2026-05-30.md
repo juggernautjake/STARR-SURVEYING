@@ -296,16 +296,32 @@ existing notify-link audit catches stale `link: '/admin/x'` strings
 if anything regresses). Typecheck + lint untouched (no source
 changes).
 
-### Slice 8 — API dead-code sweep
+### Slice 8 — API dead-code sweep ✅ shipped 2026-05-30
 
-- Delete `/api/admin/badges/route.ts` — the badges payload is already
-  returned from `/api/admin/rewards?section=badges`. Grep any
-  caller; rewrite the one fetch if it exists; remove the route file.
-- Delete `/api/admin/team/[email]/today/route.ts` — zero callers in
-  the codebase per the audit. Document the call-site search in the
-  commit so anyone resurrecting the feature knows why it went.
-- 0 specs (deletions). The notify-link audit catches stale links to
-  the deleted paths if any sneak in.
+**Both flagged endpoints kept after verification** — the Slice-1
+audit's recommendation to delete was incorrect for both.
+
+- **`/api/admin/badges`** — kept. The audit said the GET was
+  duplicated by `/api/admin/rewards?section=badges` (true) and
+  recommended deleting the route. On read, the file ships BOTH a
+  GET and a substantive POST handler ("Award badge to user" —
+  lines 35-87, awards XP + writes a notification). The POST has
+  NO equivalent in the rewards endpoint, so deleting `/badges`
+  would erase the only badge-awarding capability. A future PR
+  could migrate the POST into `/api/admin/rewards/award-badge`
+  before retiring the route; out of scope for this slice.
+- **`/api/admin/team/[email]/today`** — kept. The audit grep
+  reported zero callers, but the parameterized form
+  `` `/api/admin/team/${encodeURIComponent(email)}/today` `` is
+  called from `app/admin/team/[email]/page.tsx:182` (the
+  per-employee drilldown). The endpoint aggregates clock state +
+  miles + stops + captures + receipts + admin pings into one
+  round trip — exactly the pattern its docstring describes.
+  Active and load-bearing.
+
+Audit doc rows updated with the verified verdict + the
+follow-up-path so a future PR has the same context this slice did.
+No code deletions; honest verification was the deliverable.
 
 ### Slice 9 — Quick-actions catalog cleanup
 
