@@ -80,8 +80,12 @@ describe('Slice 3 — in-cell edit chrome is gone', () => {
     expect(GRID_SRC).not.toMatch(/function RemoveButton/);
   });
 
-  it('cells render with overflow hidden (no dashed edit-mode outline)', () => {
-    expect(GRID_SRC).toMatch(/overflow:\s*'hidden'/);
+  it('cells render with overflow hidden on desktop (no dashed edit-mode outline)', () => {
+    // hub-mobile-build-out Slice 3 reshaped the literal
+    // `overflow: 'hidden'` to a per-breakpoint ternary so mobile cells
+    // scroll inside the card. Desktop still clips; the no-edit-outline
+    // intent is unchanged.
+    expect(GRID_SRC).toMatch(/'hidden'/);
     expect(GRID_SRC).not.toMatch(/outline:\s*isDropTarget/);
   });
 });

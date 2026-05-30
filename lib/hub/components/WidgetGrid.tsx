@@ -26,7 +26,7 @@ import React, { useRef } from 'react';
 import { getWidget, type WidgetDefinition } from '@/lib/hub/widget-registry';
 import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import { useElementSize } from '@/lib/hub/use-element-size';
-import { collapseLayout, layoutBounds } from '@/lib/hub/grid-math';
+import { collapseLayout, layoutBounds, MOBILE_BASE_ROW_PX, mobileSizeOverride, type GridBreakpoint } from '@/lib/hub/grid-math';
 import WidgetFrame from './WidgetFrame';
 import { widgetGoToTarget } from '@/lib/hub/widgets/_shared/widget-links';
 
@@ -71,10 +71,20 @@ export default function WidgetGrid({
     ? cellW
     : (rowHeight ?? INITIAL_ROW_HEIGHT_PX);
 
+  // hub-mobile-build-out Slice 1 — on phones the column width IS the
+  // viewport, so square cells make a 1×1 widget viewport-tall (~375 px
+  // on a phone) and a 1×4 widget viewport×4 tall. Replace square cells
+  // with a `minmax(BASE, max-content)` track on 1-col so every saved
+  // h-unit reads as roughly one comfortable mobile row, expanding if
+  // the widget content needs more.
+  const gridAutoRows = breakpoint === 1
+    ? `minmax(${MOBILE_BASE_ROW_PX}px, max-content)`
+    : `${effectiveRowHeight}px`;
+
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: `repeat(${bounds.cols}, 1fr)`,
-    gridAutoRows: `${effectiveRowHeight}px`,
+    gridAutoRows,
     gap: `${gap}px`,
     width: '100%',
   };
@@ -82,7 +92,7 @@ export default function WidgetGrid({
   return (
     <div ref={gridRef} style={gridStyle}>
       {collapsed.map((instance) => (
-        <WidgetCell key={instance.id} instance={instance} />
+        <WidgetCell key={instance.id} instance={instance} breakpoint={breakpoint} />
       ))}
     </div>
   );
@@ -90,16 +100,29 @@ export default function WidgetGrid({
 
 interface WidgetCellProps {
   instance: WidgetInstance;
+  breakpoint: GridBreakpoint;
 }
 
-function WidgetCell({ instance }: WidgetCellProps) {
+function WidgetCell({ instance, breakpoint }: WidgetCellProps) {
   const definition = getWidget(instance.type);
 
+  // hub-mobile-build-out Slice 2 — bump the size widgets read on mobile
+  // so they render their small/medium bucket (lists + counts), not
+  // their tiny stat-only bucket. Pass-through on desktop/tablet.
+  const renderSize = mobileSizeOverride({ w: instance.w, h: instance.h }, breakpoint);
+
+  // hub-mobile-build-out Slice 3 — on desktop / tablet the grid is a
+  // strict rectangle so cells clip with `overflow: hidden` (a widget
+  // that spills past its cell would visually break the grid). On
+  // mobile each cell is its own stacked card and the row track is
+  // `minmax(BASE, max-content)`, so long widget content should scroll
+  // *inside* the card instead of clipping. Switch to `overflow: auto`
+  // at breakpoint=1.
   const cellStyle: React.CSSProperties = {
     gridColumn: `${instance.x + 1} / span ${instance.w}`,
     gridRow: `${instance.y + 1} / span ${instance.h}`,
     minHeight: 0,
-    overflow: 'hidden',
+    overflow: breakpoint === 1 ? 'auto' : 'hidden',
     position: 'relative',
   };
 
@@ -147,7 +170,7 @@ function WidgetCell({ instance }: WidgetCellProps) {
         <MemoWidgetRender
           Widget={Widget}
           customization={customization}
-          size={{ w: instance.w, h: instance.h }}
+          size={renderSize}
           content={content}
         />
       </WidgetFrame>

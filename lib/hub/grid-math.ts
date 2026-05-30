@@ -20,6 +20,30 @@ import type { WidgetInstance } from './types';
 /** Three breakpoints the grid supports. */
 export type GridBreakpoint = 8 | 4 | 1;
 
+/** hub-mobile-build-out Slice 1 — base row height for the 1-col mobile
+ *  layout. Decouples mobile row height from cell width (cellW = viewport
+ *  on mobile, which would make a 1×1 widget viewport-tall — ~375px on
+ *  a phone). 88px = a comfortable single-stat or list-row height; the
+ *  grid uses `minmax(MOBILE_BASE_ROW_PX, max-content)` so taller widgets
+ *  + content-driven heights still work. */
+export const MOBILE_BASE_ROW_PX = 88;
+
+/** hub-mobile-build-out Slice 2 — at breakpoint=1 every widget renders
+ *  full-width (1 col) and `sizeBucket(1, h≤2) = 'tiny'`, so widgets fall
+ *  into their stat-only render at full mobile width — a 375 px-wide
+ *  tile showing one number, which reads as broken. The override bumps
+ *  the size the widget body reads to `{w:2, h:max(h,2)}` so the bucket
+ *  math picks `small` (or `medium` for taller widgets), unlocking the
+ *  list / multi-row content per the per-bucket specs widgets already
+ *  ship. Desktop + tablet pass through unchanged. Pure → unit-tested. */
+export function mobileSizeOverride(
+  size: { w: number; h: number },
+  breakpoint: GridBreakpoint,
+): { w: number; h: number } {
+  if (breakpoint !== 1) return size;
+  return { w: 2, h: Math.max(2, size.h) };
+}
+
 /** Returns the breakpoint corresponding to a container width.
  *  Matches the doc's responsive collapse rule:
  *    ≥ 1024px → 8 cols
