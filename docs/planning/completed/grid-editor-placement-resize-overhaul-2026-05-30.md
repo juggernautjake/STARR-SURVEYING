@@ -225,11 +225,41 @@ placement + resize still feel broken.*
 
 ### Phase G4 — QA
 
-#### Slice G5 — Sweep + move doc to completed
+#### Slice G5 — Sweep + move doc to completed ✅ shipped 2026-05-30
 - **Scope:** Full typecheck + lint + hub suite green; manual checklist
   (free placement keeps gaps, hover controls, resize push feel). Move
   this doc to `docs/planning/completed/`.
 - **Done when:** All checks green; doc moved.
+- **Shipped:** `tsc --noEmit` clean, `next lint` clean, hub + admin/me
+  suites green (1434 specs across 96 files). Full repo sweep: 6042
+  passing / 17 skipped — the lone red is
+  `__tests__/recon/phase12-export.test.ts` (a 21s PDF-render perf test
+  that passes in isolation, 31/31, and only times out under
+  full-suite parallel load; unrelated to this work). While here, fixed
+  a regression my Work-Mode CSS follow-up caused in the pre-existing
+  `hub-greeting-style.test.tsx`: a literal `}` inside a new explanatory
+  comment + the added `:link/:visited` selectors broke its brittle
+  block-matching regexes. Hardened that spec to strip CSS comments +
+  match declaration blocks by selector substring. Doc moved to
+  `docs/planning/completed/`.
+
+## Outcome summary
+
+The grid editor now does what the user asked:
+- **Free placement.** Widgets stay exactly where dropped; gaps + empty
+  tiles render on the hub as drawn. Only a fully-empty top band trims.
+  (Removed the `compactLayout` that pulled everything to the top-left.)
+- **Hover controls.** Delete / Options / Resize reveal on hover OR
+  selection OR keyboard focus; suppressed mid-gesture.
+- **Resize pushes neighbors.** Growing a widget flows adjacent widgets
+  in the drag direction (right→wrap-to-next-row, or down), live during
+  the drag, and the arrangement persists on release. No more
+  silent no-op when growing into an occupied cell.
+- **Keyboard move.** Selecting a widget + arrow keys nudges it one cell
+  with the same dynamic neighbor push.
+- **Work Mode button.** Label pinned white (beats the global anchor
+  color); on hover the red/white/blue conic gradient spins through the
+  text to match the border ring.
 
 ## Guardrails
 
