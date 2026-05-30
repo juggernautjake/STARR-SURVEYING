@@ -28,6 +28,7 @@ import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import { useElementSize } from '@/lib/hub/use-element-size';
 import { collapseLayout, layoutBounds } from '@/lib/hub/grid-math';
 import WidgetFrame from './WidgetFrame';
+import { widgetGoToTarget } from '@/lib/hub/widgets/_shared/widget-links';
 
 export interface WidgetGridProps {
   widgets: WidgetInstance[];
@@ -130,11 +131,18 @@ function WidgetCell({ instance }: WidgetCellProps) {
   // customFg/borderRadius/shadowDepth) are no longer read here. They
   // still load from old saved layouts via the normalizer and stay on
   // the type until the SettingsPanel/StyleTab disappear in Slice 4.
+  // hub-widget-excellence-02/04 — surface the widget's canonical
+  // "Go to…" footer link from the central registry. Returns undefined
+  // for the intentionally link-less widgets (launchers, ambient tools,
+  // pure stats), which then render no footer.
+  const goTo = widgetGoToTarget(instance.type) ?? undefined;
+
   return (
     <div style={cellStyle} data-widget-id={instance.id}>
       <WidgetFrame
         title={title}
         headerColor={customization.style?.headerColor}
+        goTo={goTo}
       >
         <MemoWidgetRender
           Widget={Widget}

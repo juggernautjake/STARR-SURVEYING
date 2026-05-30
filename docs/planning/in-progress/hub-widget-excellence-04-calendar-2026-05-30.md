@@ -98,6 +98,22 @@ DOM.
 - **Done when:** the widget shows the right view per size; the grid
   renders real events; nothing clips; footer link works.
 
+#### Sub-slice progress
+- **2a — Registry-driven "Go to…" footer, wired globally ✅ shipped
+  2026-05-30.** Rather than add the footer link in 34 widgets one at a
+  time, wired it once at the render host: `WidgetGrid` now resolves
+  `widgetGoToTarget(instance.type)` from the doc-02 registry and passes
+  it as `WidgetFrame`'s `goTo` prop. Every linked widget (today-schedule
+  → "Go to the schedule →" `/admin/schedule`, my-jobs → my jobs, …)
+  surfaces its footer link; the 7 intentionally link-less widgets
+  resolve null → no footer. This satisfies this slice's "Go to schedule
+  →" requirement AND the master "most widgets get a Go-to link" ask in
+  one place — the per-category docs now just VERIFY the link in Round 2.
+  3 source-regex specs on the wiring + a registry-consistency spec; full
+  hub suite (1509) green. typecheck + lint clean.
+- 2b — `today-schedule` size view switch (agenda / agenda-wide / grid)
+  + read-only `CalendarGrid` — pending.
+
 ### Slice 3 — Add-event form (create) wired to the API
 - **Scope:** An inline "+ Add event" affordance (visible at medium+)
   opening a compact form (title, date, start/end or all-day,
