@@ -73,30 +73,36 @@ ask #5 (more gravel variety — Gravel−/Gravel+/Sand). Asks #2 (fill
 shapes built from separate lines), #3 (hide segments/points/shapes),
 and #4 (fill ignores hidden boundary edges) are Slices 2–4.
 
-### Slice 2 — Per-element hide: segments + points + shapes
+### Slice 2 — Per-element hide: segments + points + shapes ✅ shipped 2026-05-30
 
-- `FeatureGeometry`: add an optional `hiddenSegments?: number[]` (or a
-  `Set`-friendly index list) on vertex-based features so a single
-  edge of a polyline/polygon can be hidden without deleting it.
-- `drawFeature` (CanvasViewport): skip stroking a segment whose index
-  is in `hiddenSegments` (draw the polyline as a run of visible
-  sub-segments instead of one closed path).
-- Whole-shape + point hide already work via `Feature.hidden`; surface
-  a "Hide" action in the selection/properties panel + right-click so
-  it's reachable for the active selection (lines, points, shapes).
-- `HiddenItemsPanel`: list hidden segments alongside hidden features +
-  labels, each with an unhide button.
-- Tests: a pure segment-visibility helper (which segments render
-  given `hiddenSegments`) + the panel's hidden-segment collection.
+- **Whole shapes / points / separate line features already hide** via
+  right-click → "Hide Element(s)" (`FeatureContextMenu` →
+  `drawingStore.hideFeature`), and `HiddenItemsPanel` lists + unhides
+  them. So the "hide whole shapes / individual line features / points"
+  part of the ask already worked; this slice adds the missing piece:
+  hiding an individual **edge of one polyline/polygon**.
+- New `FeatureGeometry.hiddenSegments?: number[]` (segment i = vertex
+  i → i+1; a polygon's closing edge is index n−1).
+- New pure `lib/cad/geometry/segment-visibility.ts`: `segmentCount`,
+  `normalizeHiddenSegments`, `visibleSegmentRuns` (groups visible
+  edges into continuous runs; closed shapes start the walk after a
+  hidden edge so a run never wraps the seam), `toggleHiddenSegment`.
+- `CanvasViewport.drawFeature`: POLYLINE + POLYGON stroke only the
+  visible runs (LOD simplify skipped when edges are hidden so indices
+  stay aligned). The fill mask still uses the full vertex loop.
+- `PropertyPanel`: an "Edges" grid of eye toggles for a selected
+  POLYLINE/POLYGON + a "Show all edges" reset.
+- Tests: 18 cases in `segment-visibility.test.ts`.
 
-### Slice 3 — Fill independent of boundary-line visibility
+### Slice 3 — Fill independent of boundary-line visibility ✅ shipped 2026-05-30
 
-- Fill is computed from the feature's full vertex loop, so a polygon
-  with a hidden edge still fills the whole enclosed area (the mask in
-  `drawFillPatternForPolygon` already uses every screen point — verify
-  it ignores `hiddenSegments`, which it should, since the mask is the
-  closed vertex loop). Add a regression test locking "hidden segment
-  ⇒ fill still covers the full area."
+- Folded into Slice 2. `drawFillPatternForPolygon`'s mask + the solid
+  fill both build from the full `screenPts` vertex loop, which is
+  unaffected by `hiddenSegments` — so a polygon with a hidden boundary
+  edge still fills its entire enclosed area. Confirmed in the render
+  path (only the stroke loop branches on hidden edges; the fill does
+  not) + locked by the "fill loop is independent of hidden edges"
+  regression test in `segment-visibility.test.ts`.
 
 ### Slice 4 — Fill an area bounded by separate line features
 

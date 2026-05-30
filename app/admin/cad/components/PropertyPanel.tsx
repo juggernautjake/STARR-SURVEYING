@@ -11,6 +11,7 @@ import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/co
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { computeFeatureArea } from '@/lib/cad/geometry/area';
+import { segmentCount, toggleHiddenSegment } from '@/lib/cad/geometry/segment-visibility';
 import { sqFtToAreaUnit, areaUnitLabel } from '@/lib/cad/geometry/units';
 // Slice 229 — "📐 Place area label" trigger that drops an AreaAnnotation
 // at the feature's centroid (CIRCLE center, ELLIPSE center, polygon
@@ -1197,6 +1198,73 @@ export default function PropertyPanel() {
                 >
                   📐 Place area label on canvas
                 </button>
+              </div>
+            );
+          })()}
+
+          {/* cad-fills Slice 2 — per-edge visibility for POLYLINE /
+              POLYGON. Each edge gets an eye toggle; a hidden edge is
+              not stroked but the shape's vertices + area fill stay
+              intact (a polygon with a hidden boundary still fills its
+              whole enclosed area). */}
+          {(feature.type === 'POLYLINE' || feature.type === 'POLYGON')
+            && (feature.geometry.vertices?.length ?? 0) >= 2
+            && (() => {
+            const vCount = feature.geometry.vertices!.length;
+            const closed = feature.type === 'POLYGON';
+            const segCount = segmentCount(vCount, closed);
+            if (segCount <= 0) return null;
+            const hidden = new Set(feature.geometry.hiddenSegments ?? []);
+            return (
+              <div
+                data-testid="property-panel-segment-visibility"
+                className="space-y-1 border-t border-gray-700 pt-1.5 mt-1"
+              >
+                <div className="text-gray-500 text-[10px] uppercase tracking-wider">
+                  Edges {hidden.size > 0 ? `(${hidden.size} hidden)` : ''}
+                </div>
+                <div className="grid grid-cols-6 gap-1">
+                  {Array.from({ length: segCount }, (_, i) => {
+                    const isHidden = hidden.has(i);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        data-testid={`property-panel-segment-toggle-${i}`}
+                        title={isHidden ? `Edge ${i + 1} hidden — click to show` : `Edge ${i + 1} — click to hide`}
+                        className={`text-[9px] px-1 py-1 rounded border transition-colors flex items-center justify-center gap-0.5 ${
+                          isHidden
+                            ? 'bg-gray-900 border-gray-700 text-gray-500'
+                            : 'bg-gray-800 border-gray-600 text-gray-200 hover:bg-gray-700'
+                        }`}
+                        onClick={() => {
+                          const next = toggleHiddenSegment(feature.geometry.hiddenSegments, i, segCount);
+                          drawingStore.updateFeatureGeometry(feature.id, {
+                            ...feature.geometry,
+                            hiddenSegments: next,
+                          });
+                        }}
+                      >
+                        {isHidden ? '🚫' : '👁'}{i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+                {hidden.size > 0 && (
+                  <button
+                    type="button"
+                    data-testid="property-panel-segment-show-all"
+                    className="text-[10px] text-blue-400 hover:text-blue-300"
+                    onClick={() => {
+                      drawingStore.updateFeatureGeometry(feature.id, {
+                        ...feature.geometry,
+                        hiddenSegments: undefined,
+                      });
+                    }}
+                  >
+                    Show all edges
+                  </button>
+                )}
               </div>
             );
           })()}

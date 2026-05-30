@@ -363,6 +363,14 @@ export interface FeatureGeometry {
   end?: Point2D;
   vertices?: Point2D[];
 
+  /** cad-fills Slice 2 — indices of individually-hidden edges on a
+   *  POLYLINE / POLYGON. Segment i connects vertex i → i+1 (and the
+   *  closing edge of a polygon is index vertexCount−1). A hidden edge
+   *  isn't stroked, but the shape's vertices + area fill are
+   *  unchanged, so a polygon with a hidden boundary line still fills
+   *  its full enclosed area. Undefined / empty = all edges visible. */
+  hiddenSegments?: number[];
+
   // ── True curve parametric data ──
   /** Circle: center + radius (type='POLYGON', shapeType='CIRCLE') */
   circle?: CircleGeometry;
