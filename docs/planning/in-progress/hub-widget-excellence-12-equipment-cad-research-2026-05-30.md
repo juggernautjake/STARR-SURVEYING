@@ -216,6 +216,23 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Editor:** showFailedOnly.
 - **Notifications:** pipeline failed → alert (Doc 03).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `/api/admin/research/pipeline` was a hardcoded `{ runs: [] }` stub** —
+  the contract matched the widget but there was no data, so it always
+  showed "Pipelines quiet". There's no dedicated pipeline-run table, but
+  each research project IS a pipeline run (its `status` is the workflow
+  stage). **Wired the endpoint** to return recent `research_projects`
+  mapped to runs via a new pure `lib/research/pipeline-runs.ts`
+  (`mapProjectStatusToRun`: complete→success, upload/configure→queued,
+  analyzing/review/drawing/verifying→running, unknown→queued — never
+  invents a failure — and `toPipelineRun`). The widget now renders real
+  runs; added a started-at relative time at medium+ (`formatStarted`).
+  Footer "Go to pipeline →" is global. The old stub-endpoints spec
+  dropped its pipeline assertion (no longer a stub); 6 new mapper specs.
+  Full hub + research suites (1611) green; typecheck + lint clean.
+  **pipeline-status is done.**
+
+*(8 of 9 widgets done — crew-calendar remains.)*
 
 ## Guardrails
 - The CAD open param (`?job=` vs `?drawing=`) is verified in R1 of the
