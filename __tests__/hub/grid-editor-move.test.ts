@@ -84,14 +84,10 @@ describe('Slice 9 — pointer-up commits or treats as click', () => {
   });
 
   it('falls back to the click-toggle when no drag occurred', () => {
+    // Slice 10 rerouted the cleanup through `teardown()`. The
+    // click-toggle still fires from the `!didDrag` branch.
     expect(SRC).toMatch(
-      /if \(!didDrag\) \{[\s\S]*?setSelectedPlacedId\(selectedPlacedId === inst\.id \? null : inst\.id\);[\s\S]*?setMoveDrag\(null\);[\s\S]*?return;[\s\S]*?\}/,
-    );
-  });
-
-  it('removes all window-level listeners before deciding', () => {
-    expect(SRC).toMatch(
-      /window\.removeEventListener\('pointermove', handleMove\);[\s\S]*?window\.removeEventListener\('pointerup', handleUp\);[\s\S]*?window\.removeEventListener\('pointercancel', handleUp\);/,
+      /if \(!didDrag\) \{[\s\S]*?teardown\(\);[\s\S]*?setSelectedPlacedId\(selectedPlacedId === inst\.id \? null : inst\.id\);[\s\S]*?return;[\s\S]*?\}/,
     );
   });
 });
@@ -100,7 +96,9 @@ describe('Slice 9 — pointer listeners are attached at window scope', () => {
   it('attaches pointermove + pointerup + pointercancel on window', () => {
     expect(SRC).toMatch(/window\.addEventListener\('pointermove', handleMove\);/);
     expect(SRC).toMatch(/window\.addEventListener\('pointerup', handleUp\);/);
-    expect(SRC).toMatch(/window\.addEventListener\('pointercancel', handleUp\);/);
+    // Slice 10 split the cancel handler off into its own named
+    // function so cancel semantics don't collide with commit.
+    expect(SRC).toMatch(/window\.addEventListener\('pointercancel', handlePointerCancel\);/);
   });
 });
 

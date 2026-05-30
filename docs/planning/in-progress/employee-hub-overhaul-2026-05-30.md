@@ -597,7 +597,7 @@ WidgetCustomization {
   onPointerDown, and the still-intact resize pipeline. 1205 hub specs
   green; typecheck + lint clean.
 
-#### Slice 10 — Slot-on-drop commit + compact + cancel
+#### Slice 10 — Slot-on-drop commit + compact + cancel ✅ shipped 2026-05-30
 - **Scope:** On pointer-up, commit the reflowed+compacted layout via
   `setDraftWidgets`; the dragged widget lands in the nearest available
   cells. Esc / drop-outside restores the pre-drag layout. Mark dirty.
@@ -605,6 +605,47 @@ WidgetCustomization {
   `__tests__/hub/grid-editor-drop-commit.test.tsx` (new).
 - **Done when:** Release slots cleanly with neighbors reflowed +
   compacted; cancel restores. Spec locks the commit/compact/cancel.
+- **Outcome:** Slice 9 already ran `commitDrop`
+  (`nearestAvailable` + `applyMoveWithPush` + `compactLayout`) on
+  pointer-up and dirty-marked the draft via `setDraftWidgets` (the
+  store flips `isDirty: true` on every `setDraftWidgets` call). Slice
+  10 added the cancel half:
+  - New `cancelMoveRef: useRef<(() => void) | null>` exposes the
+    drag's `teardown()` callback to handlers outside `startMove`.
+    `startMove` installs `teardown` into the ref on pointer-down;
+    `teardown` clears the ref + the listeners + `moveDrag` on every
+    exit path so it's idempotent.
+  - **Pointer-cancel** (formerly routed through `handleUp` →
+    committed): now has its own `handlePointerCancel(ev)` that just
+    runs `teardown()`. No `setDraftWidgets`. The pre-drag layout
+    stays exactly as it was (we never mutated draftWidgets during
+    the drag — `moveDrag.previewLayout` was the only thing changing).
+  - **Mid-drag Esc**: the existing modal-level Esc cascade gained a
+    top-priority branch — `if (cancelMoveRef.current) { e.preventDefault();
+    cancelMoveRef.current(); }` runs before the place-anchor /
+    painted-selection / `onClose` checks, so a surveyor mid-drag who
+    hits Esc cancels the move without closing the modal.
+  - **Drop-outside-the-grid**: `handleUp` now reads the grid's
+    bounding rect and, if the pointer is outside on release, takes the
+    teardown path instead of the commit path. Lets the surveyor "drop
+    over the palette / footer" to cancel without thinking.
+  - The commit path is unchanged in shape: when the drop is inside +
+    `didDrag` is true, `commitDrop(current, inst.id, target,
+    HUB_GRID_COLS)` runs and `setDraftWidgets(committed)` writes
+    the snap+compacted layout (which also auto-marks the draft dirty
+    via the store).
+  Updated the Slice 9 spec where it locked the old single-`handleUp`
+  shape (the cleanup now happens inside `teardown` + the
+  pointer-cancel listener wires to `handlePointerCancel`). New
+  `__tests__/hub/grid-editor-drop-commit.test.ts` (12 cases) locks:
+  the `cancelMoveRef` declaration + the `startMove` install + the
+  teardown's ref-clear, the `handlePointerCancel` standalone shape,
+  the pointercancel listener routing, the inside-rect drop-cancel
+  check, the !inside teardown branch, the Esc-cascade priority +
+  preventDefault, the still-intact commitDrop+setDraftWidgets path
+  with teardown-before-setDraft ordering, and the three-listener
+  removal in teardown. 1216 hub specs green; typecheck + lint clean.
+  Phase HB4 (in-modal authoring with reflow) complete.
 
 ### Phase HB5 — Per-widget options in the modal
 

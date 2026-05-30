@@ -95,6 +95,11 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   // so the surveyor sees the others shift live without a draftWidgets
   // commit on every pointer tick.
   const [moveDrag, setMoveDrag] = useState<{ id: string; previewLayout: WidgetInstance[] } | null>(null);
+  // Slice 10 — handle the drag exposes its cleanup callback so the
+  // Esc handler (and a pointer-cancel) can abort the move without
+  // touching draftWidgets. The ref is set inside startMove + cleared
+  // once the drag ends (commit OR cancel).
+  const cancelMoveRef = useRef<(() => void) | null>(null);
   const gridContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -114,9 +119,16 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
       }
       if (e.key === 'Escape') {
         // Esc cascades through pending states before closing:
+        // (0) Slice 10 — mid-drag move cancels first, highest
+        //     priority. cancelMoveRef.current() restores the
+        //     pre-drag layout (moveDrag → null; draftWidgets was
+        //     never mutated during the live drag).
         // (1) mid-place rectangle, (2) painted-widget selection,
         // (3) close the editor entirely.
-        if (placeAnchor) {
+        if (cancelMoveRef.current) {
+          e.preventDefault();
+          cancelMoveRef.current();
+        } else if (placeAnchor) {
           setPlaceAnchor(null);
           setPlaceHover(null);
         } else if (selectedPlacedId) {
@@ -329,28 +341,57 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
       setMoveDrag({ id: inst.id, previewLayout: preview });
     }
 
-    function handleUp(ev: PointerEvent) {
+    /** Slice 10 — tear down listeners + drag state without touching
+     *  draftWidgets. Used by pointer-cancel, mid-drag Esc, and
+     *  drop-outside-the-grid. Safe to call from anywhere (idempotent
+     *  via the ref clear). */
+    function teardown() {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
-      window.removeEventListener('pointercancel', handleUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+      cancelMoveRef.current = null;
+      setMoveDrag(null);
+    }
+
+    function handlePointerCancel(_ev: PointerEvent) {
+      teardown();
+    }
+
+    function handleUp(ev: PointerEvent) {
       if (!didDrag) {
         // Pure click → toggle selection (matches the pre-Slice-9
-        // single-click semantics).
+        // single-click semantics). Teardown clears moveDrag + the
+        // window-level listeners.
+        teardown();
         setSelectedPlacedId(selectedPlacedId === inst.id ? null : inst.id);
-        setMoveDrag(null);
+        return;
+      }
+      // Slice 10 — drop-outside-the-grid cancels (restores pre-drag
+      // layout). The pointer-up firing position is the surveyor's
+      // final intent; if they let go outside the painter, treat it
+      // like a "nope, never mind".
+      const rect = gridEl!.getBoundingClientRect();
+      const inside =
+        ev.clientX >= rect.left &&
+        ev.clientX <= rect.right &&
+        ev.clientY >= rect.top &&
+        ev.clientY <= rect.bottom;
+      if (!inside) {
+        teardown();
         return;
       }
       const cell = pointerToCell(ev.clientX, ev.clientY);
       const target = { x: cell.x, y: cell.y, w: inst.w, h: inst.h };
       const current = useHubStore.getState().draftWidgets ?? [];
       const committed = commitDrop(current, inst.id, target, HUB_GRID_COLS);
-      setMoveDrag(null);
+      teardown();
       setDraftWidgets(committed);
     }
 
+    cancelMoveRef.current = teardown;
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
-    window.addEventListener('pointercancel', handleUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
   }
 
   async function handleSave() {
