@@ -96,8 +96,10 @@ describe('WorkModeRoleStep — the role choices', () => {
 
   it('disables the confirm button until a role is selected', () => {
     const none = renderStep(['admin', 'drawer'], null);
-    expect(none).toMatch(/Enter Work Mode<\/button>/);
-    expect(none).toMatch(/disabled[^>]*>\s*Enter Work Mode/);
+    // The role step's confirm advances to the clock-in step (label
+    // "Continue") rather than navigating directly.
+    expect(none).toMatch(/Continue<\/button>/);
+    expect(none).toMatch(/disabled[^>]*>\s*Continue/);
   });
 
   it('enables the confirm button once a role is selected', () => {

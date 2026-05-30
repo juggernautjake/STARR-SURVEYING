@@ -181,7 +181,7 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
   until opened. typecheck + lint clean; the existing greeting CSS
   contract test still passes.
 
-### Slice 4 — Clock-in awareness in the prompt
+### Slice 4 — Clock-in awareness in the prompt ✅ shipped 2026-05-30
 - **Scope:** The prompt reads `readClockSession()`. Not clocked in →
   "Clock in now?" / "Stay clocked out". Already clocked in → assume
   working (show elapsed, single Enter button). "Clock in now?" routes
@@ -193,6 +193,32 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
 - **Done when:** the prompt's clock-in branch matches the spec;
   entering work mode never force-clocks-in; already-clocked-in users
   skip the clock-in buttons.
+- **Shipped:** the prompt is now a two-step machine — the role step's
+  confirm (relabeled "Continue") reads `readClockSession()` and
+  advances to a new clock step. The clock step is a pure, exported
+  `WorkModeClockStep`: **clocked in** → green-dot status line ("You're
+  clocked in to {job} — {elapsed} elapsed. We'll assume you're
+  working.") + a single **Enter Work Mode** button, NO clock-in
+  buttons; **not clocked in** → "You're not currently clocked in.
+  Entering work mode won't clock you in." + **Clock in now?** /
+  **Stay clocked out**. "Stay clocked out" and the clocked-in Enter
+  both call the shared `enterWorkMode()`, which only
+  `router.push(workModeHref(role))` — it never writes a clock session,
+  so entering work mode is genuinely independent of clocking in. "Clock
+  in now?" lazy-loads the activity-tag catalog (same `GET
+  /api/admin/activity-tags` as `ClockInPill`) and opens the reused
+  `ClockInModal`; its submit is the ONLY place the prompt calls
+  `writeClockSession`, after which it proceeds into work mode. The
+  prompt overlay hides while the nested `ClockInModal` is open so the
+  dialogs don't stack. `clock-modals.tsx` needed no new exports
+  (`ClockInModal` was already exported). New
+  `.work-mode-prompt__clock-status` / `__clock-dot` CSS. 8 specs green
+  (mock `@/lib/auth` + `next/navigation`) covering both branches —
+  not-clocked-in copy + both buttons + the won't-clock-you-in
+  reassurance + `data-clocked-in="false"`; and clocked-in elapsed/job +
+  assume-working copy + NO clock-in buttons + the single Enter action +
+  `data-clocked-in="true"`. The Slice-3 role-step spec was updated for
+  the "Continue" relabel. typecheck + lint clean.
 
 ### Slice 5 — Audit + cleanup
 - **Scope:** Remove now-dead persona-selector code paths from the

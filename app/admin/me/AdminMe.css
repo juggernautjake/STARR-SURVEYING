@@ -720,6 +720,31 @@
   color: var(--color-text-secondary, #4b5563);
 }
 
+/* Slice 4 — clock-in awareness line. Green dot + emphasis when the
+ * user is already clocked in; plain helper text when they're not. */
+.work-mode-prompt__clock-status {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.work-mode-prompt__clock-status[data-clocked-in='true'] {
+  color: var(--color-text-primary, #111827);
+  font-weight: 500;
+}
+
+.work-mode-prompt__clock-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.4rem;
+  border-radius: 9999px;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  vertical-align: middle;
+}
+
 .work-mode-prompt__roles {
   list-style: none;
   margin: 0 0 1rem;

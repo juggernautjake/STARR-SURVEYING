@@ -10,13 +10,30 @@
 // hangs the clock-in awareness step off the same modal (entering work
 // mode is independent of clocking in).
 //
-// This slice ships the ROLE STEP only. The clock-in branch lands in
-// Slice 4 between `requestConfirm` and the actual navigation.
+// Slice 4 adds the clock-in awareness step: after picking a role the
+// prompt reads the clock session. Clocked in → assume working (single
+// Enter button). Not clocked in → "Clock in now?" (reuses ClockInModal
+// + writeClockSession) or "Stay clocked out". Entering work mode never
+// force-clocks-in, and a clocked-in user is never re-prompted.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ROLE_LABELS, type UserRole } from '@/lib/auth';
 import { eligibleWorkModeRoles } from '@/lib/hub/work-mode-eligibility';
+import { ClockInModal } from '@/lib/work-mode/clock-modals';
+import {
+  readClockSession,
+  writeClockSession,
+  type ClockSession,
+} from '@/lib/work-mode/clock-session';
+import { formatElapsed } from './HubGreeting';
+
+/** Activity-tag catalog shape for the reused ClockInModal. */
+interface ActivityTag {
+  id: string;
+  label: string;
+  color: string;
+}
 
 /** Destination workspace for a given work-mode role. Pure + exported
  *  so the routing target is unit-testable without a router. */
@@ -103,8 +120,95 @@ export function WorkModeRoleStep({
           disabled={!selectedRole}
           onClick={onConfirm}
         >
-          Enter Work Mode
+          Continue
         </button>
+      </div>
+    </div>
+  );
+}
+
+interface WorkModeClockStepProps {
+  /** The active clock session, or null when the user isn't clocked in. */
+  clock: ClockSession | null;
+  /** Used to render the elapsed time for a clocked-in user. */
+  nowMs?: number;
+  onClockInNow: () => void;
+  onStayClockedOut: () => void;
+  onEnterWorking: () => void;
+  onBack: () => void;
+}
+
+/** Pure presentational clock-in awareness step. Clocked in → assume the
+ *  user is working (no clock-in buttons, just Enter). Not clocked in →
+ *  "Clock in now?" / "Stay clocked out" — entering work mode is
+ *  independent of clocking in. Exported for direct SSR assertions. */
+export function WorkModeClockStep({
+  clock,
+  nowMs = Date.now(),
+  onClockInNow,
+  onStayClockedOut,
+  onEnterWorking,
+  onBack,
+}: WorkModeClockStepProps) {
+  const clockedIn = !!clock;
+  return (
+    <div className="work-mode-prompt__step">
+      <p className="work-mode-prompt__clock-status" data-clocked-in={clockedIn ? 'true' : 'false'}>
+        {clockedIn ? (
+          <>
+            <span className="work-mode-prompt__clock-dot" aria-hidden />
+            You&apos;re clocked in
+            {clock?.jobId ? ` to ${clock.jobId}` : ''}
+            {clock?.startedAt ? (
+              <>
+                {' — '}
+                <time dateTime={clock.startedAt}>
+                  {formatElapsed(clock.startedAt, nowMs)}
+                </time>
+                {' elapsed'}
+              </>
+            ) : null}
+            {'. '}
+            We&apos;ll assume you&apos;re working.
+          </>
+        ) : (
+          <>You&apos;re not currently clocked in. Entering work mode won&apos;t clock you in.</>
+        )}
+      </p>
+      <div className="work-mode-prompt__actions">
+        <button
+          type="button"
+          className="work-mode-prompt__btn work-mode-prompt__btn--ghost"
+          onClick={onBack}
+        >
+          Back
+        </button>
+        {clockedIn ? (
+          <button
+            type="button"
+            className="work-mode-prompt__btn work-mode-prompt__btn--primary"
+            onClick={onEnterWorking}
+          >
+            Enter Work Mode
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="work-mode-prompt__btn work-mode-prompt__btn--ghost"
+              onClick={onStayClockedOut}
+            >
+              Stay clocked out
+            </button>
+            <button
+              type="button"
+              className="work-mode-prompt__btn work-mode-prompt__btn--primary"
+              onClick={onClockInNow}
+            >
+              Clock in now?
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -125,28 +229,70 @@ export default function WorkModePrompt({
   const router = useRouter();
   const eligible = useMemo(() => eligibleWorkModeRoles(roles), [roles]);
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<'role' | 'clock'>('role');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(() =>
     preselectRole(eligible),
   );
+  const [clock, setClock] = useState<ClockSession | null>(null);
+  const [clockInOpen, setClockInOpen] = useState(false);
+  const [catalog, setCatalog] = useState<ActivityTag[]>([]);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   // Re-seed the pre-selected role each time the modal opens so a
   // single-role user always lands ready-to-confirm.
   function openPrompt() {
     setSelectedRole(preselectRole(eligible));
+    setStep('role');
     setOpen(true);
   }
 
   function closePrompt() {
     setOpen(false);
+    setClockInOpen(false);
+    setStep('role');
     // Return focus to the trigger for keyboard users.
     triggerRef.current?.focus();
   }
 
-  function confirm() {
+  // Role step → clock step. Read the (localStorage-backed) clock
+  // session at confirm time so an already-clocked-in user skips the
+  // clock-in buttons.
+  function advanceToClockStep() {
     if (!selectedRole) return;
-    // Slice 4 inserts the clock-in awareness step here before nav.
+    setClock(readClockSession());
+    setStep('clock');
+  }
+
+  // Final navigation into the role's workspace. Entering work mode is
+  // independent of clock-in state — we never write a clock session here.
+  const enterWorkMode = useCallback(() => {
+    if (!selectedRole) return;
     router.push(workModeHref(selectedRole));
+  }, [router, selectedRole]);
+
+  // "Clock in now?" — reuse the top-bar ClockInModal. Lazy-load the
+  // activity-tag catalog the same way ClockInPill does.
+  function startClockIn() {
+    setClockInOpen(true);
+    if (catalog.length > 0) return;
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/activity-tags');
+        if (!res.ok) return;
+        const data = (await res.json()) as { tags?: ActivityTag[] };
+        setCatalog(data.tags ?? []);
+      } catch {
+        /* leave catalog empty — clock-in still works without tags */
+      }
+    })();
+  }
+
+  // ClockInModal submit → persist the session, then proceed into work
+  // mode. This is the ONLY place the prompt writes a clock session.
+  function handleClockInSubmit({ jobId, tagIds }: { jobId: string | null; tagIds: string[] }) {
+    writeClockSession({ startedAt: new Date().toISOString(), jobId, tagIds });
+    setClockInOpen(false);
+    enterWorkMode();
   }
 
   // Esc closes the modal.
@@ -172,13 +318,16 @@ export default function WorkModePrompt({
         <span className="hub-greeting__work-mode-label">{triggerLabel}</span>
       </button>
 
-      {open && (
+      {/* The prompt overlay hides while the nested ClockInModal is open
+          so the two dialogs don't stack (ClockInModal owns the screen
+          during clock-in). */}
+      {open && !clockInOpen && (
         <div
           className="work-mode-prompt__overlay"
           role="dialog"
           aria-modal="true"
           aria-labelledby="work-mode-prompt-title"
-          aria-describedby="work-mode-prompt-question"
+          aria-describedby={step === 'role' ? 'work-mode-prompt-question' : undefined}
           onClick={(e) => {
             if (e.target === e.currentTarget) closePrompt();
           }}
@@ -197,16 +346,33 @@ export default function WorkModePrompt({
                 ×
               </button>
             </header>
-            <WorkModeRoleStep
-              eligible={eligible}
-              selectedRole={selectedRole}
-              onSelectRole={setSelectedRole}
-              onConfirm={confirm}
-              onCancel={closePrompt}
-            />
+            {step === 'role' ? (
+              <WorkModeRoleStep
+                eligible={eligible}
+                selectedRole={selectedRole}
+                onSelectRole={setSelectedRole}
+                onConfirm={advanceToClockStep}
+                onCancel={closePrompt}
+              />
+            ) : (
+              <WorkModeClockStep
+                clock={clock}
+                onClockInNow={startClockIn}
+                onStayClockedOut={enterWorkMode}
+                onEnterWorking={enterWorkMode}
+                onBack={() => setStep('role')}
+              />
+            )}
           </div>
         </div>
       )}
+
+      <ClockInModal
+        open={clockInOpen}
+        onClose={() => setClockInOpen(false)}
+        onSubmit={handleClockInSubmit}
+        catalog={catalog}
+      />
     </>
   );
 }
