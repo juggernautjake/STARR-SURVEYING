@@ -52,7 +52,7 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
         </div>
       );
     }
-    return <WidgetEmpty icon="☁️" title="Weather unavailable" description="Once /api/admin/weather is wired, the forecast lands here." />;
+    return <WidgetEmpty icon="☁️" title="Weather unavailable" description="The forecast service is unreachable right now — it'll reappear automatically." />;
   }
 
   // Tiny — single line: emoji + rounded temp + the °F unit.

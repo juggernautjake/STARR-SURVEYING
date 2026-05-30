@@ -12,7 +12,6 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 // Re-import after the mock is registered.
-const { GET: weatherGet } = await import('@/app/api/admin/weather/route');
 const { GET: sunGet } = await import('@/app/api/admin/sun/route');
 // NOTE: /api/admin/research/pipeline is no longer a stub — hub-widget-
 // excellence-12 wired it to real research_projects data (mapped via the
@@ -22,15 +21,14 @@ const { GET: sunGet } = await import('@/app/api/admin/sun/route');
 // excellence-14 wired it to real "active today" data (today's
 // daily_time_logs joined to registered_users, mapped via the pure
 // lib/team/status.buildTeamStatus helper, tested separately).
+// NOTE: /api/admin/weather is no longer a stub either — hub-widget-
+// excellence-15 wired it to real keyless Open-Meteo data (mapped via the
+// pure lib/weather helpers, tested separately). It degrades to 204 only
+// when the upstream is unreachable, so its status isn't asserted here.
 
 describe('Slice 191 — stub endpoints', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('/api/admin/weather returns 204 No Content', async () => {
-    const res = await weatherGet(new Request('http://localhost/api/admin/weather') as never);
-    expect(res.status).toBe(204);
   });
 
   it('/api/admin/sun returns 204 No Content', async () => {
@@ -44,7 +42,7 @@ describe('Slice 191 — stub endpoints reject unauthenticated callers', () => {
     const { auth } = await import('@/lib/auth');
     (auth as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue(null);
 
-    const res = await weatherGet(new Request('http://localhost/api/admin/weather') as never);
+    const res = await sunGet(new Request('http://localhost/api/admin/sun') as never);
     expect(res.status).toBe(401);
   });
 });

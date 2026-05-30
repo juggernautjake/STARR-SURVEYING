@@ -175,6 +175,36 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
 - **Footer link:** none (ambient stat). 
 - **Editor:** location, zip.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (the headline
+  — the endpoint was a 204 stub, so the widget ALWAYS showed "Weather
+  unavailable"):** discovered Open-Meteo is genuinely **free + keyless**
+  (verified reachable from the server) and **wired real data**. The
+  endpoint now resolves coordinates — a manual ZIP geocodes via
+  Open-Meteo's geocoding API, everything else uses a Central-Texas
+  default (mirrors `property-search.service`'s constants, the org's
+  region) — fetches the current forecast + daily hi/lo in °F, and maps
+  it through three pure, tested helpers: `lib/weather/wmo.describeWeather`
+  (WMO code → description + emoji), `lib/weather/snapshot.toWeatherSnapshot`
+  (forecast JSON → the widget's `{ temperature_f, description, icon,
+  high_f, low_f, location_label }`), and `lib/weather/geocode.firstGeoPoint`
+  (geocoding hit → coordinates, ZIP-labelled) + `DEFAULT_LOCATION`. **R2
+  (degradation):** every upstream call has a 6 s timeout and any failure
+  (egress blocked, garbled payload, missing temp) returns **204 No
+  Content** — the widget's existing `!res.ok → empty` path fires, so
+  nothing regresses when the network is unavailable (the stub's old
+  contract is preserved as the failure mode). **R3 (size):** the
+  per-bucket render was already correct (tiny → emoji + temp; small+ →
+  + description + location + H/L) — confirmed against the real field
+  names. **R4 (editor + polish):** location (auto/manual/active-job) +
+  ZIP editor confirmed wired to the query; refreshed the stale
+  empty-state copy ("forecast service is unreachable… it'll reappear
+  automatically"). The stub-endpoints spec's weather 204 assertion was
+  retired (the route hits the network now; its 401 guard moved to the
+  still-stubbed sun route). 10 new weather specs (WMO map + fallback,
+  snapshot map + hi/lo fallback + null-guard, geocode pick + null +
+  default). Full hub suite (1655) green; typecheck + lint clean.
+  *(active-job site coordinates still fall back to the default — wiring
+  the active job's geo is a documented follow-up.)* **weather is done.**
 
 ## sun-calculator
 - **Endpoint:** `/api/admin/sun?lat=&lng=`. Fields: sunrise, sunset,
