@@ -136,8 +136,27 @@ plain white and drop the spinning hover gradient.)
 
 ### Phase P3 — QA
 
-#### Slice P3 — Sweep + move doc to completed
+#### Slice P3 — Sweep + move doc to completed ✅ shipped 2026-05-30
 - **Done when:** typecheck + lint + hub suite green; doc moved.
+- **Shipped:** `tsc --noEmit` clean; `next lint` clean; full repo
+  vitest sweep **6048 pass / 17 skipped / 0 failures across 303 spec
+  files** (hub subset 1420 across 94 files). Doc moved to
+  `docs/planning/completed/`.
+
+## Outcome summary
+
+- **8×12 grid.** The modal now shows 8 tiles wide × 12 tall (portrait,
+  square cells). The hub render was already row-unbounded, so saved
+  layouts that use the taller space just render taller.
+- **Single-click placement.** Click a widget type in the palette, then
+  click any open tile — the widget drops there at its default size
+  (resize afterward via the corner handle). Hovering shows a live
+  preview; blocked tiles no-op. The two-click "paint a rectangle"
+  flow is gone.
+
+Also shipped this session (separate quick fix): the Enter Work Mode
+button label is plain white with no spinning hover gradient (the user
+disliked the radial spinning colors).
 
 ## Guardrails
 - Don't reintroduce compaction. Free placement from the prior overhaul
