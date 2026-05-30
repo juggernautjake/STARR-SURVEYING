@@ -115,6 +115,9 @@ function DrawingsInProgressSettings({ value, onChange }: WidgetSettingsFormProps
   );
 }
 
+// consolidation Slice 4 (2026-05-30) — SUPERSEDED by `drawings`,
+// the unified mine/all widget. Stays registered so saved hub layouts
+// keep their tile.
 defineWidget<DrawingsInProgressContent>({
   id: 'drawings-in-progress',
   label: 'Drawings In Progress',

@@ -24,8 +24,12 @@ describe('my-jobs Round 2 — links', () => {
   });
 
   it('the tiny count + the registry footer point at /admin/jobs', () => {
+    // hub-widget-routing 2026-05-30 — footer routes the user to the
+    // org-wide /admin/jobs page, matching the tiny-count link, so
+    // they can edit any job from the widget. Personal /admin/my-jobs
+    // remains its own page; this is just the widget's "Go to…" jump.
     expect(SRC).toMatch(/<Link href="\/admin\/jobs"/);
-    expect(WIDGET_LINKS['my-jobs'].href).toBe('/admin/my-jobs');
+    expect(WIDGET_LINKS['my-jobs'].href).toBe('/admin/jobs');
   });
 });
 

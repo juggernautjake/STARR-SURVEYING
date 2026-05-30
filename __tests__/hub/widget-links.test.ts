@@ -20,21 +20,37 @@ import {
   researchProjectHref,
 } from '@/lib/hub/widgets/_shared/widget-links';
 
-// The full catalog of 41 widget ids (from the master doc). Declared
+// The full catalog of 45 widget ids (41 from the master doc + three
+// cluster widgets shipped in consolidation Slices 3-5: `approvals`,
+// `drawings`, `activity` + the Contacts widget shipped in the
+// contacts plan Slice 5). Declared
 // locally so a drift surfaces here as a coverage failure rather than by
 // importing the heavy widget registry.
 const ALL_WIDGET_IDS = [
   // work
+  // consolidation Slice 5 (2026-05-30) — `activity` is the unified
+  // job-events + recent-pages widget. Two legacy ids stay until
+  // saved layouts are migrated.
+  'activity',
   'my-jobs', 'assignments-due', 'field-data-pending', 'job-activity-feed',
   // time-pay
   'my-pay', 'hours-this-week', 'pto-balance',
   // financial
   'monthly-revenue', 'outstanding-invoices',
   // office
+  // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
+  'contacts',
+  // consolidation Slice 3 (2026-05-30) — `approvals` is the unified
+  // hours/receipts/time-off tile. The three legacy widgets stay
+  // catalogued until a follow-up migrates saved layouts.
+  'approvals',
   'pending-hours', 'pending-receipts', 'pending-time-off',
   // equipment
   'equipment-out-today', 'low-consumables', 'maintenance-due', 'vehicles-status',
   // cad
+  // consolidation Slice 4 (2026-05-30) — `drawings` is the unified
+  // mine/all widget. Two legacy ids stay until layouts are migrated.
+  'drawings',
   'recent-drawings', 'drawings-in-progress', 'crew-calendar',
   // research
   'active-research-projects', 'pipeline-status',
@@ -51,9 +67,9 @@ const ALL_WIDGET_IDS = [
 ];
 
 describe('widget-links — catalog coverage', () => {
-  it('catalog has all 41 widgets', () => {
-    expect(ALL_WIDGET_IDS.length).toBe(41);
-    expect(new Set(ALL_WIDGET_IDS).size).toBe(41);
+  it('catalog has all 45 widgets', () => {
+    expect(ALL_WIDGET_IDS.length).toBe(45);
+    expect(new Set(ALL_WIDGET_IDS).size).toBe(45);
   });
 
   it('every widget is either linked or explicitly link-less (partition)', () => {
@@ -75,13 +91,19 @@ describe('widget-links — catalog coverage', () => {
 describe('widget-links — every mapped target is a real-looking route', () => {
   it('href is an absolute /admin route and label is non-empty', () => {
     for (const [, target] of Object.entries(WIDGET_LINKS)) {
-      expect(target.href).toMatch(/^\/admin\/[a-z0-9/-]+$/);
+      // consolidation Slice 2 (2026-05-30) — widget footers can now
+      // route into the hub via a `?tab=…` query string after the
+      // legacy `/admin/my-*` pages were collapsed into `/admin/me`.
+      expect(target.href).toMatch(/^\/admin\/[a-z0-9/-]+(\?tab=[a-z]+)?$/);
       expect(target.label.trim().length).toBeGreaterThan(0);
     }
   });
 
   it('widgetGoToTarget returns the mapped target, or null when link-less', () => {
-    expect(widgetGoToTarget('my-jobs')).toEqual({ href: '/admin/my-jobs', label: 'my jobs' });
+    // hub-widget-routing 2026-05-30 — `my-jobs` footer now points at
+    // the org-wide /admin/jobs page (per user feedback), not the
+    // personal `/admin/my-jobs` filter.
+    expect(widgetGoToTarget('my-jobs')).toEqual({ href: '/admin/jobs', label: 'jobs' });
     expect(widgetGoToTarget('quick-actions')).toBeNull();
     expect(widgetGoToTarget('not-a-widget')).toBeNull();
   });

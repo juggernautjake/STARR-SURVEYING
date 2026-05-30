@@ -69,7 +69,8 @@ export const ROUTE_BUNDLE_OVERRIDES: Record<string, BundleId | null> = {
   '/admin/audit':                  null,
   '/admin/users':                  null,
   '/admin/settings':               null,
-  '/admin/profile':                null,
+  // /admin/profile entry removed in consolidation Slice 2 (2026-05-30)
+  // — page deleted; middleware redirects to /admin/me?tab=profile.
   '/admin/error-log':              null,
 };
 

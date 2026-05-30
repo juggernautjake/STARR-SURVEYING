@@ -122,12 +122,18 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   'assignments-due':          { source: 'settings-form' },
   'bookmarks':                { source: 'settings-form' },
   'class-assignments':        { source: 'settings-form' },
+  // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
+  'contacts':                 { source: 'settings-form' },
   'crew-calendar':            { source: 'settings-form' },
   'drawings-in-progress':     { source: 'settings-form' },
+  // consolidation Slice 4 (2026-05-30) — unified Drawings widget.
+  'drawings':                 { source: 'settings-form' },
   'equipment-out-today':      { source: 'settings-form' },
   'field-data-pending':       { source: 'settings-form' },
   'hours-this-week':          { source: 'settings-form' },
   'job-activity-feed':        { source: 'settings-form' },
+  // consolidation Slice 5 (2026-05-30) — unified Activity widget.
+  'activity':                 { source: 'settings-form' },
   'low-consumables':          { source: 'settings-form' },
   'maintenance-due':          { source: 'settings-form' },
   'mentions-inbox':           { source: 'settings-form' },
@@ -210,6 +216,22 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
         defaultValue: 5, min: 1, max: 20, step: 1 },
       { key: 'groupByPerson', type: 'toggle', label: 'Group by submitter',
         defaultValue: false },
+    ],
+  },
+  // consolidation Slice 3 (2026-05-30) — unified Approvals widget.
+  'approvals': {
+    source: 'schema',
+    fields: [
+      { key: 'defaultMode', type: 'select', label: 'Default tab',
+        defaultValue: 'auto',
+        options: [
+          { value: 'auto',     label: 'Auto (busiest queue)' },
+          { value: 'hours',    label: 'Hours' },
+          { value: 'receipts', label: 'Receipts' },
+          { value: 'time-off', label: 'Time off' },
+        ] },
+      { key: 'maxItems', type: 'number', label: 'Entries per tab',
+        defaultValue: 5, min: 1, max: 20, step: 1 },
     ],
   },
   'pending-receipts': {

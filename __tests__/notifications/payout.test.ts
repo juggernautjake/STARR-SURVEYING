@@ -45,7 +45,7 @@ describe('buildPayoutNotification', () => {
       title: '💸 Payout posted — $123.45',
       body: '$123.45 sent via zelle on 2026-05-30.',
       icon: '💸',
-      link: '/admin/my-pay',
+      link: '/admin/me?tab=pay',
     });
   });
 
@@ -87,7 +87,7 @@ describe('buildPayStubNotification', () => {
       title: '💵 Pay stub ready — $1,234.50',
       body: 'Your pay for 2026-05-16 – 2026-05-30 has been credited to your balance.',
       icon: '💵',
-      link: '/admin/my-pay',
+      link: '/admin/me?tab=pay',
     });
   });
 

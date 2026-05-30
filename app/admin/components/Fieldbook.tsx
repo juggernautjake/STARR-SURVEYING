@@ -362,7 +362,7 @@ export default function Fieldbook() {
             </div>
             <div className="fb__topbar-right">
               {saving && <span className="fb__saving">Saving...</span>}
-              <Link href="/admin/my-notes" className="fb__expand" onClick={() => setIsOpen(false)} title="My Notes page">&#x2197;</Link>
+              <Link href="/admin/me?tab=notes" className="fb__expand" onClick={() => setIsOpen(false)} title="My Notes page">&#x2197;</Link>
               <button className="fb__close" onClick={() => { saveEntry(false); setIsOpen(false); }}>&#x2715;</button>
             </div>
           </div>

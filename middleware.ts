@@ -3,6 +3,13 @@ import { NextResponse } from 'next/server';
 import type { UserRole } from '@/lib/auth';
 import { canAccessRoute, upgradePromptUrl, bundleForRoute } from '@/lib/saas/bundle-gate';
 import type { BundleId } from '@/lib/saas/bundles';
+// consolidation Slice 2 (2026-05-30) — legacy `my-*` + `/admin/profile`
+// pages were 4-line `redirect()` calls per the 2024 hub redesign Phase
+// 2 slice 2c. The page files are now deleted; these middleware-level
+// redirects keep external bookmarks + saved notification deep-links
+// working. Lives in lib/admin/ so the spec can import it without
+// dragging in next-auth's `next/server` dependency.
+import { LEGACY_REDIRECTS } from '@/lib/admin/legacy-redirects';
 
 // ── Route-level role enforcement ──
 // Maps route prefixes to the roles allowed to access them.
@@ -25,8 +32,9 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/jobs/new', roles: ['admin'] },
   { prefix: '/admin/jobs/import', roles: ['admin'] },
   { prefix: '/admin/jobs', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
-  { prefix: '/admin/my-jobs', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
-  { prefix: '/admin/my-hours', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  // /admin/my-jobs + /admin/my-hours role-gates removed in
+  // consolidation Slice 2 — the redirect at the top of the handler
+  // takes the user to /admin/me?tab=… before we reach the role check.
   { prefix: '/admin/leads', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/hours-approval', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/assignments', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
@@ -48,7 +56,8 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/rewards/admin', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/rewards', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
   { prefix: '/admin/pay-progression', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
-  { prefix: '/admin/my-pay', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  // /admin/my-pay role-gate removed in consolidation Slice 2 — handled
+  // by the LEGACY_REDIRECTS table at the top of the handler.
   { prefix: '/admin/payout-log', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
 
   // ── Communication ──
@@ -69,6 +78,15 @@ function matchesRoute(pathname: string, prefix: string): boolean {
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   if (!pathname.startsWith('/admin')) return NextResponse.next();
+
+  // consolidation Slice 2 (2026-05-30) — legacy URL redirects run
+  // BEFORE auth so even a logged-out user hitting an old bookmark
+  // lands on the right canonical URL (then the auth check below sends
+  // them to /admin/login with the correct callbackUrl).
+  const redirectTarget = LEGACY_REDIRECTS[pathname];
+  if (redirectTarget) {
+    return NextResponse.redirect(new URL(redirectTarget, req.url));
+  }
 
   // Allow login and register pages
   if (pathname === '/admin/login' || pathname === '/admin/register') {

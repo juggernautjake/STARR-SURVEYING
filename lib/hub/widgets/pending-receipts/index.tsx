@@ -122,6 +122,9 @@ function PendingReceiptsEmpty({ bucket }: { bucket: SizeBucket }) {
   return <WidgetEmpty icon="🧾" title="Receipts clear" description="Pending receipts appear here for approval." />;
 }
 
+// consolidation Slice 3 (2026-05-30) — SUPERSEDED by `approvals`,
+// the unified hours/receipts/time-off widget. Stays registered so
+// saved hub layouts keep their tile.
 defineWidget<PendingReceiptsContent>({
   id: 'pending-receipts',
   label: 'Pending Receipts',

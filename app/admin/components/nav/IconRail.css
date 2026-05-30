@@ -170,6 +170,25 @@
   animation: rail-flyout-in 0.12s ease-out;
 }
 
+/* nav-flyout-hover-fix 2026-05-30 — invisible bridge that fills the
+   gap between the icon and the menu so a straight horizontal mouse
+   move stays over a hoverable element (the menu's own hit area) the
+   whole way. Without this, the 4 px gap is dead space: leaving the
+   icon into it fires the anchor's mouseleave. Paired with the JS
+   grace-delay, which covers diagonal moves that briefly exit the
+   bridge. The strip is a touch wider than the 4 px offset + extends
+   slightly above/below so a near-horizontal drift stays covered. */
+.admin-rail__flyout::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: -10px;
+  width: 10px;
+  /* transparent — purely a hover bridge, never painted */
+  background: transparent;
+}
+
 @keyframes rail-flyout-in {
   from { opacity: 0; transform: translateX(-4px); }
   to   { opacity: 1; transform: translateX(0); }

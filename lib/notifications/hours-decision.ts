@@ -63,7 +63,7 @@ export function buildHoursDecisionNotifications(
       title: `${icon} Hours ${statusTitle}`,
       body: `${hoursLabel} (${span}) ${agg.count === 1 ? 'has' : 'have'} been ${status}.`,
       icon,
-      link: '/admin/my-hours',
+      link: '/admin/me?tab=hours',
       source_type: 'hours_decision',
     });
   }

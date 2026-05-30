@@ -9,7 +9,7 @@
 //   `completed` via PUT /api/admin/payroll/runs and the employee's
 //   stub gets credited to their balance.
 //
-// Both link to /admin/my-pay (the employee's pay dashboard).
+// Both link to /admin/me?tab=pay (the employee's pay tab in the hub).
 // Dependency-free → unit-tested in node.
 
 export interface PayoutNotificationInput {
@@ -37,7 +37,7 @@ export interface NotifyPayload {
   link: string;
 }
 
-const PAY_LINK = '/admin/my-pay';
+const PAY_LINK = '/admin/me?tab=pay';
 
 /** Pretty-format `amount_cents` as a USD string (`$1,234.56`). */
 export function formatUsdCents(cents: number): string {

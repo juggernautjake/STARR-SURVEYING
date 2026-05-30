@@ -74,7 +74,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
 
   useEffect(() => {
     if (!isAdmin && !isSelf) {
-      router.push('/admin/my-pay');
+      router.push('/admin/me?tab=pay');
       return;
     }
     loadProfile();

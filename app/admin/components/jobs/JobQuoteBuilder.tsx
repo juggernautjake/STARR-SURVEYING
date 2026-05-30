@@ -1,6 +1,7 @@
 // app/admin/components/jobs/JobQuoteBuilder.tsx — Quote creation and display
 'use client';
 
+import { useState, useEffect } from 'react';
 import { withAlpha } from '@/lib/admin/color-alpha';
 
 interface Payment {
@@ -27,6 +28,28 @@ interface Props {
 
 export default function JobQuoteBuilder({ quoteAmount, finalAmount, amountPaid, paymentStatus, payments, onUpdateQuote, onAddPayment, editable }: Props) {
   const owed = (finalAmount || quoteAmount || 0) - (amountPaid || 0);
+  // job-editing 2026-05-30 — quote becomes click-to-edit. Open state +
+  // draft value live here so the user can correct a typo without
+  // committing. Resets when the prop changes (e.g., parent saved a
+  // fresh value).
+  const [editingQuote, setEditingQuote] = useState(false);
+  const [quoteDraft, setQuoteDraft] = useState<string>(quoteAmount?.toString() ?? '');
+  useEffect(() => {
+    setQuoteDraft(quoteAmount?.toString() ?? '');
+  }, [quoteAmount]);
+
+  function commitQuote() {
+    if (!onUpdateQuote) return;
+    const val = parseFloat(quoteDraft);
+    if (Number.isFinite(val) && val >= 0) {
+      onUpdateQuote(val);
+      setEditingQuote(false);
+    }
+  }
+  function cancelQuote() {
+    setQuoteDraft(quoteAmount?.toString() ?? '');
+    setEditingQuote(false);
+  }
   const statusColors: Record<string, string> = {
     unpaid: 'var(--color-error)',
     partial: '#F59E0B',
@@ -51,7 +74,44 @@ export default function JobQuoteBuilder({ quoteAmount, finalAmount, amountPaid, 
       <div className="job-quote__amounts">
         <div className="job-quote__amount-item">
           <span className="job-quote__amount-label">Quote</span>
-          <span className="job-quote__amount-value">${(quoteAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          {editable && onUpdateQuote && editingQuote ? (
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>$</span>
+              <input
+                autoFocus
+                type="number"
+                step="0.01"
+                min="0"
+                value={quoteDraft}
+                onChange={(e) => setQuoteDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitQuote(); }
+                  if (e.key === 'Escape') { e.preventDefault(); cancelQuote(); }
+                }}
+                onBlur={commitQuote}
+                aria-label="Quote amount"
+                className="job-quote__input"
+                style={{ width: 120 }}
+              />
+            </span>
+          ) : (
+            <span
+              className="job-quote__amount-value"
+              onClick={editable && onUpdateQuote ? () => setEditingQuote(true) : undefined}
+              role={editable && onUpdateQuote ? 'button' : undefined}
+              tabIndex={editable && onUpdateQuote ? 0 : undefined}
+              onKeyDown={editable && onUpdateQuote ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingQuote(true); }
+              } : undefined}
+              title={editable && onUpdateQuote ? 'Click to edit the quote' : undefined}
+              style={editable && onUpdateQuote ? { cursor: 'pointer' } : undefined}
+            >
+              ${(quoteAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {editable && onUpdateQuote && (
+                <span style={{ marginLeft: 6, fontSize: '0.7em', color: 'var(--color-text-muted)' }}>✏️</span>
+              )}
+            </span>
+          )}
         </div>
         {finalAmount && finalAmount !== quoteAmount && (
           <div className="job-quote__amount-item">
@@ -91,21 +151,9 @@ export default function JobQuoteBuilder({ quoteAmount, finalAmount, amountPaid, 
         </div>
       )}
 
-      {editable && onUpdateQuote && !quoteAmount && (
-        <div className="job-quote__set-quote">
-          <input
-            type="number"
-            className="job-quote__input"
-            placeholder="Enter quote amount"
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                const val = parseFloat((e.target as HTMLInputElement).value);
-                if (val > 0) onUpdateQuote(val);
-              }
-            }}
-          />
-        </div>
-      )}
+      {/* Quote is set via the inline click-to-edit on the Quote
+          amount above — works for the initial entry AND for changes
+          afterward. job-editing 2026-05-30. */}
     </div>
   );
 }

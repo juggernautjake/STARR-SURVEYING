@@ -81,7 +81,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     title: `Payment: $${Math.abs(amount).toFixed(2)}`,
     body: reason,
     icon: amount > 0 ? '💰' : '📉',
-    link: '/admin/my-pay',
+    link: '/admin/me?tab=pay',
     source_type: 'payroll',
     source_id: data.id,
   });

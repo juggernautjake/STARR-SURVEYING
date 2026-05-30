@@ -31,12 +31,22 @@ import './assignments-due';
 import './crew-calendar';
 import './field-data-pending';
 import './job-activity-feed';
+// consolidation Slice 5 (2026-05-30) — unified Activity widget folds
+// `job-activity-feed` + `recent-activity` into one tile with a
+// mode toggle. Legacy widgets stay registered so saved hub layouts
+// don't lose their tiles.
+import './activity';
 import './equipment-out';
 import './maintenance-due';
 import './low-consumables';
 import './vehicles-status';
 import './recent-drawings';
 import './drawings-in-progress';
+// consolidation Slice 4 (2026-05-30) — unified Drawings widget folds
+// `recent-drawings` + `drawings-in-progress` into one tile with a
+// `scope: 'mine' | 'all'` setting. Legacy widgets stay registered so
+// saved hub layouts don't lose their tiles.
+import './drawings';
 import './active-research-projects';
 import './pipeline-status';
 import './roadmap-progress';
@@ -46,6 +56,11 @@ import './recommended-lessons';
 import './pending-receipts';
 import './pending-time-off';
 import './pending-hours';
+// consolidation Slice 3 (2026-05-30) — the unified `approvals` widget
+// folds the three `pending-*` widgets above into one tile. The legacy
+// widgets stay registered so saved hub layouts don't lose their tiles;
+// a follow-up slice migrates saved layouts + deletes the legacy ids.
+import './approvals';
 import './monthly-revenue';
 import './outstanding-invoices';
 import './weather';
@@ -53,3 +68,5 @@ import './mileage-tracker';
 import './sun-calculator';
 import './streak-counter';
 import './daily-briefing';
+// contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
+import './contacts';

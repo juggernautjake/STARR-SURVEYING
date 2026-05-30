@@ -63,6 +63,10 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     allowedRoles: ['admin'],
     tint: 'accent',
   },
+  // consolidation Slice 9 (2026-05-30) — intentional widget-equivalent
+  // shortcut. The `approvals` / `pending-receipts` widgets already
+  // summarize the queue on the hub canvas; this tile gives 1-click
+  // navigation for power users. Keep — do not delete as redundant.
   {
     id: 'approve-receipts',
     label: 'Approve Receipts',
@@ -93,13 +97,17 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     allowedRoles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'],
     tint: 'accent',
   },
+  // consolidation Slice 9 (2026-05-30) — intentional widget-equivalent
+  // shortcut. The `messages` / `mentions-inbox` widgets already preview
+  // unread conversations on the hub canvas; this tile gives 1-click
+  // navigation for power users. Keep — do not delete as redundant.
   {
     id: 'send-message',
     label: 'Send Message',
-    description: 'Start a new direct or group message.',
+    description: 'Open messages — pick a conversation or start a new one.',
     iconName: 'MessageSquarePlus',
     kind: 'link',
-    href: '/admin/messages/new',
+    href: '/admin/messages',
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'accent',
   },
@@ -113,6 +121,11 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'info',
   },
+  // consolidation Slice 9 (2026-05-30) — intentional widget-equivalent
+  // shortcut. The `today-schedule` / `crew-calendar` widgets already
+  // show today's events on the hub canvas; this tile gives 1-click
+  // navigation to the full calendar for power users. Keep — do not
+  // delete as redundant.
   {
     id: 'schedule',
     label: 'Schedule',

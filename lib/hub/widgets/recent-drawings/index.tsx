@@ -141,6 +141,9 @@ function RecentDrawingsSettings({ value, onChange }: WidgetSettingsFormProps<Rec
   );
 }
 
+// consolidation Slice 4 (2026-05-30) — SUPERSEDED by `drawings`,
+// the unified mine/all widget. Stays registered so saved hub layouts
+// keep their tile.
 defineWidget<RecentDrawingsContent>({
   id: 'recent-drawings',
   label: 'Recent Drawings',

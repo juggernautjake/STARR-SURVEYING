@@ -25,18 +25,38 @@ export interface WidgetGoToTarget {
  *  that own a domain page appear here. */
 export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   // work
-  'my-jobs': { href: '/admin/my-jobs', label: 'my jobs' },
+  // hub-widget-routing 2026-05-30 — `my-jobs` widget's "Go to…" link
+  // points at the org-wide `/admin/jobs` page (the main jobs list)
+  // instead of the personal `/admin/my-jobs` filter. The widget's
+  // header still shows the user's own jobs; the footer link gives
+  // them a one-click jump to every job they can see.
+  'my-jobs': { href: '/admin/jobs', label: 'jobs' },
   'assignments-due': { href: '/admin/assignments', label: 'assignments' },
   'field-data-pending': { href: '/admin/field-data', label: 'field data' },
   'job-activity-feed': { href: '/admin/jobs', label: 'jobs' },
+  // consolidation Slice 5 (2026-05-30) — unified Activity widget;
+  // footer points at the cross-job activity timeline since both
+  // modes (job-events + recent-pages) center on that hub area.
+  'activity': { href: '/admin/timeline', label: 'the timeline' },
   // time-pay
-  'my-pay': { href: '/admin/my-pay', label: 'my pay' },
-  'hours-this-week': { href: '/admin/my-hours', label: 'my hours' },
+  // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-pay`
+  // + `/admin/my-hours` pages were deleted; widget footers now route
+  // straight to the canonical hub tabs.
+  'my-pay': { href: '/admin/me?tab=pay', label: 'my pay' },
+  'hours-this-week': { href: '/admin/me?tab=hours', label: 'my hours' },
   'pto-balance': { href: '/admin/time-off', label: 'time off' },
   // financial
   'monthly-revenue': { href: '/admin/finances', label: 'finances' },
   'outstanding-invoices': { href: '/admin/billing/invoices', label: 'invoices' },
   // office
+  // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
+  'contacts': { href: '/admin/contacts', label: 'contacts' },
+  // consolidation Slice 3 (2026-05-30) — the unified `approvals`
+  // widget folds the three queues into one tile. Its footer points at
+  // /admin/hours-approval because that's the busiest queue + the only
+  // approval surface admins land on regularly; the per-tab content
+  // links from within the widget body.
+  'approvals': { href: '/admin/hours-approval', label: 'approvals' },
   'pending-hours': { href: '/admin/hours-approval', label: 'hours approval' },
   'pending-receipts': { href: '/admin/receipts', label: 'receipts' },
   'pending-time-off': { href: '/admin/time-off', label: 'time-off approvals' },
@@ -46,6 +66,9 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   'maintenance-due': { href: '/admin/equipment/maintenance', label: 'maintenance' },
   'vehicles-status': { href: '/admin/vehicles', label: 'vehicles' },
   // cad
+  // consolidation Slice 4 (2026-05-30) — unified `drawings` widget;
+  // the two legacy ids stay until saved layouts are migrated.
+  'drawings': { href: '/admin/cad', label: 'the CAD editor' },
   'recent-drawings': { href: '/admin/cad', label: 'the CAD editor' },
   'drawings-in-progress': { href: '/admin/cad', label: 'the CAD editor' },
   'crew-calendar': { href: '/admin/schedule', label: 'the schedule' },
