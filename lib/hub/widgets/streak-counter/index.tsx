@@ -58,13 +58,15 @@ function StreakCounterWidget({ size, content }: WidgetProps<StreakCounterContent
   const fetchInfo = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/learn/streak');
+      // hub-widget-excellence-13 R1 — pass the chosen kind so the
+      // (newly-built) streak endpoint counts the right activity.
+      const res = await fetch(`/api/admin/learn/streak?kind=${kind}`);
       if (!res.ok) { setStatus('empty'); return; }
-      const data = await res.json();
+      const data: StreakInfo = await res.json();
       setInfo(data);
       setStatus('ok');
     } catch { setStatus('empty'); }
-  }, []);
+  }, [kind]);
   useEffect(() => { fetchInfo(); }, [fetchInfo]);
 
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
