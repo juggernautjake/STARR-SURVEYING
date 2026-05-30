@@ -148,7 +148,7 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
   explicit `import React` to `RolePills.tsx` so the classic JSX runtime
   vitest uses resolves `React.createElement`, matching `WidgetFrame`.)
 
-### Slice 3 — `WorkModePrompt` modal: role step
+### Slice 3 — `WorkModePrompt` modal: role step ✅ shipped 2026-05-30
 - **Scope:** New `WorkModePrompt` client modal. The Enter-Work-Mode
   control opens it. Role step lists `eligibleWorkModeRoles(roles)`;
   selecting one enables confirm; single-role pre-selects. Confirm
@@ -158,6 +158,28 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
   `__tests__/hub/work-mode-prompt-role.test.tsx`.
 - **Done when:** clicking Enter Work Mode opens the prompt; picking a
   role + confirming routes to that role's workspace.
+- **Shipped:** `WorkModePrompt` is now the greeting CTA — a `<button>`
+  (reusing the green `hub-greeting__work-mode-btn` classes, with a
+  native-button reset added to the CSS) that opens a themed modal
+  instead of the old `<a href="/admin/work-mode/start">`. EVERY
+  eligible user sees the prompt (no single-role fast-path bypass),
+  because Slice 4 hangs the clock-in step off the same modal. The role
+  step is factored into a pure, exported `WorkModeRoleStep` (heading
+  "What role are you working under?", one `aria-pressed` button per
+  `eligibleWorkModeRoles(roles)` with label + blurb, a disabled-until-
+  selected confirm) so it renders + asserts under SSR without driving
+  open/close state. Two exported pure helpers: `workModeHref(role)` →
+  `/admin/work-mode/{role}` and `preselectRole(eligible)` (single role
+  pre-selected, else null → explicit choice). Confirm does
+  `router.push(workModeHref(selectedRole))` (Slice 4 will splice the
+  clock-in branch in just before the push). Esc + overlay-click close
+  and return focus to the trigger. New `.work-mode-prompt__*` CSS
+  (overlay, modal, role cards with an active ring, pill actions) added
+  to `AdminMe.css`. 10 specs green (mock `@/lib/auth` + `next/
+  navigation`): href map, preselect rule, the rendered choices +
+  selected/disabled states, and that the trigger renders with no dialog
+  until opened. typecheck + lint clean; the existing greeting CSS
+  contract test still passes.
 
 ### Slice 4 — Clock-in awareness in the prompt
 - **Scope:** The prompt reads `readClockSession()`. Not clocked in →

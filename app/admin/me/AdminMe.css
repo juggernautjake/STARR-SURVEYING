@@ -200,6 +200,13 @@
    * shadow can render outside the greeting card. */
   position: relative;
   z-index: 1;
+  /* hub-widget-excellence-01 Slice 3 — the CTA is now a <button>
+   * (opens the WorkModePrompt) rather than an <a>, so reset the native
+   * button chrome + inherit the page font and show a pointer. */
+  cursor: pointer;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .hub-greeting__work-mode-label {
@@ -648,4 +655,154 @@
 
 .hub-whatsnew__dismiss:hover {
   background: rgba(15, 20, 25, 0.22);
+}
+
+/* ── Enter Work Mode prompt (hub-widget-excellence-01 Slice 3) ─────────
+ * Modal that asks which role the user is working under before entering
+ * Work Mode. Slice 4 adds the clock-in awareness branch below the role
+ * list. Themed with the same surface/border tokens the clock-in modal
+ * uses so it reads as a sibling dialog. */
+.work-mode-prompt__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: color-mix(in srgb, #0b1220 62%, transparent);
+}
+
+.work-mode-prompt__modal {
+  width: 100%;
+  max-width: 30rem;
+  background: var(--color-bg-card, #ffffff);
+  color: var(--color-text-primary, #111827);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  padding: 1.25rem 1.25rem 1.1rem;
+}
+
+.work-mode-prompt__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.work-mode-prompt__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text-primary, #111827);
+}
+
+.work-mode-prompt__close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-secondary, #6b7280);
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+}
+
+.work-mode-prompt__close:hover {
+  background: rgba(15, 20, 25, 0.08);
+}
+
+.work-mode-prompt__question {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.work-mode-prompt__roles {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.work-mode-prompt__role {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border, #e5e7eb);
+  background: var(--color-bg-subtle, #f9fafb);
+  color: var(--color-text-primary, #111827);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 120ms ease, background 120ms ease,
+              box-shadow 120ms ease;
+}
+
+.work-mode-prompt__role:hover {
+  border-color: var(--color-brand-navy, #1e3a8a);
+}
+
+.work-mode-prompt__role[data-active='true'] {
+  border-color: var(--color-brand-navy, #1e3a8a);
+  background: color-mix(in srgb, var(--color-brand-navy, #1e3a8a) 10%, #ffffff);
+  box-shadow: 0 0 0 1px var(--color-brand-navy, #1e3a8a) inset;
+}
+
+.work-mode-prompt__role-name {
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.work-mode-prompt__role-blurb {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.work-mode-prompt__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.work-mode-prompt__btn {
+  padding: 0.55rem 1.1rem;
+  border-radius: 9999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: filter 120ms ease, background 120ms ease;
+}
+
+.work-mode-prompt__btn--ghost {
+  background: transparent;
+  border-color: var(--color-border, #d1d5db);
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.work-mode-prompt__btn--ghost:hover {
+  background: rgba(15, 20, 25, 0.06);
+}
+
+.work-mode-prompt__btn--primary {
+  background: var(--gradient-green, linear-gradient(180deg, #10b981, #059669));
+  color: #ffffff;
+}
+
+.work-mode-prompt__btn--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.work-mode-prompt__btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

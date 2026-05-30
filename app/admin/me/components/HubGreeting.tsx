@@ -19,6 +19,7 @@ import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
 import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/work-mode/clock-session';
 import type { UserRole } from '@/lib/auth';
 import RolePills from './RolePills';
+import WorkModePrompt from './WorkModePrompt';
 
 interface ClockState {
   clockedIn: boolean;
@@ -141,18 +142,11 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
       </div>
 
       <div className="hub-greeting__actions">
-        {isWorkModeEligible(roles) && (
-          <a
-            className="hub-btn hub-btn--primary hub-greeting__work-mode-btn"
-            href="/admin/work-mode/start"
-            aria-label="Enter Work Mode"
-          >
-            {/* Label wrapped so the hover-state conic gradient can be
-                clipped to the glyphs (background-clip: text), matching
-                the spinning red/white/blue border ring. */}
-            <span className="hub-greeting__work-mode-label">Enter Work Mode</span>
-          </a>
-        )}
+        {/* hub-widget-excellence-01 Slice 3 — the CTA now opens a prompt
+            (pick which role you're working under) instead of routing
+            straight to /admin/work-mode/start. Entering work mode is
+            independent of clocking in; Slice 4 adds the clock-in step. */}
+        {isWorkModeEligible(roles) && <WorkModePrompt roles={roles} />}
       </div>
 
       {/* hub-widget-excellence-01 Slice 2 — all of the user's roles as
