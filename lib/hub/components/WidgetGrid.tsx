@@ -26,7 +26,7 @@ import React, { useRef } from 'react';
 import { getWidget, type WidgetDefinition } from '@/lib/hub/widget-registry';
 import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import { useElementSize } from '@/lib/hub/use-element-size';
-import { collapseLayout, layoutBounds, MOBILE_BASE_ROW_PX } from '@/lib/hub/grid-math';
+import { collapseLayout, layoutBounds, MOBILE_BASE_ROW_PX, mobileSizeOverride, type GridBreakpoint } from '@/lib/hub/grid-math';
 import WidgetFrame from './WidgetFrame';
 import { widgetGoToTarget } from '@/lib/hub/widgets/_shared/widget-links';
 
@@ -92,7 +92,7 @@ export default function WidgetGrid({
   return (
     <div ref={gridRef} style={gridStyle}>
       {collapsed.map((instance) => (
-        <WidgetCell key={instance.id} instance={instance} />
+        <WidgetCell key={instance.id} instance={instance} breakpoint={breakpoint} />
       ))}
     </div>
   );
@@ -100,10 +100,16 @@ export default function WidgetGrid({
 
 interface WidgetCellProps {
   instance: WidgetInstance;
+  breakpoint: GridBreakpoint;
 }
 
-function WidgetCell({ instance }: WidgetCellProps) {
+function WidgetCell({ instance, breakpoint }: WidgetCellProps) {
   const definition = getWidget(instance.type);
+
+  // hub-mobile-build-out Slice 2 — bump the size widgets read on mobile
+  // so they render their small/medium bucket (lists + counts), not
+  // their tiny stat-only bucket. Pass-through on desktop/tablet.
+  const renderSize = mobileSizeOverride({ w: instance.w, h: instance.h }, breakpoint);
 
   const cellStyle: React.CSSProperties = {
     gridColumn: `${instance.x + 1} / span ${instance.w}`,
@@ -157,7 +163,7 @@ function WidgetCell({ instance }: WidgetCellProps) {
         <MemoWidgetRender
           Widget={Widget}
           customization={customization}
-          size={{ w: instance.w, h: instance.h }}
+          size={renderSize}
           content={content}
         />
       </WidgetFrame>

@@ -65,19 +65,23 @@ parts, don't ship a mobile editor) **plus grid + header polish**.*
   upgrade what fits there).
 - 3 specs added; full hub suite (1672) green; typecheck + lint clean.
 
-### Slice 2 — Mobile bucket override
+### Slice 2 — Mobile bucket override ✅ shipped 2026-05-30
 
-- At `breakpoint === 1`, change the `size` prop the WidgetGrid passes
-  to widgets from `{w: 1, h: w.h}` to `{w: 2, h: max(w.h, 2)}`. That
-  pushes `sizeBucket(2, ≥2) = small/medium`, so the widget body
-  renders its small bucket (a few rows + counts) rather than its tiny
-  bucket (one stat).
-- Add a pure exported `mobileSizeOverride(size, breakpoint)` helper
-  in `grid-math.ts` (so the override is unit-testable) and call it
-  from `MemoWidgetRender`.
-- Files: `lib/hub/grid-math.ts`, `lib/hub/components/WidgetGrid.tsx`.
-- Test: `mobileSizeOverride` returns `{w:2, h:≥2}` at bp=1 + the
-  desktop value unchanged at bp=4/8.
+- Added the pure `mobileSizeOverride(size, breakpoint)` helper to
+  `grid-math.ts`. Returns the size unchanged on desktop / tablet; at
+  `breakpoint === 1` returns `{w: 2, h: max(h, 2)}` so the area math
+  in `sizeBucket` lands in `small` (area ≤ 6) or `medium` (area ≤ 12)
+  instead of the `tiny` (area ≤ 2) bucket every full-width widget
+  currently fell into.
+- `WidgetGrid` passes the post-override size to `<MemoWidgetRender>`.
+  Per-widget bodies didn't need to change — every widget already has
+  a `small` and `medium` render that's the canonical content target
+  for mobile.
+- Bucket progression on mobile: `h=1→small`, `h=2→small`, `h=3→small`,
+  `h=4→medium`, `h=6→medium`. Lists + counts unlocked at every saved
+  desktop height.
+- 6 specs added (override math + bucket landing + the source-regex
+  wiring); full hub suite (1677) green; typecheck + lint clean.
 
 ### Slice 3 — Mobile scroll inside the card
 
