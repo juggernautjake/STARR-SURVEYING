@@ -323,16 +323,23 @@ Audit doc rows updated with the verified verdict + the
 follow-up-path so a future PR has the same context this slice did.
 No code deletions; honest verification was the deliverable.
 
-### Slice 9 — Quick-actions catalog cleanup
+### Slice 9 — Quick-actions catalog cleanup ✅ shipped 2026-05-30
 
-- Three tiles point at pages whose data is now widget-equivalent
-  (`Approve Receipts` / `Send Message` / `Schedule`). The
-  recommendation from the explorer agent: **keep as power-user
-  shortcuts** — they're 1-click jumps, not duplicates.
-- Action: stamp the catalog with a one-line "intentional shortcut
-  duplicate" comment on each so a future reviewer doesn't try to
-  delete them. The slice ships in case any new redundant tile got
-  added since the audit — recheck + comment, no removals.
+- Three tiles in `lib/hub/quick-actions-catalog.ts` carry a
+  one-line `consolidation Slice 9 — intentional widget-equivalent
+  shortcut` comment so a future reviewer doesn't try to delete
+  them as redundant with the hub widgets:
+  - `approve-receipts` → also covered by the `approvals` +
+    `pending-receipts` widgets, but the tile gives 1-click
+    navigation for power users.
+  - `send-message` → also covered by the `messages` +
+    `mentions-inbox` widgets; same intent.
+  - `schedule` → also covered by the `today-schedule` +
+    `crew-calendar` widgets; same intent.
+- Recheck pass for any other redundant tiles since the audit: none
+  added.
+- 0 specs (comment-only). 1726 hub specs green; typecheck + lint
+  clean.
 
 ## Out of scope / placeholder
 
