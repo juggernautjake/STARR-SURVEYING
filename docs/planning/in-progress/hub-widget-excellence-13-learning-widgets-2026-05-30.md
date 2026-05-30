@@ -100,6 +100,17 @@ the academic widgets all work too." Each: Build/Wire + 4 audit rounds.*
 - **Editor:** maxCards, hideEmpty.
 - **Notifications:** cards-due study reminder (Doc 03).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget used the wrong endpoint param + field** — it called
+  `?due=true&summary=1` reading `{ count }`, but the flashcards GET
+  exposes `?due_count=true` → `{ due_count }` (the `due=true&summary=1`
+  path returns the full deck, so `count` was undefined → always empty).
+  Fixed the fetch to `?due_count=true` and read `due_count`. The widget
+  was otherwise complete (tiny count, maxCards cap with "N+" overflow,
+  hideEmpty, "Start review →" CTA). Footer "Go to flashcards →" is
+  global (alongside the CTA). 5 specs (registry, the corrected endpoint
+  param/field via source-regex, visibleCount cap). Full hub suite green;
+  typecheck + lint clean. **flashcards-due is done.**
 
 ## quiz-history
 - **Endpoint:** `/api/admin/learn/quiz-attempts?limit=20`. Fields: id,

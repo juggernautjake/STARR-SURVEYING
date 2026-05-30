@@ -54,11 +54,15 @@ function FlashcardsDueWidget({ size, content }: WidgetProps<FlashcardsDueContent
   const fetchSummary = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/learn/flashcards?due=true&summary=1');
+      // hub-widget-excellence-13 R1 — the real endpoint param is
+      // `?due_count=true` and it returns `{ due_count }`, NOT the
+      // `?due=true&summary=1` → `{ count }` this widget assumed.
+      const res = await fetch('/api/admin/learn/flashcards?due_count=true');
       if (!res.ok) { setStatus('empty'); return; }
-      const j: FlashcardsSummary = await res.json();
-      setData(j);
-      setStatus(j.count === 0 ? 'empty' : 'ok');
+      const j: { due_count?: number } = await res.json();
+      const count = typeof j.due_count === 'number' ? j.due_count : 0;
+      setData({ count });
+      setStatus(count === 0 ? 'empty' : 'ok');
     } catch { setStatus('empty'); }
   }, []);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
