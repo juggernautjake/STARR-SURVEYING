@@ -73,15 +73,17 @@ describe('WidgetFrame body — min-width:0 lets it shrink at narrow widths', () 
   });
 });
 
-describe('WidgetFrame title — hidden but accessible', () => {
-  it('keeps aria-labelledby pointed at the title id when showTitle=false', () => {
+describe('WidgetFrame title — always visible (Slice 5)', () => {
+  it('renders the header + title even when the customization is sparse', () => {
+    // Slice 5 of employee-hub-overhaul-2026-05-30 dropped the
+    // showTitle toggle so the header always renders.
     const html = ReactDOMServer.renderToStaticMarkup(
-      <WidgetFrame title="Pinned pages" showTitle={false}>
+      <WidgetFrame title="Pinned pages">
         <div>body</div>
       </WidgetFrame>,
     );
     expect(html).toContain('aria-labelledby="widget-pinned-pages"');
-    // No visible header when showTitle is false.
-    expect(html).not.toContain('<header');
+    expect(html).toContain('Pinned pages');
+    expect(html).toContain('<header');
   });
 });

@@ -126,15 +126,18 @@ function WidgetCell({ instance }: WidgetCellProps) {
   const { Widget, defaultContent } = definition;
   const customization = instance.customization ?? EMPTY_CUSTOMIZATION;
   const content = (customization.content ?? defaultContent) as Record<string, unknown>;
-  const showTitle = customization.layout?.showTitle ?? true;
   const titleOverride = customization.layout?.titleOverride;
   const title = titleOverride && titleOverride.trim().length > 0 ? titleOverride : definition.label;
 
+  // Slice 5 — header (title + headerColor) always renders; the
+  // showTitle layout toggle is gone. The legacy style fields
+  // (colorMode/statusTint/etc.) keep loading from old saved layouts
+  // until Slice 6 drops the reads.
   return (
     <div style={cellStyle} data-widget-id={instance.id}>
       <WidgetFrame
         title={title}
-        showTitle={showTitle}
+        headerColor={customization.style?.headerColor}
         colorMode={customization.style?.colorMode}
         statusTint={customization.style?.statusTint}
         customBg={customization.style?.customBg}

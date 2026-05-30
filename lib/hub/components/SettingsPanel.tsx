@@ -162,13 +162,12 @@ function PreviewFrame({ instance, customization }: { instance: WidgetInstance; c
       </WidgetFrame>
     );
   }
-  const showTitle = customization.layout?.showTitle ?? true;
   const titleOverride = customization.layout?.titleOverride;
   const title = titleOverride && titleOverride.trim().length > 0 ? titleOverride : definition.label;
   return (
     <WidgetFrame
       title={title}
-      showTitle={showTitle}
+      headerColor={customization.style?.headerColor}
       colorMode={customization.style?.colorMode}
       statusTint={customization.style?.statusTint}
       customBg={customization.style?.customBg}

@@ -379,7 +379,7 @@ WidgetCustomization {
 
 ### Phase HB3 — Slim the widget styling model
 
-#### Slice 5 — Add `style.headerColor`; title always visible; tolerate old data
+#### Slice 5 — Add `style.headerColor`; title always visible; tolerate old data ✅ shipped 2026-05-30
 - **Scope:** Add `headerColor?: string` to
   `WidgetCustomization.style`. Update `WidgetFrame` to always render
   the header + title (using `titleOverride` or the definition label)
@@ -392,6 +392,30 @@ WidgetCustomization {
 - **Done when:** Header+title always show; `headerColor` paints the
   header; old customizations load without error. Spec locks the field
   + always-on header + the tolerant load.
+- **Outcome:** `WidgetCustomization.style.headerColor?: string` added
+  to `lib/hub/types.ts`; the legacy style fields (colorMode/statusTint/
+  customBg/customFg/borderRadius/shadowDepth) stay on the type so old
+  saved rows in Supabase still parse, and Slice 6 will drop the reads.
+  `WidgetFrame` always renders the header (the `showTitle` prop is
+  gone from the interface + the `{showTitle && (…)}` gate is gone from
+  the JSX) and paints the header `background` from
+  `headerColor ?? 'transparent'`. New `lib/hub/normalize-customization.ts`
+  exports `normalizeCustomization` / `normalizeWidgetInstance` /
+  `normalizeWidgets` — pure functions that copy known fields through,
+  drop layout.showTitle (header is always visible now), and silently
+  discard out-of-enum style values; never throw. `hub-store.hydrate`
+  pipes incoming `widgets` through `normalizeWidgets` so any saved row
+  — old or new — loads cleanly. Updated `WidgetGrid` + `SettingsPanel`
+  call sites to drop the dropped `showTitle={…}` prop and pass
+  `headerColor={customization.style?.headerColor}`. Updated the two
+  pre-existing `widget-frame*.test.tsx` specs that locked the old
+  "header can be hidden" behavior — they now assert the
+  always-visible header + the `headerColor` painting. New
+  `__tests__/hub/widget-header-color.test.ts` (18 cases) locks the
+  type addition, the WidgetFrame contract, the normalizer's
+  pass-through + drop-showTitle + enum-sanitization behavior, the
+  invalid-row drops, and the hub-store import + hydrate wiring. 1145
+  hub specs green; typecheck + lint clean.
 
 #### Slice 6 — Retire the removed style options from reads + catalog
 - **Scope:** Remove reads of `colorMode/statusTint/customBg/customFg/

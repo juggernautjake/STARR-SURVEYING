@@ -22,19 +22,21 @@ import type {
 } from '@/lib/hub/types';
 
 export interface WidgetFrameProps {
-  /** Accessible title for the widget. Renders as a visually-styled
-   *  heading when `showTitle` is true; always present as an
-   *  `aria-labelledby` target. */
+  /** Accessible title for the widget. Always renders as a visible
+   *  heading post-Slice-5 (the surveyor can't hide the header); also
+   *  present as an `aria-labelledby` target. */
   title: string;
-  /** When false the title bar is hidden but the title is still
-   *  referenced by aria. Defaults to true. */
-  showTitle?: boolean;
   /** Right-aligned slot in the title bar — typically a "see all" link
-   *  or a config gear. Visible only when showTitle is true. */
+   *  or a config gear. */
   headerAction?: ReactNode;
   /** Optional bottom strip — used by widgets that need a "see all"
    *  link or a primary action. */
   footer?: ReactNode;
+  /** Slice 5 — opt-in header background color (any valid CSS color).
+   *  When set, paints the header bar so each widget reads
+   *  distinctively against the canvas. When absent, the header sits
+   *  on the resolved frame background. */
+  headerColor?: string;
   colorMode?: WidgetColorMode;
   statusTint?: WidgetStatusTint;
   customBg?: string;
@@ -62,9 +64,9 @@ const SHADOWS: Record<WidgetShadowDepth, string> = {
 
 export default function WidgetFrame({
   title,
-  showTitle = true,
   headerAction,
   footer,
+  headerColor,
   colorMode = 'inherit',
   statusTint,
   customBg,
@@ -95,55 +97,59 @@ export default function WidgetFrame({
         transition: 'border-color 0.15s ease-out',
       }}
     >
-      {showTitle && (
-        <header
+      {/* Slice 5 — header (title + optional action) always renders.
+          Per the user ask "The label header title for the widget
+          should always be visible." `headerColor`, when set, paints
+          the header background; otherwise the header sits on the
+          resolved frame chrome. */}
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: 'var(--hub-spc-3, 12px) var(--hub-spc-4, 16px)',
+          borderBottom: `1px solid ${border}`,
+          background: headerColor ?? 'transparent',
+          // Slice 206 — `min-width: 0` lets the title's flex slot
+          // shrink below its content's intrinsic width so the
+          // ellipsis applies + the drag handle / config gear in
+          // `headerAction` can never get pushed out of the header
+          // at narrow viewports.
+          minWidth: 0,
+          gap: 'var(--hub-spc-2, 8px)',
+        }}
+      >
+        <h2
+          id={titleId}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--hub-spc-3, 12px) var(--hub-spc-4, 16px)',
-            borderBottom: `1px solid ${border}`,
-            // Slice 206 — `min-width: 0` lets the title's flex slot
-            // shrink below its content's intrinsic width so the
-            // ellipsis applies + the drag handle / config gear in
-            // `headerAction` can never get pushed out of the header
-            // at narrow viewports.
+            margin: 0,
+            fontSize: 'var(--hub-font-sm, 0.875rem)',
+            fontWeight: 600,
+            color: 'inherit',
+            // Slice 206 — clip + ellipsis instead of wrap so a long
+            // surveyor-typed custom title doesn't push the
+            // headerAction out or make the title bar grow into a
+            // 2-line block at narrow widths.
             minWidth: 0,
-            gap: 'var(--hub-spc-2, 8px)',
+            flex: '1 1 auto',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
           }}
+          title={title}
         >
-          <h2
-            id={titleId}
-            style={{
-              margin: 0,
-              fontSize: 'var(--hub-font-sm, 0.875rem)',
-              fontWeight: 600,
-              color: 'inherit',
-              // Slice 206 — clip + ellipsis instead of wrap so a long
-              // surveyor-typed custom title doesn't push the
-              // headerAction out or make the title bar grow into a
-              // 2-line block at narrow widths.
-              minWidth: 0,
-              flex: '1 1 auto',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
-              textOverflow: 'ellipsis',
-            }}
-            title={title}
-          >
-            {title}
-          </h2>
-          {headerAction && (
-            <div style={{
-              display: 'flex',
-              gap: 'var(--hub-spc-2, 8px)',
-              flexShrink: 0,
-            }}>
-              {headerAction}
-            </div>
-          )}
-        </header>
-      )}
+          {title}
+        </h2>
+        {headerAction && (
+          <div style={{
+            display: 'flex',
+            gap: 'var(--hub-spc-2, 8px)',
+            flexShrink: 0,
+          }}>
+            {headerAction}
+          </div>
+        )}
+      </header>
       <div
         style={{
           flex: 1,

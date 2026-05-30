@@ -23,15 +23,27 @@ describe('WidgetFrame chrome', () => {
     expect(html).toContain('<div>body</div>');
   });
 
-  it('hides the title bar when showTitle=false but keeps aria target', () => {
+  it('always renders the title bar post-Slice-5 (no showTitle toggle)', () => {
+    // Slice 5 of employee-hub-overhaul-2026-05-30 removed the
+    // showTitle prop: the user-facing rule is "the label header title
+    // for the widget should always be visible".
     const html = ReactDOMServer.renderToStaticMarkup(
-      <WidgetFrame title="Hidden Title" showTitle={false}>
+      <WidgetFrame title="Always Visible">
         <div>body</div>
       </WidgetFrame>,
     );
-    expect(html).toContain('aria-labelledby="widget-hidden-title"');
-    // Title text only appears when shown
-    expect(html).not.toContain('Hidden Title');
+    expect(html).toContain('aria-labelledby="widget-always-visible"');
+    expect(html).toContain('Always Visible');
+    expect(html).toContain('<header');
+  });
+
+  it('paints the header background from headerColor when provided', () => {
+    const html = ReactDOMServer.renderToStaticMarkup(
+      <WidgetFrame title="Tinted" headerColor="rgb(255,0,0)">
+        <div>body</div>
+      </WidgetFrame>,
+    );
+    expect(html).toMatch(/<header[^>]*style="[^"]*background:\s*rgb\(255,\s*0,\s*0\)/);
   });
 
   it('renders a footer when provided', () => {
