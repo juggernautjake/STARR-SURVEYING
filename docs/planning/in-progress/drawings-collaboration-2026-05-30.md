@@ -91,17 +91,38 @@ on drawings):*
 - All new columns nullable / the new table empty, so existing rows /
   routes keep loading.
 
-### Slice 2 — API: drawing assignment + due cron
+### Slice 2 — API: drawing assignment + due cron ✅ shipped 2026-05-30
 
-- `PATCH /api/admin/cad/drawings/{id}` accepts `assigned_to` +
-  `due_date` updates.
-- Add `notifyDrawingAssigned` + `notifyDrawingDue` pure builders
-  (`lib/notifications/drawing.ts`) → link
-  `/admin/cad?job={jobId}&drawing={id}`. The assigned-to fan-out
-  also notifies job overseers per `usersForJobScope`.
-- New cron `/api/cron/drawing-due-reminder` at `0 13 * * *` mirrors
-  the assignment-due cron — boundary-only firing at 3 / 1 / 0 days.
-- Register in `vercel.json`.
+- New `lib/notifications/drawing.ts` ships THREE pure builders +
+  `drawingHref(drawingId, jobId?)`:
+  - `buildDrawingAssignedNotification` (🎯, source_type
+    `drawing_assigned`).
+  - `buildDrawingNoteNotification` (💬, source_type `drawing_note`)
+    — body preview clamped at 140 chars. Wired up in Slice 3.
+  - `buildDrawingDueReminders` (⏰, source_type `drawing_due`,
+    boundary-only at 3/1/0 days + overdue once-per-run; `high`
+    escalation when overdue). Mirrors the assignment-reminders
+    contract.
+  - Every payload links via `drawingHref` →
+    `/admin/cad?job={jobId}&drawing={id}` (job omitted for
+    free-floating drawings).
+- `PATCH /api/admin/cad/drawings` accepts `assigned_to` + `due_date`
+  (both nullable so unassign / clear-due work). The handler reads the
+  prior `assigned_to`, updates, and fires the assigned notification
+  ONLY when the new email is non-empty, different from the prior, and
+  isn't the actor — no double-pings on a re-save, no self-ping on
+  self-assign.
+- New `/api/cron/drawing-due-reminder` at `0 13 * * *` reads every
+  drawing with `assigned_to` + `due_date` set, runs them through
+  `buildDrawingDueReminders(...)`, fires per-row best-effort. Cron
+  registered in `vercel.json`.
+- The wider job-scope fan-out (overseers also get drawing
+  notifications) is wired in Slice 5 once `usersForJobScope` lights
+  up all job-scoped notifications at once. The assignee gets the
+  notification today via this slice.
+- 12 builder specs (drawingHref + assigned happy path + null guards +
+  note preview clamp + due boundaries + skips). Full hub +
+  notifications **1800 specs green**; typecheck + lint clean.
 
 ### Slice 3 — API: drawing notes (the dialog backend)
 
