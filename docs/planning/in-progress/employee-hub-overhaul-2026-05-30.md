@@ -799,19 +799,69 @@ WidgetCustomization {
   seeded merge + commit path, and the empty-state fallback for `none`.
   1279 hub specs green; typecheck + lint clean.
 
-#### Slice 14–15 — Render each widget body from its options (grouped by family)
-- **Scope:** With Slice 13 ensuring the panel surfaces every widget's
-  options, make each widget *body* honor `customization.content`
-  (e.g. weather location/units; my-pay stats/privacy/amount style;
-  today-schedule source/range; bookmarks/pinned-pages/quick-actions
-  items; monthly-revenue metric; counts/`see-all` toggles; etc.). Ship
-  one commit per widget family to keep each green:
-  - **14** pay/jobs/schedule/hours/pto + lists/links/messages/announcements/activity family,
-  - **15** field/equipment/research/learning/finance/utility family.
+#### Slice 14 — First pair of widget bodies honor their schema (pattern-setting) ✅ shipped 2026-05-30
+- **Scope:** A first-pass content-render wiring on two schema-source
+  widgets covering diverse field types so the pattern is established
+  before fanning out to the rest in Slice 15. First-check audit
+  surprise: **none** of the 12 schema-source widgets read
+  `customization.content` today, and most SettingsForm widgets don't
+  either — so the body-wiring gap is much wider than the planning
+  doc's original "pay/jobs/schedule family" grouping captured. Slice
+  14 ships two anchor widgets; Slice 15+ widens.
+- **Files:** `lib/hub/widgets/streak-counter/index.tsx`,
+  `lib/hub/widgets/outstanding-invoices/index.tsx`,
+  `__tests__/hub/widget-config-render-streak-counter.test.ts` (new),
+  `__tests__/hub/widget-config-render-outstanding-invoices.test.ts` (new).
+- **Done when:** Both widgets visibly reflect every schema field; the
+  resolvers are pure + tested; the schema option set agrees with what
+  the body actually understands.
+- **Outcome:**
+  - **streak-counter** — `StreakCounterContent` extends to
+    `{ kind?: 'clockin' | 'study' | 'quiz'; goal?: number }`,
+    matching the Slice-12 schema. Body reads `content`: `kind` swaps
+    the emoji + label via a `KIND_META` map (⏰ Clock-in streak / 🔥
+    Study streak / 🎯 Quiz streak); `goal` shows "N of GOAL days"
+    progress and swaps to 🏆 when the surveyor hits or exceeds it.
+    The fetch endpoint stays as `/api/admin/learn/streak` — per-kind
+    endpoints can be wired later without re-touching the render path.
+    Defaults `{ kind: 'study', goal: 7 }` so an unsavable empty
+    content reads identically to the pre-overhaul widget.
+  - **outstanding-invoices** — `OutstandingInvoicesContent` extends
+    to `{ maxItems?: number; sortBy?: 'due-date' | 'amount' |
+    'customer'; showAging?: boolean }`. Body reads `content`:
+    `sortInvoices(items, sortBy)` orders the list (amount desc;
+    customer A→Z; due-date ascending with nulls sinking to the end);
+    `resolveMaxItems` clamps to `[1, 20]` and returns `null` for
+    out-of-range so the existing size-bucket cap still applies as a
+    fallback; `showAging` (default true) appends
+    `agingLabel(due_date)` — "N days late", "due today", or
+    "due in Nd" — to each row.
+  - Both widgets export their resolvers (`resolveKind`, `resolveGoal`,
+    `KIND_META`; `resolveSortBy`, `resolveMaxItems`, `resolveShowAging`,
+    `sortInvoices`, `agingLabel`) so the new pure-unit specs can lock
+    behavior without going through React render (the SSR snapshot
+    caching limitation still applies to interactive store-mutation
+    specs).
+  - Two new spec files: 18 streak-counter cases + 24
+    outstanding-invoices cases. Each spec asserts (1) the schema's
+    declared option set agrees with what the resolver accepts, (2)
+    each resolver's fallback behavior on missing/invalid input, and
+    (3) the pure helper logic (sort orders, aging-label boundaries).
+    42 new specs total; 1321 hub specs green; typecheck + lint clean.
+
+#### Slice 15 — Remaining schema-source widget body wiring
+- **Scope:** Fan out the Slice-14 pattern to the other 10
+  schema-source widgets: `daily-briefing`, `flashcards-due`,
+  `monthly-revenue`, `pending-hours`, `pending-receipts`,
+  `pending-time-off`, `quiz-history`, `recommended-lessons`,
+  `roadmap-progress`, `sun-calculator`. Plus opportunistic content-
+  reads on the SettingsForm widgets that aren't honoring their own
+  content yet (audit shows most aren't). Ship multiple commits if
+  needed; keep each green.
 - **Files:** the per-widget `index.tsx` files,
-  `__tests__/hub/widget-config-render-*.test.ts` (per family).
-- **Done when:** Each widget visibly reflects its options; specs lock
-  each family's config→render wiring.
+  `__tests__/hub/widget-config-render-*.test.ts` (per widget).
+- **Done when:** Every schema-source widget visibly reflects its
+  options; the resolvers are pure + tested.
 
 ### Phase HB6 — Responsive render, Save round-trip, QA
 
