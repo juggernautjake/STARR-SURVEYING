@@ -51,6 +51,21 @@ the academic widgets all work too." Each: Build/Wire + 4 audit rounds.*
 - **Editor:** maxItems, category.
 - **Slices:** Build/Wire + R1–4. (R2 fixes the lesson link to the
   canonical `modules/{id}/{lessonId}` route.)
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** Two R1/R2 breaks:
+  (1) **`/api/admin/learn/recommended` didn't exist** → the widget
+  always showed empty; (2) rows linked to **`/admin/learn/lessons/{id}`,
+  a route that doesn't exist** (dead link). Fixes: **built the minimal
+  recommended endpoint** — it returns the caller's next not-yet-completed
+  `learning_lessons` (ordered by `order_index`, minus `user_progress`),
+  joined with the module title, via the pure
+  `lib/learn/recommended.ts` → `pickRecommended(lessons, completed,
+  limit, moduleTitles)`. The payload now includes `module_id`, so the
+  widget's rows deep-link to the **canonical** lesson route via a new
+  pure exported `recommendedLessonHref(l)` →
+  `/admin/learn/modules/{module}/{lesson}` (falling back to the modules
+  list). Footer "Go to lessons →" is global. 5 specs (pickRecommended
+  drop/cap/join/fallbacks + the canonical href). Full hub suite (1609)
+  green; typecheck + lint clean. **recommended-lessons is done.**
 
 ## roadmap-progress
 - **Endpoint:** `/api/admin/learn/roadmap`. Fields: id, name,

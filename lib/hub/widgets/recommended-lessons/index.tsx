@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
+import { lessonHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import {
@@ -53,7 +54,17 @@ export function lessonMatchesCategory(
   return tokens.some((t) => haystack.includes(t));
 }
 
-interface Lesson { id: string; title: string; module_title?: string | null; estimated_minutes?: number | null; }
+// hub-widget-excellence-13 R2 — the recommended payload now includes
+// `module_id` so rows deep-link to the canonical lesson route
+// (`/admin/learn/modules/{module}/{lesson}`); the old
+// `/admin/learn/lessons/{id}` route doesn't exist.
+interface Lesson { id: string; title: string; module_id?: string | null; module_title?: string | null; estimated_minutes?: number | null; }
+
+/** Canonical open-lesson link; falls back to the modules list when the
+ *  module is unknown. Pure + exported. */
+export function recommendedLessonHref(l: Pick<Lesson, 'id' | 'module_id'>): string {
+  return l.module_id ? lessonHref(l.module_id, l.id) : '/admin/learn/modules';
+}
 
 function RecommendedLessonsWidget({ size, content }: WidgetProps<RecommendedLessonsContent>) {
   const bucket = sizeBucket(size.w, size.h);
@@ -105,7 +116,7 @@ function RecommendedLessonsWidget({ size, content }: WidgetProps<RecommendedLess
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
       {filtered.slice(0, cap).map((l) => (
         <li key={l.id}>
-          <Link href={`/admin/learn/lessons/${l.id}`} style={{ display: 'block', padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'var(--theme-fg-primary)' }}>
+          <Link href={recommendedLessonHref(l)} style={{ display: 'block', padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'var(--theme-fg-primary)' }}>
             <span style={{ display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{l.title}</span>
             {(l.module_title || l.estimated_minutes) && (
               <span style={{ display: 'block', fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
