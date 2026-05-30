@@ -127,27 +127,40 @@ widget-links registry.
   normalization).
 - Full hub (1684) + notifications (92) green; typecheck + lint clean.
 
-### Slice 4 — Daily briefing morning cron
+### Slice 4 — Daily briefing morning cron ✅ shipped 2026-05-30
 
-- New `app/api/cron/daily-briefing/route.ts` runs at **0 13 * * 1-5**
-  (7 a.m. CST weekdays) and fires ONE notification per active user
-  with title "Good morning, {firstName} — here's your day". Body
-  composes the live data the widget already pulls:
-  - today's events (`crew_events` for today, count + first 3 titles);
-  - tasks due today + upcoming through the next 5 business days
-    (`assignments` filtered by due_date window);
-  - unread mentions + admin notes from the last 24h
-    (`messages.content @-mentions of the user` via the existing
-    `lib/messages/mentions.detectMentions` helper).
-- Link `/admin/me` (the hub's daily-briefing widget is at the top of
-  the canvas after this cron fires).
-- New pure `lib/notifications/daily-briefing.ts` →
+- New pure `lib/notifications/daily-briefing.ts` exports
   `buildDailyBriefingNotification({ user_email, first_name,
-  today_events, upcoming_tasks, mentions })` → payload | null
-  (null when the day truly has nothing → no spam).
-- 5 specs (each section's contribution + the truly-empty-day skip
-  + a packed-day composition).
-- Cron registration in `vercel.json` follows the existing pattern.
+  today_events, upcoming_tasks, recent_notes })` → payload | null
+  + `fiveBusinessDayWindow(now)` (the cron's UTC window math —
+  Monday is 5 calendar days, Wednesday/Friday is 7).
+- The composer assembles one body that strings together: events ("N
+  events today: A, B +M more."), tasks ("N tasks due this week: …"),
+  notes from boss/coworker/teacher ("N notes from author1, author2.").
+  Returns null on a truly-empty day so the bell doesn't fill up.
+  Title: "🌅 Good morning, {firstName}"; link `/admin/me`.
+- New `/api/cron/daily-briefing` cron registered at **0 13 * * 1-5**
+  (7 a.m. CST, business days). Pulls registered_users + today's
+  approved `schedule_events` + pending `assignments` due in the
+  5-business-day window + last-24h `messages`, partitions per user,
+  runs each message slice through `detectMentions(...)` (the existing
+  pure mentions helper) to find @-mentions of the user, then fires
+  `notify()` per non-empty briefing. Best-effort per user so one bad
+  row doesn't sink the batch.
+- `vercel.json` extended with the new cron entry.
+- 12 specs (window math for Mon/Wed/Fri + composer per section +
+  the empty-day skip + author dedupe + packed-day composition + blank
+  guards + fallback first name).
+- Full hub (1684) + notifications (104) = **1788 specs green**;
+  typecheck + lint clean.
+
+## Doc complete — queued next: drawings collaboration
+
+Four slices shipped. The user's wider drawing-collaboration ask (drawer
+assignment, due reminders, notes dialog between RPLS + drawer + job
+overseers, plus job-scoping every existing job-related notification)
+lands as a separate plan doc in `docs/planning/in-progress/` after
+this one moves to `completed/`, so the stop hook picks it up next.
 
 ## Out of scope (queued separately)
 
