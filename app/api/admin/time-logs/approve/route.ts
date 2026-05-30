@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildHoursDecisionNotifications } from '@/lib/notifications/hours-decision';
 
 // POST: Bulk approve/reject time logs
 export const POST = withErrorHandler(async (req: NextRequest) => {
@@ -41,6 +43,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .select();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // hub-widget-excellence-03 Slice 2 — tell the submitter their hours
+  // were approved/rejected (one bell per worker, not per row). Best-
+  // effort: a notification failure must not fail the approval.
+  try {
+    const notifications = buildHoursDecisionNotifications(data ?? [], action === 'approve');
+    await Promise.all(notifications.map((n) => notify(n)));
+  } catch { /* ignore notification failures */ }
 
   try {
     await supabaseAdmin.from('activity_log').insert({

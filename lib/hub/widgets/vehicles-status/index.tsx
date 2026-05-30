@@ -13,7 +13,13 @@ import {
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 import { bucketCap } from '@/lib/hub/widgets/_shared/simple-list-widget';
 
-export type VehicleStatusFilter = 'all' | 'in-use' | 'available' | 'maintenance';
+// hub-widget-excellence-12 R1 — `/api/admin/equipment/vehicles` doesn't
+// exist; the real endpoint is `/api/admin/vehicles`, and the `vehicles`
+// table has NO status/driver/next_service columns — only `name` /
+// `license_plate` / `active`. So the only real status signal is active
+// vs. inactive; the widget is an honest fleet roster.
+export type VehicleStatusFilter = 'all' | 'active' | 'inactive';
+export type VehicleStatus = 'available' | 'offline';
 
 export interface VehiclesStatusContent extends Record<string, unknown> {
   filter: VehicleStatusFilter;
@@ -23,9 +29,33 @@ const DEFAULTS: VehiclesStatusContent = { filter: 'all' };
 interface VehicleRow {
   id: string;
   name: string;
-  status: 'in-use' | 'available' | 'maintenance' | 'offline';
-  driver?: string | null;
-  next_service_at?: string | null;
+  license_plate?: string | null;
+  status: VehicleStatus;
+}
+
+interface RawVehicle {
+  id: string;
+  name?: string | null;
+  license_plate?: string | null;
+  active?: boolean | null;
+}
+
+/** Map a raw vehicles row; status is derived from `active`. Pure +
+ *  exported. */
+export function toVehicle(r: RawVehicle): VehicleRow {
+  return {
+    id: r.id,
+    name: r.name ?? 'Vehicle',
+    license_plate: r.license_plate ?? null,
+    status: r.active === false ? 'offline' : 'available',
+  };
+}
+
+/** Filter the roster by the (active-derived) status. Pure + exported. */
+export function filterVehicles(rows: VehicleRow[], filter: VehicleStatusFilter): VehicleRow[] {
+  if (filter === 'active') return rows.filter((v) => v.status === 'available');
+  if (filter === 'inactive') return rows.filter((v) => v.status === 'offline');
+  return rows;
 }
 
 function VehiclesStatusWidget({ size, content }: WidgetProps<VehiclesStatusContent>) {
@@ -37,11 +67,12 @@ function VehiclesStatusWidget({ size, content }: WidgetProps<VehiclesStatusConte
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch(`/api/admin/equipment/vehicles?filter=${settings.filter}`);
+      const res = await fetch('/api/admin/vehicles');
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { vehicles?: VehicleRow[] } = await res.json();
-      setItems(data.vehicles ?? []);
-      setStatus((data.vehicles ?? []).length === 0 ? 'empty' : 'ok');
+      const data: { vehicles?: RawVehicle[] } = await res.json();
+      const rows = filterVehicles((data.vehicles ?? []).map(toVehicle), settings.filter);
+      setItems(rows);
+      setStatus(rows.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('empty');
     }
@@ -76,10 +107,10 @@ function VehiclesStatusWidget({ size, content }: WidgetProps<VehiclesStatusConte
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
       {visible.map((v) => (
         <li key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
-          <span aria-label={v.status} style={{ width: 8, height: 8, borderRadius: 8, background: vehicleColor(v.status) }} />
-          <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{v.name}</span>
-          {v.driver && (
-            <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{v.driver}</span>
+          <span aria-label={v.status} style={{ width: 8, height: 8, borderRadius: 8, background: vehicleColor(v.status), flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name}</span>
+          {v.license_plate && (
+            <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', flexShrink: 0 }}>{v.license_plate}</span>
           )}
         </li>
       ))}
@@ -94,9 +125,8 @@ function VehiclesStatusSettings({ value, onChange }: WidgetSettingsFormProps<Veh
       <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>Filter</span>
       <select value={settings.filter} onChange={(e) => onChange({ ...settings, filter: e.target.value as VehicleStatusFilter })}>
         <option value="all">All vehicles</option>
-        <option value="in-use">In use</option>
-        <option value="available">Available</option>
-        <option value="maintenance">In maintenance</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
       </select>
     </label>
   );
@@ -122,11 +152,9 @@ export function capForBucket(bucket: SizeBucket): number {
   return bucketCap(bucket, { tiny: 2, small: 4, medium: 6, large: 12, xlarge: 24 });
 }
 
-export function vehicleColor(status: VehicleRow['status']): string {
+export function vehicleColor(status: VehicleStatus): string {
   switch (status) {
     case 'available': return 'var(--theme-success)';
-    case 'in-use': return 'var(--theme-accent)';
-    case 'maintenance': return 'var(--theme-warning)';
     case 'offline': return 'var(--theme-fg-muted)';
   }
 }

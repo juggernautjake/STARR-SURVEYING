@@ -6,8 +6,10 @@
 // Slice 120 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { jobHref, lessonHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -19,13 +21,27 @@ import {
 
 export type AssignedToFilter = 'me' | 'all';
 export type AssignmentsDueWindow = 'today' | 'week' | 'month' | 'all';
+export type AssignmentsPriorityFilter = 'all' | 'high' | 'urgent';
+export type AssignmentsSortBy = 'due' | 'priority';
 
 export interface AssignmentsDueContent extends Record<string, unknown> {
   assignedTo: AssignedToFilter;
   dueWithin: AssignmentsDueWindow;
+  // hub-widget-excellence-10 R4 — specialized editor options.
+  includeCompleted: boolean;
+  priority: AssignmentsPriorityFilter;
+  sortBy: AssignmentsSortBy;
+  rowLimit: number;
 }
 
-const DEFAULTS: AssignmentsDueContent = { assignedTo: 'me', dueWithin: 'week' };
+const DEFAULTS: AssignmentsDueContent = {
+  assignedTo: 'me',
+  dueWithin: 'week',
+  includeCompleted: false,
+  priority: 'all',
+  sortBy: 'due',
+  rowLimit: 10,
+};
 
 interface Task {
   id: string;
@@ -34,6 +50,9 @@ interface Task {
   status?: string | null;
   assigned_to?: string | null;
   priority?: string | null;
+  job_id?: string | null;
+  module_id?: string | null;
+  lesson_id?: string | null;
 }
 
 function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueContent>) {
@@ -50,13 +69,18 @@ function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueConte
       const res = await fetch(`/api/admin/assignments?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { assignments?: Task[] } = await res.json();
-      const list = filterByDueWindow(data.assignments ?? [], settings.dueWithin).sort(byDueAscending);
+      let list = data.assignments ?? [];
+      if (!settings.includeCompleted) list = list.filter((t) => t.status !== 'completed');
+      if (settings.priority !== 'all') list = list.filter((t) => t.priority === settings.priority);
+      list = filterByDueWindow(list, settings.dueWithin);
+      list = sortAssignments(list, settings.sortBy);
+      list = list.slice(0, Math.max(1, Math.min(50, settings.rowLimit)));
       setTasks(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('error');
     }
-  }, [settings.assignedTo, settings.dueWithin]);
+  }, [settings.assignedTo, settings.dueWithin, settings.includeCompleted, settings.priority, settings.sortBy, settings.rowLimit]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
@@ -87,21 +111,60 @@ function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueConte
     );
   }
 
+  // Per-bucket field priority: small = title + due + priority dot;
+  // medium adds the status chip; large+ adds the assignee.
+  const showStatus = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showAssignee = bucket === 'large' || bucket === 'xlarge';
+
   return (
     <ul role="list" style={listStyle}>
       {visible.map((t) => (
-        <li key={t.id} style={rowStyle}>
-          {t.priority === 'high' && (
-            <span aria-label="High priority" style={{ color: 'var(--theme-danger)' }}>!</span>
-          )}
-          <span style={titleStyle}>{t.title}</span>
-          {t.due_date && (
-            <span style={dueStyle(t.due_date)}>{formatDue(t.due_date)}</span>
-          )}
+        <li key={t.id}>
+          <Link href={assignmentHref(t)} style={rowStyle} aria-label={`Open assignment: ${t.title}`}>
+            <PriorityDot priority={t.priority} />
+            <span style={titleStyle}>{t.title}</span>
+            {showStatus && t.status && <StatusChip status={t.status} />}
+            {showAssignee && t.assigned_to && (
+              <span style={mutedStyle}>{shortEmail(t.assigned_to)}</span>
+            )}
+            {t.due_date && (
+              <span style={dueStyle(t.due_date)}>{formatDue(t.due_date)}</span>
+            )}
+          </Link>
         </li>
       ))}
     </ul>
   );
+}
+
+/** Canonical drill-in for an assignment: its owning job, then its
+ *  lesson, else the assignments list. */
+export function assignmentHref(t: Pick<Task, 'job_id' | 'module_id' | 'lesson_id'>): string {
+  if (t.job_id) return jobHref(t.job_id);
+  if (t.module_id && t.lesson_id) return lessonHref(t.module_id, t.lesson_id);
+  return '/admin/assignments';
+}
+
+function PriorityDot({ priority }: { priority?: string | null }) {
+  if (priority !== 'high' && priority !== 'urgent') return null;
+  const color = priority === 'urgent' ? 'var(--theme-danger)' : 'var(--theme-warning)';
+  return (
+    <span
+      aria-label={`${priority} priority`}
+      title={`${priority} priority`}
+      style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }}
+    />
+  );
+}
+
+function StatusChip({ status }: { status: string }) {
+  return (
+    <span style={statusChipStyle}>{status.replace('_', ' ')}</span>
+  );
+}
+
+function shortEmail(email: string): string {
+  return email.split('@')[0];
 }
 
 function AssignmentsDueSettings({ value, onChange }: WidgetSettingsFormProps<AssignmentsDueContent>) {
@@ -123,6 +186,39 @@ function AssignmentsDueSettings({ value, onChange }: WidgetSettingsFormProps<Ass
           <option value="month">Next 30 days</option>
           <option value="all">All</option>
         </select>
+      </label>
+      <label>
+        <span style={labelStyle}>Priority</span>
+        <select value={settings.priority} onChange={(e) => onChange({ ...settings, priority: e.target.value as AssignmentsPriorityFilter })}>
+          <option value="all">All priorities</option>
+          <option value="high">High only</option>
+          <option value="urgent">Urgent only</option>
+        </select>
+      </label>
+      <label>
+        <span style={labelStyle}>Sort by</span>
+        <select value={settings.sortBy} onChange={(e) => onChange({ ...settings, sortBy: e.target.value as AssignmentsSortBy })}>
+          <option value="due">Due date (soonest)</option>
+          <option value="priority">Priority</option>
+        </select>
+      </label>
+      <label>
+        <span style={labelStyle}>Max rows</span>
+        <input
+          type="number"
+          min={1}
+          max={50}
+          value={settings.rowLimit}
+          onChange={(e) => onChange({ ...settings, rowLimit: Math.max(1, Math.min(50, Number(e.target.value))) })}
+        />
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          type="checkbox"
+          checked={settings.includeCompleted}
+          onChange={(e) => onChange({ ...settings, includeCompleted: e.target.checked })}
+        />
+        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>Include completed</span>
       </label>
     </div>
   );
@@ -170,6 +266,23 @@ export function byDueAscending(a: Task, b: Task): number {
   return Date.parse(a.due_date ?? '9999-12-31') - Date.parse(b.due_date ?? '9999-12-31');
 }
 
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+
+/** Sort by due date, or by priority (urgent → high → …) then due.
+ *  Pure + exported. */
+export function sortAssignments(list: Task[], sortBy: AssignmentsSortBy): Task[] {
+  const copy = [...list];
+  if (sortBy === 'priority') {
+    return copy.sort((a, b) => {
+      const pa = PRIORITY_RANK[a.priority ?? 'normal'] ?? 2;
+      const pb = PRIORITY_RANK[b.priority ?? 'normal'] ?? 2;
+      if (pa !== pb) return pa - pb;
+      return byDueAscending(a, b);
+    });
+  }
+  return copy.sort(byDueAscending);
+}
+
 function windowToMs(w: Exclude<AssignmentsDueWindow, 'all'>): number {
   switch (w) {
     case 'today': return 24 * 3600 * 1000;
@@ -178,10 +291,21 @@ function windowToMs(w: Exclude<AssignmentsDueWindow, 'all'>): number {
   }
 }
 
-function formatDue(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+/** Relative due label: "overdue Nd", "today", "in Nd", or a short date
+ *  past two weeks out. Exported for testing. */
+export function formatDue(iso: string, nowMs: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  const days = Math.round((startOfUtcDay(t) - startOfUtcDay(nowMs)) / 86_400_000);
+  if (days < 0) return `overdue ${Math.abs(days)}d`;
+  if (days === 0) return 'today';
+  if (days <= 14) return `in ${days}d`;
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function startOfUtcDay(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 export function isOverdue(iso: string | null | undefined, nowMs: number = Date.now()): boolean {
@@ -201,6 +325,13 @@ function dueStyle(iso: string): React.CSSProperties {
 }
 
 const listStyle: React.CSSProperties = { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' };
-const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' };
-const titleStyle: React.CSSProperties = { flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)' };
+const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'inherit' };
+const titleStyle: React.CSSProperties = { flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const mutedStyle: React.CSSProperties = { fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', whiteSpace: 'nowrap' };
+const statusChipStyle: React.CSSProperties = {
+  fontSize: '0.68rem', fontWeight: 600, textTransform: 'capitalize',
+  padding: '1px 7px', borderRadius: 999,
+  background: 'var(--theme-bg-surface)', color: 'var(--theme-fg-secondary)',
+  border: '1px solid var(--theme-border)', whiteSpace: 'nowrap',
+};
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, marginBottom: 4 };

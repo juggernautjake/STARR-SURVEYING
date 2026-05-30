@@ -8,7 +8,22 @@ import {
   aggregateByJob,
   summarizeWeek,
   weekStartIso,
+  goalPct,
 } from '@/lib/hub/widgets/hours-this-week';
+
+describe('hours-this-week — goalPct (goal progress)', () => {
+  it('is the clamped percent of the goal', () => {
+    expect(goalPct(20, 40)).toBe(50);
+    expect(goalPct(40, 40)).toBe(100);
+    expect(goalPct(50, 40)).toBe(100); // clamped
+    expect(goalPct(0, 40)).toBe(0);
+  });
+
+  it('returns 0 for a non-positive goal', () => {
+    expect(goalPct(10, 0)).toBe(0);
+    expect(goalPct(10, -5)).toBe(0);
+  });
+});
 
 describe('hours-this-week widget — registry', () => {
   it('registers in time-pay category', () => {

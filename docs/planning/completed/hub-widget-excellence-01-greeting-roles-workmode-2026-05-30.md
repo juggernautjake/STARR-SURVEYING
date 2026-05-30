@@ -1,0 +1,269 @@
+# Foundation 01 — Greeting roles-as-pills + Work-Mode role/clock-in prompt
+
+*Part of the Hub Widget Excellence plan (see `…-00-master-…`). Covers
+the page-level greeting + Enter-Work-Mode changes the user asked for.*
+
+## User asks (verbatim intent)
+
+> Above/near the role selector, make ALL the user's roles visible on
+> the page, below the greeting block, as pill bubbles with different
+> background colors and white-or-black text depending on contrast.
+> Get rid of the role selector next to the "Enter Work Mode" button.
+> Instead, when the user clicks Enter Work Mode they get a prompt
+> asking what role they're working under. Entering work mode is not
+> the same as clocking in (they might enter work mode without being
+> clocked in, or clock in then enter work mode). The prompt also
+> alerts them whether they're clocked in — with "Clock in now?" /
+> "Stay clocked out" buttons — unless already clocked in, then assume
+> they're working.
+
+## Verified current state
+
+- `app/admin/me/components/HubGreeting.tsx` renders the greeting, the
+  date, the clock-status line, the Enter-Work-Mode `<a href="/admin/
+  work-mode/start">`, and a persona chip strip (lines ~150–198) driven
+  by `personaOverride` (`useAdminNavStore`) + `inferPersona(roles)` +
+  `PERSONA_ORDER`. Clicking a chip toggles the persona override (a
+  preview-the-hub-as-persona affordance) — this is the "role selector"
+  to remove from next to the button.
+- `.role-chip` / `.role-chip--active` classes are referenced but have
+  NO CSS yet (unstyled buttons).
+- Roles: `lib/auth.ts` `ALL_ROLES` (11): admin, developer, teacher,
+  student, researcher, drawer, field_crew, employee, guest,
+  tech_support, equipment_manager. `ROLE_LABELS` gives human labels.
+  A user's roles come from `session.user.roles`.
+- Work-mode eligible roles: `lib/hub/work-mode-eligibility.ts`
+  `WORK_MODE_ROLES` = admin, developer, field_crew, drawer, researcher,
+  equipment_manager, tech_support. `isWorkModeEligible(roles)`.
+- `/admin/work-mode/start/page.tsx` (server) fast-paths to
+  `/admin/work-mode/{role}` for a single eligible role, else renders
+  `RolePicker`. No clock-in awareness.
+- Clock-in: `lib/work-mode/clock-session.ts`
+  (`CLOCK_SESSION_KEY = 'starr-clock-session'`, `readClockSession()`,
+  `writeClockSession()`, `clearClockSession()`), surfaced by
+  `app/admin/components/ClockInPill.tsx` + `lib/work-mode/clock-modals.tsx`
+  (`ClockInModal` writes the session). Clock-in POSTs to
+  `/api/admin/time-logs`.
+
+## Design
+
+### Roles-as-pills (below the greeting block)
+
+- New presentational component `RolePills` (in
+  `app/admin/me/components/`) that renders EVERY role the user holds
+  (`session.user.roles`, de-duped, in a stable order) as a colored
+  pill with the `ROLE_LABELS[role]` text.
+- A pure `lib/admin/role-colors.ts` maps each `UserRole` → a brand-ish
+  background hex + a contrast-chosen foreground (`#000` or `#fff`)
+  computed from WCAG relative luminance (the same idea the CAD
+  label-background work used). Pure + unit-tested for every role +
+  the contrast threshold.
+- Replaces the persona chip strip in the greeting's actions area. The
+  "preview the hub as a persona" feature is a separate concern; if we
+  keep it at all, it moves into Profile/Settings — out of scope here.
+  The greeting just SHOWS the roles (read-only pills), matching the
+  user's sketch ("all I want from the drawing is the roles listed
+  out").
+
+### Enter-Work-Mode prompt
+
+- The Enter-Work-Mode button becomes a client control that opens a
+  `WorkModePrompt` modal instead of navigating straight to
+  `/admin/work-mode/start`.
+- The modal:
+  1. **Role step** — lists the user's WORK-MODE-eligible roles
+     (`eligibleWorkModeRoles(roles)`) as choices ("What role are you
+     working under?"). If only one, pre-selects it but still shows the
+     clock-in line. Picking a role advances/enables the confirm.
+  2. **Clock-in awareness** — reads `readClockSession()`:
+     - **Not clocked in** → shows "You're not clocked in." with two
+       actions: **"Clock in now?"** (opens the existing clock-in flow
+       / writes the session, then proceeds) and **"Stay clocked out"**
+       (proceeds without clocking in).
+     - **Already clocked in** → shows "You're clocked in (Nh Mm)." and
+       assumes working — no clock-in buttons, just **"Enter Work
+       Mode."**
+  3. On confirm → navigate to `/admin/work-mode/{role}`.
+- Entering work mode and clocking in stay independent: the prompt can
+  enter work mode without clocking in, and a person can be clocked in
+  without entering work mode (the top-bar pill is unchanged).
+
+## Slices
+
+### Slice 1 — `role-colors.ts` pure helper + spec ✅ shipped 2026-05-30
+- **Scope:** New `lib/admin/role-colors.ts`: `roleBackground(role)` +
+  `roleForeground(role)` (contrast-chosen via relative luminance) +
+  `rolePillColors(role)` returning `{ bg, fg }`. Distinct, readable
+  background per role; deterministic.
+- **Files:** `lib/admin/role-colors.ts`,
+  `__tests__/admin/role-colors.test.ts`.
+- **Done when:** every `UserRole` returns a `{bg,fg}` whose contrast
+  ratio ≥ 4.5; fg is `#000` or `#fff`; spec covers all 11 roles +
+  the contrast math.
+- **Shipped:** `role-colors.ts` built on the existing
+  `lib/theme/contrast.ts` WCAG helpers (`parseHexColor`,
+  `contrastRatio`, `pickForegroundForBackground`, `toHexColor`).
+  Distinct on-brand hex per role (deep-blue admin, indigo developer,
+  purple teacher, teal student, emerald researcher, amber-brown
+  drawer, green field_crew, slate employee, gray guest, sky
+  tech_support, red equipment_manager) + a slate fallback for unknown
+  roles. Exports `roleBackground` / `roleForeground` / `rolePillColors`
+  / `rolePillContrast`. 7 specs green: every role returns a #rrggbb bg,
+  a black-or-white fg, clears WCAG AA (≥ 4.5), has a distinct color,
+  and the unknown-role fallback also passes. The spec declares the
+  role list locally as a typed `readonly UserRole[]` (importing the
+  runtime `ALL_ROLES` pulls in next-auth, which fails in vitest — same
+  type-only pattern as `work-mode-eligibility.test`). typecheck + lint
+  clean.
+
+### Slice 2 — `RolePills` component + render below the greeting ✅ shipped 2026-05-30
+- **Scope:** New `RolePills` rendering all of the user's roles as
+  colored pills (label = `ROLE_LABELS[role]`). Mount it under the
+  greeting block (its own row, matching the sketch). Remove the
+  persona chip strip from the greeting's actions area.
+- **Files:** `app/admin/me/components/RolePills.tsx`,
+  `app/admin/me/components/HubGreeting.tsx`, `app/admin/me/AdminMe.css`
+  (pill styles), `__tests__/hub/role-pills.test.tsx` (SSR render: one
+  pill per role, label + inline bg/fg present).
+- **Done when:** all of a user's roles show as colored pills below the
+  greeting; the old persona selector strip is gone from there.
+- **Shipped:** `RolePills` de-dupes the session roles (one pill per
+  distinct role, stable order) and renders each as a colored pill —
+  `ROLE_LABELS[role]` text, inline `background`/`color` from
+  `rolePillColors(role)`, `data-role` attr, inside a
+  `role="list"` / `aria-label="Your roles"` list with a "Your roles:"
+  lead-in (matching the sketch). Returns nothing when the user has no
+  roles. `HubGreeting` dropped the entire persona-chip strip (and its
+  `personaOverride`/`useAdminNavStore`/`inferPersona`/`PERSONA_ORDER`
+  imports + state) and now renders `<RolePills roles={roles} />` on its
+  own full-width row below the greeting/actions; the persona-override
+  store itself is left intact (still drives the nav `IconRail`). CSS:
+  `.hub-greeting__role-pills` (full-width wrapping row),
+  `-label`, `-list` (unstyled `ul`), `-pill` (9999px pill, inline
+  bg/fg, subtle shadow). 6 specs green — they mock `@/lib/auth` for
+  `ROLE_LABELS` (the real module pulls next-auth, which fails in
+  vitest) and SSR-render the component to assert one labeled pill per
+  role with inline bg/fg, de-dupe, the role-list a11y semantics, and
+  the empty-roles → null case. typecheck + lint clean. (Added an
+  explicit `import React` to `RolePills.tsx` so the classic JSX runtime
+  vitest uses resolves `React.createElement`, matching `WidgetFrame`.)
+
+### Slice 3 — `WorkModePrompt` modal: role step ✅ shipped 2026-05-30
+- **Scope:** New `WorkModePrompt` client modal. The Enter-Work-Mode
+  control opens it. Role step lists `eligibleWorkModeRoles(roles)`;
+  selecting one enables confirm; single-role pre-selects. Confirm
+  navigates to `/admin/work-mode/{role}`.
+- **Files:** `app/admin/me/components/WorkModePrompt.tsx`,
+  `HubGreeting.tsx` (swap the `<a>` for the trigger),
+  `__tests__/hub/work-mode-prompt-role.test.tsx`.
+- **Done when:** clicking Enter Work Mode opens the prompt; picking a
+  role + confirming routes to that role's workspace.
+- **Shipped:** `WorkModePrompt` is now the greeting CTA — a `<button>`
+  (reusing the green `hub-greeting__work-mode-btn` classes, with a
+  native-button reset added to the CSS) that opens a themed modal
+  instead of the old `<a href="/admin/work-mode/start">`. EVERY
+  eligible user sees the prompt (no single-role fast-path bypass),
+  because Slice 4 hangs the clock-in step off the same modal. The role
+  step is factored into a pure, exported `WorkModeRoleStep` (heading
+  "What role are you working under?", one `aria-pressed` button per
+  `eligibleWorkModeRoles(roles)` with label + blurb, a disabled-until-
+  selected confirm) so it renders + asserts under SSR without driving
+  open/close state. Two exported pure helpers: `workModeHref(role)` →
+  `/admin/work-mode/{role}` and `preselectRole(eligible)` (single role
+  pre-selected, else null → explicit choice). Confirm does
+  `router.push(workModeHref(selectedRole))` (Slice 4 will splice the
+  clock-in branch in just before the push). Esc + overlay-click close
+  and return focus to the trigger. New `.work-mode-prompt__*` CSS
+  (overlay, modal, role cards with an active ring, pill actions) added
+  to `AdminMe.css`. 10 specs green (mock `@/lib/auth` + `next/
+  navigation`): href map, preselect rule, the rendered choices +
+  selected/disabled states, and that the trigger renders with no dialog
+  until opened. typecheck + lint clean; the existing greeting CSS
+  contract test still passes.
+
+### Slice 4 — Clock-in awareness in the prompt ✅ shipped 2026-05-30
+- **Scope:** The prompt reads `readClockSession()`. Not clocked in →
+  "Clock in now?" / "Stay clocked out". Already clocked in → assume
+  working (show elapsed, single Enter button). "Clock in now?" routes
+  through the existing clock-in flow (reuse `ClockInModal` /
+  `writeClockSession`) then proceeds; "Stay clocked out" proceeds.
+- **Files:** `WorkModePrompt.tsx`, possibly small exports from
+  `lib/work-mode/clock-modals.tsx`,
+  `__tests__/hub/work-mode-prompt-clockin.test.tsx`.
+- **Done when:** the prompt's clock-in branch matches the spec;
+  entering work mode never force-clocks-in; already-clocked-in users
+  skip the clock-in buttons.
+- **Shipped:** the prompt is now a two-step machine — the role step's
+  confirm (relabeled "Continue") reads `readClockSession()` and
+  advances to a new clock step. The clock step is a pure, exported
+  `WorkModeClockStep`: **clocked in** → green-dot status line ("You're
+  clocked in to {job} — {elapsed} elapsed. We'll assume you're
+  working.") + a single **Enter Work Mode** button, NO clock-in
+  buttons; **not clocked in** → "You're not currently clocked in.
+  Entering work mode won't clock you in." + **Clock in now?** /
+  **Stay clocked out**. "Stay clocked out" and the clocked-in Enter
+  both call the shared `enterWorkMode()`, which only
+  `router.push(workModeHref(role))` — it never writes a clock session,
+  so entering work mode is genuinely independent of clocking in. "Clock
+  in now?" lazy-loads the activity-tag catalog (same `GET
+  /api/admin/activity-tags` as `ClockInPill`) and opens the reused
+  `ClockInModal`; its submit is the ONLY place the prompt calls
+  `writeClockSession`, after which it proceeds into work mode. The
+  prompt overlay hides while the nested `ClockInModal` is open so the
+  dialogs don't stack. `clock-modals.tsx` needed no new exports
+  (`ClockInModal` was already exported). New
+  `.work-mode-prompt__clock-status` / `__clock-dot` CSS. 8 specs green
+  (mock `@/lib/auth` + `next/navigation`) covering both branches —
+  not-clocked-in copy + both buttons + the won't-clock-you-in
+  reassurance + `data-clocked-in="false"`; and clocked-in elapsed/job +
+  assume-working copy + NO clock-in buttons + the single Enter action +
+  `data-clocked-in="true"`. The Slice-3 role-step spec was updated for
+  the "Continue" relabel. typecheck + lint clean.
+
+### Slice 5 — Audit + cleanup ✅ shipped 2026-05-30
+- **Scope:** Remove now-dead persona-selector code paths from the
+  greeting if fully unused (keep `inferPersona` etc. if still used
+  elsewhere — verify). Confirm the top-bar `ClockInPill` still works
+  independently. a11y pass on pills (role list semantics) + the modal
+  (focus trap, Esc, labelledby). Update `e2e/hub-customize.spec.ts`
+  selectors only if they touched the greeting.
+- **Done when:** no dead code; pills + prompt are accessible; tree
+  green. Then this doc moves to `completed/`.
+- **Shipped:**
+  - **Dead code:** removed the orphaned Slice-80 `.hub-greeting__
+    persona*` CSS (the old persona `<select>` dropdown + its responsive
+    rules) — verified nothing in `app/`/`lib/`/`__tests__` references
+    those classes (the Slice-2 removal already deleted the chip strip's
+    `.role-chip`/`.hub-greeting__roles` markup, and that CSS never
+    existed). The persona-override store + `inferPersona`/`PERSONA_
+    ORDER` are KEPT — confirmed still consumed by `IconRail`,
+    `lib/admin/nav-store.ts`, and `lib/hub/server/fetch-hub-layout.ts`.
+  - **Regression fix:** importing `HubGreeting` now transitively pulls
+    `@/lib/auth` (via `RolePills` → runtime `ROLE_LABELS`), which fails
+    under vitest, so `greeting.test.ts`'s pure-helper import broke at
+    Slice 2. Extracted the three dependency-free helpers (`partOfDay`,
+    `firstName`, `formatElapsed`) into `greeting-helpers.ts`; HubGreeting
+    re-exports them for back-compat, and `ClockInPill` +
+    `WorkModePrompt` + `greeting.test.ts` now import from the helper
+    module. Full suite green again (1536 tests, 106 files).
+  - **a11y:** pills render in a `role="list"` with `aria-label="Your
+    roles"`; the prompt dialog has `aria-modal`, `aria-labelledby`,
+    step-aware `aria-describedby`, moves focus into the dialog on
+    open/step-change (`tabIndex=-1` + ref), closes on Esc + overlay
+    click, and returns focus to the trigger.
+  - **ClockInPill:** unchanged behavior — independent of the prompt
+    (only its `formatElapsed` import path moved). The prompt never
+    force-clocks-in.
+  - **e2e:** rewrote `e2e/work-mode.spec.ts` to drive the new flow
+    (button → dialog → pick role → Continue → "Stay clocked out"/Enter
+    → workspace) instead of the old greeting `<a>` + full-page picker.
+    `e2e/hub-customize.spec.ts` touches no greeting selector — left
+    as-is.
+  - typecheck + lint clean.
+
+## Guardrails
+- Don't break the independent top-bar clock-in pill.
+- `roleBackground` colors should be distinguishable but on-brand;
+  prefer the existing theme/brand palette where it maps cleanly.
+- If `inferPersona`/persona-override is used by the nav rail elsewhere,
+  leave that intact — only remove the chip STRIP from the greeting.

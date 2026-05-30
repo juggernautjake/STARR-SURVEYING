@@ -60,18 +60,34 @@ function PipelineStatusWidget({ size, content }: WidgetProps<PipelineStatusConte
     );
   }
 
+  const showStarted = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
   const cap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
   return (
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
       {runs.slice(0, cap).map((r) => (
         <li key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
-          <span aria-label={r.status} style={{ width: 8, height: 8, borderRadius: 8, background: pipelineColor(r.status) }} />
-          <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{r.name}</span>
-          <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{r.status}</span>
+          <span aria-label={r.status} style={{ width: 8, height: 8, borderRadius: 8, background: pipelineColor(r.status), flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+          {showStarted && r.started_at && (
+            <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', flexShrink: 0 }}>{formatStarted(r.started_at)}</span>
+          )}
+          <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', flexShrink: 0 }}>{r.status}</span>
         </li>
       ))}
     </ul>
   );
+}
+
+/** Short relative start time. Exported for testing. */
+export function formatStarted(iso: string, nowMs: number = Date.now()): string {
+  const ms = nowMs - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return 'just now';
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  return `${Math.floor(hr / 24)}d`;
 }
 
 function PipelineStatusSettings({ value, onChange }: WidgetSettingsFormProps<PipelineStatusContent>) {

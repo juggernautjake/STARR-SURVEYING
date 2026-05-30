@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getWidget } from '@/lib/hub/widget-registry';
-import { capForBucket, filterByScope } from '@/lib/hub/widgets/open-discussions';
+import { capForBucket, toDiscussion } from '@/lib/hub/widgets/open-discussions';
 
 describe('open-discussions widget — registry', () => {
   it('registers in communication category', () => {
@@ -20,27 +20,19 @@ describe('open-discussions — capForBucket', () => {
   });
 });
 
-describe('open-discussions — filterByScope', () => {
-  const list = [
-    { id: 'a', unread_count: 2, last_sender_email: 'someone@x', has_mention: false },
-    { id: 'b', unread_count: 0, last_sender_email: 'me@x', has_mention: true },
-    { id: 'c', unread_count: 1, last_sender_email: 'me@x', has_mention: false },
-    { id: 'd', unread_count: 1, last_sender_email: 'them@x', has_mention: true },
-  ];
-
-  it('"all" returns the input untouched', () => {
-    expect(filterByScope(list, 'all').map((c) => c.id)).toEqual(['a', 'b', 'c', 'd']);
+describe('open-discussions — toDiscussion (R1: real discussion_threads shape)', () => {
+  it('maps id/title/status/created_at + strips the "[Discussion]" prefix', () => {
+    expect(toDiscussion({
+      id: 't1', title: '[Discussion] Boundary dispute', status: 'open', created_at: '2026-05-30T10:00:00Z',
+    })).toEqual({
+      id: 't1', title: 'Boundary dispute', status: 'open', created_at: '2026-05-30T10:00:00Z',
+    });
   });
 
-  it('"mentions" keeps only conversations with has_mention=true', () => {
-    expect(filterByScope(list, 'mentions').map((c) => c.id)).toEqual(['b', 'd']);
-  });
-
-  it('"mine" requires unread + last sender ≠ current user', () => {
-    expect(filterByScope(list, 'mine', 'me@x').map((c) => c.id)).toEqual(['a', 'd']);
-  });
-
-  it('"mine" without a currentEmail still drops empty-unread', () => {
-    expect(filterByScope(list, 'mine').map((c) => c.id)).toEqual(['a', 'c', 'd']);
+  it('falls back the title + defaults status to open', () => {
+    const d = toDiscussion({ id: 't2' });
+    expect(d.title).toBe('Discussion');
+    expect(d.status).toBe('open');
+    expect(d.created_at).toBeNull();
   });
 });

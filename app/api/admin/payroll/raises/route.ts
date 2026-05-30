@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildPayRaiseNotification } from '@/lib/notifications/pay-raise';
 
 // GET: Get raise history for an employee
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -92,6 +94,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       metadata: { target_email: user_email, previous_rate: previousRate, new_rate, raise_amount: raiseAmount },
     });
   } catch { /* ignore */ }
+
+  // hub-widget-excellence-03 Slice 2h — tell the employee about the
+  // rate change (only an increase reads as a raise). Best-effort.
+  try {
+    const notice = buildPayRaiseNotification({
+      user_email,
+      new_rate,
+      previous_rate: previousRate,
+      effective_date,
+    });
+    if (notice) await notify(notice);
+  } catch { /* ignore notification failures */ }
 
   return NextResponse.json({ raise, updated_rate: new_rate }, { status: 201 });
 }, { routeName: 'payroll/raises' });

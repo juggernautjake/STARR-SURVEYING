@@ -2,8 +2,10 @@
 // Slice 123 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { jobHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import {
@@ -17,21 +19,29 @@ export type ActivityKind = 'stage' | 'file' | 'team' | 'comment' | 'tag';
 export interface JobActivityFeedContent extends Record<string, unknown> {
   jobFilter: string;
   activityTypes: ActivityKind[];
+  rowLimit: number;
 }
 
 const DEFAULTS: JobActivityFeedContent = {
   jobFilter: '',
   activityTypes: ['stage', 'file', 'team', 'comment', 'tag'],
+  rowLimit: 30,
 };
 
+// hub-widget-excellence-10 R1 — realigned to the real activity API:
+// `{ activity }` (not `items`), `type` is the raw action string
+// ('job_file_uploaded', 'job_stage_changed', …), and rows carry
+// `job_id`/`job_name` from the cross-job feed.
 interface ActivityItem {
   id: string;
-  type: ActivityKind;
+  type: string;
   label: string;
   actor?: string | null;
   at: string;
+  detail?: string | null;
   job_id?: string | null;
   job_name?: string | null;
+  job_number?: string | null;
 }
 
 function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedContent>) {
@@ -45,16 +55,17 @@ function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedCon
     try {
       const params = new URLSearchParams();
       if (settings.jobFilter) params.set('job_id', settings.jobFilter);
+      params.set('limit', String(Math.max(1, Math.min(100, settings.rowLimit))));
       const res = await fetch(`/api/admin/jobs/activity?${params}`);
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { items?: ActivityItem[] } = await res.json();
-      const list = (data.items ?? []).filter((it) => settings.activityTypes.includes(it.type));
+      const data: { activity?: ActivityItem[] } = await res.json();
+      const list = (data.activity ?? []).filter((it) => settings.activityTypes.includes(kindForAction(it.type)));
       setItems(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('empty');
     }
-  }, [settings.jobFilter, settings.activityTypes]);
+  }, [settings.jobFilter, settings.activityTypes, settings.rowLimit]);
 
   useEffect(() => { fetchActivity(); }, [fetchActivity]);
 
@@ -80,22 +91,55 @@ function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedCon
     );
   }
 
+  const showActor = bucket !== 'small'; // medium+ (tiny returned above)
+  const showTime = bucket === 'large' || bucket === 'xlarge';
   const visible = items.slice(0, capForBucket(bucket));
+
   return (
     <ul role="list" style={listStyle}>
-      {visible.map((it) => (
-        <li key={it.id} style={rowStyle}>
-          <span style={{ color: colorForKind(it.type) }} aria-hidden>{iconForKind(it.type)}</span>
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-            <span style={titleStyle}>{it.label}</span>
-            <span style={mutedStyle}>
-                {it.job_name ?? it.job_id ?? 'job'} · {it.actor ?? 'system'}
+      {visible.map((it) => {
+        const kind = kindForAction(it.type);
+        const job = it.job_name ?? it.job_number ?? it.job_id ?? 'job';
+        const meta = [job, showActor ? (it.actor ?? 'system') : null, showTime && it.at ? formatAge(it.at) : null]
+          .filter(Boolean).join(' · ');
+        const href = it.job_id ? jobHref(it.job_id) : '/admin/jobs';
+        return (
+          <li key={it.id}>
+            <Link href={href} style={rowStyle} aria-label={`${it.label} — open ${job}`}>
+              <span style={{ color: colorForKind(kind) }} aria-hidden>{iconForKind(kind)}</span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                <span style={titleStyle}>{it.detail ? `${it.label}: ${it.detail}` : it.label}</span>
+                <span style={mutedStyle}>{meta}</span>
               </span>
-          </span>
-        </li>
-      ))}
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
+}
+
+/** Classify a raw activity action string into a display kind. Exported
+ *  for testing. */
+export function kindForAction(action: string): ActivityKind {
+  const a = (action || '').toLowerCase();
+  if (a.includes('stage')) return 'stage';
+  if (a.includes('file') || a.includes('photo') || a.includes('drawing') || a.includes('cad')) return 'file';
+  if (a.includes('team') || a.includes('assign') || a.includes('crew')) return 'team';
+  if (a.includes('tag')) return 'tag';
+  return 'comment';
+}
+
+/** Short relative age ("5m", "3h", "2d"). Exported for testing. */
+export function formatAge(iso: string, nowMs: number = Date.now()): string {
+  const ms = nowMs - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return 'just now';
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  return `${Math.floor(hr / 24)}d`;
 }
 
 function JobActivityFeedSettings({ value, onChange }: WidgetSettingsFormProps<JobActivityFeedContent>) {
@@ -109,8 +153,18 @@ function JobActivityFeedSettings({ value, onChange }: WidgetSettingsFormProps<Jo
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-3, 12px)' }}>
       <label>
-        <span style={labelStyle}>Job filter (job_id)</span>
-        <input type="text" value={settings.jobFilter} placeholder="blank = all" onChange={(e) => onChange({ ...settings, jobFilter: e.target.value })} />
+        <span style={labelStyle}>Job filter (job id)</span>
+        <input type="text" value={settings.jobFilter} placeholder="blank = recent across all jobs" onChange={(e) => onChange({ ...settings, jobFilter: e.target.value })} />
+      </label>
+      <label>
+        <span style={labelStyle}>Max rows</span>
+        <input
+          type="number"
+          min={1}
+          max={100}
+          value={settings.rowLimit}
+          onChange={(e) => onChange({ ...settings, rowLimit: Math.max(1, Math.min(100, Number(e.target.value))) })}
+        />
       </label>
       <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
         <legend style={labelStyle}>Activity types</legend>
@@ -184,7 +238,7 @@ export function labelForKind(kind: ActivityKind): string {
 }
 
 const listStyle: React.CSSProperties = { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' };
-const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' };
-const titleStyle: React.CSSProperties = { fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)' };
+const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'inherit' };
+const titleStyle: React.CSSProperties = { fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const mutedStyle: React.CSSProperties = { fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, marginBottom: 4 };

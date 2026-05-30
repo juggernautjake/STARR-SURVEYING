@@ -14,12 +14,29 @@ import {
   ALL_MY_PAY_STATS,
   capForBucket,
   formatValue,
+  formatLastPayout,
   isCurrencyStat,
   labelForStat,
   visibleStatsForBucket,
   type MyPayContent,
   type MyPayStat,
 } from '@/lib/hub/widgets/my-pay';
+
+describe('my-pay — formatLastPayout (sketch line)', () => {
+  it('renders "Last payout: {date} — ${amount}"', () => {
+    const s = formatLastPayout(1250, '2026-05-24T00:00:00Z', 'currency');
+    expect(s).toContain('Last payout:');
+    expect(s).toContain('$1,250.00');
+  });
+
+  it('masks the amount under privacy', () => {
+    expect(formatLastPayout(1250, '2026-05-24T00:00:00Z', 'currency', true)).toContain('••••');
+  });
+
+  it('uses compact style when selected', () => {
+    expect(formatLastPayout(1250, '2026-05-24T00:00:00Z', 'compact')).toContain('$1.3k');
+  });
+});
 
 describe('my-pay widget — registry', () => {
   it('registers under id "my-pay" in time-pay category', () => {

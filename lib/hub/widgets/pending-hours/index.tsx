@@ -35,6 +35,45 @@ export const resolveGroupByPerson = (c: PendingHoursContent): boolean =>
 
 interface Timesheet { id: string; user_email: string; user_name?: string | null; week_start: string; total_hours: number; }
 
+// hub-widget-excellence-11 R1 — `/api/admin/time-logs/approve` is
+// POST-only (bulk approve), so the old GET always 404'd → empty. The
+// real pending data is `/api/admin/time-logs?status=pending` (returns
+// individual `{ logs }` for every user when an admin calls it). We
+// aggregate those daily rows into per-(submitter, week) timesheets.
+interface PendingLog {
+  user_email?: string | null;
+  user_name?: string | null;
+  log_date?: string | null;
+  hours?: number | null;
+}
+
+/** Monday (UTC) of the week containing `logDate` as 'YYYY-MM-DD'. */
+export function weekStartOf(logDate: string): string {
+  const d = new Date(`${logDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return logDate;
+  const dow = d.getUTCDay(); // 0 = Sunday
+  const offset = dow === 0 ? 6 : dow - 1;
+  return new Date(d.getTime() - offset * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Roll up pending daily time logs into per-submitter, per-week
+ *  timesheets (newest week first). Pure + exported. */
+export function aggregatePendingTimesheets(logs: readonly PendingLog[]): Timesheet[] {
+  const map = new Map<string, Timesheet>();
+  for (const log of logs) {
+    const email = log.user_email?.trim();
+    if (!email || !log.log_date) continue;
+    const ws = weekStartOf(log.log_date);
+    const key = `${email}:${ws}`;
+    const entry = map.get(key) ?? {
+      id: key, user_email: email, user_name: log.user_name ?? null, week_start: ws, total_hours: 0,
+    };
+    entry.total_hours += typeof log.hours === 'number' && Number.isFinite(log.hours) ? log.hours : 0;
+    map.set(key, entry);
+  }
+  return [...map.values()].sort((a, b) => b.week_start.localeCompare(a.week_start));
+}
+
 function PendingHoursWidget({ size, content }: WidgetProps<PendingHoursContent>) {
   const bucket = sizeBucket(size.w, size.h);
   const explicitCap = resolveMaxItems(content);
@@ -45,11 +84,12 @@ function PendingHoursWidget({ size, content }: WidgetProps<PendingHoursContent>)
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/time-logs/approve?status=pending');
+      const res = await fetch('/api/admin/time-logs?status=pending');
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { timesheets?: Timesheet[] } = await res.json();
-      setItems(data.timesheets ?? []);
-      setStatus((data.timesheets ?? []).length === 0 ? 'empty' : 'ok');
+      const data: { logs?: PendingLog[] } = await res.json();
+      const timesheets = aggregatePendingTimesheets(data.logs ?? []);
+      setItems(timesheets);
+      setStatus(timesheets.length === 0 ? 'empty' : 'ok');
     } catch { setStatus('empty'); }
   }, []);
   useEffect(() => { fetchItems(); }, [fetchItems]);
@@ -91,7 +131,7 @@ function PendingHoursWidget({ size, content }: WidgetProps<PendingHoursContent>)
       {rendered.slice(0, cap).map((t) => (
         <li key={t.id} style={rowStyle}>
           <span style={nameStyle}>{t.user_name ?? t.user_email}</span>
-          <span style={mutedStyle}>{t.total_hours}h · week of {new Date(t.week_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+          <span style={mutedStyle}>{t.total_hours.toFixed(1)}h · week of {new Date(`${t.week_start}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
         </li>
       ))}
     </ul>

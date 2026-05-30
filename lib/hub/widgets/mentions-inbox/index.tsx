@@ -6,8 +6,10 @@
 // Slice 119 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { conversationHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import {
@@ -83,14 +85,17 @@ function MentionsInboxWidget({ size, content }: WidgetProps<MentionsInboxContent
   return (
     <ul role="list" style={listStyle}>
       {visible.map((m) => (
-        <li key={m.id} style={rowStyle}>
-          <span style={mentionBadgeStyle} aria-hidden>@</span>
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-            <span style={titleStyle}>{m.conversation_title ?? 'Conversation'}</span>
-            {m.body_preview && (
-              <span style={previewStyle}>{m.body_preview}</span>
-            )}
-          </span>
+        <li key={m.id}>
+          {/* Row deep link → the conversation where you were mentioned. */}
+          <Link href={conversationHref(m.conversation_id)} style={rowStyle} aria-label={`Open ${m.conversation_title ?? 'conversation'}`}>
+            <span style={mentionBadgeStyle} aria-hidden>@</span>
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+              <span style={titleStyle}>{m.conversation_title ?? 'Conversation'}</span>
+              {m.body_preview && (
+                <span style={previewStyle}>{m.body_preview}</span>
+              )}
+            </span>
+          </Link>
         </li>
       ))}
     </ul>
@@ -156,7 +161,7 @@ function rangeToMs(range: Exclude<MentionDateRange, 'all'>): number {
 }
 
 const listStyle: React.CSSProperties = { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' };
-const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' };
+const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'inherit' };
 const mentionBadgeStyle: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, background: 'var(--theme-accent)', color: 'var(--theme-accent-fg)', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0 };
 const titleStyle: React.CSSProperties = { fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 const previewStyle: React.CSSProperties = { fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };

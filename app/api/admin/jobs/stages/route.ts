@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
+import { notifyJobStageUpdate } from '@/lib/notifications';
+import { resolveStageRecipients, isStageTransition } from '@/lib/notifications/job-stage';
 
 const STAGE_ORDER = ['quote', 'research', 'fieldwork', 'drawing', 'legal', 'delivery', 'completed'];
 const STAGE_DATE_MAP: Record<string, string> = {
@@ -40,7 +42,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!job_id || !to_stage) return NextResponse.json({ error: 'job_id and to_stage required' }, { status: 400 });
 
   // Get current job
-  const { data: job } = await supabaseAdmin.from('jobs').select('stage').eq('id', job_id).single();
+  const { data: job } = await supabaseAdmin.from('jobs').select('stage, job_number').eq('id', job_id).single();
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
   // Update job stage and corresponding date
@@ -76,6 +78,32 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     entity_id: job_id,
     details: { from: job.stage, to: to_stage },
   }));
+
+  // hub-widget-excellence-03 Slice 2d — notify the job's crew when the
+  // stage genuinely changes (skip no-op "set to same stage"). Recipients
+  // are the job_team emails minus the actor. Best-effort.
+  if (isStageTransition(job.stage as string, to_stage)) {
+    try {
+      const { data: team } = await supabaseAdmin
+        .from('job_team')
+        .select('user_email')
+        .eq('job_id', job_id);
+      const teamRows = (team ?? []) as Array<{ user_email: string | null }>;
+      const recipients = resolveStageRecipients(
+        teamRows.map((t) => t.user_email),
+        session.user.email,
+      );
+      if (recipients.length > 0) {
+        await notifyJobStageUpdate(
+          recipients,
+          (job.job_number as string) ?? String(job_id),
+          job_id,
+          job.stage as string,
+          to_stage,
+        );
+      }
+    } catch { /* ignore notification failures */ }
+  }
 
   return NextResponse.json({ success: true, from_stage: job.stage, to_stage });
 }, { routeName: 'jobs/stages' });

@@ -26,7 +26,30 @@ export const resolveMaxItems = (c: PendingReceiptsContent): number | null =>
 export const resolveShowAmount = (c: PendingReceiptsContent): boolean =>
   resolveBool(c.showAmount, true);
 
-interface Receipt { id: string; vendor?: string | null; amount: number; submitted_by?: string | null; submitted_at: string; }
+interface Receipt { id: string; vendor?: string | null; amount: number; submitted_by?: string | null; }
+
+// hub-widget-excellence-11 R1 — the receipts GET returns rows with
+// `vendor_name` / `total_cents` / `submitted_by_name|_email`, NOT the
+// `vendor` / `amount` / `submitted_by` this widget originally read (so
+// vendor was always "Vendor" + amounts were $0.00). Map the real shape.
+interface RawReceipt {
+  id: string;
+  vendor_name?: string | null;
+  total_cents?: number | null;
+  submitted_by_name?: string | null;
+  submitted_by_email?: string | null;
+}
+
+/** Map a raw receipts-API row to the widget's row. Pure + exported. */
+export function toPendingReceipt(r: RawReceipt): Receipt {
+  const cents = typeof r.total_cents === 'number' && Number.isFinite(r.total_cents) ? r.total_cents : 0;
+  return {
+    id: r.id,
+    vendor: r.vendor_name ?? null,
+    amount: cents / 100,
+    submitted_by: r.submitted_by_name ?? r.submitted_by_email ?? null,
+  };
+}
 
 function PendingReceiptsWidget({ size, content }: WidgetProps<PendingReceiptsContent>) {
   const bucket = sizeBucket(size.w, size.h);
@@ -40,9 +63,10 @@ function PendingReceiptsWidget({ size, content }: WidgetProps<PendingReceiptsCon
     try {
       const res = await fetch('/api/admin/receipts?status=pending');
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { receipts?: Receipt[] } = await res.json();
-      setItems(data.receipts ?? []);
-      setStatus((data.receipts ?? []).length === 0 ? 'empty' : 'ok');
+      const data: { receipts?: RawReceipt[] } = await res.json();
+      const receipts = (data.receipts ?? []).map(toPendingReceipt);
+      setItems(receipts);
+      setStatus(receipts.length === 0 ? 'empty' : 'ok');
     } catch { setStatus('empty'); }
   }, []);
   useEffect(() => { fetchItems(); }, [fetchItems]);

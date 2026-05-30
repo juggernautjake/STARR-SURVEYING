@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { getWidget } from '@/lib/hub/widget-registry';
 import {
   ALL_ASSIGNMENT_COLUMNS,
+  assignmentHref,
   capForBucket,
   chipMetaFor,
   dueStatusFor,
@@ -15,6 +16,16 @@ import {
   visibleColumnsForBucket,
   type AssignmentColumn,
 } from '@/lib/hub/widgets/class-assignments';
+
+describe('class-assignments — assignmentHref (lesson deep link)', () => {
+  it('links to the canonical lesson route', () => {
+    expect(assignmentHref({ module_id: 'm1', lesson_id: 'l9' })).toBe('/admin/learn/modules/m1/l9');
+  });
+  it('falls back to the module, then the learn hub', () => {
+    expect(assignmentHref({ module_id: 'm1', lesson_id: null })).toBe('/admin/learn/modules/m1');
+    expect(assignmentHref({ module_id: null, lesson_id: null })).toBe('/admin/learn');
+  });
+});
 
 describe('class-assignments widget — registry', () => {
   it('registers under id "class-assignments" in learning category', () => {

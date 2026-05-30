@@ -57,13 +57,28 @@ export function buildSunQuery(lat: string, lng: string): string {
   return parts.length ? `?${parts.join('&')}` : '';
 }
 
-/** Suffix the time with " UTC" when units=utc so the surveyor sees
- *  the unit without a backend round-trip. */
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T/;
+
+/** Format a sun time for display. The endpoint now returns ISO-8601 UTC
+ *  timestamps, so when `time` is ISO we render the clock time in the
+ *  surveyor's local zone (units='local') or UTC (units='utc', suffixed).
+ *  A non-ISO string (e.g. the widget's offline fallback "6:32 AM") keeps
+ *  the original passthrough behaviour — just a " UTC" suffix when asked. */
 export function formatTime(time: string, units: SunUnits): string {
+  if (ISO_RE.test(time)) {
+    const d = new Date(time);
+    if (!Number.isNaN(d.getTime())) {
+      const opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+      if (units === 'utc') {
+        return `${d.toLocaleTimeString('en-US', { ...opts, timeZone: 'UTC' })} UTC`;
+      }
+      return d.toLocaleTimeString('en-US', opts);
+    }
+  }
   return units === 'utc' ? `${time} UTC` : time;
 }
 
-interface SunInfo { sunrise: string; sunset: string; daylight_hours: number; location_label: string; }
+interface SunInfo { sunrise: string | null; sunset: string | null; daylight_hours: number; location_label: string; }
 
 function SunCalculatorWidget({ size, content }: WidgetProps<SunCalculatorContent>) {
   const bucket = sizeBucket(size.w, size.h);
@@ -116,8 +131,8 @@ function SunCalculatorWidget({ size, content }: WidgetProps<SunCalculatorContent
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: pairFontSize, fontWeight: 600, color: 'var(--theme-warning)' }}>↑ {formatTime(info.sunrise, units)}</span>
-        <span style={{ fontSize: pairFontSize, fontWeight: 600, color: 'var(--theme-accent)' }}>↓ {formatTime(info.sunset, units)}</span>
+        <span style={{ fontSize: pairFontSize, fontWeight: 600, color: 'var(--theme-warning)' }}>↑ {info.sunrise ? formatTime(info.sunrise, units) : '—'}</span>
+        <span style={{ fontSize: pairFontSize, fontWeight: 600, color: 'var(--theme-accent)' }}>↓ {info.sunset ? formatTime(info.sunset, units) : '—'}</span>
       </span>
       <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
         {info.daylight_hours.toFixed(1)} hours daylight

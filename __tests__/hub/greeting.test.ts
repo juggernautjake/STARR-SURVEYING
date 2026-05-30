@@ -1,16 +1,17 @@
 // __tests__/hub/greeting.test.ts
 //
-// Coverage for the pure helpers used by HubGreeting: partOfDay,
-// firstName, formatElapsed. The component itself is tested
-// indirectly via render in the hub integration suite (lands once
-// the persona-default seeder is in place in Slice 93).
+// Coverage for the pure greeting helpers: partOfDay, firstName,
+// formatElapsed. These moved to greeting-helpers.ts in
+// hub-widget-excellence-01 Slice 5 — importing them from HubGreeting
+// now drags in next-auth (via RolePills → @/lib/auth), so the test
+// imports the dependency-free helper module directly.
 
 import { describe, it, expect } from 'vitest';
 import {
   partOfDay,
   firstName,
   formatElapsed,
-} from '@/app/admin/me/components/HubGreeting';
+} from '@/app/admin/me/components/greeting-helpers';
 
 describe('partOfDay', () => {
   it('returns "Good night" before 5 AM', () => {

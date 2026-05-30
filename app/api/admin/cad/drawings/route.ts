@@ -42,11 +42,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // single job (the job-detail CAD tab passes ?job_id= to show only that
   // job's drawings).
   const jobId = searchParams.get('job_id');
+  // hub-widget-excellence-12 — join the job name so the recent-drawings
+  // hub widget can show the job, and honor `?mine=true` so its "Mine"
+  // scope filters to the caller's drawings.
+  const mine = searchParams.get('mine') === 'true';
   let query = supabaseAdmin
     .from('cad_drawings')
-    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at')
+    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at, jobs(name, job_number)')
     .order('updated_at', { ascending: false });
   if (jobId) query = query.eq('job_id', jobId);
+  if (mine) query = query.eq('created_by', session.user.email);
 
   const { data, error } = await query;
 
@@ -54,7 +59,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ drawings: data ?? [] });
+  type DrawingRow = Record<string, unknown> & { jobs?: { name?: string | null; job_number?: string | null } | null };
+  const drawings = ((data ?? []) as DrawingRow[]).map((row) => {
+    const { jobs, ...rest } = row;
+    return { ...rest, job_name: jobs?.name ?? null, job_number: jobs?.job_number ?? null };
+  });
+
+  return NextResponse.json({ drawings });
 });
 
 // ─── POST ────────────────────────────────────────────────────────────────────

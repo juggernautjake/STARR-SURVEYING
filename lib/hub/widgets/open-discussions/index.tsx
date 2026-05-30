@@ -7,6 +7,7 @@
 // Slice 116 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
@@ -18,38 +19,57 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export type DiscussionScope = 'mine' | 'mentions' | 'all';
+// hub-widget-excellence-14 R1 — open-discussions read the messages
+// conversations API, but discussions are a SEPARATE feature:
+// `/api/admin/discussions` returns `{ threads }` (`discussion_threads`
+// rows with title/status/created_at) and lives at /admin/discussions/{id}.
+export type DiscussionScope = 'open' | 'all';
 
 export interface OpenDiscussionsContent extends Record<string, unknown> {
   scope: DiscussionScope;
 }
 
-const DEFAULTS: OpenDiscussionsContent = { scope: 'mine' };
+const DEFAULTS: OpenDiscussionsContent = { scope: 'open' };
 
-interface Conversation {
+interface RawThread {
   id: string;
   title?: string | null;
-  unread_count?: number;
-  last_message_at?: string | null;
-  last_sender_email?: string | null;
-  has_mention?: boolean;
+  status?: string | null;
+  created_at?: string | null;
+}
+
+interface Discussion {
+  id: string;
+  title: string;
+  status: string;
+  created_at?: string | null;
+}
+
+/** Map a raw discussion thread to the widget row. The thread title is
+ *  stored prefixed "[Discussion] …" on create — strip it. Pure +
+ *  exported. */
+export function toDiscussion(t: RawThread): Discussion {
+  const title = (t.title ?? 'Discussion').replace(/^\[Discussion\]\s*/, '').trim() || 'Discussion';
+  return { id: t.id, title, status: t.status ?? 'open', created_at: t.created_at ?? null };
 }
 
 function OpenDiscussionsWidget({ size, content }: WidgetProps<OpenDiscussionsContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
 
   const fetchData = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/messages/conversations?limit=20');
+      const params = new URLSearchParams({ limit: '20' });
+      if (settings.scope === 'open') params.set('status', 'open');
+      const res = await fetch(`/api/admin/discussions?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { conversations?: Conversation[] } = await res.json();
-      const filtered = filterByScope(data.conversations ?? [], settings.scope);
-      setConversations(filtered);
-      setStatus(filtered.length === 0 ? 'empty' : 'ok');
+      const data: { threads?: RawThread[] } = await res.json();
+      const list = (data.threads ?? []).map(toDiscussion);
+      setDiscussions(list);
+      setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('error');
     }
@@ -69,37 +89,45 @@ function OpenDiscussionsWidget({ size, content }: WidgetProps<OpenDiscussionsCon
       );
     }
     return (
-      <WidgetEmpty icon="💭" title="Inbox zero" description="No open discussions in scope." />
+      <WidgetEmpty icon="💭" title="No open discussions" description="Discussion threads appear here." />
     );
   }
 
   if (bucket === 'tiny') {
-    const withMention = conversations.filter((c) => c.has_mention).length;
-    const color = withMention > 0 ? 'var(--theme-accent)' : 'var(--theme-fg-primary)';
     return (
       <div style={tinyStatWrapStyle()}>
-        <span style={statNumberStyle(bucket, color)}>{conversations.length}</span>
-        <span style={tinyStatLabelStyle()}>{withMention > 0 ? `${withMention} @you` : 'open'}</span>
+        <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{discussions.length}</span>
+        <span style={tinyStatLabelStyle()}>open</span>
       </div>
     );
   }
 
-  const visible = conversations.slice(0, capForBucket(bucket));
+  const showTime = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const visible = discussions.slice(0, capForBucket(bucket));
   return (
     <ul role="list" style={listStyle}>
-      {visible.map((c) => (
-        <li key={c.id} style={rowStyle}>
-          {(c.unread_count ?? 0) > 0 && (
-            <span aria-label="Unread" style={{ width: 8, height: 8, borderRadius: 8, background: 'var(--theme-accent)' }} />
-          )}
-          <span style={titleStyle}>{c.title ?? 'Conversation'}</span>
-          {c.has_mention && (
-            <span style={mentionStyle} aria-label="You were mentioned">@</span>
-          )}
+      {visible.map((d) => (
+        <li key={d.id}>
+          {/* Row deep link → the discussion thread. */}
+          <Link href={`/admin/discussions/${d.id}`} style={rowStyle} aria-label={`Open ${d.title}`}>
+            <span style={titleStyle}>{d.title}</span>
+            {d.status !== 'open' && <span style={statusChipStyle}>{d.status.replace('_', ' ')}</span>}
+            {showTime && d.created_at && <span style={timeStyle}>{formatRelative(d.created_at)}</span>}
+          </Link>
         </li>
       ))}
     </ul>
   );
+}
+
+function formatRelative(iso: string): string {
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  return `${Math.floor(hr / 24)}d`;
 }
 
 function OpenDiscussionsSettings({ value, onChange }: WidgetSettingsFormProps<OpenDiscussionsContent>) {
@@ -108,9 +136,8 @@ function OpenDiscussionsSettings({ value, onChange }: WidgetSettingsFormProps<Op
     <label>
       <span style={labelStyle}>Scope</span>
       <select value={settings.scope} onChange={(e) => onChange({ ...settings, scope: e.target.value as DiscussionScope })}>
-        <option value="mine">Awaiting my reply</option>
-        <option value="mentions">Where I&apos;m mentioned</option>
-        <option value="all">All open discussions</option>
+        <option value="open">Open only</option>
+        <option value="all">All discussions</option>
       </select>
     </label>
   );
@@ -142,18 +169,6 @@ export function capForBucket(bucket: SizeBucket): number {
   }
 }
 
-export function filterByScope(list: Conversation[], scope: DiscussionScope, currentEmail?: string): Conversation[] {
-  return list.filter((c) => {
-    if (scope === 'all') return true;
-    if (scope === 'mentions') return Boolean(c.has_mention);
-    // 'mine': has unread and the last sender was not me (heuristic; the
-    // real "awaiting my reply" lives in slice 156's messaging refactor).
-    if ((c.unread_count ?? 0) === 0) return false;
-    if (currentEmail && c.last_sender_email === currentEmail) return false;
-    return true;
-  });
-}
-
 const listStyle: React.CSSProperties = {
   listStyle: 'none',
   padding: 0,
@@ -170,6 +185,8 @@ const rowStyle: React.CSSProperties = {
   padding: 'var(--hub-spc-2, 8px) var(--hub-spc-3, 12px)',
   borderRadius: 6,
   background: 'var(--theme-bg-elevated)',
+  textDecoration: 'none',
+  color: 'inherit',
 };
 
 const titleStyle: React.CSSProperties = {
@@ -177,19 +194,27 @@ const titleStyle: React.CSSProperties = {
   fontSize: 'var(--hub-font-sm, 0.875rem)',
   fontWeight: 500,
   color: 'var(--theme-fg-primary)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 };
 
-const mentionStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 18,
-  height: 18,
-  borderRadius: 4,
-  background: 'var(--theme-accent)',
-  color: 'var(--theme-accent-fg)',
-  fontWeight: 700,
-  fontSize: '0.75rem',
+const statusChipStyle: React.CSSProperties = {
+  fontSize: '0.68rem',
+  fontWeight: 600,
+  textTransform: 'capitalize',
+  padding: '1px 7px',
+  borderRadius: 999,
+  background: 'var(--theme-bg-surface)',
+  color: 'var(--theme-fg-secondary)',
+  border: '1px solid var(--theme-border)',
+  flexShrink: 0,
+};
+
+const timeStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  flexShrink: 0,
 };
 
 const labelStyle: React.CSSProperties = {

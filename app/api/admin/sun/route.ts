@@ -1,25 +1,25 @@
 // app/api/admin/sun/route.ts
 //
-// Stub endpoint for the Sun Calculator widget (Slice 143). Real impl
-// would call a sunrise-sunset API or compute from lat/lon of the active
-// job site. The widget already has a hard-coded Austin fallback for
-// when this endpoint is missing — returning a shape-correct empty
-// payload here gives the widget a clean "we tried, no data" branch
-// before that fallback fires.
+// Sun Calculator widget endpoint (Slice 143). hub-widget-excellence-15 —
+// this was a 204 stub. Sunrise/sunset/daylight are deterministic from
+// lat/lng + date, so there's no reason to defer to a hard-coded
+// fallback: we compute them server-side (pure NOAA sunrise equation) and
+// return ISO-8601 UTC times the widget formats in the surveyor's zone.
 //
-// Slice 191 of customizable-hub-and-work-mode-2026-05-28.md.
+// GET /api/admin/sun?lat=&lng= → { sunrise, sunset, daylight_hours, location_label }
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { resolveSunPoint, buildSunResponse } from '@/lib/sun/response';
 
-export const GET = withErrorHandler(async () => {
+export const GET = withErrorHandler(async (req: Request) => {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  // 204 No Content — the widget's catch branch already supplies a
-  // sensible Austin TX default, so we'd rather defer to that than
-  // pretend we have data.
-  return new NextResponse(null, { status: 204 });
+
+  const { searchParams } = new URL(req.url);
+  const point = resolveSunPoint(searchParams.get('lat'), searchParams.get('lng'));
+  return NextResponse.json(buildSunResponse(point, new Date()));
 }, { routeName: 'admin/sun' });

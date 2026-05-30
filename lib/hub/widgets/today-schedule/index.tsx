@@ -9,23 +9,41 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { bucketToView, datePart, type CalendarView } from '@/lib/hub/calendar/calendar-math';
+import CalendarGrid from '@/lib/hub/calendar/CalendarGrid';
+import AddEventForm from '@/lib/hub/calendar/AddEventForm';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
 
 export type TodayScheduleTimeRange = 'all-day' | 'morning' | 'afternoon' | 'evening';
+/** Slice 5 (doc 04) — let the surveyor pin a presentation instead of
+ *  letting size decide. `auto` follows the size bucket. */
+export type TodayScheduleView = 'auto' | 'agenda' | 'grid';
 
 export interface TodayScheduleContent extends Record<string, unknown> {
   /** When true, all-day events render first; off hides them. */
   showAllDay: boolean;
   /** Limits the displayed window. `all-day` shows every event. */
   timeRange: TodayScheduleTimeRange;
+  /** Presentation override; `auto` lets the widget size decide. */
+  defaultView: TodayScheduleView;
+  /** When non-empty, only these event_types are shown (others hidden). */
+  eventTypes: string[];
 }
 
 const DEFAULTS: TodayScheduleContent = {
   showAllDay: true,
   timeRange: 'all-day',
+  defaultView: 'auto',
+  eventTypes: [],
 };
+
+/** All event types the widget knows how to tint (for the editor's
+ *  filter + the legend). */
+export const SCHEDULE_EVENT_TYPES = [
+  'field_work', 'office', 'meeting', 'training', 'time_off', 'deadline', 'equipment', 'other',
+] as const;
 
 interface ScheduleEvent {
   id: string;
@@ -52,26 +70,35 @@ const TYPE_TINTS: Record<string, 'accent' | 'success' | 'warning' | 'info' | 'da
 function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
+  // Slice 2/5 (doc 04) — agenda (tiny/small), agenda-wide (medium), or a
+  // read-only month grid (large/xlarge), unless the surveyor pinned a
+  // view. The grid needs the whole month's events, so the fetch window
+  // follows the resolved view.
+  const view = resolveScheduleView(settings.defaultView, bucket);
 
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  // Slice 3 (doc 04) — inline "+ Add event" at medium+ sizes.
+  const [adding, setAdding] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     setStatus('loading');
     try {
-      const { from, to } = todayWindow(settings.timeRange);
+      const { from, to } = scheduleWindow(view, settings.timeRange);
       const res = await fetch(`/api/admin/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { events?: ScheduleEvent[] } = await res.json();
       let list = data.events ?? [];
       if (!settings.showAllDay) list = list.filter((e) => !e.all_day);
+      list = filterEventsByType(list, settings.eventTypes);
       list = sortByStart(list);
       setEvents(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('error');
     }
-  }, [settings.showAllDay, settings.timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.showAllDay, settings.timeRange, settings.eventTypes.join('|'), view]);
 
   useEffect(() => {
     fetchEvents();
@@ -84,6 +111,43 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
   if (status === 'error')   return <WidgetError message="Couldn't load your schedule." onRetry={fetchEvents} />;
+
+  const today = datePart(new Date().toISOString());
+  // The "+ Add event" affordance only shows where there's room (medium+).
+  const canAdd = view === 'agenda-wide' || view === 'grid';
+  const addBar = canAdd ? (
+    adding ? (
+      <AddEventForm
+        defaultDate={today}
+        onCancel={() => setAdding(false)}
+        onCreated={() => { setAdding(false); fetchEvents(); }}
+      />
+    ) : (
+      <button type="button" onClick={() => setAdding(true)} style={addButtonStyle}>
+        + Add event
+      </button>
+    )
+  ) : null;
+
+  // Grid view (large/xlarge) renders the month even when empty — an
+  // empty month grid is still a useful at-a-glance calendar.
+  if (view === 'grid') {
+    const [gy, gm] = today.split('-').map(Number);
+    return (
+      <div style={gridWrapStyle}>
+        {addBar}
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <CalendarGrid
+            year={gy}
+            month={gm}
+            events={events as (ScheduleEvent & { id: string; title: string })[]}
+            todayIso={today}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (status === 'empty') {
     if (bucket === 'tiny') {
       return (
@@ -94,11 +158,14 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
       );
     }
     return (
-      <WidgetEmpty
-        icon="🗓"
-        title="Nothing scheduled today"
-        description="Enjoy the empty calendar — or add an event from /admin/schedule."
-      />
+      <div style={listWrapStyle}>
+        {addBar}
+        <WidgetEmpty
+          icon="🗓"
+          title="Nothing scheduled today"
+          description="Enjoy the empty calendar — or add an event below."
+        />
+      </div>
     );
   }
 
@@ -113,20 +180,23 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
   }
 
   return (
-    <ul role="list" style={listStyle}>
-      {visible.map((e) => (
-        <li key={e.id} style={rowStyle}>
-          <TypeStripe type={e.event_type} />
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-            <span style={titleStyle}>{e.title}</span>
-            <span style={mutedStyle}>
-              {formatTime(e)}
-              {e.location ? ` · ${e.location}` : ''}
+    <div style={listWrapStyle}>
+      {addBar}
+      <ul role="list" style={listStyle}>
+        {visible.map((e) => (
+          <li key={e.id} style={rowStyle}>
+            <TypeStripe type={e.event_type} />
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+              <span style={titleStyle}>{e.title}</span>
+              <span style={mutedStyle}>
+                {formatTime(e)}
+                {e.location ? ` · ${e.location}` : ''}
+              </span>
             </span>
-          </span>
-        </li>
-      ))}
-    </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -148,8 +218,28 @@ function TypeStripe({ type }: { type?: string | null }) {
 
 function TodayScheduleSettings({ value, onChange }: WidgetSettingsFormProps<TodayScheduleContent>) {
   const settings = { ...DEFAULTS, ...value };
+  const eventTypes = settings.eventTypes ?? [];
+
+  function toggleType(t: string) {
+    const next = eventTypes.includes(t)
+      ? eventTypes.filter((x) => x !== t)
+      : [...eventTypes, t];
+    onChange({ ...settings, eventTypes: next });
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-3, 12px)' }}>
+      <label>
+        <span style={labelStyle}>Default view</span>
+        <select
+          value={settings.defaultView}
+          onChange={(e) => onChange({ ...settings, defaultView: e.target.value as TodayScheduleView })}
+        >
+          <option value="auto">Auto (follows widget size)</option>
+          <option value="agenda">Agenda list</option>
+          <option value="grid">Month grid (when it fits)</option>
+        </select>
+      </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <input
           type="checkbox"
@@ -159,7 +249,7 @@ function TodayScheduleSettings({ value, onChange }: WidgetSettingsFormProps<Toda
         <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>Show all-day events</span>
       </label>
       <label>
-        <span style={labelStyle}>Time range</span>
+        <span style={labelStyle}>Time range (agenda)</span>
         <select
           value={settings.timeRange}
           onChange={(e) => onChange({ ...settings, timeRange: e.target.value as TodayScheduleTimeRange })}
@@ -170,6 +260,34 @@ function TodayScheduleSettings({ value, onChange }: WidgetSettingsFormProps<Toda
           <option value="evening">Evening (6pm–midnight)</option>
         </select>
       </label>
+      <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
+        <legend style={labelStyle}>Event types to show</legend>
+        <p style={{ margin: '0 0 6px', fontSize: '0.74rem', color: 'var(--theme-fg-secondary)' }}>
+          None selected shows every type.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {SCHEDULE_EVENT_TYPES.map((t) => {
+            const on = eventTypes.includes(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleType(t)}
+                aria-pressed={on}
+                style={{
+                  padding: '3px 9px', borderRadius: 999, cursor: 'pointer',
+                  fontSize: '0.74rem', fontWeight: 600,
+                  border: `1px solid var(--theme-${TYPE_TINTS[t] ?? 'info'})`,
+                  background: on ? `var(--theme-${TYPE_TINTS[t] ?? 'info'})` : 'transparent',
+                  color: on ? 'var(--theme-accent-fg, #fff)' : 'var(--theme-fg-secondary)',
+                }}
+              >
+                {t.replace('_', ' ')}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
     </div>
   );
 }
@@ -192,6 +310,31 @@ defineWidget<TodayScheduleContent>({
 
 // ─── Helpers (exported for tests) ────────────────────────────────────
 
+/** Resolve the presentation: an explicit override wins, except the grid
+ *  can't fit at tiny/small where it falls back to the agenda. `auto`
+ *  follows the size bucket. Pure + exported. */
+export function resolveScheduleView(
+  defaultView: TodayScheduleView,
+  bucket: SizeBucket,
+): CalendarView {
+  if (defaultView === 'agenda') return 'agenda';
+  if (defaultView === 'grid') {
+    return bucket === 'tiny' || bucket === 'small' ? 'agenda' : 'grid';
+  }
+  return bucketToView(bucket);
+}
+
+/** Keep only events whose `event_type` is in `types`. An empty list
+ *  means "show everything". Pure + exported. */
+export function filterEventsByType<T extends { event_type?: string | null }>(
+  events: T[],
+  types: string[],
+): T[] {
+  if (!types || types.length === 0) return events;
+  const set = new Set(types);
+  return events.filter((e) => set.has(e.event_type ?? 'other'));
+}
+
 export function capForBucket(bucket: SizeBucket): number {
   switch (bucket) {
     case 'tiny':   return 2;
@@ -200,6 +343,41 @@ export function capForBucket(bucket: SizeBucket): number {
     case 'large':  return 12;
     case 'xlarge': return 24;
   }
+}
+
+/**
+ * The schedule fetch window for the current view: the day (agenda),
+ * today + the next two days (agenda-wide), or the whole focus month
+ * (grid). Exported for testing.
+ */
+export function scheduleWindow(
+  view: CalendarView,
+  range: TodayScheduleTimeRange,
+  now: Date = new Date(),
+): { from: string; to: string } {
+  if (view === 'grid') return monthWindow(now);
+  if (view === 'agenda-wide') return daysWindow(now, 3);
+  return todayWindow(range, now);
+}
+
+/** The whole UTC month containing `now` (first day 00:00 → next month
+ *  first day 00:00), padded a week each side so leading/trailing grid
+ *  days from adjacent months show their events too. */
+export function monthWindow(now: Date = new Date()): { from: string; to: string } {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const from = new Date(Date.UTC(y, m, 1) - 7 * 86_400_000);
+  const to = new Date(Date.UTC(y, m + 1, 1) + 7 * 86_400_000);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+/** `n` whole days starting at the local midnight of `now`. */
+export function daysWindow(now: Date = new Date(), n = 3): { from: string; to: string } {
+  const day = new Date(now);
+  day.setHours(0, 0, 0, 0);
+  const end = new Date(day);
+  end.setDate(end.getDate() + n);
+  return { from: day.toISOString(), to: end.toISOString() };
 }
 
 export function todayWindow(range: TodayScheduleTimeRange, now: Date = new Date()): { from: string; to: string } {
@@ -252,6 +430,33 @@ const listStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--hub-spc-2, 8px)',
+};
+
+// Slice 3 (doc 04) — wrappers + the "+ Add event" toggle.
+const listWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--hub-spc-2, 8px)',
+  height: '100%',
+};
+
+const gridWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  height: '100%',
+};
+
+const addButtonStyle: React.CSSProperties = {
+  alignSelf: 'flex-start',
+  padding: '4px 10px',
+  borderRadius: 6,
+  border: '1px dashed var(--theme-border)',
+  background: 'transparent',
+  color: 'var(--theme-accent, #3b82f6)',
+  cursor: 'pointer',
+  fontSize: '0.8rem',
+  fontWeight: 600,
 };
 
 const rowStyle: React.CSSProperties = {

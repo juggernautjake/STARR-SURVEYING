@@ -2,7 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildAssignmentNotification } from '@/lib/notifications/assignment';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -61,17 +63,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Create notification for the assignee
-  await fireAndForget(supabaseAdmin.from('notifications').insert({
-    user_email: assigned_to,
-    type: 'assignment',
-    title: 'New Assignment',
-    body: `You have been assigned: ${title}`,
-    icon: '📋',
-    link: '/admin/assignments',
-    source_type: 'assignment',
-    source_id: data.id,
-  }));
+  // hub-widget-excellence-03 Slice 2e — notify the assignee with the
+  // typed payload (now carries priority + due date, vs. the old generic
+  // inline insert). Best-effort.
+  try {
+    const notice = buildAssignmentNotification(data as Parameters<typeof buildAssignmentNotification>[0]);
+    if (notice) await notify(notice);
+  } catch { /* ignore notification failures */ }
 
   return NextResponse.json({ assignment: data }, { status: 201 });
 }, { routeName: 'assignments' });
@@ -90,6 +88,16 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await supabaseAdmin.from('assignments').update(updates).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // hub-widget-excellence-03 Slice 2e — when an admin reassigns the
+  // task (sets a new assigned_to), notify the new assignee. Status-only
+  // edits (e.g. a worker marking their own task complete) stay silent.
+  if (isAdmin(session.user.roles) && typeof updates.assigned_to === 'string' && updates.assigned_to.trim()) {
+    try {
+      const notice = buildAssignmentNotification(data as Parameters<typeof buildAssignmentNotification>[0]);
+      if (notice) await notify(notice);
+    } catch { /* ignore notification failures */ }
+  }
 
   return NextResponse.json({ assignment: data });
 }, { routeName: 'assignments' });

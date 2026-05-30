@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
-import { formatElapsed } from '@/app/admin/me/components/HubGreeting';
+import { formatElapsed } from '@/app/admin/me/components/greeting-helpers';
 import { ClockInModal, ClockOutModal } from '@/lib/work-mode/clock-modals';
 import {
   CLOCK_SESSION_KEY,

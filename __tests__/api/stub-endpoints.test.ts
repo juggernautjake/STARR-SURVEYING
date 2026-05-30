@@ -1,9 +1,15 @@
 // __tests__/api/stub-endpoints.test.ts
 //
-// Slice 191 — confirms the 4 stub endpoints return the shape the
-// widgets expect (or 204 No Content when no payload would be honest).
-// We mock @/lib/auth to bypass the session check; the route handlers
-// are exercised as plain async functions.
+// Slice 191 originally covered four placeholder endpoints. Over
+// hub-widget-excellence docs 12/14/15 every one was wired to real data:
+//   - /api/admin/research/pipeline → research_projects (doc 12)
+//   - /api/admin/team/status       → today's daily_time_logs (doc 14)
+//   - /api/admin/weather           → keyless Open-Meteo (doc 15)
+//   - /api/admin/sun               → pure sunrise computation (doc 15)
+// Each carries its own pure-helper specs. What remains worth asserting
+// here is the shared contract: they still compute a real payload and
+// still reject unauthenticated callers. We use /api/admin/sun (fully
+// deterministic, no network) as the representative.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -12,47 +18,30 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 // Re-import after the mock is registered.
-const { GET: teamStatusGet } = await import('@/app/api/admin/team/status/route');
-const { GET: weatherGet } = await import('@/app/api/admin/weather/route');
 const { GET: sunGet } = await import('@/app/api/admin/sun/route');
-const { GET: pipelineGet } = await import('@/app/api/admin/research/pipeline/route');
 
-describe('Slice 191 — stub endpoints', () => {
+describe('formerly-stub endpoints — now real', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('/api/admin/team/status returns { members: [] }', async () => {
-    const res = await teamStatusGet(new Request('http://localhost/api/admin/team/status') as never);
+  it('/api/admin/sun computes a real sunrise/sunset payload', async () => {
+    const res = await sunGet(new Request('http://localhost/api/admin/sun?lat=30.27&lng=-97.74') as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ members: [] });
-  });
-
-  it('/api/admin/weather returns 204 No Content', async () => {
-    const res = await weatherGet(new Request('http://localhost/api/admin/weather') as never);
-    expect(res.status).toBe(204);
-  });
-
-  it('/api/admin/sun returns 204 No Content', async () => {
-    const res = await sunGet(new Request('http://localhost/api/admin/sun') as never);
-    expect(res.status).toBe(204);
-  });
-
-  it('/api/admin/research/pipeline returns { runs: [] }', async () => {
-    const res = await pipelineGet(new Request('http://localhost/api/admin/research/pipeline') as never);
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ runs: [] });
+    expect(body).toMatchObject({ location_label: expect.any(String) });
+    expect(typeof body.daylight_hours).toBe('number');
+    expect(body.sunrise).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(body.sunset).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });
 
-describe('Slice 191 — stub endpoints reject unauthenticated callers', () => {
+describe('formerly-stub endpoints reject unauthenticated callers', () => {
   it('returns 401 when there is no session', async () => {
     const { auth } = await import('@/lib/auth');
     (auth as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue(null);
 
-    const res = await teamStatusGet(new Request('http://localhost/api/admin/team/status') as never);
+    const res = await sunGet(new Request('http://localhost/api/admin/sun') as never);
     expect(res.status).toBe(401);
   });
 });

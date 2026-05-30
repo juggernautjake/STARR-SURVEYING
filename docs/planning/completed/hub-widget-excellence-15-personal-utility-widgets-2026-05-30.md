@@ -1,0 +1,358 @@
+# Category 15 — Personal & utility widgets
+
+*Part of the Hub Widget Excellence plan (`…-00-master-…`). Widgets:
+**quick-actions, pinned-pages, bookmarks, recent-activity, weather,
+sun-calculator, daily-briefing, mileage-tracker**. (today-schedule has
+its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
+**quick-actions overhaul** is the headline here.*
+
+---
+
+## quick-actions  *(user-prioritized)*
+- **Source:** `lib/hub/quick-actions-catalog.ts` (10 actions today):
+  `{ id, label, href, iconName, tint, kind }`. Reads
+  `customization.content.actionIds` + layout/display options.
+- **User asks:** better formatting; the user should more easily choose
+  which actions are available; **render as many actions as fit for the
+  widget size**.
+- **Track / behavior:** the surveyor's chosen ordered list of actions;
+  render the maximum that fit the current bucket (don't just cap at a
+  fixed number — fill the available cells), spilling the rest behind a
+  "+N more" or hiding gracefully.
+- **Per-bucket priority:** tiny → the top 1–2 actions as icons;
+  small → 2–4 in a grid; medium → 4–8; large/xlarge → the full chosen
+  set in a clean grid with labels. Compute capacity from the rendered
+  cell dimensions (cols × rows of action tiles) rather than a hard cap.
+- **Footer link:** none required (actions ARE the links); optional
+  "Customize actions" affordance points at the widget's own editor.
+- **Editor (specialized — make it great):** a **reorderable
+  chip/multi-select** (from Foundation Doc 02 Slice 4) to pick + order
+  which catalog actions show; layout style (grid/list); display style
+  (icon+label / icon-only / label-only); optional keyboard shortcuts
+  toggle. Live preview of the action grid. This is the editor the user
+  specifically wants to be easy.
+- **Build/Wire:** capacity-based rendering (fill the widget) + the
+  reorderable action picker + better tile formatting (consistent
+  sizing, tint usage, hover/focus states).
+- **Slices:** Build/Wire + R1 (data: confirm the catalog + that every
+  action href resolves to a real route — fix any dead one), R2 (links:
+  every action goes to the right page), R3 (size: capacity fill at
+  every bucket, no clip, "+N more" overflow), R4 (editor: the
+  reorderable picker + preview, final polish).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** The headline
+  overhaul. **R1/R2 (data + links):** audited all 10 catalog actions —
+  the 6 `link` actions (`/admin/jobs/new`, `/admin/receipts`,
+  `/admin/reports`, `/admin/cad`, `/admin/messages/new`,
+  `/admin/schedule`) each resolve to a real `app/.../page.tsx` (verified
+  against the route tree); the 2 `action` actions (clock-in-out,
+  capture-receipt) keep their disabled "coming soon" state until their
+  modals ship. No dead links. A catalog-integrity spec now locks that
+  every `link` has an internal href + every `action` has an actionId.
+  **R3 (capacity fill — the user's core ask "render as many as fit"):**
+  replaced the hard per-bucket cap with measured capacity. The widget
+  now self-measures its body via `useElementSize` and a new pure
+  `lib/hub/widgets/quick-actions/capacity.ts` derives cols × rows from
+  the contentRect (`gridCapacity` for tiles, `listCapacity` for rows,
+  the standard "n tiles + (n-1) gaps fit the track" inversion). It fills
+  the cell instead of stopping at a fixed number; the bucket cap remains
+  the pre-measure fallback (first paint / SSR). Overflow is handled by
+  `splitForCapacity` → a non-interactive **"+N more"** indicator in the
+  last cell (never a dead link — a tooltip explains resize/trim).
+  Grid uses `minmax(0,1fr)` cols + `alignContent:start` so tiles never
+  clip. **R4 (editor):** swapped the order-agnostic checkbox list for a
+  **reorderable picker** built on the shared ordered-list helpers
+  (`moveUp`/`moveDown`/`addOrdered`/`removeOrdered`/`unselectedOptions`,
+  Foundation Doc 02): a "Shown actions" ordered list with ↑/↓/✕ per row,
+  an "Add an action" chip row of the unselected catalog entries, and a
+  **live preview** grid that reflects the current selection + display
+  style. Layout/display/shortcuts selects retained. 13 specs (grid +
+  list capacity, overflow split + cap=1 edge, measured-vs-fallback
+  capacity, icon-only packs tighter, catalog integrity, registry). Full
+  hub suite (1639) green; typecheck + lint clean. **quick-actions is
+  done.**
+
+## pinned-pages
+- **Source:** nav-store `pinnedRoutes`. Fields: href, label, iconName.
+- **Track:** the user's pinned routes (matches the sketch's "Pinned
+  Pages" 2-column list: Receipts, Mileage, Discussions, Finances, Crew
+  Calendar, My Files, New Job, My Field).
+- **Per-bucket:** tiny → count; small → 2-col compact; medium+ →
+  multi-col grid/list with icons.
+- **Footer link:** none (the items are links). Optional "Manage pins".
+- **Editor:** layoutStyle (grid/list), iconStyle, (R4) a manage-pins
+  control.
+- **Slices:** Build/Wire + R1–4 (R2: every pinned href resolves).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (data):** pins
+  come from the shared `nav-store.pinnedRoutes` (capped at
+  `MAX_PINNED_ROUTES` = 5) + the `route-registry` for labels/icons —
+  confirmed correct. **R2 (the headline — "never render a dead link"):**
+  the old code rendered retired pins as a `Link` with a stripped-href
+  label → a guaranteed 404. Added a pure
+  `lib/hub/widgets/pinned-pages/resolve.ts` →
+  `resolvePinnedRoutes(hrefs, ADMIN_ROUTES)` that keeps exact matches
+  (route label + icon) and **deep-subtree** matches (`/admin/jobs/abc`
+  inherits `/admin/jobs`'s label/icon via `deepestPrefix`) but **drops
+  any href that resolves to no registered route**. The widget now feeds
+  the full `ADMIN_ROUTES` table through it. **R3 (size):** tiny now
+  shows the pin **count** (matching the other widgets) instead of two
+  truncated text links; grid uses `minmax(0,1fr)` + `alignContent:start`
+  + per-card ellipsis so labels never clip, and since pins ≤ 5 every
+  resolved pin renders at every non-tiny bucket (no cap-clipping).
+  **R4 (editor):** added an inline **Manage pins** control — lists the
+  resolved pins with an unpin (✕) button wired to the nav-store's
+  `unpinRoute`, so the user curates pins without leaving the hub
+  (reflects + edits the same list the rail/command palette use).
+  layoutStyle + iconStyle selects retained. 6 new resolver specs
+  (exact, deep subtree, drop stale, order/filter, deepestPrefix
+  longest-ancestor + exact-not-ancestor). The existing slice-94 specs
+  (registry + cols/cap + empty-state) still green. Full hub suite (1645)
+  green; typecheck + lint clean. **pinned-pages is done.**
+
+## bookmarks
+- **Source:** user-defined `{ id, label, url, icon }` in content.
+- **Track:** arbitrary user bookmarks (internal or external URLs).
+- **Per-bucket:** tiny → count; small → 1-col; medium+ → grid.
+- **Editor:** add/edit/remove/reorder bookmarks (reorderable list),
+  layoutStyle. Make adding a bookmark easy + validated.
+- **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1/R2 (the
+  headline — links must be safe, never a dead/dangerous one):**
+  bookmarks are arbitrary user-entered URLs (no route table to validate
+  against), so added a pure `lib/hub/widgets/bookmarks/url.ts` →
+  `isValidBookmarkUrl(url)` + `safeBookmarks(list)`. It accepts internal
+  absolute paths (`/admin/…`), complete `http(s)://host` URLs, and
+  `mailto:`/`tel:`; it **rejects** `javascript:`/`data:` (XSS vectors),
+  protocol-relative `//host`, blanks, and unfinished drafts (`https://`).
+  The widget now renders only `safeBookmarks(...)`. **R3 (size):** tiny
+  shows the bookmark **count** (was a 1-col list that didn't fit a 1×1).
+  **R4 (editor — "make adding easy + validated"):** added **reorder**
+  (↑/↓ per row, on the shared `moveUp`/`moveDown` helpers) and **inline
+  URL validation** — a non-empty-but-unsafe URL flags a red border +
+  `aria-invalid` + a "enter a full http(s):// URL or an internal /path"
+  hint (a blank URL is treated as a draft, not an error); the URL
+  placeholder now shows both accepted forms. Existing add/edit/remove
+  retained. 6 new url specs (http(s)/internal/mailto/tel accepted;
+  javascript/data/protocol-relative/blank/draft rejected; safeBookmarks
+  filter+order). The slice-115 specs (registry + caps/cols + isExternal
+  + makeId) still green. Full hub suite (1650) green; typecheck + lint
+  clean. **bookmarks is done.**
+
+## recent-activity
+- **Source:** nav-store `recentRoutes`. Fields: href, route {iconName,
+  label}.
+- **Track:** recently visited routes.
+- **Per-bucket:** tiny → count; small → top few; medium+ → more.
+- **Editor:** itemLimit, includeTypes.
+- **Slices:** Build/Wire + R1–4 (R2: every recent href resolves).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (data):**
+  reads `nav-store.recentRoutes` + the route-registry for labels/icons —
+  confirmed correct; the itemLimit + tiny-counter were already fine.
+  **R2 (the headline — "every recent href resolves"):** the old code
+  rendered a recent href even when `findRoute` missed (raw stripped-href
+  label) → a retired route would be a dead link, and deep visited pages
+  (`/admin/jobs/abc`) showed an ugly stripped label. **Lifted the
+  pinned-pages resolver into `_shared/route-resolve.ts`**
+  (`resolveRouteHrefs` + `deepestPrefix`) since two widgets now need it,
+  and pointed `pinned-pages/resolve.ts` at it via re-export (its widget
+  + specs unchanged). recent-activity now resolves `recentRoutes`
+  against the full `ADMIN_ROUTES`: exact + deep-subtree matches keep the
+  route's label/icon (deep hrefs preserved so the link still lands on
+  the exact page) and **unregistered hrefs are dropped**. The tiny
+  counter now reflects the resolvable count (matches the list). **R3
+  (size):** tiny → count (already), list rows ellipsis-clamped (already
+  fine). **R4 (editor):** itemLimit retained; the includeTypes axis is
+  the single real type today (recent-routes) — the activity-log type is
+  still a documented follow-up (no phantom options). 5 new shared
+  route-resolve specs; the slice-114 specs (caps/trimHref/iconForRoute/
+  registry) still green. Full hub suite (1655) green; typecheck + lint
+  clean. **recent-activity is done.**
+
+## weather
+- **Endpoint:** `/api/admin/weather?location=&zip=`. Fields: temp,
+  description, icon, high/low, location.
+- **Per-bucket:** tiny → emoji + temp; small → + hi/lo; medium+ →
+  + description + location.
+- **Footer link:** none (ambient stat). 
+- **Editor:** location, zip.
+- **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (the headline
+  — the endpoint was a 204 stub, so the widget ALWAYS showed "Weather
+  unavailable"):** discovered Open-Meteo is genuinely **free + keyless**
+  (verified reachable from the server) and **wired real data**. The
+  endpoint now resolves coordinates — a manual ZIP geocodes via
+  Open-Meteo's geocoding API, everything else uses a Central-Texas
+  default (mirrors `property-search.service`'s constants, the org's
+  region) — fetches the current forecast + daily hi/lo in °F, and maps
+  it through three pure, tested helpers: `lib/weather/wmo.describeWeather`
+  (WMO code → description + emoji), `lib/weather/snapshot.toWeatherSnapshot`
+  (forecast JSON → the widget's `{ temperature_f, description, icon,
+  high_f, low_f, location_label }`), and `lib/weather/geocode.firstGeoPoint`
+  (geocoding hit → coordinates, ZIP-labelled) + `DEFAULT_LOCATION`. **R2
+  (degradation):** every upstream call has a 6 s timeout and any failure
+  (egress blocked, garbled payload, missing temp) returns **204 No
+  Content** — the widget's existing `!res.ok → empty` path fires, so
+  nothing regresses when the network is unavailable (the stub's old
+  contract is preserved as the failure mode). **R3 (size):** the
+  per-bucket render was already correct (tiny → emoji + temp; small+ →
+  + description + location + H/L) — confirmed against the real field
+  names. **R4 (editor + polish):** location (auto/manual/active-job) +
+  ZIP editor confirmed wired to the query; refreshed the stale
+  empty-state copy ("forecast service is unreachable… it'll reappear
+  automatically"). The stub-endpoints spec's weather 204 assertion was
+  retired (the route hits the network now; its 401 guard moved to the
+  still-stubbed sun route). 10 new weather specs (WMO map + fallback,
+  snapshot map + hi/lo fallback + null-guard, geocode pick + null +
+  default). Full hub suite (1655) green; typecheck + lint clean.
+  *(active-job site coordinates still fall back to the default — wiring
+  the active job's geo is a documented follow-up.)* **weather is done.**
+
+## sun-calculator
+- **Endpoint:** `/api/admin/sun?lat=&lng=`. Fields: sunrise, sunset,
+  daylight_hours, location.
+- **Per-bucket:** tiny → daylight hours; small → sunrise/sunset pair;
+  medium+ → + location + twilight.
+- **Editor:** latitude, longitude, units, showTwilight.
+- **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (the headline
+  — the endpoint was a 204 stub, so the widget ALWAYS rendered a
+  hard-coded fake "6:32 AM / 8:14 PM / Austin, TX"):** unlike weather,
+  sunrise/sunset/daylight are **deterministic math** — no API, never
+  "unavailable". **Wired real computation:** a pure `lib/sun/calc.ts`
+  → `computeSunTimes(lat, lng, date, elevation)` (the proven SunCalc /
+  NOAA sunrise equation) verified to within **±3 min** of the Open-Meteo
+  reference (Austin 2026-05-30: sunrise 11:30 UTC, sunset 01:27+1,
+  daylight ≈13.94h), incl. polar-day/night guards + civil-twilight
+  (-6°). The endpoint resolves coordinates (pinned `?lat=&lng=`, else the
+  Central-Texas default) via `lib/sun/response.ts`
+  (`resolveSunPoint` + `buildSunResponse`) and returns **ISO-8601 UTC**
+  times. **R2 (links/correctness):** out-of-range coords fall back to the
+  default; the auth guard is preserved. **R3 (size):** the per-bucket
+  render (tiny → daylight h; small+ → sunrise/sunset pair; medium+ →
+  + location; twilight row at medium+) was already correct — confirmed.
+  **R4 (units — finally real):** `formatTime` now detects ISO and renders
+  the clock time in the surveyor's **local** zone or **UTC** (suffixed)
+  via Intl, instead of just appending " UTC" to a pre-baked string; the
+  non-ISO passthrough is kept so the offline fallback + the slice-15c
+  spec stay green. Null (polar) times render "—". The stub-endpoints
+  spec was rewritten (sun returns a real 200 payload now; all four
+  former stubs are wired — the file now asserts the real payload + the
+  401 guard). 15 new specs (calc reference + polar + twilight, response
+  resolve/build, ISO formatTime). Full hub suite (1658) green; typecheck
+  + lint clean. **sun-calculator is done.**
+
+## daily-briefing
+- **Composite** of schedule + weather + crew + tasks (currently stub
+  sections, requires medium+). 
+- **Track:** make the sections REAL — pull today's schedule (Doc 04
+  data), weather (weather endpoint), crew (crew-calendar/team-status),
+  action items (assignments/tasks). Each section a compact live
+  summary with its own "Go to…" deep link.
+- **Per-bucket:** tiny/small → "resize me larger" (keep); medium →
+  2 sections; large/xlarge → all 4 sections live.
+- **Editor:** showWeather, showSchedule, maxJobs (+ R4: which sections,
+  ordering).
+- **Slices:** Build/Wire (make sections live, not stub) + R1–4. R1 is
+  heavy here (four data sources).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **The headline —
+  every section was a static stub (a static title + subtitle, no data).**
+  All four are now LIVE, each fetching the SAME endpoint its standalone
+  widget uses — no new endpoints (doc guardrail). **R1 (data, heavy):**
+  added pure summarizers in `lib/hub/widgets/daily-briefing/sections.ts`
+  — `summarizeSchedule(events, maxJobs)` (count + first N titles),
+  `summarizeWeather(snap)` (rounded temp + description + location),
+  `summarizeCrew(members)` (active clocked-in/on-break count + first 3
+  names), `summarizeActions(tasks)` (open count + first title) — plus
+  `todayRange(now)` (the UTC [today, tomorrow) window the schedule API
+  takes via `?from=&to=`). Each section calls the real endpoint with the
+  right contract: schedule via `?from/to`, weather (now real, doc 15),
+  team-status (now real, doc 14), assignments via `?mine=true`. **R2
+  (links):** each section carries its own "Go to →" deep link
+  (`/admin/schedule`, `/admin/team`, `/admin/assignments`) — weather is
+  ambient so no link, matching the per-widget doc. Sections fetch
+  independently so one failure doesn't blank the others (each loader
+  catches → empty summary). **R3 (size):** medium shows 2 sections,
+  large/xlarge show all four (new exported `sectionCap(bucket)`); tiny/
+  small keep the existing "resize me larger" empty state. **R4 (editor):**
+  the existing `showWeather`/`showSchedule`/`maxJobs` schema (Slice 12c)
+  drives section visibility + the schedule cap honestly; Crew + Actions
+  are always on (they were doc-spec'd that way). 10 new specs (each
+  summarizer + the todayRange window). Full hub suite (1668) green;
+  typecheck + lint clean. *(Section reordering + a "which sections"
+  multi-select editor stays a documented follow-up — the four current
+  sections cover the user's "schedule + weather + crew + tasks" ask.)*
+  **daily-briefing is done.**
+
+## mileage-tracker
+- **Endpoint:** `/api/admin/mileage?period=`. Fields: miles, trips,
+  reimbursable_amount.
+- **Per-bucket:** tiny → miles; small → miles + amount; medium+ →
+  + trips + period.
+- **Footer link:** "Go to mileage →" `/admin/mileage`.
+- **Editor:** period.
+- **Slices:** Build/Wire (footer link) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found a
+  MASSIVE contract mismatch:** `/api/admin/mileage` was already a real,
+  IRS-grade endpoint (Haversine sum over `location_pings`) but with a
+  **completely different** contract — `?user_email=&from=&to=&format=`
+  returning `{ days[], total_miles, ... }`. The widget called
+  `?period=week` expecting `{ miles, trips, reimbursable_amount }`, so
+  it got a 400 EVERY TIME. The endpoint also required admin/tech_support,
+  blocking the field_crew/drawer/researcher roles the widget is allowed
+  for (they'd get 403 even if the contract matched). **Wired a real
+  self-scoped summary mode** instead of changing the existing
+  admin-only IRS contract: a new `?summary=1&period=today|week|month`
+  branch bypasses the admin gate, **forces self-scoping** (the caller's
+  email — `?user_email` is ignored when `summary=1`, by construction),
+  reuses the existing ping/entry/vehicle join (factored into a private
+  `loadMileageDays` helper so the admin path uses the same code) and
+  returns the widget's exact `{ miles, trips, reimbursable_amount,
+  period, range, user_email }` shape. Two new pure helpers behind it:
+  `lib/mileage/period.mileagePeriodWindow` (period → trailing
+  YYYY-MM-DD window) and `lib/mileage/summary.summarizeMileageDays`
+  (days[] → 3-number summary; counts distinct driving days as "trips"
+  — the surveyor's intuitive trip unit, not segment counts that spike
+  with ping cadence; reimbursable amount uses only **driver miles**
+  when a per-vehicle breakdown exists, with the 2025 IRS business rate
+  $0.70/mi as the default, operator-overridable). The widget updated
+  to fetch the new contract + flag a real-zero week as `empty` so the
+  "No mileage" state shows. The footer link is already global. **R2
+  (links):** `/admin/mileage` page exists; footer link verified.
+  **R3 (size):** tiny → miles only, small+ → miles + trips +
+  reimbursable_amount — unchanged, now backed by real data. **R4
+  (editor):** the `period` select (today/week/month) was already wired
+  + now drives a real window. 8 new specs (period window for all
+  three; summary trips + driver-miles + fallback + rate + empty). Full
+  hub suite (1668) green; typecheck + lint clean. **mileage-tracker is
+  done.**
+
+## Doc 15 complete
+All 8 personal/utility widgets shipped (Build/Wire + Rounds 1–4):
+**quick-actions, pinned-pages, bookmarks, recent-activity, weather,
+sun-calculator, daily-briefing, mileage-tracker**. R1 in each case
+exposed a real defect and fixed it honestly. **Three former stubs were
+wired to real data** — weather → keyless Open-Meteo (with timeout +
+204 degrade), sun-calculator → deterministic NOAA sunrise math
+(verified ±3 min against the Open-Meteo reference), team-status (doc 14)
+→ today's daily_time_logs. **The mileage endpoint had a complete
+contract mismatch** (admin IRS export vs. the widget's per-period
+self-summary) — fixed via a new self-scoped `?summary=1` mode that
+reuses the same join code. **quick-actions** got the headline overhaul
+(capacity-fill rendering driven by a measured `useElementSize` body +
+"+N more" overflow + a reorderable picker + live preview). The two
+nav-fed widgets (pinned-pages, recent-activity) both honor "never
+render a dead link" via a lifted shared resolver
+(`_shared/route-resolve`). **bookmarks** got a URL safety guard that
+rejects javascript:/data:/protocol-relative/blank/draft URLs.
+**daily-briefing**'s four stub sections are now LIVE, each fetching the
+SAME endpoint its standalone widget uses + carrying its own "Go to" deep
+link. Full hub suite green throughout; typecheck + lint clean.
+
+## Guardrails
+- quick-actions/pinned/bookmarks/recent must never render a dead link —
+  R2 validates every href against the route table; drop or fix any
+  that don't resolve.
+- daily-briefing reuses the OTHER widgets' data paths (schedule API,
+  weather API, crew/team) rather than inventing new endpoints.
+- Capacity-based rendering (quick-actions) derives capacity from the
+  rendered cell size (`useElementSize`), consistent with the grid's
+  square-cell model.

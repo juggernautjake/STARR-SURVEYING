@@ -120,6 +120,9 @@ function PtoBalanceWidget({ size, content }: WidgetProps<PtoBalanceContent>) {
           {formatted}
         </span>
         <span style={mutedStyle}>{accrual}</span>
+        {bucket !== 'small' && formatCarryover(balance.carryover_cap_hours, settings.format, settings.hoursPerDay) && (
+          <span style={mutedStyle}>{formatCarryover(balance.carryover_cap_hours, settings.format, settings.hoursPerDay)}</span>
+        )}
         {balance.last_accrued_at && (
           <span style={mutedStyle}>Last accrued {formatRelative(balance.last_accrued_at)}</span>
         )}
@@ -232,6 +235,17 @@ export function formatAccrual(
                 : period === 'weekly'   ? 'per week'
                 : `per ${period}`;
   return `Accrues ${amount} ${period_}`;
+}
+
+/** "Carryover cap 240.0h" — empty string when there's no cap set.
+ *  Pure + exported. */
+export function formatCarryover(
+  cap: number | null | undefined,
+  format: PtoFormat,
+  hoursPerDay: number,
+): string {
+  if (cap == null || !Number.isFinite(cap) || cap <= 0) return '';
+  return `Carryover cap ${formatBalance(cap, format, hoursPerDay)}`;
 }
 
 function formatRelative(iso: string): string {

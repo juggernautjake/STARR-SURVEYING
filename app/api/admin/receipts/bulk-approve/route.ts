@@ -23,6 +23,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildReceiptDecisionNotification } from '@/lib/notifications/receipt-decision';
 
 /** Hard cap so a runaway client can't approve thousands of rows
  *  by accident. Bookkeeper queues rarely exceed 50/day; 200 is a
@@ -179,7 +181,7 @@ export const POST = withErrorHandler(
       })
       .in('id', toApprove)
       .eq('status', 'pending')
-      .select('id');
+      .select('id, submitted_by, vendor, total');
     if (updateErr) {
       console.error('[admin/receipts/bulk-approve] update failed', {
         error: updateErr.message,
@@ -188,10 +190,25 @@ export const POST = withErrorHandler(
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    const approvedIds = new Set(
-      ((updated ?? []) as Array<{ id: string }>).map((r) => r.id)
-    );
+    type ApprovedRow = {
+      id: string;
+      submitted_by: string | null;
+      vendor: string | null;
+      total: number | null;
+    };
+    const approvedRows = (updated ?? []) as ApprovedRow[];
+    const approvedIds = new Set(approvedRows.map((r) => r.id));
     result.approved = Array.from(approvedIds);
+
+    // hub-widget-excellence-03 Slice 2c — notify each submitter their
+    // receipt was approved. Best-effort: notification failures never
+    // fail the batch.
+    try {
+      const notices = approvedRows
+        .map((r) => buildReceiptDecisionNotification(r, 'approved'))
+        .filter((n): n is NonNullable<typeof n> => n !== null);
+      await Promise.all(notices.map((n) => notify(n)));
+    } catch { /* ignore notification failures */ }
 
     // Anything we attempted but didn't get back lost the TOCTOU
     // race — surface as already_approved so the UI's count math

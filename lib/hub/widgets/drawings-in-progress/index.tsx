@@ -2,6 +2,7 @@
 // Slice 129 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
@@ -12,13 +13,20 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 import { bucketCap } from '@/lib/hub/widgets/_shared/simple-list-widget';
+import { cadOpenHref, formatAge } from '@/lib/hub/widgets/recent-drawings';
 
 export interface DrawingsInProgressContent extends Record<string, unknown> {
   scope: 'mine' | 'team';
 }
 const DEFAULTS: DrawingsInProgressContent = { scope: 'mine' };
 
-interface Drawing { id: string; name: string; assigned_to?: string | null; percent_complete?: number | null; due_at?: string | null; }
+// hub-widget-excellence-12 R1 — `cad_drawings` has no workflow status,
+// assignee, or progress columns, so the old `assigned_to` /
+// `percent_complete` / `due_at` / `?status=in-progress` were all
+// phantom (always blank). "In progress" = recently-updated drawings
+// (scope 'mine' filters to the caller's). We show the real fields:
+// name + joined job + last-updated age, each opening in CAD.
+interface Drawing { id: string; name: string; job_id?: string | null; job_name?: string | null; updated_at?: string | null; }
 
 function DrawingsInProgressWidget({ size, content }: WidgetProps<DrawingsInProgressContent>) {
   const settings = { ...DEFAULTS, ...content };
@@ -29,7 +37,7 @@ function DrawingsInProgressWidget({ size, content }: WidgetProps<DrawingsInProgr
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
-      const params = new URLSearchParams({ status: 'in-progress' });
+      const params = new URLSearchParams();
       if (settings.scope === 'mine') params.set('mine', 'true');
       const res = await fetch(`/api/admin/cad/drawings?${params}`);
       if (!res.ok) { setStatus('empty'); return; }
@@ -66,23 +74,33 @@ function DrawingsInProgressWidget({ size, content }: WidgetProps<DrawingsInProgr
   return (
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
       {visible.map((d) => (
-        <li key={d.id} style={{ padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
-          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{d.name}</span>
-            {typeof d.percent_complete === 'number' && (
-              <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{d.percent_complete}%</span>
+        <li key={d.id}>
+          {/* Open in CAD with the drawing's job loaded (shared headline
+              with recent-drawings). */}
+          <Link href={cadOpenHref(d)} style={rowLinkStyle} aria-label={`Open ${d.name} in CAD`}>
+            <span style={{ display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+            {(d.job_name || d.updated_at) && (
+              <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
+                {d.job_name ?? ''}
+                {d.job_name && d.updated_at ? ' · ' : ''}
+                {d.updated_at ? formatAge(d.updated_at) : ''}
+              </span>
             )}
-          </span>
-          {typeof d.percent_complete === 'number' && (
-            <div aria-hidden style={{ height: 4, borderRadius: 2, background: 'var(--theme-bg-surface)', marginTop: 4, overflow: 'hidden' }}>
-              <div style={{ width: `${d.percent_complete}%`, height: '100%', background: 'var(--theme-accent)' }} />
-            </div>
-          )}
+          </Link>
         </li>
       ))}
     </ul>
   );
 }
+
+const rowLinkStyle: React.CSSProperties = {
+  display: 'block',
+  padding: '6px 12px',
+  borderRadius: 6,
+  background: 'var(--theme-bg-elevated)',
+  textDecoration: 'none',
+  color: 'inherit',
+};
 
 function DrawingsInProgressSettings({ value, onChange }: WidgetSettingsFormProps<DrawingsInProgressContent>) {
   const settings = { ...DEFAULTS, ...value };

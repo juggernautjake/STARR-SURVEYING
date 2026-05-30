@@ -16,6 +16,7 @@
 // Slice 91 of customizable-hub-and-work-mode-2026-05-28.md (original).
 
 import React, { type ReactNode } from 'react';
+import WidgetGoToLink from '@/lib/hub/widgets/_shared/WidgetGoToLink';
 
 export interface WidgetFrameProps {
   /** Accessible title for the widget. Always renders as a visible
@@ -28,6 +29,11 @@ export interface WidgetFrameProps {
   /** Optional bottom strip — used by widgets that need a "see all"
    *  link or a primary action. */
   footer?: ReactNode;
+  /** hub-widget-excellence-02 Slice 5 — one-line "Go to {label} →"
+   *  footer link. When set, renders a shared `WidgetGoToLink` in the
+   *  footer (right-aligned; composes with any `footer` content on the
+   *  left). The href/label come from the widget-links registry. */
+  goTo?: { href: string; label: string; icon?: string };
   /** Slice 5 — opt-in header background color (any valid CSS color).
    *  When set, paints the header bar so each widget reads
    *  distinctively against the canvas. When absent, the header sits
@@ -46,6 +52,7 @@ export default function WidgetFrame({
   title,
   headerAction,
   footer,
+  goTo,
   headerColor,
   editMode = false,
   children,
@@ -140,7 +147,7 @@ export default function WidgetFrame({
       >
         {children}
       </div>
-      {footer && (
+      {(footer || goTo) && (
         <footer
           style={{
             padding: 'var(--hub-spc-3, 12px) var(--hub-spc-4, 16px)',
@@ -148,7 +155,27 @@ export default function WidgetFrame({
             fontSize: 'var(--hub-font-xs, 0.75rem)',
           }}
         >
-          {footer}
+          {goTo ? (
+            // Slice 5 — footer content (if any) on the left, the shared
+            // "Go to…" link pinned right. A lone footer (no goTo) keeps
+            // its original inline rendering below.
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 'var(--hub-spc-3, 12px)',
+                width: '100%',
+              }}
+            >
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {footer}
+              </span>
+              <WidgetGoToLink href={goTo.href} label={goTo.label} icon={goTo.icon} />
+            </div>
+          ) : (
+            footer
+          )}
         </footer>
       )}
     </section>
