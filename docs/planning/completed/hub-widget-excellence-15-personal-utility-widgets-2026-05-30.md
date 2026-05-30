@@ -290,6 +290,62 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
 - **Footer link:** "Go to mileage →" `/admin/mileage`.
 - **Editor:** period.
 - **Slices:** Build/Wire (footer link) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found a
+  MASSIVE contract mismatch:** `/api/admin/mileage` was already a real,
+  IRS-grade endpoint (Haversine sum over `location_pings`) but with a
+  **completely different** contract — `?user_email=&from=&to=&format=`
+  returning `{ days[], total_miles, ... }`. The widget called
+  `?period=week` expecting `{ miles, trips, reimbursable_amount }`, so
+  it got a 400 EVERY TIME. The endpoint also required admin/tech_support,
+  blocking the field_crew/drawer/researcher roles the widget is allowed
+  for (they'd get 403 even if the contract matched). **Wired a real
+  self-scoped summary mode** instead of changing the existing
+  admin-only IRS contract: a new `?summary=1&period=today|week|month`
+  branch bypasses the admin gate, **forces self-scoping** (the caller's
+  email — `?user_email` is ignored when `summary=1`, by construction),
+  reuses the existing ping/entry/vehicle join (factored into a private
+  `loadMileageDays` helper so the admin path uses the same code) and
+  returns the widget's exact `{ miles, trips, reimbursable_amount,
+  period, range, user_email }` shape. Two new pure helpers behind it:
+  `lib/mileage/period.mileagePeriodWindow` (period → trailing
+  YYYY-MM-DD window) and `lib/mileage/summary.summarizeMileageDays`
+  (days[] → 3-number summary; counts distinct driving days as "trips"
+  — the surveyor's intuitive trip unit, not segment counts that spike
+  with ping cadence; reimbursable amount uses only **driver miles**
+  when a per-vehicle breakdown exists, with the 2025 IRS business rate
+  $0.70/mi as the default, operator-overridable). The widget updated
+  to fetch the new contract + flag a real-zero week as `empty` so the
+  "No mileage" state shows. The footer link is already global. **R2
+  (links):** `/admin/mileage` page exists; footer link verified.
+  **R3 (size):** tiny → miles only, small+ → miles + trips +
+  reimbursable_amount — unchanged, now backed by real data. **R4
+  (editor):** the `period` select (today/week/month) was already wired
+  + now drives a real window. 8 new specs (period window for all
+  three; summary trips + driver-miles + fallback + rate + empty). Full
+  hub suite (1668) green; typecheck + lint clean. **mileage-tracker is
+  done.**
+
+## Doc 15 complete
+All 8 personal/utility widgets shipped (Build/Wire + Rounds 1–4):
+**quick-actions, pinned-pages, bookmarks, recent-activity, weather,
+sun-calculator, daily-briefing, mileage-tracker**. R1 in each case
+exposed a real defect and fixed it honestly. **Three former stubs were
+wired to real data** — weather → keyless Open-Meteo (with timeout +
+204 degrade), sun-calculator → deterministic NOAA sunrise math
+(verified ±3 min against the Open-Meteo reference), team-status (doc 14)
+→ today's daily_time_logs. **The mileage endpoint had a complete
+contract mismatch** (admin IRS export vs. the widget's per-period
+self-summary) — fixed via a new self-scoped `?summary=1` mode that
+reuses the same join code. **quick-actions** got the headline overhaul
+(capacity-fill rendering driven by a measured `useElementSize` body +
+"+N more" overflow + a reorderable picker + live preview). The two
+nav-fed widgets (pinned-pages, recent-activity) both honor "never
+render a dead link" via a lifted shared resolver
+(`_shared/route-resolve`). **bookmarks** got a URL safety guard that
+rejects javascript:/data:/protocol-relative/blank/draft URLs.
+**daily-briefing**'s four stub sections are now LIVE, each fetching the
+SAME endpoint its standalone widget uses + carrying its own "Go to" deep
+link. Full hub suite green throughout; typecheck + lint clean.
 
 ## Guardrails
 - quick-actions/pinned/bookmarks/recent must never render a dead link —

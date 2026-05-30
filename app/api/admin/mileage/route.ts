@@ -28,6 +28,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { mileagePeriodWindow, type MileagePeriod } from '@/lib/mileage/period';
+import { summarizeMileageDays } from '@/lib/mileage/summary';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -336,11 +338,95 @@ function toCsv(days: MileageDayRow[]): string {
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
+/**
+ * Pull pings + entry/vehicle metadata for the given window and email.
+ * Factored out so the new summary mode (hub-widget-excellence-15) can
+ * call the same path without duplicating the join logic. Returns the
+ * aggregated days[] or an error response.
+ */
+async function loadMileageDays(
+  fromMs: number,
+  toMs: number,
+  userEmail: string | null,
+): Promise<{ days: MileageDayRow[] } | { error: string; status: number }> {
+  let query = supabaseAdmin
+    .from('location_pings')
+    .select('user_email, lat, lon, captured_at, job_time_entry_id')
+    .gte('captured_at', new Date(fromMs).toISOString())
+    .lte('captured_at', new Date(toMs).toISOString())
+    .order('user_email', { ascending: true })
+    .order('captured_at', { ascending: true });
+  if (userEmail) query = query.eq('user_email', userEmail.toLowerCase().trim());
+
+  const { data, error } = await query;
+  if (error) return { error: error.message, status: 500 };
+
+  const pings = (data ?? []) as PingRow[];
+  const entryIds = [...new Set(pings.map((p) => p.job_time_entry_id).filter((id): id is string => !!id))];
+  const entryMeta = new Map<string, EntryMeta>();
+  if (entryIds.length > 0) {
+    const { data: entries, error: entriesErr } = await supabaseAdmin
+      .from('job_time_entries')
+      .select('id, vehicle_id, is_driver')
+      .in('id', entryIds);
+    if (entriesErr) return { error: entriesErr.message, status: 500 };
+    type EntryRow = { id: string; vehicle_id: string | null; is_driver: boolean | null };
+    const vehicleIds = [...new Set(((entries ?? []) as EntryRow[]).map((e) => e.vehicle_id).filter((id): id is string => !!id))];
+    const vehiclesById = new Map<string, string>();
+    if (vehicleIds.length > 0) {
+      const { data: vehicles, error: vehiclesErr } = await supabaseAdmin
+        .from('vehicles')
+        .select('id, name')
+        .in('id', vehicleIds);
+      if (vehiclesErr) return { error: vehiclesErr.message, status: 500 };
+      for (const v of ((vehicles ?? []) as Array<{ id: string; name: string | null }>)) {
+        vehiclesById.set(v.id, v.name ?? 'Unnamed');
+      }
+    }
+    for (const e of (entries ?? []) as EntryRow[]) {
+      entryMeta.set(e.id, {
+        vehicle_id: e.vehicle_id,
+        vehicle_name: e.vehicle_id ? (vehiclesById.get(e.vehicle_id) ?? null) : null,
+        is_driver: e.is_driver,
+      });
+    }
+  }
+  return { days: aggregate(pings, entryMeta) };
+}
+
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const { searchParams } = new URL(req.url);
+
+  // ── Summary mode (hub-widget-excellence-15) — surfaces a one-glance
+  //    {miles, trips, reimbursable_amount} for the caller's OWN mileage
+  //    so the hub tile works for every role (the IRS export below stays
+  //    admin/tech_support-only). Self-scoped by construction; never
+  //    honors ?user_email when summary=1.
+  if (searchParams.get('summary') === '1') {
+    const period = (searchParams.get('period') ?? 'week') as MileagePeriod;
+    if (!['today', 'week', 'month'].includes(period)) {
+      return NextResponse.json({ error: 'period must be today | week | month' }, { status: 400 });
+    }
+    const window = mileagePeriodWindow(period);
+    const fromMsSum = Date.parse(`${window.from}T00:00:00Z`);
+    const toMsSum = Date.parse(`${window.to}T23:59:59Z`);
+    const result = await loadMileageDays(fromMsSum, toMsSum, session.user.email);
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    return NextResponse.json({
+      ...summarizeMileageDays(result.days),
+      period,
+      range: window,
+      user_email: session.user.email,
+    });
+  }
+
   // Same auth pattern as /api/admin/team — admins + tech_support read.
   const userRoles = (session.user as { roles?: string[] } | undefined)
     ?.roles ?? [];
@@ -348,7 +434,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { searchParams } = new URL(req.url);
   const userEmail = searchParams.get('user_email');
   const from = searchParams.get('from'); // ISO date
   const to = searchParams.get('to'); // ISO date
@@ -380,94 +465,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
-  // Pull pings. We need lat/lon/captured_at, user_email, and the
-  // job_time_entry_id so the per-vehicle subgrouping can join out
-  // to vehicles. ASC by captured_at so the per-day Haversine sum
-  // is deterministic.
-  let query = supabaseAdmin
-    .from('location_pings')
-    .select('user_email, lat, lon, captured_at, job_time_entry_id')
-    .gte('captured_at', new Date(fromMs).toISOString())
-    .lte('captured_at', new Date(toMs).toISOString())
-    .order('user_email', { ascending: true })
-    .order('captured_at', { ascending: true });
-
-  if (userEmail) {
-    query = query.eq('user_email', userEmail.toLowerCase().trim());
+  const loaded = await loadMileageDays(fromMs, toMs, userEmail);
+  if ('error' in loaded) {
+    return NextResponse.json({ error: loaded.error }, { status: loaded.status });
   }
-
-  const { data, error } = await query;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const pings = (data ?? []) as PingRow[];
-
-  // Bulk-look-up job_time_entries → vehicles via the unique entry
-  // ids in the ping set. One round trip each (entries, then
-  // vehicles), regardless of ping count.
-  const entryIds = [
-    ...new Set(
-      pings
-        .map((p) => p.job_time_entry_id)
-        .filter((id): id is string => !!id)
-    ),
-  ];
-  const entryMeta = new Map<string, EntryMeta>();
-  if (entryIds.length > 0) {
-    const { data: entries, error: entriesErr } = await supabaseAdmin
-      .from('job_time_entries')
-      .select('id, vehicle_id, is_driver')
-      .in('id', entryIds);
-    if (entriesErr) {
-      return NextResponse.json(
-        { error: entriesErr.message },
-        { status: 500 }
-      );
-    }
-    type EntryRow = {
-      id: string;
-      vehicle_id: string | null;
-      is_driver: boolean | null;
-    };
-    const vehicleIds = [
-      ...new Set(
-        ((entries ?? []) as EntryRow[])
-          .map((e) => e.vehicle_id)
-          .filter((id): id is string => !!id)
-      ),
-    ];
-    const vehiclesById = new Map<string, string>();
-    if (vehicleIds.length > 0) {
-      const { data: vehicles, error: vehiclesErr } = await supabaseAdmin
-        .from('vehicles')
-        .select('id, name')
-        .in('id', vehicleIds);
-      if (vehiclesErr) {
-        return NextResponse.json(
-          { error: vehiclesErr.message },
-          { status: 500 }
-        );
-      }
-      for (const v of ((vehicles ?? []) as Array<{
-        id: string;
-        name: string | null;
-      }>)) {
-        vehiclesById.set(v.id, v.name ?? 'Unnamed');
-      }
-    }
-    for (const e of (entries ?? []) as EntryRow[]) {
-      entryMeta.set(e.id, {
-        vehicle_id: e.vehicle_id,
-        vehicle_name: e.vehicle_id
-          ? (vehiclesById.get(e.vehicle_id) ?? null)
-          : null,
-        is_driver: e.is_driver,
-      });
-    }
-  }
-
-  const days = aggregate(pings, entryMeta);
+  const days = loaded.days;
 
   if (format === 'csv') {
     const csv = toCsv(days);

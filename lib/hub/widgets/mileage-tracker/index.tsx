@@ -30,11 +30,14 @@ function MileageTrackerWidget({ size, content }: WidgetProps<MileageTrackerConte
   const fetchSummary = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch(`/api/admin/mileage?period=${settings.period}`);
+      // hub-widget-excellence-15 — uses the new ?summary=1 mode which is
+      // self-scoped (caller's own mileage), so every role this widget
+      // is allowed for can read it (the admin IRS export stays gated).
+      const res = await fetch(`/api/admin/mileage?summary=1&period=${settings.period}`);
       if (!res.ok) { setStatus('empty'); return; }
-      const data = await res.json();
+      const data: MileageSummary = await res.json();
       setSummary(data);
-      setStatus('ok');
+      setStatus(data.miles > 0 ? 'ok' : 'empty');
     } catch { setStatus('empty'); }
   }, [settings.period]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
