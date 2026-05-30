@@ -8,8 +8,10 @@
 // Slice 110 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { lessonHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -127,24 +129,36 @@ function ClassAssignmentsWidget({ size, content }: WidgetProps<ClassAssignmentsC
   );
 }
 
+/** Open the assignment's lesson (canonical
+ *  `/admin/learn/modules/{module}/{lesson}`); fall back to the module,
+ *  then the learning hub. Pure + exported. */
+export function assignmentHref(a: Pick<Assignment, 'module_id' | 'lesson_id'>): string {
+  if (a.module_id && a.lesson_id) return lessonHref(a.module_id, a.lesson_id);
+  if (a.module_id) return `/admin/learn/modules/${a.module_id}`;
+  return '/admin/learn';
+}
+
 function AssignmentRow({ assignment, visibleCols }: { assignment: Assignment; visibleCols: AssignmentColumn[] }) {
   const due = assignment.due_date ? dueStatusFor(assignment.due_date) : 'no-due';
   return (
-    <li style={rowStyle}>
-      {visibleCols.includes('title') && (
-        <span style={titleStyle}>
-          {assignment.lesson_title ?? assignment.module_title ?? 'Assignment'}
-        </span>
-      )}
-      {visibleCols.includes('class') && assignment.module_title && (
-        <span style={mutedStyle}>{assignment.module_title}</span>
-      )}
-      {visibleCols.includes('due') && (
-        <DueChip status={due} dueDate={assignment.due_date ?? null} />
-      )}
-      {visibleCols.includes('status') && assignment.status && (
-        <span style={mutedStyle}>{statusLabel(assignment.status)}</span>
-      )}
+    <li>
+      {/* Row deep link → the canonical lesson route. */}
+      <Link href={assignmentHref(assignment)} style={rowStyle} aria-label={`Open ${assignment.lesson_title ?? assignment.module_title ?? 'assignment'}`}>
+        {visibleCols.includes('title') && (
+          <span style={titleStyle}>
+            {assignment.lesson_title ?? assignment.module_title ?? 'Assignment'}
+          </span>
+        )}
+        {visibleCols.includes('class') && assignment.module_title && (
+          <span style={mutedStyle}>{assignment.module_title}</span>
+        )}
+        {visibleCols.includes('due') && (
+          <DueChip status={due} dueDate={assignment.due_date ?? null} />
+        )}
+        {visibleCols.includes('status') && assignment.status && (
+          <span style={mutedStyle}>{statusLabel(assignment.status)}</span>
+        )}
+      </Link>
     </li>
   );
 }
@@ -417,6 +431,8 @@ const rowStyle: React.CSSProperties = {
   padding: 'var(--hub-spc-2, 8px) var(--hub-spc-3, 12px)',
   borderRadius: 6,
   background: 'var(--theme-bg-elevated)',
+  textDecoration: 'none',
+  color: 'inherit',
 };
 
 const titleStyle: React.CSSProperties = {

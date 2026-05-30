@@ -24,6 +24,18 @@ the academic widgets all work too." Each: Build/Wire + 4 audit rounds.*
   (`notifyStudyReminder`, Doc 03).
 - **Slices:** Build/Wire (footer link + row deep links + columns per
   the sketch) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** R1 verified clean —
+  the `learn/assignments` GET returns `{ assignments }` enriched with
+  `module_id`/`lesson_id`/`module_title`/`lesson_title`/`due_date`/
+  `status`/`created_at` (joins the titles) + honors `?status=assigned`,
+  exactly what the widget reads. The widget was already strong (Class |
+  Title | Due | Status columns per the sketch, due-date chips,
+  group-by-class, sort, includeCompleted, full editor) — the gap was
+  **rows weren't clickable**. Added the row deep link via a new pure
+  exported `assignmentHref(a)` → `/admin/learn/modules/{module}/{lesson}`
+  (canonical lesson route), falling back to the module then the learn
+  hub. Footer "Go to learning →" is global. 3 new specs. Full hub suite
+  (1609) green; typecheck + lint clean. **class-assignments is done.**
 
 ## recommended-lessons
 - **Endpoint:** `/api/admin/learn/recommended?limit=10`. Fields: id,
