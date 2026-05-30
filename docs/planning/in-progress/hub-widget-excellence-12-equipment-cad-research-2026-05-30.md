@@ -46,6 +46,21 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Editor:** threshold.
 - **Notifications:** threshold crossed → reorder reminder (Doc 03).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget read `{ items }` with `current_qty`/`reorder_threshold` but the
+  consumables GET returns `{ rows }` with `quantity_on_hand` /
+  `low_stock_threshold` / a computed `reorder_badge`** (so it always
+  rendered empty), and the `?below=` param was ignored. **Realigned:**
+  reads `data.rows` + maps via a new pure exported `toLowConsumable`,
+  and filters "low" via a pure `isLow(item, threshold)` that trusts the
+  server's `reorder_badge` (reorder_now/soon) OR the at/under-threshold
+  compare. Added a **% remaining bar** (new pure `stockPct`) at medium+,
+  shows `qty unit / threshold`, and **row deep links** to
+  `/admin/equipment/{id}`. Footer "Go to consumables →" is global; the
+  reorder reminder fires via `cron/maintenance-schedule-tick` /
+  equipment crons (doc-03 audit). 6 new specs (mapper, isLow badge +
+  threshold, stockPct). Full hub suite (1591) green; typecheck + lint
+  clean. **low-consumables is done.**
 
 ## maintenance-due
 - **Endpoint:** `/api/admin/equipment/maintenance?due=…`. Fields:
