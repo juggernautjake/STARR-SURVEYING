@@ -65,8 +65,8 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
 
   // Slice 2 — one click on the page opens the modal editor: enter edit
   // mode (so draftWidgets is populated) AND open the centered modal.
-  // This collapses the old two-step "Customize Hub → ▦ Grid editor"
-  // flow + the parallel in-canvas edit surface into the single modal.
+  // This collapses the old two-step open-then-paint flow + the parallel
+  // in-canvas edit surface into the single modal.
   const openEditor = useCallback(() => {
     enterEditMode();
     setGridEditorOpen(true);
