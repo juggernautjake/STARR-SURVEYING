@@ -706,7 +706,7 @@ WidgetCustomization {
   state, button, mount). 1241 hub specs green; typecheck + lint
   clean.
 
-#### Slice 12 — Per-widget options schema registry (cover all 40 types)
+#### Slice 12 — Per-widget options schema registry (cover all 40 types) ✅ shipped 2026-05-30
 - **Scope:** New `lib/hub/widget-options.ts`: a registry mapping each
   widget `type` → its editable content options (key, label, control
   kind [text/number/select/toggle/color/multiselect], default,
@@ -717,6 +717,46 @@ WidgetCustomization {
   `__tests__/hub/widget-options-schema.test.ts`.
 - **Done when:** Every one of the 40 types has a schema (or an explicit
   "no extra options" entry) with defaults; spec asserts full coverage.
+- **Outcome:** First check refined the count: the live catalog is **41
+  widget types** (not 40), of which **29 already ship a SettingsForm**
+  — those map to `{ source: 'settings-form' }` so the modal hosts the
+  existing form directly (Slice 11's panel does this already, no
+  duplicate effort). The remaining **12 widgets** (`daily-briefing,
+  flashcards-due, monthly-revenue, outstanding-invoices, pending-hours,
+  pending-receipts, pending-time-off, quiz-history, recommended-lessons,
+  roadmap-progress, streak-counter, sun-calculator`) got declarative
+  schemas via `{ source: 'schema', fields }`. New
+  `lib/hub/widget-options.ts` (272 lines) exports:
+  - `WidgetOptionsField` discriminated union: 6 input kinds
+    (`text/number/toggle/select/multiselect/color`) each with a
+    `key`, `label`, `description?`, and a typed `defaultValue`.
+  - `WidgetOptionsEntry` = `{ source: 'settings-form' } | { source:
+    'schema'; fields } | { source: 'none' }`.
+  - `WIDGET_OPTIONS_REGISTRY` — frozen `Record<string, Entry>`
+    covering all 41 ids (29 settings-form pointers + 12 schemas with
+    sensible defaults: e.g. monthly-revenue gets period/showTrend/
+    showComparison; sun-calculator gets latitude/longitude/units/
+    showTwilight; outstanding-invoices gets maxItems/sortBy/showAging;
+    streak-counter gets kind/goal — typical reusable shapes the
+    surveyor would expect).
+  - Helpers `getWidgetOptionsEntry(id)` (with `none` fallback),
+    `defaultContentForSchema(fields)` (seeds `customization.content`
+    from defaults), `getSchemaFields(id)` (returns the field list or
+    null), `findMissingRegistryEntries()` (coverage helper used by
+    the spec).
+  `__tests__/hub/widget-options-schema.test.ts` (21 cases) locks:
+  full id coverage in both directions (no missing entries, no extras),
+  every settings-form entry's widget actually exposes a SettingsForm,
+  every widget with a SettingsForm is registered as settings-form (no
+  parallel schemas competing), every schema entry has at least one
+  field, each defaultValue's runtime type matches its declared
+  `type` (toggle→boolean, number→finite-number, select→string,
+  multiselect→string[], etc.), schema field keys are unique within
+  their widget, the 12 known-no-SettingsForm widgets each have a
+  schema entry, the `none` fallback for unknown ids, and
+  `defaultContentForSchema` reproduces every field key. 1262 hub specs
+  green; typecheck + lint clean. The schema-driven render path inside
+  the panel is the Slice 13–15 work.
 
 #### Slice 13–15 — Render each widget from its options (grouped by family)
 - **Scope:** Make each widget body honor `customization.content`
