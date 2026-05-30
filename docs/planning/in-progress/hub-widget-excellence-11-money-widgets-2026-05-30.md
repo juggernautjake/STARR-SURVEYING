@@ -154,6 +154,20 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Notifications:** hours submitted → approver; decision →
   `notifyHoursDecision` to submitter.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget hit `/api/admin/time-logs/approve`, which is POST-only** (bulk
+  approve), so the GET 404'd → always empty; it also expected an
+  aggregated `{ timesheets }` payload that doesn't exist. **Realigned:**
+  the widget now fetches `/api/admin/time-logs?status=pending` (the GET
+  returns every user's pending daily `{ logs }` for an admin) and rolls
+  them up client-side via two new pure exported helpers — `weekStartOf
+  (logDate)` (UTC Monday of the week) + `aggregatePendingTimesheets
+  (logs)` (group by submitter + week, sum hours, newest-week-first,
+  skipping bad rows). Display rounds the weekly total. Footer "Go to
+  hours approval →" is global; the decision notification
+  (`notifyHoursDecision`) is wired (doc-03 Slice 2a). 7 specs
+  (weekStartOf Sat/Mon/Sun + aggregate grouping/sum/sort/skip). Full hub
+  suite (1567) green; typecheck + lint clean. **pending-hours is done.**
 
 ## pending-receipts
 - **Endpoint:** `/api/admin/receipts?status=pending`.
