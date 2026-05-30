@@ -73,6 +73,21 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Editor:** dueWithin.
 - **Notifications:** maintenance due/overdue reminder (Doc 03).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `/api/admin/equipment/maintenance` doesn't exist** — the widget always
+  404'd → empty. The real endpoint is `/api/admin/maintenance/events`,
+  returning `{ events }` enriched with `equipment_name` + `kind`/`state`/
+  `scheduled_for`/`next_due_at`/`equipment_inventory_id`. **Realigned:**
+  fetch the events endpoint (defaults to open states) + map via a new
+  pure exported `toMaintenanceItem` (asset = equipment name, task =
+  humanized `kind`, due = `scheduled_for ?? next_due_at`, status =
+  `state`); a new pure `filterByDue(items, window)` applies the
+  dueWithin (overdue-only / week / month, overdue always counted).
+  **Row deep links** to `/admin/equipment/{inventory_id}`. Footer "Go
+  to maintenance →" is global; the due/overdue reminder fires via
+  `cron/maintenance-schedule-tick` (doc-03 audit). 5 new specs. Full hub
+  suite (1596) green; typecheck + lint clean. **maintenance-due is
+  done.**
 
 ## vehicles-status
 - **Endpoint:** `/api/admin/equipment/vehicles?filter=…`. Fields:
