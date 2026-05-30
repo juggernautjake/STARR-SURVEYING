@@ -16,10 +16,22 @@ const SRC = fs.readFileSync(
 );
 
 describe('Slice 2 — single modal-editor entry point', () => {
-  it('opens the modal AND enters edit mode in one handler', () => {
+  it('clicking the entry button just enters edit mode (modal is driven by isEditMode)', () => {
     expect(SRC).toMatch(
-      /const openEditor = useCallback\(\(\) => \{[\s\S]*?enterEditMode\(\);[\s\S]*?setGridEditorOpen\(true\);[\s\S]*?\}/,
+      /const openEditor = useCallback\(\(\) => \{[\s\S]*?enterEditMode\(\);[\s\S]*?\}, \[enterEditMode\]\);/,
     );
+  });
+
+  it('no parallel local-useState gridEditorOpen mirror exists', () => {
+    // The modal-open flag must derive from isEditMode (the store) so
+    // every path that flips edit mode (in-canvas button + the
+    // AdminTopBar ?edit=1 deep-link) opens the modal in one click.
+    expect(SRC).not.toMatch(/gridEditorOpen/);
+    expect(SRC).not.toMatch(/setGridEditorOpen/);
+  });
+
+  it('GridEditor mounts with open={isEditMode}', () => {
+    expect(SRC).toMatch(/<GridEditor[\s\S]*?open=\{isEditMode\}/);
   });
 
   it('renders exactly one entry button (data-testid="open-grid-editor")', () => {
@@ -61,9 +73,9 @@ describe('Slice 2 — the redundant editing surfaces are removed', () => {
 });
 
 describe('Slice 2 — modal close leaves edit mode consistent', () => {
-  it('closeEditor closes the modal and cancels a stranded edit session', () => {
+  it('closeEditor cancels a stranded edit session (modal visibility follows isEditMode)', () => {
     expect(SRC).toMatch(
-      /const closeEditor = useCallback\(\(\) => \{[\s\S]*?setGridEditorOpen\(false\);[\s\S]*?if \(useHubStore\.getState\(\)\.isEditMode\) cancelEdit\(\);[\s\S]*?\}/,
+      /const closeEditor = useCallback\(\(\) => \{[\s\S]*?if \(useHubStore\.getState\(\)\.isEditMode\) cancelEdit\(\);[\s\S]*?\}, \[cancelEdit\]\);/,
     );
   });
 

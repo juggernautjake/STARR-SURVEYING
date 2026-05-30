@@ -58,26 +58,26 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   // canvas only subscribes to data slices that can actually change.
   // Slice 2 (employee-hub-overhaul) — enterEditMode + cancelEdit drive
   // the single modal-editor entry/exit.
+  // Fixup 2026-05-30 — modal visibility now == isEditMode, so every
+  // path that flips edit mode (the in-canvas button + the AdminTopBar
+  // /admin/me?edit=1 deep-link) opens the modal in one click. No
+  // parallel local-useState mirror; no second click required.
   const { setDraftWidgets, enterEditMode, cancelEdit } = useHubActions();
 
-  const [gridEditorOpen, setGridEditorOpen] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
 
-  // Slice 2 — one click on the page opens the modal editor: enter edit
-  // mode (so draftWidgets is populated) AND open the centered modal.
-  // This collapses the old two-step open-then-paint flow + the parallel
-  // in-canvas edit surface into the single modal.
+  // One click on the page button enters edit mode (which now also
+  // means "the modal is open" — see the `open={isEditMode}` mount on
+  // GridEditor below).
   const openEditor = useCallback(() => {
     enterEditMode();
-    setGridEditorOpen(true);
   }, [enterEditMode]);
 
   // Closing the modal without an explicit Save/Cancel (backdrop / Esc →
-  // onClose) should also leave edit mode so the store doesn't strand in
-  // an editing state with no visible editor. cancelEdit is a no-op once
-  // GridEditor's own handleSave/handleCancel already exited.
+  // onClose) routes through cancelEdit so the store doesn't strand in
+  // an editing state with no visible editor. cancelEdit is a no-op
+  // once GridEditor's own handleSave / handleCancel already exited.
   const closeEditor = useCallback(() => {
-    setGridEditorOpen(false);
     if (useHubStore.getState().isEditMode) cancelEdit();
   }, [cancelEdit]);
 
@@ -166,7 +166,7 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
       </div>
 
       <GridEditor
-        open={gridEditorOpen}
+        open={isEditMode}
         onClose={closeEditor}
         roles={roles}
         activeBundles={activeBundles}

@@ -299,23 +299,33 @@ WidgetCustomization {
   asserts the single entry point + that the modal mounts from it.
 - **Outcome:** `HubCanvas` now renders a single `✏️ Customize Hub`
   button (`data-testid="open-grid-editor"`, hidden while editing) whose
-  `openEditor` handler calls `enterEditMode()` + `setGridEditorOpen(true)`
-  in one click — so the modal opens with `draftWidgets` already
-  populated. The old two-step "Customize Hub → ▦ Grid editor" flow, the
-  in-header "+ Add widget" button + `AddWidgetModal` mount, and the
-  floating `EditModeBar` mount are all removed from the canvas (the
-  modal's own footer `handleSave`/`handleCancel` — which already call
-  `saveDraft`/`cancelEdit` + `onClose` — are the commit surface). A
-  `closeEditor` handler closes the modal and runs `cancelEdit()` if the
-  store is still mid-edit (covers backdrop/Esc closes). This also
-  delivers most of **Slice 3** (the in-canvas edit surface is no longer
-  reachable since `editMode` only turns on with the modal open). Note:
-  `EditMode.tsx` (`CustomizeHubButton`/`EditModeBar`) + `AddWidgetModal`
-  remain as standalone components with their own passing specs — their
-  file deletion is folded into Slice 3/4 cleanup. `hub-canvas.test.tsx`
-  rewritten for the new model (entry button + enter-edit-on-click +
-  hidden-while-editing). 14 specs green (11 source-regex in
-  `single-editor-entry.test.ts` + 3 render); full hub suite + typecheck
+  `openEditor` handler calls `enterEditMode()` in one click — so the
+  modal opens with `draftWidgets` already populated. The old two-step
+  "Customize Hub → ▦ Grid editor" flow, the in-header "+ Add widget"
+  button + `AddWidgetModal` mount, and the floating `EditModeBar` mount
+  are all removed from the canvas (the modal's own footer
+  `handleSave`/`handleCancel` — which already call `saveDraft`/`cancelEdit`
+  + `onClose` — are the commit surface). A `closeEditor` handler runs
+  `cancelEdit()` if the store is still mid-edit (covers backdrop/Esc
+  closes). This also delivers most of **Slice 3** (the in-canvas edit
+  surface is no longer reachable since `editMode` only turns on with
+  the modal open). Note: `EditMode.tsx`
+  (`CustomizeHubButton`/`EditModeBar`) + `AddWidgetModal` remain as
+  standalone components with their own passing specs — their file
+  deletion is folded into Slice 3/4 cleanup.
+  **Follow-up fixup (2026-05-30):** the initial Slice 2 mirrored modal
+  visibility in a local `useState` `gridEditorOpen`, which meant the
+  AdminTopBar "✏️ Customize Hub" menu link (which deep-links to
+  `/admin/me?edit=1` and only calls `enterEditMode()` via HubMeClient)
+  flipped edit mode without opening the modal — the user reported the
+  resulting "click the menu link, then click another button to actually
+  open the editor" two-step. Rewired so the GridEditor mounts with
+  `open={isEditMode}` directly (single source of truth in the store);
+  the local `gridEditorOpen`/`setGridEditorOpen` state is gone. Now
+  every path that flips edit mode — in-canvas button OR the
+  `?edit=1` deep-link OR any future entry — opens the modal in one
+  click. Spec updated to lock the `open={isEditMode}` wiring + the
+  absence of a `gridEditorOpen` mirror. 1144 hub specs green; typecheck
   + lint clean.
 
 #### Slice 3 — Remove the in-canvas drag/resize edit surface
