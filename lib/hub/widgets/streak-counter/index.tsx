@@ -15,13 +15,43 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export interface StreakCounterContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: StreakCounterContent = {};
+// Slice 14 of employee-hub-overhaul-2026-05-30.md — content honors the
+// Slice-12 schema fields:
+//   - kind: which streak the widget counts (clockin / study / quiz).
+//     Surfaces as the emoji + label.
+//   - goal: target day count. Shown as "N of GOAL days" progress and
+//     swaps the emoji to 🏆 once the surveyor hits or exceeds it.
+export type StreakKind = 'clockin' | 'study' | 'quiz';
+export interface StreakCounterContent extends Record<string, unknown> {
+  kind?: StreakKind;
+  goal?: number;
+}
+const DEFAULTS: StreakCounterContent = { kind: 'study', goal: 7 };
 
 interface StreakInfo { current_days: number; longest_days: number; }
 
-function StreakCounterWidget({ size }: WidgetProps<StreakCounterContent>) {
+interface KindMeta { emoji: string; label: string; }
+const KIND_META: Record<StreakKind, KindMeta> = {
+  clockin: { emoji: '⏰', label: 'Clock-in streak' },
+  study:   { emoji: '🔥', label: 'Study streak'    },
+  quiz:    { emoji: '🎯', label: 'Quiz streak'     },
+};
+
+function resolveKind(content: StreakCounterContent): StreakKind {
+  const k = content.kind;
+  return k === 'clockin' || k === 'study' || k === 'quiz' ? k : 'study';
+}
+
+function resolveGoal(content: StreakCounterContent): number {
+  const g = content.goal;
+  return typeof g === 'number' && Number.isFinite(g) && g > 0 ? Math.floor(g) : 7;
+}
+
+function StreakCounterWidget({ size, content }: WidgetProps<StreakCounterContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const kind = resolveKind(content);
+  const goal = resolveGoal(content);
+  const meta = KIND_META[kind];
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [info, setInfo] = useState<StreakInfo | null>(null);
 
@@ -42,32 +72,44 @@ function StreakCounterWidget({ size }: WidgetProps<StreakCounterContent>) {
     if (bucket === 'tiny') {
       return (
         <div style={tinyStatWrapStyle()}>
-          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0🔥</span>
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0{meta.emoji}</span>
           <span style={tinyStatLabelStyle()}>days</span>
         </div>
       );
     }
-    return <WidgetEmpty icon="🔥" title="Start your streak" description="Complete a lesson today to begin a learning streak." />;
+    return <WidgetEmpty icon={meta.emoji} title="Start your streak" description={`Complete a ${kind === 'quiz' ? 'quiz' : kind === 'clockin' ? 'shift' : 'lesson'} today to begin your streak.`} />;
   }
 
-  // Tiny — just the streak number + 🔥 + day label.
+  const reachedGoal = info.current_days >= goal;
+  const liveEmoji = reachedGoal ? '🏆' : meta.emoji;
+
   if (bucket === 'tiny') {
     return (
       <div style={tinyStatWrapStyle()}>
-        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{info.current_days}🔥</span>
+        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{info.current_days}{liveEmoji}</span>
         <span style={tinyStatLabelStyle()}>{info.current_days === 1 ? 'day' : 'days'}</span>
       </div>
     );
   }
 
+  // Slice 16 — at 'small' bucket (typically 2×1 / 1×2) the Slice-14
+  // additions (kind label + progress + Longest line) compete for two
+  // text rows that the size genuinely doesn't have. Skip the
+  // "Longest:" line; medium+ keeps it for the full breakdown.
+  const showLongest = bucket !== 'small';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
       <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>
-        🔥 {info.current_days} day{info.current_days === 1 ? '' : 's'}
+        {liveEmoji} {info.current_days} day{info.current_days === 1 ? '' : 's'}
       </span>
       <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
-        Longest: {info.longest_days} days
+        {meta.label} · {info.current_days} of {goal} day{goal === 1 ? '' : 's'}
       </span>
+      {showLongest && (
+        <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
+          Longest: {info.longest_days} days
+        </span>
+      )}
     </div>
   );
 }
@@ -87,3 +129,8 @@ defineWidget<StreakCounterContent>({
   allowedRoles: ['student', 'teacher', 'admin', 'developer'],
   Widget: StreakCounterWidget,
 });
+
+// Slice 14 — test-only export so the per-widget content render spec
+// can verify the resolver functions without rendering the React tree
+// (the SSR snapshot-caching limitation blocks store-mutation specs).
+export { resolveKind, resolveGoal, KIND_META };

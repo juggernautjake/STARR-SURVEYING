@@ -132,7 +132,10 @@
 .hub-greeting__work-mode-btn.hub-btn,
 .hub-greeting__work-mode-btn.hub-btn--primary {
   background: var(--gradient-green);
-  border-color: transparent;
+  /* Slice 1 (employee-hub-overhaul-2026-05-30) — white text + a SOLID
+   * white border at rest. The spinning red/white/blue ring reveals on
+   * hover via the masked ::before pseudo below. */
+  border: 2px solid #FFFFFF;
   color: #FFFFFF;
   padding: 0.95rem 2.1rem;
   border-radius: 9999px;
@@ -154,15 +157,80 @@
   z-index: 1;
 }
 
+/* Slice 1 — animatable angle for the conic ring. @property lets the
+ * conic-gradient's `from` angle tween; browsers without @property
+ * support fall back to a static (non-spinning) tri-color ring, which
+ * matches the reduced-motion presentation. */
+@property --wm-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes wm-spin {
+  to {
+    --wm-angle: 360deg;
+  }
+}
+
+/* The red/white/blue ring. A masked pseudo (mask-composite: exclude)
+ * shows ONLY the 3px rim that pokes just outside the button, so the
+ * green face + label stay untouched and we sidestep z-index painting
+ * pitfalls. Hidden (opacity 0) until hover. */
+.hub-greeting__work-mode-btn.hub-btn::before,
+.hub-greeting__work-mode-btn.hub-btn--primary::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  padding: 3px;
+  opacity: 0;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--wm-angle),
+    #E11D2A,
+    #FFFFFF,
+    #2447D6,
+    #FFFFFF,
+    #E11D2A
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  transition: opacity 180ms ease;
+}
+
+.hub-greeting__work-mode-btn.hub-btn:hover::before,
+.hub-greeting__work-mode-btn.hub-btn--primary:hover::before {
+  opacity: 1;
+  animation: wm-spin 2.4s linear infinite;
+}
+
 .hub-greeting__work-mode-btn.hub-btn:hover,
 .hub-greeting__work-mode-btn.hub-btn--primary:hover {
   background: var(--gradient-green);
-  border-color: transparent;
+  /* Keep the white border on hover; the spinning ring sits just
+   * outside it. */
+  border-color: #FFFFFF;
   color: #FFFFFF;
   transform: translateY(-2px);
   filter: brightness(1.05);
   box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5),
               0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Reduced-motion: still reveal the tri-color ring on hover, but don't
+ * spin it. */
+@media (prefers-reduced-motion: reduce) {
+  .hub-greeting__work-mode-btn.hub-btn:hover::before,
+  .hub-greeting__work-mode-btn.hub-btn--primary:hover::before {
+    animation: none;
+  }
 }
 
 .hub-greeting__work-mode-btn.hub-btn:active,

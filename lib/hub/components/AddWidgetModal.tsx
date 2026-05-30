@@ -16,6 +16,7 @@ import { filterCatalog, groupByCategory } from '@/lib/hub/widget-catalog-filter'
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
 import { compactLayout } from '@/lib/hub/grid-math';
+import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import type { WidgetInstance } from '@/lib/hub/types';
 
 export interface AddWidgetModalProps {
@@ -112,7 +113,7 @@ function AddWidgetModalBody({ onClose, roles, activeBundles }: AddWidgetModalBod
       h: def.defaultSize.h,
       customization: { content: def.defaultContent },
     };
-    const compacted = compactLayout([...existing, newInstance], 8);
+    const compacted = compactLayout([...existing, newInstance], HUB_GRID_COLS);
     setDraftWidgets(compacted);
     onClose();
   }

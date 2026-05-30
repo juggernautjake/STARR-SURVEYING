@@ -454,7 +454,33 @@ export interface FeatureStyle {
    *  spline). null/undefined = no fill (stroke only, current behavior). */
   fillColor?: string | null;
   fillOpacity?: number;       // 0–1, defaults to opacity when omitted
+
+  /** Slice 235 — closed-shape texture / shading fill. Overlays the
+   *  base fillColor with a procedural pattern: uniform stipple,
+   *  gravel-ish stipple with slight size + spacing jitter, diagonal
+   *  hatch, crosshatch, horizontal / vertical lines, brick, wave.
+   *  undefined / 'SOLID' / 'NONE' preserve the existing fill behavior.
+   *  Color of the pattern strokes/dots comes from `patternColor`
+   *  (fallbacks to feature color when null). */
+  fillPattern?: FillPattern;
+  patternColor?: string | null;
+  /** Pattern density multiplier, 0.25 – 4. Default 1. Higher = more
+   *  dots per square inch / tighter hatch spacing. */
+  patternDensity?: number;
 }
+
+export type FillPattern =
+  | 'SOLID'
+  | 'NONE'
+  | 'DOT_UNIFORM'
+  | 'DOT_GRAVEL'
+  | 'DIAGONAL_LEFT'
+  | 'DIAGONAL_RIGHT'
+  | 'CROSSHATCH'
+  | 'HORIZONTAL_LINES'
+  | 'VERTICAL_LINES'
+  | 'BRICK'
+  | 'WAVE';
 
 // --- LAYERS ---
 
@@ -984,9 +1010,15 @@ export interface TextLabelStyle {
   fontWeight: 'normal' | 'bold';
   fontStyle: 'normal' | 'italic';
   color: string | null;      // null = inherit layer color
+  // Slice 232 — opt-in label background highlight. `backgroundColor`
+  // null = transparent (default). When set, the render path draws a
+  // filled rect under the text padded by `padding`. `borderColor` +
+  // `borderWidth` are independent — both nullable so a surveyor can
+  // pick "fill only", "stroke only", or both.
   backgroundColor: string | null; // null = transparent
   borderColor: string | null;
-  padding: number;           // px around text (default 2)
+  borderWidth: number | null;     // null = no stroke
+  padding: number;                // px around text (default 2)
 }
 
 /** A moveable text annotation tied to a specific feature element. */

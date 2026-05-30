@@ -132,6 +132,17 @@ export interface WidgetCustomization {
     density?: Density;
   };
   style?: {
+    /** Slice 5 (employee-hub-overhaul-2026-05-30) — opt-in header
+     *  background color. When set, WidgetFrame paints the header with
+     *  this value (any valid CSS color); when absent, the header uses
+     *  the theme default. The only widget-styling slot the surveyor
+     *  controls post-overhaul (size lives on the WidgetInstance itself
+     *  and is edited in the modal). */
+    headerColor?: string;
+    /** Pre-overhaul fields kept on the type so old saved layouts in
+     *  Supabase keep loading without a migration. The render path no
+     *  longer reads them (Slice 6). They'll be dropped from the type
+     *  once a migration sweeps them out of stored rows. */
     colorMode?: WidgetColorMode;
     statusTint?: WidgetStatusTint;
     customBg?: string;

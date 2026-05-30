@@ -2,11 +2,15 @@
 //
 // Slice 185 — HubCanvas orchestrator. Covers the static (SSR) shape of
 // the canvas. Interactive + state-dependent branches (edit-mode UI,
-// data-widget-id round-trip, settings open/close, AddWidgetModal
-// open/close) live in the Slice 192 Playwright spec —
-// `useSyncExternalStore`'s server snapshot doesn't reflect post-import
-// zustand `setState` updates inside vitest's `environment: 'node'`,
-// matching the limitation documented on the Slice 94 widget tests.
+// data-widget-id round-trip, settings open/close) live in the Slice 192
+// Playwright spec — `useSyncExternalStore`'s server snapshot doesn't
+// reflect post-import zustand `setState` updates inside vitest's
+// `environment: 'node'`, matching the limitation documented on the
+// Slice 94 widget tests.
+//
+// Slice 2 (employee-hub-overhaul-2026-05-30) updated the assertions for
+// the single modal-editor model: one "Customize Hub" entry button in
+// view mode, no in-header add-widget button, no floating EditModeBar.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
@@ -48,12 +52,13 @@ describe('HubCanvas — SSR shape (view mode, empty store)', () => {
     expect(html).toContain('class="hub-canvas"');
   });
 
-  it('shows the Customize Hub toggle when not editing', () => {
+  it('shows the single Customize Hub entry button when not editing', () => {
     const html = render({ roles: ['field_crew'] });
     expect(html).toContain('Customize Hub');
+    expect(html).toContain('data-testid="open-grid-editor"');
   });
 
-  it('does NOT render the "+ Add widget" button outside edit mode', () => {
+  it('does NOT render an in-header add-widget button outside edit mode', () => {
     const html = render({ roles: ['field_crew'] });
     expect(html).not.toContain('+ Add widget');
   });
@@ -64,7 +69,7 @@ describe('HubCanvas — SSR shape (view mode, empty store)', () => {
     expect(html).not.toContain('— settings');
   });
 
-  it('does NOT mount the EditModeBar when not editing', () => {
+  it('does NOT mount the floating EditModeBar (modal footer commits)', () => {
     const html = render({ roles: ['field_crew'] });
     expect(html).not.toContain('Save layout');
   });

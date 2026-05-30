@@ -127,8 +127,9 @@ export const DEFAULT_TEXT_LABEL_STYLE: TextLabelStyle = {
   fontWeight: 'normal',
   fontStyle: 'normal',
   color: null,           // inherit layer color
-  backgroundColor: null, // transparent
+  backgroundColor: null, // Slice 232 — transparent until surveyor opts in
   borderColor: null,
+  borderWidth: null,
   padding: 2,
 };
 

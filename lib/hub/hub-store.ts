@@ -25,6 +25,11 @@ import type {
   WidgetCustomization,
   WidgetInstance,
 } from './types';
+// Slice 5 (employee-hub-overhaul-2026-05-30) — tolerate old saved
+// layouts on hydrate. The normalizer drops layout.showTitle (header
+// is always visible now) + sanitizes unknown / out-of-enum style
+// values, never throws.
+import { normalizeWidgets } from './normalize-customization';
 
 export type SaveStatus = 'idle' | 'saving' | 'error';
 
@@ -107,7 +112,11 @@ export const useHubStore = create<HubStore>((set, get) => ({
 
   hydrate: ({ widgets, theme, customTheme, density, fontScale, hubSettings, activePersona }) => {
     set({
-      widgets,
+      // Slice 5 — sanitize on load so a row saved before the overhaul
+      // (with showTitle=false / dropped style fields / unknown
+      // density / etc.) still renders cleanly. The normalizer is a
+      // pass-through for layouts written after the overhaul.
+      widgets: normalizeWidgets(widgets),
       draftWidgets: null,
       isEditMode: false,
       isDirty: false,

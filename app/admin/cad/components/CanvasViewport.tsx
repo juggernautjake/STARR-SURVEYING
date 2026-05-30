@@ -147,6 +147,8 @@ import {
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
+// Slice 236 — fill-pattern generators for the textured-polygon render path.
+import { generateFillPattern, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -681,6 +683,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     drawingRotContainer: import('pixi.js').Container;
     gridLayer: import('pixi.js').Container;
     featureLayer: import('pixi.js').Container;
+    /** Slice 233 — sits between featureLayer and labelLayer so the
+     *  opt-in label background rect always draws under its own text. */
+    labelBackgroundLayer: import('pixi.js').Container;
     labelLayer: import('pixi.js').Container;
     selectionLayer: import('pixi.js').Container;
     snapLayer: import('pixi.js').Container;
@@ -710,11 +715,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbSignatureGraphics: import('pixi.js').Graphics;
     tbNorthArrowGraphics: import('pixi.js').Graphics;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
+    /** Slice 236 — per-feature texture overlay (dots + hatch lines)
+     *  for closed shapes whose style.fillPattern is set. The `mask`
+     *  Graphics holds the polygon shape; the `tex` Graphics carries
+     *  the dot/line primitives and uses the mask so the texture
+     *  stays inside the polygon boundary. */
+    featureTextures: Map<string, { tex: import('pixi.js').Graphics; mask: import('pixi.js').Graphics }>;
     labelTexts: Map<string, import('pixi.js').Text>;
     /** Slice 229 — Pixi Text objects for stored AREA_LABEL
      *  annotations, keyed by annotation id. Drawn on labelLayer so
      *  they rotate with the drawing + sit above features. */
     areaLabelTexts: Map<string, import('pixi.js').Text>;
+    /** Slice 233 — opt-in background rect Graphics, one per label
+     *  that opts in (style.backgroundColor != null OR annotation
+     *  backgroundColor != null). Keyed by `label:${labelKey}` for
+     *  per-feature TextLabels and `area:${annotationId}` for area
+     *  annotations. Drawn on labelBackgroundLayer below the text. */
+    labelBackgrounds: Map<string, import('pixi.js').Graphics>;
     /** PixiJS Sprites for IMAGE features, keyed by featureId */
     imageSprites: Map<string, import('pixi.js').Sprite>;
     /** Texture cache keyed by projectImage.id */
@@ -1253,11 +1270,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const drawingRotContainer = new PIXI.Container();
         const gridLayer = new PIXI.Container();
         const featureLayer = new PIXI.Container();
+        // Slice 233 — labelBackgroundLayer sits between featureLayer
+        // and labelLayer so the opt-in rect always draws under its
+        // own label text without z-shuffling per render frame.
+        const labelBackgroundLayer = new PIXI.Container();
         const labelLayer = new PIXI.Container();
         const selectionLayer = new PIXI.Container();
         const snapLayer = new PIXI.Container();
         const toolPreviewLayer = new PIXI.Container();
-        drawingRotContainer.addChild(gridLayer, featureLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        drawingRotContainer.addChild(gridLayer, featureLayer, labelBackgroundLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
         // titleBlockLayer is NOT rotated — title block is paper-fixed
         const titleBlockLayer = new PIXI.Container();
 
@@ -1320,6 +1341,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           drawingRotContainer,
           gridLayer,
           featureLayer,
+          // Slice 233 — labelBackgroundLayer wired into the rotContainer above.
+          labelBackgroundLayer,
           labelLayer,
           selectionLayer,
           snapLayer,
@@ -1342,9 +1365,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           tbSignatureGraphics,
           tbNorthArrowGraphics,
           featureGraphics: new Map(),
+          // Slice 236 — per-feature texture overlay + mask for fillPattern.
+          featureTextures: new Map(),
           labelTexts: new Map(),
           // Slice 229 — Pixi text objects for area-label annotations.
           areaLabelTexts: new Map(),
+          // Slice 233 — opt-in label background rect Graphics.
+          labelBackgrounds: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
           tbSealSprite: null,
@@ -1774,10 +1801,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.parent?.removeChild(g);
         g.destroy();
         pixi.featureGraphics.delete(id);
+        // Slice 236 — drop the matching texture overlay + mask.
+        const tx = pixi.featureTextures.get(id);
+        if (tx) {
+          tx.tex.parent?.removeChild(tx.tex);
+          tx.mask.parent?.removeChild(tx.mask);
+          try { tx.tex.destroy(); tx.mask.destroy(); } catch { /* noop */ }
+          pixi.featureTextures.delete(id);
+        }
       } else if (!culledIds.has(id)) {
         g.visible = false;
+        const tx = pixi.featureTextures.get(id);
+        if (tx) { tx.tex.visible = false; tx.mask.visible = false; }
       } else {
         g.visible = true;
+        const tx = pixi.featureTextures.get(id);
+        if (tx) { tx.tex.visible = true; tx.mask.visible = true; }
       }
     }
 
@@ -2017,6 +2056,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             g.endFill();
           }
         }
+        // Slice 236 — overlay a procedural texture (dot stipple, hatch,
+        // gravel, brick, wave) when feature.style.fillPattern is set.
+        // Drawn on a per-feature texture Graphics masked to the polygon
+        // shape so the texture stays inside the boundary.
+        drawFillPatternForPolygon(feature, screenPts, alpha);
         // Close the ring so the pattern wraps the final edge.
         screenPts.push(screenPts[0]);
         renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
@@ -3489,6 +3533,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         s.fill = ann.color;
       }
       textObj.position.set(sx, sy);
+
+      // Slice 233 — opt-in background rect under the area label. Off
+      // by default (backgroundColor === null) so existing drawings stay
+      // bare. Drawn on labelBackgroundLayer so it sits under the text.
+      const bgKey = `area:${ann.id}`;
+      if (ann.backgroundColor) {
+        let bgGfx = pixi.labelBackgrounds.get(bgKey);
+        if (!bgGfx) {
+          bgGfx = new pixi.GraphicsClass();
+          pixi.labelBackgrounds.set(bgKey, bgGfx);
+          pixi.labelBackgroundLayer.addChild(bgGfx);
+        }
+        drawLabelBackgroundRect(
+          bgGfx,
+          textObj,
+          ann.padding,
+          ann.backgroundColor,
+          ann.borderVisible ? ann.borderColor : null,
+          ann.borderVisible ? 1 : null,
+        );
+      } else {
+        const existing = pixi.labelBackgrounds.get(bgKey);
+        if (existing) {
+          pixi.labelBackgroundLayer.removeChild(existing);
+          try { existing.destroy(); } catch { /* noop */ }
+          pixi.labelBackgrounds.delete(bgKey);
+        }
+      }
     }
 
     // GC: drop any Pixi Text objects whose annotations were
@@ -3498,8 +3570,164 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         pixi.labelLayer.removeChild(txt);
         try { txt.destroy(); } catch { /* noop */ }
         pixi.areaLabelTexts.delete(id);
+        // Slice 233 — drop the matching background rect if any.
+        const bgKey = `area:${id}`;
+        const bg = pixi.labelBackgrounds.get(bgKey);
+        if (bg) {
+          pixi.labelBackgroundLayer.removeChild(bg);
+          try { bg.destroy(); } catch { /* noop */ }
+          pixi.labelBackgrounds.delete(bgKey);
+        }
       }
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // Slice 233 — opt-in label background rect helper
+  // ─────────────────────────────────────────────
+  /** Clear + redraw a Graphics under `textObj` so the rect sits behind
+   *  the text padded by `padding` px on every side. `bgColor` fills the
+   *  rect; `borderColor` + `borderWidth` paint an optional stroke
+   *  (both nullable so a surveyor can pick fill-only, stroke-only, or
+   *  both). The Graphics' x/y is set to the text's screen position so
+   *  it tracks live edits + pans without recomputing bounds. */
+  function drawLabelBackgroundRect(
+    g: import('pixi.js').Graphics,
+    textObj: import('pixi.js').Text,
+    padding: number,
+    bgColor: string | null,
+    borderColor: string | null,
+    borderWidth: number | null,
+  ) {
+    g.clear();
+    const bounds = textObj.getLocalBounds();
+    // Pixi Text anchored at (0.5, 0.5) — bounds origin sits at the
+    // text's natural top-left in local space; offset matches the
+    // anchored render so the rect hugs the visible glyphs.
+    const x = bounds.x - padding;
+    const y = bounds.y - padding;
+    const w = bounds.width + padding * 2;
+    const h = bounds.height + padding * 2;
+    const toInt = (hex: string) => parseInt(hex.replace('#', ''), 16);
+    if (borderColor && borderWidth && borderWidth > 0) {
+      const bi = toInt(borderColor);
+      if (Number.isFinite(bi)) g.lineStyle(borderWidth, bi, 1);
+    }
+    if (bgColor) {
+      const fi = toInt(bgColor);
+      if (Number.isFinite(fi)) g.beginFill(fi, 1);
+    }
+    g.drawRect(x, y, w, h);
+    if (bgColor) g.endFill();
+    g.position.set(textObj.position.x, textObj.position.y);
+    g.rotation = textObj.rotation;
+    g.alpha = textObj.alpha;
+    g.visible = textObj.visible;
+  }
+
+  // ─────────────────────────────────────────────
+  // Slice 236 — textured polygon fill (procedural dot / hatch / gravel)
+  // ─────────────────────────────────────────────
+  /** Stable 32-bit hash of a feature id so the pattern generators get
+   *  a per-feature seed that survives re-renders. */
+  function hashSeed(id: string): number {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < id.length; i++) {
+      h ^= id.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return h | 0;
+  }
+
+  /** Overlay a procedural texture inside `feature`'s polygon. Creates
+   *  (or re-uses) two Graphics under the same parent as the feature's
+   *  main Graphics: `mask` carries the polygon shape, `tex` carries
+   *  the dot/line primitives with `mask` applied so the texture stays
+   *  inside the boundary. No-op when fillPattern is undefined / SOLID
+   *  / NONE — existing drawings keep their current behavior. */
+  function drawFillPatternForPolygon(
+    feature: Feature,
+    screenPts: ReadonlyArray<{ x: number; y: number }>,
+    alpha: number,
+  ) {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const pattern = feature.style.fillPattern;
+    if (!pattern || pattern === 'SOLID' || pattern === 'NONE') {
+      const existing = pixi.featureTextures.get(feature.id);
+      if (existing) {
+        existing.tex.clear();
+        existing.mask.clear();
+      }
+      return;
+    }
+    if (screenPts.length < 3) return;
+
+    // Bounding rect in screen space drives the pattern generator's
+    // local coordinate frame; primitives are then offset by (minX, minY)
+    // when stroked onto `tex`.
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of screenPts) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const width = Math.max(0, maxX - minX);
+    const height = Math.max(0, maxY - minY);
+    if (width <= 0 || height <= 0) return;
+
+    const parent = pixi.featureGraphics.get(feature.id)?.parent ?? pixi.featureLayer;
+    let entry = pixi.featureTextures.get(feature.id);
+    if (!entry) {
+      const tex = new pixi.GraphicsClass();
+      const mask = new pixi.GraphicsClass();
+      parent.addChild(mask, tex);
+      tex.mask = mask;
+      entry = { tex, mask };
+      pixi.featureTextures.set(feature.id, entry);
+    } else if (entry.tex.parent !== parent) {
+      entry.tex.parent?.removeChild(entry.tex);
+      entry.mask.parent?.removeChild(entry.mask);
+      parent.addChild(entry.mask, entry.tex);
+    }
+
+    // Mask: solid polygon shape so the texture is clipped to it.
+    entry.mask.clear();
+    entry.mask.beginFill(0xffffff, 1);
+    entry.mask.moveTo(screenPts[0].x, screenPts[0].y);
+    for (let i = 1; i < screenPts.length; i++) entry.mask.lineTo(screenPts[i].x, screenPts[i].y);
+    entry.mask.closePath();
+    entry.mask.endFill();
+    entry.mask.visible = true;
+
+    // Texture: walk generated primitives in [0, width] × [0, height]
+    // local space and translate by (minX, minY) to land in the polygon.
+    const cfg: FillPatternConfig = {
+      pattern,
+      density: feature.style.patternDensity ?? 1,
+      seed: hashSeed(feature.id),
+    };
+    const { dots, lines } = generateFillPattern(width, height, cfg);
+    const patternColorHex = feature.style.patternColor ?? feature.style.color ?? '#000000';
+    const patternInt = parseInt(patternColorHex.replace('#', ''), 16);
+    const colorInt = Number.isFinite(patternInt) ? patternInt : 0x000000;
+
+    entry.tex.clear();
+    if (dots.length > 0) {
+      entry.tex.lineStyle(0);
+      entry.tex.beginFill(colorInt, alpha);
+      for (const d of dots) entry.tex.drawCircle(minX + d.x, minY + d.y, d.r);
+      entry.tex.endFill();
+    }
+    if (lines.length > 0) {
+      entry.tex.lineStyle(0.6, colorInt, alpha);
+      for (const ln of lines) {
+        entry.tex.moveTo(minX + ln.x1, minY + ln.y1);
+        entry.tex.lineTo(minX + ln.x2, minY + ln.y2);
+      }
+    }
+    entry.tex.visible = true;
   }
 
   // ─────────────────────────────────────────────
@@ -3690,8 +3918,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         textObj.alpha = layer.opacity;
         textObj.visible = true;
 
-        // Add background if specified
-        // (background rendering is handled via the text's own properties for simplicity)
+        // Slice 233 — opt-in label background rect. style.backgroundColor
+        // null = transparent (default), so existing drawings stay bare
+        // until the surveyor opts in via the label editor (Slice 234).
+        const bgKey = `label:${labelKey}`;
+        if (label.style.backgroundColor) {
+          let bgGfx = pixi.labelBackgrounds.get(bgKey);
+          if (!bgGfx) {
+            bgGfx = new pixi.GraphicsClass();
+            pixi.labelBackgrounds.set(bgKey, bgGfx);
+            pixi.labelBackgroundLayer.addChild(bgGfx);
+          }
+          drawLabelBackgroundRect(
+            bgGfx,
+            textObj,
+            label.style.padding,
+            label.style.backgroundColor,
+            label.style.borderColor,
+            label.style.borderWidth,
+          );
+        } else {
+          const existing = pixi.labelBackgrounds.get(bgKey);
+          if (existing) {
+            pixi.labelBackgroundLayer.removeChild(existing);
+            try { existing.destroy(); } catch { /* noop */ }
+            pixi.labelBackgrounds.delete(bgKey);
+          }
+        }
       }
     }
 
@@ -3703,8 +3956,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         pixi.labelLayer.removeChild(textObj);
         textObj.destroy();
         pixi.labelTexts.delete(key);
+        // Slice 233 — drop the matching background rect if any.
+        const bgKey = `label:${key}`;
+        const bg = pixi.labelBackgrounds.get(bgKey);
+        if (bg) {
+          pixi.labelBackgroundLayer.removeChild(bg);
+          try { bg.destroy(); } catch { /* noop */ }
+          pixi.labelBackgrounds.delete(bgKey);
+        }
       } else if (!activeLabelIds.has(key)) {
         textObj.visible = false;
+        const bg = pixi.labelBackgrounds.get(`label:${key}`);
+        if (bg) bg.visible = false;
       } else {
         textObj.visible = true;
       }
@@ -13516,6 +13779,59 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   className={`px-2 py-0.5 text-[10px] rounded border italic ${label.style.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
                   onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
                 >I</button>
+              </div>
+              {/* Slice 234 — Opt-in label background highlight. Default
+                  off (style.backgroundColor === null); a checkbox toggles
+                  it on with a white fill, color swatch, and px padding.
+                  Composability hook so an area label can stay readable on
+                  top of a textured polygon (Slice 238). */}
+              <div className="pt-1.5 border-t border-gray-700/60 space-y-1.5" data-testid="label-editor-background-section">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-blue-500"
+                    data-testid="label-editor-background-toggle"
+                    checked={label.style.backgroundColor !== null}
+                    onChange={(e) => {
+                      const nextBg = e.target.checked ? (label.style.backgroundColor ?? '#ffffff') : null;
+                      drawingStore.updateTextLabel(featureId, labelId, {
+                        style: { ...label.style, backgroundColor: nextBg },
+                      });
+                    }}
+                  />
+                  <span className="text-gray-400 text-[10px]">Add background</span>
+                </label>
+                {label.style.backgroundColor !== null && (
+                  <div className="grid grid-cols-2 gap-1.5 pl-5">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-gray-500 text-[9px]">Color</span>
+                      <input
+                        type="color"
+                        className="w-6 h-5 bg-gray-700 rounded cursor-pointer border border-gray-600"
+                        data-testid="label-editor-background-color"
+                        value={label.style.backgroundColor ?? '#ffffff'}
+                        onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, {
+                          style: { ...label.style, backgroundColor: e.target.value },
+                        })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-gray-500 text-[9px]">Padding</span>
+                      <input
+                        type="number" min={0} max={20} step={1}
+                        className="w-10 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-[10px] outline-none border border-gray-600 focus:border-blue-500"
+                        data-testid="label-editor-background-padding"
+                        value={label.style.padding}
+                        onChange={(e) => {
+                          const v = Math.max(0, Math.min(20, parseInt(e.target.value) || 0));
+                          drawingStore.updateTextLabel(featureId, labelId, {
+                            style: { ...label.style, padding: v },
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               {/* Reset controls — shown when any property has been manually overridden */}
               {(label.userPositioned || label.rotation !== null || label.scale !== 1) && (

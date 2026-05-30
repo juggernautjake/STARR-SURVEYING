@@ -14,13 +14,29 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export interface PendingTimeOffContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: PendingTimeOffContent = {};
+// Slice 15 — wired to the Slice-12 schema fields:
+//   - maxItems:     clamp the rendered list to 1–20; null → size cap
+//   - showStartDate: when false, hide the start→end date range so the
+//                    list reads as a focused approval queue (names + hours only)
+import { resolveBoundedInt, resolveBool } from '@/lib/hub/widgets/_shared/content-resolvers';
+
+export interface PendingTimeOffContent extends Record<string, unknown> {
+  maxItems?: number;
+  showStartDate?: boolean;
+}
+const DEFAULTS: PendingTimeOffContent = { maxItems: 5, showStartDate: true };
+
+export const resolveMaxItems = (c: PendingTimeOffContent): number | null =>
+  resolveBoundedInt(c.maxItems, 1, 20, null);
+export const resolveShowStartDate = (c: PendingTimeOffContent): boolean =>
+  resolveBool(c.showStartDate, true);
 
 interface TimeOff { id: string; user_email: string; user_name?: string | null; start_date: string; end_date: string; hours_requested: number; reason?: string | null; }
 
-function PendingTimeOffWidget({ size }: WidgetProps<PendingTimeOffContent>) {
+function PendingTimeOffWidget({ size, content }: WidgetProps<PendingTimeOffContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const explicitCap = resolveMaxItems(content);
+  const showStartDate = resolveShowStartDate(content);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [items, setItems] = useState<TimeOff[]>([]);
 
@@ -58,13 +74,18 @@ function PendingTimeOffWidget({ size }: WidgetProps<PendingTimeOffContent>) {
     );
   }
 
-  const cap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  const sizeCap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  const cap = explicitCap ?? sizeCap;
   return (
     <ul role="list" style={listStyle}>
       {items.slice(0, cap).map((t) => (
         <li key={t.id} style={rowStyle}>
           <span style={nameStyle}>{t.user_name ?? t.user_email}</span>
-          <span style={mutedStyle}>{new Date(t.start_date).toLocaleDateString()} → {new Date(t.end_date).toLocaleDateString()} · {t.hours_requested}h</span>
+          <span style={mutedStyle}>
+            {showStartDate
+              ? <>{new Date(t.start_date).toLocaleDateString()} → {new Date(t.end_date).toLocaleDateString()} · {t.hours_requested}h</>
+              : <>{t.hours_requested}h</>}
+          </span>
         </li>
       ))}
     </ul>

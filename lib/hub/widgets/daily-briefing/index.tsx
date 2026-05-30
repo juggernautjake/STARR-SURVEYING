@@ -6,18 +6,45 @@ import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 
-export interface DailyBriefingContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: DailyBriefingContent = {};
+// Slice 15c — wired to the Slice-12 schema fields:
+//   - showWeather  toggles the Weather sub-section
+//   - showSchedule toggles the Today (schedule) sub-section
+//   - maxJobs      caps the "Up to N jobs" hint inside the Today section
+import { resolveBool, resolveBoundedInt } from '@/lib/hub/widgets/_shared/content-resolvers';
 
-function DailyBriefingWidget({ size }: WidgetProps<DailyBriefingContent>) {
+export interface DailyBriefingContent extends Record<string, unknown> {
+  showWeather?: boolean;
+  showSchedule?: boolean;
+  maxJobs?: number;
+}
+const DEFAULTS: DailyBriefingContent = { showWeather: true, showSchedule: true, maxJobs: 3 };
+
+export const resolveShowWeather  = (c: DailyBriefingContent): boolean      => resolveBool(c.showWeather,  true);
+export const resolveShowSchedule = (c: DailyBriefingContent): boolean      => resolveBool(c.showSchedule, true);
+export const resolveMaxJobs      = (c: DailyBriefingContent): number       =>
+  resolveBoundedInt(c.maxJobs, 1, 10, 3) ?? 3;
+
+function DailyBriefingWidget({ size, content }: WidgetProps<DailyBriefingContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const showWeather  = resolveShowWeather(content);
+  const showSchedule = resolveShowSchedule(content);
+  const maxJobs      = resolveMaxJobs(content);
   if (bucket === 'tiny' || bucket === 'small') {
     return <WidgetEmpty icon="📋" title="Resize me larger" description="The Daily Briefing composite needs medium+ space." />;
   }
+  // Crew + Action items are always-on (they don't have toggles in the
+  // Slice-12 schema). Weather + Schedule (Today) are gated by their
+  // toggles. The Today subtitle echoes the maxJobs hint so the
+  // surveyor sees the cap reflected even though real schedule data
+  // hasn't landed yet.
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--hub-spc-3, 12px)' }}>
-      <Section title="Today" subtitle="Schedule + assignments" icon="🗓" />
-      <Section title="Weather" subtitle="Forecast for your job site" icon="☁️" />
+      {showSchedule && (
+        <Section title="Today" subtitle={`Schedule + assignments · up to ${maxJobs} jobs`} icon="🗓" />
+      )}
+      {showWeather && (
+        <Section title="Weather" subtitle="Forecast for your job site" icon="☁️" />
+      )}
       <Section title="Crew" subtitle="Who's on the clock" icon="👥" />
       <Section title="Action items" subtitle="Tasks due today" icon="✅" />
     </div>

@@ -1,0 +1,303 @@
+// lib/cad/styles/fill-patterns.ts
+//
+// Slice 235 of cad-label-backgrounds-and-textured-fills-2026-05-30.md.
+// Pure-helper module that generates the per-frame primitives
+// (dots + line segments) used by the closed-shape texture render
+// path (Slice 236). Stays free of Pixi so it can be unit-tested with
+// fixed seeds and re-used for SVG export later.
+
+import type { FillPattern } from '../types';
+
+export type Point2D = { x: number; y: number };
+
+/** A single dot in a stipple fill — center + radius in screen pixels. */
+export interface PatternDot {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** A line segment in a hatch fill — start + end in screen pixels. */
+export interface PatternLine {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** Deterministic seedable RNG so test fixtures stay stable. */
+export class SeededRng {
+  private state: number;
+  constructor(seed: number) {
+    // Force non-zero state — mulberry32 collapses to 0 if seeded at 0.
+    this.state = (seed | 0) || 0x9e3779b9;
+  }
+  next(): number {
+    let t = (this.state += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  /** Standard-normal sample via Box-Muller. */
+  gaussian(mean = 0, stdDev = 1): number {
+    const u = Math.max(this.next(), Number.EPSILON);
+    const v = this.next();
+    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    return mean + stdDev * z;
+  }
+}
+
+export interface FillPatternConfig {
+  /** Pattern type — picks the helper. */
+  pattern: FillPattern;
+  /** Density multiplier, 0.25 – 4. 1 = baseline spacing. */
+  density: number;
+  /** Deterministic seed (per-feature; recommend a hash of feature id). */
+  seed: number;
+}
+
+/** DOT_UNIFORM — fixed-radius dots on a jittered grid. Returns dots in
+ *  screen-pixel coordinates spanning [0, width] x [0, height]. */
+export function generateDotUniform(
+  width: number,
+  height: number,
+  density: number,
+  dotRadius: number,
+  seed = 1,
+): PatternDot[] {
+  if (width <= 0 || height <= 0) return [];
+  const rng = new SeededRng(seed);
+  // Baseline spacing — every 16 px at density 1, scaled by density.
+  const spacing = Math.max(4, 16 / Math.max(0.25, Math.min(4, density)));
+  const dots: PatternDot[] = [];
+  for (let y = spacing * 0.5; y < height; y += spacing) {
+    for (let x = spacing * 0.5; x < width; x += spacing) {
+      // Slight grid jitter so the result reads as natural-ish stipple.
+      const jx = x + (rng.next() - 0.5) * spacing * 0.15;
+      const jy = y + (rng.next() - 0.5) * spacing * 0.15;
+      dots.push({ x: jx, y: jy, r: dotRadius });
+    }
+  }
+  return dots;
+}
+
+/** DOT_GRAVEL — Poisson-disk-ish sampling with Gaussian-jittered radii
+ *  so the result looks like loose gravel rather than a uniform
+ *  stipple. The user explicitly asked for "a slight range of sized
+ *  dots that are spaced out — not totally random". `seed` makes the
+ *  layout deterministic per feature so re-renders don't flicker. */
+export function generateDotGravel(
+  width: number,
+  height: number,
+  density: number,
+  seed = 1,
+): PatternDot[] {
+  if (width <= 0 || height <= 0) return [];
+  const rng = new SeededRng(seed);
+  // Baseline: target ~1 dot per 64 px² at density 1.
+  const clampedDensity = Math.max(0.25, Math.min(4, density));
+  const targetCellSize = Math.max(6, 14 / clampedDensity);
+  const meanRadius = 1.5; // px
+  const radiusStdDev = 0.6; // px — "slight range of sizes"
+
+  // Bridson-flavored Poisson-disk: walk a coarse grid and reject any
+  // candidate too close to an existing accepted dot.
+  const dots: PatternDot[] = [];
+  // Each grid cell holds at most a few dots — use a flat map for speed.
+  const cellSize = targetCellSize;
+  const cols = Math.max(1, Math.ceil(width / cellSize));
+  const rows = Math.max(1, Math.ceil(height / cellSize));
+  const grid: (PatternDot | null)[] = new Array(cols * rows).fill(null);
+  const cellIdx = (cx: number, cy: number) => cy * cols + cx;
+
+  const minDist = targetCellSize * 0.85;
+  const tooClose = (cx: number, cy: number, x: number, y: number) => {
+    for (let dy = -2; dy <= 2; dy++) {
+      const ry = cy + dy;
+      if (ry < 0 || ry >= rows) continue;
+      for (let dx = -2; dx <= 2; dx++) {
+        const rx = cx + dx;
+        if (rx < 0 || rx >= cols) continue;
+        const existing = grid[cellIdx(rx, ry)];
+        if (!existing) continue;
+        const ddx = existing.x - x;
+        const ddy = existing.y - y;
+        if (ddx * ddx + ddy * ddy < minDist * minDist) return true;
+      }
+    }
+    return false;
+  };
+
+  // Seed pass — walk cells in order, try one jittered candidate each.
+  const samplesPerCell = Math.max(1, Math.round(2 * clampedDensity));
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      for (let s = 0; s < samplesPerCell; s++) {
+        const x = (cx + rng.next()) * cellSize;
+        const y = (cy + rng.next()) * cellSize;
+        if (x >= width || y >= height) continue;
+        if (tooClose(cx, cy, x, y)) continue;
+        const r = Math.max(0.4, rng.gaussian(meanRadius, radiusStdDev));
+        const dot: PatternDot = { x, y, r };
+        grid[cellIdx(cx, cy)] = dot;
+        dots.push(dot);
+        break;
+      }
+    }
+  }
+  return dots;
+}
+
+/** Generic hatch — parallel lines at `angleDeg` (0 = horizontal,
+ *  90 = vertical, 45 = diagonal-right). `spacing` is the perpendicular
+ *  distance between adjacent lines in screen px. The line set extends
+ *  from one corner of the bounding rect to the other so the caller can
+ *  mask to the polygon shape. */
+export function generateHatchLines(
+  width: number,
+  height: number,
+  angleDeg: number,
+  spacing: number,
+): PatternLine[] {
+  if (width <= 0 || height <= 0 || spacing <= 0) return [];
+  const lines: PatternLine[] = [];
+  const θ = (angleDeg * Math.PI) / 180;
+  const cosθ = Math.cos(θ);
+  const sinθ = Math.sin(θ);
+  // Diagonal span: hatch lines span the rect's longest projection.
+  const span = Math.abs(width * cosθ) + Math.abs(height * sinθ);
+  const halfSpan = span / 2;
+  const cx = width / 2;
+  const cy = height / 2;
+  // Walk perpendicular to the line direction.
+  const perpX = -sinθ;
+  const perpY = cosθ;
+  // Run far enough that the line set covers all corners.
+  const max = Math.ceil(Math.max(width, height) / spacing) + 2;
+  for (let i = -max; i <= max; i++) {
+    const offset = i * spacing;
+    const baseX = cx + perpX * offset;
+    const baseY = cy + perpY * offset;
+    lines.push({
+      x1: baseX - cosθ * halfSpan,
+      y1: baseY - sinθ * halfSpan,
+      x2: baseX + cosθ * halfSpan,
+      y2: baseY + sinθ * halfSpan,
+    });
+  }
+  return lines;
+}
+
+/** BRICK — alternating offset rectangles drawn as a line set.
+ *  Returns the line segments forming the brick courses. */
+export function generateBrickLines(
+  width: number,
+  height: number,
+  density: number,
+): PatternLine[] {
+  if (width <= 0 || height <= 0) return [];
+  const clamped = Math.max(0.25, Math.min(4, density));
+  const courseHeight = Math.max(6, 12 / clamped);
+  const brickWidth = courseHeight * 2;
+  const lines: PatternLine[] = [];
+  let row = 0;
+  for (let y = 0; y <= height; y += courseHeight) {
+    // Horizontal course line
+    lines.push({ x1: 0, y1: y, x2: width, y2: y });
+    // Vertical bricks, offset by half-brick every other row.
+    const offset = row % 2 === 0 ? 0 : brickWidth / 2;
+    for (let x = offset; x <= width; x += brickWidth) {
+      const yEnd = Math.min(height, y + courseHeight);
+      lines.push({ x1: x, y1: y, x2: x, y2: yEnd });
+    }
+    row++;
+  }
+  return lines;
+}
+
+/** WAVE — repeating sinusoidal rows. Returned as polylines flattened
+ *  to a line set so the caller can stroke them through Graphics. */
+export function generateWaveLines(
+  width: number,
+  height: number,
+  density: number,
+): PatternLine[] {
+  if (width <= 0 || height <= 0) return [];
+  const clamped = Math.max(0.25, Math.min(4, density));
+  const rowSpacing = Math.max(8, 18 / clamped);
+  const amplitude = rowSpacing * 0.35;
+  const wavelength = rowSpacing * 3.5;
+  const segmentsPerWave = 12;
+  const dx = wavelength / segmentsPerWave;
+  const lines: PatternLine[] = [];
+  for (let y = rowSpacing; y < height; y += rowSpacing) {
+    let prev: Point2D = { x: 0, y: y + Math.sin(0) * amplitude };
+    for (let x = dx; x <= width; x += dx) {
+      const next = { x, y: y + Math.sin((x / wavelength) * Math.PI * 2) * amplitude };
+      lines.push({ x1: prev.x, y1: prev.y, x2: next.x, y2: next.y });
+      prev = next;
+    }
+  }
+  return lines;
+}
+
+/** Top-level dispatcher used by the Pixi render path (Slice 236).
+ *  Returns the dot set, the line set, or both — caller decides how
+ *  each gets drawn (drawCircle for dots, moveTo/lineTo for lines).
+ *  All output is in screen pixels relative to the bounding rect's
+ *  top-left (0, 0). The caller is responsible for masking the output
+ *  to the polygon's actual shape. */
+export interface GeneratedPattern {
+  dots: PatternDot[];
+  lines: PatternLine[];
+}
+
+export function generateFillPattern(
+  width: number,
+  height: number,
+  config: FillPatternConfig,
+): GeneratedPattern {
+  const density = Number.isFinite(config.density) && config.density > 0 ? config.density : 1;
+  switch (config.pattern) {
+    case 'SOLID':
+    case 'NONE':
+      return { dots: [], lines: [] };
+    case 'DOT_UNIFORM':
+      return {
+        dots: generateDotUniform(width, height, density, 1.5, config.seed),
+        lines: [],
+      };
+    case 'DOT_GRAVEL':
+      return {
+        dots: generateDotGravel(width, height, density, config.seed),
+        lines: [],
+      };
+    case 'DIAGONAL_LEFT':
+      return { dots: [], lines: generateHatchLines(width, height, -45, hatchSpacing(density)) };
+    case 'DIAGONAL_RIGHT':
+      return { dots: [], lines: generateHatchLines(width, height, 45, hatchSpacing(density)) };
+    case 'CROSSHATCH':
+      return {
+        dots: [],
+        lines: [
+          ...generateHatchLines(width, height, 45, hatchSpacing(density)),
+          ...generateHatchLines(width, height, -45, hatchSpacing(density)),
+        ],
+      };
+    case 'HORIZONTAL_LINES':
+      return { dots: [], lines: generateHatchLines(width, height, 0, hatchSpacing(density)) };
+    case 'VERTICAL_LINES':
+      return { dots: [], lines: generateHatchLines(width, height, 90, hatchSpacing(density)) };
+    case 'BRICK':
+      return { dots: [], lines: generateBrickLines(width, height, density) };
+    case 'WAVE':
+      return { dots: [], lines: generateWaveLines(width, height, density) };
+    default:
+      return { dots: [], lines: [] };
+  }
+}
+
+function hatchSpacing(density: number): number {
+  const clamped = Math.max(0.25, Math.min(4, density));
+  return Math.max(4, 10 / clamped);
+}

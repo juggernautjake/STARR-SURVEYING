@@ -23,9 +23,24 @@ import {
 import { filterCatalog } from '@/lib/hub/widget-catalog-filter';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
+// Slice 7 (employee-hub-overhaul-2026-05-30) — single source of truth
+// for the grid coordinate system. The modal paints in HUB_GRID_COLS ×
+// HUB_EDITOR_ROWS cells, the canvas renders the saved layout in the
+// same HUB_GRID_COLS coordinate space (the canvas's rows are unbounded).
+import { HUB_EDITOR_ROWS, HUB_GRID_COLS } from '@/lib/hub/grid-model';
+// Slice 8/9 (employee-hub-overhaul-2026-05-30) — pure helpers for the
+// in-modal drag-to-move interaction. applyMoveWithPush drives the
+// live reflow preview while the surveyor drags; commitDrop snaps +
+// compacts on release.
+import { applyMoveWithPush, commitDrop } from '@/lib/hub/grid-reflow';
+import type { WidgetInstance } from '@/lib/hub/types';
+// Slice 11 — per-widget options surface (Size + Header color +
+// Title + the widget's own SettingsForm) opened from the ⚙ button on
+// the selected painted widget.
+import WidgetOptionsPanel from './WidgetOptionsPanel';
 
-export const GRID_EDITOR_COLS = 8;
-export const GRID_EDITOR_ROWS = 8;
+export const GRID_EDITOR_COLS = HUB_GRID_COLS;
+export const GRID_EDITOR_ROWS = HUB_EDITOR_ROWS;
 
 export interface GridEditorProps {
   open: boolean;
@@ -78,6 +93,21 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   // selected widget using these dimensions while the drag is active
   // so the surveyor sees the candidate footprint immediately.
   const [resizeTarget, setResizeTarget] = useState<{ id: string; w: number; h: number } | null>(null);
+  // Slice 9 — live drag-to-move state. `id` names the widget being
+  // dragged; `previewLayout` is the result of applyMoveWithPush at
+  // the current pointer cell. Render walks this list (when non-null)
+  // so the surveyor sees the others shift live without a draftWidgets
+  // commit on every pointer tick.
+  const [moveDrag, setMoveDrag] = useState<{ id: string; previewLayout: WidgetInstance[] } | null>(null);
+  // Slice 10 — handle the drag exposes its cleanup callback so the
+  // Esc handler (and a pointer-cancel) can abort the move without
+  // touching draftWidgets. The ref is set inside startMove + cleared
+  // once the drag ends (commit OR cancel).
+  const cancelMoveRef = useRef<(() => void) | null>(null);
+  // Slice 11 — id of the widget whose Options panel is currently
+  // open. Decoupled from selectedPlacedId so the surveyor can open
+  // options without losing the painted-widget selection highlight.
+  const [optionsForId, setOptionsForId] = useState<string | null>(null);
   const gridContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -97,9 +127,16 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
       }
       if (e.key === 'Escape') {
         // Esc cascades through pending states before closing:
+        // (0) Slice 10 — mid-drag move cancels first, highest
+        //     priority. cancelMoveRef.current() restores the
+        //     pre-drag layout (moveDrag → null; draftWidgets was
+        //     never mutated during the live drag).
         // (1) mid-place rectangle, (2) painted-widget selection,
         // (3) close the editor entirely.
-        if (placeAnchor) {
+        if (cancelMoveRef.current) {
+          e.preventDefault();
+          cancelMoveRef.current();
+        } else if (placeAnchor) {
           setPlaceAnchor(null);
           setPlaceHover(null);
         } else if (selectedPlacedId) {
@@ -253,6 +290,118 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     window.addEventListener('pointercancel', handleUp);
   }
 
+  /** Slice 9 — pointer-driven full-widget move. On pointer-down the
+   *  pipeline records the start coordinates but does NOT enter drag
+   *  mode until the pointer travels > DRAG_THRESHOLD px, so single
+   *  clicks still toggle selection. Once the threshold is exceeded
+   *  every pointer-move runs `applyMoveWithPush` against the live
+   *  draftWidgets and writes the result into `moveDrag.previewLayout`
+   *  — the render path below picks each cell's position from that
+   *  list so the other widgets visibly shift while the surveyor
+   *  drags. Pointer-up runs `commitDrop` (snap + compact) and writes
+   *  the final layout through `setDraftWidgets`. Pointer-cancel /
+   *  Escape both fall back to "no move happened" via the
+   *  no-didDrag branch. */
+  function startMove(
+    e: React.PointerEvent<HTMLDivElement>,
+    inst: WidgetInstance,
+  ) {
+    // Skip when the surveyor has a widget armed for placement —
+    // clicks in that mode are paint actions, not selection/drag.
+    if (selected) return;
+    const gridEl = gridContainerRef.current;
+    if (!gridEl) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const DRAG_THRESHOLD_PX = 6;
+    let didDrag = false;
+
+    function pointerToCell(clientX: number, clientY: number): { x: number; y: number } {
+      return cellUnderPointer(
+        gridEl!.getBoundingClientRect(),
+        clientX,
+        clientY,
+        GRID_EDITOR_COLS,
+        GRID_EDITOR_ROWS,
+      );
+    }
+
+    function handleMove(ev: PointerEvent) {
+      if (!didDrag) {
+        const dx = ev.clientX - startClientX;
+        const dy = ev.clientY - startClientY;
+        if (Math.abs(dx) < DRAG_THRESHOLD_PX && Math.abs(dy) < DRAG_THRESHOLD_PX) return;
+        didDrag = true;
+        // Entering drag mode: drop the click-selection so the
+        // mid-drag visual treatment isn't competing with the
+        // selected-ring outline.
+        setSelectedPlacedId(null);
+      }
+      const cell = pointerToCell(ev.clientX, ev.clientY);
+      const target = { x: cell.x, y: cell.y, w: inst.w, h: inst.h };
+      const current = useHubStore.getState().draftWidgets ?? [];
+      const preview = applyMoveWithPush(current, inst.id, target, HUB_GRID_COLS);
+      setMoveDrag({ id: inst.id, previewLayout: preview });
+    }
+
+    /** Slice 10 — tear down listeners + drag state without touching
+     *  draftWidgets. Used by pointer-cancel, mid-drag Esc, and
+     *  drop-outside-the-grid. Safe to call from anywhere (idempotent
+     *  via the ref clear). */
+    function teardown() {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+      cancelMoveRef.current = null;
+      setMoveDrag(null);
+    }
+
+    function handlePointerCancel(_ev: PointerEvent) {
+      teardown();
+    }
+
+    function handleUp(ev: PointerEvent) {
+      if (!didDrag) {
+        // Pure click → toggle selection (matches the pre-Slice-9
+        // single-click semantics). Teardown clears moveDrag + the
+        // window-level listeners.
+        teardown();
+        setSelectedPlacedId(selectedPlacedId === inst.id ? null : inst.id);
+        return;
+      }
+      // Slice 10 — drop-outside-the-grid cancels (restores pre-drag
+      // layout). The pointer-up firing position is the surveyor's
+      // final intent; if they let go outside the painter, treat it
+      // like a "nope, never mind".
+      const rect = gridEl!.getBoundingClientRect();
+      const inside =
+        ev.clientX >= rect.left &&
+        ev.clientX <= rect.right &&
+        ev.clientY >= rect.top &&
+        ev.clientY <= rect.bottom;
+      if (!inside) {
+        teardown();
+        return;
+      }
+      const cell = pointerToCell(ev.clientX, ev.clientY);
+      const target = { x: cell.x, y: cell.y, w: inst.w, h: inst.h };
+      const current = useHubStore.getState().draftWidgets ?? [];
+      const committed = commitDrop(current, inst.id, target, HUB_GRID_COLS);
+      teardown();
+      setDraftWidgets(committed);
+    }
+
+    cancelMoveRef.current = teardown;
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
+  }
+
   async function handleSave() {
     await saveDraft();
     onClose();
@@ -375,7 +524,12 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                 />
               )}
 
-              {/* Render every placed widget as a labelled block. */}
+              {/* Render every placed widget as a labelled block.
+                  Slice 9 — when a move-drag is active, look up each
+                  widget's live x/y in `moveDrag.previewLayout` so the
+                  cascade-pushed siblings shift visibly while the
+                  surveyor drags. The dragged widget itself is the one
+                  whose id matches `moveDrag.id`. */}
               {(draftWidgets ?? []).map((inst) => {
                 const def = catalog.find((w) => w.id === inst.type);
                 const label = def?.label ?? inst.type;
@@ -387,23 +541,29 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                 const liveW = resizeTarget?.id === inst.id ? resizeTarget.w : inst.w;
                 const liveH = resizeTarget?.id === inst.id ? resizeTarget.h : inst.h;
                 const isResizing = resizeTarget?.id === inst.id;
+                const previewSlot = moveDrag?.previewLayout.find((w) => w.id === inst.id);
+                const liveX = previewSlot?.x ?? inst.x;
+                const liveY = previewSlot?.y ?? inst.y;
+                const isMoving = moveDrag?.id === inst.id;
                 return (
                   <div
                     key={inst.id}
                     role="button"
                     tabIndex={0}
-                    aria-label={`${label} at ${inst.x + 1}, ${inst.y + 1}`}
+                    aria-label={`${label} at ${liveX + 1}, ${liveY + 1}`}
                     aria-pressed={isSelected}
                     data-testid="grid-editor-placed-widget"
                     data-widget-id={inst.id}
                     data-selected={isSelected ? 'true' : 'false'}
                     data-resizing={isResizing ? 'true' : 'false'}
+                    data-moving={isMoving ? 'true' : 'false'}
                     onPointerDown={(e) => {
                       // Slice 224 — stop the pointer-down from
                       // bubbling to the cell underneath so click-to-
                       // select doesn't double as a placement anchor.
-                      e.stopPropagation();
-                      setSelectedPlacedId(isSelected ? null : inst.id);
+                      // Slice 9 — startMove handles both click-toggle
+                      // and drag-with-reflow now (threshold-gated).
+                      startMove(e, inst);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -413,8 +573,16 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                     }}
                     style={{
                       ...(isSelected ? placedWidgetSelectedStyle : placedWidgetStyle),
-                      gridColumn: `${inst.x + 1} / span ${liveW}`,
-                      gridRow: `${inst.y + 1} / span ${liveH}`,
+                      gridColumn: `${liveX + 1} / span ${liveW}`,
+                      gridRow: `${liveY + 1} / span ${liveH}`,
+                      // Slice 9 — lift the dragged widget above its
+                      // settling neighbours via a small z-index so the
+                      // cursor's "this is what I'm holding" anchor
+                      // reads clearly.
+                      ...(isMoving ? { zIndex: 5, cursor: 'grabbing' } : null),
+                      // Skip the smooth-transition while moving so
+                      // the preview tracks the pointer crisply.
+                      transition: isMoving ? 'none' : undefined,
                     }}
                   >
                     <span style={placedLabelStyle}>{label}</span>
@@ -435,6 +603,22 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                           style={placedRemoveButtonStyle}
                         >
                           ✕
+                        </button>
+                        {/* Slice 11 — per-widget options trigger.
+                            Opens the WidgetOptionsPanel below. */}
+                        <button
+                          type="button"
+                          aria-label="Widget options"
+                          title="Options"
+                          data-testid="grid-editor-placed-options"
+                          onPointerDown={(e) => { e.stopPropagation(); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOptionsForId(inst.id);
+                          }}
+                          style={placedOptionsButtonStyle}
+                        >
+                          <span aria-hidden style={optionsGlyphStyle}>⚙</span>
                         </button>
                         {/* Slice 225 — corner drag handle. */}
                         <button
@@ -479,6 +663,15 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
           </div>
         </footer>
       </div>
+      {/* Slice 11 — per-widget options panel. Renders only when a
+          widget's ⚙ Options button has been clicked. Self-contained:
+          reads the live instance from the hub store + writes edits
+          through patchWidgetCustomization / setDraftWidgets. */}
+      <WidgetOptionsPanel
+        open={optionsForId !== null}
+        instanceId={optionsForId}
+        onClose={() => setOptionsForId(null)}
+      />
     </div>
   );
 }
@@ -870,6 +1063,35 @@ const placedResizeHandleStyle: React.CSSProperties = {
 
 const resizeGlyphStyle: React.CSSProperties = {
   transform: 'rotate(90deg)',
+  display: 'inline-block',
+};
+
+/** Slice 11 — ⚙ options button. Top-right of the painted widget,
+ *  visually distinct from the resize handle so the surveyor reads
+ *  "config" instead of "drag to grow". */
+const placedOptionsButtonStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 4,
+  right: 32,
+  width: 24,
+  height: 24,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 6,
+  border: '1px solid var(--theme-border)',
+  background: 'var(--theme-bg-elevated)',
+  color: 'var(--theme-fg-primary)',
+  cursor: 'pointer',
+  fontSize: '0.85rem',
+  fontWeight: 600,
+  lineHeight: 1,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+  zIndex: 3,
+};
+
+const optionsGlyphStyle: React.CSSProperties = {
   display: 'inline-block',
 };
 

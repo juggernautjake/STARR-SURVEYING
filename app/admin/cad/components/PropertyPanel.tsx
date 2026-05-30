@@ -6,7 +6,7 @@ import { Image as ImageIcon } from 'lucide-react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
-import type { Feature } from '@/lib/cad/types';
+import type { Feature, FillPattern } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
@@ -1197,6 +1197,60 @@ export default function PropertyPanel() {
                 >
                   📐 Place area label on canvas
                 </button>
+              </div>
+            );
+          })()}
+
+          {/* Slice 237 — fill-pattern picker for closed shapes
+              (POLYGON / closed POLYLINE / CIRCLE / ELLIPSE).
+              Clicking a swatch sets feature.style.fillPattern so the
+              Slice-236 render branch overlays the texture. Default
+              swatch is "None" so existing drawings stay unchanged. */}
+          {computeFeatureArea(feature).squareFeet > 0 && (() => {
+            const currentPattern: FillPattern = feature.style.fillPattern ?? 'NONE';
+            const patternOptions: ReadonlyArray<{ value: FillPattern; label: string }> = [
+              { value: 'NONE', label: 'None' },
+              { value: 'DOT_UNIFORM', label: 'Dots' },
+              { value: 'DOT_GRAVEL', label: 'Gravel' },
+              { value: 'DIAGONAL_RIGHT', label: 'Diag /' },
+              { value: 'DIAGONAL_LEFT', label: 'Diag \\' },
+              { value: 'CROSSHATCH', label: 'Cross' },
+              { value: 'HORIZONTAL_LINES', label: 'Horiz' },
+              { value: 'VERTICAL_LINES', label: 'Vert' },
+              { value: 'BRICK', label: 'Brick' },
+              { value: 'WAVE', label: 'Wave' },
+            ];
+            return (
+              <div
+                data-testid="property-panel-fill-pattern"
+                className="space-y-1 border-t border-gray-700 pt-1.5 mt-1"
+              >
+                <div className="text-gray-500 text-[10px] uppercase tracking-wider">Fill pattern</div>
+                <div className="grid grid-cols-5 gap-1">
+                  {patternOptions.map((opt) => {
+                    const isActive = currentPattern === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        data-testid={`property-panel-fill-pattern-swatch-${opt.value}`}
+                        title={opt.label}
+                        className={`text-[9px] px-1 py-1 rounded border transition-colors ${
+                          isActive
+                            ? 'bg-blue-600 border-blue-400 text-white'
+                            : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+                        }`}
+                        onClick={() => {
+                          drawingStore.updateFeature(feature.id, {
+                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: opt.value, isOverride: true },
+                          });
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })()}
