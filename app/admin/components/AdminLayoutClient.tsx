@@ -18,6 +18,7 @@ import IconRail from './nav/IconRail';
 import AdminPageHeader from './nav/AdminPageHeader';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { shouldBypassAdminChrome } from '@/lib/admin/chrome-bypass';
+import { useCadReturnPathTracker } from '@/lib/admin/cad-return-path';
 import { CalculatorProvider } from './calculator/CalculatorProvider';
 import CalculatorFab from './calculator/CalculatorFab';
 
@@ -161,6 +162,11 @@ function Inner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navV2 = useAdminNavStore((s) => s.adminNavV2Enabled);
+  // cad-exit-return-path 2026-05-30 — record the prior admin path
+  // whenever the user navigates INTO /admin/cad, so the CAD Exit
+  // button can return there instead of always defaulting to
+  // /admin/research-cad.
+  useCadReturnPathTracker();
 
   if (pathname === '/admin/login') return <>{children}</>;
 

@@ -33,6 +33,7 @@ import SaveToDBDialog from './SaveToDBDialog';
 import ExportLayersDialog from './ExportLayersDialog';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
+import { getCadReturnPath, clearCadReturnPath } from '@/lib/admin/cad-return-path';
 
 interface MenuItem {
   label: string;
@@ -991,17 +992,24 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         <button
           type="button"
           onClick={() => {
+            // cad-exit-return-path 2026-05-30 — send the user back to
+            // the page they came from (recorded by
+            // `useCadReturnPathTracker` in AdminLayoutClient), defaulting
+            // to /admin/research-cad when nothing is on file (direct
+            // URL hit / browser refresh inside CAD / cleared session).
+            const returnTo = getCadReturnPath('/admin/research-cad');
             if (drawingStore.isDirty) {
               const ok = window.confirm(
-                'You have unsaved changes. Leave the CAD editor and return to Research CAD? Unsaved changes will be lost.',
+                `You have unsaved changes. Leave the CAD editor and return to ${returnTo}? Unsaved changes will be lost.`,
               );
               if (!ok) return;
             }
-            router.push('/admin/research-cad');
+            clearCadReturnPath();
+            router.push(returnTo);
           }}
           className="flex items-center gap-1.5 px-2 py-1 mr-1 rounded text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
-          title="Exit the CAD editor and return to Research CAD"
-          aria-label="Exit to Research CAD"
+          title="Exit the CAD editor and return to where you came from"
+          aria-label="Exit CAD editor"
         >
           <LogOutIcon size={14} />
           <span className="hidden sm:inline">Exit</span>
