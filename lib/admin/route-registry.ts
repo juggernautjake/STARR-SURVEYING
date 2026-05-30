@@ -180,6 +180,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/messages/contacts',     label: 'Team Directory',   workspace: 'office', iconName: 'Contact',      description: 'Internal contact directory.', roles: INTERNAL_COMM_ROLES, internalOnly: true },
   { href: '/admin/messages/new',          label: 'New Message',      workspace: 'office', iconName: 'MessageSquarePlus', description: 'Start a new conversation.', roles: INTERNAL_COMM_ROLES, internalOnly: true, showInRail: false },
   { href: '/admin/messages/settings',     label: 'Message Settings', workspace: 'office', iconName: 'Settings',     description: 'Messaging preferences.', roles: INTERNAL_COMM_ROLES, internalOnly: true, showInRail: false },
+  // contacts plan 2026-05-30 — firm-wide contacts (realtors, repeat
+  // clients, students, teachers, employees). Profile per person + a
+  // job ↔ contact join. See docs/planning/in-progress/contacts-…
+  { href: '/admin/contacts',              label: 'Contacts',         workspace: 'office', iconName: 'Users',        description: 'Saved contacts — realtors, clients, students, teachers, employees.', keywords: ['address book', 'people', 'realtors', 'clients'] },
   { href: '/admin/discussions',           label: 'Discussions',      workspace: 'office', iconName: 'MessagesSquare', description: 'Long-form discussion threads.', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['threads', 'forum'] },
   { href: '/admin/notes',                 label: 'Company Notes',    workspace: 'office', iconName: 'StickyNote',   description: 'Firm-wide shared notes.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/settings',              label: 'Settings',         workspace: 'office', iconName: 'Settings',     description: 'Firm-wide settings.', roles: ['admin'] },
