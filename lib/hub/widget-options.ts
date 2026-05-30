@@ -124,6 +124,8 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   'class-assignments':        { source: 'settings-form' },
   'crew-calendar':            { source: 'settings-form' },
   'drawings-in-progress':     { source: 'settings-form' },
+  // consolidation Slice 4 (2026-05-30) — unified Drawings widget.
+  'drawings':                 { source: 'settings-form' },
   'equipment-out-today':      { source: 'settings-form' },
   'field-data-pending':       { source: 'settings-form' },
   'hours-this-week':          { source: 'settings-form' },

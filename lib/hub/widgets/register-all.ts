@@ -37,6 +37,11 @@ import './low-consumables';
 import './vehicles-status';
 import './recent-drawings';
 import './drawings-in-progress';
+// consolidation Slice 4 (2026-05-30) — unified Drawings widget folds
+// `recent-drawings` + `drawings-in-progress` into one tile with a
+// `scope: 'mine' | 'all'` setting. Legacy widgets stay registered so
+// saved hub layouts don't lose their tiles.
+import './drawings';
 import './active-research-projects';
 import './pipeline-status';
 import './roadmap-progress';

@@ -60,6 +60,9 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   'maintenance-due': { href: '/admin/equipment/maintenance', label: 'maintenance' },
   'vehicles-status': { href: '/admin/vehicles', label: 'vehicles' },
   // cad
+  // consolidation Slice 4 (2026-05-30) — unified `drawings` widget;
+  // the two legacy ids stay until saved layouts are migrated.
+  'drawings': { href: '/admin/cad', label: 'the CAD editor' },
   'recent-drawings': { href: '/admin/cad', label: 'the CAD editor' },
   'drawings-in-progress': { href: '/admin/cad', label: 'the CAD editor' },
   'crew-calendar': { href: '/admin/schedule', label: 'the schedule' },

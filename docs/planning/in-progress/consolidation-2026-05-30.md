@@ -166,20 +166,33 @@ fewer files to grep through.
   middleware + notifications + hub + admin + saas + contacts +
   jobs specs green; typecheck + lint clean.
 
-### Slice 4 — Drawings widget (cluster 2 → 1)
+### Slice 4 — Drawings widget (cluster 2 → 1) ✅ shipped 2026-05-30
 
-- Replace `recent-drawings` + `drawings-in-progress` with one
-  `drawings` widget that ships a `scope: 'recent' | 'mine' |
-  'team'` setting + header chip-row. `mine` is the existing
-  `?mine=true` filter; `recent` is the no-filter version; `team`
-  is a new scope that filters by job_team membership of the
-  caller. Same `useHubData('drawings')` fetch underneath.
-- The new widget's footer keeps the existing
-  `WIDGET_LINKS['recent-drawings']` deep link (`/admin/cad`).
-- Same deprecation comment on the two old ids + a hub-store
-  migration that swaps a saved `recent-drawings`/`drawings-in-
-  progress` instance for the unified one + the inherited scope.
-- Tests: 1 per scope + 1 migration spec.
+- New `lib/hub/widgets/drawings/index.tsx` — one tile with a
+  `scope: 'mine' | 'all'` setting + SettingsForm picker. Hits the
+  same `/api/admin/cad/drawings?mine=...` endpoint both legacy
+  widgets used; renders the same row shape (drawing name + joined
+  job_name + relative age) via `cadOpenHref` + `formatAge` reused
+  from `recent-drawings`. Tiny bucket shows the count.
+- **`team` scope deferred with rationale**: the legacy `drawings-in-
+  progress` labeled its 'all' mode as 'team', but
+  `/api/admin/cad/drawings` has no per-team filter today — `team`
+  was the same fetch as `all`. The new widget ships `mine | all`
+  and the doc captures that a real team filter belongs alongside
+  the drawings-collaboration assigned_to work in a follow-up.
+- Widget-links registry gains the `drawings` entry pointing at
+  `/admin/cad` (same as the two legacy entries).
+- Widget-options schema entry added (`source: 'settings-form'`).
+- The two legacy widgets carry a one-line `SUPERSEDED by
+  drawings` comment above their `defineWidget(...)` calls but
+  stay registered so existing hub layouts don't lose their tiles;
+  a follow-up slice migrates saved layouts + deletes the legacy
+  ids. **No hub-store migration in this slice** — keeping the
+  legacy ids registered means no migration is needed yet.
+- 1 spec on `capForBucket`. Existing catalog-coverage test bumped
+  to 43 entries (41 master + `approvals` + `drawings`).
+- **2055** middleware + notifications + hub + admin + saas +
+  contacts + jobs specs green; typecheck + lint clean.
 
 ### Slice 5 — Activity widget (cluster 3 → 1)
 
