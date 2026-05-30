@@ -124,17 +124,33 @@ on drawings):*
   note preview clamp + due boundaries + skips). Full hub +
   notifications **1800 specs green**; typecheck + lint clean.
 
-### Slice 3 — API: drawing notes (the dialog backend)
+### Slice 3 — API: drawing notes (the dialog backend) ✅ shipped 2026-05-30
 
-- `POST /api/admin/cad/drawings/{id}/notes` body
-  `{ body, recipient_emails }` — inserts the note + fires a notify to
-  each recipient. Notification: title "💬 Note on {drawing} from
-  {author}", body preview, link
-  `/admin/cad?job={jobId}&drawing={id}&note={noteId}` so the editor
-  can scroll the note thread into view.
-- `GET /api/admin/cad/drawings/{id}/notes` returns the thread.
-- Recipients default to "anyone on the drawing scope" (drawer +
-  overseers) if the body omits `recipient_emails`.
+- New dynamic route `app/api/admin/cad/drawings/[id]/notes/route.ts`:
+  - `GET` returns the note thread (oldest → newest).
+  - `POST` accepts `{ body, recipient_emails? }`, validates a
+    non-empty body, reads the drawing for context (name + job_id +
+    assignee), defaults the recipient cohort to **assignee + job
+    scope** (via `usersForJobScope`) when no explicit list is passed,
+    inserts the `drawing_notes` row, and fans out the bell via
+    `buildDrawingNoteNotification` (best-effort per recipient).
+- New pure `lib/notifications/drawing-note-recipients.ts` →
+  `resolveNoteRecipients({ explicit, assignee, scope, author })` =
+  the dedupe + author-exclude + order-preference logic, lifted out so
+  it's unit-testable separately from the route.
+- The link the bell renders is `drawingHref(drawingId, jobId)` →
+  `/admin/cad?job={jobId}&drawing={drawingId}`. The "scroll the note
+  thread into view" `&note={noteId}` deep-anchor stays a Slice-4 UI
+  detail (the CAD editor needs to handle the param); the route
+  doesn't need to know about it.
+- The link audit (Slice 1 of notifications-completeness pass) sees no
+  literal `link: '/admin/...'` here because `drawingHref` is a
+  function call — that's intentional; the builder spec asserts the
+  resolved URL.
+- 6 specs (explicit wins + author exclusion + assignee + scope
+  fallback + ordering + empty-cohort + empty-list-treated-as-omitted).
+  Full hub + notifications + jobs **1811 specs green**; typecheck +
+  lint clean.
 
 ### Slice 4 — UI: notes dialog + assignment chip on the CAD editor
 
