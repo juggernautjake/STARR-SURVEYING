@@ -922,6 +922,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     startWorld: Point2D;
     startPosition: Point2D;
   } | null>(null);
+  // Slice 228 — corner-drag resize for the cert + notes paper-furniture
+  // blocks. Held in a separate ref from tbDragRef so the user can't
+  // accidentally start both a move and a resize from the same click.
+  const tbResizeRef = useRef<{
+    element: 'certification' | 'notes';
+    startSX: number;
+    startWidthIn: number;
+    liveWidthIn: number;
+  } | null>(null);
   // Interactive rotate/scale mode — driven by cursor position
   const interactiveOpRef = useRef<{
     type: 'ROTATE' | 'SCALE';
@@ -2327,7 +2336,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const titleFontPx = Math.max(7, 9 * (tpl.standardNotes?.fontSize ?? 8) / 8) * inchToPx / 50;
         const rowFontPx = Math.max(6, 7 * (tpl.standardNotes?.fontSize ?? 8) / 8) * inchToPx / 50;
         const padPx = 0.08 * inchToPx;
-        const widthPx = Math.min((tpl.standardNotes?.width ?? 3.5), pw * 0.28) * inchToPx;
+        // Slice 228 — corner-resize: live width during drag, else stored.
+        const notesResize = tbResizeRef.current?.element === 'notes' ? tbResizeRef.current : null;
+        const notesWidthIn = notesResize ? notesResize.liveWidthIn : (tpl.standardNotes?.width ?? 3.5);
+        const widthPx = Math.min(notesWidthIn, pw * 0.28) * inchToPx;
         const innerW = widthPx - padPx * 2;
         const charPx = rowFontPx * 0.55; // rough monospace-ish approximation
         const charsPerLine = Math.max(20, Math.floor(innerW / charPx));
@@ -2356,6 +2368,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         ng.beginFill(0xffffff, 0.9);
         ng.lineStyle(0.5, 0x000000, 0.7);
         ng.drawRect(nx, ny, widthPx, heightPx);
+        ng.endFill();
+        // Slice 228 — small dark triangle at the BR corner advertises
+        // the resize-handle. Renders into the block's own Graphics so
+        // it shares the block's z-order; cursor flips to nwse-resize
+        // when the user hovers it (see SELECT-mode hover branch).
+        const handlePx = Math.max(6, 0.06 * inchToPx);
+        ng.beginFill(0x000000, 0.55);
+        ng.lineStyle(0);
+        ng.moveTo(nx + widthPx, ny + heightPx);
+        ng.lineTo(nx + widthPx - handlePx, ny + heightPx);
+        ng.lineTo(nx + widthPx, ny + heightPx - handlePx);
+        ng.closePath();
         ng.endFill();
         // Slice 226 — record bounds so right-click + select can hit it.
         tbBoundsRef.current.notes = { screenX: nx, screenY: ny, w: widthPx, h: heightPx };
@@ -2387,7 +2411,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const titleFontPx = Math.max(7, 9 * (tpl.certification?.fontSize ?? 8) / 8) * inchToPx / 50;
         const bodyFontPx = Math.max(6, 7 * (tpl.certification?.fontSize ?? 8) / 8) * inchToPx / 50;
         const padPx = 0.1 * inchToPx;
-        const widthPx = Math.min((tpl.certification?.width ?? 3.5), pw * 0.32) * inchToPx;
+        // Slice 228 — corner-resize: live width during drag, else stored.
+        const certResize = tbResizeRef.current?.element === 'certification' ? tbResizeRef.current : null;
+        const certWidthIn = certResize ? certResize.liveWidthIn : (tpl.certification?.width ?? 3.5);
+        const widthPx = Math.min(certWidthIn, pw * 0.32) * inchToPx;
         const innerW = widthPx - padPx * 2;
         const charPx = bodyFontPx * 0.55;
         const charsPerLine = Math.max(20, Math.floor(innerW / charPx));
@@ -2424,6 +2451,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         cg.beginFill(0xffffff, 0.95);
         cg.lineStyle(0.5, 0x000000, 0.7);
         cg.drawRect(clampedX, cy, widthPx, heightPx);
+        cg.endFill();
+        // Slice 228 — BR-corner resize handle (small dark triangle).
+        const certHandlePx = Math.max(6, 0.06 * inchToPx);
+        cg.beginFill(0x000000, 0.55);
+        cg.lineStyle(0);
+        cg.moveTo(clampedX + widthPx, cy + heightPx);
+        cg.lineTo(clampedX + widthPx - certHandlePx, cy + heightPx);
+        cg.lineTo(clampedX + widthPx, cy + heightPx - certHandlePx);
+        cg.closePath();
         cg.endFill();
         // Slice 226 — record bounds so right-click + select can hit it.
         tbBoundsRef.current.certification = { screenX: clampedX, screenY: cy, w: widthPx, h: heightPx };
@@ -7787,6 +7823,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   // ─────────────────────────────────────────────
+  // Slice 228 — Hit test: cert + notes corner resize handle
+  // ─────────────────────────────────────────────
+  // Tests a small square region anchored to the bottom-right corner
+  // of each paper-furniture block. Returns the element whose corner
+  // is under the cursor so SELECT pointer-down can start a resize op
+  // BEFORE the regular tbDragRef move pipeline grabs the click.
+  function hitTestTBResizeCorner(sx: number, sy: number): 'certification' | 'notes' | null {
+    const HZ = 12; // px around the BR corner
+    const cert = tbBoundsRef.current.certification;
+    if (cert) {
+      const cx = cert.screenX + cert.w;
+      const cy = cert.screenY + cert.h;
+      if (sx >= cx - HZ && sx <= cx + HZ / 2 && sy >= cy - HZ && sy <= cy + HZ / 2) {
+        return 'certification';
+      }
+    }
+    const notes = tbBoundsRef.current.notes;
+    if (notes) {
+      const cx = notes.screenX + notes.w;
+      const cy = notes.screenY + notes.h;
+      if (sx >= cx - HZ && sx <= cx + HZ / 2 && sy >= cy - HZ && sy <= cy + HZ / 2) {
+        return 'notes';
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
   // Slice 230 — Hit test: AREA_LABEL annotations
   // ─────────────────────────────────────────────
   // Tests the Pixi Text bounds of every rendered AREA_LABEL on the
@@ -8693,6 +8757,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // ── Title-block overlay element drag (SELECT mode) ──────────────
       if (activeTool === 'SELECT') {
+        // Slice 228 — corner-drag resize on cert + notes wins over the
+        // regular move pipeline so a click in the BR corner pulls the
+        // edge instead of dragging the block.
+        const resizeHit = hitTestTBResizeCorner(sx, sy);
+        if (resizeHit) {
+          const tpl = useTemplateStore.getState().activeTemplate;
+          const startWidthIn = resizeHit === 'certification'
+            ? (tpl.certification?.width ?? 3.5)
+            : (tpl.standardNotes?.width ?? 3.5);
+          tbResizeRef.current = {
+            element: resizeHit,
+            startSX: sx,
+            startWidthIn,
+            liveWidthIn: startWidthIn,
+          };
+          setCursorStyle('nwse-resize');
+          return;
+        }
         // Slice 227 — Cert + Notes now flow through the same drag
         // pipeline as the title-block family. The pointer-move math
         // and origin lookup branch on `element` to handle the TL-y
@@ -10669,6 +10751,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Slice 228 — Cert / notes corner-resize update
+      if (tbResizeRef.current) {
+        const r = tbResizeRef.current;
+        const { zoom } = useViewportStore.getState();
+        const doc      = useDrawingStore.getState().document;
+        const inchToPx = zoom * (doc.settings.drawingScale ?? 50);
+        const dScreenX = sx - r.startSX;
+        const next = r.startWidthIn + dScreenX / inchToPx;
+        // Floor 1.0", ceiling 8.0" so the block stays usable + on-sheet
+        // (the render path already clamps the visible width to the
+        // per-block fraction of paper width — pw * 0.32 for cert,
+        // pw * 0.28 for notes — so this is a stored-value floor/cap).
+        r.liveWidthIn = Math.max(1.0, Math.min(next, 8.0));
+        setCursorStyle('nwse-resize');
+        return;
+      }
+
       // Title-block overlay element drag update
       if (tbDragRef.current) {
         const tbDrag = tbDragRef.current;
@@ -11064,6 +11163,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             } else if (hitTestAreaLabel(sx, sy)) {
               // Slice 230 — area-label annotations are draggable too.
               setCursorStyle('grab');
+            } else if (hitTestTBResizeCorner(sx, sy)) {
+              // Slice 228 — cert / notes BR-corner resize handle.
+              setCursorStyle('nwse-resize');
             } else if (hit) {
               // Hovering a selectable element. It's NOT drag-to-move
               // (use the Move tool), so show a pointer, not a grab hand.
@@ -11264,6 +11366,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (labelDragRef.current) {
         labelDragRef.current = null;
         setCursorStyle(TOOL_CURSORS[toolState.activeTool] ?? 'default');
+        return;
+      }
+
+      // Slice 228 — Commit cert / notes corner resize.
+      if (tbResizeRef.current) {
+        const { element, liveWidthIn, startWidthIn } = tbResizeRef.current;
+        if (Math.abs(liveWidthIn - startWidthIn) > 0.01) {
+          const ts = useTemplateStore.getState();
+          if (element === 'certification') {
+            ts.updateActiveTemplate({
+              certification: { ...ts.activeTemplate.certification, width: liveWidthIn },
+            });
+          } else {
+            ts.updateActiveTemplate({
+              standardNotes: { ...ts.activeTemplate.standardNotes, width: liveWidthIn },
+            });
+          }
+        }
+        tbResizeRef.current = null;
+        setCursorStyle('default');
         return;
       }
 
