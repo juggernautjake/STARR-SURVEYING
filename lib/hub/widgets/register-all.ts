@@ -68,3 +68,5 @@ import './mileage-tracker';
 import './sun-calculator';
 import './streak-counter';
 import './daily-briefing';
+// contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
+import './contacts';

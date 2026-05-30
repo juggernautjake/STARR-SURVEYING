@@ -122,6 +122,8 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   'assignments-due':          { source: 'settings-form' },
   'bookmarks':                { source: 'settings-form' },
   'class-assignments':        { source: 'settings-form' },
+  // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
+  'contacts':                 { source: 'settings-form' },
   'crew-calendar':            { source: 'settings-form' },
   'drawings-in-progress':     { source: 'settings-form' },
   // consolidation Slice 4 (2026-05-30) — unified Drawings widget.

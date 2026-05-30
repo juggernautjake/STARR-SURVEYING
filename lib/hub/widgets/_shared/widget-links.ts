@@ -49,6 +49,8 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   'monthly-revenue': { href: '/admin/finances', label: 'finances' },
   'outstanding-invoices': { href: '/admin/billing/invoices', label: 'invoices' },
   // office
+  // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
+  'contacts': { href: '/admin/contacts', label: 'contacts' },
   // consolidation Slice 3 (2026-05-30) — the unified `approvals`
   // widget folds the three queues into one tile. Its footer points at
   // /admin/hours-approval because that's the busiest queue + the only
