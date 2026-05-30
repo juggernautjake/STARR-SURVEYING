@@ -112,11 +112,40 @@ function HoursThisWeekWidget({ size, content }: WidgetProps<HoursThisWeekContent
         </span>
       </div>
 
+      <GoalBar total={total} goal={settings.goalHours} />
+
       <BarChart totals={totals} goalHours={settings.goalHours} />
 
       {settings.showBreakdownByJob && bucket !== 'small' && (
         <JobBreakdown logs={logs} />
       )}
+    </div>
+  );
+}
+
+/** Goal progress bar — fills to the % of the weekly goal, green once
+ *  the goal is met. The "ring/progress" the doc asks for at small+. */
+function GoalBar({ total, goal }: { total: number; goal: number }) {
+  const pct = goalPct(total, goal);
+  const met = total >= goal && goal > 0;
+  return (
+    <div
+      role="progressbar"
+      aria-valuenow={Math.round(pct)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`${Math.round(pct)}% of weekly goal`}
+      style={goalTrackStyle}
+    >
+      <div
+        style={{
+          width: `${pct}%`,
+          height: '100%',
+          borderRadius: 999,
+          background: met ? 'var(--theme-success)' : 'var(--theme-accent)',
+          transition: 'width 0.3s ease',
+        }}
+      />
     </div>
   );
 }
@@ -243,6 +272,13 @@ export function summarizeWeek(logs: TimeLog[], weekStart: WeekStart): { label: s
   return labels.map((label, i) => ({ label, hours: totals[i] }));
 }
 
+/** Percent of the weekly goal reached, clamped to 0–100 for the bar
+ *  width. Returns 0 for a non-positive goal. Pure + exported. */
+export function goalPct(total: number, goal: number): number {
+  if (!Number.isFinite(goal) || goal <= 0) return 0;
+  return Math.max(0, Math.min(100, (total / goal) * 100));
+}
+
 export function aggregateByJob(logs: TimeLog[]): { label: string; hours: number }[] {
   const map = new Map<string, number>();
   for (const log of logs) {
@@ -257,6 +293,15 @@ export function aggregateByJob(logs: TimeLog[]): { label: string; hours: number 
 const mutedStyle: React.CSSProperties = {
   fontSize: 'var(--hub-font-xs, 0.75rem)',
   color: 'var(--theme-fg-secondary)',
+};
+
+const goalTrackStyle: React.CSSProperties = {
+  width: '100%',
+  height: 6,
+  borderRadius: 999,
+  background: 'var(--theme-bg-elevated)',
+  overflow: 'hidden',
+  flexShrink: 0,
 };
 
 const labelStyle: React.CSSProperties = {

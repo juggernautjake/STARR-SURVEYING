@@ -49,6 +49,18 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Footer link:** "Go to my hours →" `/admin/my-hours`.
 - **Editor:** weekStart, showBreakdownByJob, goalHours.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** R1 verified clean
+  — unlike the work widgets, the data contract is correct: the time-logs
+  GET supports `week_start` and returns `{ logs }`, which the widget
+  already reads. The widget was otherwise complete (tiny total, per-day
+  bar chart, "of Nh goal", per-job breakdown, weekStart/goal/breakdown
+  editor). Added the doc's missing **goal progress indicator**: a
+  `GoalBar` (`role="progressbar"` with aria value/label) under the total
+  that fills to a new pure exported `goalPct(total, goal)` (clamped
+  0–100, 0 for a non-positive goal) and turns green once the goal is
+  met. Footer "Go to my hours →" is global. 2 specs (goalPct percent +
+  clamp + non-positive-goal). Full hub suite (1558) green; typecheck +
+  lint clean. **hours-this-week is done.**
 
 ## pto-balance
 - **Endpoint:** `/api/admin/pto`.
