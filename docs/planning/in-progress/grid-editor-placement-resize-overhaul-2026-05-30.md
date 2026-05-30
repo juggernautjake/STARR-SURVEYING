@@ -66,7 +66,7 @@ placement + resize still feel broken.*
 
 ### Phase G1 — Kill the gravity (free placement)
 
-#### Slice G1 — Drop commits to the exact dropped position; trim only leading rows
+#### Slice G1 — Drop commits to the exact dropped position; trim only leading rows ✅ shipped 2026-05-30
 - **Scope:** Replace `compactLayout` inside `commitDrop` with a
   push-then-trim model: the moving widget lands exactly at its
   (clamped) target, overlapping neighbors get pushed (existing
@@ -82,6 +82,18 @@ placement + resize still feel broken.*
 - **Done when:** Dropping a widget at row 5 with rows 0–4 empty keeps
   it near row 5 (only a fully-empty top band trims); interior gaps
   survive; no overlaps. Pure helper unit-tested.
+- **Shipped:** `commitDrop` now does `applyMoveWithPush` →
+  `trimLeadingRows` (no `compactLayout`). The moving widget lands
+  EXACTLY at its dropped target; overlapped neighbors push down;
+  interior gaps + free tiles survive; only a wholly-empty top band
+  collapses. New `trimLeadingRows` pure helper (subtracts `min(y)`;
+  no-op when a widget already sits on row 0 or layout is empty; only
+  `y` shifts). `compactLayout` import dropped from `grid-reflow.ts`.
+  `commitDrop` call shape unchanged, so the `grid-editor-drop-commit`
+  source regex still matches untouched. Reworked the reflow spec's
+  commitDrop block (exact-target, gap-preservation, leading-trim,
+  neighbor-push) + added a `trimLeadingRows` block — 25 reflow specs
+  green; 1380 hub specs green; typecheck + lint clean.
 
 ### Phase G2 — Hover affordances
 

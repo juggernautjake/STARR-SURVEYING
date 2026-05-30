@@ -26,17 +26,23 @@
 //      the drop snap.
 //
 //   3. commitDrop(layout, movingId, target) — production drop:
-//      apply the push, snap to nearestAvailable if the target is now
-//      blocked (defensive), then compactLayout to remove gaps the
-//      push left behind. Returns the final layout to write into the
-//      draft.
+//      apply the push so the moving widget lands EXACTLY where the
+//      surveyor dropped it (neighbors shifted out of the way), then
+//      `trimLeadingRows` so a fully-empty top band collapses but
+//      interior gaps + free tiles survive. Returns the final layout to
+//      write into the draft.
 //
-// All three functions are deterministic + total: same input → same
-// output, never throws. Widget identities + customization survive
-// untouched — only x/y change.
+//      Slice G1 of grid-editor-placement-resize-overhaul-2026-05-30.md
+//      removed the old `compactLayout` call here — it re-packed every
+//      widget toward (0,0) on every drop, which read as "upper-left
+//      gravity / I can't move them" + erased the surveyor's
+//      deliberately-empty tiles. Free placement is the whole point now.
+//
+// All functions are deterministic + total: same input → same output,
+// never throws. Widget identities + customization survive untouched —
+// only x/y change.
 
 import type { WidgetInstance } from './types';
-import { compactLayout } from './grid-math';
 import { HUB_GRID_COLS } from './grid-model';
 
 export interface GridTarget {
@@ -171,17 +177,35 @@ export function nearestAvailable(
   return { x: 0, y: maxRow, w: clamped.w, h: clamped.h };
 }
 
-/** Commit a drop. Applies the push, then runs the existing
- *  `compactLayout` so gaps the push opened up close back down. The
- *  moving widget stays at the dropped position because compact walks
- *  array order and the push helper puts the moving widget last. */
+/** Subtract the minimum `y` from every widget so a fully-empty top
+ *  band collapses to row 0, WITHOUT touching interior gaps or the
+ *  free tiles the surveyor deliberately left. This is the "trim only
+ *  leading empty rows" rule: free-form placement everywhere, but the
+ *  dashboard never opens with a blank band at the top. Pure; returns
+ *  the input layout shifted up by `min(y)` (a no-op when some widget
+ *  already sits on row 0 or the layout is empty). */
+export function trimLeadingRows(
+  layout: ReadonlyArray<WidgetInstance>,
+): WidgetInstance[] {
+  if (layout.length === 0) return [];
+  let minY = Infinity;
+  for (const w of layout) if (w.y < minY) minY = w.y;
+  if (!Number.isFinite(minY) || minY <= 0) return layout.map((w) => ({ ...w }));
+  return layout.map((w) => ({ ...w, y: w.y - minY }));
+}
+
+/** Commit a drop. The moving widget lands EXACTLY at its dropped
+ *  target (clamped to the columns); overlapping neighbors are pushed
+ *  down out of the way via `applyMoveWithPush`. Then `trimLeadingRows`
+ *  collapses a fully-empty top band. No compaction — interior gaps +
+ *  the surveyor's empty tiles are preserved (that's the whole point of
+ *  free placement). */
 export function commitDrop(
   layout: ReadonlyArray<WidgetInstance>,
   movingId: string,
   target: GridTarget,
   cols: number = HUB_GRID_COLS,
 ): WidgetInstance[] {
-  const snap = nearestAvailable(layout, movingId, target, cols);
-  const pushed = applyMoveWithPush(layout, movingId, snap, cols);
-  return compactLayout(pushed, cols);
+  const pushed = applyMoveWithPush(layout, movingId, target, cols);
+  return trimLeadingRows(pushed);
 }
