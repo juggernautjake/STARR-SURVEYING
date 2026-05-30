@@ -746,37 +746,51 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  // toolbar-alignment-fix 2026-05-30 — every control in the toolbar
+  // shares one explicit height + border-box so the labeled fields and
+  // the (unlabeled) action buttons line up exactly when the row
+  // bottom-aligns (alignItems: flex-end). Padding is horizontal-only;
+  // `height` owns the vertical size so a 1px border difference between
+  // an <input> and a borderless <button> can't knock them out of line.
   input: {
-    padding: '8px 10px',
+    height: 38,
+    boxSizing: 'border-box',
+    padding: '0 10px',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     fontSize: 13,
     minWidth: 160,
   },
   refreshBtn: {
+    height: 38,
+    boxSizing: 'border-box',
     background: 'transparent',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
-    padding: '8px 14px',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
   },
   exportBtn: {
+    height: 38,
+    boxSizing: 'border-box',
     background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
-    padding: '8px 14px',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
   },
   lockBtn: {
+    height: 38,
+    boxSizing: 'border-box',
     background: '#15803D',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
-    padding: '8px 14px',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
