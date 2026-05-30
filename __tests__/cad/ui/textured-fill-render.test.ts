@@ -21,7 +21,9 @@ const SRC = fs.readFileSync(
 
 describe('Slice 236 — fill-pattern generators imported', () => {
   it('imports generateFillPattern + FillPatternConfig from the pure-helper module', () => {
-    expect(SRC).toMatch(/import \{ generateFillPattern, type FillPatternConfig \} from '@\/lib\/cad\/styles\/fill-patterns';/);
+    // cad-fills Slice 1 — the import now also pulls in patternLineWeight
+    // (the thickness-aware stroke-weight helper).
+    expect(SRC).toMatch(/import \{ generateFillPattern, patternLineWeight, type FillPatternConfig \} from '@\/lib\/cad\/styles\/fill-patterns';/);
   });
 });
 
@@ -57,7 +59,8 @@ describe('Slice 236 — drawFillPatternForPolygon helper', () => {
   });
 
   it('routes the FillPatternConfig through generateFillPattern with a per-feature seed', () => {
-    expect(SRC).toMatch(/const cfg: FillPatternConfig = \{\s*pattern,\s*density: feature\.style\.patternDensity \?\? 1,\s*seed: hashSeed\(feature\.id\),\s*\};/);
+    // cad-fills Slice 1 — cfg now also carries `scale` (pattern thickness).
+    expect(SRC).toMatch(/const cfg: FillPatternConfig = \{\s*pattern,\s*density: feature\.style\.patternDensity \?\? 1,\s*seed: hashSeed\(feature\.id\),[\s\S]*?scale: feature\.style\.patternScale \?\? 1,\s*\};/);
     expect(SRC).toMatch(/const \{ dots, lines \} = generateFillPattern\(width, height, cfg\);/);
   });
 

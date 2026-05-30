@@ -148,7 +148,7 @@ import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simpl
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
-import { generateFillPattern, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
+import { generateFillPattern, patternLineWeight, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -3707,6 +3707,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       pattern,
       density: feature.style.patternDensity ?? 1,
       seed: hashSeed(feature.id),
+      // cad-fills Slice 1 — thickness multiplier (dot radius + line weight).
+      scale: feature.style.patternScale ?? 1,
     };
     const { dots, lines } = generateFillPattern(width, height, cfg);
     const patternColorHex = feature.style.patternColor ?? feature.style.color ?? '#000000';
@@ -3721,7 +3723,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       entry.tex.endFill();
     }
     if (lines.length > 0) {
-      entry.tex.lineStyle(0.6, colorInt, alpha);
+      // cad-fills Slice 1 — stroke weight honors the pattern thickness.
+      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1), colorInt, alpha);
       for (const ln of lines) {
         entry.tex.moveTo(minX + ln.x1, minY + ln.y1);
         entry.tex.lineTo(minX + ln.x2, minY + ln.y2);

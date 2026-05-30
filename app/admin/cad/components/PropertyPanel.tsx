@@ -1212,6 +1212,11 @@ export default function PropertyPanel() {
               { value: 'NONE', label: 'None' },
               { value: 'DOT_UNIFORM', label: 'Dots' },
               { value: 'DOT_GRAVEL', label: 'Gravel' },
+              // cad-fills Slice 1 — gravel-family variants (smaller /
+              // bigger / sand-fine dots).
+              { value: 'DOT_GRAVEL_FINE', label: 'Gravel−' },
+              { value: 'DOT_GRAVEL_COARSE', label: 'Gravel+' },
+              { value: 'DOT_SAND', label: 'Sand' },
               { value: 'DIAGONAL_RIGHT', label: 'Diag /' },
               { value: 'DIAGONAL_LEFT', label: 'Diag \\' },
               { value: 'CROSSHATCH', label: 'Cross' },
@@ -1220,6 +1225,8 @@ export default function PropertyPanel() {
               { value: 'BRICK', label: 'Brick' },
               { value: 'WAVE', label: 'Wave' },
             ];
+            const patternDensity = feature.style.patternDensity ?? 1;
+            const patternScale = feature.style.patternScale ?? 1;
             return (
               <div
                 data-testid="property-panel-fill-pattern"
@@ -1251,6 +1258,51 @@ export default function PropertyPanel() {
                     );
                   })}
                 </div>
+                {/* cad-fills Slice 1 — editable pattern parameters.
+                    Density drives dot spacing + hatch spacing + brick
+                    course size + wave spacing/wavelength; Thickness
+                    scales dot radius + line weight. Shown only when a
+                    real pattern is active. */}
+                {currentPattern !== 'NONE' && currentPattern !== 'SOLID' && (
+                  <div className="space-y-1 pt-1" data-testid="property-panel-fill-pattern-params">
+                    <label className="flex items-center gap-2 text-[10px] text-gray-400">
+                      <span className="w-14 shrink-0 uppercase tracking-wider">Density</span>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={4}
+                        step={0.25}
+                        value={patternDensity}
+                        data-testid="property-panel-fill-pattern-density"
+                        className="flex-1"
+                        onChange={(e) => {
+                          drawingStore.updateFeature(feature.id, {
+                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: parseFloat(e.target.value), isOverride: true },
+                          });
+                        }}
+                      />
+                      <span className="w-7 text-right tabular-nums">{patternDensity.toFixed(2)}×</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-[10px] text-gray-400">
+                      <span className="w-14 shrink-0 uppercase tracking-wider">Thickness</span>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={4}
+                        step={0.25}
+                        value={patternScale}
+                        data-testid="property-panel-fill-pattern-thickness"
+                        className="flex-1"
+                        onChange={(e) => {
+                          drawingStore.updateFeature(feature.id, {
+                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: parseFloat(e.target.value), isOverride: true },
+                          });
+                        }}
+                      />
+                      <span className="w-7 text-right tabular-nums">{patternScale.toFixed(2)}×</span>
+                    </label>
+                  </div>
+                )}
               </div>
             );
           })()}

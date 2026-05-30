@@ -465,8 +465,14 @@ export interface FeatureStyle {
   fillPattern?: FillPattern;
   patternColor?: string | null;
   /** Pattern density multiplier, 0.25 – 4. Default 1. Higher = more
-   *  dots per square inch / tighter hatch spacing. */
+   *  dots per square inch / tighter hatch spacing. Also drives brick
+   *  course size + wave row-spacing/wavelength. */
   patternDensity?: number;
+  /** cad-fills Slice 1 — pattern thickness multiplier, 0.25 – 4.
+   *  Default 1. Scales dot radius (dots/gravel/sand) and hatch / brick
+   *  / wave stroke weight, so the user can make a pattern read heavier
+   *  or lighter without changing its spacing. */
+  patternScale?: number;
 }
 
 export type FillPattern =
@@ -474,6 +480,12 @@ export type FillPattern =
   | 'NONE'
   | 'DOT_UNIFORM'
   | 'DOT_GRAVEL'
+  // cad-fills Slice 1 — gravel-family variants: same dispersed-dot
+  // look as DOT_GRAVEL with the dots tuned smaller/denser (FINE,
+  // SAND) or bigger/looser (COARSE).
+  | 'DOT_GRAVEL_FINE'
+  | 'DOT_GRAVEL_COARSE'
+  | 'DOT_SAND'
   | 'DIAGONAL_LEFT'
   | 'DIAGONAL_RIGHT'
   | 'CROSSHATCH'

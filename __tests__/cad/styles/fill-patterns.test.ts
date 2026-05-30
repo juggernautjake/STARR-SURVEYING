@@ -14,6 +14,7 @@ import {
   generateBrickLines,
   generateWaveLines,
   generateFillPattern,
+  patternLineWeight,
 } from '@/lib/cad/styles/fill-patterns';
 
 describe('Slice 235 — SeededRng is deterministic', () => {
@@ -195,6 +196,9 @@ describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value',
       'NONE',
       'DOT_UNIFORM',
       'DOT_GRAVEL',
+      'DOT_GRAVEL_FINE',
+      'DOT_GRAVEL_COARSE',
+      'DOT_SAND',
       'DIAGONAL_LEFT',
       'DIAGONAL_RIGHT',
       'CROSSHATCH',
@@ -210,5 +214,75 @@ describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value',
       expect(Array.isArray(out.dots)).toBe(true);
       expect(Array.isArray(out.lines)).toBe(true);
     }
+  });
+});
+
+describe('cad-fills Slice 1 — gravel-family variants', () => {
+  it('FINE / COARSE / SAND all emit dispersed dots (no lines)', () => {
+    for (const pattern of ['DOT_GRAVEL_FINE', 'DOT_GRAVEL_COARSE', 'DOT_SAND'] as const) {
+      const out = generateFillPattern(120, 120, { pattern, density: 1, seed: 5 });
+      expect(out.lines).toEqual([]);
+      expect(out.dots.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('COARSE dots read bigger than FINE dots on average (same seed)', () => {
+    const fine = generateFillPattern(160, 160, { pattern: 'DOT_GRAVEL_FINE', density: 1, seed: 9 }).dots;
+    const coarse = generateFillPattern(160, 160, { pattern: 'DOT_GRAVEL_COARSE', density: 1, seed: 9 }).dots;
+    const mean = (ds: { r: number }[]) => ds.reduce((s, d) => s + d.r, 0) / Math.max(1, ds.length);
+    expect(mean(coarse)).toBeGreaterThan(mean(fine));
+  });
+
+  it('SAND packs more dots than COARSE in the same box (denser)', () => {
+    const sand = generateFillPattern(160, 160, { pattern: 'DOT_SAND', density: 1, seed: 3 }).dots;
+    const coarse = generateFillPattern(160, 160, { pattern: 'DOT_GRAVEL_COARSE', density: 1, seed: 3 }).dots;
+    expect(sand.length).toBeGreaterThan(coarse.length);
+  });
+
+  it('stays deterministic per seed', () => {
+    const a = generateFillPattern(100, 100, { pattern: 'DOT_GRAVEL_FINE', density: 1, seed: 11 }).dots;
+    const b = generateFillPattern(100, 100, { pattern: 'DOT_GRAVEL_FINE', density: 1, seed: 11 }).dots;
+    expect(a).toEqual(b);
+  });
+});
+
+describe('cad-fills Slice 1 — thickness scale', () => {
+  it('scale > 1 grows gravel dot radius; scale < 1 shrinks it', () => {
+    const base = generateFillPattern(160, 160, { pattern: 'DOT_GRAVEL', density: 1, seed: 21 }).dots;
+    const big = generateFillPattern(160, 160, { pattern: 'DOT_GRAVEL', density: 1, seed: 21, scale: 3 }).dots;
+    const small = generateFillPattern(160, 160, { pattern: 'DOT_GRAVEL', density: 1, seed: 21, scale: 0.5 }).dots;
+    const mean = (ds: { r: number }[]) => ds.reduce((s, d) => s + d.r, 0) / Math.max(1, ds.length);
+    expect(mean(big)).toBeGreaterThan(mean(base));
+    expect(mean(small)).toBeLessThan(mean(base));
+  });
+
+  it('scale grows uniform-dot radius', () => {
+    const base = generateFillPattern(120, 120, { pattern: 'DOT_UNIFORM', density: 1, seed: 1 }).dots;
+    const big = generateFillPattern(120, 120, { pattern: 'DOT_UNIFORM', density: 1, seed: 1, scale: 2 }).dots;
+    expect(big[0].r).toBeGreaterThan(base[0].r);
+  });
+
+  it('patternLineWeight scales the hatch/brick/wave stroke from a 0.6 baseline', () => {
+    expect(patternLineWeight(1)).toBeCloseTo(0.6, 6);
+    expect(patternLineWeight(2)).toBeCloseTo(1.2, 6);
+    expect(patternLineWeight(0.5)).toBeCloseTo(0.3, 6);
+    // clamps + null-guards to the baseline
+    expect(patternLineWeight(undefined)).toBeCloseTo(0.6, 6);
+    expect(patternLineWeight(0)).toBeCloseTo(0.6, 6);
+    expect(patternLineWeight(99)).toBeCloseTo(0.6 * 4, 6);
+  });
+});
+
+describe('cad-fills Slice 1 — density still drives spacing/frequency', () => {
+  it('higher density packs more gravel dots', () => {
+    const sparse = generateFillPattern(200, 200, { pattern: 'DOT_GRAVEL', density: 0.5, seed: 4 }).dots;
+    const dense = generateFillPattern(200, 200, { pattern: 'DOT_GRAVEL', density: 3, seed: 4 }).dots;
+    expect(dense.length).toBeGreaterThan(sparse.length);
+  });
+
+  it('higher density adds more wave rows', () => {
+    const sparse = generateFillPattern(200, 200, { pattern: 'WAVE', density: 0.5, seed: 1 }).lines;
+    const dense = generateFillPattern(200, 200, { pattern: 'WAVE', density: 3, seed: 1 }).lines;
+    expect(dense.length).toBeGreaterThan(sparse.length);
   });
 });
