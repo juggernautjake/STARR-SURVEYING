@@ -94,6 +94,24 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Editor:** period, showTrend, showComparison (schema-driven; R4
   may upgrade to a richer editor).
 - **Slices:** Build/Wire (footer link) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  backing endpoint didn't exist** — the widget fetched
+  `/api/admin/reports?metric=monthly-revenue` (only a stub path in the
+  hub-data route map), so it always rendered empty (its own empty copy
+  even said "Once /api/admin/reports lands…"). **Built the minimal
+  reports endpoint:** revenue = non-refund `job_payments` (money clients
+  paid on jobs) summed for the current period-to-date vs the full
+  previous period; returns `{ revenue_mtd, revenue_last_month, goal,
+  period }` exactly as the widget reads, admin-gated. Period math is the
+  pure `lib/reports/revenue-periods.ts` — `periodWindows(period, now)`
+  (month/quarter/year, UTC, with Q1→prior-year rollover) +
+  `sumRevenue(payments)` (skips refunds, tolerates bad amounts). The
+  widget itself was already strong (bucket-aware typography, trend %,
+  goal bar, period labels) — just refreshed the stale empty copy. Footer
+  "Go to finances →" is global. 7 specs (period windows for
+  month/quarter/Q1/year + revenue sum). Full hub suite (1560) green;
+  typecheck + lint clean. **monthly-revenue is done** (now actually
+  renders real revenue).
 
 ## outstanding-invoices
 - **Endpoint:** `/api/admin/invoices?status=outstanding`.

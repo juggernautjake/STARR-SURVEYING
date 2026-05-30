@@ -70,7 +70,7 @@ function MonthlyRevenueWidget({ size, content }: WidgetProps<MonthlyRevenueConte
         </div>
       );
     }
-    return <WidgetEmpty icon="💵" title="Revenue unavailable" description="Once /api/admin/reports lands, MTD revenue shows here." />;
+    return <WidgetEmpty icon="💵" title="No revenue yet" description="Client payments recorded on jobs roll up here for the period." />;
   }
 
   const deltaPct = data.revenue_last_month > 0
