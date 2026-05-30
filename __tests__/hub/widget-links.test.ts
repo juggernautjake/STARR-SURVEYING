@@ -81,7 +81,10 @@ describe('widget-links — every mapped target is a real-looking route', () => {
   });
 
   it('widgetGoToTarget returns the mapped target, or null when link-less', () => {
-    expect(widgetGoToTarget('my-jobs')).toEqual({ href: '/admin/my-jobs', label: 'my jobs' });
+    // hub-widget-routing 2026-05-30 — `my-jobs` footer now points at
+    // the org-wide /admin/jobs page (per user feedback), not the
+    // personal `/admin/my-jobs` filter.
+    expect(widgetGoToTarget('my-jobs')).toEqual({ href: '/admin/jobs', label: 'jobs' });
     expect(widgetGoToTarget('quick-actions')).toBeNull();
     expect(widgetGoToTarget('not-a-widget')).toBeNull();
   });

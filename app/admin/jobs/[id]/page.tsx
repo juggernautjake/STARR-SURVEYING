@@ -53,6 +53,9 @@ interface Job {
   lead_rpls_email?: string;
   is_priority?: boolean;
   notes?: string;
+  // job-editing 2026-05-30 — free-form deliverables description.
+  // Persisted in the new `jobs.deliverables` column (seeds/304).
+  deliverables?: string;
   result?: 'won' | 'lost' | 'abandoned' | null;
   result_reason?: string | null;
   result_set_at?: string | null;
@@ -523,6 +526,19 @@ export default function JobDetailPage() {
                   </p>
                 </div>
 
+                {/* job-editing 2026-05-30 — Deliverables: what's being
+                    handed over on this job (e.g., "boundary survey +
+                    topo + ALTA cert; recorded plat by 2026-06-15").
+                    Same inline-edit pattern as Description. */}
+                <div className="job-detail__section">
+                  <h3>Deliverables</h3>
+                  <p>
+                    <InlineEditField value={job.deliverables} type="textarea" ariaLabel="deliverables"
+                      emptyLabel="What does this job deliver? (boundary survey, topo, ALTA cert, …)"
+                      onSave={(v) => saveField('deliverables', v)} />
+                  </p>
+                </div>
+
                 {/* Property Details — click to edit */}
                 <div className="job-detail__section">
                   <h3>Property Details</h3>
@@ -644,6 +660,12 @@ export default function JobDetailPage() {
               paymentStatus={job.payment_status}
               payments={payments}
               editable={true}
+              // job-editing 2026-05-30 — wire the quote-edit handler
+              // so the Financial tab's inline click-to-edit on Quote
+              // saves through the existing PUT /api/admin/jobs flow.
+              // saveField expects a string (coerced to a number inside)
+              // so we stringify the value here.
+              onUpdateQuote={(val) => { void saveField('quote_amount', String(val)); }}
             />
             <JobTimeTracker
               entries={timeEntries}

@@ -25,7 +25,12 @@ export interface WidgetGoToTarget {
  *  that own a domain page appear here. */
 export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   // work
-  'my-jobs': { href: '/admin/my-jobs', label: 'my jobs' },
+  // hub-widget-routing 2026-05-30 — `my-jobs` widget's "Go to…" link
+  // points at the org-wide `/admin/jobs` page (the main jobs list)
+  // instead of the personal `/admin/my-jobs` filter. The widget's
+  // header still shows the user's own jobs; the footer link gives
+  // them a one-click jump to every job they can see.
+  'my-jobs': { href: '/admin/jobs', label: 'jobs' },
   'assignments-due': { href: '/admin/assignments', label: 'assignments' },
   'field-data-pending': { href: '/admin/field-data', label: 'field data' },
   'job-activity-feed': { href: '/admin/jobs', label: 'jobs' },

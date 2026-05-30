@@ -96,10 +96,10 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
   {
     id: 'send-message',
     label: 'Send Message',
-    description: 'Start a new direct or group message.',
+    description: 'Open messages — pick a conversation or start a new one.',
     iconName: 'MessageSquarePlus',
     kind: 'link',
-    href: '/admin/messages/new',
+    href: '/admin/messages',
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'accent',
   },
