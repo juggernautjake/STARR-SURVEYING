@@ -11,7 +11,8 @@
 import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
-import { findRoute, type AdminRoute } from '@/lib/admin/route-registry';
+import { ADMIN_ROUTES, type AdminRoute } from '@/lib/admin/route-registry';
+import { resolveRouteHrefs } from '@/lib/hub/widgets/_shared/route-resolve';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
@@ -38,14 +39,16 @@ function RecentActivityWidget({ size, content }: WidgetProps<RecentActivityConte
   const bucket = sizeBucket(size.w, size.h);
   const recentRoutes = useAdminNavStore((s) => s.recentRoutes);
 
-  const items = useMemo(() => {
-    if (!settings.includeTypes.includes('recent-routes')) return [];
-    const cap = Math.min(settings.itemLimit, capForBucket(bucket));
-    return recentRoutes.slice(0, cap).map((href) => {
-      const route = findRoute(href);
-      return { href, route };
-    });
-  }, [recentRoutes, settings.includeTypes, settings.itemLimit, bucket]);
+  // R2 — resolve recent hrefs against the route table, DROPPING any that
+  // no longer resolve (a retired route would be a dead link). Then cap.
+  const resolved = useMemo(
+    () => (settings.includeTypes.includes('recent-routes') ? resolveRouteHrefs(recentRoutes, ADMIN_ROUTES) : []),
+    [recentRoutes, settings.includeTypes],
+  );
+  const items = useMemo(
+    () => resolved.slice(0, Math.min(settings.itemLimit, capForBucket(bucket))),
+    [resolved, settings.itemLimit, bucket],
+  );
 
   if (items.length === 0) {
     if (bucket === 'tiny') {
@@ -65,11 +68,12 @@ function RecentActivityWidget({ size, content }: WidgetProps<RecentActivityConte
     );
   }
 
-  // Tiny — counter card showing how many recent pages are tracked.
+  // Tiny — counter card showing how many resolvable recent pages are
+  // tracked (matches what the list renders).
   if (bucket === 'tiny') {
     return (
       <div style={tinyStatWrapStyle()}>
-        <span style={statNumberStyle(bucket, 'var(--theme-fg-primary)')}>{recentRoutes.length}</span>
+        <span style={statNumberStyle(bucket, 'var(--theme-fg-primary)')}>{resolved.length}</span>
         <span style={tinyStatLabelStyle()}>recent</span>
       </div>
     );
@@ -77,15 +81,15 @@ function RecentActivityWidget({ size, content }: WidgetProps<RecentActivityConte
 
   return (
     <ul role="list" style={listStyle}>
-      {items.map(({ href, route }) => (
-        <li key={href}>
-          <Link href={href} style={rowStyle}>
+      {items.map((it) => (
+        <li key={it.href}>
+          <Link href={it.href} style={rowStyle}>
             <span style={iconStyle} aria-hidden>
-              {iconForRoute(route?.iconName)}
+              {iconForRoute(it.iconName)}
             </span>
             <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-              <span style={titleStyle}>{route?.label ?? trimHref(href)}</span>
-              <span style={mutedStyle}>{href}</span>
+              <span style={titleStyle}>{it.label || trimHref(it.href)}</span>
+              <span style={mutedStyle}>{it.href}</span>
             </span>
           </Link>
         </li>

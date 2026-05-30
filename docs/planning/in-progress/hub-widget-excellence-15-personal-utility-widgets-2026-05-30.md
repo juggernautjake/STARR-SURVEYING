@@ -144,6 +144,28 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
 - **Per-bucket:** tiny → count; small → top few; medium+ → more.
 - **Editor:** itemLimit, includeTypes.
 - **Slices:** Build/Wire + R1–4 (R2: every recent href resolves).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (data):**
+  reads `nav-store.recentRoutes` + the route-registry for labels/icons —
+  confirmed correct; the itemLimit + tiny-counter were already fine.
+  **R2 (the headline — "every recent href resolves"):** the old code
+  rendered a recent href even when `findRoute` missed (raw stripped-href
+  label) → a retired route would be a dead link, and deep visited pages
+  (`/admin/jobs/abc`) showed an ugly stripped label. **Lifted the
+  pinned-pages resolver into `_shared/route-resolve.ts`**
+  (`resolveRouteHrefs` + `deepestPrefix`) since two widgets now need it,
+  and pointed `pinned-pages/resolve.ts` at it via re-export (its widget
+  + specs unchanged). recent-activity now resolves `recentRoutes`
+  against the full `ADMIN_ROUTES`: exact + deep-subtree matches keep the
+  route's label/icon (deep hrefs preserved so the link still lands on
+  the exact page) and **unregistered hrefs are dropped**. The tiny
+  counter now reflects the resolvable count (matches the list). **R3
+  (size):** tiny → count (already), list rows ellipsis-clamped (already
+  fine). **R4 (editor):** itemLimit retained; the includeTypes axis is
+  the single real type today (recent-routes) — the activity-log type is
+  still a documented follow-up (no phantom options). 5 new shared
+  route-resolve specs; the slice-114 specs (caps/trimHref/iconForRoute/
+  registry) still green. Full hub suite (1655) green; typecheck + lint
+  clean. **recent-activity is done.**
 
 ## weather
 - **Endpoint:** `/api/admin/weather?location=&zip=`. Fields: temp,
