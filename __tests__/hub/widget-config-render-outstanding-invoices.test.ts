@@ -18,15 +18,41 @@ import {
   resolveShowAging,
   resolveSortBy,
   sortInvoices,
+  toOutstandingInvoice,
   type InvoiceSortBy,
   type OutstandingInvoicesContent,
 } from '@/lib/hub/widgets/outstanding-invoices';
 import { getWidgetOptionsEntry } from '@/lib/hub/widget-options';
 
-interface Invoice { id: string; client_name: string; amount: number; due_date?: string | null }
-const A: Invoice = { id: 'a', client_name: 'Acme',    amount: 250.0, due_date: '2026-05-20' };
-const B: Invoice = { id: 'b', client_name: 'BoiseCo', amount: 1500,  due_date: '2026-06-05' };
-const C: Invoice = { id: 'c', client_name: 'Zephyr',  amount: 50,    due_date: null };
+describe('R1 — toOutstandingInvoice (billing source mapper)', () => {
+  it('maps an open invoice with an unpaid balance to a row (cents → dollars)', () => {
+    const row = toOutstandingInvoice({
+      id: 'i1', number: 'INV-0007', status: 'open',
+      amountDueCents: 12500, amountPaidCents: 2500,
+      periodEnd: '2026-06-01T00:00:00Z', hostedUrl: 'https://stripe/inv/1',
+    });
+    expect(row).toEqual({
+      id: 'i1', label: 'INV-0007', amount: 100, due_date: '2026-06-01T00:00:00Z', href: 'https://stripe/inv/1',
+    });
+  });
+
+  it('skips paid / non-open invoices + fully-paid open ones', () => {
+    expect(toOutstandingInvoice({ id: 'p', status: 'paid', amountDueCents: 1000 })).toBeNull();
+    expect(toOutstandingInvoice({ id: 'v', status: 'void', amountDueCents: 1000 })).toBeNull();
+    expect(toOutstandingInvoice({ id: 'f', status: 'open', amountDueCents: 1000, amountPaidCents: 1000 })).toBeNull();
+  });
+
+  it('falls back to "Invoice" when the number is missing', () => {
+    const row = toOutstandingInvoice({ id: 'x', status: 'open', amountDueCents: 500 });
+    expect(row?.label).toBe('Invoice');
+    expect(row?.amount).toBe(5);
+  });
+});
+
+interface Invoice { id: string; label: string; amount: number; due_date?: string | null }
+const A: Invoice = { id: 'a', label: 'Acme',    amount: 250.0, due_date: '2026-05-20' };
+const B: Invoice = { id: 'b', label: 'BoiseCo', amount: 1500,  due_date: '2026-06-05' };
+const C: Invoice = { id: 'c', label: 'Zephyr',  amount: 50,    due_date: null };
 
 describe('Slice 14 — outstanding-invoices: schema ↔ resolvers agree', () => {
   it('schema declares the same sortBy values resolveSortBy accepts', () => {
@@ -86,7 +112,7 @@ describe('Slice 14 — sortInvoices', () => {
 
   it('customer sorts alphabetically (A → Z)', () => {
     const out = sortInvoices([B, A, C], 'customer');
-    expect(out.map((i) => i.client_name)).toEqual(['Acme', 'BoiseCo', 'Zephyr']);
+    expect(out.map((i) => i.label)).toEqual(['Acme', 'BoiseCo', 'Zephyr']);
   });
 
   it('due-date sorts earliest first; null due_date sinks to the end', () => {

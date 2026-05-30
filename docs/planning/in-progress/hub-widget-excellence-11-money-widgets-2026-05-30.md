@@ -125,6 +125,24 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Editor:** maxItems, sortBy, showAging.
 - **Notifications:** invoice overdue reminder (Doc 03).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget fetched a missing endpoint** (`/api/admin/invoices` — only a
+  stub) so it always rendered empty, AND it read `client_name` fields
+  that don't exist. The real source is `/api/admin/billing/invoices`
+  (the org's Stripe subscription invoices — the same data the
+  `/admin/billing/invoices` footer page shows). **Realigned:** the
+  widget fetches the billing endpoint and maps rows through a new pure
+  exported `toOutstandingInvoice(b)` — keeps only `status==='open'`
+  invoices with an unpaid balance, converts `amountDueCents -
+  amountPaidCents` → dollars, uses the invoice `number` as the label
+  (fallback "Invoice"), `periodEnd` as the due date, and the Stripe
+  `hostedUrl` as the row deep link (opens in a new tab). `sortInvoices`'
+  customer sort now sorts by label. Footer "Go to invoices →" is global.
+  Existing pure specs updated (client_name → label) + 3 new
+  `toOutstandingInvoice` specs. Full hub suite (1563) green; typecheck +
+  lint clean. **outstanding-invoices is done.** (Invoice-overdue
+  reminders: Stripe drives its own dunning; a hub-side reminder would
+  duplicate it — left to Stripe.)
 
 ## pending-hours
 - **Endpoint:** `/api/admin/time-logs/approve?status=pending`.

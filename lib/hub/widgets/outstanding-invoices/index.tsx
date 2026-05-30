@@ -31,7 +31,38 @@ const DEFAULTS: OutstandingInvoicesContent = {
   showAging: true,
 };
 
-interface Invoice { id: string; client_name: string; amount: number; due_date?: string | null; }
+// hub-widget-excellence-11 R1 — realigned to the real billing source:
+// `/api/admin/billing/invoices` reads the org's Stripe subscription
+// invoices (the same data the /admin/billing/invoices footer page
+// shows). "Outstanding" = status 'open'. `label` is the invoice number;
+// `amount` is the unpaid balance in dollars; `href` is the Stripe-hosted
+// invoice page for the row deep link.
+interface Invoice { id: string; label: string; amount: number; due_date?: string | null; href?: string | null; }
+
+interface BillingInvoice {
+  id: string;
+  number?: string | null;
+  status: string;
+  amountDueCents?: number | null;
+  amountPaidCents?: number | null;
+  periodEnd?: string | null;
+  hostedUrl?: string | null;
+}
+
+/** Map a billing invoice to the widget's row shape; returns null for
+ *  anything that isn't an open (unpaid) invoice. Pure + exported. */
+export function toOutstandingInvoice(b: BillingInvoice): Invoice | null {
+  if (b.status !== 'open') return null;
+  const due = (b.amountDueCents ?? 0) - (b.amountPaidCents ?? 0);
+  if (due <= 0) return null;
+  return {
+    id: b.id,
+    label: b.number?.trim() || 'Invoice',
+    amount: due / 100,
+    due_date: b.periodEnd ?? null,
+    href: b.hostedUrl ?? null,
+  };
+}
 
 export function resolveSortBy(c: OutstandingInvoicesContent): InvoiceSortBy {
   return c.sortBy === 'due-date' || c.sortBy === 'amount' || c.sortBy === 'customer'
@@ -55,7 +86,7 @@ export function sortInvoices(items: Invoice[], by: InvoiceSortBy): Invoice[] {
     case 'amount':
       return copy.sort((a, b) => b.amount - a.amount);
     case 'customer':
-      return copy.sort((a, b) => a.client_name.localeCompare(b.client_name));
+      return copy.sort((a, b) => a.label.localeCompare(b.label));
     case 'due-date':
     default:
       return copy.sort((a, b) => {
@@ -87,11 +118,14 @@ function OutstandingInvoicesWidget({ size, content }: WidgetProps<OutstandingInv
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/invoices?status=outstanding');
+      const res = await fetch('/api/admin/billing/invoices');
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { invoices?: Invoice[] } = await res.json();
-      setItems(data.invoices ?? []);
-      setStatus((data.invoices ?? []).length === 0 ? 'empty' : 'ok');
+      const data: { invoices?: BillingInvoice[] } = await res.json();
+      const outstanding = (data.invoices ?? [])
+        .map(toOutstandingInvoice)
+        .filter((i): i is Invoice => i !== null);
+      setItems(outstanding);
+      setStatus(outstanding.length === 0 ? 'empty' : 'ok');
     } catch { setStatus('empty'); }
   }, []);
   useEffect(() => { fetchItems(); }, [fetchItems]);
@@ -135,9 +169,9 @@ function OutstandingInvoicesWidget({ size, content }: WidgetProps<OutstandingInv
         <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {sorted.slice(0, cap).map((i) => {
             const aging = showAging ? agingLabel(i.due_date) : null;
-            return (
-              <li key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6, fontSize: 'var(--hub-font-xs, 0.75rem)' }}>
-                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.client_name}</span>
+            const rowInner = (
+              <>
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0 }}>
                   {aging && (
                     <span style={{ color: 'var(--theme-fg-secondary)', fontSize: '0.7rem' }}>
@@ -146,6 +180,20 @@ function OutstandingInvoicesWidget({ size, content }: WidgetProps<OutstandingInv
                   )}
                   <span style={{ fontWeight: 600 }}>${i.amount.toFixed(2)}</span>
                 </span>
+              </>
+            );
+            const rowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6, fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'inherit', textDecoration: 'none' };
+            return (
+              <li key={i.id}>
+                {/* Build/Wire — deep-link each row to its Stripe-hosted
+                    invoice page when available. */}
+                {i.href ? (
+                  <a href={i.href} target="_blank" rel="noopener noreferrer" style={rowStyle} aria-label={`Open invoice ${i.label}`}>
+                    {rowInner}
+                  </a>
+                ) : (
+                  <span style={rowStyle}>{rowInner}</span>
+                )}
               </li>
             );
           })}
