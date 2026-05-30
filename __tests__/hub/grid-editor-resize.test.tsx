@@ -99,8 +99,10 @@ describe('Slice 225 — resize handle source-level contracts', () => {
     );
   });
 
-  it('the corner-handle button only renders while the widget is selected', () => {
-    // The render block matches `{isSelected && ( <> ... ⤡ ... </> )}`
+  it('the corner-handle button renders inside the per-widget control cluster', () => {
+    // Slice G2 gates the cluster on `{controlsVisible && ( <> ... ⤡
+    // ... </> )}` (hover / selection / focus) instead of the old
+    // `{isSelected && (`.
     expect(SRC).toMatch(/data-testid="grid-editor-placed-resize"/);
     expect(SRC).toMatch(/onPointerDown=\{\(e\) => startResize\(e, inst\)\}/);
   });

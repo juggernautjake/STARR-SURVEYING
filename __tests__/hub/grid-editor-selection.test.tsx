@@ -54,7 +54,10 @@ describe('Slice 224 — painted widget is now a button', () => {
   });
 
   it('placed widget toggles selection on click (clicking the selected widget deselects it)', () => {
-    expect(SRC).toMatch(/setSelectedPlacedId\(isSelected \? null : inst\.id\)/);
+    // Slice 9 moved the click-toggle into startMove's no-drag pointer-up
+    // branch; it compares against the live selectedPlacedId rather than
+    // the render-time isSelected.
+    expect(SRC).toMatch(/setSelectedPlacedId\(selectedPlacedId === inst\.id \? null : inst\.id\)/);
   });
 
   it('placed widget responds to Enter + Space to toggle selection (keyboard parity)', () => {
@@ -75,11 +78,13 @@ describe('Slice 224 — Delete key removes the selected widget', () => {
 });
 
 describe('Slice 224 — inline ✕ remove button', () => {
-  it('only renders the ✕ button while the widget is selected', () => {
+  it('renders the ✕ button inside the per-widget control cluster', () => {
     // Slice 225 wrapped the conditional in a fragment to add the
-    // resize handle alongside the delete button, so the assertion
-    // anchors on the aria-label rather than the exact wrapper.
-    expect(SRC).toMatch(/\{isSelected && \([\s\S]*?aria-label="Remove widget from layout"/);
+    // resize handle alongside the delete button; Slice G2 swapped the
+    // `{isSelected && (` gate for `{controlsVisible && (` so the
+    // cluster shows on hover / selection / focus. The assertion
+    // anchors on the controlsVisible gate + the aria-label.
+    expect(SRC).toMatch(/\{controlsVisible && \([\s\S]*?aria-label="Remove widget from layout"/);
   });
 
   it('the button click calls removeWidget + clears selection', () => {

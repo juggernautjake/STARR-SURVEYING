@@ -97,7 +97,7 @@ placement + resize still feel broken.*
 
 ### Phase G2 — Hover affordances
 
-#### Slice G2 — Per-widget controls on hover + selection + focus
+#### Slice G2 — Per-widget controls on hover + selection + focus ✅ shipped 2026-05-30
 - **Scope:** In `GridEditor`, track a `hoveredPlacedId` (pointer
   enter/leave on the placed-widget div) and reveal the delete/options/
   resize cluster when `hovered || selected || focused`. Keep the
@@ -110,6 +110,18 @@ placement + resize still feel broken.*
 - **Done when:** Controls appear on mouse-over, on click-select, and on
   keyboard focus; disappear when the mouse leaves (unless selected/
   focused).
+- **Shipped:** Added `hoveredPlacedId` + `focusedPlacedId` state with
+  pointer-enter/leave + focus/blur handlers on the placed-widget div.
+  New `controlsVisible = !aGestureActive && (hovered || isSelected ||
+  focused)` flag where `aGestureActive = moveDrag !== null ||
+  resizeTarget !== null` (suppresses the cluster during any drag/resize
+  so it doesn't flicker under the cursor). The button cluster's
+  `{isSelected && (` gate became `{controlsVisible && (`. Added a
+  `data-controls-visible` attribute for styling/e2e. Updated the
+  selection + resize specs whose assertions referenced the old gate;
+  new `grid-editor-hover-controls.test.ts` (11 cases). 1396 hub specs
+  green. (Slice G4b — arrow-key move — shipped in the same commit; see
+  its entry under Phase G3b.)
 
 ### Phase G3 — Resize with directional flow-push
 
@@ -143,7 +155,7 @@ placement + resize still feel broken.*
 
 ### Phase G3b — Keyboard movement
 
-#### Slice G4b — Arrow-key move of the selected widget (with push)
+#### Slice G4b — Arrow-key move of the selected widget (with push) ✅ shipped 2026-05-30
 - **Scope (user follow-up 2026-05-30):** *"If I click on a widget, I
   can then also choose to use the arrow keys on the keyboard to move it
   around, which would cause the other widgets to move dynamically if
@@ -163,6 +175,16 @@ placement + resize still feel broken.*
 - **Done when:** Selecting a widget + pressing arrows moves it one cell
   per press; blocked neighbors shift out of the way; the widget can't
   leave the grid.
+- **Shipped:** Window-level arrow branch in the existing `onKey` effect
+  (window-level so it fires regardless of DOM focus — `startMove`'s
+  pointer-down `preventDefault` can stop the widget div from focusing
+  on click). Four arrows → one-cell deltas; guards on `selectedPlacedId
+  && !moveDrag && !resizeTarget && !selectedType`; clamps x into
+  `[0, cols - w]`, y to `>= 0`; no-ops a zero-delta; commits via
+  `commitDrop` (push + trim) → `setDraftWidgets`. `handlePlacedKeyDown`
+  keeps Enter/Space → toggle selection. New
+  `grid-editor-keyboard-move.test.ts` (8 cases). Effect dep array
+  widened (`moveDrag, resizeTarget, selectedType, setDraftWidgets`).
 
 ### Phase G4 — QA
 
