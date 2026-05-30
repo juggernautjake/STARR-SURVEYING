@@ -213,6 +213,32 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
   medium+ → + location + twilight.
 - **Editor:** latitude, longitude, units, showTwilight.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (the headline
+  — the endpoint was a 204 stub, so the widget ALWAYS rendered a
+  hard-coded fake "6:32 AM / 8:14 PM / Austin, TX"):** unlike weather,
+  sunrise/sunset/daylight are **deterministic math** — no API, never
+  "unavailable". **Wired real computation:** a pure `lib/sun/calc.ts`
+  → `computeSunTimes(lat, lng, date, elevation)` (the proven SunCalc /
+  NOAA sunrise equation) verified to within **±3 min** of the Open-Meteo
+  reference (Austin 2026-05-30: sunrise 11:30 UTC, sunset 01:27+1,
+  daylight ≈13.94h), incl. polar-day/night guards + civil-twilight
+  (-6°). The endpoint resolves coordinates (pinned `?lat=&lng=`, else the
+  Central-Texas default) via `lib/sun/response.ts`
+  (`resolveSunPoint` + `buildSunResponse`) and returns **ISO-8601 UTC**
+  times. **R2 (links/correctness):** out-of-range coords fall back to the
+  default; the auth guard is preserved. **R3 (size):** the per-bucket
+  render (tiny → daylight h; small+ → sunrise/sunset pair; medium+ →
+  + location; twilight row at medium+) was already correct — confirmed.
+  **R4 (units — finally real):** `formatTime` now detects ISO and renders
+  the clock time in the surveyor's **local** zone or **UTC** (suffixed)
+  via Intl, instead of just appending " UTC" to a pre-baked string; the
+  non-ISO passthrough is kept so the offline fallback + the slice-15c
+  spec stay green. Null (polar) times render "—". The stub-endpoints
+  spec was rewritten (sun returns a real 200 payload now; all four
+  former stubs are wired — the file now asserts the real payload + the
+  401 guard). 15 new specs (calc reference + polar + twilight, response
+  resolve/build, ISO formatTime). Full hub suite (1658) green; typecheck
+  + lint clean. **sun-calculator is done.**
 
 ## daily-briefing
 - **Composite** of schedule + weather + crew + tasks (currently stub

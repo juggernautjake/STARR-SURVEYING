@@ -1,9 +1,15 @@
 // __tests__/api/stub-endpoints.test.ts
 //
-// Slice 191 — confirms the 4 stub endpoints return the shape the
-// widgets expect (or 204 No Content when no payload would be honest).
-// We mock @/lib/auth to bypass the session check; the route handlers
-// are exercised as plain async functions.
+// Slice 191 originally covered four placeholder endpoints. Over
+// hub-widget-excellence docs 12/14/15 every one was wired to real data:
+//   - /api/admin/research/pipeline → research_projects (doc 12)
+//   - /api/admin/team/status       → today's daily_time_logs (doc 14)
+//   - /api/admin/weather           → keyless Open-Meteo (doc 15)
+//   - /api/admin/sun               → pure sunrise computation (doc 15)
+// Each carries its own pure-helper specs. What remains worth asserting
+// here is the shared contract: they still compute a real payload and
+// still reject unauthenticated callers. We use /api/admin/sun (fully
+// deterministic, no network) as the representative.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -13,31 +19,24 @@ vi.mock('@/lib/auth', () => ({
 
 // Re-import after the mock is registered.
 const { GET: sunGet } = await import('@/app/api/admin/sun/route');
-// NOTE: /api/admin/research/pipeline is no longer a stub — hub-widget-
-// excellence-12 wired it to real research_projects data (mapped via the
-// pure lib/research/pipeline-runs helpers, tested separately). It's no
-// longer asserted here.
-// NOTE: /api/admin/team/status is no longer a stub either — hub-widget-
-// excellence-14 wired it to real "active today" data (today's
-// daily_time_logs joined to registered_users, mapped via the pure
-// lib/team/status.buildTeamStatus helper, tested separately).
-// NOTE: /api/admin/weather is no longer a stub either — hub-widget-
-// excellence-15 wired it to real keyless Open-Meteo data (mapped via the
-// pure lib/weather helpers, tested separately). It degrades to 204 only
-// when the upstream is unreachable, so its status isn't asserted here.
 
-describe('Slice 191 — stub endpoints', () => {
+describe('formerly-stub endpoints — now real', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('/api/admin/sun returns 204 No Content', async () => {
-    const res = await sunGet(new Request('http://localhost/api/admin/sun') as never);
-    expect(res.status).toBe(204);
+  it('/api/admin/sun computes a real sunrise/sunset payload', async () => {
+    const res = await sunGet(new Request('http://localhost/api/admin/sun?lat=30.27&lng=-97.74') as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ location_label: expect.any(String) });
+    expect(typeof body.daylight_hours).toBe('number');
+    expect(body.sunrise).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(body.sunset).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });
 
-describe('Slice 191 — stub endpoints reject unauthenticated callers', () => {
+describe('formerly-stub endpoints reject unauthenticated callers', () => {
   it('returns 401 when there is no session', async () => {
     const { auth } = await import('@/lib/auth');
     (auth as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue(null);
