@@ -2,25 +2,23 @@
 // app/admin/me/components/HubGreeting.tsx
 //
 // Hub greeting card. Time-of-day greeting + date + clock-in status +
-// role-chip strip. Replaces the slice-2a stub that mixed greeting +
-// nav toggle. Lives fixed at the top of the hub canvas — not
-// draggable, not removable.
+// the user's roles as colored pills. Lives fixed at the top of the
+// hub canvas — not draggable, not removable.
 //
 // Slice 87 of customizable-hub-and-work-mode-2026-05-28.md.
 // Slice 88 adds the Enter Work Mode button next to this component.
+// hub-widget-excellence-01 Slice 2 — the old persona-selector chip
+// strip (a hub-preview toggle) is replaced by RolePills, which shows
+// ALL of the user's actual roles as read-only colored pills. The
+// persona override still drives the nav rail (IconRail) — that store
+// is untouched.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import {
-  PERSONAS,
-  PERSONA_ORDER,
-  inferPersona,
-  type Persona,
-} from '@/lib/admin/personas';
-import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
 import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/work-mode/clock-session';
 import type { UserRole } from '@/lib/auth';
+import RolePills from './RolePills';
 
 interface ClockState {
   clockedIn: boolean;
@@ -69,8 +67,6 @@ interface HubGreetingProps {
 
 export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
   const { data: session } = useSession();
-  const personaOverride = useAdminNavStore((s) => s.personaOverride);
-  const setPersonaOverride = useAdminNavStore((s) => s.setPersonaOverride);
 
   const [now, setNow] = useState<Date | null>(null);
   const [clock, setClock] = useState<ClockState | null>(null);
@@ -79,8 +75,6 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
     () => (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[],
     [session?.user?.roles, session?.user?.role],
   );
-  const inferredPersona = useMemo(() => inferPersona(roles), [roles]);
-  const activePersona: Persona = personaOverride ?? inferredPersona;
 
   // Defer time-of-day to the client so SSR doesn't drift across a
   // part-of-day boundary, and tick every 30s so the elapsed timer
@@ -161,41 +155,9 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
         )}
       </div>
 
-      <ul
-        className="hub-greeting__roles"
-        role="list"
-        aria-label="Your roles — click to preview the hub for that persona"
-      >
-        {PERSONA_ORDER
-          .filter((id) => id === inferredPersona || personaOverride === id)
-          .map((id) => {
-            const active = id === activePersona;
-            return (
-              <li key={id}>
-                <button
-                  type="button"
-                  className={`role-chip${active ? ' role-chip--active' : ''}`}
-                  aria-pressed={active}
-                  onClick={() => setPersonaOverride(active && personaOverride ? null : id)}
-                >
-                  {PERSONAS[id].label}
-                </button>
-              </li>
-            );
-          })}
-        {personaOverride && (
-          <li>
-            <button
-              type="button"
-              className="role-chip"
-              onClick={() => setPersonaOverride(null)}
-              title={`Reset to inferred persona (${PERSONAS[inferredPersona].label})`}
-            >
-              Auto
-            </button>
-          </li>
-        )}
-      </ul>
+      {/* hub-widget-excellence-01 Slice 2 — all of the user's roles as
+          read-only colored pills (replaces the persona-preview chips). */}
+      <RolePills roles={roles} />
     </section>
   );
 }

@@ -116,7 +116,7 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
   type-only pattern as `work-mode-eligibility.test`). typecheck + lint
   clean.
 
-### Slice 2 — `RolePills` component + render below the greeting
+### Slice 2 — `RolePills` component + render below the greeting ✅ shipped 2026-05-30
 - **Scope:** New `RolePills` rendering all of the user's roles as
   colored pills (label = `ROLE_LABELS[role]`). Mount it under the
   greeting block (its own row, matching the sketch). Remove the
@@ -127,6 +127,26 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
   pill per role, label + inline bg/fg present).
 - **Done when:** all of a user's roles show as colored pills below the
   greeting; the old persona selector strip is gone from there.
+- **Shipped:** `RolePills` de-dupes the session roles (one pill per
+  distinct role, stable order) and renders each as a colored pill —
+  `ROLE_LABELS[role]` text, inline `background`/`color` from
+  `rolePillColors(role)`, `data-role` attr, inside a
+  `role="list"` / `aria-label="Your roles"` list with a "Your roles:"
+  lead-in (matching the sketch). Returns nothing when the user has no
+  roles. `HubGreeting` dropped the entire persona-chip strip (and its
+  `personaOverride`/`useAdminNavStore`/`inferPersona`/`PERSONA_ORDER`
+  imports + state) and now renders `<RolePills roles={roles} />` on its
+  own full-width row below the greeting/actions; the persona-override
+  store itself is left intact (still drives the nav `IconRail`). CSS:
+  `.hub-greeting__role-pills` (full-width wrapping row),
+  `-label`, `-list` (unstyled `ul`), `-pill` (9999px pill, inline
+  bg/fg, subtle shadow). 6 specs green — they mock `@/lib/auth` for
+  `ROLE_LABELS` (the real module pulls next-auth, which fails in
+  vitest) and SSR-render the component to assert one labeled pill per
+  role with inline bg/fg, de-dupe, the role-list a11y semantics, and
+  the empty-roles → null case. typecheck + lint clean. (Added an
+  explicit `import React` to `RolePills.tsx` so the classic JSX runtime
+  vitest uses resolves `React.createElement`, matching `WidgetFrame`.)
 
 ### Slice 3 — `WorkModePrompt` modal: role step
 - **Scope:** New `WorkModePrompt` client modal. The Enter-Work-Mode

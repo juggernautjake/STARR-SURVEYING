@@ -119,6 +119,48 @@
   flex: 0 0 auto;
 }
 
+/* hub-widget-excellence-01 Slice 2 — the user's roles as colored pills
+ * below the greeting (replaces the old persona-selector chips). The
+ * full row spans the greeting card so the pills wrap under the
+ * heading/actions, matching the user's sketch. */
+.hub-greeting__role-pills {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.55rem;
+  margin-top: 0.25rem;
+}
+
+.hub-greeting__role-pills-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.hub-greeting__role-pills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hub-greeting__role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.7rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  /* bg + color are set inline from lib/admin/role-colors.ts so each
+   * role gets its own contrast-checked pair. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 /* Slice 218 / 221 — Enter Work Mode CTA. Slice 221 swaps the flat
  * --color-success for the same `--gradient-green` the landing-page
  * estimate-banner CTA lives on (#10B981 → #059669) so the admin
