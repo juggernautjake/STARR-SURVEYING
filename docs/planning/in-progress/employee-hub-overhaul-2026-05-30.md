@@ -148,7 +148,8 @@ WidgetCustomization {
 
 ### Widget catalog
 
-- **40 widget types** registered in `lib/hub/widgets/register-all.ts`
+- **~42 widget types** (41 widget dirs under `lib/hub/widgets/` + the
+  `_shared` helpers dir) registered in `lib/hub/widgets/register-all.ts`
   via `lib/hub/widget-registry.ts` (`defineWidget` / `getWidget`):
   `pinned-pages, quick-actions, my-pay, my-jobs, messages,
   class-assignments, today-schedule, pto-balance, hours-this-week,
@@ -164,12 +165,27 @@ WidgetCustomization {
 - Each `WidgetDefinition`: `id, label, description, category, iconName,
   defaultSize, minSize, maxSize, defaultContent, allowedRoles,
   requiresBundle?, Widget, SettingsForm?, Skeleton?`.
-- **12 widgets already ship a `SettingsForm`** (incl. `weather,
-  my-pay, today-schedule, pinned-pages, quick-actions, bookmarks,
-  hours-this-week, monthly-revenue, field-data-pending,
-  active-research-projects, daily-briefing`). The other ~28 need
-  option sets defined (Phase HB5).
+- **29 widgets already ship a `SettingsForm`** (verified via
+  `grep -rl SettingsForm lib/hub/widgets`): `active-research-projects,
+  assignments-due, bookmarks, class-assignments, crew-calendar,
+  drawings-in-progress, equipment-out, field-data-pending,
+  hours-this-week, job-activity-feed, low-consumables, maintenance-due,
+  mentions-inbox, messages, mileage-tracker, my-jobs, my-pay,
+  open-discussions, pinned-pages, pipeline-status, pto-balance,
+  quick-actions, recent-activity, recent-announcements, recent-drawings,
+  team-status, today-schedule, vehicles-status, weather`. Only the
+  remaining ~13 (e.g. `daily-briefing, monthly-revenue,
+  outstanding-invoices, flashcards-due, quiz-history,
+  recommended-lessons, roadmap-progress, pending-hours, pending-receipts,
+  pending-time-off, streak-counter, sun-calculator, my-pay`-adjacent)
+  need option sets defined (Phase HB5) — so HB5 is mostly *re-hosting*
+  existing forms into the modal, not authoring from scratch.
 - Per-widget options persist in `customization.content`.
+- A reusable settings-control library already exists under
+  `lib/hub/components/settings/`: `NumberStepper, ToggleGroup,
+  MultiSelect, FilterDropdown, RoutePicker, SizeGridPicker,
+  CustomColorPicker` (+ `LayoutTab/StyleTab/InteractionTab`). Reuse
+  these controls when building the modal's per-widget options surface.
 
 ### Store + persistence
 
@@ -193,11 +209,17 @@ WidgetCustomization {
 
 ### Tests
 
-- **30 specs** in `__tests__/hub/` incl. `grid-editor-{shell,place,
-  selection,resize}.test.tsx`, `settings-{panel-transition,tabs,
-  components}.test.tsx`, `widget-grid-{collapse,resize}.test.tsx`,
-  `widget-cell-render`, `hub-store`, `hub-actions`, `widget-registry`,
-  `widget-color-modes`, `hub-layout-persistence`, …
+- **70+ specs** in `__tests__/hub/` (plus a `__tests__/hub/widgets/`
+  subdir) incl. `grid-editor-{shell,place,selection,resize}.test.tsx`,
+  `settings-{panel-transition,tabs,components}.test.tsx`,
+  `widget-grid-{drag,edit-affordances,memo}.test.tsx`,
+  `widget-frame{,-truncation}.test.tsx`, `widget-resize-handle`,
+  `hub-store`, `use-hub-actions`, `widget-registry`,
+  `widget-color-modes`, `grid-math`, `grid-resize`, `grid-8x8`,
+  `validate-layout`, `size-bucket`, `widgets-responsive-210..217`, …
+  Many widget specs exist per type (e.g. `weather`, `my-pay`,
+  `today-schedule`). Changing shared chrome (WidgetFrame, WidgetGrid,
+  settings) will ripple into several — budget for spec updates.
 - **e2e** `e2e/hub-customize.spec.ts` drives the **SettingsPanel** flow
   → must be rewritten for the modal flow (HB6). `e2e/hub-editor-perf.spec.ts`
   too.
@@ -324,13 +346,18 @@ WidgetCustomization {
   on the hub. Pure helper unit-tested.
 
 #### Slice 8 — Pure reflow/packing module
-- **Scope:** New `lib/hub/grid-reflow.ts` pure helpers: given the
-  current layout, a moving widget's hovered cell + its `w×h`, compute a
-  layout where the others **shift to make room** (push-down/aside, no
-  overlap, stay within column count); plus `compact()` to remove
-  avoidable gaps; plus `nearestAvailable()` to snap a drop to the
-  closest free cells. Deterministic, fully unit-tested.
-- **Files:** `lib/hub/grid-reflow.ts`, `__tests__/hub/grid-reflow.test.ts`.
+- **Scope:** Extend the existing grid math (`lib/hub/grid-math.ts`
+  already exports `compactLayout`; `lib/hub/grid-resize.ts`,
+  `lib/hub/grid-8x8.ts`, `lib/hub/validate-layout.ts` also exist —
+  reuse, don't duplicate). Add `lib/hub/grid-reflow.ts` pure helpers
+  for the *move* interaction specifically: given the current layout, a
+  moving widget's hovered cell + its `w×h`, compute a layout where the
+  others **shift to make room** (push-down/aside, no overlap, stay
+  within column count); a `nearestAvailable()` that snaps a drop to the
+  closest free cells; then finish with the existing `compactLayout` to
+  remove avoidable gaps. Deterministic, fully unit-tested.
+- **Files:** `lib/hub/grid-reflow.ts` (new) building on
+  `lib/hub/grid-math.ts`, `__tests__/hub/grid-reflow.test.ts`.
 - **Done when:** Helpers return overlap-free, in-bounds layouts with
   stable ordering; spec covers push, compact, and nearest-slot at fixed
   fixtures.
@@ -401,11 +428,16 @@ WidgetCustomization {
 #### Slice 16 — Size-responsive widget bodies
 - **Scope:** Each widget adapts content to its `w×h` — compact at small
   sizes (e.g. 1×1/2×1), expanded at larger (more rows/labels/detail),
-  no clipping/overflow at any supported size. Derive a density tier
-  from rendered cell dimensions; centralize the tiering helper.
-- **Files:** new `lib/hub/widget-size-tier.ts` (pure) + per-widget
-  bodies, `__tests__/hub/widget-size-tier.test.ts` +
-  `widget-responsive.test.ts`.
+  no clipping/overflow at any supported size. **`lib/hub/size-bucket.ts`
+  already exists** (the `size-bucket.test.ts` + the
+  `widgets-responsive-210..217.test.ts` suite drove a prior responsive
+  pass) — reuse its size-tier helper and the `useElementSize` hook
+  (`use-element-size.test.ts`) rather than adding a parallel one. This
+  slice audits which widgets still clip/overflow at small/large sizes
+  after the slim-styling + options changes and fixes them.
+- **Files:** existing `lib/hub/size-bucket.ts` (extend if needed) +
+  per-widget bodies, `__tests__/hub/widget-responsive.test.ts` (new,
+  alongside the existing responsive specs).
 - **Done when:** Widgets look intentional at small/medium/large; spec
   locks the tier helper + a sample of widget branching.
 
