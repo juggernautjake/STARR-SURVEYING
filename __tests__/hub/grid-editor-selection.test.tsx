@@ -29,7 +29,7 @@ describe('Slice 224 — selectedPlacedId state', () => {
   });
 
   it('selectedPlacedId is cleared when the surveyor picks a new widget type', () => {
-    // The useEffect on `selectedType` clears placeAnchor + placeHover
+    // The useEffect on `selectedType` clears placeHover
     // AND setSelectedPlacedId(null) — locks the "modes are mutually
     // exclusive" invariant.
     expect(SRC).toMatch(/setSelectedPlacedId\(null\);[\s\S]*?\}, \[selectedType\]\);/);
@@ -107,10 +107,11 @@ describe('Slice 224 — inline ✕ remove button', () => {
 });
 
 describe('Slice 224 — Esc cascades through pending states', () => {
-  it('first Esc clears mid-place; second clears selection; third closes', () => {
-    // Match the if/else if/else chain in the source so the cascade
-    // order is locked.
-    expect(SRC).toMatch(/if \(placeAnchor\)[\s\S]*?else if \(selectedPlacedId\)[\s\S]*?else \{[\s\S]*?onClose\(\);/);
+  it('first Esc disarms placement; second clears selection; third closes', () => {
+    // Slice P2 replaced the `placeAnchor` branch with `selectedType`
+    // (disarm the armed widget type). Match the if/else if/else chain
+    // so the cascade order stays locked.
+    expect(SRC).toMatch(/else if \(selectedType\)[\s\S]*?else if \(selectedPlacedId\)[\s\S]*?else \{[\s\S]*?onClose\(\);/);
   });
 });
 

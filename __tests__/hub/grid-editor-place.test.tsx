@@ -5,6 +5,13 @@
 // overlapsAny / generatePlacementId) and the SSR-render of the armed
 // grid (cells switch to crosshair cursor + accent tint when a widget
 // type is selected).
+//
+// Slice P2 (grid-editor-single-click-and-8x12-2026-05-30) replaced the
+// two-click "paint a rectangle" placement with single-click drop at
+// the widget's default size. rectFromAnchors stays exported as a pure
+// helper (still unit-tested below) but is no longer wired into the
+// placement handler. The single-click handler wiring is locked in
+// grid-editor-single-click-place.test.ts.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';

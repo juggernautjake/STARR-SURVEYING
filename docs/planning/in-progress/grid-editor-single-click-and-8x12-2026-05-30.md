@@ -96,7 +96,7 @@ plain white and drop the spinning hover gradient.)
 
 ### Phase P2 — Single-click placement
 
-#### Slice P2 — Replace two-click paint with single-click drop at defaultSize
+#### Slice P2 — Replace two-click paint with single-click drop at defaultSize ✅ shipped 2026-05-30
 - **Scope:** Rework `handleCellPointerDown` /
   `handleCellPointerEnter` / the `previewRect` derivation so an armed
   type previews + drops its `defaultSize` footprint at the hovered/
@@ -112,6 +112,27 @@ plain white and drop the spinning hover gradient.)
 - **Done when:** Arming a type + clicking an empty tile places the
   widget at its default size there; hovering shows a live preview;
   clicking a blocked tile no-ops; resize-after-place still works.
+- **Shipped:** Removed the `placeAnchor` state + the two-click commit
+  branch. `previewRect` now = `clampRectToEnvelope({ x: hover.x, y:
+  hover.y, w: defaultSize.w, h: defaultSize.h }, defaultSize,
+  defaultSize)` — the armed widget's default footprint anchored at the
+  hovered cell, clamped so it can't hang off the right/bottom edge.
+  `handleCellPointerEnter` updates the preview whenever a type is
+  armed (no anchor gating). `handleCellPointerDown` re-clamps the
+  default footprint at the clicked cell, no-ops when it overlaps
+  (`overlapsAny`), otherwise `addWidget` + disarms the type
+  (`setSelectedType(null)`) so a stray second click can't double-drop.
+  The Esc cascade's `placeAnchor` branch became a `selectedType`
+  disarm branch. Removed the now-dead `gridCellAnchorStyle`.
+  `rectFromAnchors` stays exported as a pure helper (still
+  unit-tested) but is no longer wired into placement. New
+  `grid-editor-single-click-place.test.ts` (12 cases) locks the
+  preview derivation, the single-click drop + blocked no-op + disarm,
+  the hover-follows-pointer wiring, and the Esc disarm. Updated the
+  drop-commit + selection specs whose Esc-cascade assertions
+  referenced the old `placeAnchor` branch. The subtitle copy now reads
+  "click an open tile to drop it". 1420 hub specs green; typecheck +
+  lint clean.
 
 ### Phase P3 — QA
 
