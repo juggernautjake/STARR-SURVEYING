@@ -15,7 +15,10 @@ vi.mock('@/lib/auth', () => ({
 const { GET: teamStatusGet } = await import('@/app/api/admin/team/status/route');
 const { GET: weatherGet } = await import('@/app/api/admin/weather/route');
 const { GET: sunGet } = await import('@/app/api/admin/sun/route');
-const { GET: pipelineGet } = await import('@/app/api/admin/research/pipeline/route');
+// NOTE: /api/admin/research/pipeline is no longer a stub — hub-widget-
+// excellence-12 wired it to real research_projects data (mapped via the
+// pure lib/research/pipeline-runs helpers, tested separately). It's no
+// longer asserted here.
 
 describe('Slice 191 — stub endpoints', () => {
   beforeEach(() => {
@@ -37,13 +40,6 @@ describe('Slice 191 — stub endpoints', () => {
   it('/api/admin/sun returns 204 No Content', async () => {
     const res = await sunGet(new Request('http://localhost/api/admin/sun') as never);
     expect(res.status).toBe(204);
-  });
-
-  it('/api/admin/research/pipeline returns { runs: [] }', async () => {
-    const res = await pipelineGet(new Request('http://localhost/api/admin/research/pipeline') as never);
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ runs: [] });
   });
 });
 
