@@ -48,6 +48,20 @@ notification/unread reconciliation in Foundation Doc 03.*
 - **Row deep link:** → `/admin/discussions/{id}`.
 - **Editor:** scope.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget read the messages conversations API, but discussions are a
+  SEPARATE feature** — `/api/admin/discussions?status=open` returns
+  `{ threads }` (`discussion_threads` rows with title/status/created_at)
+  with its own `/admin/discussions/{id}` page. So the widget's
+  `unread_count`/`has_mention`/`last_sender_email` were all phantom.
+  **Realigned:** fetch the discussions endpoint + map via a new pure
+  exported `toDiscussion(t)` (strips the stored "[Discussion] " title
+  prefix, defaults status). **Row deep links** to
+  `/admin/discussions/{id}`; medium+ shows a non-open status chip +
+  relative time. The scope editor is now open/all (the data's real
+  axis), replacing the phantom mine/mentions. Footer "Go to discussions
+  →" is global. 2 specs. Full hub suite (1624) green; typecheck + lint
+  clean. **open-discussions is done.**
 
 ## mentions-inbox
 - **Endpoint:** `/api/admin/messages/mentions`. Fields: id, message_id,
