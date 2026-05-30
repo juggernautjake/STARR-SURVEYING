@@ -37,6 +37,29 @@ master. Routes + the shared `WidgetGoToLink` / `widget-links` /
   `/admin/jobs/{id}`), Round 3 (size/format: the tiny→xlarge column
   progression, no clip), Round 4 (editor + site polish + stage-color
   consistency with the jobs page).
+- **Build/Wire + Round 1 (data) ✅ shipped 2026-05-30.** R1 audit: the
+  jobs list query is `.select('*')`, so the user-listed fields are all
+  present on the row — customer = `client_name`, quote = `quote_amount`,
+  address = `address`, due date = `deadline`, plus `stage`,
+  `job_number`, `name`, `updated_at`. Added `due` / `address` / `quote`
+  to `JobColumn` + `ALL_JOB_COLUMNS` + the row render (due as a relative
+  "overdue Nd / due today / in Nd / short-date" chip that turns red when
+  overdue; quote as whole-dollar `$12,500`) + the editor column
+  checkboxes + a "Due date (soonest)" sort. **Row deep links:** each row
+  is now a `next/link` to `jobHref(job.id)` → `/admin/jobs/{id}` (the
+  "drill-in" the user asked for), with an aria-label. **tiny** renders
+  a job **count** linking to `/admin/jobs`. **Field-priority:**
+  `visibleColumnsForBucket` now uses the doc-02 `pickFields` helper over
+  a `COLUMN_PRIORITY` order (name → number → due → stage → client →
+  address → quote → updated) with per-bucket caps (small 4 / medium 5 /
+  large 7 / xlarge all) — so small shows exactly the user's "name +
+  number, due, stage" set and larger sizes add columns as nested
+  supersets. The footer "Go to jobs →" link is already wired globally
+  (doc-04 Slice 2a). 19 specs (registry, caps, the new field-priority
+  progression + importance-ordering, due/created/stage/name/**due**
+  sort, labels incl. due/address/quote, formatDue + formatQuote). Full
+  hub suite (1537) green; typecheck + lint clean. (R2 links / R3 format
+  / R4 editor+stage-color reconciliation still to come.)
 
 ---
 

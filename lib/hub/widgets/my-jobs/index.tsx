@@ -8,21 +8,37 @@
 //
 // Slice 108 of customizable-hub-and-work-mode-2026-05-28.md.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps, type WidgetSkeletonProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { pickFields } from '@/lib/hub/widgets/_shared/field-priority';
+import { jobHref } from '@/lib/hub/widgets/_shared/widget-links';
 import { useHubData } from '@/lib/hub/use-hub-data';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import { SkeletonBlock } from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
 
 export type JobsFilter = 'all' | 'mine' | 'active' | 'by-stage';
-export type JobColumn = 'jobNumber' | 'name' | 'stage' | 'client' | 'updated';
-export type JobsSortBy = 'updated' | 'created' | 'stage' | 'name';
+// hub-widget-excellence-10 Build/Wire — added the fields the user
+// listed: due date, customer (client), address, quote.
+export type JobColumn = 'jobNumber' | 'name' | 'stage' | 'client' | 'due' | 'address' | 'quote' | 'updated';
+export type JobsSortBy = 'updated' | 'created' | 'stage' | 'name' | 'due';
 
 export const ALL_JOB_COLUMNS: ReadonlyArray<JobColumn> = [
-  'jobNumber', 'name', 'stage', 'client', 'updated',
+  'jobNumber', 'name', 'stage', 'client', 'due', 'address', 'quote', 'updated',
 ];
+
+/** Column importance, most → least (drives the per-bucket field
+ *  priority). Mirrors the user's "when small show name+number, due,
+ *  stage" instruction. */
+const COLUMN_PRIORITY: ReadonlyArray<JobColumn> = [
+  'name', 'jobNumber', 'due', 'stage', 'client', 'address', 'quote', 'updated',
+];
+
+/** Per-bucket cap on how many of the (priority-ordered) selected columns
+ *  render. tiny is handled separately (a count). */
+const COLUMN_CAPS = { tiny: 2, small: 4, medium: 5, large: 7, xlarge: Infinity } as const;
 
 export interface MyJobsContent extends Record<string, unknown> {
   filter: JobsFilter;
@@ -37,7 +53,7 @@ export interface MyJobsContent extends Record<string, unknown> {
 const DEFAULTS: MyJobsContent = {
   filter: 'mine',
   stage: 'fieldwork',
-  columns: ['jobNumber', 'name', 'stage', 'updated'],
+  columns: ['jobNumber', 'name', 'stage', 'due', 'updated'],
   sortBy: 'updated',
   rowLimit: 10,
   showStageColors: true,
@@ -49,6 +65,9 @@ interface JobRow {
   name: string;
   stage: string;
   client_name?: string | null;
+  address?: string | null;
+  deadline?: string | null;
+  quote_amount?: number | string | null;
   updated_at?: string | null;
   created_at?: string | null;
 }
@@ -146,6 +165,17 @@ function MyJobsWidget({ size, content }: WidgetProps<MyJobsContent>) {
     );
   }
 
+  // tiny — just the count of jobs (the user's "when small, the single
+  // most important stat"). Links to the jobs page.
+  if (bucket === 'tiny') {
+    return (
+      <Link href="/admin/jobs" style={tinyWrapStyle} aria-label={`${jobs.length} jobs`}>
+        <span style={tinyCountStyle}>{jobs.length}</span>
+        <span style={tinyLabelStyle}>{jobs.length === 1 ? 'job' : 'jobs'}</span>
+      </Link>
+    );
+  }
+
   const cap = capForBucket(bucket);
   const visible = jobs.slice(0, cap);
   const visibleCols = visibleColumnsForBucket(settings.columns, bucket);
@@ -153,22 +183,34 @@ function MyJobsWidget({ size, content }: WidgetProps<MyJobsContent>) {
   return (
     <ul role="list" style={listStyle}>
       {visible.map((job) => (
-        <li key={job.id} style={rowStyle}>
-          {visibleCols.includes('jobNumber') && (
-            <span style={mutedStyle}>{job.job_number}</span>
-          )}
-          {visibleCols.includes('name') && (
-            <span style={nameStyle}>{job.name}</span>
-          )}
-          {visibleCols.includes('stage') && (
-            <StageChip stage={job.stage} showColor={settings.showStageColors} />
-          )}
-          {visibleCols.includes('client') && job.client_name && (
-            <span style={mutedStyle}>{job.client_name}</span>
-          )}
-          {visibleCols.includes('updated') && job.updated_at && (
-            <span style={mutedStyle}>{formatRelative(job.updated_at)}</span>
-          )}
+        <li key={job.id}>
+          {/* Build/Wire — each row deep-links into the job detail page. */}
+          <Link href={jobHref(job.id)} style={rowStyle} aria-label={`Open job ${job.job_number} — ${job.name}`}>
+            {visibleCols.includes('jobNumber') && (
+              <span style={mutedStyle}>{job.job_number}</span>
+            )}
+            {visibleCols.includes('name') && (
+              <span style={nameStyle}>{job.name}</span>
+            )}
+            {visibleCols.includes('due') && job.deadline && (
+              <span style={dueStyle(job.deadline)}>{formatDue(job.deadline)}</span>
+            )}
+            {visibleCols.includes('stage') && (
+              <StageChip stage={job.stage} showColor={settings.showStageColors} />
+            )}
+            {visibleCols.includes('client') && job.client_name && (
+              <span style={mutedStyle}>{job.client_name}</span>
+            )}
+            {visibleCols.includes('address') && job.address && (
+              <span style={mutedStyle}>{job.address}</span>
+            )}
+            {visibleCols.includes('quote') && job.quote_amount != null && (
+              <span style={quoteStyle}>{formatQuote(job.quote_amount)}</span>
+            )}
+            {visibleCols.includes('updated') && job.updated_at && (
+              <span style={mutedStyle}>{formatRelative(job.updated_at)}</span>
+            )}
+          </Link>
         </li>
       ))}
     </ul>
@@ -242,6 +284,7 @@ function MyJobsSettings({ value, onChange }: WidgetSettingsFormProps<MyJobsConte
         >
           <option value="updated">Most recently updated</option>
           <option value="created">Most recently created</option>
+          <option value="due">Due date (soonest)</option>
           <option value="stage">Stage</option>
           <option value="name">Name</option>
         </select>
@@ -346,18 +389,13 @@ export function capForBucket(bucket: SizeBucket): number {
   }
 }
 
-/** Tiny/small surfaces drop the lower-priority columns to stay
- *  readable. Order of importance: name → stage → jobNumber →
- *  updated → client. */
+/** Per-bucket visible columns: take the user's selected columns in
+ *  priority order, capped for the bucket (the field-priority helper).
+ *  tiny renders a count instead, so it never reaches here. */
 export function visibleColumnsForBucket(cols: JobColumn[], bucket: SizeBucket): JobColumn[] {
-  if (bucket === 'tiny') {
-    // Just the name + stage chip if both are picked.
-    return cols.filter((c) => c === 'name' || c === 'stage').slice(0, 2);
-  }
-  if (bucket === 'small') {
-    return cols.filter((c) => c !== 'client');
-  }
-  return cols;
+  const selected = new Set(cols);
+  const ordered = COLUMN_PRIORITY.filter((c) => selected.has(c));
+  return pickFields(ordered, bucket, COLUMN_CAPS);
 }
 
 export function sortJobs(jobs: JobRow[], sortBy: JobsSortBy): JobRow[] {
@@ -371,7 +409,15 @@ export function sortJobs(jobs: JobRow[], sortBy: JobsSortBy): JobRow[] {
       return copy.sort((a, b) => (a.stage ?? '').localeCompare(b.stage ?? ''));
     case 'name':
       return copy.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+    case 'due':
+      // Soonest deadline first; jobs without a deadline sink to the end.
+      return copy.sort((a, b) => dueSortKey(a.deadline) - dueSortKey(b.deadline));
   }
+}
+
+function dueSortKey(deadline?: string | null): number {
+  const t = deadline ? Date.parse(deadline) : NaN;
+  return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
 }
 
 export function labelForColumn(col: JobColumn): string {
@@ -380,8 +426,34 @@ export function labelForColumn(col: JobColumn): string {
     case 'name':      return 'Name';
     case 'stage':     return 'Stage';
     case 'client':    return 'Client';
+    case 'due':       return 'Due date';
+    case 'address':   return 'Address';
+    case 'quote':     return 'Quote';
     case 'updated':   return 'Last updated';
   }
+}
+
+/** Relative due label: "overdue", "today", "in 3d", or a short date. */
+export function formatDue(iso: string, nowMs: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const days = Math.round((startOfUtcDay(t) - startOfUtcDay(nowMs)) / 86_400_000);
+  if (days < 0) return `overdue ${Math.abs(days)}d`;
+  if (days === 0) return 'due today';
+  if (days <= 14) return `in ${days}d`;
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function startOfUtcDay(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/** "$12,500" — whole dollars; '' when unparseable. */
+export function formatQuote(amount: number | string): string {
+  const n = typeof amount === 'number' ? amount : Number(amount);
+  if (!Number.isFinite(n)) return '';
+  return `$${Math.round(n).toLocaleString()}`;
 }
 
 function formatRelative(iso: string): string {
@@ -413,6 +485,49 @@ const rowStyle: React.CSSProperties = {
   padding: 'var(--hub-spc-2, 8px) var(--hub-spc-3, 12px)',
   borderRadius: 6,
   background: 'var(--theme-bg-elevated)',
+  textDecoration: 'none',
+  color: 'inherit',
+};
+
+function dueStyle(deadline: string): React.CSSProperties {
+  const overdue = Date.parse(deadline) < Date.now();
+  return {
+    fontSize: 'var(--hub-font-xs, 0.75rem)',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    color: overdue ? 'var(--theme-danger, #dc2626)' : 'var(--theme-fg-secondary)',
+  };
+}
+
+const quoteStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+  color: 'var(--theme-fg-primary)',
+};
+
+// tiny-bucket count (links to /admin/jobs).
+const tinyWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  gap: 2,
+  textDecoration: 'none',
+  color: 'inherit',
+};
+const tinyCountStyle: React.CSSProperties = {
+  fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+  fontWeight: 700,
+  lineHeight: 1,
+  color: 'var(--theme-fg-primary)',
+};
+const tinyLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
 };
 
 const nameStyle: React.CSSProperties = {
