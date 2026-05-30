@@ -8,7 +8,20 @@ import {
   capForBucket,
   formatAccrual,
   formatBalance,
+  formatCarryover,
 } from '@/lib/hub/widgets/pto-balance';
+
+describe('pto-balance — formatCarryover', () => {
+  it('formats the cap in the chosen units', () => {
+    expect(formatCarryover(240, 'hours', 8)).toBe('Carryover cap 240.0h');
+    expect(formatCarryover(240, 'days', 8)).toBe('Carryover cap 30.0d');
+  });
+  it('is empty when there is no cap', () => {
+    expect(formatCarryover(null, 'hours', 8)).toBe('');
+    expect(formatCarryover(0, 'hours', 8)).toBe('');
+    expect(formatCarryover(undefined, 'hours', 8)).toBe('');
+  });
+});
 
 describe('pto-balance widget — registry', () => {
   it('registers under id "pto-balance" in time-pay category', () => {

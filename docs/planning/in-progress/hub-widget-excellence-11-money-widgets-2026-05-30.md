@@ -71,6 +71,19 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Footer link:** "Go to time off →" `/admin/time-off`.
 - **Editor:** format (hours/days), hoursPerDay, showHistory.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** R1 verified clean —
+  `/api/admin/pto` returns `{ balance: {…}, recent_transactions }` with
+  the balance object carrying `balance_hours`, `accrual_rate_hours`,
+  `accrual_period`, `carryover_cap_hours`, `last_accrued_at`, exactly
+  what the widget reads. The widget was complete (tiny balance, balance
+  + accrual + last-accrued, history list, hours/days format +
+  hoursPerDay + showHistory editor) EXCEPT it tracked
+  `carryover_cap_hours` but never rendered it. Added the **carryover-cap
+  line** ("Carryover cap 240.0h" / "30.0d") at medium+ via a new pure
+  exported `formatCarryover(cap, format, hoursPerDay)` (empty when no
+  cap). Footer "Go to time off →" is global. 2 specs (cap in hours/days,
+  empty when absent). Full hub suite (1560) green; typecheck + lint
+  clean. **pto-balance is done.**
 
 ## monthly-revenue
 - **Endpoint:** `/api/admin/reports?metric=monthly-revenue&period=…`.
