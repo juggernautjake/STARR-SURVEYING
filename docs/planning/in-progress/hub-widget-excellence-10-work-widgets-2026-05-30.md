@@ -141,6 +141,37 @@ master. Routes + the shared `WidgetGoToLink` / `widget-links` /
 - **Editor:** jobFilter, dataTypes checkboxes, sortBy, rowLimit.
 - **Notifications:** new field data pending review (Doc 03).
 - **Slices:** Build/Wire + Rounds 1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget was built against an imagined API** and never actually
+  rendered data — three mismatches against the real
+  `app/api/admin/jobs/field-data` + `job_field_data` table:
+  (1) the GET *required* `job_id` (400 otherwise) but the widget
+  defaulted to no job → always empty; (2) the widget read
+  `data.captures` but the API returns `{ field_data }`; (3) it used
+  `captured_at` / `captured_by` + a fixed `photos|gps|notes|
+  measurements` data_type set, but the table has `collected_at` /
+  `collected_by` + a free-form `data_type` ('point', …) and **no
+  status column**. Fixes:
+  - **API (R1/R2):** added a cross-job aggregate branch — when no
+    `job_id`, the GET returns the most-recent captures across every job
+    (joined with `jobs(name, job_number)`, `limit`-bounded) instead of
+    erroring. Per-job callers are unchanged.
+  - **Widget (R1/R3):** reads `field_data`, the real columns
+    (`collected_at`/`collected_by`/`data_type` + joined `job_name`/
+    `job_number`); `iconForType`/`labelForType` are now free-form with a
+    survey-point default + a title-cased fallback (legacy 'photos'/'gps'
+    inputs still map); per-bucket fields — tiny count, small job+type,
+    medium +who, large+ +`formatAge`. **Row deep links** to
+    `/admin/field-data/{id}` (the detail route exists).
+  - **Editor (R4):** dropped the bogus fixed data-type checkboxes (they
+    never matched the data) for a `jobFilter` + `rowLimit` (1–100). The
+    footer "Go to field data →" is global.
+  - **Notifications:** the table has no review/status column, so
+    "pending review" isn't a real state to notify on — flagged; a
+    review-workflow + notification would need a schema column (future).
+  - 6 specs (icons/labels for legacy + real + fallback types,
+    `formatAge`). Full hub suite (1550) green; typecheck + lint clean.
+    **field-data-pending is done.**
 
 ---
 
