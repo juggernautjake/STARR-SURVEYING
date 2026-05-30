@@ -1,24 +1,33 @@
 // e2e/hub-customize.spec.ts
 //
-// Smoke spec for the customizable hub canvas. Walks the round-trip
-// the Slice 187 cutover wired up:
+// Smoke spec for the customizable hub canvas. Rewritten for Slice 18
+// of employee-hub-overhaul-2026-05-30.md after the
+// employee-hub-overhaul collapsed the two editing surfaces (Slice 2),
+// retired the SettingsPanel side rail (Slice 17), and moved every
+// per-widget option into the GridEditor modal's WidgetOptionsPanel
+// (Slice 11 / 13).
+//
+// Round-trip the spec walks:
 //
 //   sign in → /admin/me → persona-default widgets render →
-//   "Customize Hub" opens edit mode → "+ Add widget" opens the modal →
-//   click a widget → SettingsPanel opens → change custom title →
-//   Save → reload → assert the title persisted.
+//   click "✏️ Customize Hub" → GridEditor modal opens →
+//   click a painted widget to select it → click ⚙ Options →
+//   WidgetOptionsPanel opens → type a custom title →
+//   close panel → Save layout → modal closes →
+//   reload → assert the custom title persists on the canvas.
 //
-// Drag-and-drop + resize are exercised in a fixme test below — they
-// need a hand-built PointerEvent sequence to drive @dnd-kit/sortable
-// reliably and are intentionally deferred to a follow-up so this
-// spec stays green as a baseline.
+// Drag-to-move + resize + the schema-driven options renderer have
+// vitest source-regex specs at __tests__/hub/grid-editor-move.test.ts,
+// __tests__/hub/grid-editor-drop-commit.test.ts, and
+// __tests__/hub/schema-options-form.test.ts. They aren't repeated
+// here — Playwright's `.click()` exercises the click-toggle branch of
+// the modal's pointer pipeline (threshold-gated startMove), which is
+// what we need for selection.
 //
 // Run:
 //   E2E_BASE_URL=http://localhost:3000 \
 //     E2E_LOGIN_EMAIL=… E2E_LOGIN_PASSWORD=… \
 //     npx playwright test --grep hub-customize
-//
-// Slice 192 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import { test, expect } from '@playwright/test';
 import { loginAsAdmin } from './fixtures/auth';
@@ -33,7 +42,7 @@ test.describe('hub-customize', () => {
     await page.request.post('/api/admin/me/hub-layout/reset').catch(() => {});
   });
 
-  test('renders the hub canvas + customize → add → settings → save → persists', async ({ page }) => {
+  test('customize → modal → options → title persists round-trip', async ({ page }) => {
     await loginAsAdmin(page, '/admin/me');
     await expect(page).toHaveURL(/\/admin\/me/);
 
@@ -42,62 +51,59 @@ test.describe('hub-customize', () => {
     await expect(page.getByRole('heading', { name: 'Your hub' })).toBeVisible();
     await expect(page.locator('[data-widget-id]').first()).toBeVisible();
 
-    // 2. Customize Hub button flips into edit mode.
-    await page.getByRole('button', { name: /Customize Hub/i }).click();
-    await expect(page.getByText(/Editing hub/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /\+ Add widget/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save layout' })).toBeVisible();
+    // 2. Click "✏️ Customize Hub" — the single editor entry point —
+    //    opens the GridEditor modal (Slice 2 fixup made
+    //    `open={isEditMode}` so the modal opens in one click).
+    await page.getByTestId('open-grid-editor').click();
+    await expect(page.getByTestId('grid-editor')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('grid-editor-grid')).toBeVisible();
+    await expect(page.getByTestId('grid-editor-palette')).toBeVisible();
 
-    // 3. Add Widget modal opens + closes via Escape.
-    await page.getByRole('button', { name: /\+ Add widget/i }).click();
-    const addModal = page.getByRole('dialog', { name: /Add widget/i });
-    await expect(addModal).toBeVisible();
-    await expect(addModal.getByPlaceholder(/Search widgets/i)).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(addModal).not.toBeVisible();
+    // 3. Click a painted widget in the modal to select it.
+    //    A pointer-down + pointer-up without movement falls into
+    //    startMove's click-toggle branch (6 px drag threshold).
+    const firstPainted = page.getByTestId('grid-editor-placed-widget').first();
+    await firstPainted.scrollIntoViewIfNeeded();
+    await firstPainted.click();
+    await expect(firstPainted).toHaveAttribute('data-selected', 'true');
 
-    // 4. Clicking a widget cell in edit mode opens the SettingsPanel.
-    const firstCell = page.locator('[data-widget-id]').first();
-    const widgetId = await firstCell.getAttribute('data-widget-id');
-    await firstCell.click();
+    // 4. Click ⚙ Options — the per-widget Options button — to open
+    //    the WidgetOptionsPanel (Slice 11).
+    await page.getByTestId('grid-editor-placed-options').click();
+    await expect(page.getByTestId('widget-options-panel')).toBeVisible();
+    await expect(page.getByTestId('widget-options-section-size')).toBeVisible();
+    await expect(page.getByTestId('widget-options-section-header-color')).toBeVisible();
+    await expect(page.getByTestId('widget-options-section-title')).toBeVisible();
 
-    const settingsHeading = page.getByRole('heading', { name: /— settings$/ });
-    await expect(settingsHeading).toBeVisible();
-
-    // 5. Type a custom title in the Layout tab.
-    const titleInput = page.getByPlaceholder('Defaults to the catalog label');
+    // 5. Type a custom title via the panel's title input.
+    const titleInput = page.getByTestId('widget-options-title');
     await titleInput.fill(CUSTOM_TITLE);
 
-    // 6. Close the panel + Save layout.
-    await page.keyboard.press('Escape');
-    await expect(settingsHeading).not.toBeVisible();
+    // 6. Close the panel and Save the layout from the modal footer.
+    await page.getByTestId('widget-options-close').click();
+    await expect(page.getByTestId('widget-options-panel')).not.toBeVisible();
     await page.getByRole('button', { name: 'Save layout' }).click();
 
-    // The Save button is disabled while in flight + the edit bar
-    // unmounts on success. Wait for the regular Customize button to
-    // come back as a stable "save finished" signal.
-    await expect(page.getByRole('button', { name: /Customize Hub/i })).toBeVisible({ timeout: 15_000 });
+    // 7. The modal closes (isEditMode flips off via saveDraft) and
+    //    the "Customize Hub" entry button reappears on the canvas.
+    await expect(page.getByTestId('open-grid-editor')).toBeVisible({ timeout: 15_000 });
 
-    // 7. Reload + assert the customised title persisted.
+    // 8. Reload + assert the customised title persisted onto the
+    //    read-only canvas. WidgetFrame's <h2> renders titleOverride
+    //    when present.
     await page.reload();
     await expect(page.locator('.hub-canvas')).toBeVisible({ timeout: 20_000 });
-    await page.getByRole('button', { name: /Customize Hub/i }).click();
-    if (widgetId) {
-      await page.locator(`[data-widget-id="${widgetId}"]`).click();
-    } else {
-      await page.locator('[data-widget-id]').first().click();
-    }
-    await expect(page.getByPlaceholder('Defaults to the catalog label')).toHaveValue(CUSTOM_TITLE);
+    await expect(page.getByText(CUSTOM_TITLE).first()).toBeVisible();
   });
 
-  // Drag + resize via @dnd-kit/sortable + the pointer-event-based
-  // resize handle need a hand-built PointerEvent sequence to fire
-  // dnd-kit's PointerSensor (Playwright's `.dragTo` uses
-  // mousedown/mousemove which dnd-kit's PointerSensor ignores). The
-  // smoke above already proves the round-trip works end-to-end;
-  // dedicated drag/resize coverage lives in a follow-up.
-  test.fixme('drag reorders + resize updates the saved layout', async () => {
-    // TODO: dispatch pointerdown/pointermove/pointerup via
-    // page.evaluate so dnd-kit's PointerSensor activates.
+  // Drag-to-move via the pointer pipeline + the corner-drag resize
+  // need a hand-built PointerEvent sequence (Playwright's `.dragTo`
+  // doesn't fire the pointer events at the rate the threshold gate
+  // expects). The vitest source-regex specs at
+  // __tests__/hub/grid-editor-{move,drop-commit}.test.ts cover the
+  // wiring; dedicated end-to-end drag coverage stays as a follow-up.
+  test.fixme('drag-to-move + resize in the modal commit on save', async () => {
+    // TODO: dispatch pointerdown/move/up via page.evaluate so the
+    // threshold-gated drag actually engages.
   });
 });
