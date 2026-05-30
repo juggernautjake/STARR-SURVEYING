@@ -32,8 +32,8 @@ describe('Slice 7 — shared grid model constants', () => {
     expect(HUB_GRID_COLS).toBe(8);
   });
 
-  it('HUB_EDITOR_ROWS is 8 (the modal editor row cap)', () => {
-    expect(HUB_EDITOR_ROWS).toBe(8);
+  it('HUB_EDITOR_ROWS is 12 (the modal editor row cap — 8 wide × 12 tall)', () => {
+    expect(HUB_EDITOR_ROWS).toBe(12);
   });
 
   it('GRID_EDITOR_COLS / ROWS in GridEditor re-export the shared constants', () => {
@@ -80,15 +80,15 @@ describe('Slice 7 — clampRectToGrid', () => {
 });
 
 describe('Slice 7 — isInsideGrid', () => {
-  it('true for a rect that fits inside the default 8×8 grid', () => {
-    expect(isInsideGrid({ x: 0, y: 0, w: 8, h: 8 })).toBe(true);
+  it('true for a rect that fits inside the default 8×12 grid', () => {
+    expect(isInsideGrid({ x: 0, y: 0, w: 8, h: 12 })).toBe(true);
     expect(isInsideGrid({ x: 3, y: 3, w: 2, h: 2 })).toBe(true);
   });
 
   it('false for negatives, overflow, or sub-unit sizes', () => {
     expect(isInsideGrid({ x: -1, y: 0, w: 2, h: 2 })).toBe(false);
-    expect(isInsideGrid({ x: 7, y: 0, w: 2, h: 2 })).toBe(false); // right overflow
-    expect(isInsideGrid({ x: 0, y: 7, w: 2, h: 2 })).toBe(false); // bottom overflow
+    expect(isInsideGrid({ x: 7, y: 0, w: 2, h: 2 })).toBe(false); // right overflow (cols=8)
+    expect(isInsideGrid({ x: 0, y: 11, w: 2, h: 2 })).toBe(false); // bottom overflow (rows=12)
     expect(isInsideGrid({ x: 0, y: 0, w: 0, h: 1 })).toBe(false);
   });
 });

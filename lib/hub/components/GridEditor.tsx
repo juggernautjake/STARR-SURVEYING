@@ -3,7 +3,7 @@
 //
 // Grid-painter widget editor. Opens as a full-screen modal when the
 // surveyor wants direct manipulation: pick a widget type from the
-// left palette, click on the 8×8 grid to paint it, see every
+// left palette, click on an open tile of the 8×12 grid to drop it,
 // placed widget as a labelled colored block, click → resize/delete.
 //
 // This slice (222) ships the SHELL only — the grid renders the
@@ -495,8 +495,8 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
           <div>
             <h2 style={titleStyle}>Customize your hub</h2>
             <p style={subtitleStyle}>
-              Pick a widget on the left + click the grid to paint where it
-              should sit. The 8×8 grid maps directly to your hub canvas.
+              Pick a widget on the left + click an open tile to drop it.
+              The 8×12 grid maps directly to your hub canvas.
             </p>
           </div>
           <button
@@ -548,7 +548,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
             </ul>
           </aside>
 
-          {/* ── 8×8 Grid (right) ────────────────────────────────────── */}
+          {/* ── 8×12 Grid (right) ────────────────────────────────────── */}
           <section aria-label="Hub grid" style={gridWrapperStyle}>
             <div
               ref={gridContainerRef}
@@ -1034,8 +1034,12 @@ const gridContainerStyle: React.CSSProperties = {
   gridTemplateColumns: `repeat(${GRID_EDITOR_COLS}, minmax(0, 1fr))`,
   gridTemplateRows: `repeat(${GRID_EDITOR_ROWS}, minmax(0, 1fr))`,
   gap: 6,
-  width: 'min(720px, 100%)',
-  aspectRatio: '1 / 1',
+  // 8 wide × 12 tall → portrait. Bound by height so all 12 rows fit
+  // the modal body; the width follows the 8/12 aspect ratio. Capped
+  // width keeps it from getting absurdly wide on tall viewports.
+  height: 'min(100%, 1020px)',
+  maxWidth: '100%',
+  aspectRatio: '8 / 12',
   padding: 8,
   border: '1px solid var(--theme-border, #e5e7eb)',
   borderRadius: 12,
@@ -1068,8 +1072,9 @@ const gridContainerPlacingStyle: React.CSSProperties = {
   gridTemplateColumns: `repeat(${GRID_EDITOR_COLS}, minmax(0, 1fr))`,
   gridTemplateRows: `repeat(${GRID_EDITOR_ROWS}, minmax(0, 1fr))`,
   gap: 6,
-  width: 'min(720px, 100%)',
-  aspectRatio: '1 / 1',
+  height: 'min(100%, 1020px)',
+  maxWidth: '100%',
+  aspectRatio: '8 / 12',
   padding: 8,
   border: '1px solid var(--theme-accent, #3b82f6)',
   borderRadius: 12,

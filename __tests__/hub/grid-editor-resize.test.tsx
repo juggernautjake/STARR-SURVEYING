@@ -19,24 +19,25 @@ const SRC = fs.readFileSync(
   'utf8',
 );
 
-describe('cellUnderPointer — DOM-free grid coordinate math', () => {
-  const BOUNDS = { left: 100, top: 100, width: 800, height: 800 };
+describe('cellUnderPointer — DOM-free grid coordinate math (8×12 grid)', () => {
+  // 8 cols × 12 rows with square 100px cells → 800 wide × 1200 tall.
+  const BOUNDS = { left: 100, top: 100, width: 800, height: 1200 };
 
   it('returns (0, 0) at the top-left corner', () => {
     expect(cellUnderPointer(BOUNDS, 100, 100)).toEqual({ x: 0, y: 0 });
   });
 
-  it('returns (7, 7) at the bottom-right corner (8×8 grid)', () => {
-    // The very last pixel inside the grid → cell (7, 7).
-    expect(cellUnderPointer(BOUNDS, 899, 899)).toEqual({ x: 7, y: 7 });
+  it('returns (7, 11) at the bottom-right corner (8×12 grid)', () => {
+    // The very last pixel inside the grid → cell (7, 11).
+    expect(cellUnderPointer(BOUNDS, 899, 1299)).toEqual({ x: 7, y: 11 });
   });
 
   it('clamps to (0, 0) when the pointer is above/left of the grid', () => {
     expect(cellUnderPointer(BOUNDS, 0, 0)).toEqual({ x: 0, y: 0 });
   });
 
-  it('clamps to (7, 7) when the pointer drags past the bottom-right edge', () => {
-    expect(cellUnderPointer(BOUNDS, 9999, 9999)).toEqual({ x: 7, y: 7 });
+  it('clamps to (7, 11) when the pointer drags past the bottom-right edge', () => {
+    expect(cellUnderPointer(BOUNDS, 9999, 9999)).toEqual({ x: 7, y: 11 });
   });
 
   it('returns (3, 4) at the cell center', () => {

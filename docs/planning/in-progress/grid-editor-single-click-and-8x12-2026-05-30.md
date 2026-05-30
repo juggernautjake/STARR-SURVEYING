@@ -71,13 +71,28 @@ plain white and drop the spinning hover gradient.)
 
 ### Phase P1 — 8×12 grid
 
-#### Slice P1 — Bump editor rows to 12 + fix the modal aspect ratio
+#### Slice P1 — Bump editor rows to 12 + fix the modal aspect ratio ✅ shipped 2026-05-30
 - **Files:** `lib/hub/grid-model.ts`,
   `lib/hub/components/GridEditor.tsx` (two aspectRatio constants +
   the header comment), `__tests__/hub/grid-model.test.ts` (update the
   rows assertion), `__tests__/hub/grid-8x8.test.ts` if it pins 8 rows.
 - **Done when:** `HUB_EDITOR_ROWS === 12`; the modal renders 8 wide ×
   12 tall with square cells; helpers clamp to 12 rows; specs updated.
+- **Shipped:** `HUB_EDITOR_ROWS = 12` (was 8); the modal's two grid
+  containers switched `aspectRatio: '1 / 1' → '8 / 12'` + bounded by
+  `height: min(100%, 1020px)` (portrait, so all 12 rows fit the modal
+  body; width follows the aspect ratio, square cells). Updated the
+  grid-model header comment + the GridEditor subtitle/comments from
+  "8×8" to "8×12". Specs: grid-model rows assertion → 12,
+  isInsideGrid bottom-overflow case → y:11; grid-editor-shell cell
+  count 64 → 96 + footer `0/64` → `0/96`; grid-editor-resize
+  cellUnderPointer bounds → 800×1200 (square cells) with bottom-right
+  (7, 11); grid-editor-place rectFromAnchors/clampRectToEnvelope
+  default-rows cases → 12. All helpers (`clampRectToGrid`,
+  `clampRectToEnvelope`, `cellUnderPointer`, `computeResizedRect`)
+  already defaulted `rows` to `GRID_EDITOR_ROWS`, so they picked up 12
+  automatically. The hub read-only render is row-unbounded → no change
+  there. 1409 hub specs green; typecheck + lint clean.
 
 ### Phase P2 — Single-click placement
 
