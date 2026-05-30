@@ -16,10 +16,13 @@ import {
   useAIStore,
   useTransferStore,
   usePointStore,
+  useAnnotationStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
+// Slice 229 — AreaAnnotation type for the new render path.
+import type { AreaAnnotation } from '@/lib/cad/labels/annotation-types';
 import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
 import {
@@ -703,6 +706,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbNorthArrowGraphics: import('pixi.js').Graphics;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
     labelTexts: Map<string, import('pixi.js').Text>;
+    /** Slice 229 — Pixi Text objects for stored AREA_LABEL
+     *  annotations, keyed by annotation id. Drawn on labelLayer so
+     *  they rotate with the drawing + sit above features. */
+    areaLabelTexts: Map<string, import('pixi.js').Text>;
     /** PixiJS Sprites for IMAGE features, keyed by featureId */
     imageSprites: Map<string, import('pixi.js').Sprite>;
     /** Texture cache keyed by projectImage.id */
@@ -1298,6 +1305,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           tbNorthArrowGraphics,
           featureGraphics: new Map(),
           labelTexts: new Map(),
+          // Slice 229 — Pixi text objects for area-label annotations.
+          areaLabelTexts: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
           tbSealSprite: null,
@@ -3343,6 +3352,75 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
       nLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
       pixi.titleBlockLayer.addChild(nLbl);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Render: Stored AREA_LABEL annotations (Slice 229)
+  // ─────────────────────────────────────────────
+  // The PropertyPanel's "📐 Place area label" button writes an
+  // `AreaAnnotation` to the annotation store. This function draws
+  // every visible one as a Pixi Text on the same labelLayer as the
+  // bearing/distance auto-labels so the user actually sees the
+  // result on the canvas. Drag-to-move (Slice 230) and right-click
+  // editor (Slice 231) layer onto these texts via the existing
+  // dragLabelRef pipeline.
+  function renderAreaAnnotations() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const annStore = useAnnotationStore.getState();
+    const doc = useDrawingStore.getState().document;
+    const { zoom } = useViewportStore.getState();
+    const drawingScale = doc.settings.drawingScale ?? 50;
+    const aliveIds = new Set<string>();
+
+    for (const ann of Object.values(annStore.annotations) as AreaAnnotation[]) {
+      if (!ann || ann.type !== 'AREA_LABEL') continue;
+      if (ann.visible === false) continue;
+      aliveIds.add(ann.id);
+
+      const { sx, sy } = w2s(ann.position.x, ann.position.y);
+
+      // Font-size: declared in paper points (1 pt = 1/72 in;
+      // 1 in = drawingScale world units → screen px via zoom).
+      const fontSizeWorld = (ann.fontSize / 72) * drawingScale;
+      const fontSize = Math.min(
+        MAX_LABEL_FONT_SIZE_PX,
+        Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom),
+      );
+
+      let textObj = pixi.areaLabelTexts.get(ann.id);
+      if (!textObj) {
+        const style = new pixi.TextStyleClass({
+          fontFamily: ann.font,
+          fontSize,
+          fontWeight: '600',
+          fill: ann.color,
+          align: 'center',
+        });
+        textObj = new pixi.TextClass(ann.text, style);
+        textObj.anchor.set(0.5, 0.5);
+        textObj.resolution = pixi.app.renderer.resolution;
+        pixi.areaLabelTexts.set(ann.id, textObj);
+        pixi.labelLayer.addChild(textObj);
+      } else {
+        if (textObj.text !== ann.text) textObj.text = ann.text;
+        const s = textObj.style as import('pixi.js').TextStyle;
+        s.fontFamily = ann.font;
+        s.fontSize = fontSize;
+        s.fill = ann.color;
+      }
+      textObj.position.set(sx, sy);
+    }
+
+    // GC: drop any Pixi Text objects whose annotations were
+    // removed from the store this frame.
+    for (const [id, txt] of pixi.areaLabelTexts) {
+      if (!aliveIds.has(id)) {
+        pixi.labelLayer.removeChild(txt);
+        try { txt.destroy(); } catch { /* noop */ }
+        pixi.areaLabelTexts.delete(id);
+      }
     }
   }
 
@@ -7454,6 +7532,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     renderFeatures();
     renderImageFeatures();
     renderLabels();
+    // Slice 229 — stored AREA_LABEL annotations render here so they
+    // sit on the same labelLayer as the auto bearing/distance labels.
+    renderAreaAnnotations();
     renderTextFeatures();
     renderSelection();
     renderSnapIndicator();

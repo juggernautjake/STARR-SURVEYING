@@ -12,6 +12,12 @@ import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, for
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { computeFeatureArea } from '@/lib/cad/geometry/area';
 import { sqFtToAreaUnit, areaUnitLabel } from '@/lib/cad/geometry/units';
+// Slice 229 — "📐 Place area label" trigger that drops an AreaAnnotation
+// at the feature's centroid (CIRCLE center, ELLIPSE center, polygon
+// centroid). The canvas renders stored AREA_LABEL annotations on every
+// frame.
+import { createAreaLabelForFeature } from '@/lib/cad/labels/area-label';
+import { useAnnotationStore } from '@/lib/cad/store/annotation-store';
 import { describeOffsetSection } from '@/lib/cad/operations/describe-offset-section';
 import { recomputeOffsetGeometry } from '@/lib/cad/operations/recompute-offset-feature';
 import { stampOffsetMetadata } from '@/lib/cad/operations/offset-metadata';
@@ -1179,6 +1185,18 @@ export default function PropertyPanel() {
                     <>{' · '}{(a.squareFeet * 0.0929030).toFixed(2)} m²</>
                   )}
                 </div>
+                <button
+                  type="button"
+                  data-testid="property-panel-place-area-label"
+                  className="mt-1 w-full text-[10px] px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
+                  title="Drop a moveable area annotation at the shape's centroid"
+                  onClick={() => {
+                    const ann = createAreaLabelForFeature(feature);
+                    if (ann) useAnnotationStore.getState().addAnnotation(ann);
+                  }}
+                >
+                  📐 Place area label on canvas
+                </button>
               </div>
             );
           })()}
