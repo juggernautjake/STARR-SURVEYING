@@ -11,6 +11,8 @@ import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/co
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { computeFeatureArea } from '@/lib/cad/geometry/area';
+import { segmentCount, toggleHiddenSegment } from '@/lib/cad/geometry/segment-visibility';
+import { assembleBoundaryLoop, segmentsFromFeatureLike } from '@/lib/cad/geometry/boundary-loop';
 import { sqFtToAreaUnit, areaUnitLabel } from '@/lib/cad/geometry/units';
 // Slice 229 — "📐 Place area label" trigger that drops an AreaAnnotation
 // at the feature's centroid (CIRCLE center, ELLIPSE center, polygon
@@ -599,6 +601,53 @@ export default function PropertyPanel() {
           <div className="text-gray-500 text-[10px]">
             Editing {subset.length} {active.label.toLowerCase()} together.
           </div>
+
+          {/* cad-fills Slice 4 — when the selected lines/polylines chain
+              into a closed ring, offer to drop a fillable POLYGON over
+              the enclosed area (the user's case: a quad drawn as N
+              separate line segments, which isn't one closed shape and
+              so had no fill option). */}
+          {(() => {
+            const lineFeatures = features.filter((f) => f.type === 'LINE' || f.type === 'POLYLINE');
+            if (lineFeatures.length < 3) return null;
+            const ring = assembleBoundaryLoop(segmentsFromFeatureLike(lineFeatures));
+            if (!ring || ring.length < 3) return null;
+            return (
+              <button
+                type="button"
+                data-testid="property-panel-fill-enclosed-area"
+                className="w-full text-[11px] px-2 py-1.5 rounded border border-emerald-500 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 transition-colors"
+                title="Create a fillable area inside the boundary these lines form"
+                onClick={() => {
+                  const layerId = features[0].layerId;
+                  const baseColor = features[0].style.color ?? DEFAULT_FEATURE_STYLE.color;
+                  const polygon = {
+                    id: generateId(),
+                    type: 'POLYGON' as const,
+                    layerId,
+                    geometry: { type: 'POLYGON' as const, vertices: ring },
+                    properties: {},
+                    style: {
+                      ...DEFAULT_FEATURE_STYLE,
+                      color: baseColor,
+                      // Invisible stroke so we don't double the user's
+                      // existing boundary lines — only the fill shows.
+                      opacity: 0,
+                      fillColor: baseColor,
+                      fillOpacity: 0.25,
+                      isOverride: true,
+                    },
+                  };
+                  drawingStore.addFeature(polygon);
+                  // Select the new area so the fill-pattern panel (gravel,
+                  // hatch, etc.) is immediately available to refine it.
+                  selectionStore.select(polygon.id, 'REPLACE');
+                }}
+              >
+                ▦ Fill enclosed area
+              </button>
+            );
+          })()}
 
           {/* Bulk style for the active kind */}
           <div className="border-t border-gray-700 pt-2 space-y-2">
@@ -1201,6 +1250,73 @@ export default function PropertyPanel() {
             );
           })()}
 
+          {/* cad-fills Slice 2 — per-edge visibility for POLYLINE /
+              POLYGON. Each edge gets an eye toggle; a hidden edge is
+              not stroked but the shape's vertices + area fill stay
+              intact (a polygon with a hidden boundary still fills its
+              whole enclosed area). */}
+          {(feature.type === 'POLYLINE' || feature.type === 'POLYGON')
+            && (feature.geometry.vertices?.length ?? 0) >= 2
+            && (() => {
+            const vCount = feature.geometry.vertices!.length;
+            const closed = feature.type === 'POLYGON';
+            const segCount = segmentCount(vCount, closed);
+            if (segCount <= 0) return null;
+            const hidden = new Set(feature.geometry.hiddenSegments ?? []);
+            return (
+              <div
+                data-testid="property-panel-segment-visibility"
+                className="space-y-1 border-t border-gray-700 pt-1.5 mt-1"
+              >
+                <div className="text-gray-500 text-[10px] uppercase tracking-wider">
+                  Edges {hidden.size > 0 ? `(${hidden.size} hidden)` : ''}
+                </div>
+                <div className="grid grid-cols-6 gap-1">
+                  {Array.from({ length: segCount }, (_, i) => {
+                    const isHidden = hidden.has(i);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        data-testid={`property-panel-segment-toggle-${i}`}
+                        title={isHidden ? `Edge ${i + 1} hidden — click to show` : `Edge ${i + 1} — click to hide`}
+                        className={`text-[9px] px-1 py-1 rounded border transition-colors flex items-center justify-center gap-0.5 ${
+                          isHidden
+                            ? 'bg-gray-900 border-gray-700 text-gray-500'
+                            : 'bg-gray-800 border-gray-600 text-gray-200 hover:bg-gray-700'
+                        }`}
+                        onClick={() => {
+                          const next = toggleHiddenSegment(feature.geometry.hiddenSegments, i, segCount);
+                          drawingStore.updateFeatureGeometry(feature.id, {
+                            ...feature.geometry,
+                            hiddenSegments: next,
+                          });
+                        }}
+                      >
+                        {isHidden ? '🚫' : '👁'}{i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+                {hidden.size > 0 && (
+                  <button
+                    type="button"
+                    data-testid="property-panel-segment-show-all"
+                    className="text-[10px] text-blue-400 hover:text-blue-300"
+                    onClick={() => {
+                      drawingStore.updateFeatureGeometry(feature.id, {
+                        ...feature.geometry,
+                        hiddenSegments: undefined,
+                      });
+                    }}
+                  >
+                    Show all edges
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Slice 237 — fill-pattern picker for closed shapes
               (POLYGON / closed POLYLINE / CIRCLE / ELLIPSE).
               Clicking a swatch sets feature.style.fillPattern so the
@@ -1212,6 +1328,11 @@ export default function PropertyPanel() {
               { value: 'NONE', label: 'None' },
               { value: 'DOT_UNIFORM', label: 'Dots' },
               { value: 'DOT_GRAVEL', label: 'Gravel' },
+              // cad-fills Slice 1 — gravel-family variants (smaller /
+              // bigger / sand-fine dots).
+              { value: 'DOT_GRAVEL_FINE', label: 'Gravel−' },
+              { value: 'DOT_GRAVEL_COARSE', label: 'Gravel+' },
+              { value: 'DOT_SAND', label: 'Sand' },
               { value: 'DIAGONAL_RIGHT', label: 'Diag /' },
               { value: 'DIAGONAL_LEFT', label: 'Diag \\' },
               { value: 'CROSSHATCH', label: 'Cross' },
@@ -1220,6 +1341,8 @@ export default function PropertyPanel() {
               { value: 'BRICK', label: 'Brick' },
               { value: 'WAVE', label: 'Wave' },
             ];
+            const patternDensity = feature.style.patternDensity ?? 1;
+            const patternScale = feature.style.patternScale ?? 1;
             return (
               <div
                 data-testid="property-panel-fill-pattern"
@@ -1251,6 +1374,51 @@ export default function PropertyPanel() {
                     );
                   })}
                 </div>
+                {/* cad-fills Slice 1 — editable pattern parameters.
+                    Density drives dot spacing + hatch spacing + brick
+                    course size + wave spacing/wavelength; Thickness
+                    scales dot radius + line weight. Shown only when a
+                    real pattern is active. */}
+                {currentPattern !== 'NONE' && currentPattern !== 'SOLID' && (
+                  <div className="space-y-1 pt-1" data-testid="property-panel-fill-pattern-params">
+                    <label className="flex items-center gap-2 text-[10px] text-gray-400">
+                      <span className="w-14 shrink-0 uppercase tracking-wider">Density</span>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={4}
+                        step={0.25}
+                        value={patternDensity}
+                        data-testid="property-panel-fill-pattern-density"
+                        className="flex-1"
+                        onChange={(e) => {
+                          drawingStore.updateFeature(feature.id, {
+                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: parseFloat(e.target.value), isOverride: true },
+                          });
+                        }}
+                      />
+                      <span className="w-7 text-right tabular-nums">{patternDensity.toFixed(2)}×</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-[10px] text-gray-400">
+                      <span className="w-14 shrink-0 uppercase tracking-wider">Thickness</span>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={4}
+                        step={0.25}
+                        value={patternScale}
+                        data-testid="property-panel-fill-pattern-thickness"
+                        className="flex-1"
+                        onChange={(e) => {
+                          drawingStore.updateFeature(feature.id, {
+                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: parseFloat(e.target.value), isOverride: true },
+                          });
+                        }}
+                      />
+                      <span className="w-7 text-right tabular-nums">{patternScale.toFixed(2)}×</span>
+                    </label>
+                  </div>
+                )}
               </div>
             );
           })()}

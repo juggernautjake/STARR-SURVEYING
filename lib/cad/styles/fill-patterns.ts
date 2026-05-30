@@ -54,7 +54,44 @@ export interface FillPatternConfig {
   density: number;
   /** Deterministic seed (per-feature; recommend a hash of feature id). */
   seed: number;
+  /** cad-fills Slice 1 — thickness multiplier, 0.25 – 4. 1 = baseline.
+   *  Scales dot radius for the dot/gravel/sand families. Hatch / brick
+   *  / wave stroke weight is applied by the render path via
+   *  `patternLineWeight(scale)`. Optional → treated as 1. */
+  scale?: number;
 }
+
+/** Clamp a 0.25–4 multiplier; non-finite / non-positive → 1. */
+function clampMultiplier(v: number | undefined): number {
+  if (!Number.isFinite(v) || (v as number) <= 0) return 1;
+  return Math.max(0.25, Math.min(4, v as number));
+}
+
+/** cad-fills Slice 1 — stroke weight (screen px) for hatch / brick /
+ *  wave fills at a given thickness `scale`. Baseline 0.6 px at scale 1
+ *  (the historical hardcoded weight). Pure so the render path + tests
+ *  share one source of truth. */
+export function patternLineWeight(scale: number | undefined): number {
+  return 0.6 * clampMultiplier(scale);
+}
+
+/** Per-variant gravel tuning (mean dot radius, size jitter, and a
+ *  cell-size multiplier that spaces dots out (>1) or packs them
+ *  tighter (<1)). */
+export interface GravelOpts {
+  meanRadius: number;
+  radiusStdDev: number;
+  cellScale: number;
+}
+
+/** The three gravel-family presets the picker offers. DOT_GRAVEL is
+ *  the original. */
+export const GRAVEL_PRESETS: Record<'DOT_GRAVEL' | 'DOT_GRAVEL_FINE' | 'DOT_GRAVEL_COARSE' | 'DOT_SAND', GravelOpts> = {
+  DOT_GRAVEL:        { meanRadius: 1.5, radiusStdDev: 0.6,  cellScale: 1 },
+  DOT_GRAVEL_FINE:   { meanRadius: 1.0, radiusStdDev: 0.35, cellScale: 0.72 },
+  DOT_GRAVEL_COARSE: { meanRadius: 2.4, radiusStdDev: 0.9,  cellScale: 1.5 },
+  DOT_SAND:          { meanRadius: 0.7, radiusStdDev: 0.25, cellScale: 0.5 },
+};
 
 /** DOT_UNIFORM — fixed-radius dots on a jittered grid. Returns dots in
  *  screen-pixel coordinates spanning [0, width] x [0, height]. */
@@ -64,18 +101,21 @@ export function generateDotUniform(
   density: number,
   dotRadius: number,
   seed = 1,
+  scale = 1,
 ): PatternDot[] {
   if (width <= 0 || height <= 0) return [];
   const rng = new SeededRng(seed);
   // Baseline spacing — every 16 px at density 1, scaled by density.
   const spacing = Math.max(4, 16 / Math.max(0.25, Math.min(4, density)));
+  // cad-fills Slice 1 — thickness multiplier scales the dot radius.
+  const r = Math.max(0.2, dotRadius * clampMultiplier(scale));
   const dots: PatternDot[] = [];
   for (let y = spacing * 0.5; y < height; y += spacing) {
     for (let x = spacing * 0.5; x < width; x += spacing) {
       // Slight grid jitter so the result reads as natural-ish stipple.
       const jx = x + (rng.next() - 0.5) * spacing * 0.15;
       const jy = y + (rng.next() - 0.5) * spacing * 0.15;
-      dots.push({ x: jx, y: jy, r: dotRadius });
+      dots.push({ x: jx, y: jy, r });
     }
   }
   return dots;
@@ -91,14 +131,19 @@ export function generateDotGravel(
   height: number,
   density: number,
   seed = 1,
+  opts: GravelOpts = GRAVEL_PRESETS.DOT_GRAVEL,
+  scale = 1,
 ): PatternDot[] {
   if (width <= 0 || height <= 0) return [];
   const rng = new SeededRng(seed);
-  // Baseline: target ~1 dot per 64 px² at density 1.
+  // Baseline: target ~1 dot per 64 px² at density 1, tuned per variant
+  // via opts.cellScale (FINE packs tighter, COARSE spaces out).
   const clampedDensity = Math.max(0.25, Math.min(4, density));
-  const targetCellSize = Math.max(6, 14 / clampedDensity);
-  const meanRadius = 1.5; // px
-  const radiusStdDev = 0.6; // px — "slight range of sizes"
+  const targetCellSize = Math.max(4, (14 / clampedDensity) * opts.cellScale);
+  // cad-fills Slice 1 — thickness multiplier scales dot radii.
+  const thickness = clampMultiplier(scale);
+  const meanRadius = opts.meanRadius * thickness; // px
+  const radiusStdDev = opts.radiusStdDev * thickness; // px — "slight range of sizes"
 
   // Bridson-flavored Poisson-disk: walk a coarse grid and reject any
   // candidate too close to an existing accepted dot.
@@ -258,18 +303,34 @@ export function generateFillPattern(
   config: FillPatternConfig,
 ): GeneratedPattern {
   const density = Number.isFinite(config.density) && config.density > 0 ? config.density : 1;
+  const scale = config.scale;
   switch (config.pattern) {
     case 'SOLID':
     case 'NONE':
       return { dots: [], lines: [] };
     case 'DOT_UNIFORM':
       return {
-        dots: generateDotUniform(width, height, density, 1.5, config.seed),
+        dots: generateDotUniform(width, height, density, 1.5, config.seed, scale),
         lines: [],
       };
     case 'DOT_GRAVEL':
       return {
-        dots: generateDotGravel(width, height, density, config.seed),
+        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL, scale),
+        lines: [],
+      };
+    case 'DOT_GRAVEL_FINE':
+      return {
+        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL_FINE, scale),
+        lines: [],
+      };
+    case 'DOT_GRAVEL_COARSE':
+      return {
+        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL_COARSE, scale),
+        lines: [],
+      };
+    case 'DOT_SAND':
+      return {
+        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_SAND, scale),
         lines: [],
       };
     case 'DIAGONAL_LEFT':

@@ -49,10 +49,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // hub widget can show the job, and honor `?mine=true` so its "Mine"
   // scope filters to the caller's drawings.
   const mine = searchParams.get('mine') === 'true';
+  // job-soft-delete Slice 2 — `?deleted=true` lists the drawings trash
+  // (soft-deleted, recoverable for 30 days); every other list excludes
+  // soft-deleted rows.
+  const deleted = searchParams.get('deleted') === 'true';
   let query = supabaseAdmin
     .from('cad_drawings')
-    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at, jobs(name, job_number)')
-    .order('updated_at', { ascending: false });
+    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at, deleted_at, jobs(name, job_number)');
+  if (deleted) {
+    query = query.not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+  } else {
+    query = query.is('deleted_at', null).order('updated_at', { ascending: false });
+  }
   if (jobId) query = query.eq('job_id', jobId);
   if (mine) query = query.eq('created_by', session.user.email);
 
@@ -183,6 +191,9 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     // via PATCH. Either nullable to support unassign / clear-due.
     assigned_to?: string | null;
     due_date?: string | null;
+    // job-soft-delete Slice 2 — restore from the trash by clearing the
+    // tombstone (`{ id, deleted_at: null }`).
+    deleted_at?: string | null;
   };
   if (!body.id) {
     return NextResponse.json({ error: 'Missing required field: id' }, { status: 400 });
@@ -199,6 +210,10 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if ('folder_id' in body) patch.folder_id = body.folder_id ?? null;
   if ('assigned_to' in body) patch.assigned_to = body.assigned_to?.trim().toLowerCase() || null;
   if ('due_date' in body) patch.due_date = body.due_date || null;
+  // Restore from trash — only the null (restore) direction is honored
+  // here; deletion goes through DELETE so the tombstone timestamp is
+  // server-stamped.
+  if ('deleted_at' in body && body.deleted_at === null) patch.deleted_at = null;
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   }
@@ -291,15 +306,22 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Missing required query param: id' }, { status: 400 });
   }
 
-  // Shared workspace — any authenticated CAD user can delete any drawing.
-  const { error } = await supabaseAdmin
+  // job-soft-delete Slice 2 — soft delete: set the `deleted_at`
+  // tombstone instead of hard-deleting, so a drawing stays recoverable
+  // for 30 days (restore = PATCH { id, deleted_at: null }; the purge
+  // cron hard-deletes past the window). Shared workspace — any
+  // authenticated CAD user can delete any drawing.
+  const { data, error } = await supabaseAdmin
     .from('cad_drawings')
-    .delete()
-    .eq('id', id);
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id, name, deleted_at')
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  if (!data) return NextResponse.json({ error: 'Drawing not found' }, { status: 404 });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, drawing: data });
 });

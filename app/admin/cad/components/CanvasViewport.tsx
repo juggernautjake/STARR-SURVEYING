@@ -43,6 +43,7 @@ import {
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
+import { visibleSegmentRuns } from '@/lib/cad/geometry/segment-visibility';
 import {
   unitVector as perpUnitVector,
   offsetDirection as perpOffsetDirection,
@@ -148,7 +149,7 @@ import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simpl
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
-import { generateFillPattern, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
+import { generateFillPattern, patternLineWeight, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -2019,25 +2020,41 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       case 'POLYLINE': {
         const rawVerts = geom.vertices!;
         if (rawVerts.length < 2) break;
+        // cad-fills Slice 2 — with individually-hidden edges we must
+        // keep vertex indices aligned with hiddenSegments, so skip the
+        // LOD simplify (which would re-index the run).
+        const hasHiddenSegs = (geom.hiddenSegments?.length ?? 0) > 0;
         // Phase 7 §19 — when LOD is active drop sub-pixel
         // wobble before tessellating. The 0 path is a
         // no-op (returns the input unchanged).
         const verts =
-          simplifyEpsilon > 0 && rawVerts.length > 4
+          !hasHiddenSegs && simplifyEpsilon > 0 && rawVerts.length > 4
             ? simplifyPolyline(rawVerts, simplifyEpsilon)
             : rawVerts;
         const screenPts = verts.map((v) => {
           const p = w2s(v.x, v.y);
           return { x: p.sx, y: p.sy };
         });
-        renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
+        if (hasHiddenSegs) {
+          for (const run of visibleSegmentRuns(screenPts.length, false, geom.hiddenSegments)) {
+            const runPts = run.map((idx) => screenPts[idx]);
+            if (runPts.length >= 2) {
+              renderLineWithType(g, lineType, runPts, ltColor, ltWeight, alpha, drawingScale, zoom);
+            }
+          }
+        } else {
+          renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
+        }
         break;
       }
       case 'POLYGON': {
         const rawVerts = geom.vertices!;
         if (rawVerts.length < 3) break;
+        // cad-fills Slice 2 — skip LOD simplify when edges are hidden
+        // so vertex indices stay aligned with hiddenSegments.
+        const polyHasHiddenSegs = (geom.hiddenSegments?.length ?? 0) > 0;
         const verts =
-          simplifyEpsilon > 0 && rawVerts.length > 4
+          !polyHasHiddenSegs && simplifyEpsilon > 0 && rawVerts.length > 4
             ? simplifyPolyline(rawVerts, simplifyEpsilon)
             : rawVerts;
         if (verts.length < 3) break;
@@ -2059,11 +2076,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // Slice 236 — overlay a procedural texture (dot stipple, hatch,
         // gravel, brick, wave) when feature.style.fillPattern is set.
         // Drawn on a per-feature texture Graphics masked to the polygon
-        // shape so the texture stays inside the boundary.
+        // shape so the texture stays inside the boundary. cad-fills
+        // Slice 3 — the mask uses the FULL vertex loop (screenPts), so
+        // the fill still covers the whole enclosed area even when a
+        // boundary edge is hidden below.
         drawFillPatternForPolygon(feature, screenPts, alpha);
-        // Close the ring so the pattern wraps the final edge.
-        screenPts.push(screenPts[0]);
-        renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
+        // cad-fills Slice 2 — stroke only the visible edges. With no
+        // hidden edges this is the closed ring (vertices + closing
+        // edge back to 0); with hidden edges, each visible run is
+        // stroked separately and the closing edge can be dropped.
+        if (polyHasHiddenSegs) {
+          for (const run of visibleSegmentRuns(screenPts.length, true, geom.hiddenSegments)) {
+            const runPts = run.map((idx) => screenPts[idx]);
+            if (runPts.length >= 2) {
+              renderLineWithType(g, lineType, runPts, ltColor, ltWeight, alpha, drawingScale, zoom);
+            }
+          }
+        } else {
+          // Close the ring so the pattern wraps the final edge.
+          screenPts.push(screenPts[0]);
+          renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
+        }
         break;
       }
       case 'CIRCLE': {
@@ -3707,6 +3740,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       pattern,
       density: feature.style.patternDensity ?? 1,
       seed: hashSeed(feature.id),
+      // cad-fills Slice 1 — thickness multiplier (dot radius + line weight).
+      scale: feature.style.patternScale ?? 1,
     };
     const { dots, lines } = generateFillPattern(width, height, cfg);
     const patternColorHex = feature.style.patternColor ?? feature.style.color ?? '#000000';
@@ -3721,7 +3756,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       entry.tex.endFill();
     }
     if (lines.length > 0) {
-      entry.tex.lineStyle(0.6, colorInt, alpha);
+      // cad-fills Slice 1 — stroke weight honors the pattern thickness.
+      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1), colorInt, alpha);
       for (const ln of lines) {
         entry.tex.moveTo(minX + ln.x1, minY + ln.y1);
         entry.tex.lineTo(minX + ln.x2, minY + ln.y2);

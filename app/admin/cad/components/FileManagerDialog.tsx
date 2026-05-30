@@ -21,6 +21,7 @@ import {
 } from '@/lib/cad/store';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
+import { daysUntilPurge } from '@/lib/jobs/soft-delete';
 import { confirmAction } from './ConfirmDialog';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
@@ -37,6 +38,9 @@ interface DrawingMeta {
   layer_count: number;
   folder_id: string | null;
   updated_at: string;
+  // job-soft-delete Slice 2 — present on rows from the `?deleted=true`
+  // trash view; null/undefined for live drawings.
+  deleted_at?: string | null;
 }
 
 interface Props {
@@ -191,6 +195,10 @@ export default function FileManagerDialog({ onClose }: Props) {
 
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [drawings, setDrawings] = useState<DrawingMeta[]>([]);
+  // job-soft-delete Slice 2 — the trash view: soft-deleted drawings
+  // recoverable for 30 days.
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedDrawings, setDeletedDrawings] = useState<DrawingMeta[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
@@ -472,7 +480,9 @@ export default function FileManagerDialog({ onClose }: Props) {
   async function deleteDrawing(d: DrawingMeta) {
     const ok = await confirmAction({
       title: 'Delete drawing?',
-      message: `Delete "${d.name}" from the shared drawings? This can't be undone.`,
+      // job-soft-delete Slice 2 — soft delete now; recoverable for 30
+      // days from the "🗑 Deleted" view (toggle in the toolbar).
+      message: `Delete "${d.name}"? It moves to the trash and stays recoverable for 30 days from the "🗑 Deleted" view, then it's permanently removed.`,
       confirmLabel: 'Delete', cancelLabel: 'Cancel', danger: true,
     });
     if (!ok) return;
@@ -483,6 +493,38 @@ export default function FileManagerDialog({ onClose }: Props) {
       await refresh();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // job-soft-delete Slice 2 — restore a soft-deleted drawing by
+  // clearing the tombstone, then refresh whichever view is active.
+  async function restoreDrawing(d: DrawingMeta) {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/cad/drawings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: d.id, deleted_at: null }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
+      await loadDeleted();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Restore failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadDeleted() {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/cad/drawings?deleted=true');
+      const body = await res.json().catch(() => ({})) as { drawings?: DrawingMeta[] };
+      setDeletedDrawings(body.drawings ?? []);
+    } catch {
+      setDeletedDrawings([]);
     } finally {
       setBusy(false);
     }
@@ -616,6 +658,24 @@ export default function FileManagerDialog({ onClose }: Props) {
           >
             <FolderPlus size={13} /> New folder
           </button>
+          {/* job-soft-delete Slice 2 — toggle the trash (soft-deleted
+              drawings recoverable for 30 days). */}
+          <button
+            onClick={() => {
+              setShowDeleted((v) => {
+                const next = !v;
+                if (next) void loadDeleted();
+                return next;
+              });
+            }}
+            disabled={busy}
+            className={`flex items-center gap-1 px-2.5 h-8 text-xs rounded transition-colors disabled:opacity-40 ${
+              showDeleted ? 'bg-green-700 hover:bg-green-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+            }`}
+            title={showDeleted ? 'Back to active drawings' : 'View deleted drawings (recoverable for 30 days)'}
+          >
+            {showDeleted ? '← Active' : '🗑 Deleted'}
+          </button>
           <input
             ref={importInputRef}
             type="file"
@@ -628,6 +688,43 @@ export default function FileManagerDialog({ onClose }: Props) {
 
         {error && <div className="m-3 text-red-400 text-xs bg-red-900/20 border border-red-700 rounded px-3 py-2">{error}</div>}
 
+        {/* job-soft-delete Slice 2 — trash view: flat list of soft-
+            deleted drawings, each restorable for 30 days. */}
+        {showDeleted ? (
+          <div className="flex-1 min-h-0 overflow-y-auto p-3">
+            <div className="text-[11px] text-gray-500 mb-2">
+              Deleted drawings · recoverable for 30 days, then permanently removed
+            </div>
+            {busy ? (
+              <div className="flex items-center gap-2 py-8 text-gray-400 justify-center">
+                <span className="inline-block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                Loading…
+              </div>
+            ) : deletedDrawings.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">Trash is empty — no recently deleted drawings.</p>
+            ) : (
+              <ul className="space-y-2">
+                {deletedDrawings.map((d) => (
+                  <li key={d.id} className="flex items-center gap-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded">
+                    <span className="flex-1 min-w-0 truncate text-gray-200">{d.name}</span>
+                    {d.deleted_at && (
+                      <span className="text-[10px] text-gray-500 shrink-0">
+                        {daysUntilPurge(d.deleted_at, Date.now()) ?? 0}d left
+                      </span>
+                    )}
+                    <button
+                      onClick={() => void restoreDrawing(d)}
+                      disabled={busy}
+                      className="flex items-center gap-1 px-2.5 h-7 bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-xs rounded transition-colors shrink-0"
+                    >
+                      ↩ Restore
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
         <div className="flex flex-1 min-h-0">
           {/* Folder tree */}
           <div className="w-56 shrink-0 border-r border-gray-700 overflow-y-auto py-1">
@@ -715,6 +812,7 @@ export default function FileManagerDialog({ onClose }: Props) {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Per-row actions menu (portaled so it isn't clipped by the file pane). */}
