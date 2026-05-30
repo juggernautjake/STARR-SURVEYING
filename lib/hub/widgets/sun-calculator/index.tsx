@@ -123,7 +123,11 @@ function SunCalculatorWidget({ size, content }: WidgetProps<SunCalculatorContent
         {info.daylight_hours.toFixed(1)} hours daylight
         {showLocation && ` · ${info.location_label}`}
       </span>
-      {showTwilight && (
+      {/* Slice 16 — twilight row hides at small bucket regardless of
+          the toggle: the existing sunrise/sunset/location lines
+          already saturate the vertical room at that size. The toggle
+          stays meaningful at medium+ buckets. */}
+      {showTwilight && bucket !== 'small' && (
         <span
           style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', fontStyle: 'italic' }}
           data-testid="sun-calculator-twilight"

@@ -92,6 +92,11 @@ function StreakCounterWidget({ size, content }: WidgetProps<StreakCounterContent
     );
   }
 
+  // Slice 16 — at 'small' bucket (typically 2×1 / 1×2) the Slice-14
+  // additions (kind label + progress + Longest line) compete for two
+  // text rows that the size genuinely doesn't have. Skip the
+  // "Longest:" line; medium+ keeps it for the full breakdown.
+  const showLongest = bucket !== 'small';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
       <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>
@@ -100,9 +105,11 @@ function StreakCounterWidget({ size, content }: WidgetProps<StreakCounterContent
       <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
         {meta.label} · {info.current_days} of {goal} day{goal === 1 ? '' : 's'}
       </span>
-      <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
-        Longest: {info.longest_days} days
-      </span>
+      {showLongest && (
+        <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
+          Longest: {info.longest_days} days
+        </span>
+      )}
     </div>
   );
 }

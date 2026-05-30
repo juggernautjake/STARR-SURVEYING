@@ -99,11 +99,18 @@ function FlashcardsDueWidget({ size, content }: WidgetProps<FlashcardsDueContent
     );
   }
 
+  // Slice 16 — at 'small' bucket compact the description to one short
+  // phrase so the Slice-15b "(capped at N)" suffix doesn't push the
+  // "Start review →" link off-frame; the cap is already visible via
+  // the "N+" stat above.
+  const description = overflow
+    ? (bucket === 'small' ? 'cards ready' : `cards ready (capped at ${cap})`)
+    : (bucket === 'small' ? 'cards ready' : 'cards ready for review');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
       <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{overflow ? `${shown}+` : shown}</span>
       <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>
-        {overflow ? `cards ready (capped at ${cap})` : 'cards ready for review'}
+        {description}
       </span>
       <Link href="/admin/learn/flashcards" style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-accent)', fontWeight: 600 }}>
         Start review →

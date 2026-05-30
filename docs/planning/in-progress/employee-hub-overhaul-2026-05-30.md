@@ -983,7 +983,7 @@ WidgetCustomization {
 
 ### Phase HB6 — Responsive render, Save round-trip, QA
 
-#### Slice 16 — Size-responsive widget bodies
+#### Slice 16 — Size-responsive widget bodies ✅ shipped 2026-05-30
 - **Scope:** Each widget adapts content to its `w×h` — compact at small
   sizes (e.g. 1×1/2×1), expanded at larger (more rows/labels/detail),
   no clipping/overflow at any supported size. **`lib/hub/size-bucket.ts`
@@ -998,6 +998,42 @@ WidgetCustomization {
   alongside the existing responsive specs).
 - **Done when:** Widgets look intentional at small/medium/large; spec
   locks the tier helper + a sample of widget branching.
+- **Outcome:** Audit identified three widgets whose Slice-14/15/15b/15c
+  content additions threatened to clip at `small` bucket (typically
+  1×1 / 2×1):
+  - **streak-counter** added a "kind label · N of GOAL days" line in
+    Slice 14, bringing the non-tiny render from 2 to 3 lines. Slice 16
+    gates the "Longest: N days" tertiary line on `bucket !== 'small'`
+    so the more important kind-progress line stays; medium+ keeps the
+    full three-line breakdown.
+  - **sun-calculator** added a "Civil twilight" italic row in Slice
+    15c. At small bucket the sunrise/sunset pair + location/daylight
+    line already saturate vertical room. Slice 16 hides the twilight
+    row at small regardless of the toggle; the toggle stays meaningful
+    at medium+ buckets.
+  - **flashcards-due** grew the description text in Slice 15b (the
+    "(capped at N)" suffix on overflow + "for review" tail otherwise).
+    At small bucket the full text could push the "Start review →"
+    link off-frame. Slice 16 collapses the description to just "cards
+    ready" at small (the cap is already visible via the "N+" stat
+    above); medium+ keeps the full text.
+  - Other widgets I touched (outstanding-invoices, recommended-lessons,
+    roadmap-progress, daily-briefing, monthly-revenue, the 4 pending-
+    family widgets) audit clean: their additions either truncate via
+    existing `text-overflow: ellipsis`, gate visible rows via
+    `flexShrink: 0`, or use `WidgetFrame`'s `overflow: auto` body to
+    scroll on overflow — all behaviors locked by the existing
+    `widgets-responsive-210..217` suite, which still passes.
+  - New `__tests__/hub/widget-responsive-slice-16.test.ts` (8 cases,
+    source-regex) locks each widget's new bucket-aware guard:
+    streak-counter's `const showLongest = bucket !== 'small';` + the
+    JSX gate + the ordering (kind line stays unconditional, longest
+    is gated); sun-calculator's `showTwilight && bucket !== 'small'`
+    + the preserved testid/copy; flashcards-due's bucket-aware
+    `description` local with the four-way overflow×bucket matrix.
+  - 1393 hub specs green; typecheck + lint clean. Phase HB6 continues
+    with Slice 17 (save round-trip + SettingsPanel cleanup) and Slice
+    18 (QA + e2e + move doc to completed).
 
 #### Slice 17 — Save → hub render round-trip (+ remove SettingsPanel, Slice 4)
 - **Scope:** Confirm Save persists the slim model (size, headerColor,
