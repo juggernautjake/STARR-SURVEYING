@@ -90,7 +90,7 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
 
 ## Slices
 
-### Slice 1 — `role-colors.ts` pure helper + spec
+### Slice 1 — `role-colors.ts` pure helper + spec ✅ shipped 2026-05-30
 - **Scope:** New `lib/admin/role-colors.ts`: `roleBackground(role)` +
   `roleForeground(role)` (contrast-chosen via relative luminance) +
   `rolePillColors(role)` returning `{ bg, fg }`. Distinct, readable
@@ -100,6 +100,21 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
 - **Done when:** every `UserRole` returns a `{bg,fg}` whose contrast
   ratio ≥ 4.5; fg is `#000` or `#fff`; spec covers all 11 roles +
   the contrast math.
+- **Shipped:** `role-colors.ts` built on the existing
+  `lib/theme/contrast.ts` WCAG helpers (`parseHexColor`,
+  `contrastRatio`, `pickForegroundForBackground`, `toHexColor`).
+  Distinct on-brand hex per role (deep-blue admin, indigo developer,
+  purple teacher, teal student, emerald researcher, amber-brown
+  drawer, green field_crew, slate employee, gray guest, sky
+  tech_support, red equipment_manager) + a slate fallback for unknown
+  roles. Exports `roleBackground` / `roleForeground` / `rolePillColors`
+  / `rolePillContrast`. 7 specs green: every role returns a #rrggbb bg,
+  a black-or-white fg, clears WCAG AA (≥ 4.5), has a distinct color,
+  and the unknown-role fallback also passes. The spec declares the
+  role list locally as a typed `readonly UserRole[]` (importing the
+  runtime `ALL_ROLES` pulls in next-auth, which fails in vitest — same
+  type-only pattern as `work-mode-eligibility.test`). typecheck + lint
+  clean.
 
 ### Slice 2 — `RolePills` component + render below the greeting
 - **Scope:** New `RolePills` rendering all of the user's roles as
