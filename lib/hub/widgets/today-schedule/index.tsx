@@ -11,6 +11,7 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import { bucketToView, datePart, type CalendarView } from '@/lib/hub/calendar/calendar-math';
 import CalendarGrid from '@/lib/hub/calendar/CalendarGrid';
+import AddEventForm from '@/lib/hub/calendar/AddEventForm';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -61,6 +62,8 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
 
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  // Slice 3 (doc 04) — inline "+ Add event" at medium+ sizes.
+  const [adding, setAdding] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     setStatus('loading');
@@ -91,18 +94,39 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
   if (status === 'error')   return <WidgetError message="Couldn't load your schedule." onRetry={fetchEvents} />;
 
+  const today = datePart(new Date().toISOString());
+  // The "+ Add event" affordance only shows where there's room (medium+).
+  const canAdd = view === 'agenda-wide' || view === 'grid';
+  const addBar = canAdd ? (
+    adding ? (
+      <AddEventForm
+        defaultDate={today}
+        onCancel={() => setAdding(false)}
+        onCreated={() => { setAdding(false); fetchEvents(); }}
+      />
+    ) : (
+      <button type="button" onClick={() => setAdding(true)} style={addButtonStyle}>
+        + Add event
+      </button>
+    )
+  ) : null;
+
   // Grid view (large/xlarge) renders the month even when empty — an
   // empty month grid is still a useful at-a-glance calendar.
   if (view === 'grid') {
-    const today = datePart(new Date().toISOString());
     const [gy, gm] = today.split('-').map(Number);
     return (
-      <CalendarGrid
-        year={gy}
-        month={gm}
-        events={events as (ScheduleEvent & { id: string; title: string })[]}
-        todayIso={today}
-      />
+      <div style={gridWrapStyle}>
+        {addBar}
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <CalendarGrid
+            year={gy}
+            month={gm}
+            events={events as (ScheduleEvent & { id: string; title: string })[]}
+            todayIso={today}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -116,11 +140,14 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
       );
     }
     return (
-      <WidgetEmpty
-        icon="🗓"
-        title="Nothing scheduled today"
-        description="Enjoy the empty calendar — or add an event from /admin/schedule."
-      />
+      <div style={listWrapStyle}>
+        {addBar}
+        <WidgetEmpty
+          icon="🗓"
+          title="Nothing scheduled today"
+          description="Enjoy the empty calendar — or add an event below."
+        />
+      </div>
     );
   }
 
@@ -135,20 +162,23 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
   }
 
   return (
-    <ul role="list" style={listStyle}>
-      {visible.map((e) => (
-        <li key={e.id} style={rowStyle}>
-          <TypeStripe type={e.event_type} />
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-            <span style={titleStyle}>{e.title}</span>
-            <span style={mutedStyle}>
-              {formatTime(e)}
-              {e.location ? ` · ${e.location}` : ''}
+    <div style={listWrapStyle}>
+      {addBar}
+      <ul role="list" style={listStyle}>
+        {visible.map((e) => (
+          <li key={e.id} style={rowStyle}>
+            <TypeStripe type={e.event_type} />
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+              <span style={titleStyle}>{e.title}</span>
+              <span style={mutedStyle}>
+                {formatTime(e)}
+                {e.location ? ` · ${e.location}` : ''}
+              </span>
             </span>
-          </span>
-        </li>
-      ))}
-    </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -309,6 +339,33 @@ const listStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--hub-spc-2, 8px)',
+};
+
+// Slice 3 (doc 04) — wrappers + the "+ Add event" toggle.
+const listWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--hub-spc-2, 8px)',
+  height: '100%',
+};
+
+const gridWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  height: '100%',
+};
+
+const addButtonStyle: React.CSSProperties = {
+  alignSelf: 'flex-start',
+  padding: '4px 10px',
+  borderRadius: 6,
+  border: '1px dashed var(--theme-border)',
+  background: 'transparent',
+  color: 'var(--theme-accent, #3b82f6)',
+  cursor: 'pointer',
+  fontSize: '0.8rem',
+  fontWeight: 600,
 };
 
 const rowStyle: React.CSSProperties = {

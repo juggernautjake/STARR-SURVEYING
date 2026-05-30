@@ -128,7 +128,7 @@ DOM.
   month/3-day/1-day per view). Full hub suite (1517) green; typecheck +
   lint clean.
 
-### Slice 3 — Add-event form (create) wired to the API
+### Slice 3 — Add-event form (create) wired to the API ✅ shipped 2026-05-30
 - **Scope:** An inline "+ Add event" affordance (visible at medium+)
   opening a compact form (title, date, start/end or all-day,
   optional location) that POSTs to `/api/admin/schedule` + refreshes.
@@ -137,6 +137,23 @@ DOM.
   specs.
 - **Done when:** the surveyor can add an event from the widget; it
   appears on the grid + persists; payload builder unit-tested.
+- **Shipped:** pure `lib/hub/calendar/schedule-payload.ts` →
+  `buildSchedulePayload(form)` validates (title required, valid date,
+  valid 00:00–23:59 start/end with end > start for timed events;
+  all-day spans 00:00–23:59) and returns `{ ok, payload }` or
+  `{ ok, error }`; the payload matches the schedule POST contract
+  (title, start_time, end_time, all_day, event_type default 'other',
+  location/color nulled when blank). `AddEventForm.tsx` is the compact
+  client form (title, date, all-day toggle, start/end times, location,
+  event-type select) that runs the builder, POSTs to
+  `/api/admin/schedule`, shows validation/network errors, and calls
+  `onCreated` to refetch. `today-schedule` shows a dashed "+ Add event"
+  toggle at medium+ (agenda-wide + grid) that opens the form inline;
+  on create it closes + refetches so the new event appears. 11 specs:
+  the builder (timed + all-day happy paths, trims/defaults, all five
+  validation failures incl. the out-of-range `25:99` time) + an SSR
+  render of the form (labeled fields, date pre-fill, all-day toggle +
+  actions). Full hub suite (1528) green; typecheck + lint clean.
 
 ### Slice 4 — Reminders / notifications on events
 - **Scope:** A per-event "remind me" option (on create + on an event
