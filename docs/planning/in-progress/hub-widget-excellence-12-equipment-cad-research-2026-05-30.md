@@ -193,6 +193,18 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Row deep link:** → `/admin/research/{id}`.
 - **Editor:** countyFilter.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** The endpoint was
+  right (`/api/admin/research` → `{ projects }` with name/county/status/
+  updated_at), but **R1 found `research_projects` has no `'active'`
+  status** — it's `upload/configure/analyzing/review/drawing/verifying/
+  complete` — so the old `?status=active` exact-match returned nothing,
+  and the `?county=` param was ignored. **Realigned:** fetch
+  `?status=all` + filter client-side via a new pure exported
+  `isActiveProject` (not complete) + a county `includes` match. **Row
+  deep links** to `researchProjectHref(id)` → `/admin/research/{id}`;
+  medium+ shows the humanized status. Footer "Go to research →" is
+  global. 4 specs. Full hub suite (1603) green; typecheck + lint clean.
+  **active-research-projects is done.**
 
 ## pipeline-status
 - **Endpoint:** `/api/admin/research/pipeline`. Fields: name, status,
