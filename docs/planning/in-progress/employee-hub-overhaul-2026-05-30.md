@@ -458,7 +458,7 @@ WidgetCustomization {
 
 ### Phase HB4 — In-modal authoring: resize + move with live reflow + slot-on-drop
 
-#### Slice 7 — Reconcile the modal grid coordinate space with the saved 12-col model
+#### Slice 7 — Reconcile the modal grid coordinate space with the saved 12-col model ✅ shipped 2026-05-30
 - **Scope:** Decide + implement one shared grid model so the modal's
   painted `x/y/w/h` mean the same as the hub render. Likely: modal
   edits in the 12-col space (or a documented mapping). Add a pure
@@ -467,6 +467,34 @@ WidgetCustomization {
   `lib/hub/grid-model.ts` (pure), `__tests__/hub/grid-model.test.ts`.
 - **Done when:** A widget placed in the modal lands in the same cells
   on the hub. Pure helper unit-tested.
+- **Outcome:** First check verified the doc-note premise was wrong:
+  the hub render is **also 8-col**, not 12 — `breakpointForWidth ≥
+  1024 → 8` matches the modal's `GRID_EDITOR_COLS = 8`. So the modal
+  and the hub already share the same coordinate space; the real risk
+  was scattered magic-`8` literals drifting if someone bumped one of
+  them. New `lib/hub/grid-model.ts` (pure, 95 lines) exports the
+  single source of truth: `HUB_GRID_COLS = 8`,
+  `HUB_EDITOR_ROWS = 8` (the modal's bounded row cap; canvas rows
+  stay unbounded), `HUB_DESKTOP_BREAKPOINT = HUB_GRID_COLS`, plus pure
+  helpers `clampRectToGrid(rect, cols?, rows?)`,
+  `isInsideGrid(rect, cols?, rows?)`, and
+  `gridRectToPixels(rect, cellPx, gapPx?)` for the cell-↔-pixel math
+  the modal painter + the canvas grid both use. Routed every existing
+  consumer through the constant: `GridEditor.tsx` now re-exports its
+  legacy `GRID_EDITOR_COLS`/`ROWS` symbols as aliases of the shared
+  ones (preserves the `grid-editor-*` specs without churn);
+  `AddWidgetModal.tsx` + `settings/LayoutTab.tsx` import
+  `HUB_GRID_COLS` and pass it to `compactLayout(_, HUB_GRID_COLS)` so
+  no magic-`8` literals remain at call sites. `grid-math.ts`'s
+  `breakpointForWidth` keeps the literal `8` in its body (avoiding a
+  circular import; the spec asserts `breakpointForWidth(2000) ===
+  HUB_GRID_COLS` so any drift gets caught). New
+  `__tests__/hub/grid-model.test.ts` (18 cases) locks the constants'
+  values + their cross-module agreement (`GRID_EDITOR_COLS ===
+  HUB_GRID_COLS`, `breakpointForWidth(2000) === HUB_GRID_COLS`), the
+  clamp/isInside/gridRectToPixels helpers with fixed inputs, and the
+  source-regex on the three call sites' imports. 1167 hub specs
+  green; typecheck + lint clean.
 
 #### Slice 8 — Pure reflow/packing module
 - **Scope:** Extend the existing grid math (`lib/hub/grid-math.ts`

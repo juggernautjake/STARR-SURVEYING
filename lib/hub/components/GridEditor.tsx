@@ -23,9 +23,14 @@ import {
 import { filterCatalog } from '@/lib/hub/widget-catalog-filter';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
+// Slice 7 (employee-hub-overhaul-2026-05-30) — single source of truth
+// for the grid coordinate system. The modal paints in HUB_GRID_COLS ×
+// HUB_EDITOR_ROWS cells, the canvas renders the saved layout in the
+// same HUB_GRID_COLS coordinate space (the canvas's rows are unbounded).
+import { HUB_EDITOR_ROWS, HUB_GRID_COLS } from '@/lib/hub/grid-model';
 
-export const GRID_EDITOR_COLS = 8;
-export const GRID_EDITOR_ROWS = 8;
+export const GRID_EDITOR_COLS = HUB_GRID_COLS;
+export const GRID_EDITOR_ROWS = HUB_EDITOR_ROWS;
 
 export interface GridEditorProps {
   open: boolean;

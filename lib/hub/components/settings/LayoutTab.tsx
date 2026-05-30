@@ -18,6 +18,7 @@ import React, { useEffect, useState, useTransition } from 'react';
 import type { Density, WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import { getWidget } from '@/lib/hub/widget-registry';
 import { compactLayout } from '@/lib/hub/grid-math';
+import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import { useHubStore } from '@/lib/hub/hub-store';
 import SizeGridPicker from './SizeGridPicker';
 
@@ -77,7 +78,7 @@ export default function LayoutTab({ instance, customization, onChange }: LayoutT
     const updated = draftWidgets.map((w) =>
       w.id === instance.id ? { ...w, w: next.w, h: next.h } : w,
     );
-    const compacted = compactLayout(updated, 8);
+    const compacted = compactLayout(updated, HUB_GRID_COLS);
     setDraftWidgets(compacted);
   }
 
