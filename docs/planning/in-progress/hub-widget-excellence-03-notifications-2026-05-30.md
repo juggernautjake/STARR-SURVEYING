@@ -110,6 +110,27 @@ its dedup.
 - **Done when:** the prioritized events fire notifications; specs lock
   the payload builders. (Multiple sub-slices allowed; keep each green.)
 
+#### Sub-slice progress
+- **2a — Hours approved/rejected ✅ shipped 2026-05-30.**
+  `time-logs/approve` POST now notifies the submitter after the bulk
+  status update. Extracted a pure, dependency-free builder
+  `lib/notifications/hours-decision.ts` →
+  `buildHoursDecisionNotifications(rows, approved)` that groups the
+  updated `daily_time_logs` rows **by submitter** (so a week-long bulk
+  approve is ONE bell per worker, not seven), sums hours, and labels
+  the span as the single date or "N entries". The route maps each
+  payload through `notify` (best-effort try/catch so a notification
+  failure can't fail the approval). 5 specs lock the builder (approve
+  + reject copy/icon, per-user grouping + hour-summing + date/"N
+  entries" labeling + has/have grammar, skip-no-email + missing-hours,
+  empty input). typecheck + lint clean.
+- 2b — Time-off approved/denied — pending.
+- 2c — Receipt approved/rejected — pending.
+- 2d — Job stage change — pending.
+- 2e — Task assignment created — pending.
+- 2f — Lesson/module complete + quiz result — pending.
+- 2g — Pay raise/bonus — pending.
+
 ### Slice 3 — Reminder cadence for due/overdue items
 - **Scope:** Where a "due soon / overdue" reminder makes sense
   (assignments-due, class-assignments, maintenance-due, pending-*),
