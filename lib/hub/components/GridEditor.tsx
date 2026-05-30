@@ -566,10 +566,26 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
               {Array.from({ length: GRID_EDITOR_ROWS * GRID_EDITOR_COLS }).map((_, idx) => {
                 const x = idx % GRID_EDITOR_COLS;
                 const y = Math.floor(idx / GRID_EDITOR_COLS);
+                // grid-editor-pointer-fix 2026-05-30 — pin each cell
+                // to its logical (x, y) via explicit gridColumn /
+                // gridRow. Without this, the 96 cells auto-flow and
+                // skip past the explicit-positioned widgets, so the
+                // cell labelled `data-grid-x=0` ends up rendered
+                // wherever the auto-placement algorithm could fit it
+                // (usually far below the visible widgets). That makes
+                // `onPointerEnter(x, y)` fire with coordinates that
+                // don't match the visual cell the cursor is over →
+                // the placement preview teleports to a stale earlier
+                // cell instead of following the cursor.
+                const cellStyle: React.CSSProperties = {
+                  ...(selected ? gridCellArmedStyle : gridCellStyle),
+                  gridColumn: `${x + 1} / span 1`,
+                  gridRow: `${y + 1} / span 1`,
+                };
                 return (
                   <div
                     key={`${x}-${y}`}
-                    style={selected ? gridCellArmedStyle : gridCellStyle}
+                    style={cellStyle}
                     data-grid-x={x}
                     data-grid-y={y}
                     aria-label={`Grid cell ${x + 1}, ${y + 1}`}
