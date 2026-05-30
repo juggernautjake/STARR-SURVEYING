@@ -21,6 +21,20 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Row deep link:** asset → `/admin/equipment/{id}`.
 - **Editor:** scope (mine/all).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget read a flat `{ equipment }` with `asset_name`/`checked_out_to`,
+  but the equipment/today GET returns `{ strips: { out_now: […] } }`
+  with `equipment_name` / `checked_out_to_user` / `actual_checked_out_at`
+  / `reserved_to` / `equipment_inventory_id`** (so it always rendered
+  empty). **Realigned:** the widget reads `strips.out_now` + maps via a
+  new pure exported `toEquipmentOut(raw)`. Per-bucket: tiny count, small
+  asset + who; **medium+** adds the expected-return date with an
+  **overdue** red tint (new pure `isOverdue` helper). **Row deep links**
+  to `/admin/equipment/{inventory_id}`. The "Mine" scope filters
+  client-side to the caller (`useSession`) since the route returns
+  everyone's. Footer "Go to equipment →" is global. 4 new specs (mapper,
+  overdue). Full hub suite (1585) green; typecheck + lint clean.
+  **equipment-out-today is done.**
 
 ## low-consumables
 - **Endpoint:** `/api/admin/equipment/consumables?below=…`. Fields:
