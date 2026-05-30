@@ -186,7 +186,7 @@ DOM.
   shape + singularization + null guards). typecheck + lint clean;
   vercel.json valid.
 
-### Slice 5 — Size/format + editor + 4-round-style polish
+### Slice 5 — Size/format + editor + 4-round-style polish ✅ shipped 2026-05-30
 - **Scope:** Walk every bucket; confirm agenda↔grid transitions look
   intentional; the specialized editor for today-schedule exposes the
   useful options (default view override, time range, show all-day,
@@ -194,6 +194,35 @@ DOM.
   a11y on the grid (keyboard day navigation, aria). Final visual pass.
 - **Done when:** the calendar widget is polished at every size + its
   editor is specialized + complete. Then this doc → `completed/`.
+- **Shipped:**
+  - **Specialized editor** — `TodayScheduleSettings` now exposes a
+    **Default view** select (auto / agenda / month grid),
+    show-all-day, time-range, and an **event-type filter** (pill
+    toggles for the 8 known types, tinted to match the agenda stripes;
+    none-selected = show all). Backed by two pure exported helpers:
+    `resolveScheduleView(defaultView, bucket)` (override wins, but grid
+    falls back to agenda at tiny/small where it can't fit; `auto`
+    follows `bucketToView`) and `filterEventsByType(events, types)`
+    (empty = all; null type treated as 'other'), both wired into the
+    widget (view resolution + fetch filter, with a stable join-key dep
+    so the filter doesn't churn the fetch). 14 specs (view resolution
+    across auto/agenda/grid × buckets; filter all/selected/null-type).
+  - **a11y** — the grid already had `role="grid"`/`gridcell` +
+    `aria-current="date"` on today; added a per-cell `aria-label`
+    ("{date}, N events" / "…, no events") so screen-reader users hear
+    each day's load. (Keyboard day-to-day arrow navigation is a larger
+    interactive-focus feature noted for a future pass; the read-only
+    grid is fully labeled + reachable today.)
+  - **Format** — the size ladder reads intentionally: tiny count →
+    small agenda → medium agenda-wide → large/xlarge month grid, each
+    with the "+ Add event" affordance at medium+ and the registry
+    "Go to the schedule →" footer. Full hub suite (1534) green;
+    typecheck + lint clean.
+
+**Doc 04 complete** — calendar-math + API audit (Slice 1), registry
+footer wiring + size-aware grid (Slice 2), inline add-event form
+(Slice 3), event reminders cron (Slice 4), and the specialized editor +
+a11y polish (Slice 5).
 
 ## Guardrails
 - The widget is a LENS on the schedule, not a second source of truth —

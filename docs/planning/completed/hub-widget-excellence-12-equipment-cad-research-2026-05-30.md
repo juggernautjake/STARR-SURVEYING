@@ -182,6 +182,31 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Editor:** weekRange, employeeFilter.
 - **Slices:** Build/Wire + R1–4. (Shares the Doc-04 `calendar-math`
   helpers where useful.)
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  widget read a flat `{ cells: [{ day, status }] }` with `available`/
+  `assigned`/`off`/`pto`, but the crew-calendar GET takes `?from=&to=`
+  (not `?range=`) and returns `{ days: string[], users: [{ user_email,
+  user_name, cells: Record<dayIso, { state }> }] }` with the real states
+  `open` / `proposed` / `confirmed` / `split_shift` / `time_off` /
+  `unavailable` / `unconfirmed_overdue`** (so it always rendered empty
+  or wrong). **Realigned:** new pure exported `crewWindow(range, now)`
+  builds the `?from=&to=` UTC-Monday window (this-week / next-week /
+  two-weeks), and a new pure `cellColor(state)` maps the real states to
+  dot colors (confirmed→success, proposed/split→accent, overdue→danger,
+  time_off/unavailable→warning, open→muted). The widget reads `users` +
+  `days`, filters by employee client-side, and renders each user's
+  per-day dots from `cells[day].state`. Footer "Go to crew calendar →"
+  is global. 7 specs (caps, cellColor over all real states, crewWindow
+  for the three ranges). Full hub suite (1607) green; typecheck + lint
+  clean. **crew-calendar is done.**
+
+**Doc 12 complete** — all nine equipment/CAD/research/operational widgets
+through Build/Wire + 4 rounds. The headline drawings widgets now open in
+the CAD editor with the job loaded (`/admin/cad?job={id}`). R1 found
+**every one of the nine** silently broken against missing / mismatched /
+stub endpoints or phantom columns — all now render real data; the
+cad/drawings (job-name join + `?mine`) and research/pipeline endpoints
+were realigned/wired in the process.
 
 ## active-research-projects
 - **Endpoint:** `/api/admin/research?status=active`. Fields: name,
@@ -231,8 +256,6 @@ editor** (`/admin/cad?job={id}`) per the user.*
   dropped its pipeline assertion (no longer a stub); 6 new mapper specs.
   Full hub + research suites (1611) green; typecheck + lint clean.
   **pipeline-status is done.**
-
-*(8 of 9 widgets done — crew-calendar remains.)*
 
 ## Guardrails
 - The CAD open param (`?job=` vs `?drawing=`) is verified in R1 of the

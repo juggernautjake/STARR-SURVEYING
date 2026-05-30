@@ -178,6 +178,15 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Editor:** maxItems, showAmount.
 - **Notifications:** receipt submitted → approver; approved → submitter.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** R1: the receipts
+  GET (`/api/admin/receipts?status=pending`) returns `{ receipts }` with
+  `vendor_name` / `total_cents` / `submitted_by_name|_email`, but the
+  widget read `vendor` / `amount` / `submitted_by` — so vendor was
+  always the "Vendor" fallback + amounts were $0.00. Added a pure
+  exported `toPendingReceipt(raw)` mapper (vendor_name, total_cents →
+  dollars, submitted_by_name ?? email) and mapped at fetch. Footer "Go
+  to receipts →" is global; approval notification wired (doc-03 2c). 2
+  specs. **pending-receipts is done.**
 
 ## pending-time-off
 - **Endpoint:** `/api/admin/time-off?status=pending`.
@@ -188,6 +197,28 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Editor:** maxItems, showStartDate.
 - **Notifications:** request submitted → approver; decision → requester.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** R1 found TWO bugs:
+  (1) the widget queried `?status=pending` without `?queue=1`, so the
+  time-off GET scoped to the admin's OWN requests (`assigned_to =
+  caller`) instead of everyone's pending queue; (2) time-off requests
+  are `schedule_events` rows — the fields are `assigned_to` /
+  `start_time` / `end_time` / `notes` with hours DERIVED, not
+  `user_email`/`start_date`/`hours_requested`. **Realigned:** fetch
+  `?queue=1&status=pending` + map via a new pure exported
+  `toPendingTimeOff(raw)` that reads the real fields and derives the
+  requested hours with the shared `ptoHoursForRequest` (timed delta, or
+  8h/weekday for all-day). Footer "Go to time off →" is global; decision
+  notification wired (doc-03 2b). 3 specs (timed hours, all-day hours,
+  no-start). **pending-time-off is done.**
+
+**Doc 11 complete** — all eight money widgets (my-pay, hours-this-week,
+pto-balance, monthly-revenue, outstanding-invoices, pending-hours,
+pending-receipts, pending-time-off) through Build/Wire + 4 rounds. R1
+found FIVE widgets silently broken against missing/mismatched endpoints
+(monthly-revenue + outstanding-invoices fetched nonexistent routes;
+pending-hours/-time-off used the wrong endpoint/query; pending-receipts
+read wrong field names) — all now render real data, and a new
+`/api/admin/reports` revenue endpoint was built.
 
 ## Guardrails
 - Money values respect existing privacy/role gates (my-pay already has

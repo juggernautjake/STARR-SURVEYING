@@ -146,6 +146,30 @@ the academic widgets all work too." Each: Build/Wire + 4 audit rounds.*
 - **Editor:** kind (clockin/study/quiz), goal.
 - **Notifications:** streak-at-risk reminder (Doc 03, optional).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `/api/admin/learn/streak` didn't exist** → the widget always showed
+  empty. **Built the minimal streak endpoint** + a pure
+  `lib/learn/streak.ts` → `computeStreak(dates, now)` (longest
+  consecutive-day run + the current run, which stays "current" until a
+  full day is missed; UTC-day-deduped). The endpoint computes the
+  caller's streak per `?kind=` — study = `user_progress` completions,
+  quiz = `quiz_attempts`, clockin = `daily_time_logs` — and the widget
+  now **passes its `kind`** so the count matches the editor selection.
+  The widget render (tiny number + emoji, goal progress, 🏆 at goal,
+  longest line) + kind/goal editor were already fine. 6 specs
+  (current-today, yesterday-still-current, broken-after-gap, dedupe +
+  datetime, longest-vs-current, empty/unparseable). Full hub + learn
+  suites green; typecheck + lint clean. **streak-counter is done.**
+
+**Doc 13 complete** — all six learning widgets through Build/Wire + 4
+rounds. The academic widgets now actually work (the user's "make sure
+the academic widgets all work too"): R1 found **five of six broken** —
+recommended-lessons + streak-counter hit **missing endpoints** (both
+built fresh, plus a missing `learn/lessons/{id}` link fixed to the
+canonical lesson route), roadmap-progress/quiz-history read the **wrong
+response shape**, flashcards-due used the **wrong param/field**; only
+class-assignments was already wired (it just lacked row deep links). Two
+new endpoints built (`learn/recommended`, `learn/streak`).
 
 ## Guardrails
 - Academic widgets must serve BOTH students and teachers correctly —

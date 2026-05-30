@@ -191,6 +191,39 @@ master. Routes + the shared `WidgetGoToLink` / `widget-links` /
   day toggle.
 - **Notifications:** consumes job_update events (don't double-fire).
 - **Slices:** Build/Wire + Rounds 1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the same
+  imagined-API break** as field-data: the activity GET *required*
+  `job_id` (400 otherwise) so the no-filter default never rendered; the
+  widget read `data.items` (API returns `{ activity }`); and `type` was
+  expected to be the widget's kind enum but the API emits the **raw
+  action string** ('job_file_uploaded', 'job_stage_changed', …), so the
+  `activityTypes` filter never matched. Fixes:
+  - **API (R1/R2):** added a cross-job aggregate branch — when no
+    `job_id`, merge recent `activity_log` (entity_type='job') +
+    `job_stages_history` across all jobs, resolve job names in one
+    `jobs … .in(ids)` round-trip, synthesize a stable `id`
+    (`log-`/`stage-`), attach `job_id`/`job_name`/`job_number`, sort
+    newest-first, `limit`-bounded. Per-job callers unchanged.
+  - **Widget (R1/R3):** reads `activity`, classifies the raw action via
+    a new exported `kindForAction` (stage/file/team/tag → comment
+    fallback) for the icon/color + the type filter; renders the
+    `detail` ("Stage changed: research → fieldwork") + per-bucket fields
+    (tiny count, small label+job, medium +actor, large+ +`formatAge`).
+    **Row deep links** to `jobHref(job_id)` → `/admin/jobs/{id}` (or the
+    jobs list when unscoped).
+  - **Editor (R4):** added a `rowLimit` (1–100); kept the activity-type
+    checkboxes + job filter. Footer "Go to jobs →" is global.
+  - **Notifications:** the feed *consumes* job_update events (doc-03
+    fires them on stage change) — correctly read-only, no double-fire.
+  - 5 specs (`kindForAction` over the real actions + fallback,
+    `formatAge`). Full hub suite (1553) green; typecheck + lint clean.
+    **job-activity-feed is done.**
+
+**Doc 10 complete** — all four work widgets (my-jobs, assignments-due,
+field-data-pending, job-activity-feed) through Build/Wire + 4 rounds.
+Two were silently broken against imagined APIs (field-data,
+job-activity) and now actually render via new cross-job aggregate
+endpoints.
 
 ---
 

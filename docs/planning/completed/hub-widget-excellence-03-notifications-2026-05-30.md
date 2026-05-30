@@ -253,7 +253,7 @@ reuse this pattern if/when the per-category money-widget doc needs it.
   payload shape, skip non-pending/no-assignee/no-id/dateless).
   typecheck + lint clean; vercel.json valid.
 
-### Slice 4 — Bell ↔ widget consistency audit
+### Slice 4 — Bell ↔ widget consistency audit ✅ shipped 2026-05-30
 - **Scope:** Confirm the bell's links + the widgets' deep links agree
   (a job-assignment notification's `link` should match the widget's
   row href). Confirm unread counts surfaced by communication widgets
@@ -261,6 +261,34 @@ reuse this pattern if/when the per-category money-widget doc needs it.
   notification/unread sources. Fix mismatches.
 - **Done when:** notification links + widget links are consistent;
   unread counts reconcile. Then this doc → `completed/`.
+- **Audit result — links consistent:** every Slice-2/3 notification's
+  `link` already lands on the same canonical route the widget's "Go
+  to…" footer uses (doc-02 `WIDGET_LINKS`): hours→`/admin/my-hours`
+  (hours-this-week), time-off→`/admin/time-off` (pto-balance +
+  pending-time-off), receipt→`/admin/receipts` (pending-receipts),
+  assignment + due-reminder→`/admin/assignments` (assignments-due),
+  quiz→`/admin/learn/quiz-history` (quiz-history),
+  lesson→`/admin/learn/roadmap` (roadmap-progress),
+  pay→`/admin/my-pay` (my-pay), job-stage→`/admin/jobs/{id}` (=
+  `jobHref`, the my-jobs row deep link). Locked by
+  `bell-widget-consistency.test.ts` (8 specs) which imports the pure
+  builders + the registry and asserts equality — so a future route
+  rename in one place fails the build until both agree. No mismatches
+  to fix.
+- **Audit result — unread reconciles by design:** `NotificationBell`
+  deliberately filters out `direct_message` + `group_message`
+  source_types (those belong to the FloatingMessenger), and the comms
+  widgets read the messages backend directly — messages widget →
+  `/api/admin/messages/conversations` (`unread_count`), mentions-inbox
+  → `/api/admin/messages/mentions`. So the bell and the comms widgets
+  draw from the same message store via different read paths; there's no
+  double-counting and nothing to reconcile. (recent-announcements reads
+  the announcements feed, also independent of the bell.)
+- typecheck + lint clean; 56 notification specs green across 10 files.
+
+**Doc 03 complete** — gap map (Slice 1), 8 wired notification
+transitions (Slice 2), the assignment due/overdue reminder cron
+(Slice 3), and the bell↔widget link-consistency lock (Slice 4).
 
 ## Guardrails
 - Server mutations only fire notifications on genuine transitions;

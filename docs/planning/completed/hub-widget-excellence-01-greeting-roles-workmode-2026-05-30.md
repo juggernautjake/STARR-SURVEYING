@@ -220,7 +220,7 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
   `data-clocked-in="true"`. The Slice-3 role-step spec was updated for
   the "Continue" relabel. typecheck + lint clean.
 
-### Slice 5 — Audit + cleanup
+### Slice 5 — Audit + cleanup ✅ shipped 2026-05-30
 - **Scope:** Remove now-dead persona-selector code paths from the
   greeting if fully unused (keep `inferPersona` etc. if still used
   elsewhere — verify). Confirm the top-bar `ClockInPill` still works
@@ -229,6 +229,37 @@ the page-level greeting + Enter-Work-Mode changes the user asked for.*
   selectors only if they touched the greeting.
 - **Done when:** no dead code; pills + prompt are accessible; tree
   green. Then this doc moves to `completed/`.
+- **Shipped:**
+  - **Dead code:** removed the orphaned Slice-80 `.hub-greeting__
+    persona*` CSS (the old persona `<select>` dropdown + its responsive
+    rules) — verified nothing in `app/`/`lib/`/`__tests__` references
+    those classes (the Slice-2 removal already deleted the chip strip's
+    `.role-chip`/`.hub-greeting__roles` markup, and that CSS never
+    existed). The persona-override store + `inferPersona`/`PERSONA_
+    ORDER` are KEPT — confirmed still consumed by `IconRail`,
+    `lib/admin/nav-store.ts`, and `lib/hub/server/fetch-hub-layout.ts`.
+  - **Regression fix:** importing `HubGreeting` now transitively pulls
+    `@/lib/auth` (via `RolePills` → runtime `ROLE_LABELS`), which fails
+    under vitest, so `greeting.test.ts`'s pure-helper import broke at
+    Slice 2. Extracted the three dependency-free helpers (`partOfDay`,
+    `firstName`, `formatElapsed`) into `greeting-helpers.ts`; HubGreeting
+    re-exports them for back-compat, and `ClockInPill` +
+    `WorkModePrompt` + `greeting.test.ts` now import from the helper
+    module. Full suite green again (1536 tests, 106 files).
+  - **a11y:** pills render in a `role="list"` with `aria-label="Your
+    roles"`; the prompt dialog has `aria-modal`, `aria-labelledby`,
+    step-aware `aria-describedby`, moves focus into the dialog on
+    open/step-change (`tabIndex=-1` + ref), closes on Esc + overlay
+    click, and returns focus to the trigger.
+  - **ClockInPill:** unchanged behavior — independent of the prompt
+    (only its `formatElapsed` import path moved). The prompt never
+    force-clocks-in.
+  - **e2e:** rewrote `e2e/work-mode.spec.ts` to drive the new flow
+    (button → dialog → pick role → Continue → "Stay clocked out"/Enter
+    → workspace) instead of the old greeting `<a>` + full-page picker.
+    `e2e/hub-customize.spec.ts` touches no greeting selector — left
+    as-is.
+  - typecheck + lint clean.
 
 ## Guardrails
 - Don't break the independent top-bar clock-in pill.

@@ -156,7 +156,7 @@ re-implement those 41 times, build shared primitives first.
   help, e.g. quick-actions in Doc 15; the primitive set they need now
   exists.)
 
-### Slice 5 — Wire `WidgetGoToLink` into `WidgetFrame` ergonomics
+### Slice 5 — Wire `WidgetGoToLink` into `WidgetFrame` ergonomics ✅ shipped 2026-05-30
 - **Scope:** Make it trivial for a widget to add the footer link:
   either a `goTo={{href,label}}` convenience prop on `WidgetFrame`
   that renders `WidgetGoToLink` in the footer, OR document the footer
@@ -165,6 +165,19 @@ re-implement those 41 times, build shared primitives first.
 - **Files:** `WidgetFrame.tsx` (if adding the prop) + spec.
 - **Done when:** a widget can surface its "Go to…" link in one line;
   spec locks it. Then this doc → `completed/`.
+- **Shipped:** added a `goTo?: { href; label; icon? }` prop to
+  `WidgetFrame`. When set, the footer renders the shared
+  `WidgetGoToLink` right-aligned; any existing `footer` content sits on
+  its left (flex space-between). A lone `footer` (no `goTo`) keeps its
+  exact original inline rendering, and the footer strip still doesn't
+  render when neither is set — so no existing widget regresses. A
+  widget now surfaces its link in one line:
+  `<WidgetFrame title=… goTo={widgetGoToTarget('my-jobs')!}>`. 3 new
+  specs in `widget-frame.test.tsx` (goTo → footer anchor + Go-to text +
+  aria-label; goTo composes with footer content; no footer when
+  neither set). Full hub suite (1492) + typecheck + lint green.
+  (Lower-churn choice: the convenience prop beats documenting a
+  copy-paste footer pattern across 34 widgets.)
 
 ## Guardrails
 - These are additive primitives; don't regress existing widget
