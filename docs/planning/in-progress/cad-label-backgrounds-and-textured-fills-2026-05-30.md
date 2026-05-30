@@ -207,7 +207,7 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   follow the same pattern but the polygon path covers the immediate
   composability ask.
 
-#### Slice 237 — PropertyPanel: fill-pattern picker + preview
+#### Slice 237 — PropertyPanel: fill-pattern picker + preview ✅ shipped 2026-05-30
 - **Scope:** Add a "Fill pattern" row to the existing closed-shape
   PropertyPanel section: a small grid of preview swatches (one per
   enum value) the surveyor can click to set. Saves through
@@ -217,6 +217,15 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   `__tests__/cad/ui/fill-pattern-picker.test.tsx` (new).
 - **Done when:** PropertyPanel surfaces the picker + clicking a
   swatch updates the polygon's render.
+- **Outcome:** New "Fill pattern" section in `PropertyPanel.tsx`, gated
+  on `computeFeatureArea(feature).squareFeet > 0` so it only appears
+  on closed shapes. 5-column grid surfaces all 10 pattern variants
+  (None / Dots / Gravel / Diag / / Diag \\ / Cross / Horiz / Vert /
+  Brick / Wave); the active swatch is highlighted with the blue
+  selected-state class. Clicking commits via `drawingStore.updateFeature`
+  writing `style.fillPattern` (preserves all other style props through
+  the spread + sets `isOverride: true`), which the Slice-236 render
+  branch picks up live. 18 new specs green; full CAD sweep at 1771.
 
 ### Phase 45 — Composability sanity (Slice 238)
 
