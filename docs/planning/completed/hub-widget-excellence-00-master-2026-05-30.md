@@ -200,3 +200,59 @@ Build/Wire slice + 4 audit rounds against the Widget Excellence
 Checklist, so each widget tracks the right data, links to the right
 pages, formats well at every size, and has a polished specialized
 editor.
+
+## Final status ✅ Hub Widget Excellence done — 2026-05-30
+
+Every sibling doc is in `docs/planning/completed/`:
+
+- **01 Greeting roles + work-mode prompt** — roles render as
+  contrast-aware colored pills below the greeting; the Enter Work Mode
+  button prompts for the role under which the surveyor is working AND
+  surfaces clock-in status with "Clock in now?" / "Stay clocked out"
+  (or assumes working when already clocked in).
+- **02 Shared infra** — `WidgetGoToLink`, the `WIDGET_LINKS` registry
+  + `widgetGoToTarget` (later joined by `_shared/route-resolve` for the
+  nav-fed widgets), row-href builders (`jobHref` / `cadJobHref` /
+  `conversationHref` / `lessonHref` / `equipmentHref` / `teamMemberHref`
+  / `researchProjectHref`), `field-priority` (`pickFields` +
+  `DEFAULT_FIELD_CAPS`), the shared `ordered-list` helpers
+  (`moveUp`/`moveDown`/`addOrdered`/`removeOrdered`/`unselectedOptions`/
+  `normalizeOrdered`), the `orderedmultiselect` schema field type, and
+  the `WidgetFrame goTo` slot wired through `WidgetGrid`.
+- **03 Notifications** — gap map + 8 wired notifications +
+  assignment-due cron + bell↔widget consistency.
+- **04 Calendar** — `calendar-math`, `CalendarGrid`, `AddEventForm` /
+  `schedule-payload`, event-reminder cron, today-schedule editor.
+- **10 Work widgets** (4): my-jobs, assignments-due, field-data-pending,
+  job-activity-feed.
+- **11 Money widgets** (5): my-pay, hours-this-week, pto-balance,
+  monthly-revenue, outstanding-invoices.
+- **12 Equipment / CAD / research / operational** (9):
+  equipment-out-today, low-consumables, maintenance-due,
+  vehicles-status, recent-drawings, drawings-in-progress, crew-calendar,
+  active-research-projects, pipeline-status.
+- **13 Learning widgets** (6): class-assignments, recommended-lessons,
+  roadmap-progress, flashcards-due, quiz-history, streak-counter — the
+  user's "make sure the academic widgets all work too" — R1 found
+  **five of six broken** and fixed each honestly (two missing endpoints
+  built, three response-shape realignments, one wrong param/field).
+- **14 Comms & team widgets** (5): messages, open-discussions,
+  mentions-inbox, recent-announcements, team-status — every list row
+  now deep-links and every widget reads its real data source.
+- **15 Personal & utility widgets** (8): quick-actions (capacity-fill +
+  reorderable picker — the headline overhaul), pinned-pages,
+  bookmarks, recent-activity, weather (keyless Open-Meteo),
+  sun-calculator (pure NOAA sunrise math), daily-briefing (4 live
+  sections), mileage-tracker (self-scoped `?summary=1` mode).
+
+**41 widgets** through Build/Wire + 4 audit rounds each. Three former
+stub endpoints wired to real data (weather, sun, team-status). Three
+new pure-helper libraries shipped (`lib/weather/*`, `lib/sun/*`,
+`lib/mileage/*`). The full hub vitest suite ended at **1668 specs
+green**, all on the `claude/gifted-ramanujan-lQaEI` branch with
+typecheck + lint clean throughout. The grid system itself was left
+untouched per the user's "the grid is great — make the widgets
+themselves as good as possible" framing.
+
+The Stop hook can route to the QA phase now — this conventions doc
+goes to `completed/` as the final move.
