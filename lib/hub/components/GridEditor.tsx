@@ -33,6 +33,7 @@ import { HUB_EDITOR_ROWS, HUB_GRID_COLS } from '@/lib/hub/grid-model';
 // live reflow preview while the surveyor drags; commitDrop snaps +
 // compacts on release.
 import { applyMoveWithPush, applyResizeWithPush, commitDrop, trimLeadingRows } from '@/lib/hub/grid-reflow';
+import { compactLayout } from '@/lib/hub/grid-math';
 import type { WidgetInstance } from '@/lib/hub/types';
 // Slice 11 — per-widget options surface (Size + Header color +
 // Title + the widget's own SettingsForm) opened from the ⚙ button on
@@ -489,6 +490,26 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     onClose();
   }
 
+  /** grid-editor-auto-format 2026-05-30 — "Auto-format" button: pack
+   *  every widget snug against the top-left, preserving the surveyor's
+   *  intended row-then-column order (top-left first, bottom-right
+   *  last). Widget sizes are kept as-is; only positions move. No-op
+   *  when the draft is empty or when the layout is already compact. */
+  function handleAutoFormat() {
+    const current = draftWidgets ?? [];
+    if (current.length === 0) return;
+    const compacted = sortAndCompactDraft(current, GRID_EDITOR_COLS);
+    // Skip the state update when nothing actually moved so a stray
+    // click doesn't churn the undo stack / re-render.
+    if (layoutsMatch(current, compacted)) return;
+    setDraftWidgets(compacted);
+    // Drop any in-flight gesture state so the auto-format result
+    // doesn't fight the live preview.
+    setMoveDrag(null);
+    setResizeTarget(null);
+    setPlaceHover(null);
+  }
+
   return (
     <div
       role="dialog"
@@ -562,6 +583,41 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
               style={selected ? gridContainerPlacingStyle : gridContainerStyle}
               data-testid="grid-editor-grid"
               data-placing={selected ? 'true' : 'false'}
+              // grid-editor-placement-polish 2026-05-30 — when a
+              // widget type is armed, track the cursor at container
+              // level using `cellUnderPointer`. That way the preview
+              // follows the pointer continuously (no missed cells on
+              // fast moves) AND it keeps tracking when the cursor
+              // crosses over a placed widget (whose own pointer
+              // handlers would otherwise swallow the cell-level
+              // events). Click-to-place is mirrored here so a click
+              // on top of a placed widget reaches the placement logic
+              // (which then no-ops on overlap) instead of starting a
+              // move-drag on the widget under it.
+              onPointerMove={selected ? (ev) => {
+                const el = gridContainerRef.current;
+                if (!el) return;
+                const cell = cellUnderPointer(
+                  el.getBoundingClientRect(),
+                  ev.clientX,
+                  ev.clientY,
+                );
+                setPlaceHover((cur) =>
+                  cur && cur.x === cell.x && cur.y === cell.y ? cur : cell,
+                );
+              } : undefined}
+              onPointerDown={selected ? (ev) => {
+                const el = gridContainerRef.current;
+                if (!el) return;
+                const cell = cellUnderPointer(
+                  el.getBoundingClientRect(),
+                  ev.clientX,
+                  ev.clientY,
+                );
+                ev.stopPropagation();
+                handleCellPointerDown(cell.x, cell.y);
+              } : undefined}
+              onPointerLeave={selected ? () => setPlaceHover(null) : undefined}
             >
               {Array.from({ length: GRID_EDITOR_ROWS * GRID_EDITOR_COLS }).map((_, idx) => {
                 const x = idx % GRID_EDITOR_COLS;
@@ -665,6 +721,15 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                     data-moving={isMoving ? 'true' : 'false'}
                     data-controls-visible={controlsVisible ? 'true' : 'false'}
                     onPointerDown={(e) => {
+                      // grid-editor-placement-polish 2026-05-30 — when
+                      // a widget type is armed for placement, ignore
+                      // pointer-down on placed widgets and let the
+                      // event bubble to the container's placement
+                      // handler. Result: click-to-place always wins
+                      // (blocked clicks still no-op on overlap; they
+                      // just don't accidentally start a move-drag of
+                      // whatever widget is under the cursor).
+                      if (selected) return;
                       // Slice 224 — stop the pointer-down from
                       // bubbling to the cell underneath so click-to-
                       // select doesn't double as a placement anchor.
@@ -764,6 +829,16 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
             )}
           </div>
           <div style={footerActionsStyle}>
+            <button
+              type="button"
+              onClick={handleAutoFormat}
+              style={autoFormatButtonStyle}
+              data-testid="grid-editor-auto-format"
+              disabled={placedCount === 0}
+              title="Pack widgets snug against the top-left, preserving order"
+            >
+              ✨ Auto-format
+            </button>
             <button type="button" onClick={handleCancel} style={cancelButtonStyle}>
               Cancel
             </button>
@@ -864,6 +939,39 @@ export function generatePlacementId(): string {
  *  validation. */
 export function cellsUsed(widgets: Array<{ w: number; h: number }>): number {
   return widgets.reduce((s, w) => s + Math.max(1, w.w) * Math.max(1, w.h), 0);
+}
+
+/** grid-editor-auto-format 2026-05-30 — sort widgets by reading
+ *  order (y, then x) and pack them snug against (0, 0). Preserves
+ *  the surveyor's intent (top-left widgets stay near the top-left)
+ *  while removing all gaps. Pure / exported for tests. */
+export function sortAndCompactDraft(
+  widgets: ReadonlyArray<WidgetInstance>,
+  cols: number = GRID_EDITOR_COLS,
+): WidgetInstance[] {
+  const sorted = [...widgets].sort((a, b) =>
+    a.y !== b.y ? a.y - b.y :
+    a.x !== b.x ? a.x - b.x :
+    0,
+  );
+  return compactLayout(sorted, cols);
+}
+
+/** True when two layouts have the same widgets in the same positions /
+ *  sizes (id-keyed comparison; ignores ordering). Used to short-circuit
+ *  the auto-format state update when nothing would change. */
+export function layoutsMatch(
+  a: ReadonlyArray<WidgetInstance>,
+  b: ReadonlyArray<WidgetInstance>,
+): boolean {
+  if (a.length !== b.length) return false;
+  const byId = new Map(b.map((w) => [w.id, w]));
+  for (const aw of a) {
+    const bw = byId.get(aw.id);
+    if (!bw) return false;
+    if (aw.x !== bw.x || aw.y !== bw.y || aw.w !== bw.w || aw.h !== bw.h) return false;
+  }
+  return true;
 }
 
 /** Slice 225 — compute the grid cell the pointer is currently over,
@@ -1280,6 +1388,17 @@ const cancelButtonStyle: React.CSSProperties = {
   border: '1px solid var(--theme-border, #e5e7eb)',
   background: 'transparent',
   color: 'inherit',
+  fontSize: '0.9rem',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const autoFormatButtonStyle: React.CSSProperties = {
+  padding: '8px 14px',
+  borderRadius: 8,
+  border: '1px solid var(--theme-accent, #3b82f6)',
+  background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 10%, transparent)',
+  color: 'var(--theme-accent, #3b82f6)',
   fontSize: '0.9rem',
   fontWeight: 600,
   cursor: 'pointer',
