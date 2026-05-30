@@ -15,6 +15,8 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { ptoHoursForRequest } from '@/lib/schedule/pto-hours';
+import { notify } from '@/lib/notifications';
+import { buildTimeOffDecisionNotification } from '@/lib/notifications/time-off-decision';
 
 const SELECT_COLS =
   'id, title, event_type, start_time, end_time, all_day, location, notes, assigned_to, assigned_by, color, created_at, status';
@@ -107,6 +109,22 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+
+  // hub-widget-excellence-03 Slice 2b — tell the requester their
+  // time-off was approved/denied. Best-effort: never fail the decision
+  // on a notification error.
+  try {
+    const notice = buildTimeOffDecisionNotification(
+      {
+        assigned_to: data.assigned_to as string | null,
+        title: data.title as string | null,
+        start_time: data.start_time as string | null,
+        end_time: data.end_time as string | null,
+      },
+      body.status === 'approved',
+    );
+    if (notice) await notify(notice);
+  } catch { /* ignore notification failures */ }
 
   // PTO deduction — approved requests draw down the employee's balance
   // (Slice 30). Only credit a transaction once per event; if the employee's

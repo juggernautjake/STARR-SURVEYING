@@ -124,7 +124,17 @@ its dedup.
   + reject copy/icon, per-user grouping + hour-summing + date/"N
   entries" labeling + has/have grammar, skip-no-email + missing-hours,
   empty input). typecheck + lint clean.
-- 2b — Time-off approved/denied — pending.
+- **2b — Time-off approved/denied ✅ shipped 2026-05-30.** `time-off`
+  PATCH now notifies the requester (`assigned_to`) after the decision.
+  Pure builder `lib/notifications/time-off-decision.ts` →
+  `buildTimeOffDecisionNotification(request, approved)` returns the
+  payload (approve ✅ / deny 🚫 copy, timezone-stable ISO date-range
+  body that collapses a single day, link `/admin/time-off`,
+  `source_type: 'time_off_decision'`) or null when there's no
+  requester. Fired best-effort before the PTO-balance deduction. 5
+  specs (approve/deny copy, multi-day range, single-day collapse, no
+  range when start missing, null when no requester). typecheck + lint
+  clean.
 - 2c — Receipt approved/rejected — pending.
 - 2d — Job stage change — pending.
 - 2e — Task assignment created — pending.
