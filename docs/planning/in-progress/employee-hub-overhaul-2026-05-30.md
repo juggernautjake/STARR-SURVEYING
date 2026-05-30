@@ -250,7 +250,7 @@ WidgetCustomization {
 
 ### Phase HB1 — Work Mode button restyle
 
-#### Slice 1 — White text + solid white border + spinning red·white·blue hover border
+#### Slice 1 — White text + solid white border + spinning red·white·blue hover border ✅ shipped 2026-05-30
 - **Scope:** In `AdminMe.css`, set the rest-state border to solid
   white. Add a hover-only animated conic-gradient border that spins
   red → white → blue around the perimeter (e.g. a wrapper/pseudo layer
@@ -266,6 +266,22 @@ WidgetCustomization {
   colors, reduced-motion guard).
 - **Done when:** Rest = white text + solid white border; hover =
   spinning tri-color border; reduced-motion = static. Spec green.
+- **Outcome:** Pure-CSS, no markup change. Rest state now uses
+  `border: 2px solid #FFFFFF` (replacing `border-color: transparent`)
+  with white text retained. Added an `@property --wm-angle` +
+  `@keyframes wm-spin` (drives the angle 0→360deg) and a masked
+  `::before` (`mask-composite: exclude`, `inset: -3px`, `padding: 3px`)
+  painting a `conic-gradient(from var(--wm-angle), #E11D2A, #FFFFFF,
+  #2447D6, #FFFFFF, #E11D2A)` rim that's `opacity: 0` at rest and
+  fades + spins (`2.4s linear infinite`) only on `:hover`. The masking
+  approach shows only the 3px rim so the green face + label are
+  untouched (sidesteps z-index pitfalls). The hover rule keeps
+  `border-color: #FFFFFF` so the white border persists under the ring.
+  A `@media (prefers-reduced-motion: reduce)` block sets
+  `animation: none` on hover so the ring still reveals but doesn't
+  spin. Browsers without `@property` get a static tri-color ring (same
+  as reduced-motion). 10 source-regex specs green; typecheck + lint
+  clean.
 
 ### Phase HB2 — Consolidate to the single modal editor
 
