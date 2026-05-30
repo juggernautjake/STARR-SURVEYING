@@ -58,8 +58,27 @@ master. Routes + the shared `WidgetGoToLink` / `widget-links` /
   (doc-04 Slice 2a). 19 specs (registry, caps, the new field-priority
   progression + importance-ordering, due/created/stage/name/**due**
   sort, labels incl. due/address/quote, formatDue + formatQuote). Full
-  hub suite (1537) green; typecheck + lint clean. (R2 links / R3 format
-  / R4 editor+stage-color reconciliation still to come.)
+  hub suite (1537) green; typecheck + lint clean.
+- **Rounds 2–4 ✅ shipped 2026-05-30** (the Build/Wire already satisfied
+  them; locked with `my-jobs-audit.test.ts`, 6 source-regex specs).
+  - **R2 links — verified:** rows are `<Link href={jobHref(job.id)}>` →
+    `/admin/jobs/{id}`; the tiny count + the registry footer go to
+    `/admin/jobs`. No dead links.
+  - **R3 size/format — verified:** the row reads visible columns from
+    `visibleColumnsForBucket` → `pickFields(ordered, bucket,
+    COLUMN_CAPS)`, and the due-chip (red when overdue) + whole-dollar
+    quote formatters are wired in. The tiny→xlarge column progression
+    is nested (locked by the Build/Wire specs).
+  - **R4 editor + site polish — verified:** the editor maps a checkbox
+    over `ALL_JOB_COLUMNS` (so due/address/quote are toggleable) and
+    keeps filter / stage / sort / rowLimit / stage-colors. **Stage
+    reconciliation:** there's no shared stage palette in the repo — the
+    widget's `STAGE_LABELS` cover the canonical `STAGE_ORDER` from
+    `app/api/admin/jobs/stages/route.ts` (quote, research, fieldwork,
+    drawing, legal, delivery, completed) plus cancelled/on_hold, and
+    colors are theme-token tints. A future shared `lib` stage palette
+    could DRY the widget + the jobs page, but names already agree — not
+    blocking. **my-jobs is done.**
 
 ---
 
