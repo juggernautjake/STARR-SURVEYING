@@ -84,16 +84,33 @@ must cover BOTH jobs (Slice 1) AND CAD drawings (Slice 2 below).*
 - Reuses `lib/jobs/soft-delete.ts` (jobs + drawings share the 30-day
   math). 3534 jobs + hub + cad specs green; typecheck + lint clean.
 
-### Slice 3 — Purge cron (both entities) + recovery-view polish (optional)
+### Slice 3 — Purge cron (both entities) ✅ shipped 2026-05-30
 
-- New `/api/cron/purge-deleted` at a daily schedule: hard-delete
-  jobs AND cad_drawings where `deleted_at < purgeCutoffIso(now)`.
-  Best-effort per row; returns counts. Register in `vercel.json`.
-  Audit `ON DELETE CASCADE` FKs before enabling the hard delete.
-- Optional: replace the `window.confirm` warning with the project's
-  `ModalFrame` confirm + an undo toast ("Moved to trash · Undo").
-  Defer unless the user wants the polish — the confirm + trash
-  toggle already deliver the core ask.
+- New `app/api/cron/purge-deleted/route.ts` at `0 9 * * *` (daily,
+  registered in `vercel.json`). Hard-deletes `jobs` + `cad_drawings`
+  rows where `deleted_at < purgeCutoffIso(now)` (the shared 30-day
+  cutoff helper). Returns `{ cutoff, purged: { jobs, drawings },
+  errors }`. Bearer-`CRON_SECRET` auth like the other 8 crons.
+- **FK audit done before enabling the hard delete**: every table
+  referencing `jobs(id)` (job_team, job_tags, job_contacts,
+  job_files, field data points / receipts / equipment events /
+  reservations, cad_drawings.job_id) + `cad_drawings(id)`
+  (drawing_notes) is `ON DELETE CASCADE` or `ON DELETE SET NULL`, so
+  the hard delete cascades cleanly — no blocking child rows. The
+  delete is still best-effort (a failure leaves the row in the trash,
+  which is safe) and surfaces any error in the response.
+- No route-level spec: matching the repo's existing 8 crons (none
+  have route tests — they rely on their pure helpers). The cutoff
+  math (`purgeCutoffIso`) is already locked by the Slice-1
+  soft-delete spec. typecheck + lint clean; `vercel.json` validated.
+
+**Recovery-view polish (ModalFrame confirm + undo toast) — DEFERRED.**
+The `window.confirm` warning + the "🗑 Deleted" trash toggles on both
+the jobs page and the CAD File Manager already deliver the core ask
+(warn before delete, recover within 30 days). A prettier modal + undo
+toast is cosmetic; implementation cost exceeds the marginal value, so
+it's intentionally left for a future polish pass rather than blocking
+this plan's completion.
 
 ## Out of scope / placeholder
 
