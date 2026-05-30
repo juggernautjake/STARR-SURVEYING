@@ -38,6 +38,34 @@ export const resolveShowBar     = (c: RoadmapProgressContent): boolean => resolv
 
 interface Roadmap { id: string; name: string; percent_complete: number; current_module?: string | null; }
 
+// hub-widget-excellence-13 R1 — the roadmap GET returns
+// `{ modules, milestones, overall_progress: { percentage } }`, NOT a
+// `{ roadmap: {…} }` object — so the widget always read undefined +
+// showed empty. We derive the rollup the widget renders.
+interface RoadmapApiModule { title?: string | null; percentage?: number | null }
+interface RoadmapApiResponse {
+  modules?: RoadmapApiModule[];
+  overall_progress?: { percentage?: number | null };
+}
+
+/** Build the single-roadmap rollup from the API's module list +
+ *  overall progress. The "current module" is the first one that isn't
+ *  100% complete. Returns null when there are no modules. Pure +
+ *  exported. */
+export function toRoadmap(data: RoadmapApiResponse): Roadmap | null {
+  const modules = data.modules ?? [];
+  if (modules.length === 0) return null;
+  const pct = data.overall_progress?.percentage;
+  const percent = typeof pct === 'number' && Number.isFinite(pct) ? Math.max(0, Math.min(100, Math.round(pct))) : 0;
+  const current = modules.find((m) => (m.percentage ?? 0) < 100);
+  return {
+    id: 'overall',
+    name: 'Learning Roadmap',
+    percent_complete: percent,
+    current_module: current?.title ?? null,
+  };
+}
+
 function RoadmapProgressWidget({ size, content }: WidgetProps<RoadmapProgressContent>) {
   const bucket = sizeBucket(size.w, size.h);
   const showName    = resolveShowName(content);
@@ -51,9 +79,10 @@ function RoadmapProgressWidget({ size, content }: WidgetProps<RoadmapProgressCon
     try {
       const res = await fetch('/api/admin/learn/roadmap');
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { roadmap?: Roadmap } = await res.json();
-      if (!data.roadmap) { setStatus('empty'); return; }
-      setRoadmap(data.roadmap);
+      const data: RoadmapApiResponse = await res.json();
+      const roadmap = toRoadmap(data);
+      if (!roadmap) { setStatus('empty'); return; }
+      setRoadmap(roadmap);
       setStatus('ok');
     } catch { setStatus('empty'); }
   }, []);

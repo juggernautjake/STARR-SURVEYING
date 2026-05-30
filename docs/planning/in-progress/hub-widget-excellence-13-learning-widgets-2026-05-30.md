@@ -76,6 +76,18 @@ the academic widgets all work too." Each: Build/Wire + 4 audit rounds.*
 - **Footer link:** "Go to roadmap →" `/admin/learn/roadmap`.
 - **Editor:** showName, showCurrent, showBar.
 - **Slices:** Build/Wire (footer link) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  roadmap GET returns `{ modules, milestones, overall_progress: {
+  percentage } }`, NOT the `{ roadmap: {…} }` the widget read** — so it
+  always showed empty. **Realigned** via a new pure exported
+  `toRoadmap(data)` that derives the rollup: overall percent
+  (clamped/rounded), name "Learning Roadmap", and `current_module` =
+  the first module whose `percentage < 100` (null when all complete);
+  returns null when there are no modules. The render
+  (percent/name/"Now on:"/bar) + showName/showCurrent/showBar editor
+  were already fine. Footer "Go to the roadmap →" is global. 5 specs.
+  Full hub suite (1614) green; typecheck + lint clean.
+  **roadmap-progress is done.**
 
 ## flashcards-due
 - **Endpoint:** `/api/admin/learn/flashcards?due=true&summary=1`.
