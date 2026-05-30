@@ -79,19 +79,27 @@ widget-links registry.
   link resolves, no placeholder string). Full hub + notifications
   suites (1751) green; typecheck + lint clean.
 
-### Slice 2 — Payout received notify
+### Slice 2 — Payout received notify ✅ shipped 2026-05-30
 
-- `/api/admin/payouts` POST inserts a `payouts` row → fire a
-  `notifyPayout` (new pure builder in `lib/notifications/payout.ts`)
-  with title "Payout posted — \$X.XX", body with method + paid-at,
-  link `/admin/my-pay`.
-- `/api/admin/payroll/runs` POST inserts a `pay_stubs` row per
-  employee → fire `notifyPayStub` (same payout builder, different
-  title: "Pay stub ready — period {start}–{end}"; link `/admin/my-pay`).
-- 4 specs (build payload + decline-when-zero + currency formatting +
-  the route-level test calling the helper).
-- Bell-widget-consistency test gains an entry for the new builder so
-  the link lock covers it.
+- New pure `lib/notifications/payout.ts` with two builders +
+  `formatUsdCents` / `formatUsd` / `payoutMethodLabel` helpers:
+  - `buildPayoutNotification({ user_email, amount_cents, method, paid_at })`
+    → title `💸 Payout posted — $X.YZ`, body `$X.YZ sent via {method} on {date}.`,
+    `type: 'payment'`, `source_type: 'payout'`, link `/admin/my-pay`.
+  - `buildPayStubNotification({ user_email, net_pay, pay_period_start,
+    pay_period_end })` → title `💵 Pay stub ready — $X.YZ`, body
+    `Your pay for {start} – {end} has been credited to your balance.`,
+    `type: 'payment'`, `source_type: 'pay_stub'`, link `/admin/my-pay`.
+  - Both return `null` on missing email / non-positive amount.
+- Wired into `app/api/admin/payouts/route.ts` POST (fires after the row
+  inserts + audit log) and `app/api/admin/payroll/runs/route.ts` PUT
+  (fires per credited stub inside the `status === 'completed'` branch,
+  next to where the balance transaction lands).
+- 11 builder specs added (formatters, label, both happy paths, null
+  guards) + 2 entries in `bell-widget-consistency.test.ts` so the
+  link-vs-widget-route lock now covers payouts + pay stubs.
+- Full hub (1684) + notifications (78) suites green; typecheck + lint
+  clean.
 
 ### Slice 3 — Role change cleanup
 

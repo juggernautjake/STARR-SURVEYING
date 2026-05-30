@@ -8,6 +8,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { notify } from '@/lib/notifications';
+import { buildPayoutNotification } from '@/lib/notifications/payout';
 
 export const runtime = 'nodejs';
 
@@ -164,6 +166,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     severity: 'info',
     metadata: { payout_id: data.id, user_email: userEmail, amount_cents: amountCents, method },
   });
+
+  // notifications-completeness-pass Slice 2 — the employee gets a bell
+  // notification so the payout shows up next to their other pay-related
+  // events (raises, hours decisions). Link to /admin/my-pay.
+  const notice = buildPayoutNotification({
+    user_email: userEmail,
+    amount_cents: amountCents,
+    method,
+    paid_at: data.paid_at,
+  });
+  if (notice) await notify(notice);
 
   return NextResponse.json({ id: data.id }, { status: 201 });
 }

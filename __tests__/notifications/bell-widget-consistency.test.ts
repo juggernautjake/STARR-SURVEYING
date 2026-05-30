@@ -16,6 +16,7 @@ import { buildAssignmentReminders } from '@/lib/notifications/assignment-reminde
 import { buildQuizResultNotification } from '@/lib/notifications/quiz-result';
 import { buildLessonCompleteNotification } from '@/lib/notifications/lesson-complete';
 import { buildPayRaiseNotification } from '@/lib/notifications/pay-raise';
+import { buildPayoutNotification, buildPayStubNotification } from '@/lib/notifications/payout';
 
 describe('notification links match the widget-links registry', () => {
   it('hours decision → hours-this-week widget route', () => {
@@ -61,6 +62,20 @@ describe('notification links match the widget-links registry', () => {
 
   it('pay raise → my-pay widget route', () => {
     const link = buildPayRaiseNotification({ user_email: 'a@x.com', new_rate: 30, previous_rate: 28 })!.link;
+    expect(link).toBe(WIDGET_LINKS['my-pay'].href);
+  });
+
+  it('payout posted → my-pay widget route', () => {
+    const link = buildPayoutNotification({
+      user_email: 'a@x.com', amount_cents: 1000, method: 'cash', paid_at: '2026-05-30',
+    })!.link;
+    expect(link).toBe(WIDGET_LINKS['my-pay'].href);
+  });
+
+  it('pay stub ready → my-pay widget route', () => {
+    const link = buildPayStubNotification({
+      user_email: 'a@x.com', net_pay: 1000, pay_period_start: '2026-05-16', pay_period_end: '2026-05-30',
+    })!.link;
     expect(link).toBe(WIDGET_LINKS['my-pay'].href);
   });
 
