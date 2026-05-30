@@ -103,6 +103,20 @@ notification/unread reconciliation in Foundation Doc 03.*
 - **Editor:** unreadOnly, itemLimit.
 - **Notifications:** new announcement → notify (Doc 03).
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found the
+  announcements GET returns `{ releases }`** — the org's visible
+  platform release notes (`version` / `release_type` / `notes_markdown`
+  / `published_at`), NOT `{ announcements }` with title/body/author. The
+  "announcements" in this app ARE the release notes. **Realigned:** read
+  `data.releases` + map via a new pure exported `toAnnouncement(r)`
+  (title `Feature · v4.8`, body = first stripped line of the notes via
+  `notesPreview`, time = published_at). The widget's unreadOnly filter +
+  itemLimit + render were already fine (unread isn't tracked on
+  releases, so unreadOnly shows nothing — graceful). Footer "Go to
+  announcements →" is global (no per-release detail page, so rows aren't
+  separately linked). 4 specs (toAnnouncement map + version fallback,
+  notesPreview). Full hub suite (1627) green; typecheck + lint clean.
+  **recent-announcements is done.**
 
 ## team-status
 - **Endpoint:** `/api/admin/team/status`. Fields: user_email,

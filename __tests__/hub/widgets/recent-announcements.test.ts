@@ -1,6 +1,35 @@
 import { describe, it, expect } from 'vitest';
 import { getWidget } from '@/lib/hub/widget-registry';
-import { capForBucket, filterAnnouncements } from '@/lib/hub/widgets/recent-announcements';
+import {
+  capForBucket,
+  filterAnnouncements,
+  toAnnouncement,
+  notesPreview,
+} from '@/lib/hub/widgets/recent-announcements';
+
+describe('recent-announcements — toAnnouncement (R1: real releases shape)', () => {
+  it('maps version/release_type/notes_markdown/published_at', () => {
+    expect(toAnnouncement({
+      id: 'r1', version: '4.8', release_type: 'feature',
+      notes_markdown: '# Big update\nNew hub widgets shipped.',
+      published_at: '2026-05-30T00:00:00Z',
+    })).toEqual({
+      id: 'r1', title: 'Feature · v4.8', body: 'Big update', author: null,
+      created_at: '2026-05-30T00:00:00Z', unread: undefined,
+    });
+  });
+
+  it('omits the type prefix + defaults the version', () => {
+    expect(toAnnouncement({ id: 'r2' }).title).toBe('v—');
+  });
+});
+
+describe('notesPreview', () => {
+  it('takes the first meaningful line, stripped of markdown', () => {
+    expect(notesPreview('## Heading\n\n**Bold** detail here')).toBe('Heading');
+    expect(notesPreview('')).toBe('');
+  });
+});
 
 describe('recent-announcements widget — registry', () => {
   it('registers in communication category as a universal widget', () => {

@@ -34,6 +34,46 @@ interface Announcement {
   unread?: boolean;
 }
 
+// hub-widget-excellence-14 R1 — the announcements GET returns
+// `{ releases }` (the org's visible platform release notes:
+// version/release_type/notes_markdown/published_at), NOT
+// `{ announcements }` with title/body/author. The "announcements" in
+// this app ARE the release notes; map them to the widget's shape.
+interface RawRelease {
+  id: string;
+  version?: string | null;
+  release_type?: string | null;
+  notes_markdown?: string | null;
+  published_at?: string | null;
+}
+
+/** First meaningful line of release notes, stripped of common markdown.
+ *  Pure + exported. */
+export function notesPreview(markdown: string | null | undefined): string {
+  if (!markdown) return '';
+  const firstLine = markdown
+    .split('\n')
+    .map((l) => l.replace(/^#+\s*/, '').replace(/[*_`>]/g, '').trim())
+    .find((l) => l.length > 0) ?? '';
+  return firstLine.length > 140 ? `${firstLine.slice(0, 139)}…` : firstLine;
+}
+
+/** Map a release-notes row to the widget's announcement shape. Pure +
+ *  exported. */
+export function toAnnouncement(r: RawRelease): Announcement {
+  const typeLabel = r.release_type
+    ? `${r.release_type.charAt(0).toUpperCase()}${r.release_type.slice(1)} · `
+    : '';
+  return {
+    id: r.id,
+    title: `${typeLabel}v${r.version ?? '—'}`,
+    body: notesPreview(r.notes_markdown),
+    author: null,
+    created_at: r.published_at ?? '',
+    unread: undefined,
+  };
+}
+
 const ENDPOINT = '/api/admin/announcements';
 
 function RecentAnnouncementsWidget({ size, content }: WidgetProps<RecentAnnouncementsContent>) {
@@ -48,8 +88,8 @@ function RecentAnnouncementsWidget({ size, content }: WidgetProps<RecentAnnounce
     try {
       const res = await fetch(`${ENDPOINT}?limit=${itemLimit}`);
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { announcements?: Announcement[] } = await res.json();
-      const list = filterAnnouncements(data.announcements ?? [], { unreadOnly });
+      const data: { releases?: RawRelease[] } = await res.json();
+      const list = filterAnnouncements((data.releases ?? []).map(toAnnouncement), { unreadOnly });
       setItems(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
