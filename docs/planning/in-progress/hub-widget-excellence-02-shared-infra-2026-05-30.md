@@ -28,7 +28,7 @@ re-implement those 41 times, build shared primitives first.
 
 ## Slices
 
-### Slice 1 — `WidgetGoToLink` shared footer link
+### Slice 1 — `WidgetGoToLink` shared footer link ✅ shipped 2026-05-30
 - **Scope:** New `lib/hub/widgets/_shared/WidgetGoToLink.tsx` — a
   consistently-styled "Go to {label} →" `next/link` for the
   `WidgetFrame` footer. Accepts `href`, `label`, optional `iconName`.
@@ -36,6 +36,16 @@ re-implement those 41 times, build shared primitives first.
 - **Files:** the component + `__tests__/hub/widget-go-to-link.test.tsx`.
 - **Done when:** renders an anchor to `href` with "Go to {label} →";
   spec locks the markup + a11y.
+- **Shipped:** `WidgetGoToLink({ href, label, icon })` renders a real
+  `next/link` anchor (keyboard-reachable, open-in-new-tab works) with
+  `aria-label="Go to {label}"`, the visible "Go to {label} →" text, an
+  optional decorative leading icon, and a `widget-go-to-link` class +
+  `data-widget-go-to` hook for styling/selection. Themed via
+  `--theme-accent` / `--hub-font-xs` tokens (no hard-coded brand
+  color). 5 SSR specs green: anchor → href, the Go-to text + arrow, the
+  aria-label, the class/data hook, and icon present-when-provided /
+  absent-otherwise. typecheck + lint clean. (`next/link` renders cleanly
+  under `renderToStaticMarkup`, so no mock needed.)
 
 ### Slice 2 — Widget→route link registry
 - **Scope:** New `lib/hub/widgets/_shared/widget-links.ts` — a pure
