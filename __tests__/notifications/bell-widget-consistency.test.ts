@@ -24,7 +24,7 @@ describe('notification links match the widget-links registry', () => {
       [{ user_email: 'a@x.com', log_date: '2026-05-30', hours: 8 }], true,
     )[0].link;
     expect(link).toBe(WIDGET_LINKS['hours-this-week'].href);
-    expect(link).toBe('/admin/my-hours');
+    expect(link).toBe('/admin/me?tab=hours');
   });
 
   it('time-off decision → pto-balance + pending-time-off widget route', () => {

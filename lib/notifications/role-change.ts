@@ -13,8 +13,8 @@
 //
 // The pay-raise event has its own builder in pay-raise.ts and stays
 // there. Pay-impacting events (role, credential_added with bonus,
-// bonus) deep-link to /admin/my-pay; profile-only events deep-link to
-// /admin/profile. Dependency-free → unit-tested in node.
+// bonus) deep-link to /admin/me?tab=pay; profile-only events deep-link
+// to /admin/me?tab=profile. Dependency-free → unit-tested in node.
 
 export type RoleChangeKind =
   | 'role'
@@ -56,11 +56,11 @@ export interface RoleChangeNotification {
   title: string;
   body: string;
   icon: string;
-  link: '/admin/my-pay' | '/admin/profile';
+  link: '/admin/me?tab=pay' | '/admin/me?tab=profile';
 }
 
-const PAY_LINK = '/admin/my-pay';
-const PROFILE_LINK = '/admin/profile';
+const PAY_LINK = '/admin/me?tab=pay';
+const PROFILE_LINK = '/admin/me?tab=profile';
 
 function money(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);

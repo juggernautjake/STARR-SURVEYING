@@ -75,7 +75,10 @@ describe('widget-links — catalog coverage', () => {
 describe('widget-links — every mapped target is a real-looking route', () => {
   it('href is an absolute /admin route and label is non-empty', () => {
     for (const [, target] of Object.entries(WIDGET_LINKS)) {
-      expect(target.href).toMatch(/^\/admin\/[a-z0-9/-]+$/);
+      // consolidation Slice 2 (2026-05-30) — widget footers can now
+      // route into the hub via a `?tab=…` query string after the
+      // legacy `/admin/my-*` pages were collapsed into `/admin/me`.
+      expect(target.href).toMatch(/^\/admin\/[a-z0-9/-]+(\?tab=[a-z]+)?$/);
       expect(target.label.trim().length).toBeGreaterThan(0);
     }
   });

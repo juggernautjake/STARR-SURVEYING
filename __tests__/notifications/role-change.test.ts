@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { buildRoleChangeNotification } from '@/lib/notifications/role-change';
 
 describe('buildRoleChangeNotification — role', () => {
-  it('promotes (positive pay impact) → /admin/my-pay with money in the body', () => {
+  it('promotes (positive pay impact) → /admin/me?tab=pay with money in the body', () => {
     const out = buildRoleChangeNotification({
       user_email: 'crew@x.com', kind: 'role',
       label: 'Crew Chief', previous_label: 'Crew Member',
@@ -22,7 +22,7 @@ describe('buildRoleChangeNotification — role', () => {
       type: 'profile_change',
       source_type: 'role',
       title: '🎉 Role updated: Crew Chief',
-      link: '/admin/my-pay',
+      link: '/admin/me?tab=pay',
     });
     expect(out!.body).toContain('promoted to Crew Chief');
     expect(out!.body).toContain('+$2.50/hr');
@@ -36,11 +36,11 @@ describe('buildRoleChangeNotification — role', () => {
     expect(out!.body).toContain('-$1.00/hr');
   });
 
-  it('zero pay impact → /admin/profile, no money in body', () => {
+  it('zero pay impact → /admin/me?tab=profile, no money in body', () => {
     const out = buildRoleChangeNotification({
       user_email: 'a@x.com', kind: 'role', label: 'Researcher', pay_impact_per_hour: 0,
     });
-    expect(out!.link).toBe('/admin/profile');
+    expect(out!.link).toBe('/admin/me?tab=profile');
     expect(out!.body).not.toContain('$');
   });
 
@@ -50,7 +50,7 @@ describe('buildRoleChangeNotification — role', () => {
 });
 
 describe('buildRoleChangeNotification — credential_added', () => {
-  it('bonus credential → /admin/my-pay with the bonus rate in body', () => {
+  it('bonus credential → /admin/me?tab=pay with the bonus rate in body', () => {
     const out = buildRoleChangeNotification({
       user_email: 'a@x.com', kind: 'credential_added',
       label: 'RPLS', amount: 5,
@@ -59,16 +59,16 @@ describe('buildRoleChangeNotification — credential_added', () => {
       type: 'profile_change',
       source_type: 'credential_added',
       title: '🏅 Credential earned: RPLS',
-      link: '/admin/my-pay',
+      link: '/admin/me?tab=pay',
     });
     expect(out!.body).toContain('+$5.00/hr');
   });
 
-  it('zero-bonus credential → /admin/profile, no rate in body', () => {
+  it('zero-bonus credential → /admin/me?tab=profile, no rate in body', () => {
     const out = buildRoleChangeNotification({
       user_email: 'a@x.com', kind: 'credential_added', label: 'CPR', amount: 0,
     });
-    expect(out!.link).toBe('/admin/profile');
+    expect(out!.link).toBe('/admin/me?tab=profile');
     expect(out!.body).not.toContain('+$');
   });
 });
@@ -81,20 +81,20 @@ describe('buildRoleChangeNotification — credential_removed', () => {
     expect(out).toMatchObject({
       source_type: 'credential_removed',
       title: 'Credential removed: CPR',
-      link: '/admin/profile',
+      link: '/admin/me?tab=profile',
     });
   });
 });
 
 describe('buildRoleChangeNotification — bonus', () => {
-  it('composes a money-formatted title + reason in body → /admin/my-pay', () => {
+  it('composes a money-formatted title + reason in body → /admin/me?tab=pay', () => {
     const out = buildRoleChangeNotification({
       user_email: 'a@x.com', kind: 'bonus', amount: 150, reason: 'Great job on the boundary stake',
     });
     expect(out).toMatchObject({
       source_type: 'bonus',
       title: '🎁 Bonus awarded — $150.00',
-      link: '/admin/my-pay',
+      link: '/admin/me?tab=pay',
     });
     expect(out!.body).toContain('Great job on the boundary stake');
   });
@@ -113,7 +113,7 @@ describe('buildRoleChangeNotification — credits', () => {
     expect(out).toMatchObject({
       source_type: 'learning_credits',
       title: '📚 12 learning credits awarded',
-      link: '/admin/profile',
+      link: '/admin/me?tab=profile',
     });
   });
 });
@@ -126,7 +126,7 @@ describe('buildRoleChangeNotification — note', () => {
     expect(out).toMatchObject({
       source_type: 'admin_note',
       title: '📋 Admin note',
-      link: '/admin/profile',
+      link: '/admin/me?tab=profile',
     });
     expect(out!.body).toBe("Don't forget the safety vest at the next job.");
   });

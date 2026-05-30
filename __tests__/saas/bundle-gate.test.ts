@@ -72,7 +72,9 @@ describe('bundleForRoute — per-route overrides', () => {
     expect(bundleForRoute('/admin/support')).toBeNull();
     expect(bundleForRoute('/admin/users')).toBeNull();
     expect(bundleForRoute('/admin/settings')).toBeNull();
-    expect(bundleForRoute('/admin/profile')).toBeNull();
+    // /admin/profile entry removed in consolidation Slice 2 (2026-05-30);
+    // the canonical destination is /admin/me, which is also bundle-null.
+    expect(bundleForRoute('/admin/me')).toBeNull();
   });
 });
 

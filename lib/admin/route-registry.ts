@@ -103,13 +103,18 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/dashboard',       label: 'Dashboard',       workspace: 'hub', iconName: 'LayoutDashboard', description: 'Overview metrics + activity.', keywords: ['overview', 'home', 'stats'] },
   { href: '/admin/assignments',     label: 'Assignments',     workspace: 'hub', iconName: 'ClipboardList',  description: 'Your assigned jobs + tasks.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['todo', 'tasks'] },
   { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'] },
-  { href: '/admin/my-jobs',         label: 'My Jobs',         workspace: 'hub', iconName: 'FolderOpen',     description: 'Jobs assigned to you.', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
-  { href: '/admin/my-hours',        label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Your clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet'] },
+  // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-*` +
+  // `/admin/profile` page files were deleted; these entries now point
+  // at the canonical hub tabs so the nav surface keeps showing the
+  // shortcuts. The middleware LEGACY_REDIRECTS table catches external
+  // bookmarks at the old URLs.
+  { href: '/admin/me?tab=jobs',     label: 'My Jobs',         workspace: 'hub', iconName: 'FolderOpen',     description: 'Jobs assigned to you.', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
+  { href: '/admin/me?tab=hours',    label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Your clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet'] },
   { href: '/admin/time-off',        label: 'Time Off',        workspace: 'hub', iconName: 'Palmtree',       description: 'Request time off + view your PTO balance. Managers see the approval queue here too.', internalOnly: true, keywords: ['pto', 'vacation', 'holiday', 'leave'] },
-  { href: '/admin/my-pay',          label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
-  { href: '/admin/my-notes',        label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
+  { href: '/admin/me?tab=pay',      label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
+  { href: '/admin/me?tab=notes',    label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
   { href: '/admin/my-files',        label: 'My Files',        workspace: 'hub', iconName: 'Folder',         description: 'Your file uploads.' },
-  { href: '/admin/profile',         label: 'My Profile',      workspace: 'hub', iconName: 'User',           description: 'Account, preferences, persona override.' },
+  { href: '/admin/me?tab=profile',  label: 'My Profile',      workspace: 'hub', iconName: 'User',           description: 'Account, preferences, persona override.' },
   { href: '/admin/learn/fieldbook', label: 'My Fieldbook',    workspace: 'hub', iconName: 'BookMarked',     description: 'Field notes + research bookmarks.', keywords: ['notes', 'research'] },
 
   // Work workspace ────────────────────────────────────────────────

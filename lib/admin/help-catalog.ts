@@ -42,7 +42,7 @@ export const HELP_CATALOG: HelpCatalog = {
     ],
     resources: [
       { label: 'Pay progression', href: '/admin/pay-progression' },
-      { label: 'My profile', href: '/admin/profile' },
+      { label: 'My profile', href: '/admin/me?tab=profile' },
     ],
   },
   '/admin/work': {
@@ -124,7 +124,7 @@ export const HELP_CATALOG: HelpCatalog = {
       'The PTO balance card pulls from pto_balances; the auto-deduction on time-off approval keeps it honest.',
     ],
     resources: [
-      { label: 'My finances', href: '/admin/my-pay' },
+      { label: 'My finances', href: '/admin/me?tab=pay' },
       { label: 'My schedule', href: '/admin/schedule' },
     ],
   },

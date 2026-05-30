@@ -34,7 +34,7 @@ describe('recent-activity — capForBucket', () => {
 
 describe('recent-activity — trimHref', () => {
   it('strips the /admin/ prefix', () => {
-    expect(trimHref('/admin/my-jobs')).toBe('my-jobs');
+    expect(trimHref('/admin/contacts')).toBe('contacts');
     expect(trimHref('/admin/dashboard')).toBe('dashboard');
   });
   it('passes through non-admin hrefs unchanged', () => {

@@ -93,26 +93,48 @@ fewer files to grep through.
 - No code changes in this slice; the rest of the plan is grounded
   in this single source of truth.
 
-### Slice 2 — Delete the five `my-*` legacy redirect pages
+### Slice 2 — Delete the five `my-*` legacy redirect pages ✅ shipped 2026-05-30
 
-- Remove the page files: `/admin/my-jobs`, `/admin/my-hours`,
-  `/admin/my-pay`, `/admin/my-notes`, `/admin/profile`. Each one
-  currently does a single `redirect()` call → middleware-level 301s
-  do the same job for one fewer round trip + fewer files in the
-  repo.
-- Add `next.config.js` (or middleware) redirect rules so
-  `/admin/my-jobs` → `/admin/me?tab=jobs`, etc. Locked by a spec
-  that imports the redirect table + asserts the right hub anchor.
-- Update `lib/admin/route-registry.ts` so the deleted routes are
-  removed from the catalog (they currently appear in the nav rail
-  with `internalOnly: true`).
-- Update the sidebar + the `AdminLayoutClient` page-title map to
-  drop the stale paths.
-- Audit grep for inbound links to the deleted paths in
-  `app/admin/**` + `lib/**` and rewrite each to the canonical
-  `/admin/me?tab=…` URL.
-- 1 spec on the redirect table + the existing notify-link audit
-  catches stale `link: '/admin/my-…'` strings (if any).
+- New `lib/admin/legacy-redirects.ts` exports `LEGACY_REDIRECTS` (the
+  5 source → target map). Lives outside `middleware.ts` so the spec
+  can import the constant without dragging in next-auth's
+  `next/server` dependency.
+- `middleware.ts` imports the constant + applies the redirects at
+  the top of the handler (BEFORE the auth check) so logged-out
+  users hitting an old bookmark land on the right canonical URL
+  before getting bounced to login. The 3 dead `ROUTE_ROLES` entries
+  for `/admin/my-jobs` / `/admin/my-hours` / `/admin/my-pay` are
+  removed (unreachable after redirect).
+- The 5 `page.tsx` files are deleted (the `*Panel.tsx` siblings stay
+  — the Hub imports them).
+- Every inbound reference rewritten to `/admin/me?tab=…`:
+  - Sidebar (4 hrefs), route-registry (5 hrefs),
+    AdminLayoutClient page-title map (5 entries removed),
+    CommandPalette clock-in entry, Fieldbook my-notes link,
+    payroll page + per-employee redirect, dashboard navigation
+    links (2), help-catalog (my profile + my finances).
+  - Widget-links registry: `my-pay`, `hours-this-week` repoint to
+    the new canonical URLs.
+  - Notify builders: `lib/notifications.ts` (5 literals across
+    raise/bonus/payment/promotion/hours), `lib/notifications/
+    payout.ts` (the PAY_LINK constant), `lib/notifications/role-
+    change.ts` (TYPE + PAY_LINK + PROFILE_LINK constants),
+    `lib/notifications/pay-raise.ts`, `lib/notifications/
+    hours-decision.ts`.
+  - API routes: `/api/admin/notifications/route.ts` (2 hours
+    reminders), `/api/admin/payroll/payout-log/route.ts`.
+  - `lib/saas/bundle-gate.ts`: `/admin/profile` entry removed
+    (now reached via the bundle-null `/admin/me` entry).
+  - Test assertions updated across pay-raise, payout, hours-decision,
+    role-change, bell-widget-consistency, bundle-gate, and the
+    recent-activity helper test.
+- New `__tests__/middleware/legacy-redirects.test.ts` ships 3 specs
+  locking the exact 5-entry shape, the `/admin/me?tab=…` invariant,
+  and the source-path → canonical-anchor mapping.
+- The widget-links shape test loosened by one regex to allow
+  optional `?tab=…` query strings (the legitimate new shape).
+- 2030 middleware + notifications + hub + admin + saas + contacts
+  + jobs specs green; typecheck + lint clean.
 
 ### Slice 3 — Approvals widget (cluster 1 → 1)
 

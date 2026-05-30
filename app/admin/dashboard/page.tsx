@@ -296,7 +296,7 @@ export default function AdminDashboardPage() {
 
         {/* My Jobs — visible to admin, developer, field_crew, researcher */}
         {(isAdminOrDev || roles.includes('field_crew') || roles.includes('researcher')) && isCompanyUser && (
-          <Link href={isAdminOrDev ? '/admin/jobs' : '/admin/my-jobs'} className="dashboard-card dashboard-card--jobs">
+          <Link href={isAdminOrDev ? '/admin/jobs' : '/admin/me?tab=jobs'} className="dashboard-card dashboard-card--jobs">
             <div className="dashboard-card__header">
               <span className="dashboard-card__icon">📋</span>
               <span className="dashboard-card__badge">Work</span>
@@ -340,7 +340,7 @@ export default function AdminDashboardPage() {
 
         {/* My Finances — visible to company users with work roles */}
         {(isAdminOrDev || roles.includes('field_crew')) && isCompanyUser && (
-          <Link href={isAdminOrDev ? '/admin/payroll' : '/admin/my-pay'} className="dashboard-card dashboard-card--finances">
+          <Link href={isAdminOrDev ? '/admin/payroll' : '/admin/me?tab=pay'} className="dashboard-card dashboard-card--finances">
             <div className="dashboard-card__header">
               <span className="dashboard-card__icon">💰</span>
               <span className="dashboard-card__badge">Finances</span>

@@ -64,19 +64,20 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/manage/question-builder': 'Question Builder',
   '/admin/learn/manage/media': 'Media Library',
   '/admin/learn/practice': 'Practice Session',
-  '/admin/profile': 'My Profile',
+  // /admin/profile + /admin/my-jobs page-titles removed in
+  // consolidation Slice 2 — the pages were deleted; middleware
+  // redirects the URLs to /admin/me?tab=… before they ever render.
   '/admin/jobs': 'All Jobs',
   '/admin/jobs/new': 'New Job',
   '/admin/jobs/import': 'Import Jobs',
-  '/admin/my-jobs': 'My Jobs',
   '/admin/employees': 'Employees',
   '/admin/users': 'Manage Users',
   '/admin/employees/manage': 'Manage Employee',
   '/admin/payroll': 'Payroll',
-  '/admin/my-pay': 'My Pay',
+  // /admin/my-pay + /admin/my-notes page-titles removed in
+  // consolidation Slice 2 (see note above).
   '/admin/payout-log': 'Payout History',
   '/admin/notes': 'Company Notes',
-  '/admin/my-notes': 'My Notes',
   '/admin/my-files': 'My Files',
   '/admin/leads': 'Leads',
   '/admin/settings': 'Settings',
@@ -92,7 +93,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/error-log': 'Error Log',
   '/admin/assignments': 'Assignments',
   '/admin/schedule': 'My Schedule',
-  '/admin/my-hours': 'My Hours',
+  // /admin/my-hours page-title removed in consolidation Slice 2.
   '/admin/hours-approval': 'Hours Approval',
   '/admin/time-off': 'Time Off',
   '/admin/discussions': 'Discussion Threads',

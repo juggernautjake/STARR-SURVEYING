@@ -110,8 +110,12 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
 
     { label: 'Work', items: [
       { href: '/admin/jobs', label: 'All Jobs', icon: '📋', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
-      { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
+      // consolidation Slice 2 (2026-05-30) — sidebar hrefs now point
+      // at the canonical hub URLs directly, bypassing the middleware
+      // redirect for one fewer round-trip on in-app clicks. External
+      // bookmarks still redirect via the LEGACY_REDIRECTS table.
+      { href: '/admin/me?tab=jobs', label: 'My Jobs', icon: '🗂️', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
+      { href: '/admin/me?tab=hours', label: 'My Hours', icon: '⏱️', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
       { href: '/admin/jobs/new', label: 'New Job', icon: '➕', roles: ['admin'], internalOnly: true },
       { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', roles: ['admin'], internalOnly: true },
       { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
@@ -158,7 +162,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
       { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
       { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/my-pay', label: 'My Pay', icon: '💵', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/me?tab=pay', label: 'My Pay', icon: '💵', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
       { href: '/admin/payout-log', label: 'Payout History', icon: '📒', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
     ]},
 
@@ -177,12 +181,12 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
 
     { label: 'Notes & Files', items: [
       { href: '/admin/notes', label: 'Company Notes', icon: '📝', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/my-notes', label: 'My Notes', icon: '📒' },
+      { href: '/admin/me?tab=notes', label: 'My Notes', icon: '📒' },
       { href: '/admin/my-files', label: 'My Files', icon: '📁' },
     ]},
 
     { label: 'Account', items: [
-      { href: '/admin/profile', label: 'My Profile', icon: '👤' },
+      { href: '/admin/me?tab=profile', label: 'My Profile', icon: '👤' },
       { href: '/admin/settings', label: 'Settings', icon: '⚙️', roles: ['admin'] },
       { href: '/admin/error-log', label: 'Error Log', icon: '🐛', roles: ['admin', 'developer', 'tech_support'] },
     ]},

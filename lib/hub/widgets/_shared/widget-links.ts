@@ -35,8 +35,11 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   'field-data-pending': { href: '/admin/field-data', label: 'field data' },
   'job-activity-feed': { href: '/admin/jobs', label: 'jobs' },
   // time-pay
-  'my-pay': { href: '/admin/my-pay', label: 'my pay' },
-  'hours-this-week': { href: '/admin/my-hours', label: 'my hours' },
+  // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-pay`
+  // + `/admin/my-hours` pages were deleted; widget footers now route
+  // straight to the canonical hub tabs.
+  'my-pay': { href: '/admin/me?tab=pay', label: 'my pay' },
+  'hours-this-week': { href: '/admin/me?tab=hours', label: 'my hours' },
   'pto-balance': { href: '/admin/time-off', label: 'time off' },
   // financial
   'monthly-revenue': { href: '/admin/finances', label: 'finances' },

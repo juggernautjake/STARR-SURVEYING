@@ -61,7 +61,7 @@ export default function PayrollPage() {
 
   useEffect(() => {
     if (!isAdmin) {
-      router.push('/admin/my-pay');
+      router.push('/admin/me?tab=pay');
       return;
     }
     loadEmployees();

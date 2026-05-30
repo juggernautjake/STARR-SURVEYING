@@ -141,7 +141,7 @@ const KIND_DEFAULTS: Record<
     title: 'Don’t forget to log your hours',
     body: 'Open Starr Field and clock in/out so payroll has accurate hours.',
     icon: '⏱',
-    link: '/admin/my-hours',
+    link: '/admin/me?tab=hours',
     escalation_level: 'high',
   },
   submit_week: {
@@ -150,7 +150,7 @@ const KIND_DEFAULTS: Record<
     title: 'Submit this week for approval',
     body: 'Your weekly timesheet is ready to submit. Open Starr Field to review.',
     icon: '✅',
-    link: '/admin/my-hours',
+    link: '/admin/me?tab=hours',
     escalation_level: 'normal',
   },
   admin_direct: {

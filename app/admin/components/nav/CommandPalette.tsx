@@ -33,7 +33,7 @@ const ACTIONS: AdminRoute[] = [
   { href: '/admin/jobs/new',       label: 'New job',           workspace: 'work',         iconName: 'FilePlus',      description: 'Create a new job.',                keywords: ['create', 'add', 'start'],            isAction: true, roles: ['admin'], internalOnly: true },
   { href: '/admin/receipts',       label: 'Approve receipts',  workspace: 'office',       iconName: 'CheckSquare',   description: 'Review pending expense receipts.', keywords: ['expenses', 'approval', 'queue'],     isAction: true, roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/cad',            label: 'Run AI Drawing Engine', workspace: 'research-cad', iconName: 'Sparkles',  description: 'Open the CAD editor + start the AI engine.', keywords: ['ai', 'engine', 'auto', 'draw'], isAction: true, roles: ['admin', 'developer', 'researcher', 'drawer', 'field_crew', 'tech_support'], internalOnly: true },
-  { href: '/admin/my-hours',       label: 'Clock in / out',    workspace: 'hub',          iconName: 'Clock',         description: 'Open your timesheet to clock in or out.', keywords: ['clock', 'time', 'shift'],   isAction: true, roles: ['admin', 'developer', 'field_crew', 'tech_support'], internalOnly: true },
+  { href: '/admin/me?tab=hours',   label: 'Clock in / out',    workspace: 'hub',          iconName: 'Clock',         description: 'Open your timesheet to clock in or out.', keywords: ['clock', 'time', 'shift'],   isAction: true, roles: ['admin', 'developer', 'field_crew', 'tech_support'], internalOnly: true },
 ];
 
 interface PaletteRow {

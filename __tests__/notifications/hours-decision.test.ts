@@ -20,7 +20,7 @@ describe('buildHoursDecisionNotifications', () => {
       user_email: 'a@x.com',
       type: 'approval',
       icon: '✅',
-      link: '/admin/my-hours',
+      link: '/admin/me?tab=hours',
       source_type: 'hours_decision',
     });
     expect(out[0].title).toContain('Approved');
