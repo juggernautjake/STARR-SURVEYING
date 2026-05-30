@@ -13648,6 +13648,59 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
                 >I</button>
               </div>
+              {/* Slice 234 — Opt-in label background highlight. Default
+                  off (style.backgroundColor === null); a checkbox toggles
+                  it on with a white fill, color swatch, and px padding.
+                  Composability hook so an area label can stay readable on
+                  top of a textured polygon (Slice 238). */}
+              <div className="pt-1.5 border-t border-gray-700/60 space-y-1.5" data-testid="label-editor-background-section">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-blue-500"
+                    data-testid="label-editor-background-toggle"
+                    checked={label.style.backgroundColor !== null}
+                    onChange={(e) => {
+                      const nextBg = e.target.checked ? (label.style.backgroundColor ?? '#ffffff') : null;
+                      drawingStore.updateTextLabel(featureId, labelId, {
+                        style: { ...label.style, backgroundColor: nextBg },
+                      });
+                    }}
+                  />
+                  <span className="text-gray-400 text-[10px]">Add background</span>
+                </label>
+                {label.style.backgroundColor !== null && (
+                  <div className="grid grid-cols-2 gap-1.5 pl-5">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-gray-500 text-[9px]">Color</span>
+                      <input
+                        type="color"
+                        className="w-6 h-5 bg-gray-700 rounded cursor-pointer border border-gray-600"
+                        data-testid="label-editor-background-color"
+                        value={label.style.backgroundColor ?? '#ffffff'}
+                        onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, {
+                          style: { ...label.style, backgroundColor: e.target.value },
+                        })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-gray-500 text-[9px]">Padding</span>
+                      <input
+                        type="number" min={0} max={20} step={1}
+                        className="w-10 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-[10px] outline-none border border-gray-600 focus:border-blue-500"
+                        data-testid="label-editor-background-padding"
+                        value={label.style.padding}
+                        onChange={(e) => {
+                          const v = Math.max(0, Math.min(20, parseInt(e.target.value) || 0));
+                          drawingStore.updateTextLabel(featureId, labelId, {
+                            style: { ...label.style, padding: v },
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
               {/* Reset controls — shown when any property has been manually overridden */}
               {(label.userPositioned || label.rotation !== null || label.scale !== 1) && (
                 <div className="pt-1.5 border-t border-gray-700/60 space-y-1">

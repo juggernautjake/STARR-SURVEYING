@@ -83,7 +83,7 @@ Six concrete asks:
 `cad-area-calculation-multi-unit-2026-05-29.md` which already shipped:
 this doc starts its CAD slice numbering at **Slice 232**.*
 
-#### Slice 232 — `TextLabel.style.background` field + AreaAnnotation backgroundColor render
+#### Slice 232 — `TextLabel.style.background` field + AreaAnnotation backgroundColor render ✅ shipped 2026-05-30
 - **Scope:** Extend `TextLabelStyle` (or the equivalent style
   attached to per-feature `textLabels`) with an optional
   `background?: { color: string; padding: number; borderColor?: string;
@@ -95,8 +95,15 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   `__tests__/cad/labels/label-background-types.test.ts` (new).
 - **Done when:** Type compiles + a new spec asserts the optional
   field is present + accepts the documented shape.
+- **Outcome:** `TextLabelStyle` already had `backgroundColor` /
+  `borderColor` / `padding`; added the missing `borderWidth: number |
+  null` slot. `DEFAULT_TEXT_LABEL_STYLE` seeds it `null` so existing
+  drawings stay bare. `AreaAnnotation` mirrors `TextAnnotation`'s
+  background shape (`backgroundColor` / `borderVisible` / `borderColor`
+  / `padding`); both factories seed off-by-default. 8 new specs green.
+  Render-path + editor-panel wiring picked up in Slices 233 + 234.
 
-#### Slice 233 — Render the background under every label that opts in
+#### Slice 233 — Render the background under every label that opts in ✅ shipped 2026-05-30
 - **Scope:** In each label render path (`renderLabels`,
   `renderAreaAnnotations`, `renderTextFeatures`,
   `renderLeaderAnnotations` if it exists), look up the label's
@@ -108,8 +115,17 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   regex).
 - **Done when:** A label with `background: { color: '#fff', padding: 2 }`
   renders a white rect under its text.
+- **Outcome:** New `labelBackgroundLayer` sits between featureLayer +
+  labelLayer; new `labelBackgrounds: Map<string, Graphics>` keyed by
+  `area:${id}` / `label:${featureId}:${labelId}`; new
+  `drawLabelBackgroundRect()` helper measures `getLocalBounds()` +
+  pads on every side. Both `renderAreaAnnotations` and `renderLabels`
+  get/create/clear a Graphics on opt-in and clean up on opt-out + GC.
+  16 new specs green; full CAD sweep at 1702. `renderTextFeatures`
+  (TEXT-feature path) + `renderLeaderAnnotations` (no such fn yet)
+  deferred — TextLabel + AreaAnnotation cover the immediate user asks.
 
-#### Slice 234 — Label editor panel: background toggle + color picker
+#### Slice 234 — Label editor panel: background toggle + color picker ✅ shipped 2026-05-30
 - **Scope:** Add a "Background" section to whichever editor opens
   when the surveyor double-clicks a label (likely
   `LabelEditModal` or the inline `setLabelEditState` editor). A
@@ -120,6 +136,15 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   `__tests__/cad/ui/label-editor-background.test.ts` (new).
 - **Done when:** Surveyor clicks a label, toggles the background on,
   picks a color, hits Save — the on-canvas label gets the rect.
+- **Outcome:** New "Add background" section inside the inline
+  `labelEditState` modal in `CanvasViewport.tsx`, between the B/I
+  buttons and the Reset controls. Checkbox toggles
+  `style.backgroundColor` between `null` (default) and `'#ffffff'`; a
+  `<input type="color">` swatch + clamped padding input (0–20 px) show
+  only when the toggle is on. Every edit commits through
+  `drawingStore.updateTextLabel`, the same path used elsewhere in the
+  editor, so the Slice-233 render branch picks it up live. 14 new
+  specs green; full CAD sweep at 1716.
 
 ### Phase 44 — Closed-shape texture / shading fills (Slices 235+)
 
