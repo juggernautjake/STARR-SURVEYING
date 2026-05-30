@@ -82,6 +82,41 @@ describe('WidgetFrame chrome', () => {
   });
 });
 
+describe('hub-widget-excellence-02 Slice 5 — goTo footer link', () => {
+  it('renders a WidgetGoToLink in the footer when goTo is set', () => {
+    const html = ReactDOMServer.renderToStaticMarkup(
+      <WidgetFrame title="My Jobs" goTo={{ href: '/admin/jobs', label: 'jobs' }}>
+        body
+      </WidgetFrame>,
+    );
+    expect(html).toContain('<footer');
+    expect(html).toMatch(/<a [^>]*href="\/admin\/jobs"/);
+    expect(html).toContain('Go to jobs');
+    expect(html).toContain('aria-label="Go to jobs"');
+  });
+
+  it('composes goTo with existing footer content (both render)', () => {
+    const html = ReactDOMServer.renderToStaticMarkup(
+      <WidgetFrame
+        title="My Jobs"
+        footer={<span>3 of 12 shown</span>}
+        goTo={{ href: '/admin/jobs', label: 'jobs' }}
+      >
+        body
+      </WidgetFrame>,
+    );
+    expect(html).toContain('3 of 12 shown');
+    expect(html).toContain('Go to jobs');
+  });
+
+  it('renders no footer when neither footer nor goTo is provided', () => {
+    const html = ReactDOMServer.renderToStaticMarkup(
+      <WidgetFrame title="X">body</WidgetFrame>,
+    );
+    expect(html).not.toContain('<footer');
+  });
+});
+
 describe('Slice 6 — WidgetFrame no longer exports resolveColors', () => {
   it('the legacy color helper is gone from the module surface', async () => {
     const mod = await import('@/lib/hub/components/WidgetFrame');
