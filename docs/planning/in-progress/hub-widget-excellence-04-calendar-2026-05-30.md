@@ -41,7 +41,7 @@ DOM.
 
 ## Slices
 
-### Slice 1 — Schedule API contract audit + `calendar-math` pure module
+### Slice 1 — Schedule API contract audit + `calendar-math` pure module ✅ shipped 2026-05-30
 - **Scope:** Re-read the schedule API route end-to-end; document the
   exact GET/POST/PATCH/DELETE contract + the recurrence expansion.
   New `lib/hub/calendar/calendar-math.ts`: pure helpers —
@@ -55,6 +55,36 @@ DOM.
   month-grid generation (incl. leading/trailing days), week days,
   per-day event bucketing, and the bucket→view mapping at fixed
   fixtures.
+
+#### Schedule API contract (audited 2026-05-30)
+`app/api/admin/schedule/route.ts` — all four verbs exist:
+- **GET `?from=&to=`** → `{ events }`. Rows whose `recurrence_rule` is
+  set are expanded via `lib/schedule/recurrence.expandRecurrence`; each
+  generated occurrence's id is `${seriesId}:${occurrenceDate}`.
+- **POST** `{ title, start_time, end_time, event_type, all_day,
+  location, notes, job_id, assigned_to, color, recurrence_rule,
+  recurrence_end, status }` → inserts (with a `findConflicts`
+  pre-check) and returns the row. `status` defaults `'approved'`,
+  `assigned_to` defaults the caller.
+- **PATCH** `{ id, ...fields }` → updates; `id` is `split(':')[0]` so
+  editing a recurrence instance edits the series row.
+- **DELETE** `{ id }` → removes.
+- **SELECT cols:** id, title, event_type, start_time, end_time,
+  all_day, location, notes, job_id, assigned_to, assigned_by, color,
+  created_at, recurrence_rule, recurrence_end, series_id, status.
+- **Shipped:** `calendar-math.ts` is fully UTC-based (deterministic +
+  timezone-stable). `monthGrid(year, month/*1-12*/, weekStartsOn=0)`
+  returns whole weeks padded with leading/trailing adjacent-month days
+  (each `CalendarDay` carries iso/year/month/day/weekday/`inMonth`);
+  `weekDays(iso)` the Sun–Sat week; `eventsForDay(events, dayIso)`
+  buckets by date-only overlap so multi-day events show on every
+  spanned day; `clampEventToDay` returns in-day start/end +
+  continues-before/after flags for chip rendering; `isSameDay` +
+  `datePart`; `bucketToView` maps tiny/small→agenda, medium→
+  agenda-wide, large/xlarge→grid. 13 specs at fixed May-2026 fixtures
+  (grid bounds + out-of-month flags + 31 unique in-month days, week
+  span, same-day/multi-day/no-start bucketing, clamp, view map).
+  typecheck + lint clean.
 
 ### Slice 2 — Size-aware view switch in `today-schedule`
 - **Scope:** Wire `bucketToView` so the widget renders agenda (small),
