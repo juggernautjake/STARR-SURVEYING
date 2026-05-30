@@ -34,6 +34,10 @@ import { HUB_EDITOR_ROWS, HUB_GRID_COLS } from '@/lib/hub/grid-model';
 // compacts on release.
 import { applyMoveWithPush, commitDrop } from '@/lib/hub/grid-reflow';
 import type { WidgetInstance } from '@/lib/hub/types';
+// Slice 11 — per-widget options surface (Size + Header color +
+// Title + the widget's own SettingsForm) opened from the ⚙ button on
+// the selected painted widget.
+import WidgetOptionsPanel from './WidgetOptionsPanel';
 
 export const GRID_EDITOR_COLS = HUB_GRID_COLS;
 export const GRID_EDITOR_ROWS = HUB_EDITOR_ROWS;
@@ -100,6 +104,10 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   // touching draftWidgets. The ref is set inside startMove + cleared
   // once the drag ends (commit OR cancel).
   const cancelMoveRef = useRef<(() => void) | null>(null);
+  // Slice 11 — id of the widget whose Options panel is currently
+  // open. Decoupled from selectedPlacedId so the surveyor can open
+  // options without losing the painted-widget selection highlight.
+  const [optionsForId, setOptionsForId] = useState<string | null>(null);
   const gridContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -596,6 +604,22 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                         >
                           ✕
                         </button>
+                        {/* Slice 11 — per-widget options trigger.
+                            Opens the WidgetOptionsPanel below. */}
+                        <button
+                          type="button"
+                          aria-label="Widget options"
+                          title="Options"
+                          data-testid="grid-editor-placed-options"
+                          onPointerDown={(e) => { e.stopPropagation(); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOptionsForId(inst.id);
+                          }}
+                          style={placedOptionsButtonStyle}
+                        >
+                          <span aria-hidden style={optionsGlyphStyle}>⚙</span>
+                        </button>
                         {/* Slice 225 — corner drag handle. */}
                         <button
                           type="button"
@@ -639,6 +663,15 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
           </div>
         </footer>
       </div>
+      {/* Slice 11 — per-widget options panel. Renders only when a
+          widget's ⚙ Options button has been clicked. Self-contained:
+          reads the live instance from the hub store + writes edits
+          through patchWidgetCustomization / setDraftWidgets. */}
+      <WidgetOptionsPanel
+        open={optionsForId !== null}
+        instanceId={optionsForId}
+        onClose={() => setOptionsForId(null)}
+      />
     </div>
   );
 }
@@ -1030,6 +1063,35 @@ const placedResizeHandleStyle: React.CSSProperties = {
 
 const resizeGlyphStyle: React.CSSProperties = {
   transform: 'rotate(90deg)',
+  display: 'inline-block',
+};
+
+/** Slice 11 — ⚙ options button. Top-right of the painted widget,
+ *  visually distinct from the resize handle so the surveyor reads
+ *  "config" instead of "drag to grow". */
+const placedOptionsButtonStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 4,
+  right: 32,
+  width: 24,
+  height: 24,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 6,
+  border: '1px solid var(--theme-border)',
+  background: 'var(--theme-bg-elevated)',
+  color: 'var(--theme-fg-primary)',
+  cursor: 'pointer',
+  fontSize: '0.85rem',
+  fontWeight: 600,
+  lineHeight: 1,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+  zIndex: 3,
+};
+
+const optionsGlyphStyle: React.CSSProperties = {
   display: 'inline-block',
 };
 

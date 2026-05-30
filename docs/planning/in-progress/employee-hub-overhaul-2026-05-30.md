@@ -649,7 +649,7 @@ WidgetCustomization {
 
 ### Phase HB5 — Per-widget options in the modal
 
-#### Slice 11 — Options button on each painted widget → per-widget editor surface
+#### Slice 11 — Options button on each painted widget → per-widget editor surface ✅ shipped 2026-05-30
 - **Scope:** Each widget in the modal gets an **Options** button
   opening a per-widget editor (popover or in-modal pane) showing:
   **Size** (w/h steppers clamped to the definition envelope),
@@ -662,6 +662,49 @@ WidgetCustomization {
 - **Done when:** Clicking Options on any widget shows Size + Header
   color + Title + (if defined) its content form; edits update the
   draft live. Spec locks the four sections + the commit path.
+- **Outcome:** New `lib/hub/components/WidgetOptionsPanel.tsx` (430
+  lines incl. styles) renders as a centered fixed-position card over
+  a click-out backdrop with four sections, each tagged for testing:
+  - **Size**
+    (`data-testid="widget-options-section-size"`): two `Stepper`
+    rows (`W` and `H`), `min`/`max` bound to
+    `definition.minSize/maxSize` so the surveyor can't push the widget
+    outside its declared envelope. `commitSize` clamps via a local
+    `clamp()` helper, no-ops when unchanged, then writes through
+    `setDraftWidgets` (size lives on the `WidgetInstance` itself, not
+    on `customization`).
+  - **Header color** (`…-header-color`): a `<input type="color">`
+    + a Reset button. Writes through `commitCustomization` with
+    `{ style: { headerColor: e.target.value } }` (or `undefined` on
+    Reset).
+  - **Title** (`…-title`): a `<input type="text">` whose placeholder
+    falls back to `definition.label`. Writes through
+    `commitCustomization` with `{ layout: { titleOverride } }`.
+  - **Widget options** (`…-content`): hosts the widget's own
+    `definition.SettingsForm` when defined (passes `value=formValue,
+    onChange={(next) => commitCustomization({ content: next })}`);
+    falls back to a friendly empty state for the ~13 widgets that
+    don't ship a form yet (Slice 12 grows those).
+  Edits route through `useHubActions().{setDraftWidgets,
+  patchWidgetCustomization}`; the helper `mergeCustomization(current,
+  patch)` shallow-merges layout/style/interaction one level deep so a
+  Header-color patch doesn't blow away an unrelated layout.density,
+  etc. The panel reads the live instance from `useHubStore` via
+  `useMemo`, so the parent unmounting it on close is the only cancel
+  path needed (no extra state plumbing). Backdrop closes on
+  pointer-down + Escape; the panel itself stops backdrop clicks via
+  `stopPropagation`. Wired into `GridEditor`: new `optionsForId`
+  useState; an ⚙ Options button in the selected-painted-widget chrome
+  (alongside the existing ✕ Remove and ⤡ Resize buttons) sets it;
+  `<WidgetOptionsPanel open={optionsForId !== null} …/>` renders at
+  the end of the modal root. `__tests__/hub/widget-options-panel.test.ts`
+  (25 cases) locks the four sections, the size clamp + setDraftWidgets
+  commit, the header-color + title commit shapes, the SettingsForm
+  host + empty-state fallback, the `formValue` defaultContent
+  fallback, the `mergeCustomization` shape, the backdrop a11y, the
+  panel-stops-propagation guard, and the GridEditor wiring (import,
+  state, button, mount). 1241 hub specs green; typecheck + lint
+  clean.
 
 #### Slice 12 — Per-widget options schema registry (cover all 40 types)
 - **Scope:** New `lib/hub/widget-options.ts`: a registry mapping each
