@@ -20,36 +20,17 @@ import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/work-mode/clock-sessi
 import type { UserRole } from '@/lib/auth';
 import RolePills from './RolePills';
 import WorkModePrompt from './WorkModePrompt';
+// hub-widget-excellence-01 Slice 5 — the pure greeting helpers moved to
+// greeting-helpers.ts (so importing them doesn't drag in this client
+// graph + next-auth). Re-exported here for back-compat with callers.
+import { partOfDay, firstName, formatElapsed } from './greeting-helpers';
+
+export { partOfDay, firstName, formatElapsed };
 
 interface ClockState {
   clockedIn: boolean;
   startedAt?: string;
   jobLabel?: string | null;
-}
-
-export function partOfDay(date: Date, customPrefix?: string): string {
-  if (customPrefix) return customPrefix;
-  const h = date.getHours();
-  if (h < 5) return 'Good night';
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-
-export function firstName(name?: string | null): string {
-  if (!name) return 'there';
-  const first = name.trim().split(/\s+/)[0];
-  return first || 'there';
-}
-
-export function formatElapsed(startedAtIso: string, nowMs = Date.now()): string {
-  const startedMs = new Date(startedAtIso).getTime();
-  if (!Number.isFinite(startedMs)) return '';
-  const elapsedSec = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
-  const h = Math.floor(elapsedSec / 3600);
-  const m = Math.floor((elapsedSec % 3600) / 60);
-  if (h === 0) return `${m} min`;
-  return `${h}h ${m.toString().padStart(2, '0')}m`;
 }
 
 function formatLongDate(date: Date): string {

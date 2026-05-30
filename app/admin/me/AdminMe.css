@@ -306,53 +306,11 @@
   color: var(--color-text-on-brand);
 }
 
-/* Slice 80 — persona dropdown styled to sit visually beside the action
- * buttons (uniform height, no double-border look). The inline label
- * stays as a small uppercase tag inside the dropdown for context. */
-.hub-greeting__persona {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: 2.1rem;          /* matches hub-btn (padding + line-height) */
-  padding: 0 0.85rem;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 0.82rem;
-  flex: 0 1 auto;
-}
-
-.hub-greeting__persona:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.7);
-}
-
-.hub-greeting__persona-label {
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.6);
-  white-space: nowrap;
-}
-
-.hub-greeting__persona-select {
-  background: transparent;
-  border: 0;
-  color: var(--color-text-on-brand);
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: var(--weight-medium);
-  outline: none;
-  cursor: pointer;
-  min-width: 0;
-  max-width: 12rem;
-  text-overflow: ellipsis;
-}
-
-.hub-greeting__persona-select option {
-  color: var(--color-text-primary);
-}
+/* hub-widget-excellence-01 Slice 5 — the Slice 80 persona dropdown
+ * (`.hub-greeting__persona*`) was removed: the greeting no longer hosts
+ * a persona selector at all (Slice 2 replaced the persona chip strip
+ * with read-only RolePills). The persona-override store still lives and
+ * drives the nav IconRail; it's just not surfaced from the greeting. */
 
 /* ── Panel 2: Today ──────────────────────────────────────────────── */
 
@@ -468,12 +426,6 @@
   .hub-greeting__actions .hub-greeting__nav-toggle {
     flex: 1 1 auto;
     justify-content: center;
-  }
-  .hub-greeting__persona {
-    width: 100%;
-  }
-  .hub-greeting__persona-select {
-    flex: 1 1 auto;
   }
 }
 

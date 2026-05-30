@@ -2,11 +2,16 @@
 //
 // Smoke spec for the Work Mode flow. Walks Phase 21–24's wiring:
 //
-//   sign in → /admin/me → "Enter Work Mode" link in the greeting →
-//   role picker (multi-role) OR fast-path (single-role) → field crew
-//   shell renders with the 10-tab strip → click a non-default tab →
-//   tab panel updates → click "Exit Work Mode" → confirm modal →
-//   "Exit only" → land back on /admin/me with the hub canvas mounted.
+//   sign in → /admin/me → "Enter Work Mode" button in the greeting →
+//   prompt dialog: pick a role → Continue → clock-in awareness step →
+//   "Stay clocked out" (or "Enter Work Mode" if already clocked in) →
+//   role workspace shell renders → click a non-default tab → tab panel
+//   updates → click "Exit Work Mode" → confirm modal → "Exit only" →
+//   land back on /admin/me with the hub canvas mounted.
+//
+// hub-widget-excellence-01 Slice 3/4 turned the old greeting link into
+// a button that opens a role + clock-in prompt before navigating, so
+// this spec drives the dialog instead of a full-page picker.
 //
 // AdminLayoutClient bypasses its sidebar/IconRail/topbar on
 // `/admin/work-mode/*` per Slice 190, so the spec also asserts the
@@ -28,27 +33,34 @@ test.describe('work-mode', () => {
     await loginAsAdmin(page, '/admin/me');
     await expect(page).toHaveURL(/\/admin\/me/);
 
-    // 1. The greeting carries an "Enter Work Mode" anchor.
-    const enterLink = page.getByRole('link', { name: 'Enter Work Mode' });
-    await expect(enterLink).toBeVisible({ timeout: 20_000 });
-    await enterLink.click();
+    // 1. The greeting carries an "Enter Work Mode" button (Slice 3
+    //    turned the old <a> into a prompt trigger).
+    const enterButton = page.getByRole('button', { name: 'Enter Work Mode' });
+    await expect(enterButton).toBeVisible({ timeout: 20_000 });
+    await enterButton.click();
 
-    // 2. Lands on the start picker OR (single-role) fast-paths.
-    await page.waitForURL((url) => url.pathname.startsWith('/admin/work-mode'), { timeout: 15_000 });
+    // 2. A prompt dialog opens. Role step → pick a role → Continue;
+    //    clock-in step → proceed (without clocking in if we can).
+    const prompt = page.getByRole('dialog');
+    await expect(prompt).toBeVisible({ timeout: 10_000 });
 
-    // The multi-role picker renders "Pick a work mode" + role tiles.
-    // The single-role fast-path skips straight to /admin/work-mode/<role>.
-    // Either way is fine — we drive the test from the URL.
-    const pickerHeading = page.getByRole('heading', { name: /Pick a work mode/i });
-    if (await pickerHeading.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      // Click the Field Crew tile if it's available, otherwise pick the
-      // first available role tile.
-      const fieldCrewTile = page.getByRole('button', { name: /Field Crew/i });
-      if (await fieldCrewTile.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await fieldCrewTile.click();
-      } else {
-        await page.locator('button[type="button"]').first().click();
-      }
+    // Pick the Field Crew choice if present, else the first role choice.
+    const fieldCrewChoice = prompt.locator('button[data-role="field_crew"]');
+    if (await fieldCrewChoice.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await fieldCrewChoice.click();
+    } else {
+      await prompt.locator('button[data-role]').first().click();
+    }
+    await prompt.getByRole('button', { name: 'Continue' }).click();
+
+    // Clock-in awareness step. If not clocked in, "Stay clocked out"
+    // proceeds without clocking in; if already clocked in, the single
+    // "Enter Work Mode" action proceeds.
+    const stayOut = prompt.getByRole('button', { name: 'Stay clocked out' });
+    if (await stayOut.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await stayOut.click();
+    } else {
+      await prompt.getByRole('button', { name: 'Enter Work Mode' }).click();
     }
 
     await page.waitForURL((url) => /\/admin\/work-mode\/[a-z_]+/.test(url.pathname), { timeout: 15_000 });

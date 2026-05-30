@@ -26,7 +26,7 @@ import {
   writeClockSession,
   type ClockSession,
 } from '@/lib/work-mode/clock-session';
-import { formatElapsed } from './HubGreeting';
+import { formatElapsed } from './greeting-helpers';
 
 /** Activity-tag catalog shape for the reused ClockInModal. */
 interface ActivityTag {
@@ -237,6 +237,7 @@ export default function WorkModePrompt({
   const [clockInOpen, setClockInOpen] = useState(false);
   const [catalog, setCatalog] = useState<ActivityTag[]>([]);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
 
   // Re-seed the pre-selected role each time the modal opens so a
   // single-role user always lands ready-to-confirm.
@@ -305,6 +306,14 @@ export default function WorkModePrompt({
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  // a11y — move focus into the dialog when it opens (and on step
+  // change) so keyboard + screen-reader users land inside it. Focus is
+  // returned to the trigger by `closePrompt`.
+  useEffect(() => {
+    if (!open || clockInOpen) return;
+    modalRef.current?.focus();
+  }, [open, clockInOpen, step]);
+
   return (
     <>
       <button
@@ -332,7 +341,7 @@ export default function WorkModePrompt({
             if (e.target === e.currentTarget) closePrompt();
           }}
         >
-          <div className="work-mode-prompt__modal">
+          <div className="work-mode-prompt__modal" ref={modalRef} tabIndex={-1}>
             <header className="work-mode-prompt__header">
               <h2 id="work-mode-prompt-title" className="work-mode-prompt__title">
                 Enter Work Mode
