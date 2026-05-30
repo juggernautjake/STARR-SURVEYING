@@ -69,6 +69,22 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Editor:** scope (mine/all), rowLimit.
 - **Slices:** Build/Wire (the `cadJobHref` row link is the headline) +
   R1–4. R1 must verify the exact CAD open param.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 verified the
+  CAD open param** in `app/admin/cad/CADLayout.tsx`: it reads BOTH
+  `?job=<id>` (start/load a drawing pre-linked to the job — the user's
+  stated form) AND `?drawing=<id>` (a specific saved drawing). R1 data:
+  the cad/drawings GET returned `{ drawings }` with `job_id`/
+  `created_by`/`updated_at` but NO `job_name`/`opened_by` (which the
+  widget read), and **ignored `?mine=true`**. Fixes: the GET now joins
+  `jobs(name, job_number)` → flattened `job_name`/`job_number` and
+  honors `?mine=true` (`created_by = caller`). The **headline**: each
+  drawing row is a `next/link` that opens in CAD with its job loaded via
+  a new pure exported `cadOpenHref(d)` → `/admin/cad?job={job_id}` (the
+  user's form) when the drawing has a job, else `/admin/cad?drawing=
+  {id}`. Realigned to the real fields (joined `job_name`, `updated_at`
+  via a `formatAge` helper at large+). Footer "Go to CAD →" is global.
+  5 specs. Full hub suite (1577) green; typecheck + lint clean.
+  **recent-drawings is done.**
 
 ## drawings-in-progress
 - **Endpoint:** `/api/admin/cad/drawings?status=in-progress`. Fields:
