@@ -253,6 +253,34 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
   ordering).
 - **Slices:** Build/Wire (make sections live, not stub) + R1–4. R1 is
   heavy here (four data sources).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **The headline —
+  every section was a static stub (a static title + subtitle, no data).**
+  All four are now LIVE, each fetching the SAME endpoint its standalone
+  widget uses — no new endpoints (doc guardrail). **R1 (data, heavy):**
+  added pure summarizers in `lib/hub/widgets/daily-briefing/sections.ts`
+  — `summarizeSchedule(events, maxJobs)` (count + first N titles),
+  `summarizeWeather(snap)` (rounded temp + description + location),
+  `summarizeCrew(members)` (active clocked-in/on-break count + first 3
+  names), `summarizeActions(tasks)` (open count + first title) — plus
+  `todayRange(now)` (the UTC [today, tomorrow) window the schedule API
+  takes via `?from=&to=`). Each section calls the real endpoint with the
+  right contract: schedule via `?from/to`, weather (now real, doc 15),
+  team-status (now real, doc 14), assignments via `?mine=true`. **R2
+  (links):** each section carries its own "Go to →" deep link
+  (`/admin/schedule`, `/admin/team`, `/admin/assignments`) — weather is
+  ambient so no link, matching the per-widget doc. Sections fetch
+  independently so one failure doesn't blank the others (each loader
+  catches → empty summary). **R3 (size):** medium shows 2 sections,
+  large/xlarge show all four (new exported `sectionCap(bucket)`); tiny/
+  small keep the existing "resize me larger" empty state. **R4 (editor):**
+  the existing `showWeather`/`showSchedule`/`maxJobs` schema (Slice 12c)
+  drives section visibility + the schedule cap honestly; Crew + Actions
+  are always on (they were doc-spec'd that way). 10 new specs (each
+  summarizer + the todayRange window). Full hub suite (1668) green;
+  typecheck + lint clean. *(Section reordering + a "which sections"
+  multi-select editor stays a documented follow-up — the four current
+  sections cover the user's "schedule + weather + crew + tasks" ask.)*
+  **daily-briefing is done.**
 
 ## mileage-tracker
 - **Endpoint:** `/api/admin/mileage?period=`. Fields: miles, trips,
