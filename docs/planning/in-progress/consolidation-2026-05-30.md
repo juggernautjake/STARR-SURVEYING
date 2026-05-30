@@ -194,15 +194,31 @@ fewer files to grep through.
 - **2055** middleware + notifications + hub + admin + saas +
   contacts + jobs specs green; typecheck + lint clean.
 
-### Slice 5 — Activity widget (cluster 3 → 1)
+### Slice 5 — Activity widget (cluster 3 → 1) ✅ shipped 2026-05-30
 
-- Merge `job-activity-feed` + `recent-activity` into one
-  `activity` widget with `mode: 'job-events' | 'recent-pages'`.
-  **Keep `my-jobs` separate** — it's the headline widget on the
-  user's current canvas (per the screenshots) and its data shape
-  (rows of jobs) is meaningfully different from the event feeds.
-- Mark the two old ids superseded.
-- Tests: per-mode rendering + mode persistence.
+- New `lib/hub/widgets/activity/index.tsx` — one tile with a
+  `mode: 'job-events' | 'recent-pages'` setting + tab row. Job
+  events hit `/api/admin/jobs/activity?limit=…` (rows are
+  job_id-linked when a job exists); recent pages reads
+  `useAdminNavStore.recentRoutes` and runs them through the
+  existing `resolveRouteHrefs` so dead-link rows are dropped.
+  Tiny bucket = count for the active mode.
+- Settings: `defaultMode` (job-events | recent-pages) +
+  `rowLimit` (1-100). Both modes share the same `rowLimit` cap so
+  one slider configures both views.
+- `minSize: { w: 1, h: 1 }` satisfies the Phase-35 catalog
+  contract; tiny bucket renders the count + the mode label.
+- Widget-links: `activity` → `/admin/timeline` (matches the legacy
+  `recent-activity` deep link — both modes orbit the timeline area).
+- Widget-options schema entry added (`source: 'settings-form'`).
+- The two legacy widgets carry one-line `SUPERSEDED by activity`
+  comments above their `defineWidget(...)` calls but stay
+  registered so saved hub layouts don't lose their tiles. A
+  follow-up slice migrates saved layouts + deletes the legacy ids.
+- 1 new spec on `capForBucket`. Catalog-coverage test bumped to
+  44 ids (41 master + `approvals` + `drawings` + `activity`).
+- **2057** middleware + notifications + hub + admin + saas +
+  contacts specs green; typecheck + lint clean.
 
 ### Slice 6 — Delete `/admin/messages/contacts`, fold into the
   inbox sidebar

@@ -31,6 +31,11 @@ import './assignments-due';
 import './crew-calendar';
 import './field-data-pending';
 import './job-activity-feed';
+// consolidation Slice 5 (2026-05-30) — unified Activity widget folds
+// `job-activity-feed` + `recent-activity` into one tile with a
+// mode toggle. Legacy widgets stay registered so saved hub layouts
+// don't lose their tiles.
+import './activity';
 import './equipment-out';
 import './maintenance-due';
 import './low-consumables';

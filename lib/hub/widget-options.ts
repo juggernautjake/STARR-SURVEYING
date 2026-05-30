@@ -130,6 +130,8 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   'field-data-pending':       { source: 'settings-form' },
   'hours-this-week':          { source: 'settings-form' },
   'job-activity-feed':        { source: 'settings-form' },
+  // consolidation Slice 5 (2026-05-30) — unified Activity widget.
+  'activity':                 { source: 'settings-form' },
   'low-consumables':          { source: 'settings-form' },
   'maintenance-due':          { source: 'settings-form' },
   'mentions-inbox':           { source: 'settings-form' },

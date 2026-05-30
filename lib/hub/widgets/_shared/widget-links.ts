@@ -34,6 +34,10 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   'assignments-due': { href: '/admin/assignments', label: 'assignments' },
   'field-data-pending': { href: '/admin/field-data', label: 'field data' },
   'job-activity-feed': { href: '/admin/jobs', label: 'jobs' },
+  // consolidation Slice 5 (2026-05-30) — unified Activity widget;
+  // footer points at the cross-job activity timeline since both
+  // modes (job-events + recent-pages) center on that hub area.
+  'activity': { href: '/admin/timeline', label: 'the timeline' },
   // time-pay
   // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-pay`
   // + `/admin/my-hours` pages were deleted; widget footers now route

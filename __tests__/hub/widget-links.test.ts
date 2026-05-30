@@ -20,13 +20,17 @@ import {
   researchProjectHref,
 } from '@/lib/hub/widgets/_shared/widget-links';
 
-// The full catalog of 43 widget ids (41 from the master doc + the
-// `approvals` cluster widget shipped in consolidation Slice 3 + the
-// `drawings` cluster widget shipped in Slice 4). Declared
+// The full catalog of 44 widget ids (41 from the master doc + three
+// cluster widgets shipped in consolidation Slices 3-5: `approvals`,
+// `drawings`, `activity`). Declared
 // locally so a drift surfaces here as a coverage failure rather than by
 // importing the heavy widget registry.
 const ALL_WIDGET_IDS = [
   // work
+  // consolidation Slice 5 (2026-05-30) — `activity` is the unified
+  // job-events + recent-pages widget. Two legacy ids stay until
+  // saved layouts are migrated.
+  'activity',
   'my-jobs', 'assignments-due', 'field-data-pending', 'job-activity-feed',
   // time-pay
   'my-pay', 'hours-this-week', 'pto-balance',
@@ -60,9 +64,9 @@ const ALL_WIDGET_IDS = [
 ];
 
 describe('widget-links — catalog coverage', () => {
-  it('catalog has all 43 widgets', () => {
-    expect(ALL_WIDGET_IDS.length).toBe(43);
-    expect(new Set(ALL_WIDGET_IDS).size).toBe(43);
+  it('catalog has all 44 widgets', () => {
+    expect(ALL_WIDGET_IDS.length).toBe(44);
+    expect(new Set(ALL_WIDGET_IDS).size).toBe(44);
   });
 
   it('every widget is either linked or explicitly link-less (partition)', () => {

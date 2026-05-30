@@ -181,6 +181,9 @@ function JobActivityFeedSettings({ value, onChange }: WidgetSettingsFormProps<Jo
   );
 }
 
+// consolidation Slice 5 (2026-05-30) — SUPERSEDED by `activity`,
+// the unified job-events + recent-pages widget. Stays registered so
+// saved hub layouts keep their tile.
 defineWidget<JobActivityFeedContent>({
   id: 'job-activity-feed',
   label: 'Job Activity Feed',

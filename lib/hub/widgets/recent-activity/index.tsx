@@ -120,6 +120,9 @@ function RecentActivitySettings({ value, onChange }: WidgetSettingsFormProps<Rec
   );
 }
 
+// consolidation Slice 5 (2026-05-30) — SUPERSEDED by `activity`,
+// the unified job-events + recent-pages widget. Stays registered so
+// saved hub layouts keep their tile.
 defineWidget<RecentActivityContent>({
   id: 'recent-activity',
   label: 'Recent Activity',
