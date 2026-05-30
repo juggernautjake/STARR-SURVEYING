@@ -62,6 +62,7 @@ export default function CalendarGrid({
                 data-iso={day.iso}
                 data-in-month={day.inMonth ? 'true' : 'false'}
                 aria-current={isToday ? 'date' : undefined}
+                aria-label={`${day.iso}${dayEvents.length ? `, ${dayEvents.length} ${dayEvents.length === 1 ? 'event' : 'events'}` : ', no events'}`}
                 style={cellStyle(day.inMonth, isToday)}
               >
                 <span style={dayNumberStyle(day.inMonth, isToday)}>{day.day}</span>
