@@ -22,6 +22,24 @@ pending-time-off**. Each: Build/Wire + 4 audit rounds.*
 - **Notifications:** pay updated / payout posted → `notifyPaymentUpdate`.
 - **Slices:** Build/Wire (footer link + last-payout line per the
   sketch's "Last payout: … — $…" + period total + rate) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** The widget was
+  already strong (per-bucket stat grid, privacy mask + toggle, currency/
+  compact formats, color tint, the full stats editor). R1 audit:
+  `payroll/employees?email=` returns the profile (rate/balance/earned/
+  withdrawn/type/frequency) but NOT a last payout — that lives in
+  `payroll/payout-log?email=&limit=1` (entries[0] = `{ amount,
+  processed_at }`, newest-first). **Added the sketch's "Last payout:
+  {date} — $…" line:** the widget now best-effort fetches the
+  payout-log alongside the profile and renders the line below the stats
+  grid (small+), via a new pure exported `formatLastPayout(amount,
+  processedAt, style, privacy)` that respects the currency/compact
+  style + masks the amount under privacy. Editor gains a "Show the last
+  payout line" toggle (`showLastPayout`, default on). Footer "Go to my
+  pay →" is global; pay-update notifications are wired (doc-03 Slice
+  2h). 3 new specs (line text + $amount, privacy mask, compact style).
+  Full hub suite (1556) green; typecheck + lint clean. (Period-total
+  would need a pay-period boundary calc — noted; the rate + balance +
+  last payout cover the sketch.) **my-pay is done.**
 
 ## hours-this-week
 - **Endpoint:** `/api/admin/time-logs?week_start=…`.

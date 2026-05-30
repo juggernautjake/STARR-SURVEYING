@@ -70,6 +70,9 @@ export interface MyPayContent extends Record<string, unknown> {
   /** Currency formatting. `currency` = "$1,234.56", `compact` = "$1.2k"
    *  when >= 1000. */
   amountStyle: 'currency' | 'compact';
+  /** hub-widget-excellence-11 — show the "Last payout: … — $…" line
+   *  (the user's sketch). Sourced from the payout-log. */
+  showLastPayout: boolean;
 }
 
 const DEFAULTS: MyPayContent = {
@@ -78,7 +81,13 @@ const DEFAULTS: MyPayContent = {
   showUpdated: false,
   privacy: false,
   amountStyle: 'currency',
+  showLastPayout: true,
 };
+
+interface LastPayout {
+  amount: number;
+  processed_at: string;
+}
 
 const PROFILE_ENDPOINT = '/api/admin/payroll/employees';
 
@@ -96,6 +105,7 @@ function MyPayWidget({ size, content }: WidgetProps<MyPayContent>) {
   const privacy = privacyOverride;
 
   const [profile, setProfile] = useState<MyPayProfile | null>(null);
+  const [lastPayout, setLastPayout] = useState<LastPayout | null>(null);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>(
     email ? 'loading' : 'empty',
   );
@@ -119,6 +129,15 @@ function MyPayWidget({ size, content }: WidgetProps<MyPayContent>) {
       setProfile(data.profile);
       setLastUpdated(new Date().toISOString());
       setStatus('ok');
+      // Last payout (the sketch's "Last payout: … — $…") — best-effort;
+      // a failure just hides the line.
+      try {
+        const plRes = await fetch(`/api/admin/payroll/payout-log?email=${encodeURIComponent(email)}&limit=1`);
+        if (plRes.ok) {
+          const pl: { entries?: LastPayout[] } = await plRes.json();
+          setLastPayout(pl.entries && pl.entries.length > 0 ? pl.entries[0] : null);
+        }
+      } catch { /* ignore */ }
     } catch {
       setStatus('error');
     }
@@ -197,6 +216,12 @@ function MyPayWidget({ size, content }: WidgetProps<MyPayContent>) {
         ))}
       </div>
 
+      {settings.showLastPayout && lastPayout && bucket !== 'tiny' && (
+        <div style={lastPayoutStyle}>
+          {formatLastPayout(lastPayout.amount, lastPayout.processed_at, formatStyle, privacy)}
+        </div>
+      )}
+
       {settings.showUpdated && lastUpdated && (
         <footer style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
           Updated {formatRelative(lastUpdated)}
@@ -252,6 +277,17 @@ function MyPaySettings({ value, onChange }: WidgetSettingsFormProps<MyPayContent
         />
         <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>
           Color dollar amounts with the theme success tint
+        </span>
+      </label>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={settings.showLastPayout}
+          onChange={(e) => onChange({ ...settings, showLastPayout: e.target.checked })}
+        />
+        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>
+          Show the last payout line
         </span>
       </label>
 
@@ -394,6 +430,22 @@ export function formatValue(
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** "Last payout: May 24 — $1,250.00" (amount masked under privacy).
+ *  Exported for testing. */
+export function formatLastPayout(
+  amount: number,
+  processedAt: string,
+  formatStyle: 'currency' | 'compact',
+  privacy = false,
+): string {
+  const t = Date.parse(processedAt);
+  const date = Number.isFinite(t)
+    ? new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : '—';
+  const amt = privacy ? '••••' : formatValue('available_balance', amount, formatStyle);
+  return `Last payout: ${date} — ${amt}`;
+}
+
 function gridColsForBucket(bucket: SizeBucket, statCount: number): string {
   if (bucket === 'tiny') return '1fr';
   if (bucket === 'small') return 'repeat(2, 1fr)';
@@ -441,4 +493,11 @@ const statTileStyle: React.CSSProperties = {
   padding: 'var(--hub-spc-2, 8px)',
   borderRadius: 6,
   background: 'var(--theme-bg-elevated)',
+};
+
+const lastPayoutStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.78rem)',
+  fontWeight: 600,
+  color: 'var(--theme-fg-secondary)',
+  paddingTop: 2,
 };
