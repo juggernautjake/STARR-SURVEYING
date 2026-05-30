@@ -417,7 +417,7 @@ WidgetCustomization {
   invalid-row drops, and the hub-store import + hydrate wiring. 1145
   hub specs green; typecheck + lint clean.
 
-#### Slice 6 — Retire the removed style options from reads + catalog
+#### Slice 6 — Retire the removed style options from reads + catalog ✅ shipped 2026-05-30
 - **Scope:** Remove reads of `colorMode/statusTint/customBg/customFg/
   borderRadius/shadowDepth` from `WidgetFrame`/render. Keep the type
   fields optional-for-back-compat OR drop them (decide in-slice; if
@@ -428,6 +428,33 @@ WidgetCustomization {
   `lib/hub/widget-color-modes.ts`, affected specs.
 - **Done when:** Widgets render with only header color + title styling;
   no references to the removed style options remain in the render path.
+- **Outcome:** `WidgetFrame.tsx` rewritten as a slim renderer
+  (243 → 162 lines). Removed: `colorMode/statusTint/customBg/customFg/
+  borderRadius/shadowDepth` props from `WidgetFrameProps`, the
+  `RADIUS_PX` + `SHADOWS` constant maps, the exported `resolveColors()`
+  helper, and the imports of the four legacy customization type
+  unions. The frame's background/color/radius/shadow are now fixed
+  theme values (`var(--theme-bg-surface)` + `var(--theme-border)` + a
+  fixed 8px radius + a subtle shadow). Slim contract: `title`,
+  `headerColor?`, `headerAction?`, `footer?`, `editMode?`, `children`.
+  Updated `WidgetGrid` + `SettingsPanel` call sites — both stop
+  forwarding the dropped props. Unknown-widget callouts (in WidgetGrid
+  + SettingsPanel preview) drop the `colorMode="status" statusTint="warning"`
+  tint and just paint the warning text in `var(--theme-warning)`. Kept
+  the legacy fields on `WidgetCustomization.style` so old saved rows
+  in Supabase keep parsing (the normalizer still recognizes them);
+  they'll get dropped from the type when the SettingsPanel + StyleTab
+  disappear with Slice 4. `widget-color-modes.ts` + its spec stay for
+  now — the StyleTab is their only consumer. `widget-frame.test.tsx`:
+  dropped the entire `resolveColors` describe block + the chrome-tint
+  expectations; replaced with a single assertion that the helper is no
+  longer exported from the module. New
+  `__tests__/hub/widget-frame-slim.test.ts` (12 cases) locks the slim
+  props interface, the absence of the resolveColors helper + the
+  RADIUS_PX/SHADOWS maps + the legacy type imports, the fixed theme
+  chrome, the WidgetGrid + SettingsPanel call-site trims, and the
+  unknown-widget chrome drop. 1149 hub specs green; typecheck + lint
+  clean.
 
 ### Phase HB4 — In-modal authoring: resize + move with live reflow + slot-on-drop
 

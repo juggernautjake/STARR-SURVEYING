@@ -109,12 +109,8 @@ function WidgetCell({ instance }: WidgetCellProps) {
   if (!definition) {
     return (
       <div style={cellStyle} data-widget-id={instance.id}>
-        <WidgetFrame
-          title={`Unknown widget: ${instance.type}`}
-          colorMode="status"
-          statusTint="warning"
-        >
-          <div style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>
+        <WidgetFrame title={`Unknown widget: ${instance.type}`}>
+          <div style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-warning)' }}>
             This widget is no longer in the catalog. Remove it from your
             layout or pick a replacement.
           </div>
@@ -129,21 +125,16 @@ function WidgetCell({ instance }: WidgetCellProps) {
   const titleOverride = customization.layout?.titleOverride;
   const title = titleOverride && titleOverride.trim().length > 0 ? titleOverride : definition.label;
 
-  // Slice 5 — header (title + headerColor) always renders; the
-  // showTitle layout toggle is gone. The legacy style fields
-  // (colorMode/statusTint/etc.) keep loading from old saved layouts
-  // until Slice 6 drops the reads.
+  // Slice 5 — header (title + headerColor) always renders.
+  // Slice 6 — the legacy style fields (colorMode/statusTint/customBg/
+  // customFg/borderRadius/shadowDepth) are no longer read here. They
+  // still load from old saved layouts via the normalizer and stay on
+  // the type until the SettingsPanel/StyleTab disappear in Slice 4.
   return (
     <div style={cellStyle} data-widget-id={instance.id}>
       <WidgetFrame
         title={title}
         headerColor={customization.style?.headerColor}
-        colorMode={customization.style?.colorMode}
-        statusTint={customization.style?.statusTint}
-        customBg={customization.style?.customBg}
-        customFg={customization.style?.customFg}
-        borderRadius={customization.style?.borderRadius}
-        shadowDepth={customization.style?.shadowDepth}
       >
         <MemoWidgetRender
           Widget={Widget}

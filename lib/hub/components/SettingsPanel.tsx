@@ -155,8 +155,8 @@ function PreviewFrame({ instance, customization }: { instance: WidgetInstance; c
   const definition = getWidget(instance.type);
   if (!definition) {
     return (
-      <WidgetFrame title={instance.type} colorMode="status" statusTint="warning">
-        <div style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>
+      <WidgetFrame title={instance.type}>
+        <div style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-warning)' }}>
           Unknown widget — preview unavailable.
         </div>
       </WidgetFrame>
@@ -164,17 +164,11 @@ function PreviewFrame({ instance, customization }: { instance: WidgetInstance; c
   }
   const titleOverride = customization.layout?.titleOverride;
   const title = titleOverride && titleOverride.trim().length > 0 ? titleOverride : definition.label;
+  // Slice 6 — only `headerColor` flows through. The legacy style
+  // fields are still on the type for back-compat with old saved rows
+  // but no longer feed the chrome.
   return (
-    <WidgetFrame
-      title={title}
-      headerColor={customization.style?.headerColor}
-      colorMode={customization.style?.colorMode}
-      statusTint={customization.style?.statusTint}
-      customBg={customization.style?.customBg}
-      customFg={customization.style?.customFg}
-      borderRadius={customization.style?.borderRadius}
-      shadowDepth={customization.style?.shadowDepth}
-    >
+    <WidgetFrame title={title} headerColor={customization.style?.headerColor}>
       <div style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>
         Preview reflects your customization choices.
       </div>
