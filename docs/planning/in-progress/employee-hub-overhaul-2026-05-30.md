@@ -758,14 +758,55 @@ WidgetCustomization {
   green; typecheck + lint clean. The schema-driven render path inside
   the panel is the Slice 13–15 work.
 
-#### Slice 13–15 — Render each widget from its options (grouped by family)
-- **Scope:** Make each widget body honor `customization.content`
+#### Slice 13 — Generic schema-driven options renderer ✅ shipped 2026-05-30
+- **Scope:** Before per-widget body wiring can be useful for the 12
+  schema-source widgets, the modal needs a way to *show* their
+  options. New `SchemaOptionsForm` component renders any
+  `WidgetOptionsField[]` as the matching control set; `WidgetOptionsPanel`
+  dispatches schema entries through it.
+- **Files:** new `lib/hub/components/SchemaOptionsForm.tsx`,
+  `lib/hub/components/WidgetOptionsPanel.tsx`,
+  `__tests__/hub/schema-options-form.test.ts`.
+- **Done when:** Opening Options on a schema-source widget shows the
+  declared fields; type defaults seed missing keys; edits flow
+  through `commitCustomization`.
+- **Outcome:** New `SchemaOptionsForm` (320 lines) renders six control
+  components — `TextControl, NumberControl, ToggleControl,
+  SelectControl, MultiSelectControl, ColorControl` — dispatched from
+  a switch on `field.type`. Each control coerces missing or
+  wrong-typed inputs to the schema's `defaultValue` (text/color falls
+  back to `defaultValue`; number requires `Number.isFinite`; toggle
+  requires `typeof === 'boolean'`; select requires the value to be in
+  `field.options`; multiselect requires a string array). Number edits
+  clamp `e.target.valueAsNumber` to `[field.min ?? -Infinity, field.max
+  ?? Infinity]`. Multiselect rebuilds the next array by filtering
+  `field.options` so the output order stays stable.
+  `WidgetOptionsPanel`'s Widget-options section now dispatches through
+  the Slice-12 registry: `entry.source === 'settings-form'` → host
+  `definition.SettingsForm`; `entry.source === 'schema'` → seed unset
+  keys via `defaultContentForSchema(entry.fields)` and render
+  `<SchemaOptionsForm fields={entry.fields} value={seeded} onChange=…
+  />`; otherwise the friendly empty state. Every field row carries
+  `data-testid="schema-options-field-{key}"` + `data-field-type` so
+  future Playwright specs can target by field key + type. New
+  `__tests__/hub/schema-options-form.test.ts` (17 cases) locks: the
+  six-case render dispatcher; one component per field type; the
+  default-fallback coercion for each control; the number clamp;
+  the multiselect option-order subset; the public `SchemaOptionsFormProps`
+  shape; the data-testid surface; and the panel's
+  settings-form / schema / none triage incl. the import shape, the
+  `getWidgetOptionsEntry(instance.type)` resolve, the schema branch's
+  seeded merge + commit path, and the empty-state fallback for `none`.
+  1279 hub specs green; typecheck + lint clean.
+
+#### Slice 14–15 — Render each widget body from its options (grouped by family)
+- **Scope:** With Slice 13 ensuring the panel surfaces every widget's
+  options, make each widget *body* honor `customization.content`
   (e.g. weather location/units; my-pay stats/privacy/amount style;
   today-schedule source/range; bookmarks/pinned-pages/quick-actions
   items; monthly-revenue metric; counts/`see-all` toggles; etc.). Ship
   one commit per widget family to keep each green:
-  - **13** pay/jobs/schedule/hours/pto family,
-  - **14** lists/links/messages/announcements/activity family,
+  - **14** pay/jobs/schedule/hours/pto + lists/links/messages/announcements/activity family,
   - **15** field/equipment/research/learning/finance/utility family.
 - **Files:** the per-widget `index.tsx` files,
   `__tests__/hub/widget-config-render-*.test.ts` (per family).

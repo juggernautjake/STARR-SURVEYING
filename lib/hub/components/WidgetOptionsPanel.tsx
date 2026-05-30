@@ -28,6 +28,13 @@ import { getWidget } from '@/lib/hub/widget-registry';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
 import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
+// Slice 12 — schema registry covering every widget id.
+// Slice 13 — generic renderer used for widgets without a SettingsForm.
+import {
+  defaultContentForSchema,
+  getWidgetOptionsEntry,
+} from '@/lib/hub/widget-options';
+import SchemaOptionsForm from './SchemaOptionsForm';
 
 export interface WidgetOptionsPanelProps {
   /** When true the panel renders. */
@@ -188,25 +195,50 @@ export default function WidgetOptionsPanel({
           </section>
 
           {/* ── Widget-specific options (per the definition's
-                SettingsForm — Slice 12 grows this for the ~13
-                widgets that don't ship one). ───────────────────── */}
+                SettingsForm OR the Slice-12 schema registry). The
+                panel resolves the source via getWidgetOptionsEntry:
+                  - settings-form → host definition.SettingsForm
+                  - schema        → render SchemaOptionsForm (Slice 13)
+                  - none          → friendly empty state ─────────── */}
           <section
             style={sectionStyle}
             data-testid="widget-options-section-content"
           >
             <span style={sectionLabelStyle}>Widget options</span>
-            {SettingsForm ? (
-              <SettingsForm
-                value={formValue}
-                onChange={(next) =>
-                  commitCustomization({ content: next as Record<string, unknown> })
-                }
-              />
-            ) : (
-              <p style={emptyTextStyle}>
-                This widget doesn&apos;t have any extra options yet.
-              </p>
-            )}
+            {(() => {
+              const entry = getWidgetOptionsEntry(instance.type);
+              if (entry.source === 'settings-form' && SettingsForm) {
+                return (
+                  <SettingsForm
+                    value={formValue}
+                    onChange={(next) =>
+                      commitCustomization({ content: next as Record<string, unknown> })
+                    }
+                  />
+                );
+              }
+              if (entry.source === 'schema') {
+                // Seed unset keys from the schema's defaults so a
+                // brand-new widget renders complete controls before
+                // the surveyor edits anything.
+                const seeded = {
+                  ...defaultContentForSchema(entry.fields),
+                  ...formValue,
+                };
+                return (
+                  <SchemaOptionsForm
+                    fields={entry.fields}
+                    value={seeded}
+                    onChange={(next) => commitCustomization({ content: next })}
+                  />
+                );
+              }
+              return (
+                <p style={emptyTextStyle}>
+                  This widget doesn&apos;t have any extra options yet.
+                </p>
+              );
+            })()}
           </section>
         </div>
       </div>
