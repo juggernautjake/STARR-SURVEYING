@@ -883,12 +883,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const tbSigPaperPosRef = useRef<{ x: number; y: number } | null>(null);
   // Drag state for title-block overlay elements
   const tbDragRef = useRef<{
-    element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
+    // Slice 227 — cert + notes joined the drag pipeline. They use a
+    // top-left-anchored y axis (positive screen-down) instead of the
+    // bottom-left convention the title-block family uses; the
+    // pointer-move math switches sign on the y-delta based on the
+    // element name.
+    element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | 'certification' | 'notes';
     startSX: number;
     startSY: number;
-    origPosX: number;  // paper-inch BL pos at drag start
+    origPosX: number;  // paper-inch pos at drag start (BL for TB family, TL for cert/notes)
     origPosY: number;
-    livePosX: number;  // paper-inch BL pos during drag
+    livePosX: number;  // paper-inch pos during drag
     livePosY: number;
   } | null>(null);
   // Element drag-to-move: tracks feature being dragged in SELECT mode
@@ -2339,8 +2344,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         });
         const rowH = rowFontPx * 1.3;
         const heightPx = padPx * 2 + titleFontPx * 1.4 + totalRows * rowH + (shown.length - 1) * (rowFontPx * 0.4);
-        const nx = tl.sx + (tpl.standardNotes?.position?.x ?? 0.5) * inchToPx;
-        const ny = tl.sy + (tpl.standardNotes?.position?.y ?? 4.5) * inchToPx;
+        // Slice 227 — drag-to-move: when the user is dragging the notes
+        // block, render at the live cursor-tracked paper-inch position
+        // so the block follows the cursor. Falls back to the stored
+        // position, then the default left-margin layout.
+        const notesDrag = tbDragRef.current?.element === 'notes' ? tbDragRef.current : null;
+        const notesPosX = notesDrag ? notesDrag.livePosX : (tpl.standardNotes?.position?.x ?? 0.5);
+        const notesPosY = notesDrag ? notesDrag.livePosY : (tpl.standardNotes?.position?.y ?? 4.5);
+        const nx = tl.sx + notesPosX * inchToPx;
+        const ny = tl.sy + notesPosY * inchToPx;
         ng.beginFill(0xffffff, 0.9);
         ng.lineStyle(0.5, 0x000000, 0.7);
         ng.drawRect(nx, ny, widthPx, heightPx);
@@ -2399,8 +2411,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (cur) lines.push(cur);
         const rowH = bodyFontPx * 1.35;
         const heightPx = padPx * 2 + titleFontPx * 1.4 + lines.length * rowH;
-        const cx = tl.sx + (tpl.certification?.position?.x ?? pw - 4) * inchToPx;
-        const cy = tl.sy + (tpl.certification?.position?.y ?? 0.5) * inchToPx;
+        // Slice 227 — drag-to-move: same live-tracking convention as
+        // the notes block above. The render still clamps the right
+        // edge via `clampedX` below, so drag respects paper bounds.
+        const certDrag = tbDragRef.current?.element === 'certification' ? tbDragRef.current : null;
+        const certPosX = certDrag ? certDrag.livePosX : (tpl.certification?.position?.x ?? pw - 4);
+        const certPosY = certDrag ? certDrag.livePosY : (tpl.certification?.position?.y ?? 0.5);
+        const cx = tl.sx + certPosX * inchToPx;
+        const cy = tl.sy + certPosY * inchToPx;
         // Clamp right edge to paper so the block doesn't drift off-sheet.
         const clampedX = Math.min(cx, br.sx - widthPx - 0.1 * inchToPx);
         cg.beginFill(0xffffff, 0.95);
@@ -8675,12 +8693,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // ── Title-block overlay element drag (SELECT mode) ──────────────
       if (activeTool === 'SELECT') {
-        const tbHitWide = hitTestTBElement(sx, sy);
-        // Slice 226 — Cert + Notes are right-click-only for now;
-        // drag-to-move ships in Slice 227. Treat them as "no drag
-        // target" here so the SELECT flow falls through cleanly.
-        const tbHit: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null =
-          tbHitWide === 'certification' || tbHitWide === 'notes' ? null : tbHitWide;
+        // Slice 227 — Cert + Notes now flow through the same drag
+        // pipeline as the title-block family. The pointer-move math
+        // and origin lookup branch on `element` to handle the TL-y
+        // convention they use vs. the TB family's BL-y.
+        const tbHit = hitTestTBElement(sx, sy);
         if (tbHit) {
           const doc        = useDrawingStore.getState().document;
           const tb         = doc.settings.titleBlock;
@@ -8763,6 +8780,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 origPosX = (b.screenX + b.w / 2 - tl.sx) / inchToPx;
                 origPosY = (br.sy - (b.screenY + 4)) / inchToPx;
               }
+            }
+          } else if (tbHit === 'certification') {
+            // Slice 227 — cert position is paper-inch from TOP-LEFT
+            // (positive y = down), unlike the TB family.
+            const tpl = useTemplateStore.getState().activeTemplate;
+            const stored = tpl.certification?.position;
+            if (stored) {
+              origPosX = stored.x;
+              origPosY = stored.y;
+            } else {
+              // Default render placement: top-right, above the title block.
+              origPosX = Math.max(0.5, pw - 4);
+              origPosY = 0.5;
+            }
+          } else if (tbHit === 'notes') {
+            // Slice 227 — notes position is paper-inch from TOP-LEFT.
+            const tpl = useTemplateStore.getState().activeTemplate;
+            const stored = tpl.standardNotes?.position;
+            if (stored) {
+              origPosX = stored.x;
+              origPosY = stored.y;
+            } else {
+              // Default render placement: left margin, below legend.
+              origPosX = 0.5;
+              origPosY = 4.5;
             }
           }
 
@@ -10635,9 +10677,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const inchToPx  = zoom * (doc.settings.drawingScale ?? 50);
         const dScreenX  = sx - tbDrag.startSX;
         const dScreenY  = sy - tbDrag.startSY;
-        // Screen right → paper right; screen down → paper BL-y decreases
         tbDrag.livePosX = tbDrag.origPosX + dScreenX / inchToPx;
-        tbDrag.livePosY = tbDrag.origPosY - dScreenY / inchToPx;
+        // Slice 227 — cert + notes use TOP-LEFT-anchored y (screen-down ⇒
+        // paper-y increases). Title-block family uses BOTTOM-LEFT
+        // (screen-down ⇒ paper-y decreases).
+        const isTLanchored = tbDrag.element === 'certification' || tbDrag.element === 'notes';
+        tbDrag.livePosY = isTLanchored
+          ? tbDrag.origPosY + dScreenY / inchToPx
+          : tbDrag.origPosY - dScreenY / inchToPx;
         setCursorStyle('grabbing');
         return;
       }
@@ -11231,6 +11278,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (element === 'scaleBar')         drawingStore.updateTitleBlock({ scaleBarPos: pos });
           if (element === 'signatureBlock')   drawingStore.updateTitleBlock({ signatureBlockPos: pos });
           if (element === 'officialSealLabel')drawingStore.updateTitleBlock({ officialSealLabelPos: pos });
+          // Slice 227 — cert + notes persist into the active template
+          // (not the drawing's titleBlock settings) since they're owned
+          // by the template store.
+          if (element === 'certification') {
+            const ts = useTemplateStore.getState();
+            ts.updateActiveTemplate({
+              certification: { ...ts.activeTemplate.certification, position: pos },
+            });
+          }
+          if (element === 'notes') {
+            const ts = useTemplateStore.getState();
+            ts.updateActiveTemplate({
+              standardNotes: { ...ts.activeTemplate.standardNotes, position: pos },
+            });
+          }
         } else if (element === 'titleBlock' || element === 'signatureBlock') {
           // Single click (no drag) on the title/signature block → open field editor
           const fieldHit = hitTestTBField(sx, sy);

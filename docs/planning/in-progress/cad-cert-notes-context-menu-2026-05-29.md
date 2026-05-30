@@ -56,13 +56,8 @@ Five concrete asks:
 
 ### Phase 41 — Move / resize (Slices 227–228)
 
-#### Slice 227 — Drag-to-move certification + notes blocks
-- **Scope:** Wire the existing `tbDragRef` infrastructure to also
-  drive position updates for cert + notes. The drag path already
-  knows how to translate a screen-delta into a paper-inch update
-  for the title-block-style elements — repurpose it.
-- **Done when:** Click + hold + drag moves either block; the new
-  position persists on save.
+#### Slice 227 — Drag-to-move certification + notes blocks ✅ shipped
+- **Done:** Widened `tbDragRef.element` to include `'certification' | 'notes'` alongside the existing TB family. Removed the Slice-226 SELECT-pointer-down narrowing (`tbHitWide === 'certification' || 'notes' ? null : tbHitWide`) so cert/notes flow into the same drag pipeline as the other elements. Two new origin-lookup branches read `useTemplateStore.getState().activeTemplate.certification?.position` / `.standardNotes?.position` with defaults matching the on-canvas render positions — `{ Math.max(0.5, pw - 4), 0.5 }` for cert (top-right above the title block), `{ 0.5, 4.5 }` for notes (left margin, below legend). The pointer-move math grew an `isTLanchored = element === 'certification' || 'notes'` guard so cert/notes use `origPosY + dScreenY/inchToPx` (top-left y axis) while the TB family keeps the original `origPosY - dScreenY/inchToPx` (bottom-left y axis); paper-x still uses `+dScreenX/inchToPx` for everyone. `renderPaperFurniture`'s notes + cert sections grew live-drag overrides — when `tbDragRef.current.element === 'notes'`/`'certification'`, the block renders at `tbDrag.livePosX/Y` instead of the stored position, so the block follows the cursor in real time; the existing right-edge clamp on cert (`clampedX`) still applies, so a drag past the paper edge is pinned. Pointer-up commit grew two new branches inside the existing `tbDragRef` commit block: `element === 'certification'` calls `useTemplateStore.updateActiveTemplate({ certification: { ...active.certification, position: pos } })`, and `element === 'notes'` does the symmetric `{ standardNotes: { ...active.standardNotes, position: pos } }`. The cert/notes commits sit inside the existing `moved > 0.01` threshold + ref-clear path, so they share the same single-click vs. drag discrimination + cursor reset as the other TB elements. 12 vitest specs in `__tests__/cad/ui/cert-notes-drag-to-move.test.ts` lock every wiring point via `fs.readFileSync` regex (union widening; narrowing removed + replaced; cert + notes origin-lookup branches; isTLanchored discriminator + y-sign flip; notes + cert render-override; cert + notes commit branches + ordering inside the existing commit block). 1662 CAD specs green. `tsc` + `eslint` clean.
 
 #### Slice 228 — Resize handle + inline width edit
 - **Scope:** Add a corner-drag resize handle while either block is
