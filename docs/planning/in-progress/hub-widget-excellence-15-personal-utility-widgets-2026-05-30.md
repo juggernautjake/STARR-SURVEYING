@@ -115,6 +115,27 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
 - **Editor:** add/edit/remove/reorder bookmarks (reorderable list),
   layoutStyle. Make adding a bookmark easy + validated.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1/R2 (the
+  headline — links must be safe, never a dead/dangerous one):**
+  bookmarks are arbitrary user-entered URLs (no route table to validate
+  against), so added a pure `lib/hub/widgets/bookmarks/url.ts` →
+  `isValidBookmarkUrl(url)` + `safeBookmarks(list)`. It accepts internal
+  absolute paths (`/admin/…`), complete `http(s)://host` URLs, and
+  `mailto:`/`tel:`; it **rejects** `javascript:`/`data:` (XSS vectors),
+  protocol-relative `//host`, blanks, and unfinished drafts (`https://`).
+  The widget now renders only `safeBookmarks(...)`. **R3 (size):** tiny
+  shows the bookmark **count** (was a 1-col list that didn't fit a 1×1).
+  **R4 (editor — "make adding easy + validated"):** added **reorder**
+  (↑/↓ per row, on the shared `moveUp`/`moveDown` helpers) and **inline
+  URL validation** — a non-empty-but-unsafe URL flags a red border +
+  `aria-invalid` + a "enter a full http(s):// URL or an internal /path"
+  hint (a blank URL is treated as a draft, not an error); the URL
+  placeholder now shows both accepted forms. Existing add/edit/remove
+  retained. 6 new url specs (http(s)/internal/mailto/tel accepted;
+  javascript/data/protocol-relative/blank/draft rejected; safeBookmarks
+  filter+order). The slice-115 specs (registry + caps/cols + isExternal
+  + makeId) still green. Full hub suite (1650) green; typecheck + lint
+  clean. **bookmarks is done.**
 
 ## recent-activity
 - **Source:** nav-store `recentRoutes`. Fields: href, route {iconName,
