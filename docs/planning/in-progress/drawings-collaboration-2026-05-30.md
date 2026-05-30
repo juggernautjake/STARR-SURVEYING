@@ -54,15 +54,25 @@ on drawings):*
 
 ## Slices
 
-### Slice 0 — Job-scope helper (foundation)
+### Slice 0 — Job-scope helper (foundation) ✅ shipped 2026-05-30
 
-- Pure `lib/jobs/scope.ts` → `usersForJobScope(jobId, supabase)` →
-  `string[]` of emails: the job's team members (from `job_team`) +
-  the job's project manager / approver / overseers (from `jobs`).
-- Job-stage notification today fans out widely; slice this in so we
-  can pass `usersForJobScope(jobId)` to `notifyMany(...)` instead of
-  the existing audit-cohort.
-- Used by every slice below.
+- New `lib/jobs/scope.ts`:
+  - Pure `resolveJobScope(teamRows, actorEmail?)` returns the
+    distinct + lowercased + first-seen-order email list, optionally
+    excluding the actor so the triggering admin doesn't ping
+    themselves.
+  - Async `usersForJobScope(jobId, supabase, actorEmail?)` thin
+    wrapper that queries `job_team` filtered to active rows and
+    routes through the pure helper. Returns `[]` on query failure
+    (better silent no-fan-out than crashed request).
+- The audit shows the existing `jobs` table has no dedicated
+  `project_manager_email` / `overseer` column; `job_team` IS the
+  source of truth for "users on a job", which matches the user's
+  ask. If a "lead" role gets added to `job_team` later, the helper
+  needs no change.
+- 5 specs (dedupe + lowercase + order, blank guards, actor exclusion
+  with case-insensitive match, empty team, only-actor case).
+  Typecheck + lint clean.
 
 ### Slice 1 — Schema
 
