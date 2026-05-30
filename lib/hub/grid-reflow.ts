@@ -177,6 +177,86 @@ export function nearestAvailable(
   return { x: 0, y: maxRow, w: clamped.w, h: clamped.h };
 }
 
+/** Apply a resize with directional flow-push. The resized widget is
+ *  set to `newRect` (clamped to the columns); every OTHER widget that
+ *  ends up overlapping is flowed out of the way — in the drag
+ *  direction — until it fits, cascading through downstream neighbors.
+ *
+ *  Direction (matches the user's "move in the direction of the drag
+ *  until there's no more room, then drop to the next row" model):
+ *    - When width grew at least as much as height → HORIZONTAL flow:
+ *      slide each conflicting widget right one cell at a time; when it
+ *      would exceed `cols`, wrap it to x=0 of the next row down and
+ *      keep going (potentially pushing widgets that were on that row).
+ *    - Otherwise → VERTICAL flow: slide conflicting widgets straight
+ *      down (rows are unbounded, so no wrap needed).
+ *
+ *  Shrinking moves nobody: a smaller `newRect` occupies a subset of
+ *  the old footprint, so no previously-clear widget can newly overlap.
+ *
+ *  Pure + total. Only x/y of displaced widgets change; the resized
+ *  widget also takes newRect's w/h. Reading-order traversal (y, then
+ *  x) keeps the cascade deterministic. A safety iteration bound guards
+ *  against pathological inputs. */
+export function applyResizeWithPush(
+  layout: ReadonlyArray<WidgetInstance>,
+  resizingId: string,
+  newRect: GridTarget,
+  cols: number = HUB_GRID_COLS,
+): WidgetInstance[] {
+  const resizing = layout.find((w) => w.id === resizingId);
+  if (!resizing) return layout.map((w) => ({ ...w }));
+
+  const clamped = clampTargetToCols(newRect, cols);
+  const grewW = clamped.w - resizing.w;
+  const grewH = clamped.h - resizing.h;
+  // Tie / width-dominant → horizontal flow (matches the user's
+  // row-wrap description). Height-dominant grow → vertical push.
+  const horizontalFlow = grewW >= grewH;
+
+  const others = layout
+    .filter((w) => w.id !== resizingId)
+    .map((w) => ({ ...w }))
+    .sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
+
+  const resizedRect: RectLike = { x: clamped.x, y: clamped.y, w: clamped.w, h: clamped.h };
+  const placed: WidgetInstance[] = [];
+  const blockers: RectLike[] = [resizedRect];
+
+  const SAFETY = cols * 4096; // generous upper bound; never hit in practice
+  for (const widget of others) {
+    let x = widget.x;
+    let y = widget.y;
+    let guard = 0;
+    while (
+      blockers.some((b) => overlaps({ x, y, w: widget.w, h: widget.h }, b)) &&
+      guard++ < SAFETY
+    ) {
+      if (horizontalFlow) {
+        x += 1;
+        if (x + widget.w > cols) {
+          x = 0;
+          y += 1;
+        }
+      } else {
+        y += 1;
+      }
+    }
+    const settled: WidgetInstance = { ...widget, x, y };
+    placed.push(settled);
+    blockers.push({ x: settled.x, y: settled.y, w: settled.w, h: settled.h });
+  }
+
+  const placedResized: WidgetInstance = {
+    ...resizing,
+    x: clamped.x,
+    y: clamped.y,
+    w: clamped.w,
+    h: clamped.h,
+  };
+  return [...placed, placedResized];
+}
+
 /** Subtract the minimum `y` from every widget so a fully-empty top
  *  band collapses to row 0, WITHOUT touching interior gaps or the
  *  free tiles the surveyor deliberately left. This is the "trim only

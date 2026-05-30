@@ -125,7 +125,7 @@ placement + resize still feel broken.*
 
 ### Phase G3 — Resize with directional flow-push
 
-#### Slice G3 — Pure `applyResizeWithPush` helper (flow-push semantics)
+#### Slice G3 — Pure `applyResizeWithPush` helper (flow-push semantics) ✅ shipped 2026-05-30
 - **Scope:** New pure helper in `grid-reflow.ts`:
   `applyResizeWithPush(layout, id, newRect, cols)` — set the resized
   widget to `newRect`, then displace every overlapping neighbor in the
@@ -138,6 +138,43 @@ placement + resize still feel broken.*
 - **Done when:** Growing a widget into a neighbor pushes the neighbor
   out (direction-aware, wrap-to-next-row) with no overlaps + in
   bounds; shrinking never moves anyone. Helper unit-tested.
+- **Shipped:** `applyResizeWithPush` clamps `newRect` to the columns,
+  picks a flow direction (`grewW >= grewH` → horizontal, else
+  vertical), then walks the other widgets in reading order (y, then x)
+  and slides each conflicting one along the flow: horizontal advances
+  x by 1 and wraps to `x=0, y+1` when `x + w > cols`; vertical
+  advances y by 1. A blocker list (resized rect + already-settled
+  widgets) makes the cascade resolve downstream collisions. Shrinking
+  moves nobody (the smaller rect is a subset of the old footprint).
+  Safety iteration bound guards pathological inputs. 9 fixed-fixture
+  specs in `grid-resize-push.test.ts` (push-right, wrap-to-next-row,
+  push-down, vertical cascade, shrink-moves-nobody, clamp, ghost-id,
+  determinism).
+
+#### Slice G4 — Wire resize to the push helper (live preview + commit) ✅ shipped 2026-05-30
+- **Scope:** Rework `startResize` to drive a live preview through
+  `applyResizeWithPush` on every pointer-move + commit the pushed
+  layout (no compaction, then `trimLeadingRows`) on pointer-up. Drop
+  the overlap-abort guard. Render pushed neighbors live.
+- **Files:** `lib/hub/components/GridEditor.tsx`,
+  `__tests__/hub/grid-editor-resize.test.tsx` (updated),
+  `grid-editor-resize-push-wire.test.ts` (new).
+- **Done when:** Dragging a corner bigger pushes adjacent widgets live
+  + the arrangement persists on release; resize never silently no-ops.
+- **Shipped:** `resizeTarget` now carries `previewLayout:
+  WidgetInstance[]`. A `resolve(ev)` helper grows the rect via
+  `computeResizedRect` then runs `applyResizeWithPush` against the live
+  draft; `handleMove` writes the pushed layout into
+  `resizeTarget.previewLayout`; `handleUp` commits
+  `trimLeadingRows(pushed)` via `setDraftWidgets` (no-op only when w/h
+  unchanged — the old "abort if it would overlap a sibling" guard is
+  gone). The render now derives every widget's live geometry from
+  `resizeSlot ?? moveSlot` (one source for both gestures), so pushed
+  neighbors shift live during a resize the same way they do during a
+  move. New `grid-editor-resize-push-wire.test.ts` (7 cases) + updated
+  `grid-editor-resize.test.tsx`. Updated `grid-editor-move.test.ts`
+  for the shared-import + shared-live-slot shape. 1415 hub specs
+  green; typecheck + lint clean.
 
 #### Slice G4 — Wire resize to the push helper (live preview + commit)
 - **Scope:** Rework `startResize` in `GridEditor` to drive a live

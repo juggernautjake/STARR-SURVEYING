@@ -20,10 +20,12 @@ const SRC = fs.readFileSync(
 );
 
 describe('Slice 9 — grid-reflow imports', () => {
-  it('imports applyMoveWithPush and commitDrop from the Slice-8 module', () => {
-    expect(SRC).toMatch(
-      /import \{ applyMoveWithPush, commitDrop \} from '@\/lib\/hub\/grid-reflow';/,
-    );
+  it('imports applyMoveWithPush and commitDrop from the grid-reflow module', () => {
+    // Slice G4 widened this import to also bring in applyResizeWithPush
+    // + trimLeadingRows, so match the two move-pipeline names within
+    // the single grid-reflow import rather than the exact list.
+    expect(SRC).toMatch(/import \{[^}]*\bapplyMoveWithPush\b[^}]*\} from '@\/lib\/hub\/grid-reflow';/);
+    expect(SRC).toMatch(/import \{[^}]*\bcommitDrop\b[^}]*\} from '@\/lib\/hub\/grid-reflow';/);
   });
 
   it('imports the WidgetInstance type for the preview-layout state shape', () => {
@@ -102,11 +104,15 @@ describe('Slice 9 — pointer listeners are attached at window scope', () => {
   });
 });
 
-describe('Slice 9 — render reads liveX / liveY from moveDrag.previewLayout', () => {
+describe('Slice 9 — render reads live x/y from the move preview layout', () => {
   it('looks up the moving widget + its cascaded siblings in the preview list', () => {
-    expect(SRC).toMatch(/const previewSlot = moveDrag\?\.previewLayout\.find\(\(w\) => w\.id === inst\.id\);/);
-    expect(SRC).toMatch(/const liveX = previewSlot\?\.x \?\? inst\.x;/);
-    expect(SRC).toMatch(/const liveY = previewSlot\?\.y \?\? inst\.y;/);
+    // Slice G4 generalized the lookup so resize + move share one live
+    // geometry source: moveSlot comes from moveDrag.previewLayout,
+    // liveSlot falls back through it, and liveX/liveY read off liveSlot.
+    expect(SRC).toMatch(/const moveSlot = moveDrag\?\.previewLayout\.find\(\(w\) => w\.id === inst\.id\);/);
+    expect(SRC).toMatch(/const liveSlot = resizeSlot \?\? moveSlot;/);
+    expect(SRC).toMatch(/const liveX = liveSlot\?\.x \?\? inst\.x;/);
+    expect(SRC).toMatch(/const liveY = liveSlot\?\.y \?\? inst\.y;/);
   });
 
   it('paints the dragged widget with z-index lift + grabbing cursor + no transition', () => {
@@ -127,6 +133,9 @@ describe('Slice 9 — the resize pipeline survives untouched', () => {
   });
 
   it('resize still uses its own setResizeTarget state (not muxed through moveDrag)', () => {
-    expect(SRC).toMatch(/setResizeTarget\(\{ id: inst\.id, w: target\.w, h: target\.h \}\);/);
+    // Slice G4 added previewLayout to the resizeTarget payload so the
+    // pushed neighbors render live; resize remains a separate state
+    // channel from moveDrag.
+    expect(SRC).toMatch(/setResizeTarget\(\{ id: inst\.id, w: target\.w, h: target\.h, previewLayout: pushed \}\);/);
   });
 });
