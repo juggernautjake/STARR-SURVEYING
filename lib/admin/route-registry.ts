@@ -182,7 +182,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/rewards/admin',         label: 'Manage Rewards',   workspace: 'office', iconName: 'Settings2',    description: 'Configure rewards + store catalog.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/rewards/how-it-works',  label: 'How Rewards Work', workspace: 'office', iconName: 'HelpCircle',   description: 'Rewards program explainer.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/messages',              label: 'Messages',         workspace: 'office', iconName: 'MessageSquare', description: 'Direct + group messaging.', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['chat', 'dm'] },
-  { href: '/admin/messages/contacts',     label: 'Team Directory',   workspace: 'office', iconName: 'Contact',      description: 'Internal contact directory.', roles: INTERNAL_COMM_ROLES, internalOnly: true },
+  // consolidation Slice 6 (2026-05-30) — clarified description so it
+  // reads distinctly from the firm-wide `/admin/contacts` CRM. This
+  // surface is for picking a teammate to message; the CRM page is for
+  // realtors / clients / students.
+  { href: '/admin/messages/contacts',     label: 'Team Directory',   workspace: 'office', iconName: 'Contact',      description: 'Internal teammate directory — pick someone to message.', roles: INTERNAL_COMM_ROLES, internalOnly: true },
   { href: '/admin/messages/new',          label: 'New Message',      workspace: 'office', iconName: 'MessageSquarePlus', description: 'Start a new conversation.', roles: INTERNAL_COMM_ROLES, internalOnly: true, showInRail: false },
   { href: '/admin/messages/settings',     label: 'Message Settings', workspace: 'office', iconName: 'Settings',     description: 'Messaging preferences.', roles: INTERNAL_COMM_ROLES, internalOnly: true, showInRail: false },
   // contacts plan 2026-05-30 — firm-wide contacts (realtors, repeat

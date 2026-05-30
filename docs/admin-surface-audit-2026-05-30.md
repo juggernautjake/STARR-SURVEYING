@@ -39,7 +39,7 @@ surfaced in the nav rail; the rest are deep / sub routes.
 | `/admin/my-notes`                 | `legacy-redirect`          | Same. Delete in Slice 2.                                                                           |
 | `/admin/profile`                  | `legacy-redirect`          | Redirects to `/admin/me?tab=profile`. Delete in Slice 2.                                           |
 | `/admin/dashboard`                | `consolidation-candidate`  | Pre-hub dashboard; `/admin/me` is the successor + pulls the same data via widgets. Slice 7.        |
-| `/admin/messages/contacts`        | `consolidation-candidate`  | Team-directory page; fold into the messages sidebar in Slice 6.                                    |
+| `/admin/messages/contacts`        | `active` (kept after audit)| Initially flagged as a consolidation candidate; on inspection it serves a distinct audience (internal teammates for messaging vs. external CRM contacts on `/admin/contacts`). Slice 6 added clarifying cross-link banners + sharpened descriptions; deletion deferred. |
 | `/admin/work-mode/admin`          | `verify-before-action`     | Role-specific work-mode landing; appears superseded by `/admin/work`. Verify + archive in Slice 7. |
 | `/admin/work-mode/developer`      | `verify-before-action`     | Same.                                                                                              |
 | `/admin/work-mode/field_crew`     | `verify-before-action`     | Same.                                                                                              |

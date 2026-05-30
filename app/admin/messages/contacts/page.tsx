@@ -62,6 +62,14 @@ export default function ContactsPage() {
         <div className="msg-contacts-page__header">
           <Link href="/admin/messages" className="learn__back">&larr; Back to Messages</Link>
           <h2 className="msg-contacts-page__title">Team Directory</h2>
+          {/* consolidation Slice 6 (2026-05-30) — clarifying cross-link
+              so users don't confuse this internal-teammate directory
+              with the firm-wide /admin/contacts CRM (realtors, repeat
+              clients, students, etc.). */}
+          <p style={{ margin: '4px 0 8px', fontSize: '0.85rem', color: 'var(--color-text-muted, #6B7280)' }}>
+            Internal teammates only. Looking for a client, realtor, or external contact?{' '}
+            <Link href="/admin/contacts" style={{ color: 'var(--theme-accent, #3b82f6)' }}>Open the contacts directory →</Link>
+          </p>
           <p className="msg-contacts-page__subtitle">
             {contacts.length} team member{contacts.length !== 1 ? 's' : ''}
           </p>

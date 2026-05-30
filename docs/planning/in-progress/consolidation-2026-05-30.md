@@ -220,18 +220,40 @@ fewer files to grep through.
 - **2057** middleware + notifications + hub + admin + saas +
   contacts specs green; typecheck + lint clean.
 
-### Slice 6 — Delete `/admin/messages/contacts`, fold into the
-  inbox sidebar
+### Slice 6 — `/admin/messages/contacts` — kept after audit ✅ shipped 2026-05-30
 
-- The contacts directory inside the messages workspace has now
-  been replicated by `/admin/contacts` (the contacts plan). The
-  team-directory variant adds nothing on top of putting a
-  participant search box in the messages-inbox sidebar.
-- Action: delete the page; add the contact picker as a sidebar
-  inside `/admin/messages`; update the registry + nav. Add a
-  redirect from `/admin/messages/contacts` → `/admin/contacts`.
-- Touch the quick-actions catalog and route registry; lock the
-  redirect with a spec.
+**Deletion deferred with rationale.** On inspection the page is
+NOT redundant with the new `/admin/contacts` CRM: it's an internal
+teammate directory for picking someone to message, where the new
+contacts page is for external clients / realtors / students /
+teachers. Different audiences, different workflows. The original
+plan's "fold into the inbox sidebar" premise assumed both surfaces
+were doing the same thing; the audit explorer pass was wrong on
+that one. Removing the team directory would erase the
+canonical-and-fast "find a teammate to DM" workflow without
+replacement; the cost clearly exceeds the value.
+
+What shipped instead — sharpening the distinction so users don't
+confuse the two surfaces:
+
+- `/admin/messages/contacts`: clarifying banner under the
+  "Team Directory" title — "Internal teammates only. Looking for a
+  client, realtor, or external contact? Open the contacts
+  directory →" (cross-links to `/admin/contacts`).
+- `/admin/contacts`: clarifying banner under the page subtitle —
+  "Looking for a teammate to message? Open the team directory →"
+  (cross-links to `/admin/messages/contacts`).
+- Route-registry entry for `/admin/messages/contacts` description
+  sharpened from "Internal contact directory" to "Internal
+  teammate directory — pick someone to message" so the bell +
+  Cmd+K + nav surface the right intent.
+- Audit doc `docs/admin-surface-audit-2026-05-30.md` updated: the
+  row's classification flips from `consolidation-candidate` to
+  `active (kept after audit)` with the rationale inline so a
+  future PR has the same context this slice did.
+
+No new specs (the changes are doc + JSX edits). 1853 hub + admin +
+contacts + middleware specs green; typecheck + lint clean.
 
 ### Slice 7 — Verify-and-clean
   (`/admin/work-mode/*`, `/admin/research-cad`, `/admin/dashboard`)

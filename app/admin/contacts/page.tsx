@@ -76,6 +76,13 @@ export default function ContactsPage() {
           <p style={{ margin: '0.25rem 0 0', color: 'var(--color-text-muted, #6B7280)', fontSize: '0.95rem' }}>
             Realtors, clients, students, teachers, employees — anyone you want to keep on file.
           </p>
+          {/* consolidation Slice 6 (2026-05-30) — cross-link to the
+              internal-only team directory used by the messages
+              composer. The two surfaces serve different audiences. */}
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted, #6B7280)' }}>
+            Looking for a teammate to message?{' '}
+            <Link href="/admin/messages/contacts" style={{ color: 'var(--theme-accent, #3b82f6)' }}>Open the team directory →</Link>
+          </p>
         </div>
         <button
           type="button"
