@@ -14,6 +14,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const search = searchParams.get('search');
   const myJobs = searchParams.get('my_jobs') === 'true';
   const archived = searchParams.get('archived') === 'true';
+  // job-soft-delete Slice 1 — `?deleted=true` lists the trash
+  // (soft-deleted jobs inside their 30-day recovery window); every
+  // other list excludes deleted rows.
+  const deleted = searchParams.get('deleted') === 'true';
   const legacy = searchParams.get('legacy') === 'true';
   const limit = parseInt(searchParams.get('limit') || '50');
   const offset = parseInt(searchParams.get('offset') || '0');
@@ -54,9 +58,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   let query = supabaseAdmin
     .from('jobs')
     .select('*, job_team(user_email, user_name, role), job_tags(tag)', { count: 'exact' })
-    .eq('is_archived', archived)
-    .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
+
+  // job-soft-delete Slice 1 — the trash view lists soft-deleted jobs
+  // (newest-deleted first); every other view excludes them. Archive
+  // is an independent axis, only applied outside the trash view.
+  if (deleted) {
+    query = query.not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+  } else {
+    query = query.is('deleted_at', null).eq('is_archived', archived).order('created_at', { ascending: false });
+  }
 
   if (stage && stage !== 'all') query = query.eq('stage', stage);
   if (legacy) query = query.eq('is_legacy', true);
@@ -247,12 +258,19 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Job ID required' }, { status: 400 });
 
-  // Soft delete (archive)
-  const { error } = await supabaseAdmin
+  // job-soft-delete Slice 1 — true soft delete: set the `deleted_at`
+  // tombstone so the job drops out of every list but stays recoverable
+  // for 30 days (restore = PUT { id, deleted_at: null }; the purge
+  // cron hard-deletes past the window). Distinct from `is_archived`,
+  // which leaves the job live.
+  const { data, error } = await supabaseAdmin
     .from('jobs')
-    .update({ is_archived: true })
-    .eq('id', id);
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id, name, job_number, deleted_at')
+    .maybeSingle();
 
-  if (error) return dbErrorResponse(error, 'archive the job');
-  return NextResponse.json({ success: true });
+  if (error) return dbErrorResponse(error, 'delete the job');
+  if (!data) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+  return NextResponse.json({ success: true, job: data });
 }, { routeName: 'jobs', exposeErrors: true });

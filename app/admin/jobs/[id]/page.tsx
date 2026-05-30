@@ -153,6 +153,32 @@ export default function JobDetailPage() {
     setJob((prev) => (prev ? { ...prev, [field]: payloadValue as never } : prev));
   }, [jobId]);
 
+  // job-soft-delete Slice 1 — warn, then soft-delete (sets deleted_at;
+  // recoverable for 30 days from the all-jobs "🗑 Deleted" view), then
+  // route back to the list.
+  const [deletingJob, setDeletingJob] = useState(false);
+  const handleDeleteJob = useCallback(async () => {
+    if (!job) return;
+    const ok = window.confirm(
+      `Delete "${job.name}"?\n\n` +
+      `It will be moved to the trash and stays recoverable for 30 days ` +
+      `(restore it from Jobs → "🗑 Deleted"), then it's permanently removed.`,
+    );
+    if (!ok) return;
+    setDeletingJob(true);
+    try {
+      const res = await fetch(`/api/admin/jobs?id=${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+      if (res.ok) {
+        router.push('/admin/jobs');
+        return;
+      }
+      setDeletingJob(false);
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'delete job' });
+      setDeletingJob(false);
+    }
+  }, [job, jobId, router, reportPageError]);
+
   // Load tab-specific data on tab change
   useEffect(() => {
     if (!jobId) return;
@@ -388,21 +414,43 @@ export default function JobDetailPage() {
               place, with bulk media-manifest download). Inline-styled
               to avoid adding new CSS to the existing job-detail
               stylesheet. */}
-          <Link
-            href={`/admin/jobs/${jobId}/field`}
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: 'var(--color-brand-navy)',
-              border: '1px solid var(--color-brand-navy)',
-              borderRadius: 8,
-              padding: '6px 12px',
-              textDecoration: 'none',
-            }}
-            title="See every point + photo + voice memo + file the field crew has logged on this job, and download the media in one CSV."
-          >
-            📍 View field captures →
-          </Link>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link
+              href={`/admin/jobs/${jobId}/field`}
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-brand-navy)',
+                border: '1px solid var(--color-brand-navy)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                textDecoration: 'none',
+              }}
+              title="See every point + photo + voice memo + file the field crew has logged on this job, and download the media in one CSV."
+            >
+              📍 View field captures →
+            </Link>
+            {/* job-soft-delete Slice 1 — delete with a warning; the job
+                is recoverable for 30 days from Jobs → "🗑 Deleted". */}
+            <button
+              type="button"
+              onClick={() => void handleDeleteJob()}
+              disabled={deletingJob}
+              title="Delete this job (recoverable for 30 days)"
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#B42318',
+                border: '1px solid #FCA5A5',
+                background: 'transparent',
+                borderRadius: 8,
+                padding: '6px 12px',
+                cursor: 'pointer',
+              }}
+            >
+              {deletingJob ? 'Deleting…' : '🗑 Delete job'}
+            </button>
+          </div>
         </div>
         <div className="job-detail__header-top">
           <div>

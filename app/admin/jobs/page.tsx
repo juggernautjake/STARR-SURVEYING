@@ -1,6 +1,6 @@
 // app/admin/jobs/page.tsx — All Jobs (admin view)
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
@@ -37,6 +37,25 @@ interface Job {
   job_tags?: { tag: string }[];
 }
 
+// job-soft-delete Slice 1 — the delete/restore control that overlays
+// the top-right corner of each job card / row. Absolutely positioned
+// as a sibling of the card button so its click never bubbles into
+// navigation.
+const jobActionOverlayStyle: CSSProperties = {
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  zIndex: 2,
+  padding: '2px 8px',
+  borderRadius: 6,
+  border: '1px solid #FCA5A5',
+  background: 'rgba(255,255,255,0.92)',
+  color: '#B42318',
+  cursor: 'pointer',
+  fontSize: 12,
+  lineHeight: 1.6,
+};
+
 export default function AllJobsPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
@@ -47,29 +66,79 @@ export default function AllJobsPage() {
   const [stageFilter, setStageFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [total, setTotal] = useState(0);
+  // job-soft-delete Slice 1 — when true the list shows the trash
+  // (soft-deleted jobs, recoverable for 30 days) instead of live jobs.
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const [searchTrigger, setSearchTrigger] = useState(0);
 
-  useEffect(() => {
-    async function loadJobs() {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
+  const loadJobs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (showDeleted) {
+        params.set('deleted', 'true');
+      } else {
         if (stageFilter !== 'all') params.set('stage', stageFilter);
         if (search) params.set('search', search);
-        const res = await fetch(`/api/admin/jobs?${params}`);
-        if (res.ok) {
-          const data = await res.json();
-          setJobs(data.jobs || []);
-          setTotal(data.total || 0);
-        }
-      } catch (err) {
-        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load jobs' });
       }
-      setLoading(false);
+      const res = await fetch(`/api/admin/jobs?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setJobs(data.jobs || []);
+        setTotal(data.total || 0);
+      }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load jobs' });
     }
-    loadJobs();
-  }, [stageFilter, searchTrigger, search, reportPageError]);
+    setLoading(false);
+  }, [stageFilter, search, showDeleted, reportPageError]);
+
+  useEffect(() => {
+    void loadJobs();
+    // searchTrigger is the explicit "Search" submit; loadJobs already
+    // closes over search/stage/showDeleted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageFilter, searchTrigger, showDeleted, loadJobs]);
+
+  // job-soft-delete Slice 1 — confirm-then-soft-delete. The job drops
+  // out of the live list immediately + stays recoverable for 30 days.
+  const handleDelete = useCallback(async (job: { id: string; name: string }) => {
+    const ok = window.confirm(
+      `Delete "${job.name}"?\n\n` +
+      `It will be moved to the trash and stays recoverable for 30 days, ` +
+      `then it's permanently removed. You can restore it any time before then ` +
+      `from the "🗑 Deleted" view.`,
+    );
+    if (!ok) return;
+    setBusyId(job.id);
+    try {
+      const res = await fetch(`/api/admin/jobs?id=${encodeURIComponent(job.id)}`, { method: 'DELETE' });
+      if (res.ok) setJobs((cur) => cur.filter((j) => j.id !== job.id));
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'delete job' });
+    } finally {
+      setBusyId(null);
+    }
+  }, [reportPageError]);
+
+  // job-soft-delete Slice 1 — restore clears the tombstone via PUT.
+  const handleRestore = useCallback(async (job: { id: string; name: string }) => {
+    setBusyId(job.id);
+    try {
+      const res = await fetch('/api/admin/jobs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: job.id, deleted_at: null }),
+      });
+      if (res.ok) setJobs((cur) => cur.filter((j) => j.id !== job.id));
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'restore job' });
+    } finally {
+      setBusyId(null);
+    }
+  }, [reportPageError]);
 
   // Role guard (middleware handles redirect, this prevents flash)
   const userRoles = session?.user?.roles || ['employee'];
@@ -159,6 +228,27 @@ export default function AllJobsPage() {
               title="List view"
             >☰</button>
           </div>
+          {/* job-soft-delete Slice 1 — toggle between live jobs and the
+              trash (soft-deleted, recoverable for 30 days). */}
+          <button
+            type="button"
+            onClick={() => setShowDeleted((v) => !v)}
+            title={showDeleted ? 'Back to active jobs' : 'View deleted jobs (recoverable for 30 days)'}
+            style={{
+              height: 38,
+              boxSizing: 'border-box',
+              padding: '0 14px',
+              borderRadius: 8,
+              border: showDeleted ? '1px solid #15803D' : '1px solid #E2E5EB',
+              background: showDeleted ? '#15803D' : 'transparent',
+              color: showDeleted ? '#FFFFFF' : 'inherit',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            {showDeleted ? '← Active jobs' : '🗑 Deleted'}
+          </button>
         </div>
 
         {/* Job Cards */}
@@ -184,31 +274,58 @@ export default function AllJobsPage() {
         ) : (
           <div className={viewMode === 'grid' ? 'jobs-page__grid' : 'jobs-page__list'}>
             {jobs.map(job => (
-              viewMode === 'grid' ? (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  onClick={() => router.push(`/admin/jobs/${job.id}`)}
-                />
-              ) : (
-                <button
-                  key={job.id}
-                  className="jobs-page__list-item"
-                  onClick={() => router.push(`/admin/jobs/${job.id}`)}
-                >
-                  <span className="jobs-page__list-number">{job.job_number}</span>
-                  <span className="jobs-page__list-name">{job.name}</span>
-                  <span className="jobs-page__list-type">{SURVEY_TYPES[job.survey_type] || job.survey_type}</span>
-                  <span className="jobs-page__list-client">{job.client_name || '—'}</span>
-                  <span
-                    className="jobs-page__list-stage"
-                    style={{ color: STAGE_CONFIG[job.stage]?.color }}
+              // job-soft-delete Slice 1 — wrap each item so the delete /
+              // restore control overlays as a SIBLING of the card/row
+              // button (never nested — avoids invalid button-in-button +
+              // keeps the overlay click from bubbling into navigation).
+              <div key={job.id} style={{ position: 'relative' }}>
+                {viewMode === 'grid' ? (
+                  <JobCard
+                    job={job}
+                    onClick={() => router.push(`/admin/jobs/${job.id}`)}
+                  />
+                ) : (
+                  <button
+                    className="jobs-page__list-item"
+                    onClick={() => router.push(`/admin/jobs/${job.id}`)}
                   >
-                    {STAGE_CONFIG[job.stage]?.icon} {STAGE_CONFIG[job.stage]?.label}
-                  </span>
-                  <span className="jobs-page__list-date">{new Date(job.created_at).toLocaleDateString()}</span>
-                </button>
-              )
+                    <span className="jobs-page__list-number">{job.job_number}</span>
+                    <span className="jobs-page__list-name">{job.name}</span>
+                    <span className="jobs-page__list-type">{SURVEY_TYPES[job.survey_type] || job.survey_type}</span>
+                    <span className="jobs-page__list-client">{job.client_name || '—'}</span>
+                    <span
+                      className="jobs-page__list-stage"
+                      style={{ color: STAGE_CONFIG[job.stage]?.color }}
+                    >
+                      {STAGE_CONFIG[job.stage]?.icon} {STAGE_CONFIG[job.stage]?.label}
+                    </span>
+                    <span className="jobs-page__list-date">{new Date(job.created_at).toLocaleDateString()}</span>
+                  </button>
+                )}
+                {showDeleted ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleRestore(job)}
+                    disabled={busyId === job.id}
+                    title="Restore this job"
+                    aria-label={`Restore ${job.name}`}
+                    style={{ ...jobActionOverlayStyle, color: '#15803D', borderColor: '#86EFAC' }}
+                  >
+                    ↩ Restore
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(job)}
+                    disabled={busyId === job.id}
+                    title="Delete this job (recoverable for 30 days)"
+                    aria-label={`Delete ${job.name}`}
+                    style={jobActionOverlayStyle}
+                  >
+                    🗑
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
