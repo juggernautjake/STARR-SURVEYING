@@ -36,7 +36,7 @@ a rebuild.
 
 ## Slices
 
-### Slice 1 — Notification inventory + gap map
+### Slice 1 — Notification inventory + gap map ✅ shipped 2026-05-30
 - **Scope:** Document (in this doc) every widget-relevant event that
   SHOULD notify, the helper that should fire it, and whether it's
   currently wired. Read the create/update API routes behind each
@@ -57,6 +57,46 @@ a rebuild.
 - **Files:** this doc (the gap map) + read-only audit notes.
 - **Done when:** the gap map is complete + checked against the live
   API routes.
+
+#### Gap map (audited 2026-05-30 against the live routes)
+
+Headline finding: **a whole tier of typed `notify*` helpers is defined
+in `lib/notifications.ts` but never called anywhere** — confirmed by
+`grep -rln` across `app/` + `lib/`:
+`notifyHoursDecision`, `notifyPaymentUpdate`, `notifyRaise`,
+`notifyBonus`, `notifyJobAssignment`, `notifyJobStageUpdate`,
+`notifyTaskAssignment`, `notifyLessonComplete`, `notifyModuleComplete`,
+`notifyQuizResult`, `notifyStudyReminder` all have **zero call sites**.
+The wiring exists for equipment/personnel/learning-assignment/employee
+events but NOT for the hours/pay/receipts/time-off/job-stage/study
+workflow the user called out ("remind students and workers").
+
+| Event | Helper | Wired? | Mutation route / gap |
+|---|---|---|---|
+| Crew/personnel assigned + responded | `notify`/`notifyMany` | ✅ | `personnel/assign`, `personnel/respond`, `personnel/cancel-assignment` |
+| Equipment checkout/checkin/reserve/borrow + overdue | `notify`/`notifyMany` | ✅ | `equipment/*` + `cron/equipment-overdue-*` |
+| Maintenance schedule tick | `notify`/`notifyMany` | ✅ | `cron/maintenance-schedule-tick` |
+| Learning assignment created | `notifyLearningAssignment` | ✅ | `learn/assignments` POST |
+| ACC enrollment | `notifyACCEnrollment` | ✅ | `learn/assignments`, `learn/credits` |
+| Employee account change | `notifyEmployee` | ✅ | `employees/manage` |
+| **Hours approved/rejected** | `notifyHoursDecision` | ❌ | `time-logs/approve` sets `status` but never notifies the submitter — **GAP (Slice 2, high value)** |
+| **Receipt approved/rejected** | `notifyPaymentUpdate` | ❌ | `receipts/[id]` PATCH + `receipts/bulk-approve` — **GAP (Slice 2)** |
+| **Time-off approved/denied** | (approval) `notifyFromAdmin`/`notifyPaymentUpdate`-style | ❌ | `time-off` PATCH (`approved`/`denied`) — **GAP (Slice 2, high value)** |
+| **Pay raise / bonus / pay update** | `notifyRaise`/`notifyBonus`/`notifyPaymentUpdate` | ❌ | `payroll/raises` (+ bonuses/advances) — **GAP (Slice 2)** |
+| **Job stage change** | `notifyJobStageUpdate` | ❌ | `jobs/stages` + `jobs` PUT — **GAP (Slice 2)** |
+| **Direct job assignment** | `notifyJobAssignment` | ⚠️ partial | `personnel/assign` fires the base `notify`, but not the typed job-assignment helper/link — refine in Slice 4 |
+| **Task assignment created** | `notifyTaskAssignment` | ❌ | `assignments` POST never notifies the assignee — **GAP (Slice 2)** |
+| **Lesson / module complete** | `notifyLessonComplete`/`notifyModuleComplete` | ❌ | `learn/progress`, `learn/user-progress` — **GAP (Slice 2, students)** |
+| **Quiz result** | `notifyQuizResult` | ❌ | `learn/quizzes` (+ `learn/progress`) — **GAP (Slice 2, students)** |
+| **Study reminder (due/overdue)** | `notifyStudyReminder` | ❌ | no reminder path exists — **GAP (Slice 3)** |
+| Message received / @mention | (bell excludes these) | ⚠️ | `NotificationBell` deliberately excludes direct/group msgs; unread is the messenger's own count — **reconcile in Slice 4** |
+
+**Slice 2 wiring targets (prioritized):** `time-logs/approve`,
+`time-off` PATCH, `receipts/[id]` + `receipts/bulk-approve`,
+`jobs/stages`, `assignments` POST, `learn/progress` /
+`learn/user-progress` / `learn/quizzes`, `payroll/raises`. Each fires
+on a genuine transition only and reuses the existing typed helper +
+its dedup.
 
 ### Slice 2 — Wire the highest-value missing notifications
 - **Scope:** For the gaps that matter most to "remind students and
