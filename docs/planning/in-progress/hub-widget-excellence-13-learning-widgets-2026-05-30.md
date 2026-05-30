@@ -121,6 +121,19 @@ the academic widgets all work too." Each: Build/Wire + 4 audit rounds.*
 - **Footer link:** "Go to quiz history →" `/admin/learn/quiz-history`.
 - **Editor:** maxItems, showScore, onlyFailed.
 - **Slices:** Build/Wire (footer link) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `/api/admin/learn/quiz-attempts` doesn't exist** (real history:
+  `/api/admin/learn/quizzes?history=1`) AND the widget read
+  `quiz_name`/`score`/`max_score` while the real `quiz_attempts` rows
+  carry `score_percent` / `attempt_type` / `exam_category` /
+  `completed_at` (so it always rendered empty). **Realigned:** fetch
+  `?history=1&limit=20` + map via a new pure exported `toQuizAttempt`
+  (models `score_percent` as score/100 so the existing tested
+  `attemptPercent`/`filterFailed` helpers work unchanged) + a
+  `quizLabel(type, category)` for the quiz name. Widget render
+  (color-coded %, onlyFailed, showScore, maxItems) unchanged. Footer
+  "Go to quiz history →" is global. 5 specs. Full hub suite (1624)
+  green; typecheck + lint clean. **quiz-history is done.**
 
 ## streak-counter
 - **Endpoint:** `/api/admin/learn/streak`. Fields: current_days,

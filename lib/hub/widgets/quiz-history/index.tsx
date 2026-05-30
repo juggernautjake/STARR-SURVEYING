@@ -47,6 +47,44 @@ export function filterFailed<T extends { score: number; max_score: number }>(
 
 interface QuizAttempt { id: string; quiz_name: string; score: number; max_score: number; completed_at: string; }
 
+// hub-widget-excellence-13 R1 — `/api/admin/learn/quiz-attempts` doesn't
+// exist; the real history is `/api/admin/learn/quizzes?history=1`, whose
+// `quiz_attempts` rows carry `score_percent` / `attempt_type` /
+// `exam_category` / `completed_at` — NOT the `quiz_name` / `score` /
+// `max_score` this widget read.
+interface RawQuizAttempt {
+  id: string;
+  attempt_type?: string | null;
+  exam_category?: string | null;
+  score_percent?: number | null;
+  completed_at?: string | null;
+}
+
+/** Human label for a quiz attempt from its type/category. Pure +
+ *  exported. */
+export function quizLabel(attemptType?: string | null, examCategory?: string | null): string {
+  const cat = examCategory?.trim();
+  if (cat) return `${cat} exam`;
+  if (attemptType === 'exam_prep') return 'Exam-prep quiz';
+  return 'Lesson quiz';
+}
+
+/** Map a raw quiz_attempts row to the widget's shape. `score_percent`
+ *  is modeled as score/100 so the existing `attemptPercent` helper
+ *  returns the percentage unchanged. Pure + exported. */
+export function toQuizAttempt(r: RawQuizAttempt): QuizAttempt {
+  const pct = typeof r.score_percent === 'number' && Number.isFinite(r.score_percent)
+    ? Math.max(0, Math.min(100, Math.round(r.score_percent)))
+    : 0;
+  return {
+    id: r.id,
+    quiz_name: quizLabel(r.attempt_type, r.exam_category),
+    score: pct,
+    max_score: 100,
+    completed_at: r.completed_at ?? '',
+  };
+}
+
 function QuizHistoryWidget({ size, content }: WidgetProps<QuizHistoryContent>) {
   const bucket = sizeBucket(size.w, size.h);
   const explicitCap = resolveMaxItems(content);
@@ -58,11 +96,12 @@ function QuizHistoryWidget({ size, content }: WidgetProps<QuizHistoryContent>) {
   const fetchAttempts = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/learn/quiz-attempts?limit=20');
+      const res = await fetch('/api/admin/learn/quizzes?history=1&limit=20');
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { attempts?: QuizAttempt[] } = await res.json();
-      setAttempts(data.attempts ?? []);
-      setStatus((data.attempts ?? []).length === 0 ? 'empty' : 'ok');
+      const data: { attempts?: RawQuizAttempt[] } = await res.json();
+      const mapped = (data.attempts ?? []).map(toQuizAttempt);
+      setAttempts(mapped);
+      setStatus(mapped.length === 0 ? 'empty' : 'ok');
     } catch { setStatus('empty'); }
   }, []);
   useEffect(() => { fetchAttempts(); }, [fetchAttempts]);
