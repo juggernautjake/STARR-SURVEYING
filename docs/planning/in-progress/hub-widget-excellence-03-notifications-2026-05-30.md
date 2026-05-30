@@ -149,7 +149,17 @@ its dedup.
   or null when no submitter. Both call sites best-effort. 5 specs
   (approve w/ amount+vendor, reject w/ reason, missing amount/vendor,
   string-total coercion, null submitter). typecheck + lint clean.
-- 2d — Job stage change — pending.
+- **2d — Job stage change ✅ shipped 2026-05-30.** `jobs/stages` POST
+  now notifies the job's crew when the stage genuinely changes. The
+  route fetches `job_team.user_email` for the job and passes them
+  through the existing `notifyJobStageUpdate(recipients, jobNumber,
+  jobId, from, to)` helper (`🔄 Job {num}: {from} → {to}`, link
+  `/admin/jobs/{id}`). Pure helpers `lib/notifications/job-stage.ts`:
+  `resolveStageRecipients(teamEmails, actor)` (dedupe case-insensitive,
+  drop empties + the actor) and `isStageTransition(from, to)` (guards
+  the no-op "set to same stage"). Best-effort. 7 specs (actor excluded
+  + case-insensitive, dedupe/empties, actor-only → empty; real change
+  vs no-op vs missing-stage). typecheck + lint clean.
 - 2e — Task assignment created — pending.
 - 2f — Lesson/module complete + quiz result — pending.
 - 2g — Pay raise/bonus — pending.
