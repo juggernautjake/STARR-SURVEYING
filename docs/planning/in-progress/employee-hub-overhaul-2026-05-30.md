@@ -936,16 +936,50 @@ WidgetCustomization {
     roadmap-progress (asserts the removed pre-revision field keys are
     absent). 1368 hub specs green; typecheck + lint clean.
 
-#### Slice 15c — Remaining schema-source widget body wiring (3 widgets)
+#### Slice 15c — Utility-family widget body wiring (3 widgets) ✅ shipped 2026-05-30
 - **Scope:** Wire the last 3 schema-source widgets:
   `daily-briefing` (showWeather / showSchedule / maxJobs),
   `monthly-revenue` (period / showTrend / showComparison),
   `sun-calculator` (latitude / longitude / units / showTwilight).
-- **Files:** the three widget `index.tsx` files,
-  `__tests__/hub/widget-config-render-*.test.ts` (per family).
+- **Files:** the three widget `index.tsx` files, new
+  `__tests__/hub/widget-config-render-utility-family.test.ts`.
 - **Done when:** Each widget visibly reflects its schema options;
   resolvers exported + locked. Schema coverage from Slice 12 stays
   intact.
+- **Outcome:** Every schema-source widget (12 of 12) now reads its
+  saved content. Slice-15c specifics:
+  - **daily-briefing** wires showWeather + showSchedule + maxJobs.
+    Body's 4-section grid gates the Today + Weather sub-sections by
+    their toggles (Crew + Action items always render — they have no
+    schema toggles). Today's subtitle echoes the maxJobs cap so the
+    surveyor sees the cap reflected even though real schedule data
+    hasn't landed yet. Toggles default true so the existing layout is
+    unchanged when no edits are made.
+  - **monthly-revenue** wires period + showTrend + showComparison.
+    period (month/quarter/year) drives a `PERIOD_LABEL` lookup
+    (`Month-to-date / vs last month`, etc.) and is now forwarded to
+    the API as `?period=…` so the existing endpoint can grow per-
+    period support without re-touching the render. showTrend gates
+    the `▲/▼ N%` line; showComparison gates the `vs last X` suffix.
+    Defaults match pre-overhaul behavior.
+  - **sun-calculator** wires latitude + longitude + units +
+    showTwilight. New pure helpers `buildSunQuery(lat, lng)` (composes
+    `?lat=&lng=` only for set coords) and `formatTime(time, units)`
+    (appends ` UTC` when units=utc) let the surveyor pin a specific
+    site or surface a unit cue without a backend round-trip.
+    showTwilight surfaces a placeholder "Civil twilight: ~30 min
+    before sunrise / after sunset" hint row (a future commit can
+    replace the placeholder with real backend numbers without touching
+    the schema or the panel).
+  - 17 new spec cases covering each widget's resolvers + the new
+    helpers + the schema↔resolver agreement on the select-field
+    options (period values; units values). 1385 hub specs green;
+    typecheck + lint clean. **Phase HB5 (per-widget options) is now
+    complete** — every one of the 12 schema-source widgets is editable
+    end-to-end (Slice 11 panel + Slice 13 schema renderer + Slices 14
+    / 15 / 15b / 15c body wiring). The 29 settings-form widgets have
+    their own forms hosted directly by the panel (Slice 11). Phase HB6
+    (responsive render, save round-trip, QA) is the only phase left.
 
 ### Phase HB6 — Responsive render, Save round-trip, QA
 

@@ -9,26 +9,55 @@ import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 
-export interface MonthlyRevenueContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: MonthlyRevenueContent = {};
+// Slice 15c — wired to the Slice-12 schema fields:
+//   - period:         'month' | 'quarter' | 'year' (changes the label;
+//                     the data still comes from the existing endpoint
+//                     until backend grows per-period breakdowns)
+//   - showTrend:      gates the ▲/▼ trend percentage line
+//   - showComparison: gates the "vs last X" suffix on the muted line
+import { resolveBool, resolveEnum } from '@/lib/hub/widgets/_shared/content-resolvers';
+
+export type RevenuePeriod = 'month' | 'quarter' | 'year';
+const PERIODS: ReadonlyArray<RevenuePeriod> = ['month', 'quarter', 'year'];
+
+export interface MonthlyRevenueContent extends Record<string, unknown> {
+  period?: RevenuePeriod;
+  showTrend?: boolean;
+  showComparison?: boolean;
+}
+const DEFAULTS: MonthlyRevenueContent = { period: 'month', showTrend: true, showComparison: true };
+
+export const resolvePeriod         = (c: MonthlyRevenueContent): RevenuePeriod => resolveEnum(c.period, PERIODS, 'month');
+export const resolveShowTrend      = (c: MonthlyRevenueContent): boolean       => resolveBool(c.showTrend, true);
+export const resolveShowComparison = (c: MonthlyRevenueContent): boolean       => resolveBool(c.showComparison, true);
+
+const PERIOD_LABEL: Record<RevenuePeriod, { ytd: string; vs: string }> = {
+  month:   { ytd: 'Month-to-date',   vs: 'vs last month' },
+  quarter: { ytd: 'Quarter-to-date', vs: 'vs last quarter' },
+  year:    { ytd: 'Year-to-date',    vs: 'vs last year' },
+};
 
 interface RevenueSummary { revenue_mtd: number; revenue_last_month: number; goal?: number | null; }
 
-function MonthlyRevenueWidget({ size }: WidgetProps<MonthlyRevenueContent>) {
+function MonthlyRevenueWidget({ size, content }: WidgetProps<MonthlyRevenueContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const period = resolvePeriod(content);
+  const showTrend = resolveShowTrend(content);
+  const showComparison = resolveShowComparison(content);
+  const periodLabel = PERIOD_LABEL[period];
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [data, setData] = useState<RevenueSummary | null>(null);
 
   const fetchData = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/reports?metric=monthly-revenue');
+      const res = await fetch(`/api/admin/reports?metric=monthly-revenue&period=${period}`);
       if (!res.ok) { setStatus('empty'); return; }
       const j = await res.json();
       setData(j);
       setStatus('ok');
     } catch { setStatus('empty'); }
-  }, []);
+  }, [period]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
@@ -52,20 +81,24 @@ function MonthlyRevenueWidget({ size }: WidgetProps<MonthlyRevenueContent>) {
     ? Math.min(100, Math.round((data.revenue_mtd / data.goal) * 100))
     : null;
 
-  // Tiny — just the dollar number, abbreviated.
+  // Tiny — just the dollar number, abbreviated. The trend pill folds
+  // into the tiny size only when showTrend is on.
   if (bucket === 'tiny') {
     return (
       <div style={tinyWrapStyle}>
         <span style={tinyAmountStyle}>{formatCompact(data.revenue_mtd)}</span>
-        <span style={mutedStyle}>{deltaPct >= 0 ? '▲' : '▼'} {Math.abs(deltaPct)}%</span>
+        {showTrend && (
+          <span style={mutedStyle}>{deltaPct >= 0 ? '▲' : '▼'} {Math.abs(deltaPct)}%</span>
+        )}
       </div>
     );
   }
 
   // Small — full dollar amount + trend, no goal bar.
-  // Medium+ — adds goal progress + last-month context.
+  // Medium+ — adds goal progress + last-period context.
   const showGoalBar = goalPct !== null && bucket !== 'small';
-  const showLastMonthLine = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showLastPeriodLine = showComparison &&
+    (bucket === 'medium' || bucket === 'large' || bucket === 'xlarge');
 
   return (
     <div style={contentStyle}>
@@ -73,20 +106,28 @@ function MonthlyRevenueWidget({ size }: WidgetProps<MonthlyRevenueContent>) {
         ${data.revenue_mtd.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
       </span>
       <span style={mutedStyle}>
-        Month-to-date · <span style={{ color: trendColor }}>{deltaPct >= 0 ? '+' : ''}{deltaPct}%</span>
-        {showLastMonthLine && <> vs last month</>}
+        {periodLabel.ytd}
+        {showTrend && (
+          <>
+            {' · '}
+            <span style={{ color: trendColor }}>{deltaPct >= 0 ? '+' : ''}{deltaPct}%</span>
+          </>
+        )}
+        {showLastPeriodLine && <> {periodLabel.vs}</>}
       </span>
       {showGoalBar && goalPct !== null && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div aria-hidden style={goalBarTrackStyle}>
             <div style={{ ...goalBarFillStyle, width: `${goalPct}%` }} />
           </div>
-          <span style={mutedStyle}>{goalPct}% of monthly goal</span>
+          <span style={mutedStyle}>{goalPct}% of {period}ly goal</span>
         </div>
       )}
     </div>
   );
 }
+
+export { PERIOD_LABEL };
 
 defineWidget<MonthlyRevenueContent>({
   id: 'monthly-revenue',
