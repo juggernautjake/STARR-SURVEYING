@@ -160,7 +160,20 @@ its dedup.
   the no-op "set to same stage"). Best-effort. 7 specs (actor excluded
   + case-insensitive, dedupe/empties, actor-only → empty; real change
   vs no-op vs missing-stage). typecheck + lint clean.
-- 2e — Task assignment created — pending.
+- **2e — Task assignment created/reassigned ✅ shipped 2026-05-30.**
+  Correction to the gap map: `assignments` POST *did* already notify the
+  assignee, but via a hand-rolled inline insert that ignored priority +
+  due date. Replaced it with the typed pure builder
+  `lib/notifications/assignment.ts` →
+  `buildAssignmentNotification(row)` (`📋 New Assignment: {title}`,
+  body `Priority: {p} · Due {YYYY-MM-DD}`, escalation tracks priority,
+  `source_type: 'task_assignment'`, link `/admin/assignments`, null
+  without assignee/title). Also wired the PUT: when an **admin
+  reassigns** (sets a new `assigned_to`), the new assignee is notified;
+  status-only edits (a worker completing their own task) stay silent.
+  Removed the now-unused `fireAndForget` import. 4 specs (priority +
+  due-date body + escalation, urgent/normal escalation, due omitted,
+  null without assignee/title). typecheck + lint clean.
 - 2f — Lesson/module complete + quiz result — pending.
 - 2g — Pay raise/bonus — pending.
 
