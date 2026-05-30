@@ -9,11 +9,20 @@
 //
 // Slice 95 of customizable-hub-and-work-mode-2026-05-28.md.
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
+import { useElementSize } from '@/lib/hub/use-element-size';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import { gridCapacity, listCapacity, splitForCapacity } from './capacity';
+import {
+  moveUp,
+  moveDown,
+  addOrdered,
+  removeOrdered,
+  unselectedOptions,
+} from '@/lib/hub/widgets/_shared/ordered-list';
 import {
   QUICK_ACTIONS_CATALOG,
   DEFAULT_QUICK_ACTION_IDS,
@@ -44,6 +53,13 @@ const DEFAULTS: QuickActionsContent = {
 function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
+
+  // Self-measure the rendered body so capacity fills the actual cell
+  // (doc 15: "render the maximum that fit the widget size") rather than
+  // a hard per-bucket cap. Falls back to the bucket cap before the
+  // ResizeObserver first fires (widthPx/heightPx === 0).
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { widthPx, heightPx } = useElementSize(containerRef);
 
   // Resolve ids → defs. Skip retired ids gracefully.
   const actions: QuickActionDef[] = settings.actionIds
@@ -82,50 +98,50 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     );
   }
 
-  const cap = capForBucket(bucket);
-  const visible = actions.slice(0, cap);
+  // Tiny + explicit list layout both render a vertical row stack; the
+  // grid layout fills cols × rows. Capacity comes from the measured body
+  // (bucket cap as the pre-measure fallback).
+  const isRowLayout = bucket === 'tiny' || settings.layoutStyle === 'list';
+  const rowDisplay = bucket === 'tiny' ? 'icon-only' : settings.displayStyle;
 
-  // ── Tiny: stack of two text links, icon glyph only.
-  if (bucket === 'tiny') {
+  const { cap, cols } = computeCapacity({
+    bucket,
+    widthPx,
+    heightPx,
+    isRowLayout,
+    displayStyle: rowDisplay,
+  });
+  const { visible, overflow } = splitForCapacity(actions, cap);
+
+  if (isRowLayout) {
     return (
-      <ul role="list" style={listResetStyle}>
-        {visible.map((a) => (
-          <li key={a.id}>
-            <ActionTrigger
-              action={a}
-              displayStyle="icon-only"
-              variant="row"
-            />
-          </li>
-        ))}
-      </ul>
+      <div ref={containerRef} style={{ height: '100%' }}>
+        <ul role="list" style={listFillStyle}>
+          {visible.map((a) => (
+            <li key={a.id}>
+              <ActionTrigger action={a} displayStyle={rowDisplay} variant="row" />
+            </li>
+          ))}
+          {overflow > 0 && (
+            <li>
+              <OverflowIndicator count={overflow} variant="row" />
+            </li>
+          )}
+        </ul>
+      </div>
     );
   }
 
-  if (settings.layoutStyle === 'list') {
-    return (
-      <ul role="list" style={listResetStyle}>
-        {visible.map((a) => (
-          <li key={a.id}>
-            <ActionTrigger
-              action={a}
-              displayStyle={settings.displayStyle}
-              variant="row"
-            />
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  const cols = colsForBucket(bucket);
   return (
     <div
+      ref={containerRef}
       role="list"
       style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
         gap: 'var(--hub-spc-3, 12px)',
+        alignContent: 'start',
+        height: '100%',
       }}
     >
       {visible.map((a) => (
@@ -136,17 +152,72 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
           variant="tile"
         />
       ))}
+      {overflow > 0 && <OverflowIndicator count={overflow} variant="tile" />}
+    </div>
+  );
+}
+
+/** Capacity from the measured body, with the bucket cap as the
+ *  pre-measure fallback. Icon-only tiles pack tighter than icon+label. */
+export function computeCapacity({
+  bucket,
+  widthPx,
+  heightPx,
+  isRowLayout,
+  displayStyle,
+}: {
+  bucket: ReturnType<typeof sizeBucket>;
+  widthPx: number;
+  heightPx: number;
+  isRowLayout: boolean;
+  displayStyle: 'icon-label' | 'icon-only';
+}): { cap: number; cols: number } {
+  if (isRowLayout) {
+    if (heightPx <= 0) return { cap: capForBucket(bucket), cols: 1 };
+    return { cap: listCapacity(heightPx, { rowH: 44 }).cap, cols: 1 };
+  }
+  if (widthPx <= 0 || heightPx <= 0) {
+    return { cap: capForBucket(bucket), cols: colsForBucket(bucket) };
+  }
+  const iconOnly = displayStyle === 'icon-only';
+  const minTileW = iconOnly ? 56 : 84;
+  const minTileH = iconOnly ? 52 : 66;
+  const { cap, cols } = gridCapacity(widthPx, heightPx, { minTileW, minTileH });
+  return { cap, cols };
+}
+
+/** A non-interactive "+N more" cell shown when the chosen actions
+ *  overflow the available capacity. It links nowhere (never a dead
+ *  link) — the hint tells the user how to reveal the rest. */
+function OverflowIndicator({ count, variant }: { count: number; variant: 'tile' | 'row' }) {
+  const base = variant === 'tile' ? tileStyle : rowStyle;
+  return (
+    <div
+      role="listitem"
+      style={{ ...base, color: 'var(--theme-fg-secondary)', cursor: 'default' }}
+      title={`${count} more action${count === 1 ? '' : 's'} — resize the widget larger or trim the list in settings`}
+      aria-label={`${count} more actions`}
+    >
+      <span aria-hidden style={{ fontSize: variant === 'tile' ? '1.1rem' : '1rem', fontWeight: 600 }}>
+        +{count}
+      </span>
+      {variant === 'row' && <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>more</span>}
     </div>
   );
 }
 
 function QuickActionsSettings({ value, onChange }: WidgetSettingsFormProps<QuickActionsContent>) {
   const settings = { ...DEFAULTS, ...value };
-  function toggleAction(id: string) {
-    const enabled = settings.actionIds.includes(id);
-    const next = enabled
-      ? settings.actionIds.filter((x) => x !== id)
-      : [...settings.actionIds, id];
+  const allIds = QUICK_ACTIONS_CATALOG.map((a) => a.id);
+
+  // Selected = the user's ordered list (drop any retired ids). The
+  // "add" candidates are the catalog entries not yet chosen, in catalog
+  // order — doc 15's reorderable chip/multi-select, built on the shared
+  // ordered-list helpers (Foundation Doc 02 Slice 4).
+  const selected = settings.actionIds.filter((id) => allIds.includes(id));
+  const addable = unselectedOptions(selected, allIds);
+
+  function setIds(next: string[]) {
     onChange({ ...settings, actionIds: next });
   }
 
@@ -185,21 +256,80 @@ function QuickActionsSettings({ value, onChange }: WidgetSettingsFormProps<Quick
         </span>
       </label>
 
+      {/* Reorderable chosen-actions list. */}
       <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
-        <legend style={settingsLabelStyle}>Visible actions</legend>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
-          {QUICK_ACTIONS_CATALOG.map((a) => (
-            <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                type="checkbox"
-                checked={settings.actionIds.includes(a.id)}
-                onChange={() => toggleAction(a.id)}
-              />
-              <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>{a.label}</span>
-            </label>
-          ))}
-        </div>
+        <legend style={settingsLabelStyle}>Shown actions</legend>
+        {selected.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>
+            No actions selected — add one below.
+          </p>
+        ) : (
+          <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
+            {selected.map((id, i) => {
+              const def = findQuickAction(id);
+              return (
+                <li key={id} style={chosenRowStyle}>
+                  <span aria-hidden style={{ color: colorForTint(def?.tint), width: 18, textAlign: 'center' }}>
+                    {emojiForAction(def?.iconName ?? '')}
+                  </span>
+                  <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)' }}>{def?.label ?? id}</span>
+                  <button type="button" aria-label={`Move ${def?.label ?? id} up`} disabled={i === 0}
+                    onClick={() => setIds(moveUp(selected, i))} style={iconBtnStyle}>↑</button>
+                  <button type="button" aria-label={`Move ${def?.label ?? id} down`} disabled={i === selected.length - 1}
+                    onClick={() => setIds(moveDown(selected, i))} style={iconBtnStyle}>↓</button>
+                  <button type="button" aria-label={`Remove ${def?.label ?? id}`}
+                    onClick={() => setIds(removeOrdered(selected, id))} style={iconBtnStyle}>✕</button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </fieldset>
+
+      {/* Add candidates. */}
+      {addable.length > 0 && (
+        <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
+          <legend style={settingsLabelStyle}>Add an action</legend>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--hub-spc-2, 8px)' }}>
+            {addable.map((id) => {
+              const def = findQuickAction(id);
+              return (
+                <button key={id} type="button" onClick={() => setIds(addOrdered(selected, id))} style={addChipStyle}>
+                  <span aria-hidden style={{ color: colorForTint(def?.tint) }}>{emojiForAction(def?.iconName ?? '')}</span>
+                  <span>{def?.label ?? id}</span>
+                  <span aria-hidden style={{ color: 'var(--theme-fg-secondary)' }}>＋</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
+
+      {/* Live preview of the chosen action grid. */}
+      <div>
+        <span style={settingsLabelStyle}>Preview</span>
+        {selected.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
+            Add actions to preview them.
+          </p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 'var(--hub-spc-2, 8px)' }}>
+            {selected.slice(0, 8).map((id) => {
+              const def = findQuickAction(id);
+              return (
+                <div key={id} style={{ ...tileStyle, minHeight: 48, padding: 8 }}>
+                  <span aria-hidden style={{ color: colorForTint(def?.tint), fontSize: '1.1rem' }}>
+                    {emojiForAction(def?.iconName ?? '')}
+                  </span>
+                  {settings.displayStyle === 'icon-label' && (
+                    <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)' }}>{def?.label ?? id}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -320,13 +450,14 @@ function emojiForAction(iconName: string): string {
 
 // ─── Style fragments ───────────────────────────────────────────────────
 
-const listResetStyle: React.CSSProperties = {
+const listFillStyle: React.CSSProperties = {
   listStyle: 'none',
   padding: 0,
   margin: 0,
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--hub-spc-2, 8px)',
+  height: '100%',
 };
 
 const tileStyle: React.CSSProperties = {
@@ -365,4 +496,38 @@ const settingsLabelStyle: React.CSSProperties = {
   fontSize: 'var(--hub-font-sm, 0.875rem)',
   fontWeight: 600,
   marginBottom: 4,
+};
+
+const chosenRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '4px 8px',
+  borderRadius: 6,
+  background: 'var(--theme-bg-elevated)',
+};
+
+const iconBtnStyle: React.CSSProperties = {
+  border: '1px solid var(--theme-border)',
+  background: 'var(--theme-bg-surface)',
+  color: 'var(--theme-fg-primary)',
+  borderRadius: 4,
+  width: 24,
+  height: 24,
+  cursor: 'pointer',
+  fontSize: '0.85rem',
+  lineHeight: 1,
+};
+
+const addChipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '4px 10px',
+  borderRadius: 999,
+  border: '1px solid var(--theme-border)',
+  background: 'var(--theme-bg-surface)',
+  color: 'var(--theme-fg-primary)',
+  cursor: 'pointer',
+  fontSize: 'var(--hub-font-sm, 0.875rem)',
 };

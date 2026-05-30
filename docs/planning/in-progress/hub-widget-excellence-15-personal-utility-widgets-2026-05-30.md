@@ -39,6 +39,37 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
   every action goes to the right page), R3 (size: capacity fill at
   every bucket, no clip, "+N more" overflow), R4 (editor: the
   reorderable picker + preview, final polish).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** The headline
+  overhaul. **R1/R2 (data + links):** audited all 10 catalog actions —
+  the 6 `link` actions (`/admin/jobs/new`, `/admin/receipts`,
+  `/admin/reports`, `/admin/cad`, `/admin/messages/new`,
+  `/admin/schedule`) each resolve to a real `app/.../page.tsx` (verified
+  against the route tree); the 2 `action` actions (clock-in-out,
+  capture-receipt) keep their disabled "coming soon" state until their
+  modals ship. No dead links. A catalog-integrity spec now locks that
+  every `link` has an internal href + every `action` has an actionId.
+  **R3 (capacity fill — the user's core ask "render as many as fit"):**
+  replaced the hard per-bucket cap with measured capacity. The widget
+  now self-measures its body via `useElementSize` and a new pure
+  `lib/hub/widgets/quick-actions/capacity.ts` derives cols × rows from
+  the contentRect (`gridCapacity` for tiles, `listCapacity` for rows,
+  the standard "n tiles + (n-1) gaps fit the track" inversion). It fills
+  the cell instead of stopping at a fixed number; the bucket cap remains
+  the pre-measure fallback (first paint / SSR). Overflow is handled by
+  `splitForCapacity` → a non-interactive **"+N more"** indicator in the
+  last cell (never a dead link — a tooltip explains resize/trim).
+  Grid uses `minmax(0,1fr)` cols + `alignContent:start` so tiles never
+  clip. **R4 (editor):** swapped the order-agnostic checkbox list for a
+  **reorderable picker** built on the shared ordered-list helpers
+  (`moveUp`/`moveDown`/`addOrdered`/`removeOrdered`/`unselectedOptions`,
+  Foundation Doc 02): a "Shown actions" ordered list with ↑/↓/✕ per row,
+  an "Add an action" chip row of the unselected catalog entries, and a
+  **live preview** grid that reflects the current selection + display
+  style. Layout/display/shortcuts selects retained. 13 specs (grid +
+  list capacity, overflow split + cap=1 edge, measured-vs-fallback
+  capacity, icon-only packs tighter, catalog integrity, registry). Full
+  hub suite (1639) green; typecheck + lint clean. **quick-actions is
+  done.**
 
 ## pinned-pages
 - **Source:** nav-store `pinnedRoutes`. Fields: href, label, iconName.
