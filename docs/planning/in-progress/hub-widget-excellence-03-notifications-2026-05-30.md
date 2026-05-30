@@ -200,7 +200,25 @@ its dedup.
   typecheck + lint clean. (Module-complete — fire when the LAST lesson
   of a module is done — needs an all-lessons-done count; folded into
   the Slice-3 reminder/cadence work or a later pass.)
-- 2h — Pay raise/bonus — pending.
+- **2h — Pay rate change ✅ shipped 2026-05-30.** `payroll/raises` POST
+  now tells the employee about their rate change. Pure builder
+  `lib/notifications/pay-raise.ts` →
+  `buildPayRaiseNotification({ user_email, new_rate, previous_rate,
+  effective_date })` is transition-aware: an **increase** reads "🎉 You
+  got a raise!" (new + previous rate + effective date), a **decrease**
+  or a no-previous-rate **first set** reads a neutral "💵 Pay rate
+  updated/set", and a **no-op** (same rate) produces nothing. Coerces
+  string rates, links `/admin/my-pay`, `source_type: 'pay_raise'`, null
+  without user/new-rate. Best-effort. 5 specs (raise, decrease,
+  first-set vs prev-0-is-raise, no-op null, string coercion + null
+  guards). typecheck + lint clean.
+
+**Slice 2 complete** — all 8 prioritized gaps wired (hours, time-off,
+receipts ×2 routes, job-stage, task-assignment ×2 transitions, quiz,
+lesson, pay). 40 notification builder specs green across 8 files. Bonus
+notifications proper (separate `pay_bonuses` flow) deferred — the raise
+path is the high-value pay event; a dedicated bonus route wiring can
+reuse this pattern if/when the per-category money-widget doc needs it.
 
 ### Slice 3 — Reminder cadence for due/overdue items
 - **Scope:** Where a "due soon / overdue" reminder makes sense
