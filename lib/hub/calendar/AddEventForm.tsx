@@ -126,6 +126,11 @@ export default function AddEventForm({ defaultDate = '', onCreated, onCancel }: 
           ))}
         </select>
       </div>
+      {!form.allDay && (
+        // Slice 4 (doc 04) — timed events get an automatic reminder ~1h
+        // before via the schedule-event-reminders cron.
+        <p style={reminderHintStyle}>⏰ You&apos;ll be reminded about an hour before.</p>
+      )}
       {error && <p style={errorStyle} role="alert">{error}</p>}
       <div style={actionsStyle}>
         <button type="button" onClick={onCancel} style={ghostBtnStyle}>Cancel</button>
@@ -166,6 +171,11 @@ const errorStyle: React.CSSProperties = {
   margin: 0,
   fontSize: '0.78rem',
   color: 'var(--theme-danger, #dc2626)',
+};
+const reminderHintStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: '0.72rem',
+  color: 'var(--theme-fg-secondary)',
 };
 const actionsStyle: React.CSSProperties = {
   display: 'flex',

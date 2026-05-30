@@ -155,7 +155,7 @@ DOM.
   render of the form (labeled fields, date pre-fill, all-day toggle +
   actions). Full hub suite (1528) green; typecheck + lint clean.
 
-### Slice 4 — Reminders / notifications on events
+### Slice 4 — Reminders / notifications on events ✅ shipped 2026-05-30
 - **Scope:** A per-event "remind me" option (on create + on an event
   popover) that schedules a notification via the Doc-03 system at a
   chosen lead time (e.g. 1h before). Respect dedup. Surface whether a
@@ -163,6 +163,28 @@ DOM.
 - **Files:** the calendar subtree + the notification wiring + specs.
 - **Done when:** setting a reminder creates the right notification
   intent; the UI reflects reminder state.
+- **Design note:** `schedule_events` has no reminder column and this
+  environment can't run migrations, so per the doc guardrail ("don't
+  build new infra unless trivially small") reminders ship **infra-free**:
+  an hourly cron reminds assignees about timed events starting in the
+  next look-ahead window. The hourly cadence + 60-min look-ahead means
+  each event lands in exactly one window → it reminds once with no
+  per-event "already reminded" flag. A user-chosen per-event lead would
+  need a `remind_minutes` column (a future migration) — deferred.
+- **Shipped:** pure `lib/notifications/event-reminder.ts` —
+  `minutesUntilStart`, `isInReminderWindow(event, now, window=60)`
+  (excludes all-day + already-started), and `buildEventReminder(event,
+  now)` → the notification payload (⏰ "Starting soon: {title}", body
+  "starts in N minutes at {location}", link `/admin/schedule`,
+  `source_type: 'event_reminder'`, `source_id` = event id for the
+  bell's dedup) or null. New `cron/schedule-event-reminders` (hourly
+  `0 * * * *` in vercel.json, `Bearer CRON_SECRET`) selects timed
+  events with `start_time` in `[now, now+60m]` and fires the reminders
+  best-effort. The add-event form surfaces the behavior with a "⏰
+  You'll be reminded about an hour before" hint on timed events. 7
+  specs (minutes math + null, window on/off/all-day/started, payload
+  shape + singularization + null guards). typecheck + lint clean;
+  vercel.json valid.
 
 ### Slice 5 — Size/format + editor + 4-round-style polish
 - **Scope:** Walk every bucket; confirm agenda↔grid transitions look
