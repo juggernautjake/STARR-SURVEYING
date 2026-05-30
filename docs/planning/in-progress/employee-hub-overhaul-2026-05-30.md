@@ -546,7 +546,7 @@ WidgetCustomization {
   typecheck + lint clean. Slice 9 wires this into `GridEditor`'s
   pointer pipeline.
 
-#### Slice 9 — Wire full-widget move + live reflow into the modal
+#### Slice 9 — Wire full-widget move + live reflow into the modal ✅ shipped 2026-05-30
 - **Scope:** Add a pointer-based move (grab header / move handle) to
   `GridEditor`; on each move, drive the preview from `grid-reflow` so
   the board reorganizes live; keep the existing corner-resize.
@@ -555,6 +555,47 @@ WidgetCustomization {
   pointer pipeline + reflow wiring).
 - **Done when:** Dragging a widget in the modal visibly shifts the
   others in real time; resize still works.
+- **Outcome:** New `startMove(e, inst)` pipeline grafted onto every
+  painted widget's `onPointerDown`. The pipeline is **threshold-gated**
+  — it records `startClientX/Y` on pointer-down but doesn't enter
+  drag mode until the pointer travels > 6 px, so a single click still
+  toggles the painted-widget selection (matches pre-Slice-9
+  semantics). Once the threshold is exceeded:
+  - Every pointer-move calls
+    `applyMoveWithPush(useHubStore.getState().draftWidgets, id, target,
+    HUB_GRID_COLS)` and writes the result into
+    `moveDrag.previewLayout`. The render reads `liveX`/`liveY` from
+    that list (falling back to `inst.x`/`inst.y` when no move is
+    happening) so every cascade-pushed sibling shifts visibly while
+    the surveyor drags.
+  - Pointer-up calls
+    `commitDrop(draftWidgets, id, target, HUB_GRID_COLS)` and writes
+    the snap+compacted layout through `setDraftWidgets`.
+  - Pointer-cancel routes through the same `handleUp` path, so an Esc
+    or browser-level cancel resets cleanly.
+  - All window-level listeners are removed before the commit decision.
+  - The dragged widget paints with `zIndex: 5 + cursor: 'grabbing' +
+    transition: 'none'` so it sits above the settling neighbours and
+    tracks the pointer crisply.
+  - `startMove` is a no-op while a palette widget is armed for
+    placement (`selected !== null`) so painting + moving stay
+    mutually exclusive.
+  - The pre-existing `startResize` pipeline is untouched and still
+    fires from the corner button.
+  Updated the Slice 225 resize spec to match the new
+  `${liveX + 1} / span ${liveW}` shape (the literal `inst.x`/`inst.y`
+  was replaced by the `previewSlot?.x ?? inst.x` lookup —
+  semantically identical when no move is happening). `__tests__/hub/
+  grid-editor-move.test.ts` (18 cases, source-regex) locks: the
+  grid-reflow imports, the moveDrag state shape, the startMove
+  signature + selected guard + pointer capture + 6 px threshold, the
+  applyMoveWithPush call shape, the click-selection drop when
+  threshold is exceeded, the commitDrop + setDraftWidgets call shape,
+  the no-drag click-toggle fallback, the window-level listener attach
+  + cleanup, the liveX/liveY/isMoving render shape, the lift +
+  no-transition styling, the startMove wiring on the widget's
+  onPointerDown, and the still-intact resize pipeline. 1205 hub specs
+  green; typecheck + lint clean.
 
 #### Slice 10 — Slot-on-drop commit + compact + cancel
 - **Scope:** On pointer-up, commit the reflowed+compacted layout via

@@ -159,8 +159,15 @@ describe('Slice 225 — placed widget renders at the live resize dimensions', ()
   });
 
   it('the gridColumn / gridRow span uses the live dimensions', () => {
-    expect(SRC).toMatch(/gridColumn:\s*`\$\{inst\.x \+ 1\} \/ span \$\{liveW\}`/);
-    expect(SRC).toMatch(/gridRow:\s*`\$\{inst\.y \+ 1\} \/ span \$\{liveH\}`/);
+    // Slice 9 of employee-hub-overhaul-2026-05-30 swapped the literal
+    // `inst.x` / `inst.y` for `liveX` / `liveY` which fall back to
+    // `inst.x` / `inst.y` when no move is in flight — so resize keeps
+    // working identically, and a live drag-with-reflow now also shifts
+    // each rendered cell.
+    expect(SRC).toMatch(/gridColumn:\s*`\$\{liveX \+ 1\} \/ span \$\{liveW\}`/);
+    expect(SRC).toMatch(/gridRow:\s*`\$\{liveY \+ 1\} \/ span \$\{liveH\}`/);
+    expect(SRC).toMatch(/const liveX = previewSlot\?\.x \?\? inst\.x;/);
+    expect(SRC).toMatch(/const liveY = previewSlot\?\.y \?\? inst\.y;/);
   });
 
   it('the size badge underneath the label also shows live dimensions', () => {
