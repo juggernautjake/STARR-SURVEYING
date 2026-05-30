@@ -82,6 +82,31 @@ its own Foundation Doc 04.) Each: Build/Wire + 4 audit rounds. The
 - **Editor:** layoutStyle (grid/list), iconStyle, (R4) a manage-pins
   control.
 - **Slices:** Build/Wire + R1–4 (R2: every pinned href resolves).
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 (data):** pins
+  come from the shared `nav-store.pinnedRoutes` (capped at
+  `MAX_PINNED_ROUTES` = 5) + the `route-registry` for labels/icons —
+  confirmed correct. **R2 (the headline — "never render a dead link"):**
+  the old code rendered retired pins as a `Link` with a stripped-href
+  label → a guaranteed 404. Added a pure
+  `lib/hub/widgets/pinned-pages/resolve.ts` →
+  `resolvePinnedRoutes(hrefs, ADMIN_ROUTES)` that keeps exact matches
+  (route label + icon) and **deep-subtree** matches (`/admin/jobs/abc`
+  inherits `/admin/jobs`'s label/icon via `deepestPrefix`) but **drops
+  any href that resolves to no registered route**. The widget now feeds
+  the full `ADMIN_ROUTES` table through it. **R3 (size):** tiny now
+  shows the pin **count** (matching the other widgets) instead of two
+  truncated text links; grid uses `minmax(0,1fr)` + `alignContent:start`
+  + per-card ellipsis so labels never clip, and since pins ≤ 5 every
+  resolved pin renders at every non-tiny bucket (no cap-clipping).
+  **R4 (editor):** added an inline **Manage pins** control — lists the
+  resolved pins with an unpin (✕) button wired to the nav-store's
+  `unpinRoute`, so the user curates pins without leaving the hub
+  (reflects + edits the same list the rail/command palette use).
+  layoutStyle + iconStyle selects retained. 6 new resolver specs
+  (exact, deep subtree, drop stale, order/filter, deepestPrefix
+  longest-ancestor + exact-not-ancestor). The existing slice-94 specs
+  (registry + cols/cap + empty-state) still green. Full hub suite (1645)
+  green; typecheck + lint clean. **pinned-pages is done.**
 
 ## bookmarks
 - **Source:** user-defined `{ id, label, url, icon }` in content.

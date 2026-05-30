@@ -10,10 +10,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
-import { findRoute, type AdminRoute } from '@/lib/admin/route-registry';
+import { ADMIN_ROUTES, type AdminRoute } from '@/lib/admin/route-registry';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import { resolvePinnedRoutes } from './resolve';
 
 interface PinnedPagesContent extends Record<string, unknown> {
   layoutStyle: 'grid' | 'list';
@@ -30,14 +31,11 @@ function PinnedPagesWidget({ size, content }: WidgetProps<PinnedPagesContent>) {
   const bucket = sizeBucket(size.w, size.h);
   const settings = { ...DEFAULTS, ...content };
 
-  // Resolve each pinned href into a route object (icon/label). When
-  // findRoute returns undefined the user pinned a route that's since
-  // been retired — fall back to the raw href as the label.
-  const items: Array<{ href: string; label: string; iconName?: string }> = pinned.map((href) => {
-    const route = findRoute(href);
-    if (route) return { href, label: route.label, iconName: route.iconName };
-    return { href, label: href.replace(/^\/admin\//, '') };
-  });
+  // R2 — resolve pins against the registered route table, DROPPING any
+  // that no longer resolve (a stale pin to a retired route would be a
+  // dead link). Exact + deep-subtree matches keep the route's
+  // label + icon.
+  const items = resolvePinnedRoutes(pinned, ADMIN_ROUTES);
 
   if (items.length === 0) {
     return (
@@ -50,16 +48,13 @@ function PinnedPagesWidget({ size, content }: WidgetProps<PinnedPagesContent>) {
     );
   }
 
-  // ── Tiny: 2 vertically stacked text links, no icons.
+  // ── Tiny: the pin count (a name list doesn't fit a 1×1/2×1 cell).
   if (bucket === 'tiny') {
     return (
-      <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
-        {items.slice(0, 2).map((it) => (
-          <li key={it.href}>
-            <Link href={it.href} style={textLinkStyle}>{it.label}</Link>
-          </li>
-        ))}
-      </ul>
+      <div style={tinyWrapStyle}>
+        <span style={tinyCountStyle}>{items.length}</span>
+        <span style={tinyLabelStyle}>pinned</span>
+      </div>
     );
   }
 
@@ -79,19 +74,20 @@ function PinnedPagesWidget({ size, content }: WidgetProps<PinnedPagesContent>) {
     );
   }
 
-  // ── Grid style — columns depend on bucket.
+  // ── Grid style — columns depend on bucket. Pins are capped at
+  //    MAX_PINNED_ROUTES (5) so every resolved pin fits every grid.
   const cols = colsForBucket(bucket);
-  const cap = capForBucket(bucket);
   return (
     <div
       role="list"
       style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
         gap: 'var(--hub-spc-3, 12px)',
+        alignContent: 'start',
       }}
     >
-      {items.slice(0, cap).map((it) => (
+      {items.map((it) => (
         <Link
           key={it.href}
           href={it.href}
@@ -99,7 +95,7 @@ function PinnedPagesWidget({ size, content }: WidgetProps<PinnedPagesContent>) {
           style={pinCardStyle}
         >
           {settings.iconStyle !== 'none' && <IconCell name={it.iconName} style={settings.iconStyle} />}
-          <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{it.label}</span>
+          <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{it.label}</span>
         </Link>
       ))}
     </div>
@@ -108,6 +104,9 @@ function PinnedPagesWidget({ size, content }: WidgetProps<PinnedPagesContent>) {
 
 function PinnedPagesSettings({ value, onChange }: WidgetSettingsFormProps<PinnedPagesContent>) {
   const settings = { ...DEFAULTS, ...value };
+  const pinned = useAdminNavStore((s) => s.pinnedRoutes);
+  const unpinRoute = useAdminNavStore((s) => s.unpinRoute);
+  const managed = resolvePinnedRoutes(pinned, ADMIN_ROUTES);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-3, 12px)' }}>
       <label>
@@ -135,6 +134,35 @@ function PinnedPagesSettings({ value, onChange }: WidgetSettingsFormProps<Pinned
           <option value="none">No icons</option>
         </select>
       </label>
+
+      {/* R4 — manage pins inline: unpin without leaving the hub. Pins
+          live in the shared nav-store, so this reflects (and edits) the
+          same list the rail + command palette use. */}
+      <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
+        <legend style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600 }}>Manage pins</legend>
+        {managed.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>
+            No pinned pages yet. Pin pages from the nav rail or command palette.
+          </p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
+            {managed.map((it) => (
+              <li key={it.href} style={managedRowStyle}>
+                <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.label}</span>
+                <button
+                  type="button"
+                  aria-label={`Unpin ${it.label}`}
+                  title="Unpin"
+                  onClick={() => unpinRoute(it.href)}
+                  style={unpinBtnStyle}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </fieldset>
     </div>
   );
 }
@@ -179,11 +207,25 @@ export function capForBucket(bucket: ReturnType<typeof sizeBucket>): number {
 
 // ─── Style fragments ───────────────────────────────────────────────────
 
-const textLinkStyle: React.CSSProperties = {
+const tinyWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  gap: 2,
+};
+const tinyCountStyle: React.CSSProperties = {
+  fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+  fontWeight: 700,
+  lineHeight: 1,
   color: 'var(--theme-accent)',
-  textDecoration: 'none',
-  fontWeight: 500,
-  fontSize: 'var(--hub-font-sm, 0.875rem)',
+};
+const tinyLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
 };
 
 const listRowStyle: React.CSSProperties = {
@@ -210,6 +252,29 @@ const pinCardStyle: React.CSSProperties = {
   background: 'var(--theme-bg-elevated)',
   textAlign: 'center',
   minHeight: 56,
+  overflow: 'hidden',
+};
+
+const managedRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '4px 8px',
+  borderRadius: 6,
+  background: 'var(--theme-bg-elevated)',
+};
+
+const unpinBtnStyle: React.CSSProperties = {
+  border: '1px solid var(--theme-border)',
+  background: 'var(--theme-bg-surface)',
+  color: 'var(--theme-fg-primary)',
+  borderRadius: 4,
+  width: 24,
+  height: 24,
+  cursor: 'pointer',
+  fontSize: '0.85rem',
+  lineHeight: 1,
+  flexShrink: 0,
 };
 
 function IconCell({ name, style }: { name?: string; style: 'emoji' | 'lucide' | 'none' }) {
