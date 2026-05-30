@@ -9,13 +9,29 @@ import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 
-export interface PendingReceiptsContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: PendingReceiptsContent = {};
+// Slice 15 — wired to the Slice-12 schema fields:
+//   - maxItems:  clamp the rendered list to 1–20; null → size cap
+//   - showAmount: when false, hide the right-aligned $ column so the
+//                 widget reads as a focused queue (count + names only)
+import { resolveBoundedInt, resolveBool } from '@/lib/hub/widgets/_shared/content-resolvers';
+
+export interface PendingReceiptsContent extends Record<string, unknown> {
+  maxItems?: number;
+  showAmount?: boolean;
+}
+const DEFAULTS: PendingReceiptsContent = { maxItems: 5, showAmount: true };
+
+export const resolveMaxItems = (c: PendingReceiptsContent): number | null =>
+  resolveBoundedInt(c.maxItems, 1, 20, null);
+export const resolveShowAmount = (c: PendingReceiptsContent): boolean =>
+  resolveBool(c.showAmount, true);
 
 interface Receipt { id: string; vendor?: string | null; amount: number; submitted_by?: string | null; submitted_at: string; }
 
-function PendingReceiptsWidget({ size }: WidgetProps<PendingReceiptsContent>) {
+function PendingReceiptsWidget({ size, content }: WidgetProps<PendingReceiptsContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const explicitCap = resolveMaxItems(content);
+  const showAmount = resolveShowAmount(content);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [items, setItems] = useState<Receipt[]>([]);
 
@@ -46,7 +62,7 @@ function PendingReceiptsWidget({ size }: WidgetProps<PendingReceiptsContent>) {
     );
   }
 
-  const cap = capForBucket(bucket);
+  const cap = explicitCap ?? capForBucket(bucket);
   const visible = items.slice(0, cap);
   // Small — compact rows, no submitter / date columns.
   // Medium+ — adds submitter or date depending on space.
@@ -58,7 +74,9 @@ function PendingReceiptsWidget({ size }: WidgetProps<PendingReceiptsContent>) {
           {bucket !== 'small' && r.submitted_by && (
             <span style={mutedStyle}>{r.submitted_by}</span>
           )}
-          <span style={amountStyle}>${r.amount.toFixed(2)}</span>
+          {showAmount && (
+            <span style={amountStyle}>${r.amount.toFixed(2)}</span>
+          )}
         </li>
       ))}
       {items.length > cap && (

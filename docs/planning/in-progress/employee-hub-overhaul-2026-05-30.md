@@ -849,19 +849,68 @@ WidgetCustomization {
     (3) the pure helper logic (sort orders, aging-label boundaries).
     42 new specs total; 1321 hub specs green; typecheck + lint clean.
 
-#### Slice 15 — Remaining schema-source widget body wiring
-- **Scope:** Fan out the Slice-14 pattern to the other 10
-  schema-source widgets: `daily-briefing`, `flashcards-due`,
-  `monthly-revenue`, `pending-hours`, `pending-receipts`,
-  `pending-time-off`, `quiz-history`, `recommended-lessons`,
-  `roadmap-progress`, `sun-calculator`. Plus opportunistic content-
-  reads on the SettingsForm widgets that aren't honoring their own
-  content yet (audit shows most aren't). Ship multiple commits if
-  needed; keep each green.
+#### Slice 15 — Pending-family widget body wiring (4 widgets) ✅ shipped 2026-05-30
+- **Scope:** Fan out the Slice-14 pattern to four schema-source
+  widgets that share the "maxItems + boolean toggle" shape:
+  `pending-hours`, `pending-receipts`, `pending-time-off`,
+  `quiz-history`. Extracted shared resolver helpers first so each
+  widget doesn't re-derive the same type-coercion logic.
+- **Files:** new
+  `lib/hub/widgets/_shared/content-resolvers.ts`,
+  the four widget `index.tsx` files, new
+  `__tests__/hub/widget-content-resolvers.test.ts`,
+  new `__tests__/hub/widget-config-render-pending-family.test.ts`.
+- **Done when:** Each widget visibly reflects its schema options;
+  schema↔resolver agreement asserted per widget; shared helpers
+  unit-tested.
+- **Outcome:**
+  - New `lib/hub/widgets/_shared/content-resolvers.ts` exports three
+    pure helpers used across the family:
+    `resolveBoundedInt(raw, lo, hi, fallback)` (out-of-range → fallback,
+    fractional → floored, non-finite → fallback),
+    `resolveBool(raw, fallback)` (anything other than `true`/`false`
+    → fallback), and `resolveEnum<T>(raw, allowed, fallback)` for
+    schema-driven select fields.
+  - **pending-hours** wires `maxItems` (1–20) + `groupByPerson`.
+    Body uses `explicitCap ?? sizeCap` so existing layouts keep their
+    pre-overhaul density when the surveyor hasn't opted in; when
+    `groupByPerson` is true, rows sort alphabetically by submitter so
+    duplicates cluster (real backend roll-up can come later without
+    re-touching the schema).
+  - **pending-receipts** wires `maxItems` (1–20) + `showAmount`
+    (defaults true). When showAmount is off the right-aligned $
+    column collapses, leaving a focused queue.
+  - **pending-time-off** wires `maxItems` (1–20) + `showStartDate`
+    (defaults true). When showStartDate is off the muted row shows
+    just the hours, surfacing the approval queue's count rather than
+    its calendar.
+  - **quiz-history** wires `maxItems` (1–25 — schema's higher cap),
+    `showScore` (defaults true), and `onlyFailed` (defaults false).
+    Refactored the inline percent math into exported `attemptPercent`
+    (with a divide-by-zero guard) + `filterFailed` (strict < 60%
+    threshold matching the per-row color treatment); body filters
+    attempts before slicing to the cap so `onlyFailed` interacts
+    correctly with `maxItems`.
+  - Two new spec files: 12 shared-helper cases + 20 per-widget
+    schema↔resolver + pure-helper cases (`attemptPercent` boundaries,
+    `filterFailed` threshold strictness, the maxItems clamp range
+    per widget). 32 new specs total; 1353 hub specs green; typecheck
+    + lint clean.
+
+#### Slice 15b — Remaining schema-source widget body wiring (6 widgets)
+- **Scope:** Wire the remaining 6 schema-source widgets:
+  `daily-briefing` (showWeather / showSchedule / maxJobs),
+  `flashcards-due` (maxCards / hideEmpty), `monthly-revenue`
+  (period / showTrend / showComparison),
+  `recommended-lessons` (maxItems / category),
+  `roadmap-progress` (showCompleted / showInProgress / showUpcoming),
+  `sun-calculator` (latitude / longitude / units / showTwilight).
+  Plus opportunistic content-reads on the SettingsForm widgets whose
+  bodies don't honor their own content yet (audit shows most don't).
 - **Files:** the per-widget `index.tsx` files,
   `__tests__/hub/widget-config-render-*.test.ts` (per widget).
 - **Done when:** Every schema-source widget visibly reflects its
-  options; the resolvers are pure + tested.
+  options; resolvers exported + locked.
 
 ### Phase HB6 — Responsive render, Save round-trip, QA
 

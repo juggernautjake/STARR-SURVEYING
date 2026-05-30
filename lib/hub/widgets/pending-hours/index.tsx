@@ -14,13 +14,31 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export interface PendingHoursContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: PendingHoursContent = {};
+// Slice 15 — wired to the Slice-12 schema fields:
+//   - maxItems:     clamp the rendered list to 1–20; null → size cap
+//   - groupByPerson: stub flag the body annotates per row when on
+//     (real grouping data isn't on the timesheet payload yet — the
+//     toggle exists so a future commit can groupBy(user_email) without
+//     re-touching the schema or panel)
+import { resolveBoundedInt, resolveBool } from '@/lib/hub/widgets/_shared/content-resolvers';
+
+export interface PendingHoursContent extends Record<string, unknown> {
+  maxItems?: number;
+  groupByPerson?: boolean;
+}
+const DEFAULTS: PendingHoursContent = { maxItems: 5, groupByPerson: false };
+
+export const resolveMaxItems = (c: PendingHoursContent): number | null =>
+  resolveBoundedInt(c.maxItems, 1, 20, null);
+export const resolveGroupByPerson = (c: PendingHoursContent): boolean =>
+  resolveBool(c.groupByPerson, false);
 
 interface Timesheet { id: string; user_email: string; user_name?: string | null; week_start: string; total_hours: number; }
 
-function PendingHoursWidget({ size }: WidgetProps<PendingHoursContent>) {
+function PendingHoursWidget({ size, content }: WidgetProps<PendingHoursContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const explicitCap = resolveMaxItems(content);
+  const groupByPerson = resolveGroupByPerson(content);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [items, setItems] = useState<Timesheet[]>([]);
 
@@ -58,10 +76,19 @@ function PendingHoursWidget({ size }: WidgetProps<PendingHoursContent>) {
     );
   }
 
-  const cap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  const sizeCap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  const cap = explicitCap ?? sizeCap;
+  const rendered = groupByPerson
+    // When the surveyor opts into "group by submitter", surface the
+    // person's name as a leading row tag so duplicates from the same
+    // approver visibly cluster. Real groupBy will come with the
+    // backend's roll-up endpoint; this is the on-canvas cue.
+    ? [...items].sort((a, b) =>
+        (a.user_name ?? a.user_email).localeCompare(b.user_name ?? b.user_email))
+    : items;
   return (
     <ul role="list" style={listStyle}>
-      {items.slice(0, cap).map((t) => (
+      {rendered.slice(0, cap).map((t) => (
         <li key={t.id} style={rowStyle}>
           <span style={nameStyle}>{t.user_name ?? t.user_email}</span>
           <span style={mutedStyle}>{t.total_hours}h · week of {new Date(t.week_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
