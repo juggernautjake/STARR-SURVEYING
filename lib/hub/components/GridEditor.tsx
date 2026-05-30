@@ -3,7 +3,7 @@
 //
 // Grid-painter widget editor. Opens as a full-screen modal when the
 // surveyor wants direct manipulation: pick a widget type from the
-// left palette, click on the 8×8 grid to paint it, see every
+// left palette, click on an open tile of the 8×12 grid to drop it,
 // placed widget as a labelled colored block, click → resize/delete.
 //
 // This slice (222) ships the SHELL only — the grid renders the
@@ -79,10 +79,9 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  // Slice 223 — two-click placement: anchor = first cell clicked,
-  // hover = currently-hovered cell that drives the preview rectangle.
-  // Both are null when not placing.
-  const [placeAnchor, setPlaceAnchor] = useState<{ x: number; y: number } | null>(null);
+  // Slice P2 — single-click placement: `placeHover` is the cell the
+  // pointer is currently over while a widget type is armed; it drives
+  // the live preview footprint. Null when not hovering / not armed.
   const [placeHover, setPlaceHover] = useState<{ x: number; y: number } | null>(null);
   // Slice 224 — id of the currently-selected painted widget, or null
   // when nothing is selected. Drives the highlight outline + the
@@ -177,13 +176,13 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
         //     priority. cancelMoveRef.current() restores the
         //     pre-drag layout (moveDrag → null; draftWidgets was
         //     never mutated during the live drag).
-        // (1) mid-place rectangle, (2) painted-widget selection,
-        // (3) close the editor entirely.
+        // (1) Slice P2 — disarm the currently-armed placement type,
+        // (2) painted-widget selection, (3) close the editor entirely.
         if (cancelMoveRef.current) {
           e.preventDefault();
           cancelMoveRef.current();
-        } else if (placeAnchor) {
-          setPlaceAnchor(null);
+        } else if (selectedType) {
+          setSelectedType(null);
           setPlaceHover(null);
         } else if (selectedPlacedId) {
           setSelectedPlacedId(null);
@@ -194,12 +193,12 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, placeAnchor, selectedPlacedId, removeWidget, moveDrag, resizeTarget, selectedType, setDraftWidgets]);
+  }, [onClose, selectedPlacedId, removeWidget, moveDrag, resizeTarget, selectedType, setDraftWidgets]);
 
-  // Slice 223 — cancel placement when the surveyor picks a different
-  // widget type so the partial anchor doesn't leak between selections.
+  // Slice P2 — reset the hover preview when the surveyor picks a
+  // different widget type so a stale cell doesn't leak between
+  // selections.
   useEffect(() => {
-    setPlaceAnchor(null);
     setPlaceHover(null);
     // Slice 224 — arming a new widget for placement also drops any
     // existing painted-widget selection so the two modes stay
@@ -220,16 +219,23 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   const cellCountUsed = (draftWidgets ?? []).reduce((sum, w) => sum + w.w * w.h, 0);
   const cellCountTotal = GRID_EDITOR_COLS * GRID_EDITOR_ROWS;
 
-  // Slice 223 — preview rectangle the surveyor is currently painting.
-  // Derived as `null` whenever placement isn't viable; the render
-  // path uses it for the ghost outline + the click-2 handler uses it
-  // as the committed footprint.
+  // Slice P2 (grid-editor-single-click-and-8x12) — single-click
+  // placement. When a widget type is armed, the preview is that
+  // widget's DEFAULT footprint anchored at the cell the pointer is
+  // currently over (clamped so it can't hang off the right/bottom
+  // edge). A single click drops it there. No more two-click "paint a
+  // rectangle" anchor flow — the surveyor resizes after placing via
+  // the corner handle. `null` whenever nothing is armed / no cell is
+  // hovered yet.
   const previewRect = (() => {
     if (!selected) return null;
-    if (!placeAnchor) return null;
-    const hover = placeHover ?? placeAnchor;
-    const raw = rectFromAnchors(placeAnchor, hover);
-    return clampRectToEnvelope(raw, selected.minSize, selected.maxSize);
+    if (!placeHover) return null;
+    // Anchor the widget's default size at the hovered cell, clamped to
+    // the grid via the same envelope helper (min === default === max
+    // here, so it just bounds-checks + shifts back inside the grid).
+    const size = selected.defaultSize;
+    const raw = { x: placeHover.x, y: placeHover.y, w: size.w, h: size.h };
+    return clampRectToEnvelope(raw, size, size);
   })();
   const previewBlocked = previewRect
     ? overlapsAny(previewRect, draftWidgets ?? [])
@@ -237,36 +243,37 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
   function handleCellPointerDown(x: number, y: number) {
     if (!selected) {
-      // Slice 224 — clicking an empty cell with nothing armed for
-      // placement deselects whatever painted widget is currently
-      // selected (background-click-to-deselect).
+      // Clicking an empty cell with nothing armed for placement
+      // deselects whatever painted widget is currently selected
+      // (background-click-to-deselect).
       if (selectedPlacedId) setSelectedPlacedId(null);
       return;
     }
-    if (!placeAnchor) {
-      setPlaceAnchor({ x, y });
-      setPlaceHover({ x, y });
-      return;
-    }
-    // Second click commits — but only when the candidate doesn't
-    // overlap an existing widget.
-    if (previewRect && !previewBlocked) {
-      addWidget({
-        id: generatePlacementId(),
-        type: selected.id,
-        x: previewRect.x,
-        y: previewRect.y,
-        w: previewRect.w,
-        h: previewRect.h,
-        customization: { content: selected.defaultContent },
-      });
-      setPlaceAnchor(null);
-      setPlaceHover(null);
-    }
+    // Slice P2 — single click drops the armed widget at its default
+    // footprint anchored on the clicked cell, as long as it fits
+    // without overlapping. Clamp here too so a click that lands before
+    // a hover (e.g. keyboard / fast click) still places correctly.
+    const size = selected.defaultSize;
+    const rect = clampRectToEnvelope({ x, y, w: size.w, h: size.h }, size, size);
+    if (overlapsAny(rect, draftWidgets ?? [])) return; // blocked → no-op
+    addWidget({
+      id: generatePlacementId(),
+      type: selected.id,
+      x: rect.x,
+      y: rect.y,
+      w: rect.w,
+      h: rect.h,
+      customization: { content: selected.defaultContent },
+    });
+    // Disarm after placing so a stray second click doesn't double-drop.
+    // The surveyor re-clicks the palette to add another.
+    setSelectedType(null);
+    setPlaceHover(null);
   }
 
   function handleCellPointerEnter(x: number, y: number) {
-    if (selected && placeAnchor) setPlaceHover({ x, y });
+    // Live preview follows the pointer whenever a widget is armed.
+    if (selected) setPlaceHover({ x, y });
   }
 
   function startResize(
@@ -495,8 +502,8 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
           <div>
             <h2 style={titleStyle}>Customize your hub</h2>
             <p style={subtitleStyle}>
-              Pick a widget on the left + click the grid to paint where it
-              should sit. The 8×8 grid maps directly to your hub canvas.
+              Pick a widget on the left + click an open tile to drop it.
+              The 8×12 grid maps directly to your hub canvas.
             </p>
           </div>
           <button
@@ -548,7 +555,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
             </ul>
           </aside>
 
-          {/* ── 8×8 Grid (right) ────────────────────────────────────── */}
+          {/* ── 8×12 Grid (right) ────────────────────────────────────── */}
           <section aria-label="Hub grid" style={gridWrapperStyle}>
             <div
               ref={gridContainerRef}
@@ -559,14 +566,10 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
               {Array.from({ length: GRID_EDITOR_ROWS * GRID_EDITOR_COLS }).map((_, idx) => {
                 const x = idx % GRID_EDITOR_COLS;
                 const y = Math.floor(idx / GRID_EDITOR_COLS);
-                const isAnchor = placeAnchor?.x === x && placeAnchor?.y === y;
                 return (
                   <div
                     key={`${x}-${y}`}
-                    style={
-                      isAnchor ? gridCellAnchorStyle :
-                      selected ? gridCellArmedStyle : gridCellStyle
-                    }
+                    style={selected ? gridCellArmedStyle : gridCellStyle}
                     data-grid-x={x}
                     data-grid-y={y}
                     aria-label={`Grid cell ${x + 1}, ${y + 1}`}
@@ -1034,8 +1037,12 @@ const gridContainerStyle: React.CSSProperties = {
   gridTemplateColumns: `repeat(${GRID_EDITOR_COLS}, minmax(0, 1fr))`,
   gridTemplateRows: `repeat(${GRID_EDITOR_ROWS}, minmax(0, 1fr))`,
   gap: 6,
-  width: 'min(720px, 100%)',
-  aspectRatio: '1 / 1',
+  // 8 wide × 12 tall → portrait. Bound by height so all 12 rows fit
+  // the modal body; the width follows the 8/12 aspect ratio. Capped
+  // width keeps it from getting absurdly wide on tall viewports.
+  height: 'min(100%, 1020px)',
+  maxWidth: '100%',
+  aspectRatio: '8 / 12',
   padding: 8,
   border: '1px solid var(--theme-border, #e5e7eb)',
   borderRadius: 12,
@@ -1056,20 +1063,14 @@ const gridCellArmedStyle: React.CSSProperties = {
   background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 6%, var(--theme-bg-surface, #ffffff))',
 };
 
-const gridCellAnchorStyle: React.CSSProperties = {
-  ...gridCellStyle,
-  cursor: 'crosshair',
-  background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 18%, var(--theme-bg-surface, #ffffff))',
-  borderColor: 'var(--theme-accent, #3b82f6)',
-};
-
 const gridContainerPlacingStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: `repeat(${GRID_EDITOR_COLS}, minmax(0, 1fr))`,
   gridTemplateRows: `repeat(${GRID_EDITOR_ROWS}, minmax(0, 1fr))`,
   gap: 6,
-  width: 'min(720px, 100%)',
-  aspectRatio: '1 / 1',
+  height: 'min(100%, 1020px)',
+  maxWidth: '100%',
+  aspectRatio: '8 / 12',
   padding: 8,
   border: '1px solid var(--theme-accent, #3b82f6)',
   borderRadius: 12,

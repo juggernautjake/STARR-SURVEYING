@@ -62,16 +62,16 @@ describe('GridEditor — palette', () => {
   });
 });
 
-describe('GridEditor — 8×8 grid', () => {
-  it('the constants pin the grid at 8 × 8', () => {
+describe('GridEditor — 8×12 grid', () => {
+  it('the constants pin the grid at 8 wide × 12 tall', () => {
     expect(GRID_EDITOR_COLS).toBe(8);
-    expect(GRID_EDITOR_ROWS).toBe(8);
+    expect(GRID_EDITOR_ROWS).toBe(12);
   });
 
-  it('renders exactly 64 grid cells (8×8)', () => {
+  it('renders exactly 96 grid cells (8×12)', () => {
     const html = render();
-    const cells = html.match(/data-grid-x="\d"/g) ?? [];
-    expect(cells.length).toBe(64);
+    const cells = html.match(/data-grid-x="\d+"/g) ?? [];
+    expect(cells.length).toBe(96);
   });
 
   it('every grid cell has accessible coordinates (1-indexed)', () => {
@@ -96,10 +96,10 @@ describe('GridEditor — footer status (empty baseline only)', () => {
   // pure-helper specs below + the Playwright spec a future slice
   // can ship against a real browser.
 
-  it('shows a 0/64 baseline when nothing is placed', () => {
+  it('shows a 0/96 baseline when nothing is placed (8×12 = 96 cells)', () => {
     const html = render();
     expect(html).toContain('data-testid="grid-editor-status"');
-    expect(html).toContain('0</strong>/64');
+    expect(html).toContain('0</strong>/96');
   });
 
   it('Save layout button uses the gradient-green token', () => {

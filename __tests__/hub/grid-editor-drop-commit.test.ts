@@ -66,10 +66,11 @@ describe('Slice 10 — drop-outside-the-grid cancels', () => {
 
 describe('Slice 10 — mid-drag Esc cancels the move (highest priority)', () => {
   it('the modal-level Esc cascade checks cancelMoveRef FIRST', () => {
-    // Locks the priority order: cancel-move > place-anchor >
+    // Locks the priority order: cancel-move > disarm-placement
+    // (Slice P2 replaced the place-anchor branch with selectedType) >
     // painted-selection > onClose.
     expect(SRC).toMatch(
-      /if \(e\.key === 'Escape'\) \{[\s\S]*?if \(cancelMoveRef\.current\) \{[\s\S]*?cancelMoveRef\.current\(\);[\s\S]*?\} else if \(placeAnchor\)/,
+      /if \(e\.key === 'Escape'\) \{[\s\S]*?if \(cancelMoveRef\.current\) \{[\s\S]*?cancelMoveRef\.current\(\);[\s\S]*?\} else if \(selectedType\)/,
     );
   });
 

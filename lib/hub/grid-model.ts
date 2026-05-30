@@ -12,15 +12,16 @@
 //     cell offsets; w/h are integer cell sizes (≥ 1).
 //   - Rows are unbounded on the read-only canvas (the layout grows
 //     downward as more widgets are added).
-//   - The modal editor paints on a bounded 8×8 viewport so a
-//     finite "canvas" reads as a deliberate authoring surface. Saved
-//     widgets that sit below row 8 still load + render on the hub;
-//     the modal just doesn't show that overflow region (Phase HB4
-//     will revisit this if the user reports it).
+//   - The modal editor paints on a bounded 8×12 viewport (8 wide × 12
+//     tall) so a finite "canvas" reads as a deliberate authoring
+//     surface. Saved widgets that sit below row 12 still load + render
+//     on the hub; the modal just doesn't show that overflow region.
 //
 // Earlier reference: hub-grid-8x8-square-cells-2026-05-29.md
 // (Slice 209) widened the cell + halved the column count from 12 to
 // 8 so a 1×1 widget renders as a literal square at desktop width.
+// 2026-05-30 — the editor's bounded height grew from 8 to 12 rows at
+// the user's request (grid-editor-single-click-and-8x12).
 
 import type { GridBreakpoint } from './grid-math';
 
@@ -29,8 +30,8 @@ import type { GridBreakpoint } from './grid-math';
 export const HUB_GRID_COLS = 8;
 
 /** The modal editor's bounded row count. Saved layouts can exceed
- *  this; the read-only canvas renders all rows. */
-export const HUB_EDITOR_ROWS = 8;
+ *  this; the read-only canvas renders all rows. 8 wide × 12 tall. */
+export const HUB_EDITOR_ROWS = 12;
 
 /** The desktop breakpoint produced by `breakpointForWidth`. Exported
  *  so a future tweak (e.g. 10 cols at ultra-wide) only has to touch
