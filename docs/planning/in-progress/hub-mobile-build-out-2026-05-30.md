@@ -83,15 +83,18 @@ parts, don't ship a mobile editor) **plus grid + header polish**.*
 - 6 specs added (override math + bucket landing + the source-regex
   wiring); full hub suite (1677) green; typecheck + lint clean.
 
-### Slice 3 — Mobile scroll inside the card
+### Slice 3 — Mobile scroll inside the card ✅ shipped 2026-05-30
 
-- `WidgetCell` keeps `overflow: hidden` on desktop (cells are sharp
-  rectangles in a strict grid) but switches to `overflow: auto` on
-  mobile so long lists scroll within the card. Apply via a small
-  prop derived from the grid's breakpoint.
-- Files: `lib/hub/components/WidgetGrid.tsx`.
-- Test: source-regex confirming the mobile branch uses
-  `overflow: 'auto'` and the desktop branch keeps `'hidden'`.
+- `WidgetCell.cellStyle.overflow` is now
+  `breakpoint === 1 ? 'auto' : 'hidden'`. Desktop / tablet keep the
+  strict-grid clip (a widget can never visually spill past its cell);
+  mobile cards scroll their content internally so a 10-row assignments
+  list reads as a scrollable card instead of clipping or stretching
+  the row track to ~1000 px via `max-content`.
+- The Slice-3 readonly test's literal-overflow regex relaxed to the
+  string `'hidden'` (it's still there — just inside the ternary). The
+  "no edit-mode outline" assertion is unchanged.
+- 1 spec added; full hub suite (1678) green; typecheck + lint clean.
 
 ### Slice 4 — Header polish + role-pill scroll fallback
 

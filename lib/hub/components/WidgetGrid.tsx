@@ -111,11 +111,18 @@ function WidgetCell({ instance, breakpoint }: WidgetCellProps) {
   // their tiny stat-only bucket. Pass-through on desktop/tablet.
   const renderSize = mobileSizeOverride({ w: instance.w, h: instance.h }, breakpoint);
 
+  // hub-mobile-build-out Slice 3 — on desktop / tablet the grid is a
+  // strict rectangle so cells clip with `overflow: hidden` (a widget
+  // that spills past its cell would visually break the grid). On
+  // mobile each cell is its own stacked card and the row track is
+  // `minmax(BASE, max-content)`, so long widget content should scroll
+  // *inside* the card instead of clipping. Switch to `overflow: auto`
+  // at breakpoint=1.
   const cellStyle: React.CSSProperties = {
     gridColumn: `${instance.x + 1} / span ${instance.w}`,
     gridRow: `${instance.y + 1} / span ${instance.h}`,
     minHeight: 0,
-    overflow: 'hidden',
+    overflow: breakpoint === 1 ? 'auto' : 'hidden',
     position: 'relative',
   };
 
