@@ -184,8 +184,22 @@ its dedup.
   `quizLabel(type, category)` helper (exam category → exam-prep →
   lesson). Best-effort. 5 specs (pass/fail copy, label derivation,
   clamp/round/default, null without learner). typecheck + lint clean.
-- 2g — Lesson/module complete (celebrate the learner, gate on first
-  completion) — pending.
+- **2g — Lesson complete ✅ shipped 2026-05-30.** `learn/progress` POST
+  now celebrates the learner the FIRST time they finish a lesson. The
+  route checks for an existing `user_progress` row BEFORE the idempotent
+  upsert (so re-marking doesn't re-fire), then on a genuine first
+  completion resolves the `learning_lessons.title` + `learning_modules
+  .title` and notifies. Pure builder
+  `lib/notifications/lesson-complete.ts` →
+  `buildLessonCompleteNotification({ user_email, lesson_title,
+  module_title })` (`✅ Lesson Complete: {lesson}`, body drops the "in
+  {module}" clause when the module title is absent, generic "a lesson"
+  fallback, link `/admin/learn/roadmap`, `source_type:
+  'lesson_complete'`, null without learner). Best-effort. 4 specs
+  (lesson + module, no module, generic fallback, null learner).
+  typecheck + lint clean. (Module-complete — fire when the LAST lesson
+  of a module is done — needs an all-lessons-done count; folded into
+  the Slice-3 reminder/cadence work or a later pass.)
 - 2h — Pay raise/bonus — pending.
 
 ### Slice 3 — Reminder cadence for due/overdue items

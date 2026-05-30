@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildLessonCompleteNotification } from '@/lib/notifications/lesson-complete';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -35,11 +37,40 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { module_id, lesson_id } = await req.json();
+
+  // hub-widget-excellence-03 Slice 2g — detect FIRST completion (before
+  // the idempotent upsert) so re-marking a lesson doesn't re-fire the
+  // celebration notification.
+  let alreadyCompleted = true;
+  if (lesson_id) {
+    const { data: existing } = await supabaseAdmin.from('user_progress')
+      .select('id').eq('user_email', session.user.email).eq('lesson_id', lesson_id).maybeSingle();
+    alreadyCompleted = !!existing;
+  }
+
   const { data, error } = await supabaseAdmin.from('user_progress')
     .upsert({ user_email: session.user.email, module_id, lesson_id }, { onConflict: 'user_email,lesson_id' })
     .select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Celebrate the learner the first time they finish a lesson. Resolve
+  // the lesson + module titles for the copy. Best-effort.
+  if (lesson_id && !alreadyCompleted) {
+    try {
+      const { data: lesson } = await supabaseAdmin.from('learning_lessons')
+        .select('title').eq('id', lesson_id).maybeSingle();
+      const { data: mod } = module_id
+        ? await supabaseAdmin.from('learning_modules').select('title').eq('id', module_id).maybeSingle()
+        : { data: null };
+      const notice = buildLessonCompleteNotification({
+        user_email: session.user.email,
+        lesson_title: (lesson as { title: string | null } | null)?.title ?? null,
+        module_title: (mod as { title: string | null } | null)?.title ?? null,
+      });
+      if (notice) await notify(notice);
+    } catch { /* ignore notification failures */ }
+  }
 
   // Auto-award learning credits for lesson completion
   try {
