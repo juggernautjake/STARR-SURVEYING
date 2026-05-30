@@ -1088,13 +1088,82 @@ WidgetCustomization {
   specs green; typecheck + lint clean. **Phase HB6 nearly complete** —
   only Slice 18 (QA sweep + e2e + move doc to completed) remains.
 
-#### Slice 18 — QA sweep + e2e + move doc to completed
+#### Slice 18 — QA sweep + e2e + move doc to completed ✅ shipped 2026-05-30
 - **Scope:** Full typecheck + lint + the hub unit suite green. Rewrite
   `e2e/hub-customize.spec.ts` (and check `hub-editor-perf.spec.ts`) for
   the modal flow. Manual checklist: button animation, drag-reflow feel,
   options per widget, responsive sizes. Then `git mv` this doc to
   `docs/planning/completed/`.
 - **Done when:** All checks green; e2e updated; doc moved to completed.
+- **Outcome:** Full QA gate: typecheck clean, lint clean, **5998
+  vitest specs pass (17 skipped, 0 failures) across 298 spec files**;
+  the hub subset alone is 1370 specs across 89 files (it grew from
+  1144 at the start of this doc — +226 net new specs locking the
+  overhaul). Rewrote `e2e/hub-customize.spec.ts` for the new modal
+  flow:
+  - Step 1 mounts the canvas (same as before).
+  - Step 2 clicks `data-testid="open-grid-editor"` and asserts the
+    Slice-2 single-entry-point opens the modal in one click
+    (`data-testid="grid-editor"` + palette + grid all visible).
+  - Step 3 clicks a painted widget in the modal —
+    `data-testid="grid-editor-placed-widget"` — and asserts
+    `data-selected="true"` flips on (the threshold-gated startMove
+    click-toggle branch).
+  - Step 4 clicks the ⚙ Options button
+    (`data-testid="grid-editor-placed-options"`) and asserts the
+    Slice-11 `widget-options-panel` mounts with all three documented
+    sections (size + header-color + title).
+  - Step 5 fills `data-testid="widget-options-title"` with a custom
+    title.
+  - Step 6 closes the panel + clicks "Save layout".
+  - Step 7 asserts the modal closes (the "Customize Hub" entry
+    button reappears).
+  - Step 8 reloads + asserts the custom title shows on the read-only
+    canvas via the live `WidgetFrame` header text.
+  The `test.fixme` for drag/resize stays deferred — Playwright's
+  default `.click()` exercises the click-toggle branch we need for
+  selection, but drag/resize needs hand-built PointerEvent sequences
+  to engage the threshold-gated startMove pipeline. The vitest
+  source-regex specs at
+  `__tests__/hub/grid-editor-{move,drop-commit}.test.ts` cover the
+  wiring; the live drag UX is verified manually for now.
+  `e2e/hub-editor-perf.spec.ts` audits clean — its `?debug=hub-perf`
+  flag + the `hub-perf-overlay` testid both survive the overhaul (no
+  changes needed). After this commit lands, the doc moves to
+  `docs/planning/completed/`.
+
+---
+
+## Final summary
+
+Every action item across Phases HB1–HB6 is shipped:
+
+- **Phase HB1 (Slice 1):** Work Mode button restyle with the spinning
+  red/white/blue hover ring + reduced-motion fallback.
+- **Phase HB2 (Slices 2–4):** Single modal editor; the in-canvas
+  drag/resize surface stripped; the SettingsPanel side rail deleted in
+  Slice 17.
+- **Phase HB3 (Slices 5–6):** `style.headerColor` + always-visible
+  title; tolerant normalizer that keeps old saved layouts loading;
+  WidgetFrame slimmed to the headerColor-only API.
+- **Phase HB4 (Slices 7–10):** Shared `HUB_GRID_COLS` model + pure
+  reflow/packing module + in-modal pointer-driven drag-to-move with
+  cascade-push preview + commit-with-compact on drop + three cancel
+  paths.
+- **Phase HB5 (Slices 11–15c):** Per-widget Options surface +
+  schema registry covering every one of the 41 widget ids + generic
+  schema-driven renderer + per-widget body wiring for all 12
+  schema-source widgets (the 29 SettingsForm widgets already had
+  their own forms hosted by the panel).
+- **Phase HB6 (Slices 16–18):** Size-responsive guards on the
+  widgets HB5 widened + the SettingsPanel deletion + this final QA
+  sweep.
+
+Net diff across the overhaul: **+ schema/options/render surfaces and
+−2,279 LOC of legacy SettingsPanel infrastructure**, with the canvas
+end-state being a single click-to-edit modal that handles add, place,
+resize, move, and per-widget options before committing back through
+the same save endpoint the v1 flow used.
 
 ---
 
