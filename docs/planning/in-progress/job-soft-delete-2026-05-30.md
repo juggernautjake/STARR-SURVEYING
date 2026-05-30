@@ -62,18 +62,27 @@ must cover BOTH jobs (Slice 1) AND CAD drawings (Slice 2 below).*
   Slice 3). 13 specs.
 - typecheck + lint clean.
 
-### Slice 2 — Drawings: soft-delete + recovery (the follow-up ask)
+### Slice 2 — Drawings: soft-delete + recovery ✅ shipped 2026-05-30
 
-- Audit `app/api/admin/cad/drawings` DELETE: today it hard-deletes
-  the row. Add `cad_drawings.deleted_at` (migration) + switch DELETE
-  to set the tombstone.
-- GET list excludes `deleted_at IS NOT NULL`; add `?deleted=true`
-  for the drawings trash. Restore = PATCH `{ id, deleted_at: null }`.
-- UI: a delete control on the recent-drawings surface + a "🗑
-  Deleted" recovery view mirroring the jobs page, restore per row.
-  Reuse `lib/jobs/soft-delete.ts` window helpers (jobs + drawings
-  share the same 30-day math).
-- Tests: drawings list-filter + restore behavior.
+- Migration `seeds/307_cad_drawings_soft_delete.sql`: added
+  `cad_drawings.deleted_at` + partial index. The drawings DELETE
+  previously HARD-deleted the row (unrecoverable) — now a soft delete.
+- `DELETE /api/admin/cad/drawings?id=` sets `deleted_at = now()` +
+  returns the drawing name; 404s a missing row.
+- `GET`: default list filters `deleted_at IS NULL`; new
+  `?deleted=true` lists the drawings trash (newest-deleted first,
+  with `deleted_at`). The single-drawing fetch is unchanged.
+- `PATCH` accepts `{ id, deleted_at: null }` to restore (only the
+  null/restore direction; deletes go through DELETE so the tombstone
+  is server-stamped).
+- UI — `FileManagerDialog`:
+  - The "Delete drawing" confirm copy changed from "can't be undone"
+    to "recoverable for 30 days from the 🗑 Deleted view".
+  - New "🗑 Deleted" toolbar toggle swaps the folder tree + file
+    list for a flat trash list; each row shows "{N}d left" (via the
+    shared `daysUntilPurge` helper) + a Restore button (PATCH).
+- Reuses `lib/jobs/soft-delete.ts` (jobs + drawings share the 30-day
+  math). 3534 jobs + hub + cad specs green; typecheck + lint clean.
 
 ### Slice 3 — Purge cron (both entities) + recovery-view polish (optional)
 
