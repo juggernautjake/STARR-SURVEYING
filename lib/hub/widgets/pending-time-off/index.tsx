@@ -19,6 +19,7 @@ import {
 //   - showStartDate: when false, hide the start→end date range so the
 //                    list reads as a focused approval queue (names + hours only)
 import { resolveBoundedInt, resolveBool } from '@/lib/hub/widgets/_shared/content-resolvers';
+import { ptoHoursForRequest } from '@/lib/schedule/pto-hours';
 
 export interface PendingTimeOffContent extends Record<string, unknown> {
   maxItems?: number;
@@ -33,6 +34,39 @@ export const resolveShowStartDate = (c: PendingTimeOffContent): boolean =>
 
 interface TimeOff { id: string; user_email: string; user_name?: string | null; start_date: string; end_date: string; hours_requested: number; reason?: string | null; }
 
+// hub-widget-excellence-11 R1 — time-off requests are `schedule_events`
+// rows: the GET needs `?queue=1` (else an admin sees only their OWN
+// requests), and the fields are `assigned_to` / `start_time` /
+// `end_time` / `notes` (hours are derived), NOT user_email/start_date/
+// hours_requested. Map the real shape.
+interface RawTimeOff {
+  id: string;
+  assigned_to?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  all_day?: boolean | null;
+  notes?: string | null;
+}
+
+/** Map a raw time-off schedule_event to the widget's row, deriving the
+ *  requested hours. Pure + exported. */
+export function toPendingTimeOff(r: RawTimeOff): TimeOff {
+  const start = r.start_time ?? '';
+  const end = r.end_time ?? start;
+  const hours = start
+    ? Math.round(ptoHoursForRequest({ startTime: start, endTime: end, allDay: r.all_day === true }) * 10) / 10
+    : 0;
+  return {
+    id: r.id,
+    user_email: r.assigned_to ?? 'unknown',
+    user_name: null,
+    start_date: start,
+    end_date: end,
+    hours_requested: hours,
+    reason: r.notes ?? null,
+  };
+}
+
 function PendingTimeOffWidget({ size, content }: WidgetProps<PendingTimeOffContent>) {
   const bucket = sizeBucket(size.w, size.h);
   const explicitCap = resolveMaxItems(content);
@@ -43,11 +77,12 @@ function PendingTimeOffWidget({ size, content }: WidgetProps<PendingTimeOffConte
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
-      const res = await fetch('/api/admin/time-off?status=pending');
+      const res = await fetch('/api/admin/time-off?queue=1&status=pending');
       if (!res.ok) { setStatus('empty'); return; }
-      const data: { requests?: TimeOff[] } = await res.json();
-      setItems(data.requests ?? []);
-      setStatus((data.requests ?? []).length === 0 ? 'empty' : 'ok');
+      const data: { requests?: RawTimeOff[] } = await res.json();
+      const requests = (data.requests ?? []).map(toPendingTimeOff);
+      setItems(requests);
+      setStatus(requests.length === 0 ? 'empty' : 'ok');
     } catch { setStatus('empty'); }
   }, []);
   useEffect(() => { fetchItems(); }, [fetchItems]);
