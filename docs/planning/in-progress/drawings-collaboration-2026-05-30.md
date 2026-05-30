@@ -152,15 +152,33 @@ on drawings):*
   Full hub + notifications + jobs **1811 specs green**; typecheck +
   lint clean.
 
-### Slice 4 — UI: notes dialog + assignment chip on the CAD editor
+### Slice 4 — UI: notes dialog on the CAD editor ✅ shipped 2026-05-30
 
-- Add a "💬 Notes" button to the CAD editor toolbar that opens a
-  side panel listing the thread + a compose form.
-- Compose form: free-text body + a multi-select recipient picker
-  (defaults: the drawer + job overseers, removable).
-- Drawing list (the my-jobs / drawings-in-progress widgets + the
-  CAD landing page) shows the assignee initials + a "due {date}" chip
-  when set.
+- New client component
+  `app/admin/cad/components/DrawingNotesDialog.tsx`: a `ModalFrame`
+  with a scrollable thread (oldest → newest), inline timestamps + the
+  recipient list per note, and a compose form (textarea + optional
+  comma-separated recipient input). Empty recipients = drawer + job
+  scope via the server-side default. Posts via the Slice-3 endpoint,
+  refetches the thread on success, surfaces errors inline.
+- `CADLayout.tsx` listens for `cad:openDrawingNotes` and mounts the
+  dialog with `drawingStore.document.id` + `document.name` — same
+  custom-event pattern the print / file-manager dialogs use.
+- `MenuBar.tsx` File menu gains "💬 Drawing notes…" right after
+  "File Manager…". Single click → opens the dialog for the current
+  drawing.
+- Exported pure `parseRecipients(raw)` helper (split on commas, trim,
+  lowercase, drop entries without `@`) so the user can paste a list
+  without us POSTing bogus values to the API. 3 specs.
+- The assignee initials + "due {date}" chip on the drawings widgets
+  is **deferred to a follow-up slice**: it needs the GET
+  `/api/admin/cad/drawings` SELECT to start returning `assigned_to`
+  + `due_date` + each widget's `Drawing` interface + render
+  updates. The notes dialog is the headline RPLS ↔ drawer
+  deliverable; the chips are pure polish. Sized as its own slice so
+  this one ships clean.
+- 3 specs added; 1814 hub + notifications + jobs specs green;
+  typecheck + lint clean.
 
 ### Slice 5 — Job-scope sweep of existing notifications
 
