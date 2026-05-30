@@ -1,0 +1,103 @@
+# Category 11 — Money widgets (time-pay, financial, office)
+
+*Part of the Hub Widget Excellence plan (`…-00-master-…`). Widgets:
+**my-pay, hours-this-week, pto-balance, monthly-revenue,
+outstanding-invoices, pending-hours, pending-receipts,
+pending-time-off**. Each: Build/Wire + 4 audit rounds.*
+
+---
+
+## my-pay
+- **Endpoint:** `/api/admin/payroll/employees?email=…`. Fields:
+  hourly_rate, available_balance, total_earned, total_withdrawn,
+  salary_type, pay_frequency.
+- **Track:** last payout (date + amount), this-period total, current
+  rate, available balance, lifetime earned/withdrawn.
+- **Per-bucket priority:** tiny → available balance (or current rate);
+  small → balance + rate; medium → + last payout + period total;
+  large+ → all stats grid + trend.
+- **Footer link:** "Go to my pay →" `/admin/my-pay`.
+- **Editor:** stats checkboxes, amountStyle, colorAmounts, showUpdated,
+  privacy (blur) default. (Mostly exists — R4 polish.)
+- **Notifications:** pay updated / payout posted → `notifyPaymentUpdate`.
+- **Slices:** Build/Wire (footer link + last-payout line per the
+  sketch's "Last payout: … — $…" + period total + rate) + R1–4.
+
+## hours-this-week
+- **Endpoint:** `/api/admin/time-logs?week_start=…`.
+- **Track:** total hours this week, per-job breakdown, vs goal.
+- **Per-bucket:** tiny → total hours; small → total + goal ring;
+  medium → + per-job bars; large+ → + day-by-day.
+- **Footer link:** "Go to my hours →" `/admin/my-hours`.
+- **Editor:** weekStart, showBreakdownByJob, goalHours.
+- **Slices:** Build/Wire + R1–4.
+
+## pto-balance
+- **Endpoint:** `/api/admin/pto`.
+- **Track:** balance, accrual rate/period, last accrued, carryover
+  cap, history.
+- **Per-bucket:** tiny → balance; small → balance + accrual; medium+ →
+  + history.
+- **Footer link:** "Go to time off →" `/admin/time-off`.
+- **Editor:** format (hours/days), hoursPerDay, showHistory.
+- **Slices:** Build/Wire + R1–4.
+
+## monthly-revenue
+- **Endpoint:** `/api/admin/reports?metric=monthly-revenue&period=…`.
+- **Track:** revenue MTD/period, vs last period, goal %.
+- **Per-bucket:** tiny → revenue number; small → + trend; medium+ →
+  + goal bar + comparison.
+- **Footer link:** "Go to finances →" `/admin/finances`.
+- **Editor:** period, showTrend, showComparison (schema-driven; R4
+  may upgrade to a richer editor).
+- **Slices:** Build/Wire (footer link) + R1–4.
+
+## outstanding-invoices
+- **Endpoint:** `/api/admin/invoices?status=outstanding`.
+- **Track:** total outstanding, per-invoice client + amount + due +
+  aging.
+- **Per-bucket:** tiny → total $; small → total + count; medium+ →
+  list with aging pills.
+- **Footer link:** "Go to invoices →" `/admin/billing/invoices`.
+- **Row deep link:** invoice → its detail (R2 finds it; likely under
+  `/admin/billing/invoices`).
+- **Editor:** maxItems, sortBy, showAging.
+- **Notifications:** invoice overdue reminder (Doc 03).
+- **Slices:** Build/Wire + R1–4.
+
+## pending-hours
+- **Endpoint:** `/api/admin/time-logs/approve?status=pending`.
+- **Track:** submitter, week, total hours, count pending.
+- **Per-bucket:** tiny → count to approve; small → name + hours;
+  medium+ → + week + group-by-person.
+- **Footer link:** "Go to hours approval →" `/admin/hours-approval`.
+- **Editor:** maxItems, groupByPerson.
+- **Notifications:** hours submitted → approver; decision →
+  `notifyHoursDecision` to submitter.
+- **Slices:** Build/Wire + R1–4.
+
+## pending-receipts
+- **Endpoint:** `/api/admin/receipts?status=pending`.
+- **Track:** vendor, amount, submitter, date, count + total.
+- **Per-bucket:** tiny → count + total; small → vendor + amount;
+  medium+ → + submitter + date.
+- **Footer link:** "Go to receipts →" `/admin/receipts`.
+- **Editor:** maxItems, showAmount.
+- **Notifications:** receipt submitted → approver; approved → submitter.
+- **Slices:** Build/Wire + R1–4.
+
+## pending-time-off
+- **Endpoint:** `/api/admin/time-off?status=pending`.
+- **Track:** requester, date range, hours, reason, count.
+- **Per-bucket:** tiny → count; small → name + hours; medium+ → +
+  date range + reason.
+- **Footer link:** "Go to time off →" `/admin/time-off`.
+- **Editor:** maxItems, showStartDate.
+- **Notifications:** request submitted → approver; decision → requester.
+- **Slices:** Build/Wire + R1–4.
+
+## Guardrails
+- Money values respect existing privacy/role gates (my-pay already has
+  a privacy blur — extend the pattern where amounts are sensitive).
+- Approver-facing widgets (pending-*) only show items the user may
+  approve; respect tenancy + role.
