@@ -26,7 +26,7 @@ import React, { useRef } from 'react';
 import { getWidget, type WidgetDefinition } from '@/lib/hub/widget-registry';
 import type { WidgetCustomization, WidgetInstance } from '@/lib/hub/types';
 import { useElementSize } from '@/lib/hub/use-element-size';
-import { collapseLayout, layoutBounds } from '@/lib/hub/grid-math';
+import { collapseLayout, layoutBounds, MOBILE_BASE_ROW_PX } from '@/lib/hub/grid-math';
 import WidgetFrame from './WidgetFrame';
 import { widgetGoToTarget } from '@/lib/hub/widgets/_shared/widget-links';
 
@@ -71,10 +71,20 @@ export default function WidgetGrid({
     ? cellW
     : (rowHeight ?? INITIAL_ROW_HEIGHT_PX);
 
+  // hub-mobile-build-out Slice 1 — on phones the column width IS the
+  // viewport, so square cells make a 1×1 widget viewport-tall (~375 px
+  // on a phone) and a 1×4 widget viewport×4 tall. Replace square cells
+  // with a `minmax(BASE, max-content)` track on 1-col so every saved
+  // h-unit reads as roughly one comfortable mobile row, expanding if
+  // the widget content needs more.
+  const gridAutoRows = breakpoint === 1
+    ? `minmax(${MOBILE_BASE_ROW_PX}px, max-content)`
+    : `${effectiveRowHeight}px`;
+
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: `repeat(${bounds.cols}, 1fr)`,
-    gridAutoRows: `${effectiveRowHeight}px`,
+    gridAutoRows,
     gap: `${gap}px`,
     width: '100%',
   };

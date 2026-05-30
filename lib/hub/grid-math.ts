@@ -20,6 +20,14 @@ import type { WidgetInstance } from './types';
 /** Three breakpoints the grid supports. */
 export type GridBreakpoint = 8 | 4 | 1;
 
+/** hub-mobile-build-out Slice 1 — base row height for the 1-col mobile
+ *  layout. Decouples mobile row height from cell width (cellW = viewport
+ *  on mobile, which would make a 1×1 widget viewport-tall — ~375px on
+ *  a phone). 88px = a comfortable single-stat or list-row height; the
+ *  grid uses `minmax(MOBILE_BASE_ROW_PX, max-content)` so taller widgets
+ *  + content-driven heights still work. */
+export const MOBILE_BASE_ROW_PX = 88;
+
 /** Returns the breakpoint corresponding to a container width.
  *  Matches the doc's responsive collapse rule:
  *    ≥ 1024px → 8 cols
