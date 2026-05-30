@@ -116,8 +116,15 @@ master. Routes + the shared `WidgetGoToLink` / `widget-links` /
   already wired by doc-03 Slice 3's `assignments-due-reminder` cron. 9
   specs (window filter, due sort, `assignmentHref` job/lesson/list
   fallbacks, relative `formatDue`). Full hub suite (1547) green;
-  typecheck + lint clean. (R4 editor expansion — includeCompleted /
-  priority filter / sortBy / rowLimit — next.)
+  typecheck + lint clean.
+- **Round 4 — editor + polish ✅ shipped 2026-05-30.** Expanded
+  `AssignmentsDueSettings` to the full spec: **priority** filter (all /
+  high / urgent), **sortBy** (due date / priority), **rowLimit** (1–50,
+  clamped), and an **include-completed** toggle (default off → hides
+  `status==='completed'`). All four thread through the fetch processing
+  (filter → due-window → sort → cap). New pure exported
+  `sortAssignments(list, sortBy)` (priority order urgent→high→normal→low
+  then due). 2 R4 specs. **assignments-due is done.**
 
 ---
 

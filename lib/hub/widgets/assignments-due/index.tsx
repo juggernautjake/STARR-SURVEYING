@@ -21,13 +21,27 @@ import {
 
 export type AssignedToFilter = 'me' | 'all';
 export type AssignmentsDueWindow = 'today' | 'week' | 'month' | 'all';
+export type AssignmentsPriorityFilter = 'all' | 'high' | 'urgent';
+export type AssignmentsSortBy = 'due' | 'priority';
 
 export interface AssignmentsDueContent extends Record<string, unknown> {
   assignedTo: AssignedToFilter;
   dueWithin: AssignmentsDueWindow;
+  // hub-widget-excellence-10 R4 — specialized editor options.
+  includeCompleted: boolean;
+  priority: AssignmentsPriorityFilter;
+  sortBy: AssignmentsSortBy;
+  rowLimit: number;
 }
 
-const DEFAULTS: AssignmentsDueContent = { assignedTo: 'me', dueWithin: 'week' };
+const DEFAULTS: AssignmentsDueContent = {
+  assignedTo: 'me',
+  dueWithin: 'week',
+  includeCompleted: false,
+  priority: 'all',
+  sortBy: 'due',
+  rowLimit: 10,
+};
 
 interface Task {
   id: string;
@@ -55,13 +69,18 @@ function AssignmentsDueWidget({ size, content }: WidgetProps<AssignmentsDueConte
       const res = await fetch(`/api/admin/assignments?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { assignments?: Task[] } = await res.json();
-      const list = filterByDueWindow(data.assignments ?? [], settings.dueWithin).sort(byDueAscending);
+      let list = data.assignments ?? [];
+      if (!settings.includeCompleted) list = list.filter((t) => t.status !== 'completed');
+      if (settings.priority !== 'all') list = list.filter((t) => t.priority === settings.priority);
+      list = filterByDueWindow(list, settings.dueWithin);
+      list = sortAssignments(list, settings.sortBy);
+      list = list.slice(0, Math.max(1, Math.min(50, settings.rowLimit)));
       setTasks(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('error');
     }
-  }, [settings.assignedTo, settings.dueWithin]);
+  }, [settings.assignedTo, settings.dueWithin, settings.includeCompleted, settings.priority, settings.sortBy, settings.rowLimit]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
@@ -168,6 +187,39 @@ function AssignmentsDueSettings({ value, onChange }: WidgetSettingsFormProps<Ass
           <option value="all">All</option>
         </select>
       </label>
+      <label>
+        <span style={labelStyle}>Priority</span>
+        <select value={settings.priority} onChange={(e) => onChange({ ...settings, priority: e.target.value as AssignmentsPriorityFilter })}>
+          <option value="all">All priorities</option>
+          <option value="high">High only</option>
+          <option value="urgent">Urgent only</option>
+        </select>
+      </label>
+      <label>
+        <span style={labelStyle}>Sort by</span>
+        <select value={settings.sortBy} onChange={(e) => onChange({ ...settings, sortBy: e.target.value as AssignmentsSortBy })}>
+          <option value="due">Due date (soonest)</option>
+          <option value="priority">Priority</option>
+        </select>
+      </label>
+      <label>
+        <span style={labelStyle}>Max rows</span>
+        <input
+          type="number"
+          min={1}
+          max={50}
+          value={settings.rowLimit}
+          onChange={(e) => onChange({ ...settings, rowLimit: Math.max(1, Math.min(50, Number(e.target.value))) })}
+        />
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          type="checkbox"
+          checked={settings.includeCompleted}
+          onChange={(e) => onChange({ ...settings, includeCompleted: e.target.checked })}
+        />
+        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)' }}>Include completed</span>
+      </label>
     </div>
   );
 }
@@ -212,6 +264,23 @@ export function filterByDueWindow(list: Task[], window: AssignmentsDueWindow, no
 
 export function byDueAscending(a: Task, b: Task): number {
   return Date.parse(a.due_date ?? '9999-12-31') - Date.parse(b.due_date ?? '9999-12-31');
+}
+
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+
+/** Sort by due date, or by priority (urgent → high → …) then due.
+ *  Pure + exported. */
+export function sortAssignments(list: Task[], sortBy: AssignmentsSortBy): Task[] {
+  const copy = [...list];
+  if (sortBy === 'priority') {
+    return copy.sort((a, b) => {
+      const pa = PRIORITY_RANK[a.priority ?? 'normal'] ?? 2;
+      const pb = PRIORITY_RANK[b.priority ?? 'normal'] ?? 2;
+      if (pa !== pb) return pa - pb;
+      return byDueAscending(a, b);
+    });
+  }
+  return copy.sort(byDueAscending);
 }
 
 function windowToMs(w: Exclude<AssignmentsDueWindow, 'all'>): number {

@@ -6,6 +6,7 @@ import {
   filterByDueWindow,
   assignmentHref,
   formatDue,
+  sortAssignments,
 } from '@/lib/hub/widgets/assignments-due';
 
 describe('assignments-due — registry', () => {
@@ -83,5 +84,21 @@ describe('assignments-due — formatDue (relative)', () => {
     expect(formatDue('2026-05-28', NOW)).toBe('overdue 2d');
     expect(formatDue('2026-05-30', NOW)).toBe('today');
     expect(formatDue('2026-06-02', NOW)).toBe('in 3d');
+  });
+});
+
+describe('assignments-due — sortAssignments (R4)', () => {
+  const list = [
+    { id: 'a', title: 'a', priority: 'normal', due_date: '2026-06-01' },
+    { id: 'b', title: 'b', priority: 'urgent', due_date: '2026-06-10' },
+    { id: 'c', title: 'c', priority: 'high', due_date: '2026-06-05' },
+  ];
+
+  it('due sort = soonest first', () => {
+    expect(sortAssignments(list, 'due').map((t) => t.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('priority sort = urgent → high → normal, then due', () => {
+    expect(sortAssignments(list, 'priority').map((t) => t.id)).toEqual(['b', 'c', 'a']);
   });
 });
