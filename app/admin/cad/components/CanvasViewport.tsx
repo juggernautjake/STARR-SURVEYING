@@ -16,10 +16,18 @@ import {
   useAIStore,
   useTransferStore,
   usePointStore,
+  useAnnotationStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
+// Slice 229 — AreaAnnotation type for the new render path.
+import type { AreaAnnotation } from '@/lib/cad/labels/annotation-types';
+// Slice 231 — Re-center / Change-format actions in the area-label
+// right-click menu need the same centroid picker + text builder the
+// PropertyPanel placement path uses, so the menu stays consistent
+// with the initial placement.
+import { pickFeatureCentroid, buildAreaText } from '@/lib/cad/labels/area-label';
 import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
 import {
@@ -149,6 +157,8 @@ import OffsetPanel from './OffsetPanel';
 import ImageInsertDialog from './ImageInsertDialog';
 import TitleBlockEditorModal from './TitleBlockEditorModal';
 import ScaleBarEditorModal from './ScaleBarEditorModal';
+import CertificationEditor from './CertificationEditor';
+import StandardNotesEditor from './StandardNotesEditor';
 import { TB_ELEM_SCALE_MIN, TB_ELEM_SCALE_MAX } from './TitleBlockEditorModal';
 import type { ProjectImage } from '@/lib/cad/types';
 
@@ -603,6 +613,53 @@ function drawTransformedFeaturePreview(
   }
 }
 
+// Slice 226 — pure hit-test for the title-block + paper-furniture
+// element bounds. Extracted so the test suite can lock the priority
+// ordering (officialSealLabel above signature, etc.) without
+// mounting Pixi. Returns the element under the screen point, or null.
+export type TBElementBounds = {
+  northArrow:        { screenX: number; screenY: number; w: number; h: number } | null;
+  titleBlock:        { screenX: number; screenY: number; w: number; h: number } | null;
+  scaleBar:          { screenX: number; screenY: number; w: number; h: number } | null;
+  signatureBlock:    { screenX: number; screenY: number; w: number; h: number } | null;
+  officialSealLabel: { screenX: number; screenY: number; w: number; h: number } | null;
+  certification:     { screenX: number; screenY: number; w: number; h: number } | null;
+  notes:             { screenX: number; screenY: number; w: number; h: number } | null;
+};
+
+export type TBHitTarget =
+  | 'northArrow'
+  | 'titleBlock'
+  | 'scaleBar'
+  | 'signatureBlock'
+  | 'officialSealLabel'
+  | 'certification'
+  | 'notes';
+
+export function hitTestTBElementPure(
+  sx: number,
+  sy: number,
+  b: TBElementBounds,
+): TBHitTarget | null {
+  function inside(r: { screenX: number; screenY: number; w: number; h: number } | null): boolean {
+    if (!r) return false;
+    return sx >= r.screenX && sx <= r.screenX + r.w
+        && sy >= r.screenY && sy <= r.screenY + r.h;
+  }
+  if (inside(b.northArrow)) return 'northArrow';
+  if (inside(b.titleBlock)) return 'titleBlock';
+  if (inside(b.scaleBar))   return 'scaleBar';
+  // Sub-elements above their containing signature block so they
+  // take priority on the way in.
+  if (inside(b.officialSealLabel)) return 'officialSealLabel';
+  if (inside(b.signatureBlock))    return 'signatureBlock';
+  // Slice 226 — paper-furniture blocks tested last so they don't
+  // shadow the more-specific TB elements on overlap.
+  if (inside(b.certification)) return 'certification';
+  if (inside(b.notes))         return 'notes';
+  return null;
+}
+
 export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsumed }: CanvasViewportProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -654,6 +711,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbNorthArrowGraphics: import('pixi.js').Graphics;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
     labelTexts: Map<string, import('pixi.js').Text>;
+    /** Slice 229 — Pixi Text objects for stored AREA_LABEL
+     *  annotations, keyed by annotation id. Drawn on labelLayer so
+     *  they rotate with the drawing + sit above features. */
+    areaLabelTexts: Map<string, import('pixi.js').Text>;
     /** PixiJS Sprites for IMAGE features, keyed by featureId */
     imageSprites: Map<string, import('pixi.js').Sprite>;
     /** Texture cache keyed by projectImage.id */
@@ -783,7 +844,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Hovered label key (featureId:labelId or text:featureId) for blue highlight
   const hoveredLabelKeyRef = useRef<string | null>(null);
   // Hovered title-block overlay element
-  const hoveredTBElemRef = useRef<'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null>(null);
+  // Slice 226 — widened to include the paper-furniture blocks (Cert
+  // + Notes) so hover hit-testing reports them too. The existing
+  // hover-styled redraws (titleBlock / signatureBlock / scaleBar)
+  // gate on the specific value, so the wider type is a no-op for
+  // those branches while letting the cursor hint reflect cert/notes.
+  const hoveredTBElemRef = useRef<TBHitTarget | null>(null);
   // Screen bounding boxes of each TB element (updated each render frame)
   const tbBoundsRef = useRef<{
     northArrow:       { screenX: number; screenY: number; w: number; h: number } | null;
@@ -791,7 +857,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     scaleBar:         { screenX: number; screenY: number; w: number; h: number } | null;
     signatureBlock:   { screenX: number; screenY: number; w: number; h: number } | null;
     officialSealLabel:{ screenX: number; screenY: number; w: number; h: number } | null;
-  }>({ northArrow: null, titleBlock: null, scaleBar: null, signatureBlock: null, officialSealLabel: null });
+    // Slice 226 — paper furniture (Cert + Notes) bounds. Captured
+    // during renderPaperFurniture so right-click hit-testing can
+    // surface a context menu for each block.
+    certification:    { screenX: number; screenY: number; w: number; h: number } | null;
+    notes:            { screenX: number; screenY: number; w: number; h: number } | null;
+  }>({ northArrow: null, titleBlock: null, scaleBar: null, signatureBlock: null, officialSealLabel: null, certification: null, notes: null });
   // Screen bounding boxes of each individually-editable title block field (rebuilt each frame)
   const tbFieldBoundsRef = useRef<Array<{
     key: keyof import('@/lib/cad/types').TitleBlockConfig;
@@ -812,12 +883,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const tbSigPaperPosRef = useRef<{ x: number; y: number } | null>(null);
   // Drag state for title-block overlay elements
   const tbDragRef = useRef<{
-    element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
+    // Slice 227 — cert + notes joined the drag pipeline. They use a
+    // top-left-anchored y axis (positive screen-down) instead of the
+    // bottom-left convention the title-block family uses; the
+    // pointer-move math switches sign on the y-delta based on the
+    // element name.
+    element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | 'certification' | 'notes';
     startSX: number;
     startSY: number;
-    origPosX: number;  // paper-inch BL pos at drag start
+    origPosX: number;  // paper-inch pos at drag start (BL for TB family, TL for cert/notes)
     origPosY: number;
-    livePosX: number;  // paper-inch BL pos during drag
+    livePosX: number;  // paper-inch pos during drag
     livePosY: number;
   } | null>(null);
   // Element drag-to-move: tracks feature being dragged in SELECT mode
@@ -835,6 +911,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // §14 — when point labels are GROUPED, sibling point labels (name +
     // code/desc + elevation) move together; captured at grab time.
     siblings?: { labelId: string; startOffset: Point2D }[];
+  } | null>(null);
+  // Slice 230 — drag-to-move an AREA_LABEL annotation. Mirrors the
+  // labelDragRef pipeline: capture world-pos delta on pointer-down,
+  // write live position to the annotation store on pointer-move, clear
+  // on pointer-up. The Slice 229 render loop redraws the Pixi Text at
+  // the new position next frame.
+  const areaLabelDragRef = useRef<{
+    annotationId: string;
+    startWorld: Point2D;
+    startPosition: Point2D;
+  } | null>(null);
+  // Slice 228 — corner-drag resize for the cert + notes paper-furniture
+  // blocks. Held in a separate ref from tbDragRef so the user can't
+  // accidentally start both a move and a resize from the same click.
+  const tbResizeRef = useRef<{
+    element: 'certification' | 'notes';
+    startSX: number;
+    startWidthIn: number;
+    liveWidthIn: number;
   } | null>(null);
   // Interactive rotate/scale mode — driven by cursor position
   const interactiveOpRef = useRef<{
@@ -888,15 +983,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     screenX: number; screenY: number; w: number; h: number;
   } | null>(null);
   // Title block element right-click context menu
-  type TBElemType = 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
+  // Slice 226 — paper furniture (Cert + Notes) joined the menu so the
+  // surveyor can hide / edit / reset either block by right-clicking.
+  type TBElemType = 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | 'certification' | 'notes';
   const [tbContextMenu, setTbContextMenu] = useState<{
     x: number; y: number;
     element: TBElemType;
+  } | null>(null);
+  // Slice 231 — right-click context menu on a placed area label.
+  // Surfaces Hide / Re-center / Change format (SQFT / ACRES / BOTH) /
+  // Delete actions. The id is captured so each action can target the
+  // exact annotation under the cursor, even if other state changes
+  // while the menu is open.
+  const [areaLabelContextMenu, setAreaLabelContextMenu] = useState<{
+    x: number; y: number;
+    annotationId: string;
   } | null>(null);
   // Title block full editor modal
   const [tbEditorOpen, setTbEditorOpen] = useState<{ focusElement?: 'titleBlock' | 'signatureBlock' | 'northArrow' } | null>(null);
   // Scale bar editor modal
   const [scaleBarEditorOpen, setScaleBarEditorOpen] = useState(false);
+  // Slice 226 — Cert + Notes editor modals (mounted lazily).
+  const [certEditorOpen, setCertEditorOpen] = useState(false);
+  const [notesEditorOpen, setNotesEditorOpen] = useState(false);
   // Interactive rotate/scale HUD: drives the InteractiveOpPanel
   const [interactivePanel, setInteractivePanel] = useState<{
     type: 'ROTATE' | 'SCALE';
@@ -1234,6 +1343,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           tbNorthArrowGraphics,
           featureGraphics: new Map(),
           labelTexts: new Map(),
+          // Slice 229 — Pixi text objects for area-label annotations.
+          areaLabelTexts: new Map(),
           imageSprites: new Map(),
           imageTextures: new Map(),
           tbSealSprite: null,
@@ -2085,30 +2196,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────────────────────────
   // Helper: hit-test screen (sx,sy) against a TB element bounding box
   // ─────────────────────────────────────────────────────────────────
-  function hitTestTBElement(sx: number, sy: number): 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null {
-    const b = tbBoundsRef.current;
-    if (b.northArrow) {
-      const { screenX, screenY, w, h } = b.northArrow;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'northArrow';
-    }
-    if (b.titleBlock) {
-      const { screenX, screenY, w, h } = b.titleBlock;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'titleBlock';
-    }
-    if (b.scaleBar) {
-      const { screenX, screenY, w, h } = b.scaleBar;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'scaleBar';
-    }
-    // Test sub-elements before the container so they take priority
-    if (b.officialSealLabel) {
-      const { screenX, screenY, w, h } = b.officialSealLabel;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'officialSealLabel';
-    }
-    if (b.signatureBlock) {
-      const { screenX, screenY, w, h } = b.signatureBlock;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'signatureBlock';
-    }
-    return null;
+  function hitTestTBElement(sx: number, sy: number): TBElemType | null {
+    return hitTestTBElementPure(sx, sy, tbBoundsRef.current);
   }
 
   /** Returns the editable title-block field hit at screen coords, or null.
@@ -2229,7 +2318,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // ── NOTES (left margin, below legend) ──────────────────────────
-    if (printVisible('printNotes')) {
+    // Slice 226 — the surveyor-toggleable `visible` flag (default
+    // true) gates the on-canvas render alongside the print toggle.
+    if (printVisible('printNotes') && tpl.standardNotes?.visible !== false) {
       const noteIds = tpl.standardNotes?.selectedNoteIds ?? [];
       const customNotes = tpl.standardNotes?.customNotes ?? [];
       const stdLib = STANDARD_NOTES_LIB;
@@ -2245,7 +2336,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const titleFontPx = Math.max(7, 9 * (tpl.standardNotes?.fontSize ?? 8) / 8) * inchToPx / 50;
         const rowFontPx = Math.max(6, 7 * (tpl.standardNotes?.fontSize ?? 8) / 8) * inchToPx / 50;
         const padPx = 0.08 * inchToPx;
-        const widthPx = Math.min((tpl.standardNotes?.width ?? 3.5), pw * 0.28) * inchToPx;
+        // Slice 228 — corner-resize: live width during drag, else stored.
+        const notesResize = tbResizeRef.current?.element === 'notes' ? tbResizeRef.current : null;
+        const notesWidthIn = notesResize ? notesResize.liveWidthIn : (tpl.standardNotes?.width ?? 3.5);
+        const widthPx = Math.min(notesWidthIn, pw * 0.28) * inchToPx;
         const innerW = widthPx - padPx * 2;
         const charPx = rowFontPx * 0.55; // rough monospace-ish approximation
         const charsPerLine = Math.max(20, Math.floor(innerW / charPx));
@@ -2262,12 +2356,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         });
         const rowH = rowFontPx * 1.3;
         const heightPx = padPx * 2 + titleFontPx * 1.4 + totalRows * rowH + (shown.length - 1) * (rowFontPx * 0.4);
-        const nx = tl.sx + (tpl.standardNotes?.position?.x ?? 0.5) * inchToPx;
-        const ny = tl.sy + (tpl.standardNotes?.position?.y ?? 4.5) * inchToPx;
+        // Slice 227 — drag-to-move: when the user is dragging the notes
+        // block, render at the live cursor-tracked paper-inch position
+        // so the block follows the cursor. Falls back to the stored
+        // position, then the default left-margin layout.
+        const notesDrag = tbDragRef.current?.element === 'notes' ? tbDragRef.current : null;
+        const notesPosX = notesDrag ? notesDrag.livePosX : (tpl.standardNotes?.position?.x ?? 0.5);
+        const notesPosY = notesDrag ? notesDrag.livePosY : (tpl.standardNotes?.position?.y ?? 4.5);
+        const nx = tl.sx + notesPosX * inchToPx;
+        const ny = tl.sy + notesPosY * inchToPx;
         ng.beginFill(0xffffff, 0.9);
         ng.lineStyle(0.5, 0x000000, 0.7);
         ng.drawRect(nx, ny, widthPx, heightPx);
         ng.endFill();
+        // Slice 228 — small dark triangle at the BR corner advertises
+        // the resize-handle. Renders into the block's own Graphics so
+        // it shares the block's z-order; cursor flips to nwse-resize
+        // when the user hovers it (see SELECT-mode hover branch).
+        const handlePx = Math.max(6, 0.06 * inchToPx);
+        ng.beginFill(0x000000, 0.55);
+        ng.lineStyle(0);
+        ng.moveTo(nx + widthPx, ny + heightPx);
+        ng.lineTo(nx + widthPx - handlePx, ny + heightPx);
+        ng.lineTo(nx + widthPx, ny + heightPx - handlePx);
+        ng.closePath();
+        ng.endFill();
+        // Slice 226 — record bounds so right-click + select can hit it.
+        tbBoundsRef.current.notes = { screenX: nx, screenY: ny, w: widthPx, h: heightPx };
         const title = mkText(pixi.tbNotesContainer, (tpl.standardNotes?.title ?? 'NOTES').toUpperCase(), {
           fontFamily: tpl.standardNotes?.font ?? 'Arial',
           fontSize: titleFontPx, fontWeight: '700', fill: '#000',
@@ -2296,7 +2411,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const titleFontPx = Math.max(7, 9 * (tpl.certification?.fontSize ?? 8) / 8) * inchToPx / 50;
         const bodyFontPx = Math.max(6, 7 * (tpl.certification?.fontSize ?? 8) / 8) * inchToPx / 50;
         const padPx = 0.1 * inchToPx;
-        const widthPx = Math.min((tpl.certification?.width ?? 3.5), pw * 0.32) * inchToPx;
+        // Slice 228 — corner-resize: live width during drag, else stored.
+        const certResize = tbResizeRef.current?.element === 'certification' ? tbResizeRef.current : null;
+        const certWidthIn = certResize ? certResize.liveWidthIn : (tpl.certification?.width ?? 3.5);
+        const widthPx = Math.min(certWidthIn, pw * 0.32) * inchToPx;
         const innerW = widthPx - padPx * 2;
         const charPx = bodyFontPx * 0.55;
         const charsPerLine = Math.max(20, Math.floor(innerW / charPx));
@@ -2320,14 +2438,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (cur) lines.push(cur);
         const rowH = bodyFontPx * 1.35;
         const heightPx = padPx * 2 + titleFontPx * 1.4 + lines.length * rowH;
-        const cx = tl.sx + (tpl.certification?.position?.x ?? pw - 4) * inchToPx;
-        const cy = tl.sy + (tpl.certification?.position?.y ?? 0.5) * inchToPx;
+        // Slice 227 — drag-to-move: same live-tracking convention as
+        // the notes block above. The render still clamps the right
+        // edge via `clampedX` below, so drag respects paper bounds.
+        const certDrag = tbDragRef.current?.element === 'certification' ? tbDragRef.current : null;
+        const certPosX = certDrag ? certDrag.livePosX : (tpl.certification?.position?.x ?? pw - 4);
+        const certPosY = certDrag ? certDrag.livePosY : (tpl.certification?.position?.y ?? 0.5);
+        const cx = tl.sx + certPosX * inchToPx;
+        const cy = tl.sy + certPosY * inchToPx;
         // Clamp right edge to paper so the block doesn't drift off-sheet.
         const clampedX = Math.min(cx, br.sx - widthPx - 0.1 * inchToPx);
         cg.beginFill(0xffffff, 0.95);
         cg.lineStyle(0.5, 0x000000, 0.7);
         cg.drawRect(clampedX, cy, widthPx, heightPx);
         cg.endFill();
+        // Slice 228 — BR-corner resize handle (small dark triangle).
+        const certHandlePx = Math.max(6, 0.06 * inchToPx);
+        cg.beginFill(0x000000, 0.55);
+        cg.lineStyle(0);
+        cg.moveTo(clampedX + widthPx, cy + heightPx);
+        cg.lineTo(clampedX + widthPx - certHandlePx, cy + heightPx);
+        cg.lineTo(clampedX + widthPx, cy + heightPx - certHandlePx);
+        cg.closePath();
+        cg.endFill();
+        // Slice 226 — record bounds so right-click + select can hit it.
+        tbBoundsRef.current.certification = { screenX: clampedX, screenY: cy, w: widthPx, h: heightPx };
         const title = mkText(pixi.tbCertificationContainer, 'CERTIFICATION', {
           fontFamily: tpl.certification?.font ?? 'Arial',
           fontSize: titleFontPx, fontWeight: '700', fill: '#000',
@@ -2396,6 +2531,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbBoundsRef.current.scaleBar        = null;
     tbBoundsRef.current.signatureBlock  = null;
     tbBoundsRef.current.officialSealLabel = null;
+    // Slice 226 — paper furniture bounds reset every render. Each
+    // block's render path (Notes / Cert below) re-populates these
+    // when the block is visible; when hidden they stay null so the
+    // hit-test correctly reports no hit.
+    tbBoundsRef.current.certification = null;
+    tbBoundsRef.current.notes         = null;
     // Reset editable field bounds
     tbFieldBoundsRef.current = [];
 
@@ -3289,6 +3430,75 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
       nLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
       pixi.titleBlockLayer.addChild(nLbl);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Render: Stored AREA_LABEL annotations (Slice 229)
+  // ─────────────────────────────────────────────
+  // The PropertyPanel's "📐 Place area label" button writes an
+  // `AreaAnnotation` to the annotation store. This function draws
+  // every visible one as a Pixi Text on the same labelLayer as the
+  // bearing/distance auto-labels so the user actually sees the
+  // result on the canvas. Drag-to-move (Slice 230) and right-click
+  // editor (Slice 231) layer onto these texts via the existing
+  // dragLabelRef pipeline.
+  function renderAreaAnnotations() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const annStore = useAnnotationStore.getState();
+    const doc = useDrawingStore.getState().document;
+    const { zoom } = useViewportStore.getState();
+    const drawingScale = doc.settings.drawingScale ?? 50;
+    const aliveIds = new Set<string>();
+
+    for (const ann of Object.values(annStore.annotations) as AreaAnnotation[]) {
+      if (!ann || ann.type !== 'AREA_LABEL') continue;
+      if (ann.visible === false) continue;
+      aliveIds.add(ann.id);
+
+      const { sx, sy } = w2s(ann.position.x, ann.position.y);
+
+      // Font-size: declared in paper points (1 pt = 1/72 in;
+      // 1 in = drawingScale world units → screen px via zoom).
+      const fontSizeWorld = (ann.fontSize / 72) * drawingScale;
+      const fontSize = Math.min(
+        MAX_LABEL_FONT_SIZE_PX,
+        Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom),
+      );
+
+      let textObj = pixi.areaLabelTexts.get(ann.id);
+      if (!textObj) {
+        const style = new pixi.TextStyleClass({
+          fontFamily: ann.font,
+          fontSize,
+          fontWeight: '600',
+          fill: ann.color,
+          align: 'center',
+        });
+        textObj = new pixi.TextClass(ann.text, style);
+        textObj.anchor.set(0.5, 0.5);
+        textObj.resolution = pixi.app.renderer.resolution;
+        pixi.areaLabelTexts.set(ann.id, textObj);
+        pixi.labelLayer.addChild(textObj);
+      } else {
+        if (textObj.text !== ann.text) textObj.text = ann.text;
+        const s = textObj.style as import('pixi.js').TextStyle;
+        s.fontFamily = ann.font;
+        s.fontSize = fontSize;
+        s.fill = ann.color;
+      }
+      textObj.position.set(sx, sy);
+    }
+
+    // GC: drop any Pixi Text objects whose annotations were
+    // removed from the store this frame.
+    for (const [id, txt] of pixi.areaLabelTexts) {
+      if (!aliveIds.has(id)) {
+        pixi.labelLayer.removeChild(txt);
+        try { txt.destroy(); } catch { /* noop */ }
+        pixi.areaLabelTexts.delete(id);
+      }
     }
   }
 
@@ -7400,6 +7610,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     renderFeatures();
     renderImageFeatures();
     renderLabels();
+    // Slice 229 — stored AREA_LABEL annotations render here so they
+    // sit on the same labelLayer as the auto bearing/distance labels.
+    renderAreaAnnotations();
     renderTextFeatures();
     renderSelection();
     renderSnapIndicator();
@@ -7604,6 +7817,53 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const lf = drawingStore.getFeature(featureId);
         if (lf && !canEditLayer(lf.layerId)) continue;
         return { featureId, labelId, isTextFeature: false, key };
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
+  // Slice 228 — Hit test: cert + notes corner resize handle
+  // ─────────────────────────────────────────────
+  // Tests a small square region anchored to the bottom-right corner
+  // of each paper-furniture block. Returns the element whose corner
+  // is under the cursor so SELECT pointer-down can start a resize op
+  // BEFORE the regular tbDragRef move pipeline grabs the click.
+  function hitTestTBResizeCorner(sx: number, sy: number): 'certification' | 'notes' | null {
+    const HZ = 12; // px around the BR corner
+    const cert = tbBoundsRef.current.certification;
+    if (cert) {
+      const cx = cert.screenX + cert.w;
+      const cy = cert.screenY + cert.h;
+      if (sx >= cx - HZ && sx <= cx + HZ / 2 && sy >= cy - HZ && sy <= cy + HZ / 2) {
+        return 'certification';
+      }
+    }
+    const notes = tbBoundsRef.current.notes;
+    if (notes) {
+      const cx = notes.screenX + notes.w;
+      const cy = notes.screenY + notes.h;
+      if (sx >= cx - HZ && sx <= cx + HZ / 2 && sy >= cy - HZ && sy <= cy + HZ / 2) {
+        return 'notes';
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
+  // Slice 230 — Hit test: AREA_LABEL annotations
+  // ─────────────────────────────────────────────
+  // Tests the Pixi Text bounds of every rendered AREA_LABEL on the
+  // labelLayer. Returns the annotation id under the cursor so the
+  // SELECT pointer-down handler can grab it for drag-to-move.
+  function hitTestAreaLabel(sx: number, sy: number): { annotationId: string } | null {
+    const pixi = pixiRef.current;
+    if (!pixi) return null;
+    for (const [id, textObj] of pixi.areaLabelTexts) {
+      if (!textObj.visible) continue;
+      const b = textObj.getBounds();
+      if (sx >= b.x && sx <= b.x + b.width && sy >= b.y && sy <= b.y + b.height) {
+        return { annotationId: id };
       }
     }
     return null;
@@ -8497,6 +8757,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // ── Title-block overlay element drag (SELECT mode) ──────────────
       if (activeTool === 'SELECT') {
+        // Slice 228 — corner-drag resize on cert + notes wins over the
+        // regular move pipeline so a click in the BR corner pulls the
+        // edge instead of dragging the block.
+        const resizeHit = hitTestTBResizeCorner(sx, sy);
+        if (resizeHit) {
+          const tpl = useTemplateStore.getState().activeTemplate;
+          const startWidthIn = resizeHit === 'certification'
+            ? (tpl.certification?.width ?? 3.5)
+            : (tpl.standardNotes?.width ?? 3.5);
+          tbResizeRef.current = {
+            element: resizeHit,
+            startSX: sx,
+            startWidthIn,
+            liveWidthIn: startWidthIn,
+          };
+          setCursorStyle('nwse-resize');
+          return;
+        }
+        // Slice 227 — Cert + Notes now flow through the same drag
+        // pipeline as the title-block family. The pointer-move math
+        // and origin lookup branch on `element` to handle the TL-y
+        // convention they use vs. the TB family's BL-y.
         const tbHit = hitTestTBElement(sx, sy);
         if (tbHit) {
           const doc        = useDrawingStore.getState().document;
@@ -8580,6 +8862,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 origPosX = (b.screenX + b.w / 2 - tl.sx) / inchToPx;
                 origPosY = (br.sy - (b.screenY + 4)) / inchToPx;
               }
+            }
+          } else if (tbHit === 'certification') {
+            // Slice 227 — cert position is paper-inch from TOP-LEFT
+            // (positive y = down), unlike the TB family.
+            const tpl = useTemplateStore.getState().activeTemplate;
+            const stored = tpl.certification?.position;
+            if (stored) {
+              origPosX = stored.x;
+              origPosY = stored.y;
+            } else {
+              // Default render placement: top-right, above the title block.
+              origPosX = Math.max(0.5, pw - 4);
+              origPosY = 0.5;
+            }
+          } else if (tbHit === 'notes') {
+            // Slice 227 — notes position is paper-inch from TOP-LEFT.
+            const tpl = useTemplateStore.getState().activeTemplate;
+            const stored = tpl.standardNotes?.position;
+            if (stored) {
+              origPosX = stored.x;
+              origPosY = stored.y;
+            } else {
+              // Default render placement: left margin, below legend.
+              origPosX = 0.5;
+              origPosY = 4.5;
             }
           }
 
@@ -8679,6 +8986,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // replacing it. Ctrl is the common surveyor habit for picking
           // several points one-by-one.
           const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+          // Slice 230 — AREA_LABEL annotations sit on the same labelLayer
+          // as bearing/distance labels. Check those first so the surveyor
+          // can grab a placed area label and drag it to a better spot
+          // without hitting the underlying polygon's edge.
+          const areaLabelHit = hitTestAreaLabel(sx, sy);
+          if (areaLabelHit) {
+            const ann = useAnnotationStore.getState().annotations[areaLabelHit.annotationId] as AreaAnnotation | undefined;
+            if (ann && ann.type === 'AREA_LABEL') {
+              const { wx, wy } = screenToDrawingWorld(sx, sy);
+              areaLabelDragRef.current = {
+                annotationId: ann.id,
+                startWorld: { x: wx, y: wy },
+                startPosition: { x: ann.position.x, y: ann.position.y },
+              };
+              setCursorStyle('grabbing');
+              return;
+            }
+          }
           // Check label hit first — labels are on top of features visually
           const labelHit = hitTestLabel(sx, sy);
           if (labelHit) {
@@ -10393,6 +10718,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       const worldPt = getSnappedWorld(sx, sy);
 
+      // Slice 230 — Area-label drag update
+      if (areaLabelDragRef.current) {
+        const { annotationId, startWorld, startPosition } = areaLabelDragRef.current;
+        const { wx, wy } = screenToDrawingWorld(sx, sy);
+        useAnnotationStore.getState().updateAnnotation(annotationId, {
+          position: { x: startPosition.x + (wx - startWorld.x), y: startPosition.y + (wy - startWorld.y) },
+        } as Partial<AreaAnnotation>);
+        setCursorStyle('grabbing');
+        return;
+      }
+
       // Label drag update
       if (labelDragRef.current) {
         const { featureId, labelId, startWorld, startOffset, siblings } = labelDragRef.current;
@@ -10415,6 +10751,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Slice 228 — Cert / notes corner-resize update
+      if (tbResizeRef.current) {
+        const r = tbResizeRef.current;
+        const { zoom } = useViewportStore.getState();
+        const doc      = useDrawingStore.getState().document;
+        const inchToPx = zoom * (doc.settings.drawingScale ?? 50);
+        const dScreenX = sx - r.startSX;
+        const next = r.startWidthIn + dScreenX / inchToPx;
+        // Floor 1.0", ceiling 8.0" so the block stays usable + on-sheet
+        // (the render path already clamps the visible width to the
+        // per-block fraction of paper width — pw * 0.32 for cert,
+        // pw * 0.28 for notes — so this is a stored-value floor/cap).
+        r.liveWidthIn = Math.max(1.0, Math.min(next, 8.0));
+        setCursorStyle('nwse-resize');
+        return;
+      }
+
       // Title-block overlay element drag update
       if (tbDragRef.current) {
         const tbDrag = tbDragRef.current;
@@ -10423,9 +10776,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const inchToPx  = zoom * (doc.settings.drawingScale ?? 50);
         const dScreenX  = sx - tbDrag.startSX;
         const dScreenY  = sy - tbDrag.startSY;
-        // Screen right → paper right; screen down → paper BL-y decreases
         tbDrag.livePosX = tbDrag.origPosX + dScreenX / inchToPx;
-        tbDrag.livePosY = tbDrag.origPosY - dScreenY / inchToPx;
+        // Slice 227 — cert + notes use TOP-LEFT-anchored y (screen-down ⇒
+        // paper-y increases). Title-block family uses BOTTOM-LEFT
+        // (screen-down ⇒ paper-y decreases).
+        const isTLanchored = tbDrag.element === 'certification' || tbDrag.element === 'notes';
+        tbDrag.livePosY = isTLanchored
+          ? tbDrag.origPosY + dScreenY / inchToPx
+          : tbDrag.origPosY - dScreenY / inchToPx;
         setCursorStyle('grabbing');
         return;
       }
@@ -10802,6 +11160,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             } else if (labelHover) {
               // Hovering over a label: show grab cursor
               setCursorStyle('grab');
+            } else if (hitTestAreaLabel(sx, sy)) {
+              // Slice 230 — area-label annotations are draggable too.
+              setCursorStyle('grab');
+            } else if (hitTestTBResizeCorner(sx, sy)) {
+              // Slice 228 — cert / notes BR-corner resize handle.
+              setCursorStyle('nwse-resize');
             } else if (hit) {
               // Hovering a selectable element. It's NOT drag-to-move
               // (use the Move tool), so show a pointer, not a grab hand.
@@ -10991,10 +11355,37 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Slice 230 — Commit area-label drag.
+      if (areaLabelDragRef.current) {
+        areaLabelDragRef.current = null;
+        setCursorStyle(TOOL_CURSORS[toolState.activeTool] ?? 'default');
+        return;
+      }
+
       // Commit label drag
       if (labelDragRef.current) {
         labelDragRef.current = null;
         setCursorStyle(TOOL_CURSORS[toolState.activeTool] ?? 'default');
+        return;
+      }
+
+      // Slice 228 — Commit cert / notes corner resize.
+      if (tbResizeRef.current) {
+        const { element, liveWidthIn, startWidthIn } = tbResizeRef.current;
+        if (Math.abs(liveWidthIn - startWidthIn) > 0.01) {
+          const ts = useTemplateStore.getState();
+          if (element === 'certification') {
+            ts.updateActiveTemplate({
+              certification: { ...ts.activeTemplate.certification, width: liveWidthIn },
+            });
+          } else {
+            ts.updateActiveTemplate({
+              standardNotes: { ...ts.activeTemplate.standardNotes, width: liveWidthIn },
+            });
+          }
+        }
+        tbResizeRef.current = null;
+        setCursorStyle('default');
         return;
       }
 
@@ -11009,6 +11400,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (element === 'scaleBar')         drawingStore.updateTitleBlock({ scaleBarPos: pos });
           if (element === 'signatureBlock')   drawingStore.updateTitleBlock({ signatureBlockPos: pos });
           if (element === 'officialSealLabel')drawingStore.updateTitleBlock({ officialSealLabelPos: pos });
+          // Slice 227 — cert + notes persist into the active template
+          // (not the drawing's titleBlock settings) since they're owned
+          // by the template store.
+          if (element === 'certification') {
+            const ts = useTemplateStore.getState();
+            ts.updateActiveTemplate({
+              certification: { ...ts.activeTemplate.certification, position: pos },
+            });
+          }
+          if (element === 'notes') {
+            const ts = useTemplateStore.getState();
+            ts.updateActiveTemplate({
+              standardNotes: { ...ts.activeTemplate.standardNotes, position: pos },
+            });
+          }
         } else if (element === 'titleBlock' || element === 'signatureBlock') {
           // Single click (no drag) on the title/signature block → open field editor
           const fieldHit = hitTestTBField(sx, sy);
@@ -12302,6 +12708,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Slice 231 — area-label annotations sit above features on
+      // the labelLayer, so their right-click menu takes priority over
+      // both the TB element menu and the per-feature menu.
+      const areaLabelCtxHit = hitTestAreaLabel(sx, sy);
+      if (areaLabelCtxHit) {
+        setAreaLabelContextMenu({ x: e.clientX, y: e.clientY, annotationId: areaLabelCtxHit.annotationId });
+        return;
+      }
+
       // Right-click with SELECT tool (or any non-drawing tool): check TB elements first
       const tbHitElem = hitTestTBElement(sx, sy);
       if (tbHitElem) {
@@ -12552,6 +12967,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const isSig        = tbContextMenu.element === 'signatureBlock';
         const isNA         = tbContextMenu.element === 'northArrow';
         const isSeal       = tbContextMenu.element === 'officialSealLabel';
+        // Slice 226 — right-click on the paper-furniture blocks
+        // (Cert + Notes) surfaces Hide / Edit text… / Reset position.
+        const isCert       = tbContextMenu.element === 'certification';
+        const isNotes      = tbContextMenu.element === 'notes';
         const focusEl = isTitleBlock ? 'titleBlock' : isSig || isSeal ? 'signatureBlock' : isNA ? 'northArrow' : undefined;
         return (
           <>
@@ -12567,7 +12986,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             style={{ left: tbContextMenu.x, top: tbContextMenu.y }}
           >
             <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700 mb-1">
-              {isScaleBar ? 'Graphic Scale Bar' : isTitleBlock ? 'Title Block' : isSig ? 'Signature / Seal Block' : isNA ? 'North Arrow' : 'Official Seal Label'}
+              {isScaleBar ? 'Graphic Scale Bar'
+                : isTitleBlock ? 'Title Block'
+                : isSig ? 'Signature / Seal Block'
+                : isNA ? 'North Arrow'
+                : isSeal ? 'Official Seal Label'
+                : isCert ? 'Certification Block'
+                : isNotes ? 'Survey Notes Block'
+                : 'Element'}
             </div>
             {isScaleBar && (
               <button
@@ -12584,6 +13010,60 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               >
                 ✏️ Edit Title Block…
               </button>
+            )}
+            {/* Slice 226 — Cert + Notes actions */}
+            {(isCert || isNotes) && (
+              <>
+                <button
+                  data-testid="tb-ctx-hide-block"
+                  className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    const ts = useTemplateStore.getState();
+                    if (isCert) {
+                      ts.updateActiveTemplate({
+                        certification: { ...ts.activeTemplate.certification, visible: false },
+                      });
+                    } else {
+                      ts.updateActiveTemplate({
+                        standardNotes: { ...ts.activeTemplate.standardNotes, visible: false },
+                      });
+                    }
+                    setTbContextMenu(null);
+                  }}
+                >
+                  🙈 Hide block
+                </button>
+                <button
+                  data-testid="tb-ctx-edit-block"
+                  className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    if (isCert) setCertEditorOpen(true);
+                    else setNotesEditorOpen(true);
+                    setTbContextMenu(null);
+                  }}
+                >
+                  ✏️ Edit {isCert ? 'Certification Text' : 'Survey Notes'}…
+                </button>
+                <button
+                  data-testid="tb-ctx-reset-pos"
+                  className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => {
+                    const ts = useTemplateStore.getState();
+                    if (isCert) {
+                      ts.updateActiveTemplate({
+                        certification: { ...ts.activeTemplate.certification, position: undefined },
+                      });
+                    } else {
+                      ts.updateActiveTemplate({
+                        standardNotes: { ...ts.activeTemplate.standardNotes, position: undefined },
+                      });
+                    }
+                    setTbContextMenu(null);
+                  }}
+                >
+                  ↩ Reset position
+                </button>
+              </>
             )}
             <div className="border-t border-gray-700 my-1" />
             <button
@@ -12622,6 +13102,101 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         );
       })()}
 
+      {/* Slice 231 — Area-label annotation right-click context menu */}
+      {areaLabelContextMenu && (() => {
+        const annStore = useAnnotationStore.getState();
+        const ann = annStore.annotations[areaLabelContextMenu.annotationId] as AreaAnnotation | undefined;
+        if (!ann || ann.type !== 'AREA_LABEL') return null;
+        const close = () => setAreaLabelContextMenu(null);
+        const setFormat = (fmt: AreaAnnotation['format']) => {
+          const newText = buildAreaText(ann.areaSqFt, fmt, ann.lotNumber ?? undefined, ann.blockNumber ?? undefined);
+          annStore.updateAnnotation(ann.id, { format: fmt, text: newText } as Partial<AreaAnnotation>);
+          close();
+        };
+        return (
+          <>
+          <div
+            className="fixed inset-0 z-[149]"
+            onClick={close}
+            onContextMenu={(e) => { e.preventDefault(); close(); }}
+          />
+          <div
+            data-testid="area-label-context-menu"
+            className="fixed z-[150] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[220px] text-xs"
+            style={{ left: areaLabelContextMenu.x, top: areaLabelContextMenu.y }}
+          >
+            <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700 mb-1">
+              Area Label
+            </div>
+            <button
+              data-testid="area-label-ctx-hide"
+              className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                annStore.updateAnnotation(ann.id, { visible: false } as Partial<AreaAnnotation>);
+                close();
+              }}
+            >
+              🙈 Hide label
+            </button>
+            <button
+              data-testid="area-label-ctx-recenter"
+              className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                const linked = drawingStore.getFeature(ann.linkedFeatureId);
+                if (linked) {
+                  const c = pickFeatureCentroid(linked);
+                  annStore.updateAnnotation(ann.id, { position: c } as Partial<AreaAnnotation>);
+                }
+                close();
+              }}
+            >
+              ⊙ Re-center on feature
+            </button>
+            <div className="border-t border-gray-700 my-1" />
+            <div className="px-3 py-1 text-[10px] text-gray-500 uppercase tracking-wider">Change format</div>
+            <button
+              data-testid="area-label-ctx-format-sqft"
+              className={`w-full text-left px-3 py-1.5 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2 ${ann.format === 'SQFT' ? 'text-blue-300' : 'text-gray-200'}`}
+              onClick={() => setFormat('SQFT')}
+            >
+              ▸ Square feet
+            </button>
+            <button
+              data-testid="area-label-ctx-format-acres"
+              className={`w-full text-left px-3 py-1.5 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2 ${ann.format === 'ACRES' ? 'text-blue-300' : 'text-gray-200'}`}
+              onClick={() => setFormat('ACRES')}
+            >
+              ▸ Acres
+            </button>
+            <button
+              data-testid="area-label-ctx-format-both"
+              className={`w-full text-left px-3 py-1.5 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2 ${ann.format === 'BOTH' ? 'text-blue-300' : 'text-gray-200'}`}
+              onClick={() => setFormat('BOTH')}
+            >
+              ▸ Both (sq ft + acres)
+            </button>
+            <div className="border-t border-gray-700 my-1" />
+            <button
+              data-testid="area-label-ctx-delete"
+              className="w-full text-left px-3 py-1.5 text-red-400 hover:bg-red-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                annStore.removeAnnotation(ann.id);
+                close();
+              }}
+            >
+              🗑 Delete label
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-gray-500 hover:bg-gray-700 transition-colors flex items-center gap-2 mt-1 border-t border-gray-700"
+              onClick={close}
+            >
+              ✕ Cancel
+            </button>
+          </div>
+          </>
+        );
+      })()}
+
       {/* Title Block full editor modal */}
       {tbEditorOpen && (
         <TitleBlockEditorModal
@@ -12635,6 +13210,76 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         <ScaleBarEditorModal
           onClose={() => setScaleBarEditorOpen(false)}
         />
+      )}
+
+      {/* Slice 226 — Certification editor modal */}
+      {certEditorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit certification block"
+          data-testid="cert-editor-modal"
+          className="fixed inset-0 z-[150] bg-black/60 flex items-start justify-center pt-12 overflow-y-auto"
+          onClick={(e) => { if (e.target === e.currentTarget) setCertEditorOpen(false); }}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-[520px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
+              <h2 className="text-sm font-semibold text-gray-100">Edit Certification Block</h2>
+              <button
+                type="button"
+                className="text-gray-400 hover:text-white text-lg leading-none"
+                onClick={() => setCertEditorOpen(false)}
+                aria-label="Close"
+              >×</button>
+            </header>
+            <CertificationEditor />
+            <footer className="flex justify-end mt-3 pt-2 border-t border-gray-700">
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium"
+                onClick={() => setCertEditorOpen(false)}
+              >Done</button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Slice 226 — Survey Notes editor modal */}
+      {notesEditorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit survey notes block"
+          data-testid="notes-editor-modal"
+          className="fixed inset-0 z-[150] bg-black/60 flex items-start justify-center pt-12 overflow-y-auto"
+          onClick={(e) => { if (e.target === e.currentTarget) setNotesEditorOpen(false); }}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-[520px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
+              <h2 className="text-sm font-semibold text-gray-100">Edit Survey Notes Block</h2>
+              <button
+                type="button"
+                className="text-gray-400 hover:text-white text-lg leading-none"
+                onClick={() => setNotesEditorOpen(false)}
+                aria-label="Close"
+              >×</button>
+            </header>
+            <StandardNotesEditor />
+            <footer className="flex justify-end mt-3 pt-2 border-t border-gray-700">
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium"
+                onClick={() => setNotesEditorOpen(false)}
+              >Done</button>
+            </footer>
+          </div>
+        </div>
       )}
 
       {/* DRAW_TEXT inline input overlay */}

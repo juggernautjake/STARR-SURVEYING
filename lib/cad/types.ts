@@ -23,7 +23,20 @@ export interface BoundingBox {
 
 export type LinearUnit = 'FT' | 'IN' | 'MILE' | 'M' | 'CM' | 'MM';
 export type LinearFormat = 'DECIMAL' | 'FRACTION';
-export type AreaUnit = 'SQ_FT' | 'ACRES' | 'SQ_M' | 'HECTARES';
+// Slice 227 — widened to cover every common surveying area unit
+// (sq in / sq ft / sq yd / sq mi / sq mm / sq cm / sq m / sq km +
+// acres + hectares). Mirrors `lib/cad/units/parse-area.ts`.
+export type AreaUnit =
+  | 'SQ_IN'
+  | 'SQ_FT'
+  | 'SQ_YD'
+  | 'SQ_MI'
+  | 'SQ_MM'
+  | 'SQ_CM'
+  | 'SQ_M'
+  | 'SQ_KM'
+  | 'ACRES'
+  | 'HECTARES';
 export type AngleFormat = 'DMS' | 'DECIMAL_DEG';
 export type BearingFormat = 'QUADRANT' | 'AZIMUTH';
 export type CoordMode = 'NE' | 'XY';
