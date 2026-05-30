@@ -15,6 +15,9 @@ import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
 import InlineEditField from '../../components/jobs/InlineEditField';
 import JobActivityFeed from '../../components/jobs/JobActivityFeed';
 import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
+// contacts plan Slice 6 (2026-05-30) — job ↔ contact linking.
+import LinkContactDialog from '../../components/jobs/LinkContactDialog';
+import { JOB_CONTACT_ROLES } from '@/lib/contacts/labels';
 import { exportJobPdf } from '../../components/jobs/jobPdf';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
@@ -95,6 +98,13 @@ export default function JobDetailPage() {
   // are heavy). null = not yet known, so no badge shows.
   const [cadCount, setCadCount] = useState<number | null>(null);
   const [photoCount, setPhotoCount] = useState<number | null>(null);
+  // contacts plan Slice 6 — linked-contacts state for the overview tab.
+  const [contactLinks, setContactLinks] = useState<Array<{
+    id: string; role: string; notes?: string | null;
+    contact_id: string;
+    contacts: { id: string; name: string; company: string | null; email: string | null } | null;
+  }>>([]);
+  const [showLinkContactDialog, setShowLinkContactDialog] = useState(false);
   const [stageHistory, setStageHistory] = useState<{ from_stage?: string; to_stage: string; changed_by: string; notes?: string; created_at: string }[]>([]);
   const [files, setFiles] = useState<{ id: string; file_name: string; file_type: string; file_url?: string; file_size?: number; section: string; description?: string; uploaded_by: string; uploaded_at: string; is_backup: boolean }[]>([]);
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
@@ -154,6 +164,8 @@ export default function JobDetailPage() {
     if (activeTab === 'overview') {
       fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch((err: unknown) => { handleError(err, 'load stage history'); });
       fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch((err: unknown) => { handleError(err, 'load checklists'); });
+      // contacts plan Slice 6 — linked contacts for the Contacts panel.
+      fetch(`/api/admin/jobs/contacts?job_id=${jobId}`).then(r => r.json()).then(d => setContactLinks(d.links || [])).catch((err: unknown) => { handleError(err, 'load contacts'); });
     }
     if (activeTab === 'research') {
       fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch((err: unknown) => { handleError(err, 'load research'); });
@@ -575,6 +587,92 @@ export default function JobDetailPage() {
                   </p>
                 </div>
 
+                {/* contacts plan Slice 6 — Contacts (realtors, clients,
+                    lenders, etc.) linked to this job via job_contacts.
+                    Legacy client_name / client_email fields above keep
+                    serving unlinked / pre-existing rows; this section
+                    is the new picker-driven surface. */}
+                <div className="job-detail__section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <h3>Contacts ({contactLinks.length})</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowLinkContactDialog(true)}
+                      style={{
+                        padding: '6px 12px', borderRadius: 6,
+                        border: '1px solid var(--theme-accent, #3b82f6)',
+                        background: 'var(--theme-accent, #3b82f6)', color: 'var(--theme-accent-fg, white)',
+                        cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
+                      }}
+                    >
+                      + Link a contact
+                    </button>
+                  </div>
+                  {contactLinks.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted, #6B7280)', fontSize: '0.9rem' }}>
+                      No contacts linked yet. Use the button above to associate a realtor, lender, or anyone else with this job.
+                    </p>
+                  ) : (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {contactLinks.map((link) => (
+                        <li key={link.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '8px 12px', borderRadius: 8,
+                          background: 'var(--theme-bg-elevated, #f9fafb)',
+                        }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {link.contacts ? (
+                              <Link href={`/admin/contacts/${link.contacts.id}`} style={{ color: 'var(--theme-accent, #3b82f6)', fontWeight: 600 }}>
+                                {link.contacts.name}
+                              </Link>
+                            ) : (
+                              <span>(contact no longer exists)</span>
+                            )}
+                            <span style={{
+                              marginLeft: 8, padding: '2px 8px', borderRadius: 999,
+                              background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 12%, transparent)',
+                              color: 'var(--theme-accent, #3b82f6)', fontSize: '0.72rem',
+                            }}>
+                              {JOB_CONTACT_ROLES.find((r) => r.id === link.role)?.label ?? link.role}
+                            </span>
+                            {(link.contacts?.company || link.contacts?.email) && (
+                              <span style={{ marginLeft: 8, fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                                {link.contacts.company ?? ''}
+                                {link.contacts.company && link.contacts.email ? ' · ' : ''}
+                                {link.contacts.email ?? ''}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!link.contacts) return;
+                              if (!window.confirm(`Unlink ${link.contacts.name} from this job?`)) return;
+                              const params = new URLSearchParams({
+                                job_id: jobId,
+                                contact_id: link.contact_id,
+                                role: link.role,
+                              });
+                              const res = await fetch(`/api/admin/jobs/contacts?${params}`, { method: 'DELETE' });
+                              if (!res.ok) return;
+                              setContactLinks((cur) => cur.filter((l) => l.id !== link.id));
+                            }}
+                            style={{
+                              padding: '6px 12px', borderRadius: 6,
+                              border: '1px solid var(--theme-border, #e5e7eb)',
+                              background: 'transparent', color: 'inherit',
+                              cursor: 'pointer', fontSize: '0.85rem',
+                            }}
+                            aria-label="Unlink contact"
+                          >
+                            Unlink
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 {/* Checklist */}
                 <JobChecklist
                   items={checklists}
@@ -726,6 +824,25 @@ export default function JobDetailPage() {
           <JobMessagesPanel jobId={jobId} />
         )}
       </div>
+
+      {/* contacts plan Slice 6 — Link-a-contact picker for the
+          overview tab's Contacts section. */}
+      {showLinkContactDialog && (
+        <LinkContactDialog
+          open={showLinkContactDialog}
+          jobId={jobId}
+          jobName={job.name}
+          onClose={() => setShowLinkContactDialog(false)}
+          onLinked={() => {
+            setShowLinkContactDialog(false);
+            // Refresh the linked-contacts panel.
+            fetch(`/api/admin/jobs/contacts?job_id=${jobId}`)
+              .then((r) => r.json())
+              .then((d) => setContactLinks(d.links || []))
+              .catch(() => { /* surfaced through the dialog already */ });
+          }}
+        />
+      )}
     </>
   );
 }
