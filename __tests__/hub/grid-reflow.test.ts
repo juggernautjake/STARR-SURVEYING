@@ -10,7 +10,9 @@
 //   - nearestAvailable returns the hovered rect when free.
 //   - nearestAvailable finds the closest free slot when hover is
 //     blocked.
-//   - commitDrop closes gaps via compactLayout.
+//   - commitDrop is free-placement (Slice G1): the moving widget
+//     lands exactly where dropped, neighbors get pushed, only a
+//     fully-empty top band trims, interior gaps survive.
 //
 // No store mocking — these are pure functions, easy to spec.
 
@@ -19,6 +21,7 @@ import {
   applyMoveWithPush,
   commitDrop,
   nearestAvailable,
+  trimLeadingRows,
 } from '@/lib/hub/grid-reflow';
 import type { WidgetInstance } from '@/lib/hub/types';
 
@@ -180,46 +183,88 @@ describe('Slice 8 — nearestAvailable', () => {
   });
 });
 
-describe('Slice 8 — commitDrop closes gaps', () => {
-  it('compacts the layout after pushing', () => {
-    // Start with widgets at sparse rows; drop should compact.
-    const layout = [
-      makeWidget('a', 0, 0, 2, 2),
-      makeWidget('b', 0, 5, 2, 2),
-      makeWidget('m', 4, 0, 2, 2),
-    ];
-    // Drop 'm' on top of 'a'. push: a moves to (0,2), b at (0,5),
-    // m at (0,0). compact: a settles at (0,2), b should rise up to
-    // the next free row (0,4) — gap at row 4 closes.
-    const out = commitDrop(layout, 'm', { x: 0, y: 0, w: 2, h: 2 });
-    expect(noOverlaps(out)).toBe(true);
-    const b = out.find((w) => w.id === 'b')!;
-    expect(b.y).toBeLessThan(5);
-  });
-
-  it('keeps the moving widget at its target slot', () => {
+describe('Slice G1 — commitDrop is free-placement (no compaction)', () => {
+  it('lands the moving widget EXACTLY at its dropped target', () => {
     const layout = [
       makeWidget('a', 0, 0, 2, 2),
       makeWidget('m', 4, 0, 2, 2),
     ];
     const out = commitDrop(layout, 'm', { x: 6, y: 3, w: 2, h: 2 });
-    // After compact, 'm' should end at a slot reachable from (6,3).
-    // commitDrop calls compactLayout which may snap upward; assert
-    // the layout is overlap-free + 'm' is present.
+    const m = out.find((w) => w.id === 'm')!;
+    expect({ x: m.x, y: m.y }).toEqual({ x: 6, y: 3 });
     expect(noOverlaps(out)).toBe(true);
-    expect(out.find((w) => w.id === 'm')).toBeTruthy();
   });
 
-  it('drops at the bottom when no nearby slot fits', () => {
-    // Fill a row densely; the only fit is below.
+  it('preserves interior gaps — a drop at row 5 with a gap above keeps the gap', () => {
+    // 'a' at row 0, drop 'm' down at row 5. Rows 2..4 between them are
+    // a deliberate gap and must survive (free placement). The top
+    // isn't empty (a is at row 0), so trimLeadingRows is a no-op.
     const layout = [
-      makeWidget('a', 0, 0, 4, 2),
-      makeWidget('b', 4, 0, 4, 2),
-      makeWidget('m', 0, 5, 2, 2),
+      makeWidget('a', 0, 0, 2, 2),
+      makeWidget('m', 4, 0, 2, 2),
     ];
-    const out = commitDrop(layout, 'm', { x: 0, y: 0, w: 2, h: 2 });
+    const out = commitDrop(layout, 'm', { x: 0, y: 5, w: 2, h: 2 });
+    const a = out.find((w) => w.id === 'a')!;
+    const m = out.find((w) => w.id === 'm')!;
+    expect(a.y).toBe(0);
+    expect(m.y).toBe(5); // gap at rows 2-4 preserved
     expect(noOverlaps(out)).toBe(true);
-    expect(inBounds(out, 8)).toBe(true);
+  });
+
+  it('trims ONLY a fully-empty top band (everything slides up by min y)', () => {
+    // Both widgets sit at rows >= 3 with the whole top empty. Trim
+    // slides the layout up so the topmost widget lands on row 0, but
+    // the gap BETWEEN them is preserved.
+    const layout = [
+      makeWidget('a', 0, 3, 2, 2),
+      makeWidget('m', 4, 0, 2, 2),
+    ];
+    // Drop m at (4, 6); a stays at (0,3). min y across the result is 3.
+    const out = commitDrop(layout, 'm', { x: 4, y: 6, w: 2, h: 2 });
+    const a = out.find((w) => w.id === 'a')!;
+    const m = out.find((w) => w.id === 'm')!;
+    expect(a.y).toBe(0); // 3 - 3
+    expect(m.y).toBe(3); // 6 - 3, gap preserved
+    expect(noOverlaps(out)).toBe(true);
+  });
+
+  it('pushes an overlapped neighbor down out of the dropped target', () => {
+    const layout = [
+      makeWidget('a', 0, 0, 2, 2),
+      makeWidget('m', 4, 0, 2, 2),
+    ];
+    // Drop m onto a at (0,0). a must move down; m keeps (0,0).
+    const out = commitDrop(layout, 'm', { x: 0, y: 0, w: 2, h: 2 });
+    const a = out.find((w) => w.id === 'a')!;
+    const m = out.find((w) => w.id === 'm')!;
+    expect({ x: m.x, y: m.y }).toEqual({ x: 0, y: 0 });
+    expect(a.y).toBeGreaterThanOrEqual(2);
+    expect(noOverlaps(out)).toBe(true);
+  });
+});
+
+describe('Slice G1 — trimLeadingRows', () => {
+  it('returns [] for an empty layout', () => {
+    expect(trimLeadingRows([])).toEqual([]);
+  });
+
+  it('is a no-op when some widget already sits on row 0', () => {
+    const layout = [makeWidget('a', 0, 0, 2, 2), makeWidget('b', 2, 4, 2, 2)];
+    const out = trimLeadingRows(layout);
+    expect(out.map((w) => w.y)).toEqual([0, 4]);
+  });
+
+  it('slides everything up by the minimum y when the top is empty', () => {
+    const layout = [makeWidget('a', 0, 2, 2, 2), makeWidget('b', 2, 5, 2, 2)];
+    const out = trimLeadingRows(layout);
+    expect(out.find((w) => w.id === 'a')!.y).toBe(0);
+    expect(out.find((w) => w.id === 'b')!.y).toBe(3); // gap preserved
+  });
+
+  it('preserves x + w + h (only y shifts)', () => {
+    const layout = [makeWidget('a', 3, 4, 2, 1)];
+    const out = trimLeadingRows(layout);
+    expect(out[0]).toMatchObject({ id: 'a', x: 3, y: 0, w: 2, h: 1 });
   });
 });
 

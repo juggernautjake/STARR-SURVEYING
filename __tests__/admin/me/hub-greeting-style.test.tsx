@@ -10,7 +10,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const CSS_PATH = path.join(__dirname, '..', '..', '..', 'app', 'admin', 'me', 'AdminMe.css');
-const css = fs.readFileSync(CSS_PATH, 'utf8');
+const cssRaw = fs.readFileSync(CSS_PATH, 'utf8');
+// Strip /* … */ comments before matching so a literal `}` inside an
+// explanatory comment can't truncate a non-greedy block regex. (The
+// 2026-05-30 Work-Mode follow-up added a comment containing
+// `a:hover { color: var(--brand-blue) }`, which broke the old brittle
+// block matchers.)
+const css = cssRaw.replace(/\/\*[\s\S]*?\*\//g, '');
+
+// Pull a rule's declaration block by selector substring, robust to the
+// extra :link/:visited selectors in the rest-state list + to comments.
+function ruleBlock(openingSelector: string): string {
+  const start = css.indexOf(openingSelector);
+  if (start < 0) return '';
+  const braceOpen = css.indexOf('{', start);
+  const braceClose = css.indexOf('}', braceOpen);
+  if (braceOpen < 0 || braceClose < 0) return '';
+  return css.slice(start, braceClose + 1);
+}
 
 describe('Greeting heading — explicit white', () => {
   it('the heading carries an explicit #FFFFFF color', () => {
@@ -43,65 +60,53 @@ describe('Enter Work Mode CTA — gradient green pill (matches estimate banner)'
   // active feedback that mirror the marketing button's lift.
 
   it('uses the --gradient-green token (same emerald gradient as the landing estimate banner)', () => {
-    const blockMatch = css.match(
-      /\.hub-greeting__work-mode-btn\.hub-btn,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary\s*\{[\s\S]*?\}/,
-    );
-    expect(blockMatch).not.toBeNull();
-    expect(blockMatch![0]).toMatch(/background:\s*var\(--gradient-green\)/);
-    expect(blockMatch![0]).toMatch(/color:\s*#FFFFFF/i);
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn,');
+    expect(block).not.toBe('');
+    expect(block).toMatch(/background:\s*var\(--gradient-green\)/);
+    // The 2026-05-30 follow-up pins the label white with !important to
+    // beat the global `a { color: var(--brand-red) }`.
+    expect(block).toMatch(/color:\s*#FFFFFF\s*!important/i);
   });
 
   it('uses a fully rounded pill (border-radius: 9999px)', () => {
-    const blockMatch = css.match(
-      /\.hub-greeting__work-mode-btn\.hub-btn,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary\s*\{[\s\S]*?\}/,
-    );
-    expect(blockMatch![0]).toMatch(/border-radius:\s*9999px/);
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn,');
+    expect(block).toMatch(/border-radius:\s*9999px/);
   });
 
   it('has larger padding (0.95rem 2.1rem) + heavier weight + min-width so it reads as the primary CTA', () => {
-    const blockMatch = css.match(
-      /\.hub-greeting__work-mode-btn\.hub-btn,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary\s*\{[\s\S]*?\}/,
-    );
-    expect(blockMatch![0]).toMatch(/padding:\s*0\.95rem\s+2\.1rem/);
-    expect(blockMatch![0]).toMatch(/font-weight:\s*700/);
-    expect(blockMatch![0]).toMatch(/min-width:\s*13rem/);
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn,');
+    expect(block).toMatch(/padding:\s*0\.95rem\s+2\.1rem/);
+    expect(block).toMatch(/font-weight:\s*700/);
+    expect(block).toMatch(/min-width:\s*13rem/);
   });
 
   it('has a layered green-tinted shadow so it pops off the navy', () => {
-    const blockMatch = css.match(
-      /\.hub-greeting__work-mode-btn\.hub-btn,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary\s*\{[\s\S]*?\}/,
-    );
-    expect(blockMatch![0]).toMatch(/box-shadow:[\s\S]*?rgba\(16,\s*185,\s*129/);
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn,');
+    expect(block).toMatch(/box-shadow:[\s\S]*?rgba\(16,\s*185,\s*129/);
   });
 
   it('hover lifts the CTA via translateY(-2px) + brightness(1.05) + a bigger glow', () => {
-    const hoverMatch = css.match(
-      /\.hub-greeting__work-mode-btn\.hub-btn:hover,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary:hover\s*\{[\s\S]*?\}/,
-    );
-    expect(hoverMatch).not.toBeNull();
-    expect(hoverMatch![0]).toMatch(/transform:\s*translateY\(-2px\)/);
-    expect(hoverMatch![0]).toMatch(/filter:\s*brightness\(1\.05\)/);
-    expect(hoverMatch![0]).toMatch(/box-shadow:[\s\S]*?rgba\(16,\s*185,\s*129/);
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn:hover,');
+    expect(block).not.toBe('');
+    expect(block).toMatch(/transform:\s*translateY\(-2px\)/);
+    expect(block).toMatch(/filter:\s*brightness\(1\.05\)/);
+    expect(block).toMatch(/box-shadow:[\s\S]*?rgba\(16,\s*185,\s*129/);
   });
 
   it('active state presses the CTA back to the base + dims slightly so the click registers', () => {
-    const activeMatch = css.match(
-      /\.hub-greeting__work-mode-btn\.hub-btn:active,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary:active\s*\{[\s\S]*?\}/,
-    );
-    expect(activeMatch).not.toBeNull();
-    expect(activeMatch![0]).toMatch(/transform:\s*translateY\(0\)/);
-    expect(activeMatch![0]).toMatch(/filter:\s*brightness\(0\.97\)/);
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn:active,');
+    expect(block).not.toBe('');
+    expect(block).toMatch(/transform:\s*translateY\(0\)/);
+    expect(block).toMatch(/filter:\s*brightness\(0\.97\)/);
     // Faster transition on press for a snappy click feel.
-    expect(activeMatch![0]).toMatch(/transition:\s*transform\s+80ms/);
+    expect(block).toMatch(/transition:\s*transform\s+80ms/);
   });
 
   it('keyboard focus shows a 2px white ring with 3px offset', () => {
-    const focusMatch = css.match(
-      /\.hub-greeting__work-mode-btn\.hub-btn:focus-visible,[\s\S]*?\.hub-greeting__work-mode-btn\.hub-btn--primary:focus-visible\s*\{[\s\S]*?\}/,
-    );
-    expect(focusMatch).not.toBeNull();
-    expect(focusMatch![0]).toMatch(/outline:\s*2px solid #ffffff/i);
-    expect(focusMatch![0]).toMatch(/outline-offset:\s*3px/);
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn:focus-visible,');
+    expect(block).not.toBe('');
+    expect(block).toMatch(/outline:\s*2px solid #ffffff/i);
+    expect(block).toMatch(/outline-offset:\s*3px/);
   });
 });
 

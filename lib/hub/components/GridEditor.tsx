@@ -32,7 +32,7 @@ import { HUB_EDITOR_ROWS, HUB_GRID_COLS } from '@/lib/hub/grid-model';
 // in-modal drag-to-move interaction. applyMoveWithPush drives the
 // live reflow preview while the surveyor drags; commitDrop snaps +
 // compacts on release.
-import { applyMoveWithPush, commitDrop } from '@/lib/hub/grid-reflow';
+import { applyMoveWithPush, applyResizeWithPush, commitDrop, trimLeadingRows } from '@/lib/hub/grid-reflow';
 import type { WidgetInstance } from '@/lib/hub/types';
 // Slice 11 — per-widget options surface (Size + Header color +
 // Title + the widget's own SettingsForm) opened from the ⚙ button on
@@ -90,9 +90,14 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
   // Slice 225 — live target dimensions during a corner-drag resize.
   // Null when no resize is in progress. The grid renders the
-  // selected widget using these dimensions while the drag is active
-  // so the surveyor sees the candidate footprint immediately.
-  const [resizeTarget, setResizeTarget] = useState<{ id: string; w: number; h: number } | null>(null);
+  // resizing widget using these dimensions while the drag is active.
+  // Slice G3/G4 — `previewLayout` carries the push-resolved positions
+  // of EVERY widget (the resizing one at its new w/h + every neighbor
+  // flowed out of the way) so the surveyor watches the board reflow
+  // live as they drag the corner, matching the move-drag preview.
+  const [resizeTarget, setResizeTarget] = useState<
+    { id: string; w: number; h: number; previewLayout: WidgetInstance[] } | null
+  >(null);
   // Slice 9 — live drag-to-move state. `id` names the widget being
   // dragged; `previewLayout` is the result of applyMoveWithPush at
   // the current pointer cell. Render walks this list (when non-null)
@@ -108,6 +113,15 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   // open. Decoupled from selectedPlacedId so the surveyor can open
   // options without losing the painted-widget selection highlight.
   const [optionsForId, setOptionsForId] = useState<string | null>(null);
+  // Slice G2 — id of the widget the pointer is currently over (or
+  // null). Drives the per-widget control cluster reveal alongside
+  // selection + keyboard focus, so the delete/options/resize buttons
+  // pop up on mouse-over and disappear on mouse-leave.
+  const [hoveredPlacedId, setHoveredPlacedId] = useState<string | null>(null);
+  // Slice G2 — id of the widget that currently holds keyboard focus
+  // (or null). Keeps the controls reachable for keyboard + touch users
+  // who have no hover state.
+  const [focusedPlacedId, setFocusedPlacedId] = useState<string | null>(null);
   const gridContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -123,6 +137,38 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
         e.preventDefault();
         removeWidget(selectedPlacedId);
         setSelectedPlacedId(null);
+        return;
+      }
+      // Slice G4b — arrow keys nudge the SELECTED widget one cell, with
+      // the same dynamic push (applyMoveWithPush) + leading-row trim
+      // the pointer drag uses. Window-level so it fires regardless of
+      // DOM focus (startMove's pointer-down preventDefault can stop the
+      // widget div from focusing on click). Inert while a pointer
+      // drag / resize / placement is in flight.
+      const ARROW_DELTA: Record<string, { dx: number; dy: number }> = {
+        ArrowLeft: { dx: -1, dy: 0 },
+        ArrowRight: { dx: 1, dy: 0 },
+        ArrowUp: { dx: 0, dy: -1 },
+        ArrowDown: { dx: 0, dy: 1 },
+      };
+      const delta = ARROW_DELTA[e.key];
+      // `selectedType` (not the derived `selected`) — a widget is armed
+      // for placement; declared before this effect so no TDZ issue.
+      if (delta && selectedPlacedId && !moveDrag && !resizeTarget && !selectedType) {
+        e.preventDefault();
+        const current = useHubStore.getState().draftWidgets ?? [];
+        const self = current.find((w) => w.id === selectedPlacedId);
+        if (!self) return;
+        const nextX = Math.max(0, Math.min(HUB_GRID_COLS - self.w, self.x + delta.dx));
+        const nextY = Math.max(0, self.y + delta.dy);
+        if (nextX === self.x && nextY === self.y) return;
+        const moved = commitDrop(
+          current,
+          selectedPlacedId,
+          { x: nextX, y: nextY, w: self.w, h: self.h },
+          HUB_GRID_COLS,
+        );
+        setDraftWidgets(moved);
         return;
       }
       if (e.key === 'Escape') {
@@ -148,7 +194,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, placeAnchor, selectedPlacedId, removeWidget]);
+  }, [onClose, placeAnchor, selectedPlacedId, removeWidget, moveDrag, resizeTarget, selectedType, setDraftWidgets]);
 
   // Slice 223 — cancel placement when the surveyor picks a different
   // widget type so the partial anchor doesn't leak between selections.
@@ -236,7 +282,8 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     const gridEl = gridContainerRef.current;
     if (!gridEl) return;
 
-    setResizeTarget({ id: inst.id, w: inst.w, h: inst.h });
+    const baseLayout = useHubStore.getState().draftWidgets ?? [];
+    setResizeTarget({ id: inst.id, w: inst.w, h: inst.h, previewLayout: baseLayout });
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
 
     function pointerToCell(clientX: number, clientY: number): { x: number; y: number } {
@@ -250,7 +297,11 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
       return cell;
     }
 
-    function handleMove(ev: PointerEvent) {
+    // Slice G4 — compute the pushed layout for a pointer position. The
+    // resizing widget keeps its top-left (inst.x/y) and grows toward
+    // the pointer via computeResizedRect; applyResizeWithPush then
+    // flows overlapped neighbors out of the way in the drag direction.
+    function resolve(ev: PointerEvent) {
       const cell = pointerToCell(ev.clientX, ev.clientY);
       const target = computeResizedRect(
         { x: inst.x, y: inst.y, w: inst.w, h: inst.h },
@@ -258,31 +309,35 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
         widgetDef!.minSize,
         widgetDef!.maxSize,
       );
-      setResizeTarget({ id: inst.id, w: target.w, h: target.h });
+      const current = useHubStore.getState().draftWidgets ?? [];
+      const pushed = applyResizeWithPush(
+        current,
+        inst.id,
+        { x: inst.x, y: inst.y, w: target.w, h: target.h },
+        HUB_GRID_COLS,
+      );
+      return { target, pushed };
+    }
+
+    function handleMove(ev: PointerEvent) {
+      const { target, pushed } = resolve(ev);
+      setResizeTarget({ id: inst.id, w: target.w, h: target.h, previewLayout: pushed });
     }
 
     function handleUp(ev: PointerEvent) {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
       window.removeEventListener('pointercancel', handleUp);
-      const cell = pointerToCell(ev.clientX, ev.clientY);
-      const final = computeResizedRect(
-        { x: inst.x, y: inst.y, w: inst.w, h: inst.h },
-        cell,
-        widgetDef!.minSize,
-        widgetDef!.maxSize,
-      );
+      const { target, pushed } = resolve(ev);
       setResizeTarget(null);
-      const current = useHubStore.getState().draftWidgets ?? [];
-      const candidate = { x: inst.x, y: inst.y, w: final.w, h: final.h };
-      // Skip the commit when the new rect would overlap a sibling
-      // OR when nothing actually changed.
-      const siblings = current.filter((w) => w.id !== inst.id);
-      if (overlapsAny(candidate, siblings)) return;
-      if (final.w === inst.w && final.h === inst.h) return;
-      setDraftWidgets(
-        current.map((w) => (w.id === inst.id ? { ...w, w: final.w, h: final.h } : w)),
-      );
+      // No-op when nothing actually changed.
+      if (target.w === inst.w && target.h === inst.h) return;
+      // Slice G4 — commit the push-resolved layout (neighbors flowed
+      // out of the way), then trim a fully-empty top band. No
+      // compaction — free placement is preserved. The old "abort if it
+      // would overlap a sibling" guard is gone; the push guarantees no
+      // overlaps instead of refusing the resize.
+      setDraftWidgets(trimLeadingRows(pushed));
     }
 
     window.addEventListener('pointermove', handleMove);
@@ -400,6 +455,21 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
     window.addEventListener('pointercancel', handlePointerCancel);
+  }
+
+  /** Slice G2 — per-widget keyboard handler. Enter / Space toggle
+   *  selection. Arrow-key movement is handled at the window level (see
+   *  the onKey effect) so it works regardless of which element holds
+   *  DOM focus — startMove's pointer-down preventDefault can stop the
+   *  widget div from focusing on click. */
+  function handlePlacedKeyDown(
+    e: React.KeyboardEvent<HTMLDivElement>,
+    inst: WidgetInstance,
+  ) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setSelectedPlacedId((cur) => (cur === inst.id ? null : inst.id));
+    }
   }
 
   async function handleSave() {
@@ -534,17 +604,34 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                 const def = catalog.find((w) => w.id === inst.type);
                 const label = def?.label ?? inst.type;
                 const isSelected = selectedPlacedId === inst.id;
-                // Slice 225 — while this widget is being resized,
-                // render at the target dimensions so the surveyor
-                // sees the live footprint without round-tripping
-                // through the store on every pointer-move tick.
-                const liveW = resizeTarget?.id === inst.id ? resizeTarget.w : inst.w;
-                const liveH = resizeTarget?.id === inst.id ? resizeTarget.h : inst.h;
                 const isResizing = resizeTarget?.id === inst.id;
-                const previewSlot = moveDrag?.previewLayout.find((w) => w.id === inst.id);
-                const liveX = previewSlot?.x ?? inst.x;
-                const liveY = previewSlot?.y ?? inst.y;
                 const isMoving = moveDrag?.id === inst.id;
+                // Live geometry source-of-truth while a gesture is in
+                // flight:
+                //   - resize (Slice G4): resizeTarget.previewLayout
+                //     holds the push-resolved positions of EVERY widget
+                //     (the resizing one at its new w/h + neighbors
+                //     flowed out of the way), so all cells shift live.
+                //   - move (Slice 9): moveDrag.previewLayout holds the
+                //     cascade-pushed positions.
+                // Falls back to the widget's committed x/y/w/h at rest.
+                const resizeSlot = resizeTarget?.previewLayout.find((w) => w.id === inst.id);
+                const moveSlot = moveDrag?.previewLayout.find((w) => w.id === inst.id);
+                const liveSlot = resizeSlot ?? moveSlot;
+                const liveX = liveSlot?.x ?? inst.x;
+                const liveY = liveSlot?.y ?? inst.y;
+                const liveW = liveSlot?.w ?? inst.w;
+                const liveH = liveSlot?.h ?? inst.h;
+                // Slice G2 — controls reveal on hover OR selection OR
+                // keyboard focus. Suppressed for every widget while a
+                // drag/resize is in flight so the cluster doesn't
+                // flicker under the cursor mid-gesture.
+                const aGestureActive = moveDrag !== null || resizeTarget !== null;
+                const controlsVisible =
+                  !aGestureActive &&
+                  (hoveredPlacedId === inst.id ||
+                    isSelected ||
+                    focusedPlacedId === inst.id);
                 return (
                   <div
                     key={inst.id}
@@ -557,6 +644,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                     data-selected={isSelected ? 'true' : 'false'}
                     data-resizing={isResizing ? 'true' : 'false'}
                     data-moving={isMoving ? 'true' : 'false'}
+                    data-controls-visible={controlsVisible ? 'true' : 'false'}
                     onPointerDown={(e) => {
                       // Slice 224 — stop the pointer-down from
                       // bubbling to the cell underneath so click-to-
@@ -565,12 +653,15 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                       // and drag-with-reflow now (threshold-gated).
                       startMove(e, inst);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedPlacedId(isSelected ? null : inst.id);
-                      }
-                    }}
+                    onPointerEnter={() => setHoveredPlacedId(inst.id)}
+                    onPointerLeave={() =>
+                      setHoveredPlacedId((cur) => (cur === inst.id ? null : cur))
+                    }
+                    onFocus={() => setFocusedPlacedId(inst.id)}
+                    onBlur={() =>
+                      setFocusedPlacedId((cur) => (cur === inst.id ? null : cur))
+                    }
+                    onKeyDown={(e) => handlePlacedKeyDown(e, inst)}
                     style={{
                       ...(isSelected ? placedWidgetSelectedStyle : placedWidgetStyle),
                       gridColumn: `${liveX + 1} / span ${liveW}`,
@@ -587,7 +678,7 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                   >
                     <span style={placedLabelStyle}>{label}</span>
                     <span style={placedSizeStyle}>{liveW}×{liveH}</span>
-                    {isSelected && (
+                    {controlsVisible && (
                       <>
                         <button
                           type="button"

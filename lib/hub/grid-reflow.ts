@@ -26,17 +26,23 @@
 //      the drop snap.
 //
 //   3. commitDrop(layout, movingId, target) — production drop:
-//      apply the push, snap to nearestAvailable if the target is now
-//      blocked (defensive), then compactLayout to remove gaps the
-//      push left behind. Returns the final layout to write into the
-//      draft.
+//      apply the push so the moving widget lands EXACTLY where the
+//      surveyor dropped it (neighbors shifted out of the way), then
+//      `trimLeadingRows` so a fully-empty top band collapses but
+//      interior gaps + free tiles survive. Returns the final layout to
+//      write into the draft.
 //
-// All three functions are deterministic + total: same input → same
-// output, never throws. Widget identities + customization survive
-// untouched — only x/y change.
+//      Slice G1 of grid-editor-placement-resize-overhaul-2026-05-30.md
+//      removed the old `compactLayout` call here — it re-packed every
+//      widget toward (0,0) on every drop, which read as "upper-left
+//      gravity / I can't move them" + erased the surveyor's
+//      deliberately-empty tiles. Free placement is the whole point now.
+//
+// All functions are deterministic + total: same input → same output,
+// never throws. Widget identities + customization survive untouched —
+// only x/y change.
 
 import type { WidgetInstance } from './types';
-import { compactLayout } from './grid-math';
 import { HUB_GRID_COLS } from './grid-model';
 
 export interface GridTarget {
@@ -171,17 +177,115 @@ export function nearestAvailable(
   return { x: 0, y: maxRow, w: clamped.w, h: clamped.h };
 }
 
-/** Commit a drop. Applies the push, then runs the existing
- *  `compactLayout` so gaps the push opened up close back down. The
- *  moving widget stays at the dropped position because compact walks
- *  array order and the push helper puts the moving widget last. */
+/** Apply a resize with directional flow-push. The resized widget is
+ *  set to `newRect` (clamped to the columns); every OTHER widget that
+ *  ends up overlapping is flowed out of the way — in the drag
+ *  direction — until it fits, cascading through downstream neighbors.
+ *
+ *  Direction (matches the user's "move in the direction of the drag
+ *  until there's no more room, then drop to the next row" model):
+ *    - When width grew at least as much as height → HORIZONTAL flow:
+ *      slide each conflicting widget right one cell at a time; when it
+ *      would exceed `cols`, wrap it to x=0 of the next row down and
+ *      keep going (potentially pushing widgets that were on that row).
+ *    - Otherwise → VERTICAL flow: slide conflicting widgets straight
+ *      down (rows are unbounded, so no wrap needed).
+ *
+ *  Shrinking moves nobody: a smaller `newRect` occupies a subset of
+ *  the old footprint, so no previously-clear widget can newly overlap.
+ *
+ *  Pure + total. Only x/y of displaced widgets change; the resized
+ *  widget also takes newRect's w/h. Reading-order traversal (y, then
+ *  x) keeps the cascade deterministic. A safety iteration bound guards
+ *  against pathological inputs. */
+export function applyResizeWithPush(
+  layout: ReadonlyArray<WidgetInstance>,
+  resizingId: string,
+  newRect: GridTarget,
+  cols: number = HUB_GRID_COLS,
+): WidgetInstance[] {
+  const resizing = layout.find((w) => w.id === resizingId);
+  if (!resizing) return layout.map((w) => ({ ...w }));
+
+  const clamped = clampTargetToCols(newRect, cols);
+  const grewW = clamped.w - resizing.w;
+  const grewH = clamped.h - resizing.h;
+  // Tie / width-dominant → horizontal flow (matches the user's
+  // row-wrap description). Height-dominant grow → vertical push.
+  const horizontalFlow = grewW >= grewH;
+
+  const others = layout
+    .filter((w) => w.id !== resizingId)
+    .map((w) => ({ ...w }))
+    .sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
+
+  const resizedRect: RectLike = { x: clamped.x, y: clamped.y, w: clamped.w, h: clamped.h };
+  const placed: WidgetInstance[] = [];
+  const blockers: RectLike[] = [resizedRect];
+
+  const SAFETY = cols * 4096; // generous upper bound; never hit in practice
+  for (const widget of others) {
+    let x = widget.x;
+    let y = widget.y;
+    let guard = 0;
+    while (
+      blockers.some((b) => overlaps({ x, y, w: widget.w, h: widget.h }, b)) &&
+      guard++ < SAFETY
+    ) {
+      if (horizontalFlow) {
+        x += 1;
+        if (x + widget.w > cols) {
+          x = 0;
+          y += 1;
+        }
+      } else {
+        y += 1;
+      }
+    }
+    const settled: WidgetInstance = { ...widget, x, y };
+    placed.push(settled);
+    blockers.push({ x: settled.x, y: settled.y, w: settled.w, h: settled.h });
+  }
+
+  const placedResized: WidgetInstance = {
+    ...resizing,
+    x: clamped.x,
+    y: clamped.y,
+    w: clamped.w,
+    h: clamped.h,
+  };
+  return [...placed, placedResized];
+}
+
+/** Subtract the minimum `y` from every widget so a fully-empty top
+ *  band collapses to row 0, WITHOUT touching interior gaps or the
+ *  free tiles the surveyor deliberately left. This is the "trim only
+ *  leading empty rows" rule: free-form placement everywhere, but the
+ *  dashboard never opens with a blank band at the top. Pure; returns
+ *  the input layout shifted up by `min(y)` (a no-op when some widget
+ *  already sits on row 0 or the layout is empty). */
+export function trimLeadingRows(
+  layout: ReadonlyArray<WidgetInstance>,
+): WidgetInstance[] {
+  if (layout.length === 0) return [];
+  let minY = Infinity;
+  for (const w of layout) if (w.y < minY) minY = w.y;
+  if (!Number.isFinite(minY) || minY <= 0) return layout.map((w) => ({ ...w }));
+  return layout.map((w) => ({ ...w, y: w.y - minY }));
+}
+
+/** Commit a drop. The moving widget lands EXACTLY at its dropped
+ *  target (clamped to the columns); overlapping neighbors are pushed
+ *  down out of the way via `applyMoveWithPush`. Then `trimLeadingRows`
+ *  collapses a fully-empty top band. No compaction — interior gaps +
+ *  the surveyor's empty tiles are preserved (that's the whole point of
+ *  free placement). */
 export function commitDrop(
   layout: ReadonlyArray<WidgetInstance>,
   movingId: string,
   target: GridTarget,
   cols: number = HUB_GRID_COLS,
 ): WidgetInstance[] {
-  const snap = nearestAvailable(layout, movingId, target, cols);
-  const pushed = applyMoveWithPush(layout, movingId, snap, cols);
-  return compactLayout(pushed, cols);
+  const pushed = applyMoveWithPush(layout, movingId, target, cols);
+  return trimLeadingRows(pushed);
 }

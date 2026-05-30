@@ -93,14 +93,16 @@ describe('Slice 225 — resize handle source-level contracts', () => {
     );
   });
 
-  it('resizeTarget useState exists with the documented shape', () => {
+  it('resizeTarget useState carries the push preview layout (Slice G4)', () => {
     expect(SRC).toMatch(
-      /const \[resizeTarget, setResizeTarget\] = useState<\{ id: string; w: number; h: number \} \| null>\(null\);/,
+      /const \[resizeTarget, setResizeTarget\] = useState<\s*\{ id: string; w: number; h: number; previewLayout: WidgetInstance\[\] \} \| null\s*>\(null\);/,
     );
   });
 
-  it('the corner-handle button only renders while the widget is selected', () => {
-    // The render block matches `{isSelected && ( <> ... ⤡ ... </> )}`
+  it('the corner-handle button renders inside the per-widget control cluster', () => {
+    // Slice G2 gates the cluster on `{controlsVisible && ( <> ... ⤡
+    // ... </> )}` (hover / selection / focus) instead of the old
+    // `{isSelected && (`.
     expect(SRC).toMatch(/data-testid="grid-editor-placed-resize"/);
     expect(SRC).toMatch(/onPointerDown=\{\(e\) => startResize\(e, inst\)\}/);
   });
@@ -135,39 +137,52 @@ describe('Slice 225 — drag lifecycle', () => {
     expect(SRC).toMatch(/setPointerCapture\?\.\(e\.pointerId\)/);
   });
 
-  it('pointer-move recomputes via computeResizedRect + drives setResizeTarget for live preview', () => {
-    expect(SRC).toMatch(/setResizeTarget\(\{ id: inst\.id, w: target\.w, h: target\.h \}\);/);
+  it('pointer-move resolves a push layout + drives setResizeTarget for live preview (Slice G4)', () => {
+    expect(SRC).toMatch(
+      /const \{ target, pushed \} = resolve\(ev\);\s*setResizeTarget\(\{ id: inst\.id, w: target\.w, h: target\.h, previewLayout: pushed \}\);/,
+    );
   });
 
-  it('pointer-up commits via setDraftWidgets when the new w/h actually changed', () => {
-    expect(SRC).toMatch(/setDraftWidgets\(\s*current\.map\(\(w\) => \(w\.id === inst\.id \? \{ \.\.\.w, w: final\.w, h: final\.h \} : w\)\),\s*\)/);
+  it('resolve() pushes neighbors via applyResizeWithPush (Slice G4)', () => {
+    expect(SRC).toMatch(
+      /const pushed = applyResizeWithPush\(\s*current,\s*inst\.id,\s*\{ x: inst\.x, y: inst\.y, w: target\.w, h: target\.h \},\s*HUB_GRID_COLS,\s*\);/,
+    );
   });
 
-  it('pointer-up skips the commit when the candidate would overlap a sibling', () => {
-    expect(SRC).toMatch(/if \(overlapsAny\(candidate, siblings\)\) return;/);
+  it('pointer-up commits the push-resolved layout through trimLeadingRows (Slice G4)', () => {
+    expect(SRC).toMatch(/setDraftWidgets\(trimLeadingRows\(pushed\)\);/);
   });
 
-  it('pointer-up clears the live resizeTarget so the rendered cell snaps back to the committed size', () => {
+  it('the old overlap-abort guard is gone (push resolves collisions instead of refusing)', () => {
+    expect(SRC).not.toMatch(/if \(overlapsAny\(candidate, siblings\)\) return;/);
+  });
+
+  it('pointer-up no-ops when the size did not change', () => {
+    expect(SRC).toMatch(/if \(target\.w === inst\.w && target\.h === inst\.h\) return;/);
+  });
+
+  it('pointer-up clears the live resizeTarget so the rendered cell snaps to the committed layout', () => {
     expect(SRC).toMatch(/setResizeTarget\(null\);/);
   });
 });
 
-describe('Slice 225 — placed widget renders at the live resize dimensions', () => {
-  it('liveW / liveH are derived from resizeTarget when the widget is being resized', () => {
-    expect(SRC).toMatch(/const liveW = resizeTarget\?\.id === inst\.id \? resizeTarget\.w : inst\.w;/);
-    expect(SRC).toMatch(/const liveH = resizeTarget\?\.id === inst\.id \? resizeTarget\.h : inst\.h;/);
+describe('Slice G4 — placed widget renders from the live push preview', () => {
+  it('resize preview slot drives every widget geometry (resizing one + pushed neighbors)', () => {
+    expect(SRC).toMatch(/const resizeSlot = resizeTarget\?\.previewLayout\.find\(\(w\) => w\.id === inst\.id\);/);
+    expect(SRC).toMatch(/const moveSlot = moveDrag\?\.previewLayout\.find\(\(w\) => w\.id === inst\.id\);/);
+    expect(SRC).toMatch(/const liveSlot = resizeSlot \?\? moveSlot;/);
   });
 
-  it('the gridColumn / gridRow span uses the live dimensions', () => {
-    // Slice 9 of employee-hub-overhaul-2026-05-30 swapped the literal
-    // `inst.x` / `inst.y` for `liveX` / `liveY` which fall back to
-    // `inst.x` / `inst.y` when no move is in flight — so resize keeps
-    // working identically, and a live drag-with-reflow now also shifts
-    // each rendered cell.
+  it('liveX/Y/W/H all fall back to the committed instance at rest', () => {
+    expect(SRC).toMatch(/const liveX = liveSlot\?\.x \?\? inst\.x;/);
+    expect(SRC).toMatch(/const liveY = liveSlot\?\.y \?\? inst\.y;/);
+    expect(SRC).toMatch(/const liveW = liveSlot\?\.w \?\? inst\.w;/);
+    expect(SRC).toMatch(/const liveH = liveSlot\?\.h \?\? inst\.h;/);
+  });
+
+  it('the gridColumn / gridRow span uses the live geometry', () => {
     expect(SRC).toMatch(/gridColumn:\s*`\$\{liveX \+ 1\} \/ span \$\{liveW\}`/);
     expect(SRC).toMatch(/gridRow:\s*`\$\{liveY \+ 1\} \/ span \$\{liveH\}`/);
-    expect(SRC).toMatch(/const liveX = previewSlot\?\.x \?\? inst\.x;/);
-    expect(SRC).toMatch(/const liveY = previewSlot\?\.y \?\? inst\.y;/);
   });
 
   it('the size badge underneath the label also shows live dimensions', () => {

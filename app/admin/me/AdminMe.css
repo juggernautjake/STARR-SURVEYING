@@ -130,13 +130,19 @@
  * card 2px + boosts brightness 5%; active resets to a pressed
  * state with a quick 80ms transition so the click registers. */
 .hub-greeting__work-mode-btn.hub-btn,
-.hub-greeting__work-mode-btn.hub-btn--primary {
+.hub-greeting__work-mode-btn.hub-btn--primary,
+.hub-greeting__work-mode-btn.hub-btn:link,
+.hub-greeting__work-mode-btn.hub-btn:visited {
   background: var(--gradient-green);
   /* Slice 1 (employee-hub-overhaul-2026-05-30) — white text + a SOLID
    * white border at rest. The spinning red/white/blue ring reveals on
-   * hover via the masked ::before pseudo below. */
+   * hover via the masked ::before pseudo below.
+   * 2026-05-30 follow-up — the button is an <a>, so the global
+   * `a { color: var(--brand-red) }` rule in globals.css fights the
+   * white text. The :link/:visited selectors above + the !important
+   * here pin the label white in every link state. */
   border: 2px solid #FFFFFF;
-  color: #FFFFFF;
+  color: #FFFFFF !important;
   padding: 0.95rem 2.1rem;
   border-radius: 9999px;
   font-size: 1.08rem;
@@ -211,13 +217,50 @@
   animation: wm-spin 2.4s linear infinite;
 }
 
+/* The label. White at rest; on hover the same spinning red/white/blue
+ * conic gradient (sharing --wm-angle so it spins in sync with the
+ * border ring) is clipped to the glyphs. */
+.hub-greeting__work-mode-label {
+  display: inline-block;
+  color: inherit;
+}
+
+.hub-greeting__work-mode-btn.hub-btn:hover .hub-greeting__work-mode-label,
+.hub-greeting__work-mode-btn.hub-btn--primary:hover .hub-greeting__work-mode-label {
+  background: conic-gradient(
+    from var(--wm-angle),
+    #E11D2A,
+    #FFFFFF,
+    #2447D6,
+    #FFFFFF,
+    #E11D2A
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* The text-shadow inherited from the button would smear under the
+   * transparent fill — drop it while the gradient shows. */
+  text-shadow: none;
+  animation: wm-spin 2.4s linear infinite;
+}
+
+/* Reduced-motion: show the tri-color gradient in the text but don't
+ * spin it (matches the border ring's reduced-motion treatment). */
+@media (prefers-reduced-motion: reduce) {
+  .hub-greeting__work-mode-btn.hub-btn:hover .hub-greeting__work-mode-label,
+  .hub-greeting__work-mode-btn.hub-btn--primary:hover .hub-greeting__work-mode-label {
+    animation: none;
+  }
+}
+
 .hub-greeting__work-mode-btn.hub-btn:hover,
 .hub-greeting__work-mode-btn.hub-btn--primary:hover {
   background: var(--gradient-green);
   /* Keep the white border on hover; the spinning ring sits just
-   * outside it. */
+   * outside it. Override the global `a:hover { color: var(--brand-blue) }`. */
   border-color: #FFFFFF;
-  color: #FFFFFF;
+  color: #FFFFFF !important;
   transform: translateY(-2px);
   filter: brightness(1.05);
   box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5),
