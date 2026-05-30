@@ -24,12 +24,21 @@ import React from 'react';
 import type {
   WidgetOptionsField,
   WidgetOptionsMultiSelectField,
+  WidgetOptionsOrderedMultiSelectField,
   WidgetOptionsNumberField,
   WidgetOptionsSelectField,
   WidgetOptionsTextField,
   WidgetOptionsToggleField,
   WidgetOptionsColorField,
 } from '@/lib/hub/widget-options';
+import {
+  moveUp,
+  moveDown,
+  addOrdered,
+  removeOrdered,
+  normalizeOrdered,
+  unselectedOptions,
+} from '@/lib/hub/widgets/_shared/ordered-list';
 
 export interface SchemaOptionsFormProps {
   fields: ReadonlyArray<WidgetOptionsField>;
@@ -102,6 +111,7 @@ function renderControl(
     case 'toggle':     return <ToggleControl     id={id} field={field} rawValue={rawValue} onChange={onChange} />;
     case 'select':     return <SelectControl     id={id} field={field} rawValue={rawValue} onChange={onChange} />;
     case 'multiselect':return <MultiSelectControl id={id} field={field} rawValue={rawValue} onChange={onChange} />;
+    case 'orderedmultiselect': return <OrderedMultiSelectControl id={id} field={field} rawValue={rawValue} onChange={onChange} />;
     case 'color':      return <ColorControl      id={id} field={field} rawValue={rawValue} onChange={onChange} />;
     default:
       return null;
@@ -223,6 +233,81 @@ function MultiSelectControl({
   );
 }
 
+function OrderedMultiSelectControl({
+  id, field, rawValue, onChange,
+}: { id: string; field: WidgetOptionsOrderedMultiSelectField; rawValue: unknown; onChange: (next: unknown) => void; }) {
+  const optionValues = field.options.map((o) => o.value);
+  const selected = normalizeOrdered(rawValue, optionValues, field.defaultValue);
+  const labelOf = (v: string) => field.options.find((o) => o.value === v)?.label ?? v;
+  const toAdd = unselectedOptions(selected, optionValues);
+  const atCap = field.maxSelected != null && selected.length >= field.maxSelected;
+
+  return (
+    <div id={id} style={orderedWrapStyle} role="group" aria-label={field.label} data-testid={`${field.key}-ordered`}>
+      {/* Selected items, in order, each with move + remove controls. */}
+      <ol style={orderedListStyle} data-testid={`${field.key}-selected`}>
+        {selected.length === 0 && (
+          <li style={orderedEmptyStyle}>Nothing selected yet — add from below.</li>
+        )}
+        {selected.map((value, index) => (
+          <li key={value} style={orderedItemStyle} data-ordered-item={value}>
+            <span style={orderedItemLabelStyle}>{labelOf(value)}</span>
+            <span style={orderedItemControlsStyle}>
+              <button
+                type="button"
+                aria-label={`Move ${labelOf(value)} up`}
+                disabled={index === 0}
+                onClick={() => onChange(moveUp(selected, index))}
+                style={orderedIconBtnStyle}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${labelOf(value)} down`}
+                disabled={index === selected.length - 1}
+                onClick={() => onChange(moveDown(selected, index))}
+                style={orderedIconBtnStyle}
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove ${labelOf(value)}`}
+                onClick={() => onChange(removeOrdered(selected, value))}
+                style={orderedRemoveBtnStyle}
+              >
+                ✕
+              </button>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {/* Unselected options to add. Hidden once everything is selected
+          or the cap is hit. */}
+      {toAdd.length > 0 && !atCap && (
+        <div style={orderedAddRowStyle} data-testid={`${field.key}-add`}>
+          {toAdd.map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onChange(addOrdered(selected, value))}
+              style={orderedAddChipStyle}
+              data-ordered-add={value}
+            >
+              + {labelOf(value)}
+            </button>
+          ))}
+        </div>
+      )}
+      {atCap && (
+        <p style={hintStyle}>Maximum of {field.maxSelected} selected.</p>
+      )}
+    </div>
+  );
+}
+
 function ColorControl({
   id, field, rawValue, onChange,
 }: { id: string; field: WidgetOptionsColorField; rawValue: unknown; onChange: (next: unknown) => void; }) {
@@ -336,4 +421,89 @@ const colorInputStyle: React.CSSProperties = {
 const hintStyle: React.CSSProperties = {
   fontSize: '0.74rem',
   color: 'var(--theme-fg-muted, var(--theme-fg-secondary))',
+};
+
+// ─── Ordered multi-select (reorderable) styles ───────────────────────
+
+const orderedWrapStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+};
+
+const orderedListStyle: React.CSSProperties = {
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+};
+
+const orderedEmptyStyle: React.CSSProperties = {
+  fontSize: '0.78rem',
+  color: 'var(--theme-fg-secondary)',
+  fontStyle: 'italic',
+};
+
+const orderedItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  padding: '5px 8px',
+  borderRadius: 6,
+  border: '1px solid var(--theme-border)',
+  background: 'var(--theme-bg-elevated)',
+};
+
+const orderedItemLabelStyle: React.CSSProperties = {
+  fontSize: '0.85rem',
+  fontWeight: 500,
+  color: 'var(--theme-fg-primary)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const orderedItemControlsStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  flexShrink: 0,
+};
+
+const orderedIconBtnStyle: React.CSSProperties = {
+  width: 24,
+  height: 24,
+  borderRadius: 4,
+  border: '1px solid var(--theme-border)',
+  background: 'var(--theme-bg-surface)',
+  color: 'var(--theme-fg-secondary)',
+  cursor: 'pointer',
+  fontSize: '0.8rem',
+  lineHeight: 1,
+};
+
+const orderedRemoveBtnStyle: React.CSSProperties = {
+  ...orderedIconBtnStyle,
+  color: 'var(--theme-danger, #dc2626)',
+  borderColor: 'var(--theme-danger, #dc2626)',
+};
+
+const orderedAddRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+};
+
+const orderedAddChipStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  borderRadius: 999,
+  border: '1px dashed var(--theme-border)',
+  background: 'transparent',
+  color: 'var(--theme-fg-secondary)',
+  cursor: 'pointer',
+  fontSize: '0.78rem',
+  fontWeight: 500,
 };

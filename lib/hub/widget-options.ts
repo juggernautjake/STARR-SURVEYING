@@ -33,6 +33,10 @@ export type WidgetOptionFieldType =
   | 'toggle'
   | 'select'
   | 'multiselect'
+  // hub-widget-excellence-02 Slice 4 — order-preserving multi-select for
+  // widgets that need to CHOOSE AND ORDER items (quick-actions,
+  // bookmarks). The stored value is the ordered list of selected values.
+  | 'orderedmultiselect'
   | 'color';
 
 export interface WidgetOptionsFieldBase {
@@ -76,6 +80,18 @@ export interface WidgetOptionsMultiSelectField extends WidgetOptionsFieldBase {
   options: ReadonlyArray<{ value: string; label: string }>;
 }
 
+/** Order-preserving multi-select. `defaultValue` is the ordered list of
+ *  selected option values; the editor lets the surveyor add/remove +
+ *  move items up/down. Use for "pick which, and in what order" content
+ *  (quick-actions, bookmarks). */
+export interface WidgetOptionsOrderedMultiSelectField extends WidgetOptionsFieldBase {
+  type: 'orderedmultiselect';
+  defaultValue: ReadonlyArray<string>;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  /** Optional cap on how many items can be selected at once. */
+  maxSelected?: number;
+}
+
 export interface WidgetOptionsColorField extends WidgetOptionsFieldBase {
   type: 'color';
   defaultValue: string;
@@ -87,6 +103,7 @@ export type WidgetOptionsField =
   | WidgetOptionsToggleField
   | WidgetOptionsSelectField
   | WidgetOptionsMultiSelectField
+  | WidgetOptionsOrderedMultiSelectField
   | WidgetOptionsColorField;
 
 export type WidgetOptionsEntry =

@@ -112,7 +112,7 @@ re-implement those 41 times, build shared primitives first.
   copy-not-reference, and custom-cap + zero-cap overrides. typecheck +
   lint clean.
 
-### Slice 4 — Editor section primitives audit
+### Slice 4 — Editor section primitives audit ✅ shipped 2026-05-30
 - **Scope:** Audit `lib/hub/components/settings/` + `SchemaOptionsForm`
   + `WidgetOptionsPanel`. Ensure the building blocks a "specialized,
   good-looking, easy" per-widget editor needs all exist + look good:
@@ -125,6 +125,36 @@ re-implement those 41 times, build shared primitives first.
   `ReorderableList` / `ChipMultiSelect`), source-regex + render specs.
 - **Done when:** the editor primitive set is complete + consistent;
   the per-category docs can assume these exist.
+- **Audit result:** there is no `lib/hub/components/settings/` dir — the
+  schema-driven editor is `SchemaOptionsForm.tsx`, which already ships
+  six theme-token-styled controls (text, number-with-min/max/step,
+  toggle, select, order-agnostic multiselect chip-picker, color), each
+  in a labeled `SchemaFieldRow` group with a description hint. The 29
+  bespoke-`SettingsForm` widgets render their own controls. The ONE
+  gap the user's asks need: an **order-preserving** multi-select (the
+  existing chip-picker emits values in option order, so it can't
+  express "these actions, in THIS order" for quick-actions/bookmarks).
+- **Shipped:** new `orderedmultiselect` schema field type +
+  `OrderedMultiSelectControl`. The control renders the selected items as
+  an ordered `<ol>` (each row: label + ↑/↓ move + ✕ remove, with
+  move-up disabled on the first / move-down on the last), an "add" row
+  of the unselected options as dashed chips, an empty state, and a
+  `maxSelected` cap (hides the add row + shows a hint). Backed by pure
+  immutable helpers in `lib/hub/widgets/_shared/ordered-list.ts`
+  (`moveUp`, `moveDown`, `addOrdered`, `removeOrdered`,
+  `normalizeOrdered` — coerces a stale persisted value to a clean,
+  de-duped, valid-only ordered subset — and `unselectedOptions`).
+  Wired into the schema type union (`WidgetOptionsOrderedMultiSelect
+  Field`) + the `renderControl` switch. 22 specs across two files: the
+  pure helpers (move/add/remove/normalize/unselected, incl. immutability
+  + fallback) and an SSR render of the control (selected order honored,
+  per-item controls + boundary-disabled state, add-chips for unselected
+  only, empty state, stale-value normalization, the cap state). All
+  existing schema specs + the full hub suite (1489) stay green.
+  typecheck + lint clean. (Deferred: a live "preview" affordance is a
+  per-widget concern — the per-category docs add previews where they
+  help, e.g. quick-actions in Doc 15; the primitive set they need now
+  exists.)
 
 ### Slice 5 — Wire `WidgetGoToLink` into `WidgetFrame` ergonomics
 - **Scope:** Make it trivial for a widget to add the footer link:
