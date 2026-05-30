@@ -220,7 +220,7 @@ notifications proper (separate `pay_bonuses` flow) deferred — the raise
 path is the high-value pay event; a dedicated bonus route wiring can
 reuse this pattern if/when the per-category money-widget doc needs it.
 
-### Slice 3 — Reminder cadence for due/overdue items
+### Slice 3 — Reminder cadence for due/overdue items ✅ shipped 2026-05-30
 - **Scope:** Where a "due soon / overdue" reminder makes sense
   (assignments-due, class-assignments, maintenance-due, pending-*),
   ensure there's a path that creates a reminder notification (respect
@@ -230,6 +230,28 @@ reuse this pattern if/when the per-category money-widget doc needs it.
 - **Files:** relevant routes/helpers + specs.
 - **Done when:** due/overdue items can remind without duplicate spam;
   documented + locked.
+- **Audit:** maintenance-due already reminds via
+  `cron/maintenance-schedule-tick` (60/30/7-day boundary-only firing);
+  equipment overdue via `cron/equipment-overdue-nag` + `-digest`. The
+  gap was **assignments due/overdue** (the student/worker nudge).
+- **Shipped:** new `cron/assignments-due-reminder` daily cron (Vercel
+  cron registered in `vercel.json` at `0 13 * * *`, same
+  `Bearer CRON_SECRET` auth as the others). It scans pending
+  assignments with a due date and fires reminders built by the pure
+  `lib/notifications/assignment-reminders.ts`:
+  `daysUntilDue(date, nowMs)` (UTC-date math, timezone-stable) +
+  `buildAssignmentReminders(rows, nowMs, boundaries?)`. **Boundary-only
+  firing** (`DUE_SOON_BOUNDARIES = [3, 1, 0]`) means a not-yet-due item
+  reminds only when days-until-due lands exactly on a boundary, so one
+  daily run = at most one reminder per assignment (no spam); overdue
+  items remind once per daily run with high escalation. Payloads
+  address the assignee, label due-today/due-soon/overdue (singularized
+  "1 day"), carry `source_type: 'assignment_due'` + `source_id` (the
+  assignment id, so the bell can dedup), and link `/admin/assignments`.
+  The cron is best-effort per reminder. 8 specs (daysUntilDue math +
+  null, boundary firing on/off, labels + escalation, singularization,
+  payload shape, skip non-pending/no-assignee/no-id/dateless).
+  typecheck + lint clean; vercel.json valid.
 
 ### Slice 4 — Bell ↔ widget consistency audit
 - **Scope:** Confirm the bell's links + the widgets' deep links agree
