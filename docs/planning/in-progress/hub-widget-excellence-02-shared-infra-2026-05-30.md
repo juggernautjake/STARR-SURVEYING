@@ -47,7 +47,7 @@ re-implement those 41 times, build shared primitives first.
   absent-otherwise. typecheck + lint clean. (`next/link` renders cleanly
   under `renderToStaticMarkup`, so no mock needed.)
 
-### Slice 2 — Widget→route link registry
+### Slice 2 — Widget→route link registry ✅ shipped 2026-05-30
 - **Scope:** New `lib/hub/widgets/_shared/widget-links.ts` — a pure
   map from widget id → its canonical "Go to…" destination (label +
   href) using the verified routes (jobs → `/admin/jobs`, my-pay →
@@ -66,6 +66,28 @@ re-implement those 41 times, build shared primitives first.
 - **Done when:** the registry covers every widget that should have a
   link; builders unit-tested; a coverage test asserts no widget that
   the spec says "should link" is missing.
+- **Shipped:** `WIDGET_LINKS` maps 34 domain widgets to a verified
+  `{ href, label }` (all hrefs re-checked against real route dirs:
+  e.g. equipment-out-today → `/admin/equipment/today`, low-consumables
+  → `/admin/equipment/consumables`, maintenance-due →
+  `/admin/equipment/maintenance`, outstanding-invoices →
+  `/admin/billing/invoices`, recent-activity → `/admin/timeline`,
+  pipeline-status → `/admin/research/pipeline`, recent/in-progress
+  drawings → `/admin/cad`). `WIDGETS_WITHOUT_LINK` is the explicit
+  7-widget link-less set (quick-actions, pinned-pages, bookmarks,
+  weather, sun-calculator, daily-briefing, streak-counter — launchers,
+  ambient tools, pure stats). `widgetGoToTarget(id)` → target | null.
+  Seven row-builders (`jobHref`, `cadJobHref`, `conversationHref`,
+  `lessonHref`, `equipmentHref`, `teamMemberHref`, `researchProjectHref`)
+  with URL-encoding on the free-form ones (cadJob query, team email).
+  8 specs green: the local 41-id catalog is complete + unique, the
+  link/no-link sets **partition** it (every widget classified exactly
+  once, none forgotten), no entry references an unknown id, every
+  mapped href matches `^/admin/[a-z0-9/-]+$` with a non-empty label,
+  and the builders produce the right shapes incl. encoding. typecheck +
+  lint clean. (Per-category Round-2 audits may retarget a specific
+  widget's link — e.g. mentions-inbox currently → messages — but the
+  registry is the one place to change it.)
 
 ### Slice 3 — `field-priority` size helper
 - **Scope:** New `lib/hub/widgets/_shared/field-priority.ts` —
