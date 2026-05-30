@@ -429,6 +429,58 @@
   }
 }
 
+/* hub-mobile-build-out Slice 4 — phone polish (<640 px). Beyond the
+ * 768 px stack we tighten the greeting card so it doesn't eat a third
+ * of a 375 px screen, and turn the role-pills list into a horizontal
+ * swipeable strip so a surveyor with 6+ roles doesn't get a 4-line
+ * pill stack pushing the widgets off the fold. The Hub canvas above
+ * also drops to 1 col here (see WidgetGrid / grid-math).
+ */
+@media (max-width: 640px) {
+  .hub-page {
+    /* Slimmer horizontal padding on a phone so widget cards fill the
+     * full width without inset shadow margins. Vertical stays the same
+     * so the header still breathes. */
+    padding: 1.25rem 0.75rem;
+    gap: 1rem;
+  }
+  .hub-panel {
+    padding: 1rem 1.1rem;
+    border-radius: var(--radius-lg);
+  }
+  .hub-greeting__heading {
+    font-size: 1.35rem;
+    margin-bottom: 0.2rem;
+  }
+  .hub-greeting__role-pills {
+    /* Stack the "ROLES" label above the pill strip so the strip can
+     * use the full card width to scroll. */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  .hub-greeting__role-pills-list {
+    /* Swipeable horizontal strip on phones. nowrap + overflow-x: auto
+     * + a touch of overscroll-padding so the last pill isn't flush
+     * against the edge. */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.15rem;
+    width: 100%;
+    max-width: 100%;
+    scrollbar-width: none;
+  }
+  .hub-greeting__role-pills-list::-webkit-scrollbar {
+    display: none;
+  }
+  .hub-greeting__role-pill {
+    /* Prevent the flex sizing inside the strip from squashing pills. */
+    flex: 0 0 auto;
+  }
+}
+
 /* ── Panel 4: Personal tabs ──────────────────────────────────────── */
 
 .hub-tabs__strip {

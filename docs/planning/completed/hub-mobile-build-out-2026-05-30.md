@@ -96,19 +96,38 @@ parts, don't ship a mobile editor) **plus grid + header polish**.*
   "no edit-mode outline" assertion is unchanged.
 - 1 spec added; full hub suite (1678) green; typecheck + lint clean.
 
-### Slice 4 — Header polish + role-pill scroll fallback
+### Slice 4 — Header polish + role-pill scroll fallback ✅ shipped 2026-05-30
 
-- `AdminMe.css` `.hub-greeting`: under `@media (max-width: 640px)`,
-  drop the flex-wrap behaviour to a vertical stack so the date /
-  clock-in line never sits next to a too-narrow heading.
-- `RolePills` already wraps but can fill the screen if a user carries
-  6+ roles — add a max-height + `overflow-x: auto` (horizontal scroll)
-  on mobile so the pills become a swipeable strip instead of a stack
-  that eats half the screen.
-- Files: `app/admin/me/AdminMe.css`, `app/admin/me/components/RolePills.tsx`
-  (or its CSS module).
-- Test: CSS source-regex for the `@media` rule + the role-pill
-  overflow class.
+- Added a phone-only (`@media (max-width: 640px)`) block to
+  `app/admin/me/AdminMe.css` on top of the existing 768 px stack rule:
+  - `.hub-page` padding tightened to `1.25rem 0.75rem` so widget cards
+    fill the full width without inset shadow margins.
+  - `.hub-panel` padding + radius tightened so the greeting card
+    doesn't eat a third of a 375 px screen before the canvas starts.
+  - `.hub-greeting__heading` font-size drops to `1.35rem` (from
+    `var(--text-2xl)` ≈ 1.5 rem) — fits "Good evening, Jacob" on one
+    line at 360 px.
+  - `.hub-greeting__role-pills-list` becomes a **swipeable horizontal
+    strip** (`flex-wrap: nowrap; overflow-x: auto`), scrollbar hidden
+    on both Firefox + WebKit. A surveyor with 6 + roles no longer
+    gets a 4-line pill stack pushing the widget canvas off the fold.
+  - Each `.hub-greeting__role-pill` is pinned at `flex: 0 0 auto` so
+    the strip never squashes them.
+- The Customize-Hub button stays hidden on mobile per the existing
+  `useIsMobile` gate in `EditMode.tsx`. Edit on desktop is the policy.
+- 6 specs added (balanced-brace block slicer + each polish rule);
+  full hub suite (1684) green; typecheck + lint clean.
+
+## All slices shipped — hub-mobile-build-out complete (2026-05-30)
+
+Four slices: 88 px mobile row base (replaced viewport-tall square
+cells), bucket override to `small`/`medium` (so widgets render lists +
+counts instead of single stats), in-card scroll on mobile (long content
+scrolls inside the card instead of clipping or stretching), and the
+phone-only greeting polish (slimmer card + swipeable role-pill strip).
+The saved-layout shape is unchanged; desktop and mobile read the same
+layout row. Edit stays desktop-only per the user's "Foundation only"
+scope answer.
 
 ## Guardrails
 
