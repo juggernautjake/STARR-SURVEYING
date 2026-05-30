@@ -147,6 +147,8 @@ import {
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
+// Slice 236 — fill-pattern generators for the textured-polygon render path.
+import { generateFillPattern, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -713,6 +715,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbSignatureGraphics: import('pixi.js').Graphics;
     tbNorthArrowGraphics: import('pixi.js').Graphics;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
+    /** Slice 236 — per-feature texture overlay (dots + hatch lines)
+     *  for closed shapes whose style.fillPattern is set. The `mask`
+     *  Graphics holds the polygon shape; the `tex` Graphics carries
+     *  the dot/line primitives and uses the mask so the texture
+     *  stays inside the polygon boundary. */
+    featureTextures: Map<string, { tex: import('pixi.js').Graphics; mask: import('pixi.js').Graphics }>;
     labelTexts: Map<string, import('pixi.js').Text>;
     /** Slice 229 — Pixi Text objects for stored AREA_LABEL
      *  annotations, keyed by annotation id. Drawn on labelLayer so
@@ -1357,6 +1365,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           tbSignatureGraphics,
           tbNorthArrowGraphics,
           featureGraphics: new Map(),
+          // Slice 236 — per-feature texture overlay + mask for fillPattern.
+          featureTextures: new Map(),
           labelTexts: new Map(),
           // Slice 229 — Pixi text objects for area-label annotations.
           areaLabelTexts: new Map(),
@@ -1791,10 +1801,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.parent?.removeChild(g);
         g.destroy();
         pixi.featureGraphics.delete(id);
+        // Slice 236 — drop the matching texture overlay + mask.
+        const tx = pixi.featureTextures.get(id);
+        if (tx) {
+          tx.tex.parent?.removeChild(tx.tex);
+          tx.mask.parent?.removeChild(tx.mask);
+          try { tx.tex.destroy(); tx.mask.destroy(); } catch { /* noop */ }
+          pixi.featureTextures.delete(id);
+        }
       } else if (!culledIds.has(id)) {
         g.visible = false;
+        const tx = pixi.featureTextures.get(id);
+        if (tx) { tx.tex.visible = false; tx.mask.visible = false; }
       } else {
         g.visible = true;
+        const tx = pixi.featureTextures.get(id);
+        if (tx) { tx.tex.visible = true; tx.mask.visible = true; }
       }
     }
 
@@ -2034,6 +2056,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             g.endFill();
           }
         }
+        // Slice 236 — overlay a procedural texture (dot stipple, hatch,
+        // gravel, brick, wave) when feature.style.fillPattern is set.
+        // Drawn on a per-feature texture Graphics masked to the polygon
+        // shape so the texture stays inside the boundary.
+        drawFillPatternForPolygon(feature, screenPts, alpha);
         // Close the ring so the pattern wraps the final edge.
         screenPts.push(screenPts[0]);
         renderLineWithType(g, lineType, screenPts, ltColor, ltWeight, alpha, drawingScale, zoom);
@@ -3596,6 +3623,111 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.rotation = textObj.rotation;
     g.alpha = textObj.alpha;
     g.visible = textObj.visible;
+  }
+
+  // ─────────────────────────────────────────────
+  // Slice 236 — textured polygon fill (procedural dot / hatch / gravel)
+  // ─────────────────────────────────────────────
+  /** Stable 32-bit hash of a feature id so the pattern generators get
+   *  a per-feature seed that survives re-renders. */
+  function hashSeed(id: string): number {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < id.length; i++) {
+      h ^= id.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return h | 0;
+  }
+
+  /** Overlay a procedural texture inside `feature`'s polygon. Creates
+   *  (or re-uses) two Graphics under the same parent as the feature's
+   *  main Graphics: `mask` carries the polygon shape, `tex` carries
+   *  the dot/line primitives with `mask` applied so the texture stays
+   *  inside the boundary. No-op when fillPattern is undefined / SOLID
+   *  / NONE — existing drawings keep their current behavior. */
+  function drawFillPatternForPolygon(
+    feature: Feature,
+    screenPts: ReadonlyArray<{ x: number; y: number }>,
+    alpha: number,
+  ) {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const pattern = feature.style.fillPattern;
+    if (!pattern || pattern === 'SOLID' || pattern === 'NONE') {
+      const existing = pixi.featureTextures.get(feature.id);
+      if (existing) {
+        existing.tex.clear();
+        existing.mask.clear();
+      }
+      return;
+    }
+    if (screenPts.length < 3) return;
+
+    // Bounding rect in screen space drives the pattern generator's
+    // local coordinate frame; primitives are then offset by (minX, minY)
+    // when stroked onto `tex`.
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of screenPts) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const width = Math.max(0, maxX - minX);
+    const height = Math.max(0, maxY - minY);
+    if (width <= 0 || height <= 0) return;
+
+    const parent = pixi.featureGraphics.get(feature.id)?.parent ?? pixi.featureLayer;
+    let entry = pixi.featureTextures.get(feature.id);
+    if (!entry) {
+      const tex = new pixi.GraphicsClass();
+      const mask = new pixi.GraphicsClass();
+      parent.addChild(mask, tex);
+      tex.mask = mask;
+      entry = { tex, mask };
+      pixi.featureTextures.set(feature.id, entry);
+    } else if (entry.tex.parent !== parent) {
+      entry.tex.parent?.removeChild(entry.tex);
+      entry.mask.parent?.removeChild(entry.mask);
+      parent.addChild(entry.mask, entry.tex);
+    }
+
+    // Mask: solid polygon shape so the texture is clipped to it.
+    entry.mask.clear();
+    entry.mask.beginFill(0xffffff, 1);
+    entry.mask.moveTo(screenPts[0].x, screenPts[0].y);
+    for (let i = 1; i < screenPts.length; i++) entry.mask.lineTo(screenPts[i].x, screenPts[i].y);
+    entry.mask.closePath();
+    entry.mask.endFill();
+    entry.mask.visible = true;
+
+    // Texture: walk generated primitives in [0, width] × [0, height]
+    // local space and translate by (minX, minY) to land in the polygon.
+    const cfg: FillPatternConfig = {
+      pattern,
+      density: feature.style.patternDensity ?? 1,
+      seed: hashSeed(feature.id),
+    };
+    const { dots, lines } = generateFillPattern(width, height, cfg);
+    const patternColorHex = feature.style.patternColor ?? feature.style.color ?? '#000000';
+    const patternInt = parseInt(patternColorHex.replace('#', ''), 16);
+    const colorInt = Number.isFinite(patternInt) ? patternInt : 0x000000;
+
+    entry.tex.clear();
+    if (dots.length > 0) {
+      entry.tex.lineStyle(0);
+      entry.tex.beginFill(colorInt, alpha);
+      for (const d of dots) entry.tex.drawCircle(minX + d.x, minY + d.y, d.r);
+      entry.tex.endFill();
+    }
+    if (lines.length > 0) {
+      entry.tex.lineStyle(0.6, colorInt, alpha);
+      for (const ln of lines) {
+        entry.tex.moveTo(minX + ln.x1, minY + ln.y1);
+        entry.tex.lineTo(minX + ln.x2, minY + ln.y2);
+      }
+    }
+    entry.tex.visible = true;
   }
 
   // ─────────────────────────────────────────────

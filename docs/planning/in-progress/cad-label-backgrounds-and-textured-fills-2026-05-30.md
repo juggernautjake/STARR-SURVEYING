@@ -180,7 +180,7 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   min-distance constraint, gaussian-radius range, dispatcher
   enum coverage); full CAD sweep at 1737.
 
-#### Slice 236 — Render textured polygons via Pixi Graphics
+#### Slice 236 — Render textured polygons via Pixi Graphics ✅ shipped 2026-05-30
 - **Scope:** In the polygon render path, after `beginFill(color)
   + drawPolygon + endFill`, check `style.fillPattern` and overlay
   the texture. For dot patterns: walk the generator's `{x,y,r}`
@@ -192,6 +192,20 @@ this doc starts its CAD slice numbering at **Slice 232**.*
   regex on the new render branch).
 - **Done when:** Selecting `DOT_GRAVEL` on a polygon makes it look
   like gravel; other patterns render their visual.
+- **Outcome:** New per-feature texture Graphics + polygon-shaped mask
+  Graphics pair (`featureTextures: Map<id, {tex, mask}>`); new
+  `drawFillPatternForPolygon(feature, screenPts, alpha)` helper runs
+  the Slice-235 generator at the polygon's screen-space bounding rect,
+  draws dots via `drawCircle` and lines via `moveTo/lineTo` offset by
+  (minX, minY). The texture's Pixi `.mask` is set to the polygon-shape
+  mask Graphics so primitives stay inside the boundary. Texture color
+  falls back to `style.color` when `patternColor` is null. Stable per-
+  feature seed via FNV-1a hash of the id keeps the texture stable
+  across re-renders. GC sweep matches `featureGraphics` so leaving the
+  visible set drops both Graphics. 16 new specs green; full CAD sweep
+  at 1753. CIRCLE / ELLIPSE / closed SPLINE deferred for now — they'd
+  follow the same pattern but the polygon path covers the immediate
+  composability ask.
 
 #### Slice 237 — PropertyPanel: fill-pattern picker + preview
 - **Scope:** Add a "Fill pattern" row to the existing closed-shape
