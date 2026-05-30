@@ -8,8 +8,10 @@
 // Slice 109 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { conversationHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -47,8 +49,18 @@ interface Conversation {
   last_message_preview?: string | null;
   unread_count?: number;
   is_group?: boolean;
+  /** Raw conversation type from the API ('direct' | 'group'). */
+  type?: string | null;
   /** Used by the team-only filter. */
   is_external?: boolean;
+}
+
+// hub-widget-excellence-14 R1 — the conversations API returns the raw
+// `conversations` row, where the group flag is the `type` column
+// ('group'), not an `is_group` boolean. Normalize it so the group badge
+// + the include-groups filter work.
+export function toConversation(c: Conversation): Conversation {
+  return { ...c, is_group: c.is_group ?? c.type === 'group' };
 }
 
 function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
@@ -66,7 +78,7 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
       const res = await fetch(`/api/admin/messages/conversations?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { conversations?: Conversation[] } = await res.json();
-      const list = filterConversations(data.conversations ?? [], { includeGroups, senderFilter });
+      const list = filterConversations((data.conversations ?? []).map(toConversation), { includeGroups, senderFilter });
       setConversations(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
@@ -127,7 +139,9 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
       {visible.map((c) => {
         const hasUnread = (c.unread_count ?? 0) > 0;
         return (
-          <li key={c.id} style={rowStyle}>
+          <li key={c.id}>
+          {/* Row deep link → the conversation thread. */}
+          <Link href={conversationHref(c.id)} style={rowStyle} aria-label={`Open ${c.title ?? 'conversation'}`}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
               {hasUnread && (
                 <span
@@ -157,6 +171,7 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
             {c.last_message_at && (
               <span style={timestampStyle}>{formatRelative(c.last_message_at)}</span>
             )}
+          </Link>
           </li>
         );
       })}
@@ -286,6 +301,8 @@ const rowStyle: React.CSSProperties = {
   padding: 'var(--hub-spc-2, 8px) var(--hub-spc-3, 12px)',
   borderRadius: 6,
   background: 'var(--theme-bg-elevated)',
+  textDecoration: 'none',
+  color: 'inherit',
 };
 
 const titleStyle: React.CSSProperties = {

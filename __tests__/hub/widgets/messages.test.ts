@@ -7,7 +7,18 @@ import { getWidget } from '@/lib/hub/widget-registry';
 import {
   capForBucket,
   filterConversations,
+  toConversation,
 } from '@/lib/hub/widgets/messages';
+
+describe('messages — toConversation (R1: group from type)', () => {
+  it('derives is_group from the raw conversation type', () => {
+    expect(toConversation({ id: 'c1', type: 'group' }).is_group).toBe(true);
+    expect(toConversation({ id: 'c2', type: 'direct' }).is_group).toBe(false);
+  });
+  it('keeps an explicit is_group when already present', () => {
+    expect(toConversation({ id: 'c3', is_group: true, type: 'direct' }).is_group).toBe(true);
+  });
+});
 
 describe('messages widget — registry', () => {
   it('registers under id "messages" in communication category', () => {

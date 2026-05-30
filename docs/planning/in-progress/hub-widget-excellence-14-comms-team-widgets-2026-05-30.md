@@ -23,6 +23,19 @@ notification/unread reconciliation in Foundation Doc 03.*
   excludes DMs — Doc 03 Slice 4).
 - **Slices:** Build/Wire (footer link + row deep links + unread dots
   per sketch) + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** R1: the
+  conversations GET returns `{ conversations }` (raw rows +
+  participants) — id/title/last_message_at line up, but the group flag
+  is the `type` column ('group'), not `is_group` (so the group badge +
+  include-groups filter never fired). **Row deep links** (the headline):
+  each row is now a `next/link` to `conversationHref(c.id)` →
+  `/admin/messages/{id}`; a new pure exported `toConversation(c)`
+  normalizes `is_group` from `type`. The widget was otherwise complete
+  (unread dot + tiny count, preview, filters, editor). Footer "Go to
+  messages →" is global. 2 specs. Full hub suite (1626) green; typecheck
+  + lint clean. (`unread_count` isn't computed by this endpoint — the
+  widget degrades to the conversation count; per-conversation unread
+  needs read-receipt aggregation, flagged.) **messages is done.**
 
 ## open-discussions
 - **Endpoint:** `/api/admin/messages/conversations?limit=20`. Fields:
