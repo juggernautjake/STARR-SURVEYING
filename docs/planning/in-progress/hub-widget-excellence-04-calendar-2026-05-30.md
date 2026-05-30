@@ -111,8 +111,22 @@ DOM.
   one place — the per-category docs now just VERIFY the link in Round 2.
   3 source-regex specs on the wiring + a registry-consistency spec; full
   hub suite (1509) green. typecheck + lint clean.
-- 2b — `today-schedule` size view switch (agenda / agenda-wide / grid)
-  + read-only `CalendarGrid` — pending.
+- **2b — size view switch + read-only `CalendarGrid` ✅ shipped
+  2026-05-30.** `today-schedule` now branches on
+  `bucketToView(bucket)`: tiny → count, small → agenda list, medium →
+  agenda-wide list, large/xlarge → the new read-only `CalendarGrid`
+  (`lib/hub/calendar/CalendarGrid.tsx`). The grid is pure presentational
+  — `monthGrid` weeks of `role="gridcell"` cells (`data-iso`,
+  `data-in-month`, `aria-current="date"` on today), events as colored
+  chips from the API `color` field (accent fallback, `+N` overflow past
+  `maxChipsPerDay`). The fetch window now follows the view via the new
+  exported `scheduleWindow(view, range, now)` — month (padded a week
+  each side so adjacent-month grid cells show their events) for grid,
+  3-day for agenda-wide, single day for agenda; the grid renders even
+  when empty. 8 specs (weekday headers + day cells, colored chips +
+  no-color fallback, overflow `+N`, today/out-of-month flags; window =
+  month/3-day/1-day per view). Full hub suite (1517) green; typecheck +
+  lint clean.
 
 ### Slice 3 — Add-event form (create) wired to the API
 - **Scope:** An inline "+ Add event" affordance (visible at medium+)

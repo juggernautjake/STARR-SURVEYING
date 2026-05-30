@@ -9,6 +9,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
+import { bucketToView, datePart, type CalendarView } from '@/lib/hub/calendar/calendar-math';
+import CalendarGrid from '@/lib/hub/calendar/CalendarGrid';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -52,6 +54,10 @@ const TYPE_TINTS: Record<string, 'accent' | 'success' | 'warning' | 'info' | 'da
 function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
+  // Slice 2 (doc 04) — agenda (tiny/small), agenda-wide (medium), or a
+  // read-only month grid (large/xlarge). The grid needs the whole
+  // month's events, so the fetch window follows the view.
+  const view = bucketToView(bucket);
 
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
@@ -59,7 +65,7 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
   const fetchEvents = useCallback(async () => {
     setStatus('loading');
     try {
-      const { from, to } = todayWindow(settings.timeRange);
+      const { from, to } = scheduleWindow(view, settings.timeRange);
       const res = await fetch(`/api/admin/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { events?: ScheduleEvent[] } = await res.json();
@@ -71,7 +77,7 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
     } catch {
       setStatus('error');
     }
-  }, [settings.showAllDay, settings.timeRange]);
+  }, [settings.showAllDay, settings.timeRange, view]);
 
   useEffect(() => {
     fetchEvents();
@@ -84,6 +90,22 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
   if (status === 'error')   return <WidgetError message="Couldn't load your schedule." onRetry={fetchEvents} />;
+
+  // Grid view (large/xlarge) renders the month even when empty — an
+  // empty month grid is still a useful at-a-glance calendar.
+  if (view === 'grid') {
+    const today = datePart(new Date().toISOString());
+    const [gy, gm] = today.split('-').map(Number);
+    return (
+      <CalendarGrid
+        year={gy}
+        month={gm}
+        events={events as (ScheduleEvent & { id: string; title: string })[]}
+        todayIso={today}
+      />
+    );
+  }
+
   if (status === 'empty') {
     if (bucket === 'tiny') {
       return (
@@ -200,6 +222,41 @@ export function capForBucket(bucket: SizeBucket): number {
     case 'large':  return 12;
     case 'xlarge': return 24;
   }
+}
+
+/**
+ * The schedule fetch window for the current view: the day (agenda),
+ * today + the next two days (agenda-wide), or the whole focus month
+ * (grid). Exported for testing.
+ */
+export function scheduleWindow(
+  view: CalendarView,
+  range: TodayScheduleTimeRange,
+  now: Date = new Date(),
+): { from: string; to: string } {
+  if (view === 'grid') return monthWindow(now);
+  if (view === 'agenda-wide') return daysWindow(now, 3);
+  return todayWindow(range, now);
+}
+
+/** The whole UTC month containing `now` (first day 00:00 → next month
+ *  first day 00:00), padded a week each side so leading/trailing grid
+ *  days from adjacent months show their events too. */
+export function monthWindow(now: Date = new Date()): { from: string; to: string } {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const from = new Date(Date.UTC(y, m, 1) - 7 * 86_400_000);
+  const to = new Date(Date.UTC(y, m + 1, 1) + 7 * 86_400_000);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+/** `n` whole days starting at the local midnight of `now`. */
+export function daysWindow(now: Date = new Date(), n = 3): { from: string; to: string } {
+  const day = new Date(now);
+  day.setHours(0, 0, 0, 0);
+  const end = new Date(day);
+  end.setDate(end.getDate() + n);
+  return { from: day.toISOString(), to: end.toISOString() };
 }
 
 export function todayWindow(range: TodayScheduleTimeRange, now: Date = new Date()): { from: string; to: string } {
