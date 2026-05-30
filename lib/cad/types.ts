@@ -984,9 +984,15 @@ export interface TextLabelStyle {
   fontWeight: 'normal' | 'bold';
   fontStyle: 'normal' | 'italic';
   color: string | null;      // null = inherit layer color
+  // Slice 232 — opt-in label background highlight. `backgroundColor`
+  // null = transparent (default). When set, the render path draws a
+  // filled rect under the text padded by `padding`. `borderColor` +
+  // `borderWidth` are independent — both nullable so a surveyor can
+  // pick "fill only", "stroke only", or both.
   backgroundColor: string | null; // null = transparent
   borderColor: string | null;
-  padding: number;           // px around text (default 2)
+  borderWidth: number | null;     // null = no stroke
+  padding: number;                // px around text (default 2)
 }
 
 /** A moveable text annotation tied to a specific feature element. */

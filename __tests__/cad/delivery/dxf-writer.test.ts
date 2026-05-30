@@ -122,7 +122,7 @@ describe('exportToDxf — style fidelity', () => {
             {
               id: 'lbl1', featureId: 'f1', kind: 'POINT_NAME', text: 'PT-1',
               offset: { x: 0, y: 0 }, rotation: null,
-              style: { fontFamily: 'Arial', fontSize: 10, fontWeight: 'normal', fontStyle: 'normal', color: null, backgroundColor: null, borderColor: null, padding: 2 },
+              style: { fontFamily: 'Arial', fontSize: 10, fontWeight: 'normal', fontStyle: 'normal', color: null, backgroundColor: null, borderColor: null, borderWidth: null, padding: 2 },
               visible: true, scale: 1, userPositioned: true,
             },
           ],

@@ -85,6 +85,14 @@ export interface AreaAnnotation extends AnnotationBase {
   font: string;
   fontSize: number;
   color: string;
+  // Slice 232 — opt-in label background highlight, reused shape from
+  // TextAnnotation so the editor + render code paths can share helpers.
+  // Defaults: backgroundColor null = no fill (transparent),
+  // borderVisible false = no stroke, padding 2 px.
+  backgroundColor: string | null;
+  borderVisible: boolean;
+  borderColor: string;
+  padding: number;
 }
 
 export interface TextAnnotation extends AnnotationBase {

@@ -83,6 +83,11 @@ export function createAreaAnnotation(
     font: config.font,
     fontSize: config.fontSize,
     color: config.color,
+    // Slice 232 — opt-in label background defaults off.
+    backgroundColor: null,
+    borderVisible: false,
+    borderColor: '#000000',
+    padding: 2,
   };
 }
 
@@ -148,5 +153,10 @@ export function createAreaLabelForFeature(
     font: config.font,
     fontSize: config.fontSize,
     color: config.color,
+    // Slice 232 — opt-in label background defaults off.
+    backgroundColor: null,
+    borderVisible: false,
+    borderColor: '#000000',
+    padding: 2,
   };
 }
