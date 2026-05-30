@@ -135,7 +135,20 @@ its dedup.
   specs (approve/deny copy, multi-day range, single-day collapse, no
   range when start missing, null when no requester). typecheck + lint
   clean.
-- 2c — Receipt approved/rejected — pending.
+- **2c — Receipt approved/rejected ✅ shipped 2026-05-30.** Both the
+  per-row `receipts/[id]` PATCH (fires on the `approved`/`rejected`
+  transitions only — reopen-to-pending + field edits stay silent) and
+  the `receipts/bulk-approve` POST (now selects `submitted_by, vendor,
+  total` on the update so each approved submitter gets a bell) notify
+  the receipt's `submitted_by`. Pure builder
+  `lib/notifications/receipt-decision.ts` →
+  `buildReceiptDecisionNotification(receipt, 'approved'|'rejected')`
+  composes "Your $42.50 receipt from {vendor} was approved/rejected."
+  (amount via `total.toFixed(2)`, vendor optional, rejection reason
+  appended), link `/admin/receipts`, `source_type: 'receipt_decision'`,
+  or null when no submitter. Both call sites best-effort. 5 specs
+  (approve w/ amount+vendor, reject w/ reason, missing amount/vendor,
+  string-total coercion, null submitter). typecheck + lint clean.
 - 2d — Job stage change — pending.
 - 2e — Task assignment created — pending.
 - 2f — Lesson/module complete + quiz result — pending.

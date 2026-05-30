@@ -24,6 +24,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildReceiptDecisionNotification } from '@/lib/notifications/receipt-decision';
 
 const ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'exported']);
 const ALLOWED_TAX_FLAGS = new Set(['full', 'partial_50', 'none', 'review']);
@@ -147,6 +149,25 @@ export const PATCH = withErrorHandler(
         code: (error as { code?: string }).code ?? null,
       });
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // hub-widget-excellence-03 Slice 2c — notify the submitter when the
+    // bookkeeper approves or rejects their receipt (only those two
+    // transitions; reopen-to-pending + field edits stay silent).
+    // Best-effort: a notification failure must not fail the decision.
+    if (body.status === 'approved' || body.status === 'rejected') {
+      try {
+        const notice = buildReceiptDecisionNotification(
+          {
+            submitted_by: (data as Record<string, unknown>).submitted_by as string | null,
+            vendor: (data as Record<string, unknown>).vendor as string | null,
+            total: (data as Record<string, unknown>).total as number | null,
+            rejected_reason: (data as Record<string, unknown>).rejected_reason as string | null,
+          },
+          body.status,
+        );
+        if (notice) await notify(notice);
+      } catch { /* ignore notification failures */ }
     }
 
     return NextResponse.json({ receipt: data });
