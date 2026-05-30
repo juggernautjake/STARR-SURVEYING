@@ -38,17 +38,17 @@ surfaced in the nav rail; the rest are deep / sub routes.
 | `/admin/my-pay`                   | `legacy-redirect`          | Same. Delete in Slice 2.                                                                           |
 | `/admin/my-notes`                 | `legacy-redirect`          | Same. Delete in Slice 2.                                                                           |
 | `/admin/profile`                  | `legacy-redirect`          | Redirects to `/admin/me?tab=profile`. Delete in Slice 2.                                           |
-| `/admin/dashboard`                | `consolidation-candidate`  | Pre-hub dashboard; `/admin/me` is the successor + pulls the same data via widgets. Slice 7.        |
+| `/admin/dashboard`                | `consolidation-candidate` (verified) | Pre-hub dashboard wired as the post-login redirect target (middleware line 93) AND the role-gate-deny fallback (line 120). Used by 7+ `router.replace('/admin/dashboard')` calls across jobs / research / error boundary. Migrating to `/admin/me` is feasible but the redirect change has wider blast radius than fits Slice 7's scope; queued as its own follow-up. Stays active until then. |
 | `/admin/messages/contacts`        | `active` (kept after audit)| Initially flagged as a consolidation candidate; on inspection it serves a distinct audience (internal teammates for messaging vs. external CRM contacts on `/admin/contacts`). Slice 6 added clarifying cross-link banners + sharpened descriptions; deletion deferred. |
-| `/admin/work-mode/admin`          | `verify-before-action`     | Role-specific work-mode landing; appears superseded by `/admin/work`. Verify + archive in Slice 7. |
-| `/admin/work-mode/developer`      | `verify-before-action`     | Same.                                                                                              |
-| `/admin/work-mode/field_crew`     | `verify-before-action`     | Same.                                                                                              |
-| `/admin/work-mode/researcher`     | `verify-before-action`     | Same.                                                                                              |
-| `/admin/work-mode/drawer`         | `verify-before-action`     | Same.                                                                                              |
-| `/admin/work-mode/equipment_manager` | `verify-before-action`  | Same.                                                                                              |
-| `/admin/work-mode/tech_support`   | `verify-before-action`     | Same.                                                                                              |
-| `/admin/work-mode/start`          | `verify-before-action`     | Same.                                                                                              |
-| `/admin/research-cad`             | `verify-before-action`     | Unclear remit vs `/admin/cad` + `/admin/research`. Verify in Slice 7.                              |
+| `/admin/work-mode/admin`          | `active` (verified Slice 7)| Office Admin / Dispatcher work-mode shell from Slices 176-177 of customizable-hub-and-work-mode-2026-05-28. Distinct workspace (Dispatch, Jobs, Approvals, Announcements, Reports tabs); not superseded by `/admin/work` (which is a card-based landing). |
+| `/admin/work-mode/developer`      | `active` (verified Slice 7)| Redirects to `/admin/work-mode/admin` (developers share the admin work-mode for now). Intentional.                            |
+| `/admin/work-mode/field_crew`     | `active` (verified Slice 7)| Role-specific work-mode shell — field-crew specialization. Active.                                                          |
+| `/admin/work-mode/researcher`     | `active` (verified Slice 7)| Role-specific work-mode shell — researcher specialization. Active.                                                          |
+| `/admin/work-mode/drawer`         | `active` (verified Slice 7)| Drafter Work Mode — sidebar (job tree) + main CAD pane + right rail (Slices 166-169). Distinct from `/admin/cad`.            |
+| `/admin/work-mode/equipment_manager` | `active` (verified Slice 7)| Equipment Manager Work Mode (Slice 173) — checkout / maintenance / vehicles / consumables tabs.                            |
+| `/admin/work-mode/tech_support`   | `active` (verified Slice 7)| Tech-support work-mode shell. Active.                                                                                       |
+| `/admin/work-mode/start`          | `active` (verified Slice 7)| Work-mode picker landing (lets the user pick their role's workspace). Distinct entry point from `/admin/work`.              |
+| `/admin/research-cad`             | `active` (verified Slice 7)| Workspace landing (admin-nav redesign Phase 3 slice 3a §5.2.4) using the shared `WorkspaceLanding` component with `workspace="research-cad"`. Parallel to `/admin/work` + `/admin/office`. Not a legacy alias. |
 | `/admin/me`                       | `active`                   | The hub. Centerpiece of every consolidation in this plan.                                          |
 | `/admin/work`                     | `active`                   | Work-mode landing. Phase 3 redesign target.                                                        |
 | `/admin/office`                   | `active`                   | Office-mode landing.                                                                               |

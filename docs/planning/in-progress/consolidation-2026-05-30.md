@@ -255,23 +255,46 @@ confuse the two surfaces:
 No new specs (the changes are doc + JSX edits). 1853 hub + admin +
 contacts + middleware specs green; typecheck + lint clean.
 
-### Slice 7 — Verify-and-clean
-  (`/admin/work-mode/*`, `/admin/research-cad`, `/admin/dashboard`)
+### Slice 7 — Verify-and-clean ✅ shipped 2026-05-30
 
-- These were flagged as "verify before action" by the explorer
-  agent. Per-slice steps:
-  - `/admin/work-mode/*` — git-blame each per-role landing; if the
-    most-recent meaningful commit is older than the
-    `/admin/work` introduction, archive the lot.
-  - `/admin/research-cad` — read the page; if it's a legacy
-    alias for `/admin/cad` (CAD launched from research context),
-    add a server-side redirect.
-  - `/admin/dashboard` — confirm whether anything non-Hub still
-    lives here. If yes, port to a widget. If no, redirect to
-    `/admin/me`.
-- Stop the slice with a one-line rationale per path so the audit
-  doc reflects the decision even when the action is "kept for
-  reason X".
+Verification result for all three paths flagged
+`verify-before-action` in the Slice 1 audit. Audit doc rows updated
+with one-line rationale per path so a future PR has the same
+context this slice did:
+
+- **`/admin/work-mode/*`** (9 entries) — ALL ACTIVE, not legacy.
+  These are role-specific work-mode shells from Slices 166-177 of
+  the original customizable-hub-and-work-mode-2026-05-28 plan.
+  Each has a distinct shell (Drawer = sidebar + CAD pane + comms;
+  Equipment Manager = checkout/maintenance/vehicles/consumables
+  tabs; Office Admin = Dispatch/Jobs/Approvals/Announcements/
+  Reports tabs; etc.). They are NOT superseded by `/admin/work`
+  (which is a card-based workspace landing using
+  `WorkspaceLanding`). `/admin/work-mode/developer` is an
+  intentional redirect to `/admin/work-mode/admin` (developers
+  share the admin work-mode).
+- **`/admin/research-cad`** — ACTIVE. It's the workspace landing
+  for the Research-CAD workspace (admin-nav redesign Phase 3 slice
+  3a §5.2.4), using the same shared `WorkspaceLanding` component
+  as `/admin/work` and `/admin/office` (just with
+  `workspace="research-cad"`). Not a legacy alias for
+  `/admin/cad`; serves a distinct purpose as the workspace's card
+  index.
+- **`/admin/dashboard`** — Stays active for now. Confirmed it's a
+  pre-hub dashboard that overlaps with `/admin/me`, BUT it's
+  wired as (a) the post-login redirect target in middleware line
+  93; (b) the role-gate-deny fallback in middleware line 120; (c)
+  the target of 7+ `router.replace('/admin/dashboard')` calls
+  across jobs / research / error-boundary code. Migrating these
+  call sites to `/admin/me` is feasible but has a wider blast
+  radius than fits this slice; queued as its own follow-up.
+
+No code changes in this slice — the deliverable is the
+verification work itself + the audit-doc updates so future PRs can
+cite the row that justifies the action. 0 specs added (the
+existing notify-link audit catches stale `link: '/admin/x'` strings
+if anything regresses). Typecheck + lint untouched (no source
+changes).
 
 ### Slice 8 — API dead-code sweep
 
