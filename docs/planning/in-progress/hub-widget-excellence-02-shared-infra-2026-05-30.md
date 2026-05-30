@@ -89,7 +89,7 @@ re-implement those 41 times, build shared primitives first.
   widget's link — e.g. mentions-inbox currently → messages — but the
   registry is the one place to change it.)
 
-### Slice 3 — `field-priority` size helper
+### Slice 3 — `field-priority` size helper ✅ shipped 2026-05-30
 - **Scope:** New `lib/hub/widgets/_shared/field-priority.ts` —
   `pickFields(allFields, bucket, priorityOrder)` returns the subset of
   fields to render at a given bucket, given a priority-ordered list +
@@ -100,6 +100,17 @@ re-implement those 41 times, build shared primitives first.
   `__tests__/hub/field-priority.test.ts`.
 - **Done when:** deterministic field subsets per bucket; spec covers
   the tiny→xlarge progression + the cap behavior.
+- **Shipped:** `pickFields<T>(fields, bucket, caps?)` takes the
+  priority-ordered prefix that fits the bucket. `DEFAULT_FIELD_CAPS` =
+  tiny 1 / small 3 / medium 5 / large 8 / xlarge ∞; `fieldCountForBucket`
+  exposes the cap (clamped ≥ 0, ∞ passthrough). Generic over the item
+  type (works for field-name strings or richer field descriptors), and
+  returns a copy so callers can't mutate the source. 12 specs green:
+  the exact prefixes per bucket, the **monotonic + nested** invariant
+  (each larger bucket's list ⊇ the smaller one as a prefix, so the
+  single most-important field survives to tiny), never-exceeds-length,
+  copy-not-reference, and custom-cap + zero-cap overrides. typecheck +
+  lint clean.
 
 ### Slice 4 — Editor section primitives audit
 - **Scope:** Audit `lib/hub/components/settings/` + `SchemaOptionsForm`
