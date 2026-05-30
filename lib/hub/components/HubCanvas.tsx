@@ -6,8 +6,9 @@
 //   - WidgetGrid (Slice 92) — driven by `widgets` (view) or
 //     `draftWidgets` (edit)
 //   - GridEditor modal — the single editor surface (Slice 2 of
-//     employee-hub-overhaul-2026-05-30)
-//   - SettingsPanel (Slice 101)
+//     employee-hub-overhaul-2026-05-30); now houses both layout
+//     authoring AND per-widget options (Slice 11) so the previous
+//     SettingsPanel side rail is gone.
 //   - MobileBanner (Slice 151)
 //
 // Slice 2 collapsed the previous two editing surfaces — the in-canvas
@@ -17,6 +18,10 @@
 // move, options, save/cancel). The old in-header add-widget button, the
 // AddWidgetModal mount, and the floating EditModeBar are gone — the
 // modal's own footer is the commit surface.
+// Slice 17 of employee-hub-overhaul-2026-05-30 retired the SettingsPanel
+// side rail (every option lives in the modal now via the Slice-11
+// WidgetOptionsPanel), so the click-delegation handler that opened it
+// is gone too.
 //
 // The canvas does NOT include the greeting card or the ClockInPill —
 // those live in `/admin/me/page.tsx` above the canvas (greeting is
@@ -33,7 +38,6 @@ import { useHubActions } from '@/lib/hub/use-hub-actions';
 
 import WidgetGrid from './WidgetGrid';
 import GridEditor from './GridEditor';
-import SettingsPanel from './SettingsPanel';
 import MobileBanner from './MobileBanner';
 import WelcomeTip from './WelcomeTip';
 import PerfOverlay, { isPerfOverlayActive } from './PerfOverlay';
@@ -63,8 +67,6 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   // Slice 3 — the canvas's WidgetGrid is view-only now, so setDraftWidgets
   // no longer wires up through it (the modal owns drag/resize commits).
   const { enterEditMode, cancelEdit } = useHubActions();
-
-  const [settingsId, setSettingsId] = useState<string | null>(null);
 
   // One click on the page button enters edit mode (which now also
   // means "the modal is open" — see the `open={isEditMode}` mount on
@@ -97,26 +99,6 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   // behind the modal so save-cancel feedback is visible underneath.
   const displayWidgets = isEditMode && draftWidgets ? draftWidgets : widgets;
 
-  // Event-delegated click: in edit mode, a click anywhere inside a
-  // cell opens the SettingsPanel for that widget. `e.preventDefault()`
-  // suppresses link navigation so dropping into edit mode doesn't
-  // surprise the user with a page change. Widget-internal buttons
-  // still fire their own onClick (which is harmless — the panel just
-  // opens too).
-  const handleGridClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isEditMode) return;
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
-    const cell = target.closest<HTMLElement>('[data-widget-id]');
-    if (!cell) return;
-    // Skip drag + resize handles — they shouldn't trigger settings.
-    const role = target.getAttribute('aria-label') ?? '';
-    if (role.startsWith('Drag to') || role.startsWith('Resize')) return;
-    e.preventDefault();
-    const id = cell.getAttribute('data-widget-id');
-    if (id) setSettingsId(id);
-  }, [isEditMode]);
-
   return (
     <div className="hub-canvas" style={canvasStyle}>
       <MobileBanner />
@@ -145,21 +127,13 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
 
       <WelcomeTip show={isSeeded} />
 
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-      <div onClick={handleGridClick}>
-        <WidgetGrid widgets={displayWidgets} />
-      </div>
+      <WidgetGrid widgets={displayWidgets} />
 
       <GridEditor
         open={isEditMode}
         onClose={closeEditor}
         roles={roles}
         activeBundles={activeBundles}
-      />
-
-      <SettingsPanel
-        instanceId={settingsId}
-        onClose={() => setSettingsId(null)}
       />
 
       {perfActive && <PerfOverlay canvasRenderCount={renderCountRef.current} />}

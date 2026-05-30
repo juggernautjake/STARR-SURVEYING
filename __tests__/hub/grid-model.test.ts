@@ -125,10 +125,6 @@ describe('Slice 7 — call-site imports go through grid-model', () => {
     path.join(__dirname, '..', '..', 'lib', 'hub', 'components', 'AddWidgetModal.tsx'),
     'utf8',
   );
-  const LAYOUT_TAB = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'lib', 'hub', 'components', 'settings', 'LayoutTab.tsx'),
-    'utf8',
-  );
   const GRID_EDITOR = fs.readFileSync(
     path.join(__dirname, '..', '..', 'lib', 'hub', 'components', 'GridEditor.tsx'),
     'utf8',
@@ -140,11 +136,10 @@ describe('Slice 7 — call-site imports go through grid-model', () => {
     expect(ADD_WIDGET).not.toMatch(/compactLayout\([\s\S]*?,\s*8\)/);
   });
 
-  it('LayoutTab imports HUB_GRID_COLS and uses it in compactLayout', () => {
-    expect(LAYOUT_TAB).toMatch(/import \{ HUB_GRID_COLS \} from '@\/lib\/hub\/grid-model';/);
-    expect(LAYOUT_TAB).toMatch(/compactLayout\([\s\S]*?,\s*HUB_GRID_COLS\)/);
-    expect(LAYOUT_TAB).not.toMatch(/compactLayout\([\s\S]*?,\s*8\)/);
-  });
+  // The second LayoutTab assertion this block originally carried is
+  // gone -- Slice 17 deleted LayoutTab along with the SettingsPanel
+  // rail. The HUB_GRID_COLS constant is still wired through every
+  // surviving call site (AddWidgetModal + the GridEditor constants).
 
   it('GridEditor re-exports its constants from grid-model (no magic 8 literal)', () => {
     expect(GRID_EDITOR).toMatch(/import \{ HUB_EDITOR_ROWS, HUB_GRID_COLS \} from '@\/lib\/hub\/grid-model';/);

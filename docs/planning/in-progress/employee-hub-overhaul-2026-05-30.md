@@ -365,7 +365,7 @@ WidgetCustomization {
   lint clean. The path forward: every authoring interaction (drag,
   resize, options, save) now flows through the modal alone.
 
-#### Slice 4 — Remove the SettingsPanel side rail (after options are re-hosted)
+#### Slice 4 — Remove the SettingsPanel side rail (after options are re-hosted) ✅ shipped 2026-05-30 (as part of Slice 17)
 - **Scope:** *Sequenced after HB5 lands per-widget options in the
   modal.* Delete `SettingsPanel.tsx`, `SettingsTabs.tsx`,
   `SettingsPanelMobile.tsx`, `settings/{LayoutTab,StyleTab,ContentTab,
@@ -376,6 +376,9 @@ WidgetCustomization {
   **execute last** in HB5/HB6.)
 - **Files:** the above.
 - **Done when:** No side-rail code remains; tree green; no dead imports.
+- **Outcome:** Shipped as part of Slice 17 — see that slice's
+  outcome note for the full deletion list + the new
+  `__tests__/hub/settings-panel-removal.test.ts` lockdown.
 
 ### Phase HB3 — Slim the widget styling model
 
@@ -1035,7 +1038,7 @@ WidgetCustomization {
     with Slice 17 (save round-trip + SettingsPanel cleanup) and Slice
     18 (QA + e2e + move doc to completed).
 
-#### Slice 17 — Save → hub render round-trip (+ remove SettingsPanel, Slice 4)
+#### Slice 17 — Save → hub render round-trip (+ remove SettingsPanel, Slice 4) ✅ shipped 2026-05-30
 - **Scope:** Confirm Save persists the slim model (size, headerColor,
   titleOverride, content) and the read-only hub renders every widget at
   its size with header+title+headerColor+options applied. Execute the
@@ -1046,6 +1049,44 @@ WidgetCustomization {
   `__tests__/hub/hub-render-roundtrip.test.ts`.
 - **Done when:** A dashboard saved in the modal renders identically on
   reload; no SettingsPanel code remains; tree green.
+- **Outcome:** Deleted **19 files** totaling **−2,279 LOC** net:
+  - `lib/hub/components/SettingsPanel.tsx` (the side rail itself)
+  - `lib/hub/components/SettingsTabs.tsx` (its tab strip)
+  - `lib/hub/components/settings/{LayoutTab, StyleTab, InteractionTab,
+    SizeGridPicker, CustomColorPicker}.tsx` (the four tabs + the two
+    pickers it hosted)
+  - `lib/hub/components/settings/components/{FilterDropdown, MultiSelect,
+    NumberStepper, RoutePicker, ToggleGroup}.tsx` (the form-control
+    library used only by those tabs)
+  - `lib/hub/widget-color-modes.ts` (the StyleTab catalog)
+  - `__tests__/hub/{settings-components, settings-panel-transition,
+    settings-tabs, size-grid-picker, custom-color-picker,
+    widget-color-modes}.test.{ts,tsx}` (six spec files)
+  Patched `HubCanvas.tsx` to drop the `SettingsPanel` import + the
+  `settingsId` useState + the `handleGridClick` event-delegated
+  click-to-open + the `<SettingsPanel/>` mount + the wrapping
+  `<div onClick={handleGridClick}>` div around `<WidgetGrid/>`. The
+  grid now renders directly under the WelcomeTip. Updated two existing
+  specs whose assertions targeted the deleted files: removed the
+  LayoutTab block from `grid-model.test.ts` (HUB_GRID_COLS still
+  wired through every surviving call site) and the SettingsPanel
+  preview block from `widget-frame-slim.test.ts` (the slim
+  WidgetFrame contract is still locked by the FRAME_SRC + GRID_SRC
+  assertions).
+  Save → hub round-trip: confirmed via the existing Save flow
+  (`saveDraft` → `PUT /api/admin/me/hub-layout` → on success copies
+  draft → widgets) plus the Slice-5 `normalizeWidgets` that already
+  tolerates old saved style fields. The end-to-end "pick → drop →
+  resize → move → options → save → reload → identical render" path
+  is now a single coherent flow through the modal (Slices 2 / 5 / 9 /
+  10 / 11 / 13) without any side-panel detours.
+  New `__tests__/hub/settings-panel-removal.test.ts` (19 cases) locks
+  the file-system absence of each deleted source file, the absent
+  imports + state + handler in HubCanvas, the direct `<WidgetGrid/>`
+  render (no click-delegation wrapper), and confirms `<GridEditor
+  open={isEditMode}/>` is still the only mounted editor. 1370 hub
+  specs green; typecheck + lint clean. **Phase HB6 nearly complete** —
+  only Slice 18 (QA sweep + e2e + move doc to completed) remains.
 
 #### Slice 18 — QA sweep + e2e + move doc to completed
 - **Scope:** Full typecheck + lint + the hub unit suite green. Rewrite

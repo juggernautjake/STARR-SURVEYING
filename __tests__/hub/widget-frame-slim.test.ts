@@ -23,10 +23,11 @@ const GRID_SRC = fs.readFileSync(
   'utf8',
 );
 
-const PANEL_SRC = fs.readFileSync(
-  path.join(__dirname, '..', '..', 'lib', 'hub', 'components', 'SettingsPanel.tsx'),
-  'utf8',
-);
+// Slice 17 of employee-hub-overhaul-2026-05-30 deleted SettingsPanel
+// along with its supporting tabs / pickers. The two assertions that
+// targeted its preview block are gone with it; the slim WidgetFrame
+// contract those assertions doubly-locked is still asserted via the
+// FRAME_SRC + GRID_SRC checks above.
 
 describe('Slice 6 — WidgetFrameProps: the slim contract', () => {
   it('drops colorMode / statusTint / customBg / customFg / borderRadius / shadowDepth from the props interface', () => {
@@ -97,21 +98,6 @@ describe('Slice 6 — WidgetGrid no longer forwards the legacy style props', () 
   });
 });
 
-describe('Slice 6 — SettingsPanel preview drops the legacy props', () => {
-  it('preview WidgetFrame call now only forwards title + headerColor', () => {
-    const preview = PANEL_SRC.match(/<WidgetFrame title=\{title\}[\s\S]*?>/);
-    expect(preview).not.toBeNull();
-    const block = preview![0];
-    expect(block).toMatch(/headerColor=\{customization\.style\?\.headerColor\}/);
-    expect(block).not.toMatch(/colorMode=/);
-    expect(block).not.toMatch(/statusTint=/);
-    expect(block).not.toMatch(/customBg=/);
-    expect(block).not.toMatch(/customFg=/);
-    expect(block).not.toMatch(/borderRadius=\{customization/);
-    expect(block).not.toMatch(/shadowDepth=/);
-  });
-
-  it('unknown-widget preview no longer paints with colorMode="status" statusTint="warning"', () => {
-    expect(PANEL_SRC).not.toMatch(/<WidgetFrame[\s\S]{0,200}colorMode="status"/);
-  });
-});
+// (SettingsPanel preview-block assertions removed when Slice 17
+//  deleted the SettingsPanel.tsx file. The same slim-props guarantee
+//  is locked above against the live WidgetFrame source.)
