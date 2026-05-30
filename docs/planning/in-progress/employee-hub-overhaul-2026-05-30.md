@@ -897,20 +897,55 @@ WidgetCustomization {
     per widget). 32 new specs total; 1353 hub specs green; typecheck
     + lint clean.
 
-#### Slice 15b — Remaining schema-source widget body wiring (6 widgets)
-- **Scope:** Wire the remaining 6 schema-source widgets:
+#### Slice 15b — Learning-family widget body wiring (3 widgets) ✅ shipped 2026-05-30
+- **Scope:** Wire `flashcards-due`, `recommended-lessons`,
+  `roadmap-progress`. Revised the roadmap-progress schema this slice
+  too (its pre-revision per-phase toggles described data the widget
+  doesn't have).
+- **Files:** `lib/hub/widget-options.ts` (roadmap-progress schema
+  revision), the three widget `index.tsx` files, new
+  `__tests__/hub/widget-config-render-learning-family.test.ts`.
+- **Done when:** Each widget visibly reflects its schema options;
+  resolvers exported + locked.
+- **Outcome:**
+  - **flashcards-due** wires `maxCards` (1–25) + `hideEmpty`. New
+    `visibleCount(raw, cap)` helper caps the visible count without
+    losing the backend's real number; when capped, the body shows
+    `"N+"` instead of `"N"` and the description reads "cards ready
+    (capped at N)". `hideEmpty=true` swaps the full empty-state card
+    for a quiet "0 cards" stat so a stretch of empty days doesn't
+    dominate the hub.
+  - **recommended-lessons** wires `maxItems` (1–10) + `category`
+    (`all`/`survey`/`tech`/`safety`). New `lessonMatchesCategory(lesson,
+    category)` runs a token-match on `title + module_title` so the
+    filter works against the existing API without needing a `?category=`
+    query. Token sets: survey/surveying/land/cad/parcel for "survey";
+    tech/technical/gis/gps/rtk for "tech"; safety/osha/ppe/hazard for
+    "safety". `all` (the default) skips filtering.
+  - **roadmap-progress** schema revised: `showCompleted` /
+    `showInProgress` / `showUpcoming` (which described per-phase
+    visibility the widget doesn't have) → `showName` / `showCurrent`
+    / `showBar` (the three render branches the widget actually
+    has). All three default true so existing layouts render
+    identically. Body honors each toggle independently. Slice 12's
+    coverage spec still passes (it only asserts every widget has a
+    schema with ≥ 1 field, not specific field names).
+  - 15 new spec cases covering each widget's resolvers + the
+    `visibleCount` / `lessonMatchesCategory` helpers + the schema↔
+    resolver agreement + the schema-revision teardown for
+    roadmap-progress (asserts the removed pre-revision field keys are
+    absent). 1368 hub specs green; typecheck + lint clean.
+
+#### Slice 15c — Remaining schema-source widget body wiring (3 widgets)
+- **Scope:** Wire the last 3 schema-source widgets:
   `daily-briefing` (showWeather / showSchedule / maxJobs),
-  `flashcards-due` (maxCards / hideEmpty), `monthly-revenue`
-  (period / showTrend / showComparison),
-  `recommended-lessons` (maxItems / category),
-  `roadmap-progress` (showCompleted / showInProgress / showUpcoming),
+  `monthly-revenue` (period / showTrend / showComparison),
   `sun-calculator` (latitude / longitude / units / showTwilight).
-  Plus opportunistic content-reads on the SettingsForm widgets whose
-  bodies don't honor their own content yet (audit shows most don't).
-- **Files:** the per-widget `index.tsx` files,
-  `__tests__/hub/widget-config-render-*.test.ts` (per widget).
-- **Done when:** Every schema-source widget visibly reflects its
-  options; resolvers exported + locked.
+- **Files:** the three widget `index.tsx` files,
+  `__tests__/hub/widget-config-render-*.test.ts` (per family).
+- **Done when:** Each widget visibly reflects its schema options;
+  resolvers exported + locked. Schema coverage from Slice 12 stays
+  intact.
 
 ### Phase HB6 — Responsive render, Save round-trip, QA
 

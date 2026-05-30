@@ -13,13 +13,41 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export interface FlashcardsDueContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: FlashcardsDueContent = {};
+// Slice 15b — wired to the Slice-12 schema fields:
+//   - maxCards:   surfaced as the upper limit on the "X cards ready"
+//                 count display (1–25). Pre-overhaul the widget showed
+//                 the raw count from the backend; the cap stops a huge
+//                 backlog from blowing up the layout.
+//   - hideEmpty:  when true + the queue is empty, collapse the body to
+//                 a quiet 0 instead of the full empty-state card so a
+//                 stretch of empty days doesn't dominate the hub.
+import { resolveBool, resolveBoundedInt } from '@/lib/hub/widgets/_shared/content-resolvers';
+
+export interface FlashcardsDueContent extends Record<string, unknown> {
+  maxCards?: number;
+  hideEmpty?: boolean;
+}
+const DEFAULTS: FlashcardsDueContent = { maxCards: 5, hideEmpty: false };
+
+export const resolveMaxCards = (c: FlashcardsDueContent): number | null =>
+  resolveBoundedInt(c.maxCards, 1, 25, null);
+export const resolveHideEmpty = (c: FlashcardsDueContent): boolean =>
+  resolveBool(c.hideEmpty, false);
+
+/** Visible count given the raw backend count + the surveyor's cap.
+ *  When `cap` is null (no override / out of range) we surface the raw
+ *  count unchanged so existing dashboards stay identical. */
+export function visibleCount(raw: number, cap: number | null): number {
+  if (cap === null) return raw;
+  return Math.min(raw, cap);
+}
 
 interface FlashcardsSummary { count: number; next_review_at?: string | null; }
 
-function FlashcardsDueWidget({ size }: WidgetProps<FlashcardsDueContent>) {
+function FlashcardsDueWidget({ size, content }: WidgetProps<FlashcardsDueContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const cap = resolveMaxCards(content);
+  const hideEmpty = resolveHideEmpty(content);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [data, setData] = useState<FlashcardsSummary | null>(null);
 
@@ -37,6 +65,16 @@ function FlashcardsDueWidget({ size }: WidgetProps<FlashcardsDueContent>) {
 
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
   if (status === 'empty') {
+    if (hideEmpty) {
+      // Quiet "0 cards" stat in place of the full empty-state card so
+      // a stretch of empty days doesn't dominate the hub.
+      return (
+        <div style={tinyStatWrapStyle()} data-testid="flashcards-due-empty-quiet">
+          <span style={statNumberStyle(bucket, 'var(--theme-fg-secondary)')}>0</span>
+          <span style={tinyStatLabelStyle()}>cards</span>
+        </div>
+      );
+    }
     if (bucket === 'tiny') {
       return (
         <div style={tinyStatWrapStyle()}>
@@ -48,19 +86,25 @@ function FlashcardsDueWidget({ size }: WidgetProps<FlashcardsDueContent>) {
     return <WidgetEmpty icon="🃏" title="No flashcards due" description="Cards return when their review timer fires." />;
   }
 
+  const rawCount = data?.count ?? 0;
+  const shown = visibleCount(rawCount, cap);
+  const overflow = cap !== null && rawCount > cap;
+
   if (bucket === 'tiny') {
     return (
       <div style={tinyStatWrapStyle()}>
-        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{data?.count ?? 0}</span>
-        <span style={tinyStatLabelStyle()}>{data?.count === 1 ? 'card' : 'cards'}</span>
+        <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{overflow ? `${shown}+` : shown}</span>
+        <span style={tinyStatLabelStyle()}>{shown === 1 ? 'card' : 'cards'}</span>
       </div>
     );
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-      <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{data?.count}</span>
-      <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>cards ready for review</span>
+      <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>{overflow ? `${shown}+` : shown}</span>
+      <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>
+        {overflow ? `cards ready (capped at ${cap})` : 'cards ready for review'}
+      </span>
       <Link href="/admin/learn/flashcards" style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-accent)', fontWeight: 600 }}>
         Start review →
       </Link>

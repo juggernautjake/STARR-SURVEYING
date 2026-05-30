@@ -13,13 +13,52 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export interface RecommendedLessonsContent extends Record<string, unknown> { /* none */ }
-const DEFAULTS: RecommendedLessonsContent = {};
+// Slice 15b — wired to the Slice-12 schema fields:
+//   - maxItems: clamp the rendered list to 1–10; null → size cap
+//   - category: 'all' | 'survey' | 'tech' | 'safety'. Filters the
+//               lessons client-side by inspecting module_title /
+//               title for the category token. A future API ?category=
+//               query can replace this without re-touching the
+//               render.
+import { resolveBoundedInt, resolveEnum } from '@/lib/hub/widgets/_shared/content-resolvers';
+
+export type RecommendedLessonsCategory = 'all' | 'survey' | 'tech' | 'safety';
+const CATEGORIES: ReadonlyArray<RecommendedLessonsCategory> = ['all', 'survey', 'tech', 'safety'];
+
+export interface RecommendedLessonsContent extends Record<string, unknown> {
+  maxItems?: number;
+  category?: RecommendedLessonsCategory;
+}
+const DEFAULTS: RecommendedLessonsContent = { maxItems: 4, category: 'all' };
+
+export const resolveMaxItems = (c: RecommendedLessonsContent): number | null =>
+  resolveBoundedInt(c.maxItems, 1, 10, null);
+export const resolveCategory = (c: RecommendedLessonsContent): RecommendedLessonsCategory =>
+  resolveEnum(c.category, CATEGORIES, 'all');
+
+const CATEGORY_TOKENS: Record<RecommendedLessonsCategory, ReadonlyArray<string>> = {
+  all:    [],
+  survey: ['survey', 'surveying', 'land', 'cad', 'parcel'],
+  tech:   ['tech', 'technical', 'gis', 'gps', 'rtk'],
+  safety: ['safety', 'osha', 'ppe', 'hazard'],
+};
+
+export function lessonMatchesCategory(
+  lesson: { title: string; module_title?: string | null },
+  category: RecommendedLessonsCategory,
+): boolean {
+  if (category === 'all') return true;
+  const tokens = CATEGORY_TOKENS[category];
+  const haystack = `${lesson.title} ${lesson.module_title ?? ''}`.toLowerCase();
+  return tokens.some((t) => haystack.includes(t));
+}
 
 interface Lesson { id: string; title: string; module_title?: string | null; estimated_minutes?: number | null; }
 
-function RecommendedLessonsWidget({ size }: WidgetProps<RecommendedLessonsContent>) {
+function RecommendedLessonsWidget({ size, content }: WidgetProps<RecommendedLessonsContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const explicitCap = resolveMaxItems(content);
+  const category = resolveCategory(content);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [lessons, setLessons] = useState<Lesson[]>([]);
 
@@ -57,10 +96,14 @@ function RecommendedLessonsWidget({ size }: WidgetProps<RecommendedLessonsConten
     );
   }
 
-  const cap = bucket === 'small' ? 3 : bucket === 'medium' ? 5 : bucket === 'large' ? 8 : 12;
+  const sizeCap = bucket === 'small' ? 3 : bucket === 'medium' ? 5 : bucket === 'large' ? 8 : 12;
+  const cap = explicitCap ?? sizeCap;
+  const filtered = category === 'all'
+    ? lessons
+    : lessons.filter((l) => lessonMatchesCategory(l, category));
   return (
     <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
-      {lessons.slice(0, cap).map((l) => (
+      {filtered.slice(0, cap).map((l) => (
         <li key={l.id}>
           <Link href={`/admin/learn/lessons/${l.id}`} style={{ display: 'block', padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)', textDecoration: 'none', color: 'var(--theme-fg-primary)' }}>
             <span style={{ display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{l.title}</span>

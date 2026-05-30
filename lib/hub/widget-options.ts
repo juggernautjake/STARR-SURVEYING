@@ -239,14 +239,21 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
         ] },
     ],
   },
+  // Slice 15b — schema revised to match what the widget actually
+  // renders. Pre-revision fields (showCompleted/showInProgress/
+  // showUpcoming) described per-phase visibility, but the widget
+  // displays a single roadmap rollup (percent + name + current
+  // module + progress bar). Toggles now gate the three visible sub-
+  // sections instead.
   'roadmap-progress': {
     source: 'schema',
     fields: [
-      { key: 'showCompleted', type: 'toggle', label: 'Show completed phases',
-        defaultValue: false },
-      { key: 'showInProgress', type: 'toggle', label: 'Show in-progress phases',
+      { key: 'showName', type: 'toggle', label: 'Show roadmap name',
         defaultValue: true },
-      { key: 'showUpcoming', type: 'toggle', label: 'Show upcoming phases',
+      { key: 'showCurrent', type: 'toggle', label: 'Show current module',
+        description: 'Surfaces the "Now on: …" line under the progress percent.',
+        defaultValue: true },
+      { key: 'showBar', type: 'toggle', label: 'Show progress bar',
         defaultValue: true },
     ],
   },

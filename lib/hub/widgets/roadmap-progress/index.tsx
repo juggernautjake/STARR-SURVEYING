@@ -12,13 +12,37 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export interface RoadmapProgressContent extends Record<string, unknown> { /* none for now */ }
-const DEFAULTS: RoadmapProgressContent = {};
+// Slice 15b — wired to the Slice-12 schema fields (revised this slice
+// to match what the widget can actually display: one roadmap rollup,
+// not per-phase data):
+//   - showName:    the roadmap title under the percent
+//   - showCurrent: the "Now on: <module>" line
+//   - showBar:     the inline progress bar
+// All three default true so existing layouts render identically.
+import { resolveBool } from '@/lib/hub/widgets/_shared/content-resolvers';
+
+export interface RoadmapProgressContent extends Record<string, unknown> {
+  showName?: boolean;
+  showCurrent?: boolean;
+  showBar?: boolean;
+}
+const DEFAULTS: RoadmapProgressContent = {
+  showName: true,
+  showCurrent: true,
+  showBar: true,
+};
+
+export const resolveShowName    = (c: RoadmapProgressContent): boolean => resolveBool(c.showName,    true);
+export const resolveShowCurrent = (c: RoadmapProgressContent): boolean => resolveBool(c.showCurrent, true);
+export const resolveShowBar     = (c: RoadmapProgressContent): boolean => resolveBool(c.showBar,     true);
 
 interface Roadmap { id: string; name: string; percent_complete: number; current_module?: string | null; }
 
-function RoadmapProgressWidget({ size }: WidgetProps<RoadmapProgressContent>) {
+function RoadmapProgressWidget({ size, content }: WidgetProps<RoadmapProgressContent>) {
   const bucket = sizeBucket(size.w, size.h);
+  const showName    = resolveShowName(content);
+  const showCurrent = resolveShowCurrent(content);
+  const showBar     = resolveShowBar(content);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
 
@@ -60,13 +84,17 @@ function RoadmapProgressWidget({ size }: WidgetProps<RoadmapProgressContent>) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
       <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{roadmap.percent_complete}%</span>
-      <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{roadmap.name}</span>
-      {roadmap.current_module && (
+      {showName && (
+        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{roadmap.name}</span>
+      )}
+      {showCurrent && roadmap.current_module && (
         <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>Now on: {roadmap.current_module}</span>
       )}
-      <div aria-hidden style={{ height: 6, borderRadius: 3, background: 'var(--theme-bg-elevated)', overflow: 'hidden' }}>
-        <div style={{ width: `${roadmap.percent_complete}%`, height: '100%', background: 'var(--theme-accent)' }} />
-      </div>
+      {showBar && (
+        <div aria-hidden style={{ height: 6, borderRadius: 3, background: 'var(--theme-bg-elevated)', overflow: 'hidden' }}>
+          <div style={{ width: `${roadmap.percent_complete}%`, height: '100%', background: 'var(--theme-accent)' }} />
+        </div>
+      )}
     </div>
   );
 }
