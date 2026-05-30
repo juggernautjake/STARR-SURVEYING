@@ -180,16 +180,50 @@ on drawings):*
 - 3 specs added; 1814 hub + notifications + jobs specs green;
   typecheck + lint clean.
 
-### Slice 5 — Job-scope sweep of existing notifications
+### Slice 5 — Job-scope sweep ✅ shipped 2026-05-30
 
-- Audit every existing notify call that fans out to multiple users
-  for a job event (job stage change, personnel assignment override,
-  schedule event reminder for a job-tied event). Replace the
-  recipients list with `usersForJobScope(jobId)` so the bell stays
-  scoped.
-- Updates `__tests__/notifications/notify-links-audit.test.ts` (Slice 1
-  of the prior pass) is unchanged — links don't move.
-- Add a `__tests__/jobs/scope.test.ts` for the new helper.
+**Audit findings.** The existing job-related fan-outs already split
+cleanly into two buckets:
+
+- **Already correctly scoped to the job team**:
+  - `app/api/admin/jobs/stages` uses `resolveStageRecipients(job_team
+    minus actor)`.
+  - `personnel/assign` (proposed) notifies just the assignee.
+  - `personnel/cancel-assignment` notifies just the affected surveyor.
+  - `schedule-event-reminders` notifies just the assigned user.
+- **Intentionally broader dispatcher broadcasts** — `personnel/assign`
+  override audit + `personnel/respond` decline fan-out target
+  every admin + equipment_manager so re-staffing dispatchers see
+  the event regardless of job. These are NOT scoped to job_team
+  because re-staffing is by design a cross-job role. **Deferred /
+  unchanged** — narrowing them would break the dispatcher workflow.
+
+**Actual gap closed by this slice.** The drawings notifications
+shipped in Slices 2-3 only targeted the assignee. Now they fan out
+to the job-scope cohort too:
+
+- `PATCH /api/admin/cad/drawings` calls `usersForJobScope(job_id,
+  actor)` after the primary "you've been assigned" payload fires.
+  Each peer (minus the assignee + actor) gets a softened payload
+  ("{actor} assigned {drawing} to {assignee}") so overseers see the
+  ownership move without thinking it's their task.
+- `/api/cron/drawing-due-reminder` caches per-job scope lookups
+  (one DB hit per job, not per drawing), and for every reminder it
+  fires the primary payload to the assignee + a softened "Reminder
+  for the job team" payload to each overseer.
+
+This matches the user's brief — "whoever is on a job or overseeing a
+job needs to get drawing notifications" — without churning the
+already-correct stage/assign/schedule code paths.
+
+No new test file in this slice: the pure builders + the
+`resolveJobScope` helper (which the new fan-outs route through) are
+already locked by their respective specs. Integration coverage of
+the DB fan-out belongs in a future end-to-end test layer; no value
+in a route-level mock for two best-effort notify calls.
+
+Full hub + notifications + jobs **1814 specs green**; typecheck +
+lint clean.
 
 ## Out of scope / placeholder
 
@@ -200,6 +234,16 @@ on drawings):*
 - A real Mentions data model — today's @-mention detection is a
   scan-based fallback. Replacing it with a structured `mentions`
   table is a separate plan when the user wants it.
+- **Drawings widget chips (assignee initials + due-date)** — Slice 4
+  shipped the notes dialog (the headline ask) and explicitly deferred
+  the per-widget chips because they need API-shape + per-widget
+  rendering work that's polish, not core collaboration. Best picked
+  up alongside the next hub-widget pass.
+- **Dispatcher-broadcast fan-out narrowing** — Slice 5 audit found
+  `personnel/assign` override audit + `personnel/respond` decline
+  fan-out intentionally broadcast to admins + equipment_managers
+  because re-staffing is a cross-job dispatcher concern.
+  Intentionally unchanged.
 
 ## Guardrails
 

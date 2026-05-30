@@ -12,6 +12,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildDrawingAssignedNotification } from '@/lib/notifications/drawing';
+import { usersForJobScope } from '@/lib/jobs/scope';
 
 // ─── GET ────────────────────────────────────────────────────────────────────
 
@@ -223,9 +224,16 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
 
   // drawings-collaboration Slice 2 — notify the new assignee when
   // assigned_to lands on a real (different) email. Best-effort.
+  //
+  // Slice 5 — also fan out to the job-scope cohort (the job_team
+  // minus the actor + the assignee themselves, since they get the
+  // dedicated payload above) so overseers know who's drawing the
+  // sheet. Matches the user's "whoever is on or overseeing a job
+  // needs to get drawing notifications" guardrail.
   const newAssignee = (data.assigned_to as string | null)?.trim().toLowerCase();
   const priorAssignee = (prior?.assigned_to as string | null | undefined)?.trim().toLowerCase();
-  if (newAssignee && newAssignee !== priorAssignee && newAssignee !== session.user.email.toLowerCase()) {
+  const actor = session.user.email.toLowerCase();
+  if (newAssignee && newAssignee !== priorAssignee && newAssignee !== actor) {
     try {
       const notice = buildDrawingAssignedNotification({
         user_email: newAssignee,
@@ -235,6 +243,33 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
         assigned_by: session.user.email,
       });
       if (notice) await notify(notice);
+
+      // Job-scope fan-out — peers on the job_team (minus assignee +
+      // actor) get a "FYI: X assigned to {drawer}" so they know who
+      // owns the deliverable.
+      const jobId = (data.job_id as string | null) ?? null;
+      if (jobId) {
+        const scope = await usersForJobScope(jobId, supabaseAdmin, actor);
+        for (const peer of scope) {
+          if (peer === newAssignee) continue;
+          try {
+            const peerNotice = buildDrawingAssignedNotification({
+              user_email: peer,
+              drawing_id: data.id as string,
+              drawing_name: data.name as string,
+              job_id: jobId,
+              assigned_by: session.user.email,
+            });
+            if (peerNotice) {
+              // Reframe the body so overseers see who got the
+              // drawing, not "you've been assigned".
+              peerNotice.title = `🎯 ${newAssignee} assigned ${(data.name as string) || 'a drawing'}`;
+              peerNotice.body = `${session.user.email} assigned the drawing to ${newAssignee}. Open it in the CAD editor.`;
+              await notify(peerNotice);
+            }
+          } catch { /* ignore */ }
+        }
+      }
     } catch { /* ignore notification failures */ }
   }
 

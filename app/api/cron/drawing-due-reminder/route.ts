@@ -7,6 +7,9 @@
 // (3 / 1 / 0 days + overdue once per run) mirrors the assignment-
 // reminders cron so the bell stays spam-free.
 //
+// Slice 5 — fans out to the job-scope cohort (assignee + job_team)
+// so overseers see the deadline, not just the drawer.
+//
 // Auth: `Authorization: Bearer <CRON_SECRET>` (same as the other crons;
 // Vercel attaches it automatically). Register in vercel.json.
 
@@ -18,6 +21,7 @@ import {
   buildDrawingDueReminders,
   type DrawingDueRow,
 } from '@/lib/notifications/drawing';
+import { usersForJobScope } from '@/lib/jobs/scope';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const authHeader = req.headers.get('authorization') ?? '';
@@ -39,7 +43,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const reminders = buildDrawingDueReminders((data ?? []) as DrawingDueRow[], Date.now());
 
+  // Cache per-job scope lookups so each job hits the DB once even when
+  // it has multiple due drawings.
+  const scopeCache = new Map<string, string[]>();
+  async function scopeFor(jobId: string | null): Promise<string[]> {
+    if (!jobId) return [];
+    const cached = scopeCache.get(jobId);
+    if (cached) return cached;
+    const fetched = await usersForJobScope(jobId, supabaseAdmin);
+    scopeCache.set(jobId, fetched);
+    return fetched;
+  }
+
   let sent = 0;
+  let overseerFanout = 0;
   for (const reminder of reminders) {
     try {
       await notify(reminder);
@@ -47,7 +64,35 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     } catch {
       /* ignore individual failures */
     }
+
+    // Slice 5 — fan out to the job team (minus the assignee, who got
+    // the primary payload above). Each overseer sees a softened body
+    // so they don't think it's their personal task to deliver.
+    const sourceRow = (data ?? []).find(
+      (r: { id?: string | null }) => r.id === reminder.source_id,
+    ) as DrawingDueRow | undefined;
+    const jobId = sourceRow?.job_id ?? null;
+    if (!jobId) continue;
+    const scope = await scopeFor(jobId);
+    for (const peer of scope) {
+      if (peer === reminder.user_email) continue;
+      try {
+        await notify({
+          ...reminder,
+          user_email: peer,
+          body: `Reminder for the job team: ${reminder.title.replace(/^⏰\s*/, '')}.`,
+        });
+        overseerFanout += 1;
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
-  return NextResponse.json({ scanned: data?.length ?? 0, reminders: reminders.length, sent });
+  return NextResponse.json({
+    scanned: data?.length ?? 0,
+    reminders: reminders.length,
+    sent,
+    overseer_fanout: overseerFanout,
+  });
 }, { routeName: 'cron/drawing-due-reminder' });
