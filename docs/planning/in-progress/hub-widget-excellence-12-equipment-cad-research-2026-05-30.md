@@ -96,6 +96,22 @@ editor** (`/admin/cad?job={id}`) per the user.*
 - **Row deep link (KEY):** open in CAD editor → `/admin/cad?job={id}`.
 - **Editor:** scope (mine/team), rowLimit.
 - **Slices:** Build/Wire + R1–4.
+- **Build/Wire + Rounds 1–4 ✅ shipped 2026-05-30.** **R1 found
+  `cad_drawings` has no workflow status, assignee, or progress
+  columns** — the widget's `assigned_to` / `percent_complete` / `due_at`
+  + `?status=in-progress` were all phantom (the % bar never rendered,
+  the status filter was ignored). Honest realignment: "in progress" =
+  recently-updated drawings (the GET already orders by `updated_at`
+  desc; scope 'mine' now filters to the caller via the Slice-fixed
+  `?mine=true`). The widget shows the **real** fields — name + joined
+  `job_name` + last-updated age — and each row **opens in CAD with its
+  job loaded** by reusing recent-drawings' tested `cadOpenHref`
+  (`/admin/cad?job={job_id}`). Dropped the phantom progress bar. Footer
+  "Go to CAD →" is global. 4 specs (registry, reuses cadOpenHref, no
+  `d.percent_complete`, no `?status` param). Full hub suite green;
+  typecheck + lint clean. (Real drawing progress/assignee tracking would
+  need new `cad_drawings` columns — flagged for a future schema slice.)
+  **drawings-in-progress is done.**
 
 ## crew-calendar
 - **Endpoint:** `/api/admin/personnel/crew-calendar?range=…`. Fields:
