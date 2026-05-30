@@ -23,6 +23,7 @@ import CloseDrawingDialog from './components/CloseDrawingDialog';
 import SketchReconcileDialog from './components/SketchReconcileDialog';
 import ImportDialog from './components/ImportDialog';
 import PrintDialog from './components/PrintDialog';
+import DrawingNotesDialog from './components/DrawingNotesDialog';
 import MediaViewer from './components/MediaViewer';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import AIDrawingDialog from './components/AIDrawingDialog';
@@ -580,6 +581,17 @@ export default function CADLayout() {
     const handler = () => setShowPrintDialog(true);
     window.addEventListener('cad:openPrintDialog', handler);
     return () => window.removeEventListener('cad:openPrintDialog', handler);
+  }, []);
+
+  // drawings-collaboration Slice 4 — notes thread dialog opens via the
+  // MenuBar's File → "💬 Drawing notes…" entry, which dispatches
+  // `cad:openDrawingNotes`. The dialog reads the current drawing id
+  // from drawingStore.document.id at open time.
+  const [showNotesDialog, setShowNotesDialog] = useState(false);
+  useEffect(() => {
+    const handler = () => setShowNotesDialog(true);
+    window.addEventListener('cad:openDrawingNotes', handler);
+    return () => window.removeEventListener('cad:openDrawingNotes', handler);
   }, []);
 
   // Traverse Viewer toggle (§10e)
@@ -1243,6 +1255,18 @@ export default function CADLayout() {
 
       {/* Print / export-settings dialog */}
       {showPrintDialog && <PrintDialog onClose={() => setShowPrintDialog(false)} />}
+
+      {/* drawings-collaboration Slice 4 — notes thread (RPLS ↔ drawer
+          ↔ job overseers). Opens via the File → "💬 Drawing notes…"
+          MenuBar entry. */}
+      {showNotesDialog && (
+        <DrawingNotesDialog
+          open={showNotesDialog}
+          drawingId={drawingStore.document.id}
+          drawingName={drawingStore.document.name}
+          onClose={() => setShowNotesDialog(false)}
+        />
+      )}
 
       {/* Media viewer (opens on cad:openMediaViewer) */}
       <MediaViewer />

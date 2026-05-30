@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildPayStubNotification } from '@/lib/notifications/payout';
 
 // GET: List payroll runs or get specific run with stubs
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -274,7 +276,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
     if (stubs && stubs.length > 0) {
       for (const stub of stubs) {
-        const s = stub as { id: string; user_email: string; net_pay: number };
+        const s = stub as { id: string; user_email: string; net_pay: number; pay_period_start: string; pay_period_end: string };
         // Get current balance
         const { data: profile } = await supabaseAdmin
           .from('employee_profiles')
@@ -313,6 +315,17 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
           .from('pay_stubs')
           .update({ disbursement_status: 'credited', credited_at: new Date().toISOString() })
           .eq('id', s.id);
+
+        // notifications-completeness-pass Slice 2 — the employee gets
+        // a bell notification telling them the stub is ready + the
+        // amount has been credited. Link to /admin/my-pay.
+        const notice = buildPayStubNotification({
+          user_email: s.user_email,
+          net_pay: s.net_pay,
+          pay_period_start: s.pay_period_start,
+          pay_period_end: s.pay_period_end,
+        });
+        if (notice) await notify(notice);
       }
     }
   }

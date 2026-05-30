@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildDrawingAssignedNotification } from '@/lib/notifications/drawing';
 
 // ─── GET ────────────────────────────────────────────────────────────────────
 
@@ -171,7 +173,16 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await req.json() as { id?: string; name?: string; description?: string; folder_id?: string | null };
+  const body = await req.json() as {
+    id?: string;
+    name?: string;
+    description?: string;
+    folder_id?: string | null;
+    // drawings-collaboration Slice 2 — assignment + due-date editable
+    // via PATCH. Either nullable to support unassign / clear-due.
+    assigned_to?: string | null;
+    due_date?: string | null;
+  };
   if (!body.id) {
     return NextResponse.json({ error: 'Missing required field: id' }, { status: 400 });
   }
@@ -185,20 +196,48 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (typeof body.description === 'string') patch.description = body.description.trim() || null;
   // Move into a folder (null = root).
   if ('folder_id' in body) patch.folder_id = body.folder_id ?? null;
+  if ('assigned_to' in body) patch.assigned_to = body.assigned_to?.trim().toLowerCase() || null;
+  if ('due_date' in body) patch.due_date = body.due_date || null;
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   }
+
+  // Read the prior row so we can detect a real assigned_to transition
+  // (an admin re-saving an unchanged assignment shouldn't double-ping).
+  const { data: prior } = await supabaseAdmin
+    .from('cad_drawings')
+    .select('assigned_to')
+    .eq('id', body.id)
+    .maybeSingle();
 
   // Shared workspace — any authenticated CAD user can rename / move / re-describe.
   const { data, error } = await supabaseAdmin
     .from('cad_drawings')
     .update(patch)
     .eq('id', body.id)
-    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at')
+    .select('id, name, description, feature_count, layer_count, job_id, folder_id, assigned_to, due_date, created_by, created_at, updated_at')
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Drawing not found' }, { status: 404 });
+
+  // drawings-collaboration Slice 2 — notify the new assignee when
+  // assigned_to lands on a real (different) email. Best-effort.
+  const newAssignee = (data.assigned_to as string | null)?.trim().toLowerCase();
+  const priorAssignee = (prior?.assigned_to as string | null | undefined)?.trim().toLowerCase();
+  if (newAssignee && newAssignee !== priorAssignee && newAssignee !== session.user.email.toLowerCase()) {
+    try {
+      const notice = buildDrawingAssignedNotification({
+        user_email: newAssignee,
+        drawing_id: data.id as string,
+        drawing_name: data.name as string,
+        job_id: (data.job_id as string | null) ?? null,
+        assigned_by: session.user.email,
+      });
+      if (notice) await notify(notice);
+    } catch { /* ignore notification failures */ }
+  }
+
   return NextResponse.json({ drawing: data });
 });
 

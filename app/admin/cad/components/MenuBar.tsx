@@ -502,6 +502,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
         { label: 'Open Saved Drawing…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
         { label: 'File Manager…', action: () => { window.dispatchEvent(new CustomEvent('cad:openFileManager')); setOpenMenu(null); } },
+        // drawings-collaboration Slice 4 — notes thread for the current
+        // drawing. The RPLS / drawer / job-overseer dialog.
+        { label: '💬 Drawing notes…', action: () => { window.dispatchEvent(new CustomEvent('cad:openDrawingNotes')); setOpenMenu(null); } },
         { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: () => { void saveDocument(); setOpenMenu(null); } },
