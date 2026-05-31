@@ -102,18 +102,29 @@ layer panel + right-click menus:*
   / unknown-id paths.
 - Full cad suite (1982) green; typecheck + lint clean.
 
-### Slice 3 — LayerPanel tree render (recursive)
+### Slice 3 — LayerPanel tree render (recursive) ✅ shipped 2026-05-31
 
-- LayerPanel renders a true tree:
-    Layer
-      ↳ Group (expandable)
-        ↳ Nested group
-          ↳ Feature row (polygon with its own chevron, or line, or
-            point, etc.)
-- Indentation 12px per depth level. Expand state persisted on the
-  group itself (`FeatureGroup.collapsed?: boolean`).
-- Drag-and-drop (deferred to Slice 7) — for now reparenting is via
-  right-click → "Move to group…".
+- LayerPanel iterates ONLY root-level groups (`parentGroupId == null`)
+  via the new `rootLayerGroups` filter. Nested groups are reached by
+  the recursive `renderGroup(group, depth)` helper, which renders
+  the group header + (when expanded) child groups via recursion at
+  `depth + 1` followed by member features.
+- Indentation is `depth * 0.75rem` (12 px / level) applied as
+  `paddingLeft` to the outer div, so all descendants of a nested
+  group inherit the offset and stack cleanly. Depth-0 groups have
+  no extra padding ⇒ pixel-identical to the pre-Slice-3 flat render
+  for users with no nested groups.
+- Child groups render BEFORE member features inside an expanded
+  group (containers above leaves), matching CAD layer-panel
+  convention.
+- Expand state stays in the existing `expandedGroups: Set<string>`
+  state (no `FeatureGroup.collapsed?` field needed — the in-panel
+  state was already there from earlier slices).
+- Tests: 7 source-text specs lock the root-filter, the iteration
+  source, the renderGroup signature, the child-group lookup, the
+  per-depth indentation, the recursive call at `depth + 1`, the
+  child-before-features order, and the `data-group-depth` stamp.
+- Full cad suite (1990) green; typecheck + lint clean.
 
 ### Slice 4 — Multi-select → right-click → "Group selected"
 
