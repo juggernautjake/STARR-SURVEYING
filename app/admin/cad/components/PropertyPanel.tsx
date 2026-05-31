@@ -1498,6 +1498,60 @@ export default function PropertyPanel() {
                     className="space-y-2 rounded border border-gray-700 bg-gray-800/50 p-2"
                     data-testid="property-panel-fill-pattern-params"
                   >
+                    {/* cad-fill-stacking Slice 5 — Opacity, 0–1.
+                        Lives at the top of the params card so it's
+                        the first control after the pattern picker
+                        (the user can immediately fade an infill they
+                        just applied). The render path's
+                        `patternAlpha` already derives from
+                        `feature.style.fillOpacity` — this row just
+                        surfaces the knob with the same slider +
+                        paired numeric input affordance the other
+                        rows use. */}
+                    {(() => {
+                      const fillOpacity = Number.isFinite(feature.style.fillOpacity)
+                        ? (feature.style.fillOpacity as number)
+                        : 1;
+                      return (
+                        <label className="block">
+                          <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                            <span className="uppercase tracking-wider">Opacity</span>
+                            <span className="tabular-nums text-gray-200">{fillOpacity.toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={fillOpacity}
+                              data-testid="property-panel-fill-pattern-opacity"
+                              className="flex-1 accent-blue-500"
+                              onChange={(e) => {
+                                drawingStore.updateFeature(feature.id, {
+                                  style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillOpacity: clamp(parseFloat(e.target.value), 0, 1, 1), isOverride: true },
+                                });
+                              }}
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={fillOpacity}
+                              data-testid="property-panel-fill-pattern-opacity-input"
+                              className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                              onChange={(e) => {
+                                drawingStore.updateFeature(feature.id, {
+                                  style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillOpacity: clamp(parseFloat(e.target.value), 0, 1, 1), isOverride: true },
+                                });
+                              }}
+                            />
+                          </div>
+                        </label>
+                      );
+                    })()}
+
                     {/* Density */}
                     <label className="block">
                       <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">

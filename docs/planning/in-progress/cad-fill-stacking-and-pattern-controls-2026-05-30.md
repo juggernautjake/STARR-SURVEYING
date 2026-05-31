@@ -177,12 +177,19 @@
   entry + slider testids + cfg wiring. Full fill suite (110) green;
   typecheck + lint clean.
 
-### Slice 5 — Opacity slider
+### Slice 5 — Opacity slider ✅ shipped 2026-05-31
 
-- Surface `feature.style.fillOpacity` as a 4th param slider
-  (0–1, step 0.05) + numeric input, in the same params card as
-  Density/Thickness/Angle. Lives on every pattern.
-- Render path already honors `fillOpacity`; just need the UI.
+- New Opacity row at the top of the fill-pattern params card (before
+  Density), shown for every non-NONE/SOLID pattern. Slider 0–1 in
+  0.05 steps + paired numeric input, matching the affordance the
+  Density/Thickness/Angle rows already use.
+- Reads + writes `feature.style.fillOpacity`. Defaults to 1 when the
+  field is missing. The render path's `patternAlpha` already
+  derives from `fillOpacity` (cad-fill-stacking Slice 1) so this is
+  pure UI wiring with no render-path changes.
+- Tests: 5 source-text specs lock the slider testids, min/max/step
+  range, clamp + commit, and the default-1 fallback. Typecheck +
+  lint clean.
 
 ### Slice 6 — Stack multiple infill patterns on one area
 
