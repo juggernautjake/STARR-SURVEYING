@@ -95,7 +95,29 @@ fill-picker dropdown polish:*
   `data-hidden` matches `Feature.hidden`.
 - Hidden Items panel (already exists) keeps working alongside.
 
-### Slice 3 — Survey-info text uses the regular TEXT pipeline + hides with the layer
+### Slice 3 — Survey-info hides with its layer ✅ shipped 2026-05-30
+
+- Gated the entire paper-furniture overlay (title block + scale bar +
+  signature + north arrow + legend + certification + notes) on the
+  `SURVEY-INFO` layer's `visible` flag, via `pixi.titleBlockLayer.
+  visible = surveyInfoLayer.visible !== false` at the top of
+  `renderTitleBlock` (runs every frame). When hidden, clears
+  `tbBoundsRef` so an invisible overlay can't capture clicks /
+  context menus, then early-returns.
+- Defaults to "visible" if the SURVEY-INFO layer is missing (legacy
+  drawings unchanged).
+- **TEXT-feature parity deferred**: regular TEXT features on the
+  SURVEY-INFO layer already render through the standard
+  `drawFeature` → TEXT branch (so they already get the regular text-
+  tool semantics — font, color, drag, rotate, delete — plus layer-
+  visibility filtering through `getVisibleFeatures`). No code change
+  needed; the user can already add text to that layer and it
+  behaves like any other TEXT feature. Documented here so a future
+  reader doesn't re-investigate.
+- Tests: 5 source-text asserts lock the read of `SURVEY-INFO`, the
+  `tbVisible` derivation, the `titleBlockLayer.visible` write, the
+  early return, and the `tbBoundsRef` clear.
+- Full cad suite (1839) green; typecheck + lint clean.
 
 - Audit the title-block / scale / north-arrow renderers. Either
   (a) gate them on `document.layers['SURVEY-INFO'].visible`, or

@@ -2565,6 +2565,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function renderTitleBlock() {
     const pixi = pixiRef.current;
     if (!pixi) return;
+    // cad-fill-rotation Slice 3 — gate the entire title-block overlay
+    // (title block + scale bar + signature + north arrow + legend +
+    // certification + notes) on the SURVEY-INFO layer's visible flag,
+    // so toggling that layer's eye in LayerPanel hides every overlay
+    // element in one shot. The overlays are paper-fixed canvas
+    // graphics (not real Feature rows on the layer), so they need an
+    // explicit visibility hook — without this, the SURVEY-INFO eye
+    // was dead. Falls back to "visible" if the layer is missing.
+    const surveyInfoLayer = drawingStore.document.layers['SURVEY-INFO'];
+    const tbVisible = surveyInfoLayer ? surveyInfoLayer.visible !== false : true;
+    pixi.titleBlockLayer.visible = tbVisible;
+    if (!tbVisible) {
+      // Clear hit-bounds so a hidden overlay can't capture clicks /
+      // context menus when invisible.
+      tbBoundsRef.current = {
+        northArrow: null, titleBlock: null, scaleBar: null,
+        signatureBlock: null, officialSealLabel: null,
+        certification: null, notes: null,
+      };
+      return;
+    }
     const g = pixi.titleBlockGraphics;   // shared overlay / hover graphics
 
     // ── Clear shared overlay graphics
