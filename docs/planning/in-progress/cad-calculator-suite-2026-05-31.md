@@ -116,15 +116,36 @@
   viewport-aware default max.
 - Full cad suite (2115) green; typecheck + lint clean.
 
-### Slice 4 — Calculator picker + integrate into the modal
+### Slice 4 — Calculator picker + integrate into the modal ✅ shipped 2026-05-31
 
-- The modal's top bar shows a small dropdown listing every
-  registered calculator (`Generic`, `Curve`, …). Switching writes
-  the new `activeCalculatorId` to the store; each calculator
-  mounts/unmounts independently so its state stays intact.
-- MenuBar entry renames from "Curve Calculator…" → "Calculator…"
-  and opens the calculator suite at the last-used (or default
-  generic) calculator.
+- New `CalculatorPicker.tsx` — small `<select>` in the
+  ResizableModal's `headerActions` slot. Exports
+  `REGISTERED_CALCULATORS` (currently `generic` + `curve`).
+  Reads `activeCalculatorId` from the store; writes via
+  `setActiveCalculator`. Each entry becomes one `<option>`.
+- New `CalculatorModal.tsx` — composes `ResizableModal` (Slice 3)
+  + `CalculatorPicker` (this slice) + the active calculator body.
+  Switches on `activeId`:
+    - `'generic'` → `<GenericCalculator />` (Slice 2).
+    - `'curve'` → placeholder pointing the user at the legacy
+      Tools → Curve Calculator… entry, noting that Slice 6 will
+      fold Curve into the suite.
+  - 360 × 460 baseline `naturalSize`; the resize handle pulls
+    larger for big-screen typing.
+- `CADLayout` mounts `<CalculatorModal>` and tracks open state
+  in a new `showCalculatorModal` useState. Passes
+  `onOpenCalculator={() => setShowCalculatorModal(true)}` to
+  MenuBar. The legacy Curve Calculator (ModalFrame-based)
+  stays untouched so nothing breaks during the transition.
+- MenuBar grows an `onOpenCalculator?: () => void` prop + a new
+  "Calculator…" entry alongside the legacy "Curve Calculator…"
+  entry (CC shortcut stays; new C shortcut opens the suite).
+- 17 source-text specs lock the picker (`REGISTERED_CALCULATORS`
+  + store reads/writes + per-option render), the modal composition
+  (imports, header action, body switch, placeholder, baseline
+  size), the CADLayout wiring (import + state + prop + render),
+  and the MenuBar prop + entry + legacy preservation.
+- Full cad suite (2130) green; typecheck + lint clean.
 
 ### Slice 5 — Persistence + last-used restore
 

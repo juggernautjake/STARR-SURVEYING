@@ -55,7 +55,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel, onOpenRecentRecoveries }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void; onOpenRecentRecoveries?: () => void }) {
+export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTraversePanel, onOpenCurveCalculator, onOpenCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel, onOpenRecentRecoveries }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void; onOpenRecentRecoveries?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -718,6 +718,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           label: 'Curve Calculator…',
           shortcut: 'CC',
           action: () => { onOpenCurveCalculator?.(); setOpenMenu(null); },
+        },
+        // cad-calculator-suite Slice 4 — new multi-calculator
+        // modal (Generic + Curve in Slice 6). Opens at the
+        // last-used calculator + restores per-calculator state.
+        {
+          label: 'Calculator…',
+          shortcut: 'C',
+          action: () => { onOpenCalculator?.(); setOpenMenu(null); },
         },
         { separator: true },
         { label: 'Arc', shortcut: 'A', action: () => { toolStore.setTool('DRAW_ARC'); setOpenMenu(null); } },
