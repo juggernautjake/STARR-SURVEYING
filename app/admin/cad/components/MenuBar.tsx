@@ -38,6 +38,10 @@ import { applyTrvMetadataToTitleBlock } from '@/lib/cad/io/trv-titleblock';
 // Switched to the OUTLIER-RESISTANT robust bbox (1st-99th
 // percentile) so the surveyor's actual lot determines the paper.
 import { fitPaperToBounds, bboxOfFeaturePointsRobust } from '@/lib/cad/io/trv-paper-fit';
+// cad-duplicate-point-handling Slice 4 — merge-time auto-rename
+// for TRV POINT features whose trvPointId already exists in the
+// drawing (cross-file collisions).
+import { dedupeTrvFeaturesAgainstDrawing } from '@/lib/cad/io/dedupe-trv-features';
 // cad-trv-import-export-deep-semantic Pass 8 — sniff file format
 // + structured error diagnostics for the Open… dialog.
 import { detectFileFormat, buildFileLoadDiagnostic, formatFileLoadDiagnostic } from '@/lib/cad/io/file-detect';
@@ -301,7 +305,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             return;
           }
           for (const l of report.mapped.layers) drawingStore.addLayer(l);
-          drawingStore.addFeatures(report.mapped.features);
+          // cad-duplicate-point-handling Slice 4 — rename any
+          // imported POINT whose trvPointId already exists in
+          // the current drawing using the `:N` convention.
+          const dedupedOpen = dedupeTrvFeaturesAgainstDrawing(
+            report.mapped.features,
+            Object.values(drawingStore.document.features),
+          );
+          drawingStore.addFeatures(dedupedOpen.features);
+          if (dedupedOpen.renames.length > 0) {
+            cadLog.info('FileIO', `Auto-renamed ${dedupedOpen.renames.length} colliding TRV point id(s) on import`);
+          }
           cadLog.info('FileIO', `Loaded TRV via Open dialog: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
           // Offer the title-block metadata apply (same as importTrv).
           const m = report.metadata;
@@ -459,7 +473,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       );
       if (!ok) return;
       for (const l of report.mapped.layers) drawingStore.addLayer(l);
-      drawingStore.addFeatures(report.mapped.features);
+      // cad-duplicate-point-handling Slice 4 — rename any
+      // imported POINT whose trvPointId already exists in the
+      // current drawing using the `:N` convention.
+      const dedupedImport = dedupeTrvFeaturesAgainstDrawing(
+        report.mapped.features,
+        Object.values(drawingStore.document.features),
+      );
+      drawingStore.addFeatures(dedupedImport.features);
+      if (dedupedImport.renames.length > 0) {
+        cadLog.info('FileIO', `Auto-renamed ${dedupedImport.renames.length} colliding TRV point id(s) on import`);
+      }
       cadLog.info('FileIO', `Imported TRV: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
       // Pass 6 — offer to apply TRV project metadata to the
       // drawing's title block. Non-destructive: the helper only

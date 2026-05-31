@@ -136,7 +136,41 @@ Full cad suite (2318) green; typecheck + lint clean.
 - Tests: pipeline integration with a 3-collision fixture +
   the renames flow through to the result.
 
-### Slice 4 — TRV mapper applies the same dedupe convention
+### Slice 4 — TRV mapper applies the same dedupe convention ✅ shipped 2026-05-31
+
+- New `lib/cad/io/dedupe-trv-features.ts` (pure):
+  - `dedupeTrvFeaturesAgainstDrawing(newFeatures, existingFeatures)`
+    walks every POINT in `newFeatures`, checks each
+    `properties.trvPointId` against the drawing's existing set,
+    and renames colliders using the next free `:N` suffix.
+  - Skips suffixes already in use (so a drawing with `23` +
+    `23:1` makes a new `23` step to `23:2`).
+  - Tracks intra-import duplicates against the same usedIds
+    set so a single import containing `23` twice resolves
+    cleanly (`23` + `23:1`).
+  - Non-POINT features (polylines / polygons / arcs / splines)
+    pass through untouched.
+  - Records `originalTrvPointId` on the renamed feature so
+    the UI can show lineage.
+  - Returns a `PointRename[]` log matching Slice-1's shape,
+    with `SAME_LAYER` / `CROSS_LAYER` kind tagging.
+- MenuBar's two TRV import branches (Open route + dedicated
+  Import TRV) call the helper just before `addFeatures` and log
+  the rename count via cadLog.
+- 11 specs lock: empty-drawing pass-through; cross-layer
+  rename + kind; same-layer rename + kind; existing `:1` skips
+  to `:2`; intra-import duplicate resolution; non-POINT
+  pass-through; originalTrvPointId stamping; POINT without
+  trvPointId pass-through; MenuBar wires the helper into BOTH
+  branches; addFeatures consumes the deduped output.
+- The legacy `trv-io` source-text assertion that locked the raw
+  `addFeatures(report.mapped.features)` shape updated to the
+  new `addFeatures(dedupedOpen|Import.features)` form.
+- Full cad suite (2340) green; typecheck + lint clean.
+
+## Status
+
+All four slices shipped. Plan doc moves to `completed/`.
 
 - TRV import's `trvToDrawing` already preserves source `:N`
   ids. When OUR auto-rename creates new `:N` collisions (e.g.
