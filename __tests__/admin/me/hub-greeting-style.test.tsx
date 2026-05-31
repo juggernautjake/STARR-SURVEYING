@@ -73,11 +73,15 @@ describe('Enter Work Mode CTA — gradient green pill (matches estimate banner)'
     expect(block).toMatch(/border-radius:\s*9999px/);
   });
 
-  it('has larger padding (0.95rem 2.1rem) + heavier weight + min-width so it reads as the primary CTA', () => {
+  it('has larger padding + heavier weight + min-width so it reads as the primary CTA', () => {
+    // hub-greeting-button-polish 2026-05-30 — bumped from
+    // 0.95rem 2.1rem / 1.08rem / 13rem to 1.2rem 2.6rem / 1.22rem /
+    // 15rem so the CTA reads as a stronger landing affordance.
     const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn,');
-    expect(block).toMatch(/padding:\s*0\.95rem\s+2\.1rem/);
+    expect(block).toMatch(/padding:\s*1\.2rem\s+2\.6rem/);
+    expect(block).toMatch(/font-size:\s*1\.22rem/);
     expect(block).toMatch(/font-weight:\s*700/);
-    expect(block).toMatch(/min-width:\s*13rem/);
+    expect(block).toMatch(/min-width:\s*15rem/);
   });
 
   it('has a layered green-tinted shadow so it pops off the navy', () => {

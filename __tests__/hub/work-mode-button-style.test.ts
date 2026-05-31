@@ -1,11 +1,19 @@
 // __tests__/hub/work-mode-button-style.test.ts
 //
-// Locks the source-level styling of the "Enter Work Mode" CTA: white
-// text + a solid white border, no spinning gradient. The original
-// Slice-1 version had a hover-only spinning red/white/blue conic ring;
-// a 2026-05-30 follow-up removed it (the user disliked it) and kept
-// the label plain white. Source-regex on AdminMe.css since CSS rules
-// can't be meaningfully asserted in jsdom.
+// Locks the source-level styling of the "Enter Work Mode" CTA.
+//
+// Timeline:
+//   - Original: white text + solid white border + a hover-only
+//     spinning red/white/blue conic ring.
+//   - 2026-05-30 follow-up #1: user removed the spinning ring (felt
+//     too busy).
+//   - 2026-05-30 follow-up #2 (hub-greeting-button-polish): user
+//     asked for the spinning border BACK on hover, the button
+//     bigger, and vertical-centered in the panel. This file locks
+//     the new contract.
+//
+// Source-regex on AdminMe.css since CSS rules can't be meaningfully
+// asserted in jsdom.
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
@@ -39,9 +47,6 @@ describe('Work Mode button — white text + solid white border', () => {
   });
 
   it('keeps the label white on hover too', () => {
-    // Slice the hover rule from its selector to the next closing brace
-    // after stripping comments (a comment in the block carries a stray
-    // `{` that would otherwise truncate a naive block regex).
     const noComments = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
     const start = noComments.indexOf('.hub-greeting__work-mode-btn.hub-btn:hover,');
     const block = start >= 0
@@ -52,25 +57,38 @@ describe('Work Mode button — white text + solid white border', () => {
   });
 });
 
-describe('Work Mode button — the spinning gradient is gone', () => {
-  it('no longer declares the --wm-angle @property', () => {
-    expect(CSS).not.toMatch(/@property --wm-angle/);
+describe('Work Mode button — hover-only spinning red/white/blue ring (2026-05-30 follow-up #2)', () => {
+  it('paints a conic-gradient ring on a ::before pseudo of the button', () => {
+    expect(CSS).toMatch(/\.hub-greeting__work-mode-btn\.hub-btn::before\s*\{[\s\S]*?conic-gradient\(/);
   });
 
-  it('no longer defines the wm-spin keyframes', () => {
-    expect(CSS).not.toMatch(/@keyframes wm-spin/);
+  it('the ring is hidden at rest (opacity: 0) so the button reads calm', () => {
+    const start = CSS.indexOf('.hub-greeting__work-mode-btn.hub-btn::before');
+    const end = CSS.indexOf('}', start);
+    const pseudo = start >= 0 ? CSS.slice(start, end + 1) : '';
+    expect(pseudo).toMatch(/opacity:\s*0/);
   });
 
-  it('no longer paints a conic-gradient ring or label fill', () => {
-    expect(CSS).not.toMatch(/conic-gradient/);
+  it('reveals + spins the ring on :hover and :focus-visible', () => {
+    expect(CSS).toMatch(/\.hub-greeting__work-mode-btn\.hub-btn:hover::before[\s\S]*?animation:\s*hub-greeting-work-mode-spin/);
+    expect(CSS).toMatch(/\.hub-greeting__work-mode-btn\.hub-btn:focus-visible::before/);
   });
 
-  it('no longer renders a ::before ring pseudo on the button', () => {
-    expect(BTN_REGION).not.toMatch(/work-mode-btn\.hub-btn::before/);
+  it('declares the spin keyframes', () => {
+    expect(CSS).toMatch(/@keyframes hub-greeting-work-mode-spin/);
   });
 
-  it('no longer clips a gradient through the label text', () => {
-    expect(CSS).not.toMatch(/-webkit-text-fill-color:\s*transparent/);
-    expect(BTN_REGION).not.toMatch(/background-clip:\s*text/);
+  it('honors prefers-reduced-motion (no animation when the user opted out)', () => {
+    expect(CSS).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?animation:\s*none/);
+  });
+});
+
+describe('Work Mode button — vertical centering in the greeting actions column', () => {
+  it('actions column stretches to the panel full height so align-items: center actually centers', () => {
+    const start = CSS.indexOf('.hub-greeting__actions {');
+    const end = CSS.indexOf('}', start);
+    const block = start >= 0 ? CSS.slice(start, end + 1) : '';
+    expect(block).toMatch(/align-self:\s*stretch/);
+    expect(block).toMatch(/align-items:\s*center/);
   });
 });

@@ -113,10 +113,16 @@
   gap: 0.6rem;
   flex-wrap: wrap;
   /* Slice 218 — center the Enter Work Mode CTA in its column so the
-   * action reads as the main affordance on the greeting card. */
+   * action reads as the main affordance on the greeting card.
+   * hub-greeting-button-polish 2026-05-30 — stretch the actions column
+   * to the panel's full height so `align-items: center` actually
+   * vertical-centers the Enter Work Mode button against the heading
+   * column (was top-aligning because flex-wrap row + auto height left
+   * nothing to center against). */
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  align-self: stretch;
 }
 
 /* hub-widget-excellence-01 Slice 2 — the user's roles as colored pills
@@ -182,12 +188,14 @@
    * !important here pin the label white in every link state. */
   border: 2px solid #FFFFFF;
   color: #FFFFFF !important;
-  padding: 0.95rem 2.1rem;
+  /* hub-greeting-button-polish 2026-05-30 — bumped padding + font so
+   * the CTA reads as a stronger landing affordance. */
+  padding: 1.2rem 2.6rem;
   border-radius: 9999px;
-  font-size: 1.08rem;
+  font-size: 1.22rem;
   font-weight: 700;
   letter-spacing: 0.015em;
-  min-width: 13rem;
+  min-width: 15rem;
   justify-content: center;
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.38),
               0 2px 4px rgba(0, 0, 0, 0.22);
@@ -207,6 +215,63 @@
   font-family: inherit;
   appearance: none;
   -webkit-appearance: none;
+  /* hub-greeting-button-polish 2026-05-30 — overflow:hidden would clip
+   * the spinning-border pseudo-element, so leave it visible + clip the
+   * conic gradient via mask instead. The `isolate` keeps the spinning
+   * border's positive z-index from leaking above siblings. */
+  isolation: isolate;
+}
+
+/* hub-greeting-button-polish 2026-05-30 — red/white/blue radial
+ * spinning border that lights up on hover. Painted on a ::before
+ * pseudo-element sized 4px outside the button on all sides, filled
+ * with a conic gradient, then masked into a ring so only the border
+ * shows. Hidden by default (opacity 0) so the rest state stays calm;
+ * fades in on hover and rotates at a steady pace until the cursor
+ * leaves. Disabled when the user prefers reduced motion. */
+.hub-greeting__work-mode-btn.hub-btn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  padding: 4px;
+  background: conic-gradient(
+    from 0deg,
+    var(--brand-red, #B42318),
+    #ffffff,
+    var(--brand-blue, #1d4ed8),
+    var(--brand-red, #B42318)
+  );
+  /* Mask: subtract the inner disk so only the ring is painted. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes hub-greeting-work-mode-spin {
+  to { transform: rotate(360deg); }
+}
+
+.hub-greeting__work-mode-btn.hub-btn:hover::before,
+.hub-greeting__work-mode-btn.hub-btn:focus-visible::before {
+  opacity: 1;
+  animation: hub-greeting-work-mode-spin 2.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-greeting__work-mode-btn.hub-btn:hover::before,
+  .hub-greeting__work-mode-btn.hub-btn:focus-visible::before {
+    animation: none;
+  }
 }
 
 .hub-greeting__work-mode-label {
