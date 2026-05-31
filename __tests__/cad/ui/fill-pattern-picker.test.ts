@@ -77,9 +77,17 @@ describe('Slice 237 — pattern selection commits via updateFeature', () => {
   it('updates the feature with the chosen FillPattern preserved through the spread', () => {
     // cad-fills polish 2026-05-30 — the dropdown's onChange writes
     // `next` (the cast e.target.value) instead of the per-button
-    // `opt.value`, but it still goes through the same updateFeature
-    // call with the same style spread + isOverride flag.
-    expect(SRC).toMatch(/drawingStore\.updateFeature\(feature\.id, \{\s*style: \{ \.\.\.DEFAULT_FEATURE_STYLE, \.\.\.feature\.style, fillPattern: next, isOverride: true \},\s*\}\);/);
+    // `opt.value`. cad-fill-stacking Slice 1 — the same call now
+    // also seeds patternColor (black) + fillOpacity (1) on a first
+    // pick so the pattern renders immediately. Lock the multi-line
+    // shape.
+    expect(SRC).toMatch(/drawingStore\.updateFeature\(feature\.id, \{\s*style: \{[\s\S]*?\.\.\.DEFAULT_FEATURE_STYLE,[\s\S]*?\.\.\.feature\.style,[\s\S]*?fillPattern: next,[\s\S]*?patternColor: seededColor,[\s\S]*?fillOpacity: seededOpacity,[\s\S]*?isOverride: true,[\s\S]*?\},\s*\}\);/);
+  });
+
+  it('seeds patternColor + fillOpacity on first pick so the fill renders immediately (no need to also pick a color)', () => {
+    expect(SRC).toMatch(/const isFirstPick = next !== 'NONE' && next !== 'SOLID';/);
+    expect(SRC).toMatch(/const seededColor = feature\.style\.patternColor \?\? \(isFirstPick \? '#000000' : null\);/);
+    expect(SRC).toMatch(/const seededOpacity = Number\.isFinite\(feature\.style\.fillOpacity\)\s*\?\s*feature\.style\.fillOpacity\s*:\s*\(isFirstPick \? 1 : feature\.style\.fillOpacity\);/);
   });
 });
 

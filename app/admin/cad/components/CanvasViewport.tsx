@@ -3768,20 +3768,33 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       angle: feature.style.patternRotation ?? 0,
     };
     const { dots, lines } = generateFillPattern(width, height, cfg);
-    const patternColorHex = feature.style.patternColor ?? feature.style.color ?? '#000000';
+    // cad-fill-stacking Slice 1 — pattern color defaults to black,
+    // and the pattern's alpha is derived from feature.style.fillOpacity
+    // (NOT the outer stroke alpha), so picking a pattern renders
+    // immediately even on a polygon with `opacity: 0` (the case for
+    // the Slice-4 "Fill enclosed area" flow, which intentionally
+    // draws an invisible stroke and only the fill). Symptom before:
+    // the pattern was invisible until the user changed the polygon's
+    // base color — because that path also re-rendered with a non-
+    // zero outer alpha. Now the pattern is independent.
+    const patternColorHex = feature.style.patternColor ?? '#000000';
     const patternInt = parseInt(patternColorHex.replace('#', ''), 16);
     const colorInt = Number.isFinite(patternInt) ? patternInt : 0x000000;
+    const rawFillOpacity = feature.style.fillOpacity;
+    const patternAlpha = Number.isFinite(rawFillOpacity)
+      ? Math.max(0, Math.min(1, rawFillOpacity as number))
+      : 1;
 
     entry.tex.clear();
     if (dots.length > 0) {
       entry.tex.lineStyle(0);
-      entry.tex.beginFill(colorInt, alpha);
+      entry.tex.beginFill(colorInt, patternAlpha);
       for (const d of dots) entry.tex.drawCircle(minX + d.x, minY + d.y, d.r);
       entry.tex.endFill();
     }
     if (lines.length > 0) {
       // cad-fills Slice 1 — stroke weight honors the pattern thickness.
-      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1), colorInt, alpha);
+      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1), colorInt, patternAlpha);
       for (const ln of lines) {
         entry.tex.moveTo(minX + ln.x1, minY + ln.y1);
         entry.tex.lineTo(minX + ln.x2, minY + ln.y2);

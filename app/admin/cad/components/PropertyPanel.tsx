@@ -1390,8 +1390,26 @@ export default function PropertyPanel() {
                     className="w-full text-[11px] bg-gray-800 border border-gray-600 text-gray-100 rounded px-2 py-1.5 hover:bg-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
                     onChange={(e) => {
                       const next = e.target.value as FillPattern;
+                      // cad-fill-stacking Slice 1 — first-pick defaults
+                      // so the pattern is visible IMMEDIATELY without
+                      // the user having to also pick a color + opacity.
+                      // We only seed when the field is currently
+                      // missing (so a user-picked color/opacity isn't
+                      // overwritten on re-pick).
+                      const isFirstPick = next !== 'NONE' && next !== 'SOLID';
+                      const seededColor = feature.style.patternColor ?? (isFirstPick ? '#000000' : null);
+                      const seededOpacity = Number.isFinite(feature.style.fillOpacity)
+                        ? feature.style.fillOpacity
+                        : (isFirstPick ? 1 : feature.style.fillOpacity);
                       drawingStore.updateFeature(feature.id, {
-                        style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: next, isOverride: true },
+                        style: {
+                          ...DEFAULT_FEATURE_STYLE,
+                          ...feature.style,
+                          fillPattern: next,
+                          patternColor: seededColor,
+                          fillOpacity: seededOpacity,
+                          isOverride: true,
+                        },
                       });
                     }}
                   >

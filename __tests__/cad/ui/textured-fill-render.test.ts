@@ -70,8 +70,19 @@ describe('Slice 236 — drawFillPatternForPolygon helper', () => {
     expect(SRC).toMatch(/for \(const ln of lines\) \{[\s\S]*?entry\.tex\.moveTo\(minX \+ ln\.x1, minY \+ ln\.y1\);[\s\S]*?entry\.tex\.lineTo\(minX \+ ln\.x2, minY \+ ln\.y2\);/);
   });
 
-  it('falls back to feature.style.color when patternColor is null', () => {
-    expect(SRC).toMatch(/const patternColorHex = feature\.style\.patternColor \?\? feature\.style\.color \?\? '#000000';/);
+  it('pattern color defaults to black (cad-fill-stacking Slice 1 — no more color fallback chain through feature.style.color)', () => {
+    // Was `patternColor ?? color ?? '#000000'`. New behavior keeps
+    // the pattern color independent of the stroke color so picking a
+    // pattern lights up immediately as black, regardless of the
+    // outer feature color.
+    expect(SRC).toMatch(/const patternColorHex = feature\.style\.patternColor \?\? '#000000';/);
+  });
+
+  it('pattern alpha is derived from feature.style.fillOpacity (not the outer stroke alpha) so picks render immediately', () => {
+    expect(SRC).toMatch(/const rawFillOpacity = feature\.style\.fillOpacity;/);
+    expect(SRC).toMatch(/const patternAlpha = Number\.isFinite\(rawFillOpacity\)\s*\?\s*Math\.max\(0, Math\.min\(1, rawFillOpacity as number\)\)\s*:\s*1;/);
+    expect(SRC).toMatch(/entry\.tex\.beginFill\(colorInt, patternAlpha\)/);
+    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(feature\.style\.patternScale \?\? 1\), colorInt, patternAlpha\)/);
   });
 });
 
