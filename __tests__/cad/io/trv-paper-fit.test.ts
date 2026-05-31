@@ -114,8 +114,13 @@ describe('MenuBar — Slice 3: wires the paper-fit helper into both TRV import p
     'utf8',
   );
 
-  it('imports fitPaperToBounds + bboxOfFeaturePoints', () => {
-    expect(SRC).toMatch(/import \{ fitPaperToBounds, bboxOfFeaturePoints \} from '@\/lib\/cad\/io\/trv-paper-fit';/);
+  it('imports fitPaperToBounds + a bbox helper from trv-paper-fit', () => {
+    // The follow-up to Slice 3 switched the bbox helper from the
+    // strict `bboxOfFeaturePoints` to the outlier-resistant
+    // `bboxOfFeaturePointsRobust` so a single stray GPS shot
+    // doesn't drag the paper to ARCH_E + 2000 ft/in.
+    expect(SRC).toMatch(/import \{[^}]*\bfitPaperToBounds\b[^}]*\} from '@\/lib\/cad\/io\/trv-paper-fit';/);
+    expect(SRC).toMatch(/import \{[^}]*\bbboxOfFeaturePointsRobust\b[^}]*\} from '@\/lib\/cad\/io\/trv-paper-fit';/);
   });
 
   it('declares the maybeFitPaperToImportedFeatures helper', () => {

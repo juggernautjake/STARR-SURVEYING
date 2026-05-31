@@ -119,38 +119,88 @@ export function fitPaperToBounds(bounds: Bounds, opts: FitPaperOpts = {}): Paper
   return null;
 }
 
-/** Compute the bbox of a feature set's POINT coords + polyline
- *  vertices + arc/spline control points. A lighter version of
- *  CanvasViewport's onZoomExtents handler — returns null when no
- *  feature has any geometric data. */
-export function bboxOfFeaturePoints(
-  features: ReadonlyArray<{ geometry: { type: string; point?: { x: number; y: number }; vertices?: Array<{ x: number; y: number }>; spline?: { controlPoints: Array<{ x: number; y: number }> }; arc?: { center: { x: number; y: number }; radius: number }; circle?: { center: { x: number; y: number }; radius: number } } }>,
-): Bounds | null {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  const consume = (x: number, y: number) => {
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
+type FeatureLike = {
+  geometry: {
+    type: string;
+    point?: { x: number; y: number };
+    vertices?: Array<{ x: number; y: number }>;
+    spline?: { controlPoints: Array<{ x: number; y: number }> };
+    arc?: { center: { x: number; y: number }; radius: number };
+    circle?: { center: { x: number; y: number }; radius: number };
   };
+};
+
+/** Collect every (x, y) point a feature contributes — POINT coord,
+ *  POLYLINE / POLYGON / LINE / MIXED vertices, SPLINE control
+ *  points, ARC / CIRCLE bbox corners. Returns the flat list so
+ *  callers can compute a strict bbox OR a percentile-clipped
+ *  robust bbox. */
+function collectFeaturePoints(features: ReadonlyArray<FeatureLike>): Array<{ x: number; y: number }> {
+  const out: Array<{ x: number; y: number }> = [];
   for (const f of features) {
     const g = f.geometry;
-    if (g.type === 'POINT' && g.point) consume(g.point.x, g.point.y);
+    if (g.type === 'POINT' && g.point) out.push({ x: g.point.x, y: g.point.y });
     if ((g.type === 'POLYLINE' || g.type === 'POLYGON' || g.type === 'LINE' || g.type === 'MIXED_GEOMETRY') && g.vertices) {
-      for (const v of g.vertices) consume(v.x, v.y);
+      for (const v of g.vertices) out.push({ x: v.x, y: v.y });
     }
     if (g.type === 'SPLINE' && g.spline) {
-      for (const cp of g.spline.controlPoints) consume(cp.x, cp.y);
+      for (const cp of g.spline.controlPoints) out.push({ x: cp.x, y: cp.y });
     }
     if (g.type === 'ARC' && g.arc) {
-      consume(g.arc.center.x - g.arc.radius, g.arc.center.y - g.arc.radius);
-      consume(g.arc.center.x + g.arc.radius, g.arc.center.y + g.arc.radius);
+      out.push({ x: g.arc.center.x - g.arc.radius, y: g.arc.center.y - g.arc.radius });
+      out.push({ x: g.arc.center.x + g.arc.radius, y: g.arc.center.y + g.arc.radius });
     }
     if (g.type === 'CIRCLE' && g.circle) {
-      consume(g.circle.center.x - g.circle.radius, g.circle.center.y - g.circle.radius);
-      consume(g.circle.center.x + g.circle.radius, g.circle.center.y + g.circle.radius);
+      out.push({ x: g.circle.center.x - g.circle.radius, y: g.circle.center.y - g.circle.radius });
+      out.push({ x: g.circle.center.x + g.circle.radius, y: g.circle.center.y + g.circle.radius });
     }
   }
-  if (!Number.isFinite(minX)) return null;
+  return out;
+}
+
+/** Strict bbox over every contributed point. Use this for
+ *  zoom-extents (the user wants to see EVERY feature, including
+ *  outliers). */
+export function bboxOfFeaturePoints(features: ReadonlyArray<FeatureLike>): Bounds | null {
+  const pts = collectFeaturePoints(features);
+  if (pts.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
   return { minX, minY, maxX, maxY };
+}
+
+/** Outlier-resistant bbox — drops points outside the [pLo, pHi]
+ *  percentile of each axis before bounding. Use this for PAPER
+ *  auto-fit so a single stray GPS shot doesn't blow the paper up
+ *  to ARCH_E + 2000 ft/in to swallow it. Defaults: 1st-99th
+ *  percentile (drops the top + bottom 1% per axis).
+ *
+ *  The Garland sample motivates this: 788 points, 786 cluster in
+ *  a 619 ft × 273 ft survey, 2 stray points at ~13,000 ft from
+ *  the median pull the strict bbox to 13,167 × 10,020 ft. The
+ *  robust bbox keeps the paper at TABLOID ~50 ft/in instead of
+ *  ARCH_E at 2000 ft/in. */
+export function bboxOfFeaturePointsRobust(
+  features: ReadonlyArray<FeatureLike>,
+  opts: { pLo?: number; pHi?: number } = {},
+): Bounds | null {
+  const pLo = opts.pLo ?? 0.01;
+  const pHi = opts.pHi ?? 0.99;
+  const pts = collectFeaturePoints(features);
+  if (pts.length === 0) return null;
+  if (pts.length < 4) return bboxOfFeaturePoints(features);
+  const xs = pts.map((p) => p.x).sort((a, b) => a - b);
+  const ys = pts.map((p) => p.y).sort((a, b) => a - b);
+  const pick = (arr: number[], q: number) => arr[Math.max(0, Math.min(arr.length - 1, Math.floor(q * (arr.length - 1))))];
+  return {
+    minX: pick(xs, pLo),
+    maxX: pick(xs, pHi),
+    minY: pick(ys, pLo),
+    maxY: pick(ys, pHi),
+  };
 }

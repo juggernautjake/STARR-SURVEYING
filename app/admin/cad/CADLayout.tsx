@@ -14,6 +14,10 @@ import UndoRedoButtons from './components/UndoRedoButtons';
 import CommandPalette from './components/CommandPalette';
 import ConfirmDialog from './components/ConfirmDialog';
 import KeyboardShortcutOverlay from './components/KeyboardShortcutOverlay';
+// cad-multi-error-report-modal Slice 1 — global session-wide
+// error / bug modal. Listens to useErrorReportStore + surfaces
+// every entry with per-row + bulk Copy.
+import MultiErrorModal from './components/MultiErrorModal';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import LayerTransferDialog from './components/LayerTransferDialog';
@@ -1489,6 +1493,10 @@ export default function CADLayout() {
           bindings from useHotkeysStore so user customisations
           show with their override key. */}
       <KeyboardShortcutOverlay />
+      {/* cad-multi-error-report-modal Slice 1 — session-wide error
+          / bug modal. Hidden until any code pushes via
+          useErrorReportStore.report(...). */}
+      <MultiErrorModal />
     </div>
     </TooltipProvider>
   );

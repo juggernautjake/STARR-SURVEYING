@@ -32,10 +32,19 @@ import { downloadTrv, importTrvFromText, type TrvImportReport } from '@/lib/cad/
 import { applyTrvMetadataToTitleBlock } from '@/lib/cad/io/trv-titleblock';
 // cad-trv-import-display Slice 3 — auto-size the paper sheet to
 // fit the imported survey extent + pick a standard 1" = N' scale.
-import { fitPaperToBounds, bboxOfFeaturePoints } from '@/lib/cad/io/trv-paper-fit';
+// 2026-05-31 follow-up: the strict bbox was being dragged out to
+// ~13k ft on the Garland sample by one or two stray GPS points
+// — the paper picker then escalated to ARCH_E + 2000 ft/in.
+// Switched to the OUTLIER-RESISTANT robust bbox (1st-99th
+// percentile) so the surveyor's actual lot determines the paper.
+import { fitPaperToBounds, bboxOfFeaturePointsRobust } from '@/lib/cad/io/trv-paper-fit';
 // cad-trv-import-export-deep-semantic Pass 8 — sniff file format
 // + structured error diagnostics for the Open… dialog.
-import { detectFileFormat, buildFileLoadDiagnostic, formatFileLoadDiagnostic, type FileLoadDiagnostic } from '@/lib/cad/io/file-detect';
+import { detectFileFormat, buildFileLoadDiagnostic, formatFileLoadDiagnostic } from '@/lib/cad/io/file-detect';
+// cad-multi-error-report-modal Slice 1 — file-load errors go
+// through the global error-report store + the new MultiErrorModal
+// rendered by CADLayout. Replaces the single-error inline modal.
+import { reportFileLoadError } from '@/lib/cad/io/error-report';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
@@ -73,11 +82,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
   const [fileLoading, setFileLoading] = useState(false);
-  // cad-trv-import-display Slice 2 — replace bare alert() with a
-  // proper modal so the diagnostic is COPYABLE. The user reported
-  // they couldn't copy the error text out of the native alert.
-  const [loadError, setLoadError] = useState<FileLoadDiagnostic | null>(null);
-  const [loadErrorCopied, setLoadErrorCopied] = useState(false);
+  // cad-multi-error-report-modal Slice 1 — file-load errors now
+  // push into useErrorReportStore + render in MultiErrorModal
+  // (mounted at CADLayout). The inline single-error modal that
+  // lived here is retired in the same change.
   // Submenu (Export/Import flyout) open/close with a short grace delay so a
   // diagonal cursor move from the parent row to the flyout doesn't drop it.
   const submenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -220,7 +228,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   // settings stay untouched.
   function maybeFitPaperToImportedFeatures(features: ReadonlyArray<unknown>) {
     try {
-      const bbox = bboxOfFeaturePoints(features as Parameters<typeof bboxOfFeaturePoints>[0]);
+      const bbox = bboxOfFeaturePointsRobust(features as Parameters<typeof bboxOfFeaturePointsRobust>[0]);
       if (!bbox) return;
       const fit = fitPaperToBounds(bbox);
       if (!fit) {
@@ -265,7 +273,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       } catch (err) {
         const diag = buildFileLoadDiagnostic(file.name, '', err, 'sniff');
         cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
-        setLoadError(diag);
+        reportFileLoadError(diag);
         setFileLoading(false);
         return;
       }
@@ -326,7 +334,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         } catch (err) {
           const diag = buildFileLoadDiagnostic(file.name, text, err, 'parse');
           cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
-          setLoadError(diag);
+          reportFileLoadError(diag);
           setFileLoading(false);
           return;
         }
@@ -336,7 +344,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         } catch (err) {
           const diag = buildFileLoadDiagnostic(file.name, text, err, 'map');
           cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
-          setLoadError(diag);
+          reportFileLoadError(diag);
           setFileLoading(false);
           return;
         }
@@ -349,7 +357,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       } catch (err) {
         const diag = buildFileLoadDiagnostic(file.name, text, err, 'apply');
         cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
-        setLoadError(diag);
+        reportFileLoadError(diag);
       } finally {
         setFileLoading(false);
       }
@@ -1346,77 +1354,6 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         </ModalFrame>
       )}
     </div>
-
-    {/* cad-trv-import-display Slice 2 — copyable file-load error
-        modal. The native alert() couldn't be copied; this modal
-        renders the full diagnostic in a readOnly textarea (OS
-        selectable) plus a "Copy" button that writes it to the
-        clipboard. Mounted at the root z-index so it covers any
-        other UI. */}
-    {loadError && (
-      <div
-        className="fixed inset-0 z-[400] flex items-center justify-center bg-black/75"
-        onClick={() => { setLoadError(null); setLoadErrorCopied(false); }}
-        data-testid="file-load-error-modal"
-      >
-        <div
-          className="bg-gray-900 border border-red-500/70 rounded-lg p-5 max-w-[720px] w-[95%] max-h-[90vh] flex flex-col gap-3 shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1">
-              <h2 className="text-red-400 text-base font-semibold">Failed to load file</h2>
-              <p className="text-gray-400 text-xs mt-0.5">
-                {loadError.filename} · {loadError.byteSize.toLocaleString()} bytes · format: <span className="text-gray-200">{loadError.detectedFormat}</span> · stage: <span className="text-gray-200">{loadError.stage}</span>
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => { setLoadError(null); setLoadErrorCopied(false); }}
-              className="text-gray-500 hover:text-white text-xl leading-none px-1"
-              aria-label="Close"
-            >×</button>
-          </div>
-          {loadError.hint && (
-            <p className="text-xs text-blue-300 bg-blue-500/10 border border-blue-500/30 rounded px-2 py-1.5">
-              <span className="font-semibold">Hint: </span>{loadError.hint}
-            </p>
-          )}
-          <textarea
-            readOnly
-            value={formatFileLoadDiagnostic(loadError)}
-            className="bg-black/60 border border-gray-700 text-gray-200 font-mono text-[11px] rounded p-2 w-full h-64 resize-none focus:outline-none focus:border-blue-500 selection:bg-blue-500/40"
-            data-testid="file-load-error-textarea"
-            onFocus={(e) => e.currentTarget.select()}
-          />
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(formatFileLoadDiagnostic(loadError));
-                  setLoadErrorCopied(true);
-                  setTimeout(() => setLoadErrorCopied(false), 2000);
-                } catch {
-                  // Fallback: select the textarea text for manual copy.
-                  const ta = document.querySelector('[data-testid="file-load-error-textarea"]') as HTMLTextAreaElement | null;
-                  if (ta) { ta.focus(); ta.select(); }
-                }
-              }}
-              className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white"
-              data-testid="file-load-error-copy"
-            >
-              {loadErrorCopied ? 'Copied!' : 'Copy to clipboard'}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoadError(null); setLoadErrorCopied(false); }}
-              className="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white"
-            >Close</button>
-          </div>
-        </div>
-      </div>
-    )}
 
     {/* Full-screen loading overlay — shown while parsing a .starr file */}
     {fileLoading && (
