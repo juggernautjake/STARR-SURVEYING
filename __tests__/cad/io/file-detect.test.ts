@@ -134,7 +134,12 @@ describe('MenuBar — Pass 8 open-dialog routing + diagnostics', () => {
   });
 
   it('imports detectFileFormat + buildFileLoadDiagnostic + formatFileLoadDiagnostic', () => {
-    expect(SRC).toMatch(/import \{ detectFileFormat, buildFileLoadDiagnostic, formatFileLoadDiagnostic \} from '@\/lib\/cad\/io\/file-detect';/);
+    // Slice 2 added `type FileLoadDiagnostic` to the same import
+    // so the modal can render it — assert each named import is
+    // present without locking the exact ordering / trailing items.
+    expect(SRC).toMatch(/import \{[^}]*\bdetectFileFormat\b[^}]*\} from '@\/lib\/cad\/io\/file-detect';/);
+    expect(SRC).toMatch(/import \{[^}]*\bbuildFileLoadDiagnostic\b[^}]*\} from '@\/lib\/cad\/io\/file-detect';/);
+    expect(SRC).toMatch(/import \{[^}]*\bformatFileLoadDiagnostic\b[^}]*\} from '@\/lib\/cad\/io\/file-detect';/);
   });
 
   it('sniffs the file format + routes TRV through importTrvFromText', () => {
