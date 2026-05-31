@@ -29,19 +29,27 @@
 
 ## Slices
 
-### Slice 1 — Pure store: calculator suite state (zustand)
+### Slice 1 — Pure store: calculator suite state (zustand) ✅ shipped 2026-05-31
 
-- New `lib/cad/store/calculator-store.ts` zustand slice:
-  - `activeCalculatorId: string` (default `'generic'`).
-  - `states: Record<string, unknown>` — per-calculator-id state
-    blobs (so each calculator stores its own working data).
-  - `getActiveState<T>(): T | null` + `setActiveState(patch)` +
-    `setActiveCalculator(id)`.
-  - Persistence: write to `localStorage` under
-    `starr-cad-calc-suite-v1` (debounced) so the active id + the
-    per-calculator state survives reload / modal close.
-- Tests: pure store-state transitions; default = generic; switching
-  preserves the previous calculator's state.
+- New `lib/cad/store/calculator-store.ts` zustand slice + central
+  re-export from `lib/cad/store/index.ts`.
+- `CalculatorId = 'generic' | 'curve'` (extensible). `DEFAULT_CALCULATOR_ID`
+  = `'generic'` per the user ask "default calc on new session".
+- `activeCalculatorId` + `states: Partial<Record<CalculatorId,
+  unknown>>` (per-id state blobs typed `unknown`; each calculator
+  owns its own shape, narrowed at call sites via `getActiveState<T>()`).
+- Actions: `setActiveCalculator`, `getActiveState<T>`,
+  `getCalculatorState<T>(id)`, `setActiveState`,
+  `setCalculatorState(id)`, `resetAll`.
+- Persistence: `persist` middleware with `localStorage` under
+  `starr-cad-calc-suite-v1`. Partializes both
+  `activeCalculatorId` + `states` so reload restores the
+  last-used calculator + every calculator's working data
+  independently.
+- 8 specs lock defaults, switching preserves per-calc state,
+  `setCalculatorState` doesn't change the active id, `resetAll`
+  restores defaults, `getActiveState` narrowing works.
+- Full cad suite (2064) green; typecheck + lint clean.
 
 ### Slice 2 — `<GenericCalculator />` (Windows-style)
 

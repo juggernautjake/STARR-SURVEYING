@@ -26,3 +26,5 @@ export type { CodeStyleOverride } from './code-style-store';
 export type { TransferOperation, TransferOptions } from './transfer-store';
 export { useSaveTargetStore } from './save-target-store';
 export type { SaveTarget } from './save-target-store';
+export { useCalculatorStore, DEFAULT_CALCULATOR_ID } from './calculator-store';
+export type { CalculatorId } from './calculator-store';
