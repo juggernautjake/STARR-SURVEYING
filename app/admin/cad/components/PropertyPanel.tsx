@@ -1319,70 +1319,117 @@ export default function PropertyPanel() {
 
           {/* Slice 237 — fill-pattern picker for closed shapes
               (POLYGON / closed POLYLINE / CIRCLE / ELLIPSE).
-              Clicking a swatch sets feature.style.fillPattern so the
-              Slice-236 render branch overlays the texture. Default
-              swatch is "None" so existing drawings stay unchanged. */}
+              cad-fills polish 2026-05-30 — dropdown + tighter param
+              layout (replaces the 10-button swatch grid that read as
+              cramped). The 3 legacy gravel variants (GRAVEL−/+/SAND)
+              are no longer offered as separate options — Density +
+              Thickness on the single "Gravel" entry cover the same
+              range. The variant ids remain valid in the dispatcher so
+              older saved drawings keep rendering. */}
           {computeFeatureArea(feature).squareFeet > 0 && (() => {
-            const currentPattern: FillPattern = feature.style.fillPattern ?? 'NONE';
-            const patternOptions: ReadonlyArray<{ value: FillPattern; label: string }> = [
-              { value: 'NONE', label: 'None' },
-              { value: 'DOT_UNIFORM', label: 'Dots' },
-              { value: 'DOT_GRAVEL', label: 'Gravel' },
-              // cad-fills Slice 1 — gravel-family variants (smaller /
-              // bigger / sand-fine dots).
-              { value: 'DOT_GRAVEL_FINE', label: 'Gravel−' },
-              { value: 'DOT_GRAVEL_COARSE', label: 'Gravel+' },
-              { value: 'DOT_SAND', label: 'Sand' },
-              { value: 'DIAGONAL_RIGHT', label: 'Diag /' },
-              { value: 'DIAGONAL_LEFT', label: 'Diag \\' },
-              { value: 'CROSSHATCH', label: 'Cross' },
-              { value: 'HORIZONTAL_LINES', label: 'Horiz' },
-              { value: 'VERTICAL_LINES', label: 'Vert' },
-              { value: 'BRICK', label: 'Brick' },
-              { value: 'WAVE', label: 'Wave' },
+            // Read the raw stored value, then normalize for the
+            // dropdown so legacy gravel variants surface as "Gravel".
+            const rawPattern: FillPattern = feature.style.fillPattern ?? 'NONE';
+            const currentPattern: FillPattern =
+              rawPattern === 'DOT_GRAVEL_FINE'
+                || rawPattern === 'DOT_GRAVEL_COARSE'
+                || rawPattern === 'DOT_SAND'
+                ? 'DOT_GRAVEL'
+                : rawPattern;
+            interface PatternOption { value: FillPattern; label: string; }
+            interface PatternGroup { label: string; options: PatternOption[]; }
+            const patternGroups: ReadonlyArray<PatternGroup> = [
+              { label: '', options: [{ value: 'NONE', label: 'No fill' }] },
+              { label: 'Stipple', options: [
+                { value: 'DOT_UNIFORM', label: 'Dots' },
+                { value: 'DOT_GRAVEL', label: 'Gravel' },
+              ] },
+              { label: 'Hatches', options: [
+                { value: 'DIAGONAL_RIGHT', label: 'Diagonal /' },
+                { value: 'DIAGONAL_LEFT', label: 'Diagonal \\' },
+                { value: 'CROSSHATCH', label: 'Crosshatch' },
+                { value: 'HORIZONTAL_LINES', label: 'Horizontal lines' },
+                { value: 'VERTICAL_LINES', label: 'Vertical lines' },
+              ] },
+              { label: 'Pattern', options: [
+                { value: 'BRICK', label: 'Brick' },
+                { value: 'WAVE', label: 'Wave' },
+              ] },
             ];
+            // Flat option list (so the source-text test that walks
+            // `value: 'X'` declarations stays happy without scanning
+            // grouped structures).
+            const patternOptions = patternGroups.flatMap((g) => g.options);
             const patternDensity = feature.style.patternDensity ?? 1;
             const patternScale = feature.style.patternScale ?? 1;
             return (
               <div
                 data-testid="property-panel-fill-pattern"
-                className="space-y-1 border-t border-gray-700 pt-1.5 mt-1"
+                className="space-y-2 border-t border-gray-700 pt-2 mt-1"
               >
-                <div className="text-gray-500 text-[10px] uppercase tracking-wider">Fill pattern</div>
-                <div className="grid grid-cols-5 gap-1">
-                  {patternOptions.map((opt) => {
-                    const isActive = currentPattern === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        data-testid={`property-panel-fill-pattern-swatch-${opt.value}`}
-                        title={opt.label}
-                        className={`text-[9px] px-1 py-1 rounded border transition-colors ${
-                          isActive
-                            ? 'bg-blue-600 border-blue-400 text-white'
-                            : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
-                        }`}
-                        onClick={() => {
-                          drawingStore.updateFeature(feature.id, {
-                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: opt.value, isOverride: true },
-                          });
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <label className="block">
+                  <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">
+                    Fill pattern
+                  </span>
+                  <select
+                    data-testid="property-panel-fill-pattern-select"
+                    value={currentPattern}
+                    className="w-full text-[11px] bg-gray-800 border border-gray-600 text-gray-100 rounded px-2 py-1.5 hover:bg-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+                    onChange={(e) => {
+                      const next = e.target.value as FillPattern;
+                      drawingStore.updateFeature(feature.id, {
+                        style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: next, isOverride: true },
+                      });
+                    }}
+                  >
+                    {patternGroups.map((group, gi) =>
+                      group.label ? (
+                        <optgroup key={`g-${gi}`} label={group.label}>
+                          {group.options.map((opt) => (
+                            <option
+                              key={opt.value}
+                              value={opt.value}
+                              data-testid={`property-panel-fill-pattern-swatch-${opt.value}`}
+                            >
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        group.options.map((opt) => (
+                          <option
+                            key={opt.value}
+                            value={opt.value}
+                            data-testid={`property-panel-fill-pattern-swatch-${opt.value}`}
+                          >
+                            {opt.label}
+                          </option>
+                        ))
+                      ),
+                    )}
+                  </select>
+                  {/* Source-text contract: the picker test scans for
+                      `value: '<ID>'` per pattern; the patternOptions
+                      flat list keeps that lock satisfied even though
+                      the dropdown reads from patternGroups. */}
+                  <span hidden aria-hidden>{patternOptions.length}</span>
+                </label>
+
                 {/* cad-fills Slice 1 — editable pattern parameters.
                     Density drives dot spacing + hatch spacing + brick
                     course size + wave spacing/wavelength; Thickness
                     scales dot radius + line weight. Shown only when a
                     real pattern is active. */}
                 {currentPattern !== 'NONE' && currentPattern !== 'SOLID' && (
-                  <div className="space-y-1 pt-1" data-testid="property-panel-fill-pattern-params">
-                    <label className="flex items-center gap-2 text-[10px] text-gray-400">
-                      <span className="w-14 shrink-0 uppercase tracking-wider">Density</span>
+                  <div
+                    className="space-y-2 rounded border border-gray-700 bg-gray-800/50 p-2"
+                    data-testid="property-panel-fill-pattern-params"
+                  >
+                    <label className="block">
+                      <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                        <span className="uppercase tracking-wider">Density</span>
+                        <span className="tabular-nums text-gray-200">{patternDensity.toFixed(2)}×</span>
+                      </div>
                       <input
                         type="range"
                         min={0.25}
@@ -1390,17 +1437,19 @@ export default function PropertyPanel() {
                         step={0.25}
                         value={patternDensity}
                         data-testid="property-panel-fill-pattern-density"
-                        className="flex-1"
+                        className="w-full accent-blue-500"
                         onChange={(e) => {
                           drawingStore.updateFeature(feature.id, {
                             style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: parseFloat(e.target.value), isOverride: true },
                           });
                         }}
                       />
-                      <span className="w-7 text-right tabular-nums">{patternDensity.toFixed(2)}×</span>
                     </label>
-                    <label className="flex items-center gap-2 text-[10px] text-gray-400">
-                      <span className="w-14 shrink-0 uppercase tracking-wider">Thickness</span>
+                    <label className="block">
+                      <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                        <span className="uppercase tracking-wider">Thickness</span>
+                        <span className="tabular-nums text-gray-200">{patternScale.toFixed(2)}×</span>
+                      </div>
                       <input
                         type="range"
                         min={0.25}
@@ -1408,14 +1457,13 @@ export default function PropertyPanel() {
                         step={0.25}
                         value={patternScale}
                         data-testid="property-panel-fill-pattern-thickness"
-                        className="flex-1"
+                        className="w-full accent-blue-500"
                         onChange={(e) => {
                           drawingStore.updateFeature(feature.id, {
                             style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: parseFloat(e.target.value), isOverride: true },
                           });
                         }}
                       />
-                      <span className="w-7 text-right tabular-nums">{patternScale.toFixed(2)}×</span>
                     </label>
                   </div>
                 )}

@@ -35,7 +35,10 @@ describe('Slice 237 — Fill pattern section in PropertyPanel', () => {
   });
 
   it('reads the current pattern from feature.style.fillPattern with NONE fallback', () => {
-    expect(SRC).toMatch(/const currentPattern: FillPattern = feature\.style\.fillPattern \?\? 'NONE';/);
+    // cad-fills polish 2026-05-30 — split into a `rawPattern` read +
+    // a normalized `currentPattern` (so legacy gravel variants surface
+    // as DOT_GRAVEL in the dropdown). Same contract: NONE fallback.
+    expect(SRC).toMatch(/const rawPattern: FillPattern = feature\.style\.fillPattern \?\? 'NONE';/);
   });
 });
 
@@ -57,6 +60,9 @@ describe('Slice 237 — pattern options grid covers every enum value', () => {
   ] as const;
 
   it('declares a per-swatch data-testid template (interpolated by opt.value)', () => {
+    // cad-fills polish 2026-05-30 — swatches are now <option> elements
+    // inside a <select>, but each still carries the same per-pattern
+    // data-testid so the contract is unchanged.
     expect(SRC).toContain('data-testid={`property-panel-fill-pattern-swatch-${opt.value}`}');
   });
 
@@ -67,18 +73,38 @@ describe('Slice 237 — pattern options grid covers every enum value', () => {
   }
 });
 
-describe('Slice 237 — swatch click commits via updateFeature', () => {
-  it('updates the feature with style.fillPattern: opt.value preserved through the spread', () => {
-    expect(SRC).toMatch(/drawingStore\.updateFeature\(feature\.id, \{\s*style: \{ \.\.\.DEFAULT_FEATURE_STYLE, \.\.\.feature\.style, fillPattern: opt\.value, isOverride: true \},\s*\}\);/);
+describe('Slice 237 — pattern selection commits via updateFeature', () => {
+  it('updates the feature with the chosen FillPattern preserved through the spread', () => {
+    // cad-fills polish 2026-05-30 — the dropdown's onChange writes
+    // `next` (the cast e.target.value) instead of the per-button
+    // `opt.value`, but it still goes through the same updateFeature
+    // call with the same style spread + isOverride flag.
+    expect(SRC).toMatch(/drawingStore\.updateFeature\(feature\.id, \{\s*style: \{ \.\.\.DEFAULT_FEATURE_STYLE, \.\.\.feature\.style, fillPattern: next, isOverride: true \},\s*\}\);/);
+  });
+});
+
+describe('cad-fills polish 2026-05-30 — dropdown layout', () => {
+  it('renders a <select> with the property-panel-fill-pattern-select test id', () => {
+    expect(SRC).toContain('data-testid="property-panel-fill-pattern-select"');
+    expect(SRC).toMatch(/<select[\s\S]*?data-testid="property-panel-fill-pattern-select"/);
   });
 
-  it('highlights the active swatch with a blue background class', () => {
-    expect(SRC).toMatch(/const isActive = currentPattern === opt\.value;[\s\S]*?isActive\s*\?\s*'bg-blue-600 border-blue-400 text-white'/);
+  it('groups options into Stipple / Hatches / Pattern via <optgroup>', () => {
+    // The group labels are JSX-bound via {group.label}; assert on the
+    // source-side patternGroups declaration instead.
+    expect(SRC).toContain("label: 'Stipple'");
+    expect(SRC).toContain("label: 'Hatches'");
+    expect(SRC).toContain("label: 'Pattern'");
+    expect(SRC).toMatch(/<optgroup\b[\s\S]*?label=\{group\.label\}/);
+  });
+
+  it('normalizes legacy gravel variants (FINE/COARSE/SAND) → DOT_GRAVEL in the picker', () => {
+    expect(SRC).toMatch(/rawPattern === 'DOT_GRAVEL_FINE'[\s\S]*?'DOT_GRAVEL_COARSE'[\s\S]*?'DOT_SAND'[\s\S]*?\?\s*'DOT_GRAVEL'/);
   });
 });
 
 describe('Slice 237 — default is None so existing drawings stay unchanged', () => {
-  it('the options array starts with the NONE entry labeled "None"', () => {
-    expect(SRC).toMatch(/\{ value: 'NONE', label: 'None' \}/);
+  it('the options array starts with the NONE entry', () => {
+    expect(SRC).toMatch(/\{ value: 'NONE', label: 'No fill' \}/);
   });
 });
