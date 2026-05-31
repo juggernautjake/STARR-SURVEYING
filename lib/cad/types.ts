@@ -500,6 +500,51 @@ export interface FeatureStyle {
    *  clamped to ≥ 1 px so a zero slider doesn't infinite-loop. */
   patternDashLen?: number;
   patternGapLen?: number;
+
+  /** cad-fill-stacking Slice 6 — stack of infill layers rendered
+   *  bottom-to-top on the same polygon. When present, supersedes the
+   *  legacy single-pattern fields above for rendering. When absent,
+   *  the legacy fields define an implicit single-layer stack so
+   *  saved drawings render unchanged. See
+   *  `lib/cad/styles/fill-stack.ts` for the migration + resolver. */
+  fillStack?: FillLayer[];
+}
+
+/** cad-fill-stacking Slice 6 — one layer of a stacked infill. Each
+ *  layer carries everything `FillPatternConfig` cares about plus an
+ *  `eye` toggle for the layer list. Z-order = array order; the LAST
+ *  element in `fillStack[]` draws on top.
+ *
+ *  The same shape is used by the migration helper to project a
+ *  legacy single-pattern FeatureStyle into a 1-element stack. */
+export interface FillLayer {
+  /** Pattern variant. 'NONE' / 'SOLID' are legal but render nothing
+   *  in the stacked draw path (the surveyor uses them as placeholder
+   *  rows). */
+  pattern: FillPattern;
+  /** Pattern color (hex). null ⇒ fallback to black at render time
+   *  (same default the single-pattern path uses). */
+  color: string | null;
+  /** Density 0.25 – 4. */
+  density: number;
+  /** Thickness multiplier 0.25 – 4. */
+  scale: number;
+  /** Rotation in degrees, 0–359. */
+  rotation: number;
+  /** Opacity 0–1 for this layer alone. Stacked rendering means a
+   *  partially-transparent layer lets the layer beneath show
+   *  through. */
+  opacity: number;
+  /** Eye toggle — true (default) means the layer is drawn. False
+   *  hides it without removing it from the stack. */
+  visible: boolean;
+  // Per-pattern extras — mirror the FeatureStyle fields one-for-one.
+  brickWidth?: number;
+  brickHeight?: number;
+  waveAmplitude?: number;
+  wavePeriod?: number;
+  dashLen?: number;
+  gapLen?: number;
 }
 
 export type FillPattern =

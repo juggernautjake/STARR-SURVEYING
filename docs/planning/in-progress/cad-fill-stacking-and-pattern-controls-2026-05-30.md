@@ -193,24 +193,63 @@
 
 ### Slice 6 — Stack multiple infill patterns on one area
 
-- The big one. `FeatureStyle.fillStack?: FillLayer[]` where
-  `FillLayer = { pattern, color, density, scale, rotation, opacity
-  + per-pattern extras }`. Backward-compat: the existing
-  `fillPattern`/`patternColor`/`patternDensity`/etc. fields become
-  layer #0 of an implicit stack so saved drawings render unchanged.
-- Render: `drawFillPatternForPolygon` walks the stack in order,
-  rendering each layer onto the same masked Graphics. Z-order =
-  array order (top-of-list draws last).
-- PropertyPanel: a layer list above the params card. Each layer row
-  shows the pattern name + color swatch + an `Eye` toggle + a `X`
-  delete. Click "+ Add layer" appends a new pattern-NONE layer the
-  user then picks a pattern for. The currently-selected layer in
-  the list is the one the params card edits.
-- Migration: on read, normalize the legacy fields into a single-
-  layer stack so the UI always edits an array.
-- Tests: pure migration helper (legacy → stack), pure render-order
-  (last layer wins for overlap), the panel reads/writes the active
-  layer.
+Sub-sliced 2026-05-31 because the full feature spans a pure data
+model, the Pixi render path, AND a chunk of PropertyPanel UI — each
+big enough to merit its own commit + test sweep.
+
+#### Slice 6a — Pure data model + migration helpers ✅ shipped 2026-05-31
+
+- `FillLayer` interface in `lib/cad/types.ts`: `{ pattern, color,
+  density, scale, rotation, opacity, visible + per-pattern extras
+  (brickWidth/Height, waveAmplitude/Period, dashLen/gapLen) }`.
+- `FeatureStyle.fillStack?: FillLayer[]` — optional; when present,
+  supersedes the legacy single-pattern fields for rendering. When
+  absent, the legacy fields project into a 1-element stack so saved
+  drawings render unchanged.
+- `lib/cad/styles/fill-stack.ts` ships the pure helpers:
+  - `normalizeFillLayer(partial)` — fills defaults + clamps opacity
+    + coerces NaN/∞ numerics to safe values.
+  - `legacyStyleToFillLayer(style)` — projects legacy fields into
+    one FillLayer; returns null when there's nothing to render
+    (no pattern AND no solid fillColor). A pure solid fill becomes
+    a layer with `pattern: 'SOLID'`.
+  - `resolveFillStack(style)` — canonical "what should I render?"
+    entrypoint; returns a FRESH array (no shared refs back) so
+    callers can mutate freely.
+  - `resolveVisibleFillLayers(style)` — additionally filters out
+    `visible: false` and `pattern: 'NONE'` placeholder layers.
+  - `appendFillLayer` / `removeFillLayerAt` / `updateFillLayerAt`
+    — non-mutating helpers used by sub-slice 6c UI.
+- 18 pure-module specs lock defaults, opacity clamp, NaN handling,
+  visible-false preservation, legacy-projection back-compat, fresh-
+  array contract, visibility filter, and all three mutation
+  helpers. Typecheck + lint clean.
+
+#### Slice 6b — Render: walk the stack in `drawFillPatternForPolygon`
+
+- `CanvasViewport.drawFillPatternForPolygon` calls
+  `resolveVisibleFillLayers(feature.style)` and iterates the stack
+  bottom-to-top, building a `FillPatternConfig` per layer and
+  drawing each onto the same masked Graphics. Z-order = array order.
+- The single-pattern legacy code path is kept for stacks of length
+  ≤ 1 (fast path; pixel-identical to today). Length ≥ 2 takes the
+  walk path.
+- Tests: pure render-order spec (last layer wins for overlap),
+  source-text spec on the dispatcher walk.
+
+#### Slice 6c — PropertyPanel: layer-list UI above the params card
+
+- A small layer list above the params card. Each row shows the
+  pattern name + color swatch + `Eye` toggle + `X` delete + a
+  "select active" indicator. "+ Add layer" appends a new pattern-
+  NONE layer the user can then pick a pattern for. The currently-
+  selected layer in the list is the one the params card edits.
+- On any layer-list mutation, write the new stack to
+  `feature.style.fillStack` via `updateFeature`; on first mutation
+  of a legacy-only style, the migrated 1-element stack is also
+  persisted so subsequent reads see the canonical shape.
+- Tests: source-text specs lock the list testids + the
+  add/remove/eye/select wiring.
 
 ## Out of scope / placeholder
 
