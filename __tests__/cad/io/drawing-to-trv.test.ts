@@ -72,6 +72,56 @@ describe('drawingToTrv — verbatim sourceTrv mode', () => {
   });
 });
 
+describe('drawingToTrv — Pass 4: smart-merge with sourceTrv + applyChanges', () => {
+  it('produces a byte-equal output when no feature coords have changed', () => {
+    const trv = parseTrv(FIXTURE);
+    const doc = buildDrawingFromFixture();
+    expect(drawingToTrv(doc, { sourceTrv: trv, applyChanges: true })).toBe(FIXTURE);
+  });
+
+  it('rewrites only the 2,N,E,Z line for points whose surveyNorth/surveyEast/elevation moved', () => {
+    const trv = parseTrv(FIXTURE);
+    const mapped = trvToDrawing(trv);
+    // Mutate point id "1" in the mapped result: bump its surveyEast
+    // by 100ft. trvPointId stays the same so the merger can find it.
+    const target = mapped.features.find((f) => f.properties.trvPointId === '1')!;
+    const movedFeatures: Record<string, Feature> = {};
+    for (const f of mapped.features) {
+      movedFeatures[f.id] = f.id === target.id
+        ? { ...f, properties: { ...f.properties, surveyEast: 9999.5 } }
+        : f;
+    }
+    const layers: Record<string, Layer> = {};
+    for (const l of mapped.layers) layers[l.id] = l;
+    const doc: DrawingDocument = {
+      id: 'd', name: '', created: '', modified: '', author: '',
+      features: movedFeatures, layers, layerOrder: mapped.layers.map((l) => l.id),
+      featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+    } as unknown as DrawingDocument;
+    const merged = drawingToTrv(doc, { sourceTrv: trv, applyChanges: true });
+    // The new East value lands in a `2,...,9999.5,...` line.
+    expect(merged).toMatch(/2,4994\.142075,9999\.5,700/);
+    // The OTHER point's coord line stays verbatim.
+    // Source line is verbatim — preserves `4900.0` formatting.
+    expect(merged).toContain('2,4994.142075,4900.0,700.5');
+    // Every other source line (header, version, layer, traverse, etc.)
+    // is preserved verbatim — easiest check: pick a non-coord line.
+    expect(merged).toContain('86,Boundaries,3,0');
+    expect(merged).toContain('30,perimeter');
+  });
+
+  it('ignores points whose trvPointId is gone from the doc (deferred to add/remove pass)', () => {
+    const trv = parseTrv(FIXTURE);
+    // Empty doc — nothing to patch. Result should match the source verbatim.
+    const empty: DrawingDocument = {
+      id: 'd', name: '', created: '', modified: '', author: '',
+      features: {}, layers: {}, layerOrder: [],
+      featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+    } as unknown as DrawingDocument;
+    expect(drawingToTrv(empty, { sourceTrv: trv, applyChanges: true })).toBe(FIXTURE);
+  });
+});
+
 describe('drawingToTrv — fresh export', () => {
   it('emits the 999/begin and 999/end bookends', () => {
     const doc = buildDrawingFromFixture();

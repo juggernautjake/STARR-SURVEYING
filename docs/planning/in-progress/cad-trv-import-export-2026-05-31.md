@@ -282,13 +282,28 @@ passes, one slice each.
   `31` and `10` with the correct order).
 - Full cad suite (2171) green; typecheck + lint clean.
 
-### Pass 4 — Smart selective sourceTrv serializer (queued)
+### Pass 4 — Smart selective sourceTrv serializer ✅ shipped 2026-05-31 (coord patch)
 
-`drawingToTrv(doc, { sourceTrv, applyChanges: true })` walks the
-sourceTrv's raw lines and patches only the records whose
-corresponding features have been edited (changed coords, added /
-removed). Unknown codes round-trip intact. This is the "Slice 3b"
-deferred item.
+- `drawingToTrv(doc, { sourceTrv, applyChanges: true })` walks
+  the sourceTrv's raw lines and rewrites ONLY the `2,N,E,Z`
+  point-coord lines whose corresponding features (matched by
+  `properties.trvPointId`) have moved. Coord delta tolerance
+  1e-6 ft so float round-tripping doesn't trigger a spurious
+  rewrite. Every other source line (header, version, layers,
+  traverse refs, styling records, unknown codes) round-trips
+  verbatim because the source line array is the base.
+- Deletes (point in source but no feature) and adds (feature
+  with no `trvPointId`) are explicitly deferred to a future
+  sub-pass; they need careful section-boundary insertion logic
+  + reference-renumbering. Today they're a no-op, which is
+  safe (a deleted feature's source coords stay; a new feature
+  doesn't reach the source). Documented as the next step on
+  this same pass.
+- Tests: 3 new serializer specs — byte-equal output when nothing
+  changed; coord-only rewrite when surveyEast moved (other coord
+  + every other source line preserved verbatim); empty-doc
+  passthrough (no patches applied → verbatim source).
+- Full cad suite (2174) green; typecheck + lint clean.
 
 ### Pass 5 — Bidirectional round-trip verification (queued)
 

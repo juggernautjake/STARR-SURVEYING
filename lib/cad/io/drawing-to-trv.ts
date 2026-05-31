@@ -29,6 +29,13 @@ export interface DrawingToTrvOptions {
    *  re-emit it verbatim. Future slices will apply the doc's changes
    *  on top while preserving unknown codes. */
   sourceTrv?: TrvDocument;
+  /** cad-trv-import-export Pass 4 — when `sourceTrv` is set + this
+   *  flag is true, walk the source's raw lines and patch only the
+   *  records whose corresponding features have been edited (coord
+   *  changes today; add/remove TBD). Unknown codes still round-trip
+   *  verbatim because the source's lines are the base. Defaults
+   *  false (Slice 3's verbatim passthrough). */
+  applyChanges?: boolean;
   /** Traverse PC version stamp for fresh exports. Defaults to the
    *  same value we observed in the live 2026-vintage samples. */
   version?: string;
@@ -169,10 +176,14 @@ function emitTraverse(f: Feature, sourceLineCounter: { i: number }, layerIdByOur
 /** Serialize a DrawingDocument (or subset) into Traverse PC `.TRV`
  *  text. See module header for the two-mode behavior. */
 export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {}): string {
-  // Mode 1: verbatim round-trip from a sourceTrv. Lossless for
-  // unknown record codes; doesn't apply doc changes yet (Slice 3
-  // deferral — see module header).
+  // Mode 1: sourceTrv supplied.
   if (opts.sourceTrv) {
+    // Pass 4 — smart-merge: patch only the changed records (point
+    // coords); leave unknown codes intact. Otherwise (Slice 3
+    // verbatim mode), re-emit the source byte-for-byte.
+    if (opts.applyChanges) {
+      return mergeSourceTrvWithDoc(opts.sourceTrv, doc);
+    }
     return serializeTrv(opts.sourceTrv);
   }
 
@@ -257,4 +268,53 @@ export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {
   }
   out.push('999,end');
   return out.join(CRLF);
+}
+
+/** cad-trv-import-export Pass 4 — smart-merge serializer. Walks
+ *  every raw line of `sourceTrv`. When a `2,N,E,Z` point-coord
+ *  line belongs to a point whose coords have been edited in the
+ *  current drawing, rewrite the line; otherwise re-emit verbatim.
+ *  Unknown record codes round-trip unchanged. Add / remove of
+ *  points is deferred — those land at the end of the POINTS
+ *  section in a future pass.
+ *
+ *  Coord comparison: tolerates a 1e-6 ft delta so float
+ *  round-tripping doesn't trigger a spurious rewrite. */
+function mergeSourceTrvWithDoc(sourceTrv: TrvDocument, doc: DrawingDocument): string {
+  type Patch = { line: number; north: number; east: number; elevation: number };
+  const patches: Patch[] = [];
+  const featuresByTrvId = new Map<string, Feature>();
+  for (const f of Object.values(doc.features)) {
+    const trvPointId = f.properties.trvPointId;
+    if (typeof trvPointId === 'string') featuresByTrvId.set(trvPointId, f);
+  }
+  for (const p of sourceTrv.points) {
+    const feat = featuresByTrvId.get(p.id);
+    if (!feat) continue; // Point was deleted — handled in a later pass.
+    const { north, east, elevation } = pointCoords(feat);
+    const sourceLineOfTwo = findLineIndex(sourceTrv, p.sourceLine, '2');
+    if (sourceLineOfTwo === -1) continue;
+    const dN = Math.abs(north - (p.north ?? 0));
+    const dE = Math.abs(east - (p.east ?? 0));
+    const dZ = Math.abs(elevation - (p.elevation ?? 0));
+    if (dN < 1e-6 && dE < 1e-6 && dZ < 1e-6) continue; // No change.
+    patches.push({ line: sourceLineOfTwo, north, east, elevation });
+  }
+  const newRaws = sourceTrv.lines.map((l) => l.raw);
+  for (const p of patches) {
+    newRaws[p.line] = `2,${num(p.north)},${num(p.east)},${num(p.elevation, 3)}`;
+  }
+  return newRaws.join(CRLF);
+}
+
+/** Find the first line at-or-after `startIdx` whose code equals
+ *  `targetCode`. Stops at the next `0,` opener so we don't cross
+ *  point block boundaries. Returns -1 when not found. */
+function findLineIndex(sourceTrv: TrvDocument, startIdx: number, targetCode: string): number {
+  for (let i = startIdx; i < sourceTrv.lines.length; i++) {
+    const l = sourceTrv.lines[i];
+    if (l.code === targetCode) return i;
+    if (l.code === '0' && i !== startIdx) return -1;
+  }
+  return -1;
 }
