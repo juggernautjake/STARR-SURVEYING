@@ -150,6 +150,8 @@ import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
 import { generateFillPattern, patternLineWeight, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
+// cad-fill-stacking Slice 6b — multi-layer infill stack resolver.
+import { resolveVisibleFillLayers } from '@/lib/cad/styles/fill-stack';
 import { useKeyboard } from '../hooks/useKeyboard';
 import { ImageRotationField } from './ImageRotationField';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -3706,6 +3708,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   ) {
     const pixi = pixiRef.current;
     if (!pixi) return;
+
+    // cad-fill-stacking Slice 6b — when an explicit `fillStack` is
+    // present on the style, walk every layer onto the same masked
+    // Graphics (bottom-to-top, array order). This is the "multiple
+    // infill patterns on one area" code path. The legacy single-
+    // pattern code path below stays intact for features that haven't
+    // adopted the stacked model, so saved drawings render unchanged.
+    if (Array.isArray(feature.style.fillStack)) {
+      drawFillStackForPolygon(feature, screenPts);
+      return;
+    }
+
     const pattern = feature.style.fillPattern;
     if (!pattern || pattern === 'SOLID' || pattern === 'NONE') {
       const existing = pixi.featureTextures.get(feature.id);
@@ -3809,6 +3823,115 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       for (const ln of lines) {
         entry.tex.moveTo(minX + ln.x1, minY + ln.y1);
         entry.tex.lineTo(minX + ln.x2, minY + ln.y2);
+      }
+    }
+    entry.tex.visible = true;
+  }
+
+  /** cad-fill-stacking Slice 6b — stacked-infill renderer. Walks the
+   *  resolved fillStack bottom-to-top and draws every layer onto the
+   *  same masked Graphics. SOLID layers fill the polygon bbox; every
+   *  other (non-NONE) pattern routes through generateFillPattern with
+   *  a layer-derived FillPatternConfig. */
+  function drawFillStackForPolygon(
+    feature: Feature,
+    screenPts: ReadonlyArray<{ x: number; y: number }>,
+  ) {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    if (screenPts.length < 3) return;
+
+    const layers = resolveVisibleFillLayers(feature.style);
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of screenPts) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const width = Math.max(0, maxX - minX);
+    const height = Math.max(0, maxY - minY);
+    if (width <= 0 || height <= 0) {
+      const existing = pixi.featureTextures.get(feature.id);
+      if (existing) { existing.tex.clear(); existing.mask.clear(); }
+      return;
+    }
+
+    // Empty stack ⇒ wipe the texture entry; nothing to render.
+    if (layers.length === 0) {
+      const existing = pixi.featureTextures.get(feature.id);
+      if (existing) { existing.tex.clear(); existing.mask.clear(); }
+      return;
+    }
+
+    const parent = pixi.featureGraphics.get(feature.id)?.parent ?? pixi.featureLayer;
+    let entry = pixi.featureTextures.get(feature.id);
+    if (!entry) {
+      const tex = new pixi.GraphicsClass();
+      const mask = new pixi.GraphicsClass();
+      parent.addChild(mask, tex);
+      tex.mask = mask;
+      entry = { tex, mask };
+      pixi.featureTextures.set(feature.id, entry);
+    } else if (entry.tex.parent !== parent) {
+      entry.tex.parent?.removeChild(entry.tex);
+      entry.mask.parent?.removeChild(entry.mask);
+      parent.addChild(entry.mask, entry.tex);
+    }
+
+    entry.mask.clear();
+    entry.mask.beginFill(0xffffff, 1);
+    entry.mask.moveTo(screenPts[0].x, screenPts[0].y);
+    for (let i = 1; i < screenPts.length; i++) entry.mask.lineTo(screenPts[i].x, screenPts[i].y);
+    entry.mask.closePath();
+    entry.mask.endFill();
+    entry.mask.visible = true;
+
+    entry.tex.clear();
+    // Walk every layer in array order. Last entry draws on top.
+    for (const layer of layers) {
+      const colorHex = layer.color ?? '#000000';
+      const colorParsed = parseInt(colorHex.replace('#', ''), 16);
+      const colorInt = Number.isFinite(colorParsed) ? colorParsed : 0x000000;
+      const layerAlpha = Math.max(0, Math.min(1, layer.opacity));
+
+      if (layer.pattern === 'SOLID') {
+        // Solid wash spanning the polygon bbox. Mask clips it to the
+        // actual polygon shape.
+        entry.tex.lineStyle(0);
+        entry.tex.beginFill(colorInt, layerAlpha);
+        entry.tex.drawRect(minX, minY, width, height);
+        entry.tex.endFill();
+        continue;
+      }
+
+      const cfg: FillPatternConfig = {
+        pattern: layer.pattern,
+        density: layer.density,
+        seed: hashSeed(feature.id + ':' + layer.pattern),
+        scale: layer.scale,
+        angle: layer.rotation,
+        brickWidth: layer.brickWidth,
+        brickHeight: layer.brickHeight,
+        waveAmplitude: layer.waveAmplitude,
+        wavePeriod: layer.wavePeriod,
+        dashLen: layer.dashLen,
+        gapLen: layer.gapLen,
+      };
+      const { dots, lines } = generateFillPattern(width, height, cfg);
+      if (dots.length > 0) {
+        entry.tex.lineStyle(0);
+        entry.tex.beginFill(colorInt, layerAlpha);
+        for (const d of dots) entry.tex.drawCircle(minX + d.x, minY + d.y, d.r);
+        entry.tex.endFill();
+      }
+      if (lines.length > 0) {
+        entry.tex.lineStyle(patternLineWeight(layer.scale), colorInt, layerAlpha);
+        for (const ln of lines) {
+          entry.tex.moveTo(minX + ln.x1, minY + ln.y1);
+          entry.tex.lineTo(minX + ln.x2, minY + ln.y2);
+        }
       }
     }
     entry.tex.visible = true;

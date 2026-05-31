@@ -225,17 +225,30 @@ big enough to merit its own commit + test sweep.
   array contract, visibility filter, and all three mutation
   helpers. Typecheck + lint clean.
 
-#### Slice 6b — Render: walk the stack in `drawFillPatternForPolygon`
+#### Slice 6b — Render: walk the stack in `drawFillPatternForPolygon` ✅ shipped 2026-05-31
 
-- `CanvasViewport.drawFillPatternForPolygon` calls
-  `resolveVisibleFillLayers(feature.style)` and iterates the stack
-  bottom-to-top, building a `FillPatternConfig` per layer and
-  drawing each onto the same masked Graphics. Z-order = array order.
-- The single-pattern legacy code path is kept for stacks of length
-  ≤ 1 (fast path; pixel-identical to today). Length ≥ 2 takes the
-  walk path.
-- Tests: pure render-order spec (last layer wins for overlap),
-  source-text spec on the dispatcher walk.
+- `drawFillPatternForPolygon` short-circuits to a new
+  `drawFillStackForPolygon` whenever `feature.style.fillStack` is
+  an explicit array. The legacy code path stays intact for all
+  features that haven't adopted the stacked model, so saved
+  drawings render byte-identical to today (locked by the existing
+  `textured-fill-render.test.ts`).
+- `drawFillStackForPolygon` resolves the visible layers via
+  `resolveVisibleFillLayers(feature.style)`, sets up the mask once,
+  and walks the layers in array order (bottom-to-top draw). SOLID
+  layers fill the bbox with their own color/opacity; every other
+  pattern routes through `generateFillPattern` with a layer-derived
+  `FillPatternConfig`. Each layer carries its own opacity (not the
+  outer alpha), so a partially-transparent layer lets the layer
+  beneath show through.
+- Per-layer seed is `hashSeed(feature.id + ':' + layer.pattern)` so
+  stacking the same pattern twice (e.g. two dot layers) gives
+  visually distinct stipple instead of perfect overlap.
+- Tests: 10 source-text specs lock the import, the
+  `if (Array.isArray(... fillStack))` branch, the walker signature,
+  the resolve call, the for-of layer loop, the SOLID drawRect path,
+  the layer-derived cfg fields, the per-pattern seed, the layer-
+  alpha contract, and the empty-stack wipe. Typecheck + lint clean.
 
 #### Slice 6c — PropertyPanel: layer-list UI above the params card
 
