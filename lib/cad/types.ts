@@ -107,6 +107,13 @@ export interface FeatureGroup {
   /** All members must share this layerId. */
   layerId: string;
   featureIds: string[];
+  /** cad-layer-grouping Slice 2 — optional parent group id (groups
+   *  inside groups). null/undefined = layer-root group. Existing
+   *  groups normalize to `parentGroupId: null` so saved drawings
+   *  load unchanged. Cycle prevention enforced by
+   *  `lib/cad/feature-groups.ts` + the drawing-store's
+   *  moveFeatureGroup action. */
+  parentGroupId?: string | null;
 }
 
 export interface DrawingDocument {

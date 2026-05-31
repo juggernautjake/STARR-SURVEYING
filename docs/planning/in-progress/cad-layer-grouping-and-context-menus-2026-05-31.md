@@ -74,15 +74,33 @@ layer panel + right-click menus:*
   spacer for non-expandable rows.
 - Full cad suite (1953) green; typecheck + lint clean.
 
-### Slice 2 — Nested groups (groups within groups)
+### Slice 2 — Nested groups (groups within groups) ✅ shipped 2026-05-31
 
-- `FeatureGroup` gains `parentGroupId?: string | null`. Existing
-  groups normalize to `parentGroupId: null` (back-compat).
-- `drawingStore.createFeatureGroup({ parentGroupId? })` honors the
-  parent; `drawingStore.moveFeatureGroup(id, newParentId)` reparents.
-- Cycle-prevention: a group can't become a descendant of itself.
-- Tests: pure helpers for "is descendant", "all descendants of group",
-  cycle-detection on reparent.
+- `FeatureGroup.parentGroupId?: string | null` added to types.ts.
+  Optional ⇒ existing groups normalize to `null` (layer-root) on
+  read, so saved drawings load unchanged.
+- New pure module `lib/cad/feature-groups.ts` ships the hierarchy
+  helpers: `parentOf`, `ancestorChain`, `isDescendantOf`,
+  `allDescendants`, `wouldCreateCycle`, `childrenOf`. Each is
+  cycle-safe (the chain walker tracks `seen` and stops on revisit).
+- `drawingStore.moveFeatureGroup(groupId, newParentId)` reparents
+  with cycle guard — returns `true` on success, `false` (no-op)
+  when:
+    - `newParentId === groupId` (self-parent)
+    - `newParentId` is a descendant of `groupId` (loop)
+    - the source or target group doesn't exist
+  `newParentId === null` moves to layer-root (always safe).
+- `createFeatureGroup({ parentGroupId })` deliberately NOT done in
+  this slice — the existing `groupFeatures` API already accepts a
+  name; surfacing the parent id at create-time can wait until the
+  Slice-4 multi-select-grouping UI needs it (the new
+  `moveFeatureGroup` action covers post-create reparenting today).
+- Tests: 22 pure-helper specs lock parent resolution, ancestor
+  chain (incl. cycle-safety), descendant queries, the move-
+  validation contract, and childrenOf; 7 store specs lock the
+  moveFeatureGroup action's success / cycle-rejection / null-parent
+  / unknown-id paths.
+- Full cad suite (1982) green; typecheck + lint clean.
 
 ### Slice 3 — LayerPanel tree render (recursive)
 

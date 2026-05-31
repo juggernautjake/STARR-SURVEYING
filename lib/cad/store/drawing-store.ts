@@ -1,6 +1,8 @@
 // lib/cad/store/drawing-store.ts — Central store for all drawing data
 import { create } from 'zustand';
 import type { DrawingDocument, Feature, FeatureGroup, Layer, DrawingSettings, TextLabel, LayerDisplayPreferences, ProjectImage, TitleBlockConfig } from '../types';
+// cad-layer-grouping Slice 2 — cycle guard for moveFeatureGroup.
+import { wouldCreateCycle } from '../feature-groups';
 import { generateId } from '../types';
 import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
@@ -103,6 +105,12 @@ interface DrawingStore {
   removeFeatureFromGroup: (featureId: string) => void;
   /** Rename a feature group. */
   renameFeatureGroup: (groupId: string, name: string) => void;
+  /** cad-layer-grouping Slice 2 — reparent a group under another
+   *  group (or move it to layer-root with `newParentId === null`).
+   *  Rejects (no-op) when the move would create a cycle (self-parent
+   *  or moving a group under one of its own descendants). Returns
+   *  true on success, false when rejected. */
+  moveFeatureGroup: (groupId: string, newParentId: string | null) => boolean;
   /** Get a feature group by id. */
   getFeatureGroup: (groupId: string) => FeatureGroup | undefined;
   /** Get all feature groups for a layer. */
@@ -621,6 +629,32 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         isDirty: true,
       };
     }),
+
+  moveFeatureGroup: (groupId, newParentId) => {
+    const state = get();
+    const groups = state.document.featureGroups;
+    const group = groups[groupId];
+    if (!group) return false;
+    // newParentId === null is always safe (move to layer-root). Else
+    // the target must exist + must NOT be the group itself + must
+    // NOT be a descendant of the group.
+    if (newParentId !== null) {
+      if (!groups[newParentId]) return false;
+      if (wouldCreateCycle(groups, groupId, newParentId)) return false;
+    }
+    set((s) => ({
+      document: {
+        ...s.document,
+        featureGroups: {
+          ...s.document.featureGroups,
+          [groupId]: { ...group, parentGroupId: newParentId },
+        },
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    }));
+    return true;
+  },
 
   renameFeatureGroup: (groupId, name) =>
     set((state) => {
