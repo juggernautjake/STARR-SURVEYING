@@ -27,6 +27,12 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 // cad-trv-import-export Slice 4 — File menu Import / Export TRV.
 import { downloadTrv, importTrvFromText, type TrvImportReport } from '@/lib/cad/io/trv-io';
+// cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
+// to the survey title block (non-destructive).
+import { applyTrvMetadataToTitleBlock } from '@/lib/cad/io/trv-titleblock';
+// cad-trv-import-export-deep-semantic Pass 8 — sniff file format
+// + structured error diagnostics for the Open… dialog.
+import { detectFileFormat, buildFileLoadDiagnostic, formatFileLoadDiagnostic } from '@/lib/cad/io/file-detect';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
@@ -199,29 +205,105 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   function openFileDialog() {
     const input = Object.assign(document.createElement('input'), {
       type: 'file',
-      accept: '.starr',
+      // cad-trv-import-export-deep-semantic Pass 8 — accept TRV
+      // alongside .starr so the Open dialog can route to either
+      // loader. Content sniff handles other extensions too.
+      accept: '.starr,.TRV,.trv',
     });
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
       setFileLoading(true);
+      let text = '';
       try {
-        const text = await file.text();
-        const payload = JSON.parse(text) as { document: unknown };
-        const doc = validateAndMigrateDocument(payload?.document ?? payload);
+        text = await file.text();
+      } catch (err) {
+        const diag = buildFileLoadDiagnostic(file.name, '', err, 'sniff');
+        cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+        alert(formatFileLoadDiagnostic(diag));
+        setFileLoading(false);
+        return;
+      }
+      // Pass 8 — sniff first so the right loader runs.
+      const format = detectFileFormat(file.name, text);
+      try {
+        if (format === 'TRV') {
+          // Route TRV files through the same import flow as
+          // File → Import → "Import Traverse PC (.TRV)…" with
+          // the count preview + non-destructive title-block apply.
+          const report: TrvImportReport = importTrvFromText(text);
+          const noteSummary = report.notes.length > 0
+            ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
+            : '';
+          const ok = window.confirm(
+            `Open ${file.name} as a Traverse PC TRV?\n\n` +
+            `  ${report.layerCount} layer(s)\n` +
+            `  ${report.pointCount} point(s)\n` +
+            `  ${report.traverseCount} traverse(s)` +
+            noteSummary +
+            `\n\nThis will ADD the records to the current drawing.`
+          );
+          if (!ok) {
+            setFileLoading(false);
+            return;
+          }
+          for (const l of report.mapped.layers) drawingStore.addLayer(l);
+          drawingStore.addFeatures(report.mapped.features);
+          cadLog.info('FileIO', `Loaded TRV via Open dialog: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
+          // Offer the title-block metadata apply (same as importTrv).
+          const m = report.metadata;
+          const hasMetadata = !!(m.projectName || m.surveyDate || m.scale || m.sourcePath);
+          if (hasMetadata) {
+            const applyMeta = window.confirm(
+              'Apply TRV project metadata to the survey title block?\n\n' +
+              (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
+              (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
+              (m.scale       ? `  Scale: ${m.scale}\n` : '') +
+              (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
+              '\nOnly fields you haven\'t set will be filled (non-destructive).'
+            );
+            if (applyMeta) {
+              const current = drawingStore.document.settings?.titleBlock;
+              if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current) });
+            }
+          }
+          setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+          setFileLoading(false);
+          return;
+        }
+        // STARR or UNKNOWN: try the JSON path. UNKNOWN attempts the
+        // STARR path optimistically — the structured diagnostic
+        // below will hint the right loader if it fails.
+        let payload: { document: unknown };
+        try {
+          payload = JSON.parse(text) as { document: unknown };
+        } catch (err) {
+          const diag = buildFileLoadDiagnostic(file.name, text, err, 'parse');
+          cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+          alert(formatFileLoadDiagnostic(diag));
+          setFileLoading(false);
+          return;
+        }
+        let doc;
+        try {
+          doc = validateAndMigrateDocument(payload?.document ?? payload);
+        } catch (err) {
+          const diag = buildFileLoadDiagnostic(file.name, text, err, 'map');
+          cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+          alert(formatFileLoadDiagnostic(diag));
+          setFileLoading(false);
+          return;
+        }
         drawingStore.loadDocument(doc);
         selectionStore.deselectAll();
         undoStore.clear();
-        // Remember this as the drawing's local save target so a later
-        // Ctrl+S writes back under the same name without prompting.
         useSaveTargetStore.getState().setLocalTarget(doc.id, doc.name);
         cadLog.info('FileIO', `Loaded drawing: ${doc.name}`);
-        // Zoom to the loaded drawing's content after a short delay to let the canvas render
         setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        cadLog.error('FileIO', 'Failed to load .starr file', err);
-        alert(`Failed to load file: ${msg}\n\nMake sure this is a valid .starr drawing file.`);
+        const diag = buildFileLoadDiagnostic(file.name, text, err, 'apply');
+        cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+        alert(formatFileLoadDiagnostic(diag));
       } finally {
         setFileLoading(false);
       }
@@ -325,6 +407,31 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       for (const l of report.mapped.layers) drawingStore.addLayer(l);
       drawingStore.addFeatures(report.mapped.features);
       cadLog.info('FileIO', `Imported TRV: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
+      // Pass 6 — offer to apply TRV project metadata to the
+      // drawing's title block. Non-destructive: the helper only
+      // fills currently-empty fields, so accepting is safe even
+      // mid-project. We prompt separately so the surveyor can
+      // skip without skipping the whole import.
+      const m = report.metadata;
+      const hasMetadata = !!(m.projectName || m.surveyDate || m.scale || m.sourcePath);
+      if (hasMetadata) {
+        const applyMeta = window.confirm(
+          'Apply TRV project metadata to the survey title block?\n\n' +
+          (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
+          (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
+          (m.scale       ? `  Scale: ${m.scale}\n` : '') +
+          (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
+          '\nOnly fields you haven\'t set will be filled (non-destructive).'
+        );
+        if (applyMeta) {
+          const current = drawingStore.document.settings?.titleBlock;
+          if (current) {
+            const nextTitleBlock = applyTrvMetadataToTitleBlock(m, current);
+            drawingStore.updateSettings({ titleBlock: nextTitleBlock });
+            cadLog.info('FileIO', 'Applied TRV metadata to title block');
+          }
+        }
+      }
     };
     input.click();
   }

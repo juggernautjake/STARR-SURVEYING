@@ -72,6 +72,130 @@ describe('drawingToTrv — verbatim sourceTrv mode', () => {
   });
 });
 
+describe('drawingToTrv — Pass 9: smart-merge add / remove for points', () => {
+  function setupDocWith(features: Record<string, Feature>): { trv: ReturnType<typeof parseTrv>; doc: DrawingDocument } {
+    const trv = parseTrv(FIXTURE);
+    const mapped = trvToDrawing(trv);
+    const layers: Record<string, Layer> = {};
+    for (const l of mapped.layers) layers[l.id] = l;
+    return {
+      trv,
+      doc: {
+        id: 'd', name: '', created: '', modified: '', author: '',
+        features, layers, layerOrder: mapped.layers.map((l) => l.id),
+        featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+      } as unknown as DrawingDocument,
+    };
+  }
+
+  it('drops the source point block + the matching 10/11 ref pair when a point is deleted', () => {
+    // FIXTURE has 2 points (`1` + `2`); keep only `2`.
+    const trv = parseTrv(FIXTURE);
+    const mapped = trvToDrawing(trv);
+    const kept = mapped.features.find((f) => f.properties.trvPointId === '2')!;
+    const layers: Record<string, Layer> = {};
+    for (const l of mapped.layers) layers[l.id] = l;
+    const doc: DrawingDocument = {
+      id: 'd', name: '', created: '', modified: '', author: '',
+      features: { [kept.id]: kept }, layers,
+      layerOrder: mapped.layers.map((l) => l.id),
+      featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+    } as unknown as DrawingDocument;
+    const merged = drawingToTrv(doc, { sourceTrv: trv, applyChanges: true });
+    expect(merged).not.toContain('0,1\r\n');
+    expect(merged).not.toContain('corner SE');
+    // The corresponding 10,1 ref in the traverse + its 11 pair are gone.
+    expect(merged).not.toContain('10,1\r\n11,1,0,0,3,0');
+    // The kept point + its 10,2 ref stay.
+    expect(merged).toContain('0,2');
+    expect(merged).toContain('10,2');
+  });
+
+  it('rewrites the 95,<count> header to reflect deletes', () => {
+    const trv = parseTrv(FIXTURE);
+    const mapped = trvToDrawing(trv);
+    const kept = mapped.features.find((f) => f.properties.trvPointId === '2')!;
+    const layers: Record<string, Layer> = {};
+    for (const l of mapped.layers) layers[l.id] = l;
+    const doc: DrawingDocument = {
+      id: 'd', name: '', created: '', modified: '', author: '',
+      features: { [kept.id]: kept }, layers,
+      layerOrder: mapped.layers.map((l) => l.id),
+      featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+    } as unknown as DrawingDocument;
+    const merged = drawingToTrv(doc, { sourceTrv: trv, applyChanges: true });
+    expect(merged).toContain('95,1');
+    expect(merged).not.toMatch(/^95,2$/m);
+  });
+
+  it('appends new POINT features (no trvPointId) as fresh point blocks before 999,end', () => {
+    const trv = parseTrv(FIXTURE);
+    const mapped = trvToDrawing(trv);
+    const features: Record<string, Feature> = {};
+    for (const f of mapped.features) features[f.id] = f;
+    // Add a new POINT feature WITHOUT trvPointId.
+    const newPoint: Feature = {
+      id: 'fresh:1',
+      type: 'POINT',
+      geometry: { type: 'POINT', point: { x: 1234, y: -5678 } } as Feature['geometry'],
+      layerId: mapped.layers[0].id,
+      style: {} as never,
+      properties: { label: 'new pt' },
+    } as Feature;
+    features[newPoint.id] = newPoint;
+    const layers: Record<string, Layer> = {};
+    for (const l of mapped.layers) layers[l.id] = l;
+    const doc: DrawingDocument = {
+      id: 'd', name: '', created: '', modified: '', author: '',
+      features, layers, layerOrder: mapped.layers.map((l) => l.id),
+      featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+    } as unknown as DrawingDocument;
+    const merged = drawingToTrv(doc, { sourceTrv: trv, applyChanges: true });
+    // New point id is the feature id (with `fresh:` prefix stripped
+    // would require unprefix logic; without it the id is the raw
+    // feature id since there's no trv-point: prefix).
+    expect(merged).toContain('0,fresh:1');
+    expect(merged).toContain('1,new pt');
+    // Count is bumped to (original 2 + 1 added) = 3.
+    expect(merged).toContain('95,3');
+    // New point's coords are inverse-screen-transformed: x=east=1234,
+    // y=-north → north=5678.
+    expect(merged).toMatch(/2,5678,1234,0/);
+    // 999,end still terminates the file.
+    expect(merged.split('\r\n').pop()).toBe('999,end');
+  });
+
+  it('handles delete + add in the same merge atomically (count = original - deletes + adds)', () => {
+    const trv = parseTrv(FIXTURE);
+    const mapped = trvToDrawing(trv);
+    // Drop point `1`; add 2 new points.
+    const kept = mapped.features.find((f) => f.properties.trvPointId === '2')!;
+    const newA: Feature = {
+      id: 'newA', type: 'POINT',
+      geometry: { type: 'POINT', point: { x: 0, y: 0 } } as Feature['geometry'],
+      layerId: mapped.layers[0].id, style: {} as never, properties: {},
+    } as Feature;
+    const newB: Feature = {
+      id: 'newB', type: 'POINT',
+      geometry: { type: 'POINT', point: { x: 1, y: 1 } } as Feature['geometry'],
+      layerId: mapped.layers[0].id, style: {} as never, properties: {},
+    } as Feature;
+    const layers: Record<string, Layer> = {};
+    for (const l of mapped.layers) layers[l.id] = l;
+    const doc: DrawingDocument = {
+      id: 'd', name: '', created: '', modified: '', author: '',
+      features: { [kept.id]: kept, newA: newA, newB: newB }, layers,
+      layerOrder: mapped.layers.map((l) => l.id),
+      featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+    } as unknown as DrawingDocument;
+    const merged = drawingToTrv(doc, { sourceTrv: trv, applyChanges: true });
+    expect(merged).toContain('95,3'); // 2 - 1 + 2.
+    expect(merged).not.toContain('0,1\r\n');
+    expect(merged).toContain('0,newA');
+    expect(merged).toContain('0,newB');
+  });
+});
+
 describe('drawingToTrv — Pass 4: smart-merge with sourceTrv + applyChanges', () => {
   it('produces a byte-equal output when no feature coords have changed', () => {
     const trv = parseTrv(FIXTURE);
@@ -110,15 +234,27 @@ describe('drawingToTrv — Pass 4: smart-merge with sourceTrv + applyChanges', (
     expect(merged).toContain('30,perimeter');
   });
 
-  it('ignores points whose trvPointId is gone from the doc (deferred to add/remove pass)', () => {
+  it('Pass 9 now removes points absent from the doc (every source point gets dropped on an empty doc)', () => {
     const trv = parseTrv(FIXTURE);
-    // Empty doc — nothing to patch. Result should match the source verbatim.
     const empty: DrawingDocument = {
       id: 'd', name: '', created: '', modified: '', author: '',
       features: {}, layers: {}, layerOrder: [],
       featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
     } as unknown as DrawingDocument;
-    expect(drawingToTrv(empty, { sourceTrv: trv, applyChanges: true })).toBe(FIXTURE);
+    const merged = drawingToTrv(empty, { sourceTrv: trv, applyChanges: true });
+    // 95 count drops to zero; both point blocks + their traverse
+    // refs are gone.
+    expect(merged).toContain('95,0');
+    // Line-anchored checks — `0,1` / `0,2` would otherwise match as
+    // substrings inside e.g. `31,0,2,0,0` (the traverse metadata).
+    expect(merged).not.toMatch(/^0,1\b/m);
+    expect(merged).not.toMatch(/^0,2\b/m);
+    expect(merged).not.toMatch(/^10,1\b/m);
+    expect(merged).not.toMatch(/^10,2\b/m);
+    // Structure preserved (header / layers / 999,end intact).
+    expect(merged).toContain('#,TRAVERSE PC');
+    expect(merged).toContain('86,Boundaries,3,0');
+    expect(merged.split('\r\n').pop()).toBe('999,end');
   });
 });
 

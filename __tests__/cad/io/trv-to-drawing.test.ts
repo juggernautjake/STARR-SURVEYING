@@ -214,6 +214,97 @@ describe('trvToDrawing — traverses', () => {
   });
 });
 
+// cad-trv-import-export-deep-semantic Pass 7 — curve detection
+// emits an additional ARC feature when the polyline geometry has
+// a curved run (residual within tolerance) and SPLINE when not.
+describe('trvToDrawing — Pass 7: curve detection + ARC / SPLINE emission', () => {
+  function arcPointsFixture(): string {
+    // Generate ~quarter-circle of radius 100 at origin, 10 pts.
+    // Wrap into a TRV fixture with 10 points + a traverse
+    // referencing them in order (open polyline).
+    const lines: string[] = ['999,begin', '#,POINTS', '95,10'];
+    for (let i = 0; i < 10; i++) {
+      const t = i / 9;
+      const ang = t * (Math.PI / 2);
+      const east = 100 * Math.cos(ang);
+      const north = 100 * Math.sin(ang);
+      lines.push(`0,p${i}`);
+      lines.push(`2,${north.toFixed(6)},${east.toFixed(6)},0`);
+    }
+    lines.push('#,TRAVERSE');
+    lines.push('30,curve-trav');
+    lines.push('31,0,10,0,0');
+    for (let i = 0; i < 10; i++) {
+      lines.push(`10,p${i}`);
+      lines.push(`11,1,${i},0,3,0`);
+    }
+    lines.push('999,end');
+    return lines.join('\r\n');
+  }
+
+  it('emits an ARC feature alongside the POLYLINE when a circular run is detected', () => {
+    const { features } = trvToDrawing(parseTrv(arcPointsFixture()));
+    const polyline = features.find((f) => f.type === 'POLYLINE');
+    const arc = features.find((f) => f.type === 'ARC');
+    expect(polyline).toBeDefined();
+    expect(arc).toBeDefined();
+    expect(arc!.geometry.arc?.radius).toBeCloseTo(100, 3);
+    expect(arc!.geometry.arc?.center.x).toBeCloseTo(0, 3);
+    // Y is negated by the screen-y-down transform: north → -y so
+    // center y in screen space should be ~0 too (the arc is in the
+    // y<0 half-plane in screen coords).
+  });
+
+  it('the ARC feature carries curveOfTraverse pointing at the polyline', () => {
+    const { features } = trvToDrawing(parseTrv(arcPointsFixture()));
+    const polyline = features.find((f) => f.type === 'POLYLINE')!;
+    const arc = features.find((f) => f.type === 'ARC')!;
+    expect(arc.properties.curveOfTraverse).toBe(polyline.id);
+    expect(arc.properties.curveKind).toBe('ARC');
+  });
+
+  it('the polyline keeps its original vertex chain (area / boundary unchanged)', () => {
+    const { features } = trvToDrawing(parseTrv(arcPointsFixture()));
+    const polyline = features.find((f) => f.type === 'POLYLINE')!;
+    // 10 input vertices, no dedup since the open traverse doesn't
+    // loop back.
+    expect(polyline.geometry.vertices?.length).toBe(10);
+  });
+
+  it('records the detected runs on properties.trvCurveRuns as JSON', () => {
+    const { features } = trvToDrawing(parseTrv(arcPointsFixture()));
+    const polyline = features.find((f) => f.type === 'POLYLINE')!;
+    const raw = polyline.properties.trvCurveRuns as string;
+    const runs = JSON.parse(raw);
+    expect(Array.isArray(runs)).toBe(true);
+    expect(runs.length).toBe(1);
+    expect(runs[0].kind).toBe('ARC');
+  });
+
+  it('does NOT emit any curve features for a straight polyline', () => {
+    const fixture = [
+      '999,begin',
+      '#,POINTS',
+      '95,4',
+      '0,1', '2,0,0,0',
+      '0,2', '2,0,10,0',
+      '0,3', '2,0,20,0',
+      '0,4', '2,0,30,0',
+      '#,TRAVERSE',
+      '30,straight',
+      '31,0,4,0,0',
+      '10,1', '11,1,0,0,3,0',
+      '10,2', '11,1,1,0,3,0',
+      '10,3', '11,1,2,0,3,0',
+      '10,4', '11,1,3,0,3,0',
+      '999,end',
+    ].join('\r\n');
+    const { features } = trvToDrawing(parseTrv(fixture));
+    expect(features.filter((f) => f.type === 'ARC' || f.type === 'SPLINE')).toEqual([]);
+    expect(features.filter((f) => f.type === 'POLYLINE').length).toBe(1);
+  });
+});
+
 describe('trvToDrawing — composition', () => {
   it('returns layers + features + notes for the full fixture in one call', () => {
     const out = build();
