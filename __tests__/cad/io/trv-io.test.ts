@@ -93,7 +93,10 @@ describe('MenuBar — TRV import/export wiring', () => {
 
   it('appends layers + features to the drawing store on confirm', () => {
     expect(MENUBAR_SRC).toMatch(/for \(const l of report\.mapped\.layers\) drawingStore\.addLayer\(l\)/);
-    expect(MENUBAR_SRC).toMatch(/drawingStore\.addFeatures\(report\.mapped\.features\)/);
+    // cad-duplicate-point-handling Slice 4 — features now run
+    // through dedupeTrvFeaturesAgainstDrawing before addFeatures
+    // so cross-file `:N` collisions resolve automatically.
+    expect(MENUBAR_SRC).toMatch(/drawingStore\.addFeatures\(deduped(Open|Import)\.features\)/);
   });
 
   it('renders "Export as Traverse PC (.TRV)…" + "Import Traverse PC (.TRV)…" menu entries', () => {

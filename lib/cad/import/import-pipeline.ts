@@ -9,6 +9,9 @@ import { buildLineStrings, markAutoSplineStrings } from '../codes/auto-connect';
 import { validatePoints } from './validation';
 import { cadLog } from '../logger';
 import type { ParsedImportRow } from './types';
+// cad-duplicate-point-handling Slice 3 — auto-rename colliding
+// pointNumbers using the TRV `:N` convention.
+import { dedupePointNumbers, type PointRename } from './dedupe-points';
 
 export interface ImportResult {
   points: SurveyPoint[];
@@ -16,6 +19,11 @@ export interface ImportResult {
   pointGroups: Map<number, PointGroup>;
   validationIssues: ValidationIssue[];
   stats: ImportStats;
+  /** cad-duplicate-point-handling Slice 3 — every pointNumber
+   *  collision the pipeline auto-renamed via the `:N` convention.
+   *  Empty when the input had no collisions. The Validate step
+   *  can show the count + the full list (Copy button friendly). */
+  pointRenames: PointRename[];
 }
 
 export interface ImportStats {
@@ -110,6 +118,18 @@ export function processImport(
     points.push(surveyPoint);
   }
 
+  // Step 1b: cad-duplicate-point-handling Slice 3 — auto-rename
+  // pointNumber collisions before any downstream step looks at
+  // pointName. Cross-layer (`23` on Topo + `23` on Boundaries)
+  // and same-layer dupes both step to `:1`, `:2`, … per Traverse
+  // PC's own convention. The renames flow through to the result
+  // so the Validate step can show "N points were auto-renamed".
+  const { renamed: dedupedPoints, renames: pointRenames } = dedupePointNumbers(points);
+  points.splice(0, points.length, ...dedupedPoints);
+  if (pointRenames.length > 0) {
+    cadLog.info('ImportPipeline', `Auto-renamed ${pointRenames.length} colliding point name(s) using the :N convention`);
+  }
+
   // Step 2: Build line strings
   const lineStrings = buildLineStrings(points);
   markAutoSplineStrings(lineStrings);
@@ -150,7 +170,7 @@ export function processImport(
     stats,
   );
 
-  return { points, lineStrings, pointGroups, validationIssues, stats };
+  return { points, lineStrings, pointGroups, validationIssues, stats, pointRenames };
 }
 
 /** Get display code based on current display mode */

@@ -115,7 +115,45 @@ than the inline JSX is worth.
 - Tests: rendered modal contains every diagnostic field +
   Copy button writes to a stubbed clipboard.
 
-### Slice 3 — Survey-coordinate auto-fit / paper auto-size
+### Slice 3 — Survey-coordinate auto-fit / paper auto-size ✅ shipped 2026-05-31
+
+- New pure module `lib/cad/io/trv-paper-fit.ts`:
+  - `fitPaperToBounds(bounds, opts?)` walks LETTER → TABLOID →
+    ARCH_C → ARCH_D → ARCH_E in both orientations, and at each
+    paper walks the standard engineering scales (1, 5, 10, 20,
+    30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 750, 1000,
+    1500, 2000, 3000, 5000, 10000 ft per inch). Returns the
+    smallest paper × smallest scale combination whose
+    printable area (paper - 2×margin) covers the bbox, with
+    the bbox centered on the sheet via `paperOriginWorld`.
+  - `bboxOfFeaturePoints(features)` is a lightweight bbox
+    computer that handles every relevant feature geometry
+    (POINT / POLYLINE / POLYGON / LINE / MIXED / SPLINE / ARC /
+    CIRCLE).
+- MenuBar's two TRV import branches (Open route + dedicated
+  Import TRV) now call a shared `maybeFitPaperToImportedFeatures`
+  helper just before `cad:zoomExtents` is dispatched. The helper:
+  - bbox's the imported features
+  - picks the smallest standard paper + scale that fits
+  - updates `paperSize` / `paperOrientation` / `drawingScale` /
+    `paperOrigin` atomically
+  - fills `titleBlock.scaleLabel` (`1" = N'`) only when it's
+    currently empty (non-destructive, same policy as the
+    metadata apply)
+- 17 specs: smallest-paper selection across 4 bbox sizes,
+  Garland-sample bbox fits a normal sheet, paper-centering math,
+  null on degenerate / too-big bboxes, `candidateSizes` lock,
+  bbox-of-features handles every geometry type, MenuBar wires
+  helper into BOTH TRV branches, atomic settings update,
+  non-destructive `scaleLabel` fill.
+- Full cad suite (2272) green; typecheck + lint clean.
+
+### Slice 3 (rationale — original outline)
+
+The original outline below is preserved for reference. Note that
+the optional "toast" was skipped — the import-confirm dialog
+already shows the layer/point/traverse counts + notes; an
+additional toast would duplicate that information.
 
 - After a TRV import (when survey-coord features land far from
   the origin), compute the bbox of the imported features and
