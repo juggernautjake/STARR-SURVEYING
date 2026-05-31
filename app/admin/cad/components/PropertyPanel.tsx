@@ -1342,7 +1342,13 @@ export default function PropertyPanel() {
               { label: '', options: [{ value: 'NONE', label: 'No fill' }] },
               { label: 'Stipple', options: [
                 { value: 'DOT_UNIFORM', label: 'Dots' },
-                { value: 'DOT_GRAVEL', label: 'Gravel' },
+                // cad-fill-rotation Slice 1 — renamed from "Gravel".
+                // The pattern is the random-sized-and-spaced dots
+                // surveyors use for many things (gravel pad, mulch,
+                // landscape scrub, natural-earth tone), so the label
+                // shouldn't pin it to one use. Storage id stays
+                // DOT_GRAVEL — no migration.
+                { value: 'DOT_GRAVEL', label: 'Random dots' },
               ] },
               { label: 'Hatches', options: [
                 { value: 'DIAGONAL_RIGHT', label: 'Diagonal /' },
@@ -1362,6 +1368,13 @@ export default function PropertyPanel() {
             const patternOptions = patternGroups.flatMap((g) => g.options);
             const patternDensity = feature.style.patternDensity ?? 1;
             const patternScale = feature.style.patternScale ?? 1;
+            // cad-fill-rotation Slice 1 — rotation in DEGREES, 0–359.
+            const patternRotation = feature.style.patternRotation ?? 0;
+            // Clamp + sanitize a number, treating NaN as the fallback so
+            // a partially-typed value (e.g. an empty input) doesn't blow
+            // the field state up.
+            const clamp = (v: number, lo: number, hi: number, fb: number) =>
+              !Number.isFinite(v) ? fb : Math.max(lo, Math.min(hi, v));
             return (
               <div
                 data-testid="property-panel-fill-pattern"
@@ -1418,52 +1431,133 @@ export default function PropertyPanel() {
                 {/* cad-fills Slice 1 — editable pattern parameters.
                     Density drives dot spacing + hatch spacing + brick
                     course size + wave spacing/wavelength; Thickness
-                    scales dot radius + line weight. Shown only when a
-                    real pattern is active. */}
+                    scales dot radius + line weight; cad-fill-rotation
+                    Slice 1 adds Angle so any pattern (dots, random
+                    dots, hatch, brick, wave) can be spun to a custom
+                    direction. Each row has a slider AND a numeric
+                    input so the surveyor can drag for fast tuning or
+                    type for exact values. */}
                 {currentPattern !== 'NONE' && currentPattern !== 'SOLID' && (
                   <div
                     className="space-y-2 rounded border border-gray-700 bg-gray-800/50 p-2"
                     data-testid="property-panel-fill-pattern-params"
                   >
+                    {/* Density */}
                     <label className="block">
                       <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
                         <span className="uppercase tracking-wider">Density</span>
                         <span className="tabular-nums text-gray-200">{patternDensity.toFixed(2)}×</span>
                       </div>
-                      <input
-                        type="range"
-                        min={0.25}
-                        max={4}
-                        step={0.25}
-                        value={patternDensity}
-                        data-testid="property-panel-fill-pattern-density"
-                        className="w-full accent-blue-500"
-                        onChange={(e) => {
-                          drawingStore.updateFeature(feature.id, {
-                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: parseFloat(e.target.value), isOverride: true },
-                          });
-                        }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternDensity}
+                          data-testid="property-panel-fill-pattern-density"
+                          className="flex-1 accent-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                        <input
+                          type="number"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternDensity}
+                          data-testid="property-panel-fill-pattern-density-input"
+                          className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                      </div>
                     </label>
+
+                    {/* Thickness */}
                     <label className="block">
                       <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
                         <span className="uppercase tracking-wider">Thickness</span>
                         <span className="tabular-nums text-gray-200">{patternScale.toFixed(2)}×</span>
                       </div>
-                      <input
-                        type="range"
-                        min={0.25}
-                        max={4}
-                        step={0.25}
-                        value={patternScale}
-                        data-testid="property-panel-fill-pattern-thickness"
-                        className="w-full accent-blue-500"
-                        onChange={(e) => {
-                          drawingStore.updateFeature(feature.id, {
-                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: parseFloat(e.target.value), isOverride: true },
-                          });
-                        }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternScale}
+                          data-testid="property-panel-fill-pattern-thickness"
+                          className="flex-1 accent-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                        <input
+                          type="number"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternScale}
+                          data-testid="property-panel-fill-pattern-thickness-input"
+                          className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                      </div>
+                    </label>
+
+                    {/* cad-fill-rotation Slice 1 — Angle, 0–359°. */}
+                    <label className="block">
+                      <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                        <span className="uppercase tracking-wider">Angle</span>
+                        <span className="tabular-nums text-gray-200">{Math.round(patternRotation)}°</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={359}
+                          step={1}
+                          value={patternRotation}
+                          data-testid="property-panel-fill-pattern-angle"
+                          className="flex-1 accent-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternRotation: clamp(parseFloat(e.target.value), 0, 359, 0), isOverride: true },
+                            });
+                          }}
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={359}
+                          step={1}
+                          value={patternRotation}
+                          data-testid="property-panel-fill-pattern-angle-input"
+                          className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => {
+                            // Wrap typed values into 0..359 so an entry
+                            // like 360 resolves to 0 and -10 → 350.
+                            const raw = parseFloat(e.target.value);
+                            const wrapped = !Number.isFinite(raw) ? 0 : ((Math.round(raw) % 360) + 360) % 360;
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternRotation: wrapped, isOverride: true },
+                            });
+                          }}
+                        />
+                      </div>
                     </label>
                   </div>
                 )}

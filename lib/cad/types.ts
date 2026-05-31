@@ -481,6 +481,11 @@ export interface FeatureStyle {
    *  / wave stroke weight, so the user can make a pattern read heavier
    *  or lighter without changing its spacing. */
   patternScale?: number;
+  /** cad-fill-rotation Slice 1 — pattern rotation in DEGREES around
+   *  the polygon's bounding-box center. 0 (default) = the historical
+   *  unrotated baseline. Rotation works for every pattern (dots /
+   *  random-dots / hatch / brick / wave). */
+  patternRotation?: number;
 }
 
 export type FillPattern =

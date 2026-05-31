@@ -3742,6 +3742,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       seed: hashSeed(feature.id),
       // cad-fills Slice 1 — thickness multiplier (dot radius + line weight).
       scale: feature.style.patternScale ?? 1,
+      // cad-fill-rotation Slice 1 — pattern rotation in degrees
+      // around the bounding-box center (0 = unrotated baseline).
+      angle: feature.style.patternRotation ?? 0,
     };
     const { dots, lines } = generateFillPattern(width, height, cfg);
     const patternColorHex = feature.style.patternColor ?? feature.style.color ?? '#000000';

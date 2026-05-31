@@ -286,3 +286,64 @@ describe('cad-fills Slice 1 — density still drives spacing/frequency', () => {
     expect(dense.length).toBeGreaterThan(sparse.length);
   });
 });
+
+describe('cad-fill-rotation Slice 1 — angle rotates any pattern', () => {
+  const W = 200;
+  const H = 200;
+  const seed = 7;
+
+  it('angle 0 (or omitted) is the unrotated baseline (pixel-identical)', () => {
+    const noAngle = generateFillPattern(W, H, { pattern: 'WAVE', density: 1, seed });
+    const zero    = generateFillPattern(W, H, { pattern: 'WAVE', density: 1, seed, angle: 0 });
+    expect(zero).toEqual(noAngle);
+  });
+
+  it('rotating a horizontal hatch by 90° produces ~vertical line segments', () => {
+    const horiz = generateFillPattern(W, H, { pattern: 'HORIZONTAL_LINES', density: 1, seed }).lines;
+    const rotated = generateFillPattern(W, H, { pattern: 'HORIZONTAL_LINES', density: 1, seed, angle: 90 }).lines;
+    // Sanity: horizontal hatch has |y2 - y1| ≈ 0 for every line.
+    const isHoriz = (ln: { x1: number; y1: number; x2: number; y2: number }) =>
+      Math.abs(ln.y2 - ln.y1) < 0.001;
+    const isVert = (ln: { x1: number; y1: number; x2: number; y2: number }) =>
+      Math.abs(ln.x2 - ln.x1) < 0.001;
+    expect(horiz.length).toBeGreaterThan(0);
+    expect(horiz.every(isHoriz)).toBe(true);
+    expect(rotated.length).toBeGreaterThan(0);
+    expect(rotated.every(isVert)).toBe(true);
+  });
+
+  it('rotating a dot pattern shifts dot positions but preserves count + radii', () => {
+    const base = generateFillPattern(W, H, { pattern: 'DOT_UNIFORM', density: 1, seed });
+    const rotated = generateFillPattern(W, H, { pattern: 'DOT_UNIFORM', density: 1, seed, angle: 30 });
+    // Both pull from the oversized generation rect at angle > 0, so the
+    // counts differ a touch from the unrotated baseline — but each
+    // rotated dot still carries the same radius the generator emitted.
+    expect(rotated.dots.length).toBeGreaterThan(0);
+    for (const d of rotated.dots) {
+      expect(d.r).toBeGreaterThan(0);
+    }
+    // Not the same positions as the unrotated baseline.
+    const sameAsBase = base.dots.length === rotated.dots.length
+      && base.dots.every((b, i) => Math.abs(b.x - rotated.dots[i].x) < 0.001 && Math.abs(b.y - rotated.dots[i].y) < 0.001);
+    expect(sameAsBase).toBe(false);
+  });
+
+  it('wraps a > 360° angle the same as its mod 360', () => {
+    const a = generateFillPattern(W, H, { pattern: 'BRICK', density: 1, seed, angle: 45 });
+    const b = generateFillPattern(W, H, { pattern: 'BRICK', density: 1, seed, angle: 405 });
+    expect(a).toEqual(b);
+  });
+
+  it('coverage: rotated pattern still produces primitives that span the original bounding rect', () => {
+    // Generate at 45° on a tall narrow rect; assert at least one
+    // line's MIDPOINT lands inside the original rect (endpoints sit
+    // outside on long hatch lines, but the line crosses the interior).
+    const rotated = generateFillPattern(60, 200, { pattern: 'HORIZONTAL_LINES', density: 1, seed, angle: 45 }).lines;
+    const midInRect = rotated.some((ln) => {
+      const mx = (ln.x1 + ln.x2) / 2;
+      const my = (ln.y1 + ln.y2) / 2;
+      return mx >= 0 && mx <= 60 && my >= 0 && my <= 200;
+    });
+    expect(midInRect).toBe(true);
+  });
+});

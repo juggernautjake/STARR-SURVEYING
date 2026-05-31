@@ -59,6 +59,13 @@ export interface FillPatternConfig {
    *  / wave stroke weight is applied by the render path via
    *  `patternLineWeight(scale)`. Optional → treated as 1. */
   scale?: number;
+  /** cad-fill-rotation Slice 1 — pattern rotation in DEGREES around
+   *  the bounding-box center. 0 (default) = the historical baseline
+   *  (so existing drawings render unchanged). Rotation applies to
+   *  every pattern (dots/gravel/hatch/brick/wave), so the surveyor
+   *  can spin a brick course or a wave row to any angle without
+   *  reaching for a different pattern type. */
+  angle?: number;
 }
 
 /** Clamp a 0.25–4 multiplier; non-finite / non-positive → 1. */
@@ -297,6 +304,64 @@ export interface GeneratedPattern {
   lines: PatternLine[];
 }
 
+/** Generate the raw (unrotated) pattern primitives over an arbitrary
+ *  rect. Split out so the rotated dispatcher can call it on an
+ *  oversized rect and then transform primitives back into the
+ *  original (width × height) frame. */
+function rawPattern(
+  w: number,
+  h: number,
+  config: FillPatternConfig,
+  density: number,
+  scale: number | undefined,
+): GeneratedPattern {
+  switch (config.pattern) {
+    case 'SOLID':
+    case 'NONE':
+      return { dots: [], lines: [] };
+    case 'DOT_UNIFORM':
+      return { dots: generateDotUniform(w, h, density, 1.5, config.seed, scale), lines: [] };
+    case 'DOT_GRAVEL':
+      return { dots: generateDotGravel(w, h, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL, scale), lines: [] };
+    case 'DOT_GRAVEL_FINE':
+      return { dots: generateDotGravel(w, h, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL_FINE, scale), lines: [] };
+    case 'DOT_GRAVEL_COARSE':
+      return { dots: generateDotGravel(w, h, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL_COARSE, scale), lines: [] };
+    case 'DOT_SAND':
+      return { dots: generateDotGravel(w, h, density, config.seed, GRAVEL_PRESETS.DOT_SAND, scale), lines: [] };
+    case 'DIAGONAL_LEFT':
+      return { dots: [], lines: generateHatchLines(w, h, -45, hatchSpacing(density)) };
+    case 'DIAGONAL_RIGHT':
+      return { dots: [], lines: generateHatchLines(w, h, 45, hatchSpacing(density)) };
+    case 'CROSSHATCH':
+      return {
+        dots: [],
+        lines: [
+          ...generateHatchLines(w, h, 45, hatchSpacing(density)),
+          ...generateHatchLines(w, h, -45, hatchSpacing(density)),
+        ],
+      };
+    case 'HORIZONTAL_LINES':
+      return { dots: [], lines: generateHatchLines(w, h, 0, hatchSpacing(density)) };
+    case 'VERTICAL_LINES':
+      return { dots: [], lines: generateHatchLines(w, h, 90, hatchSpacing(density)) };
+    case 'BRICK':
+      return { dots: [], lines: generateBrickLines(w, h, density) };
+    case 'WAVE':
+      return { dots: [], lines: generateWaveLines(w, h, density) };
+    default:
+      return { dots: [], lines: [] };
+  }
+}
+
+/** cad-fill-rotation Slice 1 — wrap any pattern with a rotation
+ *  around the original (width × height) rect's center. We oversize
+ *  the generation rect to the rect's diagonal so a rotated pattern
+ *  still covers the polygon mask with no exposed wedges, then map
+ *  the primitives back through (translate to oversize-origin →
+ *  rotate around original center → translate by inset). 0° (no
+ *  rotation) takes the fast path so existing renders are unchanged
+ *  to the pixel. */
 export function generateFillPattern(
   width: number,
   height: number,
@@ -304,58 +369,43 @@ export function generateFillPattern(
 ): GeneratedPattern {
   const density = Number.isFinite(config.density) && config.density > 0 ? config.density : 1;
   const scale = config.scale;
-  switch (config.pattern) {
-    case 'SOLID':
-    case 'NONE':
-      return { dots: [], lines: [] };
-    case 'DOT_UNIFORM':
-      return {
-        dots: generateDotUniform(width, height, density, 1.5, config.seed, scale),
-        lines: [],
-      };
-    case 'DOT_GRAVEL':
-      return {
-        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL, scale),
-        lines: [],
-      };
-    case 'DOT_GRAVEL_FINE':
-      return {
-        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL_FINE, scale),
-        lines: [],
-      };
-    case 'DOT_GRAVEL_COARSE':
-      return {
-        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_GRAVEL_COARSE, scale),
-        lines: [],
-      };
-    case 'DOT_SAND':
-      return {
-        dots: generateDotGravel(width, height, density, config.seed, GRAVEL_PRESETS.DOT_SAND, scale),
-        lines: [],
-      };
-    case 'DIAGONAL_LEFT':
-      return { dots: [], lines: generateHatchLines(width, height, -45, hatchSpacing(density)) };
-    case 'DIAGONAL_RIGHT':
-      return { dots: [], lines: generateHatchLines(width, height, 45, hatchSpacing(density)) };
-    case 'CROSSHATCH':
-      return {
-        dots: [],
-        lines: [
-          ...generateHatchLines(width, height, 45, hatchSpacing(density)),
-          ...generateHatchLines(width, height, -45, hatchSpacing(density)),
-        ],
-      };
-    case 'HORIZONTAL_LINES':
-      return { dots: [], lines: generateHatchLines(width, height, 0, hatchSpacing(density)) };
-    case 'VERTICAL_LINES':
-      return { dots: [], lines: generateHatchLines(width, height, 90, hatchSpacing(density)) };
-    case 'BRICK':
-      return { dots: [], lines: generateBrickLines(width, height, density) };
-    case 'WAVE':
-      return { dots: [], lines: generateWaveLines(width, height, density) };
-    default:
-      return { dots: [], lines: [] };
+  const angleDeg = Number.isFinite(config.angle) ? (config.angle as number) : 0;
+  const norm = ((angleDeg % 360) + 360) % 360;
+  if (norm === 0 || width <= 0 || height <= 0) {
+    return rawPattern(width, height, config, density, scale);
   }
+  // Oversize to the bounding-square of the rotated rect. A square of
+  // side = diagonal covers every possible rotation of the original
+  // rect, with the original rect centered inside.
+  const diag = Math.ceil(Math.sqrt(width * width + height * height));
+  const genW = diag;
+  const genH = diag;
+  const insetX = (genW - width) / 2;
+  const insetY = (genH - height) / 2;
+  const raw = rawPattern(genW, genH, config, density, scale);
+  const cx = genW / 2;
+  const cy = genH / 2;
+  const θ = (norm * Math.PI) / 180;
+  const cosθ = Math.cos(θ);
+  const sinθ = Math.sin(θ);
+  const rot = (x: number, y: number): { x: number; y: number } => {
+    const dx = x - cx;
+    const dy = y - cy;
+    return {
+      x: cx + dx * cosθ - dy * sinθ - insetX,
+      y: cy + dx * sinθ + dy * cosθ - insetY,
+    };
+  };
+  const rotatedDots: PatternDot[] = raw.dots.map((d) => {
+    const p = rot(d.x, d.y);
+    return { x: p.x, y: p.y, r: d.r };
+  });
+  const rotatedLines: PatternLine[] = raw.lines.map((ln) => {
+    const a = rot(ln.x1, ln.y1);
+    const b = rot(ln.x2, ln.y2);
+    return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+  });
+  return { dots: rotatedDots, lines: rotatedLines };
 }
 
 function hatchSpacing(density: number): number {
