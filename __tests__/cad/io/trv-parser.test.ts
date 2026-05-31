@@ -246,3 +246,67 @@ describe('parseTrv — Pass 1: GNSS records (198, 199)', () => {
     expect(parseTrv('999,begin\r\n999,end').gnss).toBeNull();
   });
 });
+
+// cad-trv-import-export Pass 2 — drawing elements (28/29) + lot
+// segments (13). Structured capture only; full semantic mapping
+// is a follow-up.
+describe('parseTrv — Pass 2: drawing elements (28/29)', () => {
+  const FIXTURE = [
+    '999,begin',
+    '#,DRAWING',
+    '28,0,0,Drawing1,0,10485864,80.000000,1,14,8.5',
+    '29,0,1,243287936,0,2,1,0.02',
+    '29,0,2,extra,prop,data',
+    '28,10,1000,North arrow 4,NORTH ARROWS\\NORTH ARROW 4.DXF,-12,95,29,-132',
+    '29,0,8,4846,5277,5127,4974',
+    '999,end',
+  ].join('\r\n');
+
+  it('groups each 28 + its following 29s into one TrvDrawingElement', () => {
+    const doc = parseTrv(FIXTURE);
+    expect(doc.drawingElements.length).toBe(2);
+    expect(doc.drawingElements[0].header[2]).toBe('Drawing1');
+    expect(doc.drawingElements[0].properties.length).toBe(2);
+    // Field index 2 of "10,1000,North arrow 4,..." (the leading
+    // `28,` becomes the code; fields start at "10").
+    expect(doc.drawingElements[1].header[2]).toBe('North arrow 4');
+    expect(doc.drawingElements[1].properties.length).toBe(1);
+  });
+
+  it('preserves each 29 record\'s raw field array verbatim', () => {
+    const doc = parseTrv(FIXTURE);
+    const el0 = doc.drawingElements[0];
+    expect(el0.properties[0]).toEqual(['0', '1', '243287936', '0', '2', '1', '0.02']);
+    expect(el0.properties[1]).toEqual(['0', '2', 'extra', 'prop', 'data']);
+  });
+
+  it('drawingElements is empty when no 28/29 records appear', () => {
+    expect(parseTrv('999,begin\r\n999,end').drawingElements).toEqual([]);
+  });
+
+  it('a stray 29 with no 28 opener still gets preserved (header-less entry)', () => {
+    const doc = parseTrv('999,begin\r\n29,orphan,fields\r\n999,end');
+    expect(doc.drawingElements.length).toBe(1);
+    expect(doc.drawingElements[0].header).toEqual([]);
+    expect(doc.drawingElements[0].properties[0]).toEqual(['orphan', 'fields']);
+  });
+});
+
+describe('parseTrv — Pass 2: lot/parcel segments (13)', () => {
+  it('captures each 13 record as a TrvLotSegment with raw fields', () => {
+    const doc = parseTrv([
+      '999,begin',
+      '#,LOTS',
+      '13,524288,0,0,0,0,5,3533f',
+      '13,524288,0,0,0,0,10,3533f',
+      '13,524288,0,0,0,0,90,3533f',
+      '999,end',
+    ].join('\r\n'));
+    expect(doc.lotSegments.length).toBe(3);
+    expect(doc.lotSegments[0].fields).toEqual(['524288', '0', '0', '0', '0', '5', '3533f']);
+  });
+
+  it('lotSegments is empty when no 13 records appear', () => {
+    expect(parseTrv('999,begin\r\n999,end').lotSegments).toEqual([]);
+  });
+});

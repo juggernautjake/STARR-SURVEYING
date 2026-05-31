@@ -185,6 +185,45 @@ describe('drawingToTrv — Pass 1: projection / metadata / GNSS passthrough', ()
   });
 });
 
+describe('drawingToTrv — Pass 2: drawing elements + lot segments passthrough', () => {
+  it('emits each TrvDrawingElement as 28 header + N 29 props', () => {
+    const doc = buildDrawingFromFixture();
+    const text = drawingToTrv(doc, {
+      drawingElements: [
+        {
+          header: ['0', '0', 'Drawing1', '0', '10485864', '80.000000'],
+          properties: [['0', '1', '243287936'], ['0', '2', 'extra']],
+          sourceLine: 0,
+        },
+      ],
+    });
+    expect(text).toContain('#,DRAWING');
+    expect(text).toContain('28,0,0,Drawing1,0,10485864,80.000000');
+    expect(text).toContain('29,0,1,243287936');
+    expect(text).toContain('29,0,2,extra');
+  });
+
+  it('emits 13 lot segments under #,LOTS', () => {
+    const doc = buildDrawingFromFixture();
+    const text = drawingToTrv(doc, {
+      lotSegments: [
+        { fields: ['524288', '0', '0', '0', '0', '5', '3533f'], sourceLine: 0 },
+        { fields: ['524288', '0', '0', '0', '0', '10', '3533f'], sourceLine: 0 },
+      ],
+    });
+    expect(text).toContain('#,LOTS');
+    expect(text).toContain('13,524288,0,0,0,0,5,3533f');
+    expect(text).toContain('13,524288,0,0,0,0,10,3533f');
+  });
+
+  it('omits the #,DRAWING + #,LOTS sections when neither opt is supplied', () => {
+    const doc = buildDrawingFromFixture();
+    const text = drawingToTrv(doc);
+    expect(text).not.toContain('#,DRAWING');
+    expect(text).not.toContain('#,LOTS');
+  });
+});
+
 describe('drawingToTrv — fallback paths', () => {
   it('falls back to the inverse screen-y transform when surveyNorth/East are missing', () => {
     const layer: Layer = {

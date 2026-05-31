@@ -164,6 +164,36 @@ export interface TrvGnss {
   raw199: string[];
 }
 
+/** cad-trv-import-export Pass 2 — drawing-element record. Each 28
+ *  record opens a graphical primitive (drawing header, DXF-
+ *  referenced symbol like a North Arrow, etc.) followed by zero or
+ *  more 29 records carrying its properties (color, font, layout,
+ *  layer-styles, etc.). The shape of 29 varies wildly by subtype
+ *  (~12 subtypes observed in the live samples), so this Pass
+ *  captures them as raw field arrays — the round-trip can re-emit
+ *  them verbatim. Full semantic mapping (28 → CIRCLE / TEXT
+ *  features) is a follow-up. */
+export interface TrvDrawingElement {
+  /** Raw 28 fields — variable-width, subtype-dependent. */
+  header: string[];
+  /** Ordered list of 29 records that followed this 28. Each 29
+   *  carries its own subtype id (typically field 2). */
+  properties: string[][];
+  /** Source line of the opening 28 record. */
+  sourceLine: number;
+}
+
+/** cad-trv-import-export Pass 2 — lot / parcel boundary segment
+ *  (record 13). Captured as a raw field array; the live samples
+ *  show ~8 fields per record with the trailing field carrying a
+ *  segment-id token. */
+export interface TrvLotSegment {
+  /** Raw 13 fields. */
+  fields: string[];
+  /** Source line index. */
+  sourceLine: number;
+}
+
 export interface TrvDocument {
   /** Every line in the source file, in order. Comments + blanks
    *  preserved. */
@@ -187,6 +217,13 @@ export interface TrvDocument {
   /** cad-trv-import-export Pass 1 — GNSS settings (198 / 199).
    *  null when the file has no GNSS section. */
   gnss: TrvGnss | null;
+  /** cad-trv-import-export Pass 2 — drawing elements (28/29
+   *  pair groups). Empty array when no drawing section was
+   *  emitted. */
+  drawingElements: TrvDrawingElement[];
+  /** cad-trv-import-export Pass 2 — lot / parcel boundary
+   *  segments (record 13). Empty array when none present. */
+  lotSegments: TrvLotSegment[];
   /** Non-fatal parse errors. */
   errors: TrvParseError[];
 }
@@ -239,6 +276,16 @@ export function parseTrv(input: string): TrvDocument {
   const metadata: TrvMetadata = {
     sourcePath: null, projectName: null, surveyDate: null,
     scale: null, units: null, raw105: null, pointCount: null,
+  };
+  // Pass 2 — drawing-element accumulator + lot-segment list.
+  const drawingElements: TrvDrawingElement[] = [];
+  const lotSegments: TrvLotSegment[] = [];
+  let activeDrawingElement: TrvDrawingElement | null = null;
+  const commitActiveDrawingElement = () => {
+    if (activeDrawingElement) {
+      drawingElements.push(activeDrawingElement);
+      activeDrawingElement = null;
+    }
   };
 
   // First pass: pull section markers out so a second pass can scope
@@ -297,6 +344,7 @@ export function parseTrv(input: string): TrvDocument {
       // Section break — flush any in-progress aggregator.
       commitActivePoint();
       commitActiveTraverse();
+      commitActiveDrawingElement();
       continue;
     }
     const section = sectionAt(i);
@@ -420,6 +468,7 @@ export function parseTrv(input: string): TrvDocument {
         // Begin/end markers — flush in-progress aggregators.
         commitActivePoint();
         commitActiveTraverse();
+        commitActiveDrawingElement();
         break;
       // Pass 1 — projection block. Code 90 carries the source
       // document path (the .doc Traverse PC was working with). 91-94
@@ -466,6 +515,32 @@ export function parseTrv(input: string): TrvDocument {
       case '199':
         gnss199 = ln.fields.slice();
         break;
+      // Pass 2 — drawing elements (28 opens, 29 records carry
+      // properties) + lot/parcel segments (13).
+      case '28':
+        commitActiveDrawingElement();
+        activeDrawingElement = {
+          header: ln.fields.slice(),
+          properties: [],
+          sourceLine: i,
+        };
+        break;
+      case '29':
+        if (activeDrawingElement) {
+          activeDrawingElement.properties.push(ln.fields.slice());
+        } else {
+          // Stray 29 with no opener — capture as a header-less
+          // entry so the round-trip preserves it.
+          drawingElements.push({
+            header: [],
+            properties: [ln.fields.slice()],
+            sourceLine: i,
+          });
+        }
+        break;
+      case '13':
+        lotSegments.push({ fields: ln.fields.slice(), sourceLine: i });
+        break;
       default:
         // Unknown code — preserved in `lines` for round-trip, no
         // interpretation needed here.
@@ -475,6 +550,7 @@ export function parseTrv(input: string): TrvDocument {
   // Flush at EOF.
   commitActivePoint();
   commitActiveTraverse();
+  commitActiveDrawingElement();
 
   // Pass 1 — assemble the projection block when any 91-94 record
   // was seen. crsName lifted from 91 field 9; ellipsoidName from
@@ -493,7 +569,12 @@ export function parseTrv(input: string): TrvDocument {
     ? { raw198: gnss198 ?? [], raw199: gnss199 ?? [] }
     : null;
 
-  return { lines, version, sections, layers, points, traverses, projection, metadata, gnss, errors };
+  return {
+    lines, version, sections, layers, points, traverses,
+    projection, metadata, gnss,
+    drawingElements, lotSegments,
+    errors,
+  };
 }
 
 /** Serialize a parsed TrvDocument back to its source text. By default

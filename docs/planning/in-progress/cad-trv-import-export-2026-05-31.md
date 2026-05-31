@@ -221,13 +221,40 @@ passes, one slice each.
   SLAB, pointCount=61, crs=Local.crs) both round-trip the metadata
   through parse + re-emit.
 
-### Pass 2 — Drawing elements + lot/parcel records (queued)
+### Pass 2 — Drawing elements + lot/parcel records ✅ shipped 2026-05-31 (structured capture)
 
-Codes 28/29 (graphical primitives: circles, text, polylines) and
-13 (lot/boundary segments). Currently round-trip as opaque
-`lines[]` entries; this pass interprets them into structured
-records and maps the common subset to native features (CIRCLE
-+ TEXT + POLYGON-as-lot).
+- New `TrvDrawingElement` (28 header + N 29 properties) and
+  `TrvLotSegment` (13 raw fields) types added to `TrvDocument`.
+- Parser groups each 28 + its subsequent 29 records into one
+  `TrvDrawingElement`; section breaks / 999 markers / 28-of-new-
+  element commit the active aggregator. Stray 29 records with
+  no opener are preserved as header-less entries so nothing
+  drops on the floor. Code 13 records collect into
+  `lotSegments[]` independently.
+- Serializer fresh-export grew `drawingElements` + `lotSegments`
+  opts. When supplied, emits `#,LOTS` with one `13,...` per
+  segment, then `#,DRAWING` with each element's `28,header,…`
+  + N `29,prop,…` lines. Verbatim from the raw field arrays —
+  fully lossless even though we don't (yet) interpret subtype
+  semantics.
+- Real-sample structured-capture verification: SKP yields 69
+  drawing elements with 133 total 29 properties (0 lot
+  segments); Garland yields drawing elements + 13-records for
+  its lot setbacks. Every record we previously dropped now
+  round-trips when the caller threads the original arrays back
+  through the serializer.
+- Tests: 6 new parser specs (group shape, raw 29 preservation,
+  empty-when-absent, stray-29 capture, lot segment capture +
+  empty) + 3 serializer specs (drawing-element emission, lot
+  emission, omits when neither supplied). Full cad suite (2165)
+  green; typecheck + lint clean.
+- **Deferred — full 28/29 semantic mapping.** Translating each
+  28 subtype (drawing header, DXF-referenced symbol, etc.) into
+  native features (CIRCLE / TEXT) requires per-subtype field
+  decoding for ~12 observed subtypes. Pass 3 (traverse styling)
+  + Pass 4 (smart-merge serializer) are higher leverage; full
+  semantic mapping is its own future pass when surveyors need to
+  EDIT 28/29 content vs. just preserve it on round-trip.
 
 ### Pass 3 — Traverse styling (queued)
 

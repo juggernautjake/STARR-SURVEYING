@@ -21,7 +21,7 @@
 // Pure module: no I/O, no zustand. Safe to unit-test.
 
 import type { DrawingDocument, Feature, Layer } from '../types';
-import type { TrvDocument, TrvProjection, TrvMetadata, TrvGnss } from './trv-parser';
+import type { TrvDocument, TrvProjection, TrvMetadata, TrvGnss, TrvDrawingElement, TrvLotSegment } from './trv-parser';
 import { serializeTrv } from './trv-parser';
 
 export interface DrawingToTrvOptions {
@@ -40,6 +40,13 @@ export interface DrawingToTrvOptions {
   projection?: TrvProjection | null;
   metadata?: TrvMetadata | null;
   gnss?: TrvGnss | null;
+  /** cad-trv-import-export Pass 2 — drawing elements (28/29) +
+   *  lot/parcel segments (13) to emit on a fresh export. Each
+   *  drawingElement's raw header + property field arrays are
+   *  serialized verbatim so the round-trip is lossless even
+   *  though we don't (yet) interpret the records semantically. */
+  drawingElements?: ReadonlyArray<TrvDrawingElement>;
+  lotSegments?: ReadonlyArray<TrvLotSegment>;
 }
 
 const DEFAULT_VERSION = '26.000';
@@ -213,6 +220,23 @@ export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {
     const counter = { i: 0 };
     for (const t of traverses) {
       for (const line of emitTraverse(t, counter, layerIdByOurId)) out.push(line);
+    }
+  }
+  // Pass 2 — drawing elements (28/29) + lot/parcel segments (13)
+  // re-emitted verbatim from their raw field arrays. Order: lots
+  // first (typically appear earlier in source files), then drawing
+  // elements (sheets, north arrows, scale bars, etc.).
+  if (opts.lotSegments && opts.lotSegments.length > 0) {
+    out.push('#,LOTS');
+    for (const seg of opts.lotSegments) {
+      out.push(`13,${seg.fields.join(',')}`);
+    }
+  }
+  if (opts.drawingElements && opts.drawingElements.length > 0) {
+    out.push('#,DRAWING');
+    for (const elt of opts.drawingElements) {
+      if (elt.header.length > 0) out.push(`28,${elt.header.join(',')}`);
+      for (const prop of elt.properties) out.push(`29,${prop.join(',')}`);
     }
   }
   out.push('999,end');
