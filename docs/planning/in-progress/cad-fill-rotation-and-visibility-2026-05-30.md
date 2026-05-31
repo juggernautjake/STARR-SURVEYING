@@ -65,7 +65,25 @@ fill-picker dropdown polish:*
   primitives still fit inside the rotated bbox; picker label
   asserted.
 
-### Slice 2 — Per-element eyes in the LayerPanel
+### Slice 2 — Per-element eyes in the LayerPanel ✅ shipped 2026-05-30
+
+- LayerPanel feature tree: dropped the `!f.hidden` filter so hidden
+  features stay listed (was making them vanish with no way back).
+  Each row now renders an `Eye` / `EyeOff` toggle button bound to
+  `drawingStore.hideFeature` / `unhideFeature`. Both grouped + ungrouped
+  feature rows get the eye.
+- Two-way sync: the right-click "Hide Element" already writes to the
+  same store, and the LayerPanel reads via the reactive `useDrawingStore`
+  hook, so flipping `Feature.hidden` from either side auto-updates the
+  other on next render.
+- Visual cue: hidden rows dim to `text-gray-600` + italicize, so the
+  tree reads "this one's off" at a glance. The row's
+  `data-hidden="true|false"` exposes the state for regression tests
+  without needing to render the full panel.
+- Spec: 8 source-text assertions lock the filter removal, eye-icon
+  swap, click handler (stopPropagation + correct branch), test-id
+  shape, dim/italic styling, and the store-subscription read path.
+- Full cad suite (1834) green; typecheck + lint clean.
 
 - LayerPanel tree: surface hidden features too (drop the `!f.hidden`
   filter when expanded), render an `Eye` / `EyeOff` button per row

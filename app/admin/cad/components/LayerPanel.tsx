@@ -372,8 +372,12 @@ export default function LayerPanel() {
       <div className="flex-1 overflow-y-auto" onContextMenu={handlePanelContextMenu}>
         {filteredLayers.map((layer) => {
           const isExpanded = expandedLayers.has(layer.id);
-          // All features on this layer
-          const layerFeatures = Object.values(doc.features).filter((f) => f.layerId === layer.id && !f.hidden);
+          // All features on this layer. cad-fill-rotation Slice 2 —
+          // include hidden features too so the layer tree can show an
+          // eye toggle per row (was filtering them out, which made
+          // hiding an element from the canvas right-click also vanish
+          // it from the tree, with no way to bring it back from here).
+          const layerFeatures = Object.values(doc.features).filter((f) => f.layerId === layer.id);
           // Check if any feature on this layer is selected or hovered
           const hasSelectedFeature = layerFeatures.some((f) => selectedIds.has(f.id));
           const hasHoveredFeature  = !!hoveredId && layerFeatures.some((f) => f.id === hoveredId);
@@ -731,15 +735,39 @@ export default function LayerPanel() {
                         {isGroupExpanded && groupFeatures.map((feat) => {
                           const isSelected = selectedIds.has(feat.id);
                           const isHovered  = hoveredId === feat.id;
+                          const isHidden = feat.hidden === true;
                           return (
                             <div
                               key={feat.id}
                               className={`flex items-center gap-1 pl-6 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
-                                isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
+                                isHidden
+                                  ? 'text-gray-600 italic'
+                                  : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
                               }`}
                               onClick={(e) => handleFeatureClick(feat.id, e)}
                               title={feat.id}
+                              data-feature-id={feat.id}
+                              data-hidden={isHidden ? 'true' : 'false'}
                             >
+                              {/* cad-fill-rotation Slice 2 — per-feature
+                                  eye toggle (group members). */}
+                              <button
+                                type="button"
+                                aria-label={isHidden ? 'Show feature' : 'Hide feature'}
+                                aria-pressed={isHidden}
+                                title={isHidden ? 'Show feature' : 'Hide feature'}
+                                data-testid={`layer-panel-feature-eye-${feat.id}`}
+                                className={`shrink-0 p-0.5 rounded transition-colors ${
+                                  isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isHidden) store.unhideFeature(feat.id);
+                                  else store.hideFeature(feat.id);
+                                }}
+                              >
+                                {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                              </button>
                               <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
                             </div>
                           );
@@ -752,15 +780,42 @@ export default function LayerPanel() {
                   {ungroupedFeatures.map((feat) => {
                     const isSelected = selectedIds.has(feat.id);
                     const isHovered  = hoveredId === feat.id;
+                    const isHidden = feat.hidden === true;
                     return (
                       <div
                         key={feat.id}
                         className={`flex items-center gap-1 pl-2 pr-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors text-[10px] ${
-                          isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
+                          isHidden
+                            ? 'text-gray-600 italic'
+                            : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
                         }`}
                         onClick={(e) => handleFeatureClick(feat.id, e)}
                         title={feat.id}
+                        data-feature-id={feat.id}
+                        data-hidden={isHidden ? 'true' : 'false'}
                       >
+                        {/* cad-fill-rotation Slice 2 — per-feature eye
+                            toggle. Two-way bound to Feature.hidden so
+                            right-click "Hide Element" auto-updates the
+                            icon. stopPropagation so clicking the eye
+                            doesn't also fire handleFeatureClick. */}
+                        <button
+                          type="button"
+                          aria-label={isHidden ? 'Show feature' : 'Hide feature'}
+                          aria-pressed={isHidden}
+                          title={isHidden ? 'Show feature' : 'Hide feature'}
+                          data-testid={`layer-panel-feature-eye-${feat.id}`}
+                          className={`shrink-0 p-0.5 rounded transition-colors ${
+                            isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isHidden) store.unhideFeature(feat.id);
+                            else store.hideFeature(feat.id);
+                          }}
+                        >
+                          {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                        </button>
                         <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
                       </div>
                     );
