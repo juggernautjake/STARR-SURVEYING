@@ -102,7 +102,26 @@ Full cad suite (2318) green; typecheck + lint clean.
   issue; the issue carries the missing ref + the source feature
   so the UI can link back.
 
-### Slice 3 — Wire dedupe + unknown-refs through the import pipeline
+### Slice 3 — Wire dedupe + unknown-refs through the import pipeline ✅ shipped 2026-05-31
+
+- `processImport` now runs `dedupePointNumbers` immediately after
+  the point-parsing loop + before line-string building. Colliding
+  pointNumbers land as `23` / `23:1` / `23:2` ... with the
+  `SurveyPoint.id` (uuid) preserved so existing LineString refs
+  remain valid.
+- `ImportResult` carries `pointRenames: PointRename[]` so the
+  Validate step can show "N points auto-renamed" + offer the full
+  list via the Copy button.
+- The existing `DUPLICATE_POINT_NUMBER` warning still fires once
+  per collision group (the surveyor wants to KNOW about
+  collisions even after we auto-resolve their names) — but it's
+  one warning per group, not per occurrence (Slice 1 of the
+  earlier dedup-and-copy work).
+- 5 specs cover: clean set → empty renames; same-layer collision
+  rename; cross-layer collision rename; existing DUPLICATE
+  warning still fires once per group; downstream line-string refs
+  remain valid through the rename.
+- Full cad suite (2329) green; typecheck + lint clean.
 
 - `processImport` runs `dedupePointNumbers(points)` after the
   initial parse + uses the renamed `pointName` going forward.
