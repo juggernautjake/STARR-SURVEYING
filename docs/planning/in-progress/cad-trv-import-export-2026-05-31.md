@@ -115,21 +115,34 @@ A point record spans multiple lines: code 0 (open), then any of
   items.
 - Full cad suite (2037) green; typecheck + lint clean.
 
-### Slice 3 — Pure serializer: drawing doc → TRV text
+### Slice 3 — Pure serializer: drawing doc → TRV text ✅ shipped 2026-05-31 (two-mode MVP)
 
-- `lib/cad/io/drawing-to-trv.ts`:
-  ```
-  drawingToTrv(doc: DrawingDocument, opts: { sourceTrv?:
-    TrvDocument }): string
-  ```
-- When `sourceTrv` is supplied, the original `TrvRecord[]` is the
-  base; we only rewrite the records corresponding to changed
-  features. Unknown codes round-trip intact.
-- Fresh export (no sourceTrv): emit the minimum viable doc — 999
-  begin, 80 version (we pin a stamped version we know), 86 layers,
-  point records (0/1/2/3/4), traverses (30/31/10/11), 999 end.
-- Tests: round-trip a parsed sample through trvToDrawing →
-  drawingToTrv and assert key records match the original.
+- `lib/cad/io/drawing-to-trv.ts` ships `drawingToTrv(doc, opts) →
+  string`. Two modes:
+  - **Verbatim round-trip** when `opts.sourceTrv` is supplied:
+    re-emits the parsed source byte-for-byte via
+    `serializeTrv(sourceTrv)`. Lossless for unknown record codes.
+  - **Fresh export** when `opts.sourceTrv` is omitted: emits a
+    minimum viable TRV — `#,TRAVERSE PC`, `999,begin`,
+    `80,<version>`, `#,SURVEY`, `83,0`, one `86,` per layer,
+    `#,POINTS`, `95,<count>`, point blocks (`0/1/3/4/2`),
+    `#,TRAVERSE`, traverse blocks (`30/31/10/11` pairs),
+    `999,end`.
+- Point coords prefer `surveyNorth/surveyEast` properties stashed
+  on import for byte-faithful round-trip; falls back to the
+  inverse screen-y-down transform for manually-drawn points.
+- Numeric formatting trims trailing zeros so output matches
+  Traverse PC's own formatting.
+- Tests: 10 specs lock the verbatim round-trip, every block-type
+  emission, the parse-back round-trip with preserved coords, and
+  the fallback inverse-transform.
+- **Deferred — smart selective sourceTrv rewrite (3b).** When
+  sourceTrv is supplied AND the drawing has been edited, the
+  right behavior is to take the source's record stream as the
+  base and patch only the affected records so unknown codes
+  still round-trip. Needs per-record diff + targeted line
+  rewrite + reference renumbering. Covered by the
+  "5-pass" perfection work below.
 
 ### Slice 4 — UI: File menu "Import TRV…" + "Export TRV…"
 

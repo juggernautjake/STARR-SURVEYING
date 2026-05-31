@@ -1,0 +1,190 @@
+// lib/cad/io/drawing-to-trv.ts
+//
+// cad-trv-import-export Slice 3 — pure serializer that turns a
+// (subset of a) DrawingDocument into Traverse PC `.TRV` text. Two
+// modes:
+//
+//   1. **Fresh export** (no `sourceTrv` opt) — emit the minimum
+//      viable TRV from scratch: `999,begin`, version, `86` layer
+//      records, point blocks (`0,id` + `1,desc` + `3,layer` +
+//      `4,method` + `2,N,E,Z`), traverse blocks (`30,name` +
+//      `10,id` pairs), `999,end`.
+//
+//   2. **Verbatim round-trip** (`opts.sourceTrv` set) — re-emit the
+//      sourceTrv's raw lines verbatim so unknown record codes survive
+//      a round trip. The smart selective-rewrite (apply our drawing's
+//      changes back into the source while preserving unknown codes)
+//      is a documented follow-up; this Slice ships the lossless
+//      passthrough so callers don't accidentally drop fields when
+//      they save unchanged.
+//
+// Pure module: no I/O, no zustand. Safe to unit-test.
+
+import type { DrawingDocument, Feature, Layer } from '../types';
+import type { TrvDocument } from './trv-parser';
+import { serializeTrv } from './trv-parser';
+
+export interface DrawingToTrvOptions {
+  /** When provided, take this as the canonical record stream and
+   *  re-emit it verbatim. Future slices will apply the doc's changes
+   *  on top while preserving unknown codes. */
+  sourceTrv?: TrvDocument;
+  /** Traverse PC version stamp for fresh exports. Defaults to the
+   *  same value we observed in the live 2026-vintage samples. */
+  version?: string;
+}
+
+const DEFAULT_VERSION = '26.000';
+const CRLF = '\r\n';
+
+/** Strip our `trv-*:` prefix from an id so it can be re-emitted as
+ *  the original TRV id. Non-trv ids fall back to the input. */
+function unprefix(prefix: string, id: string): string {
+  return id.startsWith(prefix) ? id.slice(prefix.length) : id;
+}
+
+/** Layer id in TRV form. */
+const trvLayerId = (l: Layer): string => unprefix('trv-layer:', l.id);
+
+/** Point id in TRV form. */
+const trvPointId = (f: Feature): string => unprefix('trv-point:', f.id);
+
+/** Resolve a point feature's (north, east, elevation) for export.
+ *  Prefers the `surveyNorth` / `surveyEast` properties we stash on
+ *  import so coords round-trip exactly. Falls back to the inverse
+ *  of the screen-y-down transform when those properties are absent
+ *  (manually-drawn point that didn't come from a TRV import). */
+function pointCoords(f: Feature): { north: number; east: number; elevation: number } {
+  const surveyNorth = f.properties.surveyNorth;
+  const surveyEast = f.properties.surveyEast;
+  const elevation = f.properties.elevation;
+  const north = typeof surveyNorth === 'number'
+    ? surveyNorth
+    : (typeof f.geometry.point?.y === 'number' ? -f.geometry.point.y : 0);
+  const east = typeof surveyEast === 'number'
+    ? surveyEast
+    : (typeof f.geometry.point?.x === 'number' ? f.geometry.point.x : 0);
+  const z = typeof elevation === 'number' ? elevation : 0;
+  return { north, east, elevation: z };
+}
+
+/** Format a number for TRV output. Caps precision at `decimals` (so
+ *  we don't emit Float-glitch tails like `0.30000000000000004`) but
+ *  trims trailing zeros so a value like `4994.142075` doesn't
+ *  pick up a phantom zero at position 7. Integers stay integer-
+ *  printed (`700`, not `700.0`). */
+function num(n: number, decimals = 7): string {
+  if (!Number.isFinite(n)) return '0';
+  if (Number.isInteger(n)) return n.toString();
+  const fixed = n.toFixed(decimals);
+  // Strip trailing zeros + optional trailing dot.
+  return fixed.replace(/0+$/, '').replace(/\.$/, '');
+}
+
+/** Emit one point block. */
+function emitPoint(f: Feature, layerIdByOurId: Map<string, string>): string[] {
+  const lines: string[] = [];
+  lines.push(`0,${trvPointId(f)}`);
+  const desc = f.properties.label;
+  if (typeof desc === 'string' && desc.length > 0) {
+    lines.push(`1,${desc}`);
+  }
+  const ourLayerId = f.layerId;
+  const trvLid = ourLayerId ? layerIdByOurId.get(ourLayerId) ?? '0' : '0';
+  lines.push(`3,${trvLid}`);
+  const methodCode = f.properties.trvMethodCode;
+  const mc = typeof methodCode === 'string' && methodCode.length > 0 ? methodCode : '5';
+  lines.push(`4,${mc},0,0`);
+  const { north, east, elevation } = pointCoords(f);
+  lines.push(`2,${num(north)},${num(east)},${num(elevation, 3)}`);
+  return lines;
+}
+
+/** Emit one traverse block (POLYLINE / POLYGON). The vertex order
+ *  is taken from the feature's geometry; if the feature originated
+ *  from a TRV import the original ref-id list is preserved in
+ *  `properties.trvPointRefs`, which lets us re-emit the exact
+ *  ref sequence (including the closing ref of a POLYGON).
+ *  Otherwise we synthesize refs from feature ids derived in this
+ *  export pass (callers that built a new traverse with a fresh
+ *  vertex chain not tied to TRV points are out of scope for Slice
+ *  3 — fully synthetic traverses come with the Slice-5 coord-
+ *  handling work). */
+function emitTraverse(f: Feature, sourceLineCounter: { i: number }, layerIdByOurId: Map<string, string>): string[] {
+  const lines: string[] = [];
+  const name = typeof f.properties.name === 'string' ? f.properties.name : '';
+  lines.push(`30,${name}`);
+  const refs = (typeof f.properties.trvPointRefs === 'string'
+    ? f.properties.trvPointRefs.split(',').filter((s) => s.length > 0)
+    : []);
+  if (refs.length === 0) {
+    // No round-trip refs; skip the body so we don't emit a
+    // malformed traverse. The header alone is harmless (other
+    // tooling treats a body-less 30 as an empty traverse).
+    lines.push(`31,0,0,0,0`);
+    return lines;
+  }
+  const ourLayerId = f.layerId;
+  const trvLid = ourLayerId ? layerIdByOurId.get(ourLayerId) ?? '0' : '0';
+  lines.push(`31,0,${refs.length},0,0`);
+  refs.forEach((ref, i) => {
+    lines.push(`10,${ref}`);
+    lines.push(`11,1,${i},0,${trvLid},0`);
+  });
+  sourceLineCounter.i += lines.length;
+  return lines;
+}
+
+/** Serialize a DrawingDocument (or subset) into Traverse PC `.TRV`
+ *  text. See module header for the two-mode behavior. */
+export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {}): string {
+  // Mode 1: verbatim round-trip from a sourceTrv. Lossless for
+  // unknown record codes; doesn't apply doc changes yet (Slice 3
+  // deferral — see module header).
+  if (opts.sourceTrv) {
+    return serializeTrv(opts.sourceTrv);
+  }
+
+  // Mode 2: fresh export. Build the minimum viable TRV from scratch.
+  const version = opts.version ?? DEFAULT_VERSION;
+  const out: string[] = [];
+
+  // Build our-layer-id → TRV-layer-id map so points + traverses can
+  // reference layers by their TRV id.
+  const layerIdByOurId = new Map<string, string>();
+  const layers = doc.layerOrder
+    .map((id) => doc.layers[id])
+    .filter((l): l is Layer => !!l);
+  layers.forEach((l, i) => {
+    const tid = trvLayerId(l) || String(i);
+    layerIdByOurId.set(l.id, tid);
+  });
+
+  out.push('#,TRAVERSE PC');
+  out.push('999,begin');
+  out.push(`80,${version}`);
+  out.push('#,SURVEY');
+  out.push('83,0');
+  for (const l of layers) {
+    const tid = layerIdByOurId.get(l.id) ?? '0';
+    // 86,name,id,parent_id (we don't track parent; emit 0)
+    out.push(`86,${l.name},${tid},0`);
+  }
+  out.push('#,POINTS');
+  const allFeatures = Object.values(doc.features);
+  const points = allFeatures.filter((f) => f.type === 'POINT');
+  out.push(`95,${points.length}`);
+  for (const p of points) {
+    for (const line of emitPoint(p, layerIdByOurId)) out.push(line);
+  }
+  const traverses = allFeatures.filter((f) => f.type === 'POLYLINE' || f.type === 'POLYGON');
+  if (traverses.length > 0) {
+    out.push('#,TRAVERSE');
+    const counter = { i: 0 };
+    for (const t of traverses) {
+      for (const line of emitTraverse(t, counter, layerIdByOurId)) out.push(line);
+    }
+  }
+  out.push('999,end');
+  return out.join(CRLF);
+}
