@@ -1,6 +1,16 @@
 // lib/cad/import/validation.ts
 import type { SurveyPoint, LineString, PointGroup, ValidationIssue } from '../types';
 
+// cad-import-validation-dedup-and-copy Slice 1 — keep the
+// ValidationIssue shape (consumers compile against the legacy
+// fields) but expose an OPTIONAL affectedPointIds list so the
+// dedup'd duplicate / zero-coord rollups can still link to every
+// underlying point. The cast at the emit sites keeps the existing
+// `ValidationIssue` type unmodified for older callers.
+interface ValidationIssueWithAffected extends ValidationIssue {
+  affectedPointIds?: string[];
+}
+
 const OUTLIER_MULTIPLIER = 5; // Points > 5× std dev from centroid
 
 function computeCentroid(points: SurveyPoint[]): { x: number; y: number } | null {
@@ -26,6 +36,13 @@ export function validatePoints(
   const issues: ValidationIssue[] = [];
 
   // ── 1. Duplicate point numbers ──
+  // cad-import-validation-dedup-and-copy Slice 1 — one issue per
+  // duplicate GROUP (was: one per occurrence, which produced
+  // dozens of identical "Duplicate point number 31 (20 occurrences)"
+  // lines for the same point id). pointId still points at the
+  // first occurrence so the preview highlight lands; the full
+  // member list is in affectedPointIds for any downstream
+  // consumer that wants to walk it.
   const numMap = new Map<number, SurveyPoint[]>();
   for (const pt of points) {
     const arr = numMap.get(pt.pointNumber) ?? [];
@@ -34,29 +51,54 @@ export function validatePoints(
   }
   for (const [, dupes] of numMap) {
     if (dupes.length > 1) {
-      for (const pt of dupes) {
-        issues.push({
-          type: 'DUPLICATE_POINT_NUMBER',
-          severity: 'WARNING',
-          pointId: pt.id,
-          message: `Duplicate point number ${pt.pointNumber} (${dupes.length} occurrences)`,
-          autoFixable: false,
-        });
-      }
+      const issue: ValidationIssueWithAffected = {
+        type: 'DUPLICATE_POINT_NUMBER',
+        severity: 'WARNING',
+        pointId: dupes[0].id,
+        message: `Duplicate point number ${dupes[0].pointNumber} (${dupes.length} occurrences)`,
+        autoFixable: false,
+        affectedPointIds: dupes.map((d) => d.id),
+      };
+      issues.push(issue);
     }
   }
 
   // ── 2. Zero coordinates ──
+  // cad-import-validation-dedup-and-copy Slice 1 — split the rule:
+  //  - Both N and E exactly zero → placeholder record (typical
+  //    in TRV `2,0,0,0` reserve-this-id slots). Aggregate into a
+  //    SINGLE WARNING — flooding the list with 132 identical
+  //    errors helps no one + the surveyor can choose to skip them.
+  //  - Only one axis zero (rarer + suspicious — partial-export
+  //    bug) → keep per-point ERROR so each bad row is highlighted.
+  const bothZero: SurveyPoint[] = [];
   for (const pt of points) {
-    if (pt.northing === 0 || pt.easting === 0) {
+    const nZero = pt.northing === 0;
+    const eZero = pt.easting === 0;
+    if (nZero && eZero) {
+      bothZero.push(pt);
+    } else if (nZero || eZero) {
       issues.push({
         type: 'ZERO_COORDINATES',
         severity: 'ERROR',
         pointId: pt.id,
-        message: `Point ${pt.pointName} has zero northing or easting`,
+        message: `Point ${pt.pointName} has zero ${nZero ? 'northing' : 'easting'} (other axis is non-zero — likely partial-export bug)`,
         autoFixable: false,
       });
     }
+  }
+  if (bothZero.length > 0) {
+    const idsPreview = bothZero.slice(0, 5).map((p) => p.pointName).join(', ');
+    const more = bothZero.length > 5 ? `, and ${bothZero.length - 5} more` : '';
+    const aggregated: ValidationIssueWithAffected = {
+      type: 'ZERO_COORDINATES',
+      severity: 'WARNING',
+      pointId: bothZero[0].id,
+      message: `${bothZero.length} points have placeholder (0, 0) coordinates and will not be plotted: ${idsPreview}${more}`,
+      autoFixable: false,
+      affectedPointIds: bothZero.map((p) => p.id),
+    };
+    issues.push(aggregated);
   }
 
   // ── 3. Unrecognized codes ──

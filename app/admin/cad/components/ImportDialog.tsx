@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   AlertCircle,
   Info,
+  Copy,
   RefreshCw,
   Table2,
   Save,
@@ -510,25 +511,106 @@ function ValidationStep({ result }: { result: ReturnType<typeof processImport> |
 
   return (
     <div className="space-y-3 max-h-80 overflow-auto">
+      {/* cad-import-validation-dedup-and-copy Slice 2 — "Copy all"
+          button at the top copies EVERY issue across every severity
+          to the clipboard so the surveyor can paste the full set
+          into a support thread. Per-group Copy buttons cover the
+          common "I only want the errors" use case. */}
+      <div className="flex items-center justify-end">
+        <CopyIssuesButton
+          label={`Copy all (${validationIssues.length})`}
+          messages={validationIssues.map((i) => `[${i.severity}] ${i.message}`)}
+          testId="import-validation-copy-all"
+        />
+      </div>
       {groups.map(group => (
-        <div key={group.severity}>
-          <div className="flex items-center gap-2 mb-2">
-            {group.icon}
-            <span className="text-xs font-semibold text-gray-300">{group.label}</span>
-          </div>
-          <div className="space-y-1 ml-4">
-            {group.items.slice(0, 20).map((issue, i) => (
-              <div key={i} className="text-xs text-gray-400 rounded px-2 py-1" style={{ backgroundColor: '#1a1f2e' }}>
-                {issue.message}
-              </div>
-            ))}
-            {group.items.length > 20 && (
-              <p className="text-xs text-gray-500 ml-2">…and {group.items.length - 20} more</p>
-            )}
-          </div>
-        </div>
+        <ValidationIssueGroup key={group.severity} group={group} />
       ))}
     </div>
+  );
+}
+
+/** cad-import-validation-dedup-and-copy Slice 2 — a single
+ *  severity group + its Copy button + a scrollable list of issue
+ *  rows. Each row is `user-select: text` so highlight-copy works
+ *  alongside the explicit button. */
+function ValidationIssueGroup({ group }: { group: { label: string; severity: 'ERROR' | 'WARNING' | 'INFO'; icon: React.ReactNode; items: Array<{ message: string }> } }) {
+  const RENDER_LIMIT = 20;
+  return (
+    <div data-testid={`import-validation-group-${group.severity}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {group.icon}
+          <span className="text-xs font-semibold text-gray-300">{group.label}</span>
+        </div>
+        <CopyIssuesButton
+          label="Copy"
+          messages={group.items.map((i) => i.message)}
+          testId={`import-validation-copy-${group.severity}`}
+        />
+      </div>
+      <div className="space-y-1 ml-4">
+        {group.items.slice(0, RENDER_LIMIT).map((issue, i) => (
+          <div
+            key={i}
+            className="text-xs text-gray-400 rounded px-2 py-1 select-text cursor-text"
+            style={{ backgroundColor: '#1a1f2e', userSelect: 'text' }}
+          >
+            {issue.message}
+          </div>
+        ))}
+        {group.items.length > RENDER_LIMIT && (
+          <p className="text-xs text-gray-500 ml-2">
+            …and {group.items.length - RENDER_LIMIT} more (use Copy to see them all)
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** cad-import-validation-dedup-and-copy Slice 2 — Copy-to-
+ *  clipboard button with a 2-second "Copied!" flash + a
+ *  document.execCommand fallback when navigator.clipboard isn't
+ *  available (older browsers / insecure-context). */
+function CopyIssuesButton({ label, messages, testId }: { label: string; messages: string[]; testId: string }) {
+  const [copied, setCopied] = useState(false);
+  const onClick = async () => {
+    const text = messages.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // No clipboard + no execCommand — silently fail; the rows
+        // are still user-select: text so the surveyor can drag-
+        // select manually.
+      }
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={messages.length === 0}
+      className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200"
+      data-testid={testId}
+    >
+      <Copy size={11} />
+      {copied ? 'Copied!' : label}
+    </button>
   );
 }
 
