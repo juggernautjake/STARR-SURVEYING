@@ -11,7 +11,7 @@
 // default filename.
 
 import type { DrawingDocument } from '../types';
-import { parseTrv } from './trv-parser';
+import { parseTrv, type TrvMetadata } from './trv-parser';
 import { trvToDrawing, type TrvMappingResult } from './trv-to-drawing';
 import { drawingToTrv } from './drawing-to-trv';
 
@@ -23,6 +23,11 @@ export interface TrvImportReport {
   notes: string[];
   /** The mapping result, ready to be applied to the drawing store. */
   mapped: TrvMappingResult;
+  /** cad-trv-import-export-deep-semantic Pass 6 — TRV project
+   *  metadata (90 / 101-106). The import UI can offer to apply
+   *  it to the drawing's title block via
+   *  `applyTrvMetadataToTitleBlock`. */
+  metadata: TrvMetadata;
 }
 
 /** Parse a TRV file's text + map it into our layers + features.
@@ -39,6 +44,7 @@ export function importTrvFromText(text: string): TrvImportReport {
     traverseCount: traverses,
     notes: [...trv.errors.map((e) => `Line ${e.lineIndex}: ${e.message}`), ...mapped.notes],
     mapped,
+    metadata: trv.metadata,
   };
 }
 

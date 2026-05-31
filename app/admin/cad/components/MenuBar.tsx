@@ -27,6 +27,9 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 // cad-trv-import-export Slice 4 — File menu Import / Export TRV.
 import { downloadTrv, importTrvFromText, type TrvImportReport } from '@/lib/cad/io/trv-io';
+// cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
+// to the survey title block (non-destructive).
+import { applyTrvMetadataToTitleBlock } from '@/lib/cad/io/trv-titleblock';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
@@ -325,6 +328,31 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       for (const l of report.mapped.layers) drawingStore.addLayer(l);
       drawingStore.addFeatures(report.mapped.features);
       cadLog.info('FileIO', `Imported TRV: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
+      // Pass 6 — offer to apply TRV project metadata to the
+      // drawing's title block. Non-destructive: the helper only
+      // fills currently-empty fields, so accepting is safe even
+      // mid-project. We prompt separately so the surveyor can
+      // skip without skipping the whole import.
+      const m = report.metadata;
+      const hasMetadata = !!(m.projectName || m.surveyDate || m.scale || m.sourcePath);
+      if (hasMetadata) {
+        const applyMeta = window.confirm(
+          'Apply TRV project metadata to the survey title block?\n\n' +
+          (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
+          (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
+          (m.scale       ? `  Scale: ${m.scale}\n` : '') +
+          (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
+          '\nOnly fields you haven\'t set will be filled (non-destructive).'
+        );
+        if (applyMeta) {
+          const current = drawingStore.document.settings?.titleBlock;
+          if (current) {
+            const nextTitleBlock = applyTrvMetadataToTitleBlock(m, current);
+            drawingStore.updateSettings({ titleBlock: nextTitleBlock });
+            cadLog.info('FileIO', 'Applied TRV metadata to title block');
+          }
+        }
+      }
     };
     input.click();
   }
