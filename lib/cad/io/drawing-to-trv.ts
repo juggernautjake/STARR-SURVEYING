@@ -305,6 +305,13 @@ function mergeSourceTrvWithDoc(sourceTrv: TrvDocument, doc: DrawingDocument): st
   const skipLines = new Set<number>();
   for (const p of sourceTrv.points) {
     if (featuresByTrvId.has(p.id)) continue;
+    // cad-trv-import-display Slice 1 — placeholder records
+    // (`2,0,0,0`) are skipped by the mapper so they never appear
+    // as features, but the source record should round-trip
+    // intact. Treat placeholders as "preserved" rather than
+    // "deleted" here so a fresh import → immediate export keeps
+    // the file byte-equal.
+    if (p.north === 0 && p.east === 0 && (p.elevation === 0 || p.elevation === null)) continue;
     deletedTrvIds.add(p.id);
     // Mark the point block's lines for skip: from the 0,<id> line
     // through the next 0 or section boundary or 999.

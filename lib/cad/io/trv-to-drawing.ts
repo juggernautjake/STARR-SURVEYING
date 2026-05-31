@@ -100,6 +100,18 @@ function mapPoint(
     notes.push(`Skipped point "${p.id}" — missing coordinates`);
     return null;
   }
+  // cad-trv-import-display Slice 1 — Traverse PC uses `2,0,0,0`
+  // as a placeholder "reserve this id" record (the source Garland
+  // sample has many of these for point ids 1-4 + several `:2`
+  // duplicates). Skipping them is required so they don't render
+  // as features piled up at the origin, miles from the real
+  // survey data — that's the symptom the user reported ("nothing
+  // on the page"). The original record is preserved verbatim in
+  // sourceTrv for round-trip; we only skip the FEATURE creation.
+  if (p.north === 0 && p.east === 0 && (p.elevation === 0 || p.elevation === null)) {
+    notes.push(`Skipped placeholder point "${p.id}" (2,0,0,0 — reserved id without coords)`);
+    return null;
+  }
   const layerId = p.layerId !== null ? layerIdByTrvId.get(p.layerId) ?? null : null;
   const properties: Record<string, string | number | boolean> = {
     trvPointId: p.id,
@@ -149,6 +161,12 @@ function mapTraverse(
       continue;
     }
     if (p.north === null || p.east === null) continue;
+    // cad-trv-import-display Slice 1 — same placeholder skip as
+    // mapPoint: a 10/11 ref to a `2,0,0,0` point would yank the
+    // polyline through the origin, miles away from the rest of
+    // the survey, and produce visible spaghetti lines once the
+    // view auto-fits.
+    if (p.north === 0 && p.east === 0 && (p.elevation === 0 || p.elevation === null)) continue;
     resolved.push({ id: ref, x: p.east, y: -p.north });
   }
   if (resolved.length < 2) {

@@ -107,10 +107,18 @@ describe('trvToDrawing — points', () => {
   });
 
   it('points with no coordinates are skipped + noted', () => {
-    const broken = ['999,begin', '#,POINTS', '95,2', '0,a', '2,0,0,0', '0,b', '4,5,0,0', '999,end'].join('\r\n');
+    // `0,a` has real coords → kept. `0,b` has no `2,...` line at
+    // all ⇒ north/east stay null ⇒ skipped with "missing coords".
+    // (cad-trv-import-display Slice 1: `0,c` with `2,0,0,0` is a
+    // placeholder record + skipped as such — see the dedicated
+    // placeholder-skip test for that path.)
+    const broken = [
+      '999,begin', '#,POINTS', '95,2',
+      '0,a', '2,100,200,300',
+      '0,b', '4,5,0,0',
+      '999,end',
+    ].join('\r\n');
     const { features, notes } = trvToDrawing(parseTrv(broken));
-    // `0,a` has 2,0,0,0 → coords are zero but parseable; that's a VALID point at origin.
-    // `0,b` has no `2,...` line ⇒ north/east stay null ⇒ skipped.
     expect(features.filter((f) => f.type === 'POINT').map((f) => f.id)).toEqual(['trv-point:a']);
     expect(notes.some((n) => n.includes('b') && n.includes('missing coordinates'))).toBe(true);
   });
