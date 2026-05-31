@@ -48,19 +48,31 @@ layer panel + right-click menus:*
 
 ## Slices
 
-### Slice 1 — Polylines/polygons render as ONE row with an expand-chevron in the layer panel
+### Slice 1 — Polylines/polygons render as ONE row with an expand-chevron in the layer panel ✅ shipped 2026-05-31
 
-- LayerPanel feature rows for POLYLINE / POLYGON gain an expand-
-  chevron. Collapsed (default) shows just the polygon row with its
-  eye + name. Expanded shows the constituent vertices as read-only
-  child rows ("Vertex 1: N…, E…", "Vertex 2: …") indented under it.
-- No per-vertex eye toggle (vertices aren't independently hideable
-  — that requires fracturing the polygon, which is a separate op).
-- Right-click on the polygon row offers "Explode to segments" which
-  IS the way to get per-segment hideability (creates N LINE features
-  + deletes the polygon).
-- Tests: source-text spec on the chevron + indented vertex rows;
-  pure helper that maps a POLYGON Feature → vertex display strings.
+- New pure module `lib/cad/feature-vertices.ts`:
+  - `formatFeatureVertices(feature)` — returns one display string
+    per vertex (`v<n> — (x.x, y.y)`, 1-decimal precision) for
+    POLYLINE / POLYGON features; `[]` for anything else.
+  - `isExpandableFeature(feature)` — true only for POLYLINE /
+    POLYGON with a non-empty vertex array. Gates the chevron + the
+    indented child rows so the layout stays consistent for other
+    feature types.
+- LayerPanel adds an `expandedFeatures: Set<string>` state. Each
+  POLYLINE / POLYGON feature row (both the ungrouped section and
+  the group-members section) renders an expand chevron before the
+  eye toggle; clicking it flips the row's id in the set. Other
+  feature types get a same-width spacer so the row stays aligned.
+- When expanded, indented read-only child rows show the vertex
+  display strings via `formatFeatureVertices`. No per-vertex eye —
+  per-vertex / per-segment hideability requires the explode op
+  (Slice 6 of this plan).
+- Tests: 7 pure-helper specs lock the format + the expandability
+  predicate; 7 source-text specs lock the helper imports, the
+  expandedFeatures state, the chevron + click handler, the
+  expandable gate, the vertex-row testid + map, and the layout
+  spacer for non-expandable rows.
+- Full cad suite (1953) green; typecheck + lint clean.
 
 ### Slice 2 — Nested groups (groups within groups)
 

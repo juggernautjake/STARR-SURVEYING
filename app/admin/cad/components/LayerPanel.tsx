@@ -12,6 +12,9 @@ import { confirmAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
+// cad-layer-grouping-and-context-menus Slice 1 — POLYGON/POLYLINE
+// expand-chevron helpers for the layer panel.
+import { formatFeatureVertices, isExpandableFeature } from '@/lib/cad/feature-vertices';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
@@ -66,6 +69,10 @@ export default function LayerPanel() {
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
   /** Feature groups that are expanded (showing group members). */
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  /** cad-layer-grouping-and-context-menus Slice 1 — POLYLINE /
+   *  POLYGON feature rows that are expanded to show their
+   *  constituent vertices as read-only child rows. */
+  const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
   /** Currently renaming group id. */
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameGroupValue, setRenameGroupValue] = useState('');
@@ -736,39 +743,78 @@ export default function LayerPanel() {
                           const isSelected = selectedIds.has(feat.id);
                           const isHovered  = hoveredId === feat.id;
                           const isHidden = feat.hidden === true;
+                          // cad-layer-grouping Slice 1 — chevron-
+                          // expandable POLYGON/POLYLINE rows inside
+                          // groups, mirroring the ungrouped behavior.
+                          const expandable = isExpandableFeature(feat);
+                          const isExpanded = expandable && expandedFeatures.has(feat.id);
                           return (
-                            <div
-                              key={feat.id}
-                              className={`flex items-center gap-1 pl-6 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
-                                isHidden
-                                  ? 'text-gray-600 italic'
-                                  : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
-                              }`}
-                              onClick={(e) => handleFeatureClick(feat.id, e)}
-                              title={feat.id}
-                              data-feature-id={feat.id}
-                              data-hidden={isHidden ? 'true' : 'false'}
-                            >
-                              {/* cad-fill-rotation Slice 2 — per-feature
-                                  eye toggle (group members). */}
-                              <button
-                                type="button"
-                                aria-label={isHidden ? 'Show feature' : 'Hide feature'}
-                                aria-pressed={isHidden}
-                                title={isHidden ? 'Show feature' : 'Hide feature'}
-                                data-testid={`layer-panel-feature-eye-${feat.id}`}
-                                className={`shrink-0 p-0.5 rounded transition-colors ${
-                                  isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                            <div key={feat.id} data-feature-row={feat.id}>
+                              <div
+                                className={`flex items-center gap-1 pl-6 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
+                                  isHidden
+                                    ? 'text-gray-600 italic'
+                                    : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
                                 }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isHidden) store.unhideFeature(feat.id);
-                                  else store.hideFeature(feat.id);
-                                }}
+                                onClick={(e) => handleFeatureClick(feat.id, e)}
+                                title={feat.id}
+                                data-feature-id={feat.id}
+                                data-hidden={isHidden ? 'true' : 'false'}
                               >
-                                {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
-                              </button>
-                              <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                                {expandable ? (
+                                  <button
+                                    type="button"
+                                    aria-label={isExpanded ? 'Collapse vertices' : 'Expand vertices'}
+                                    data-testid={`layer-panel-feature-expand-${feat.id}`}
+                                    className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-100 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedFeatures((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(feat.id)) next.delete(feat.id);
+                                        else next.add(feat.id);
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                                  </button>
+                                ) : (
+                                  <span className="shrink-0 w-3" aria-hidden />
+                                )}
+                                {/* cad-fill-rotation Slice 2 — per-feature
+                                    eye toggle (group members). */}
+                                <button
+                                  type="button"
+                                  aria-label={isHidden ? 'Show feature' : 'Hide feature'}
+                                  aria-pressed={isHidden}
+                                  title={isHidden ? 'Show feature' : 'Hide feature'}
+                                  data-testid={`layer-panel-feature-eye-${feat.id}`}
+                                  className={`shrink-0 p-0.5 rounded transition-colors ${
+                                    isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isHidden) store.unhideFeature(feat.id);
+                                    else store.hideFeature(feat.id);
+                                  }}
+                                >
+                                  {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                                </button>
+                                <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                              </div>
+                              {isExpanded && (
+                                <div data-testid={`layer-panel-feature-vertices-${feat.id}`}>
+                                  {formatFeatureVertices(feat).map((line, i) => (
+                                    <div
+                                      key={`v-${i}`}
+                                      className="pl-12 pr-1 py-0.5 text-[10px] text-gray-600 tabular-nums truncate"
+                                    >
+                                      {line}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -781,42 +827,89 @@ export default function LayerPanel() {
                     const isSelected = selectedIds.has(feat.id);
                     const isHovered  = hoveredId === feat.id;
                     const isHidden = feat.hidden === true;
+                    // cad-layer-grouping-and-context-menus Slice 1 —
+                    // chevron-expandable POLYGON/POLYLINE rows.
+                    const expandable = isExpandableFeature(feat);
+                    const isExpanded = expandable && expandedFeatures.has(feat.id);
                     return (
-                      <div
-                        key={feat.id}
-                        className={`flex items-center gap-1 pl-2 pr-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors text-[10px] ${
-                          isHidden
-                            ? 'text-gray-600 italic'
-                            : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
-                        }`}
-                        onClick={(e) => handleFeatureClick(feat.id, e)}
-                        title={feat.id}
-                        data-feature-id={feat.id}
-                        data-hidden={isHidden ? 'true' : 'false'}
-                      >
-                        {/* cad-fill-rotation Slice 2 — per-feature eye
-                            toggle. Two-way bound to Feature.hidden so
-                            right-click "Hide Element" auto-updates the
-                            icon. stopPropagation so clicking the eye
-                            doesn't also fire handleFeatureClick. */}
-                        <button
-                          type="button"
-                          aria-label={isHidden ? 'Show feature' : 'Hide feature'}
-                          aria-pressed={isHidden}
-                          title={isHidden ? 'Show feature' : 'Hide feature'}
-                          data-testid={`layer-panel-feature-eye-${feat.id}`}
-                          className={`shrink-0 p-0.5 rounded transition-colors ${
-                            isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                      <div key={feat.id} data-feature-row={feat.id}>
+                        <div
+                          className={`flex items-center gap-1 pl-2 pr-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors text-[10px] ${
+                            isHidden
+                              ? 'text-gray-600 italic'
+                              : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
                           }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isHidden) store.unhideFeature(feat.id);
-                            else store.hideFeature(feat.id);
-                          }}
+                          onClick={(e) => handleFeatureClick(feat.id, e)}
+                          title={feat.id}
+                          data-feature-id={feat.id}
+                          data-hidden={isHidden ? 'true' : 'false'}
                         >
-                          {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
-                        </button>
-                        <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                          {/* cad-layer-grouping Slice 1 — expand
+                              chevron for POLYLINE / POLYGON. Hidden
+                              for other feature types so the row width
+                              stays consistent. */}
+                          {expandable ? (
+                            <button
+                              type="button"
+                              aria-label={isExpanded ? 'Collapse vertices' : 'Expand vertices'}
+                              data-testid={`layer-panel-feature-expand-${feat.id}`}
+                              className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-100 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedFeatures((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(feat.id)) next.delete(feat.id);
+                                  else next.add(feat.id);
+                                  return next;
+                                });
+                              }}
+                            >
+                              {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                            </button>
+                          ) : (
+                            <span className="shrink-0 w-3" aria-hidden />
+                          )}
+                          {/* cad-fill-rotation Slice 2 — per-feature eye
+                              toggle. Two-way bound to Feature.hidden so
+                              right-click "Hide Element" auto-updates the
+                              icon. stopPropagation so clicking the eye
+                              doesn't also fire handleFeatureClick. */}
+                          <button
+                            type="button"
+                            aria-label={isHidden ? 'Show feature' : 'Hide feature'}
+                            aria-pressed={isHidden}
+                            title={isHidden ? 'Show feature' : 'Hide feature'}
+                            data-testid={`layer-panel-feature-eye-${feat.id}`}
+                            className={`shrink-0 p-0.5 rounded transition-colors ${
+                              isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isHidden) store.unhideFeature(feat.id);
+                              else store.hideFeature(feat.id);
+                            }}
+                          >
+                            {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                          </button>
+                          <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                        </div>
+                        {/* cad-layer-grouping Slice 1 — expanded
+                            vertex list. Read-only display; per-vertex
+                            hideability requires the "Explode to
+                            segments" right-click op (Slice 6 of this
+                            plan). */}
+                        {isExpanded && (
+                          <div data-testid={`layer-panel-feature-vertices-${feat.id}`}>
+                            {formatFeatureVertices(feat).map((line, i) => (
+                              <div
+                                key={`v-${i}`}
+                                className="pl-8 pr-1 py-0.5 text-[10px] text-gray-600 tabular-nums truncate"
+                              >
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
