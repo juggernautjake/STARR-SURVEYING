@@ -25,6 +25,8 @@ import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
+// cad-trv-import-export Slice 4 — File menu Import / Export TRV.
+import { downloadTrv, importTrvFromText, type TrvImportReport } from '@/lib/cad/io/trv-io';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
@@ -55,7 +57,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel, onOpenRecentRecoveries }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void; onOpenRecentRecoveries?: () => void }) {
+export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTraversePanel, onOpenCurveCalculator, onOpenCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel, onToggleCompletenessPanel, onToggleReviewModePanel, onToggleDescriptionPanel, onOpenRecentRecoveries }: { onOpenImport?: () => void; onOpenAIDrawing?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void; onToggleCompletenessPanel?: () => void; onToggleReviewModePanel?: () => void; onToggleDescriptionPanel?: () => void; onOpenRecentRecoveries?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -275,6 +277,56 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       cadLog.error('FileIO', 'Traverse PC export failed', err);
       alert('Failed to export Traverse PC file. Try again, or contact support if it keeps failing.');
     }
+  }
+
+  // cad-trv-import-export Slice 4 — Traverse PC `.TRV` round-trip.
+  // exportTrv writes the current drawing back out as a TRV file;
+  // importTrv opens a file picker, parses the chosen .TRV, shows a
+  // confirm-with-counts prompt, then writes the layers + features
+  // into the drawing store.
+  function exportTrv() {
+    try {
+      const { byteSize, filename } = downloadTrv(drawingStore.document);
+      cadLog.info('FileIO', `Exported drawing as TRV: ${filename} (${byteSize} bytes)`);
+    } catch (err) {
+      cadLog.error('FileIO', 'TRV export failed', err);
+      alert('Failed to export TRV. Try again, or contact support if it keeps failing.');
+    }
+  }
+
+  function importTrv() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.TRV,.trv,text/plain';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      let report: TrvImportReport;
+      try {
+        report = importTrvFromText(text);
+      } catch (err) {
+        cadLog.error('FileIO', 'TRV parse failed', err);
+        alert('Failed to parse TRV file. Check that it came from Traverse PC.');
+        return;
+      }
+      const noteSummary = report.notes.length > 0
+        ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
+        : '';
+      const ok = window.confirm(
+        `Import ${file.name}?\n\n` +
+        `  ${report.layerCount} layer(s)\n` +
+        `  ${report.pointCount} point(s)\n` +
+        `  ${report.traverseCount} traverse(s)` +
+        noteSummary +
+        `\n\nThis will ADD the records to the current drawing.`
+      );
+      if (!ok) return;
+      for (const l of report.mapped.layers) drawingStore.addLayer(l);
+      drawingStore.addFeatures(report.mapped.features);
+      cadLog.info('FileIO', `Imported TRV: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
+    };
+    input.click();
   }
 
   function exportDxf() {
@@ -519,6 +571,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             { label: 'Export as CSV (full)…', action: () => { exportCsv('full'); setOpenMenu(null); } },
             { separator: true },
             { label: 'Export for Traverse PC (PNEZD)…', action: () => { exportTraversePc(); setOpenMenu(null); } },
+            // cad-trv-import-export Slice 4 — round-trippable .TRV
+            // export (layers + points + traverses + projection /
+            // metadata / GNSS when sourced from a TRV).
+            { label: 'Export as Traverse PC (.TRV)…', action: () => { exportTrv(); setOpenMenu(null); } },
             { label: '📦 Export Traverse PC bundle (zip)…', action: () => { void exportTraversePcBundle(); setOpenMenu(null); } },
             { label: 'Export as DXF…', action: () => { exportDxf(); setOpenMenu(null); } },
             { label: 'Export as LandXML…', action: () => { exportLandXml(); setOpenMenu(null); } },
@@ -540,6 +596,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             { label: 'Import Survey Data (CSV / RW5 / JobXML)…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
             { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
             { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
+            // cad-trv-import-export Slice 4 — opens a file picker,
+            // parses + previews counts in a confirm dialog, then
+            // appends layers + features to the current drawing.
+            { label: 'Import Traverse PC (.TRV)…', action: () => { importTrv(); setOpenMenu(null); } },
           ],
         },
         { separator: true },
@@ -718,6 +778,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           label: 'Curve Calculator…',
           shortcut: 'CC',
           action: () => { onOpenCurveCalculator?.(); setOpenMenu(null); },
+        },
+        // cad-calculator-suite Slice 4 — new multi-calculator
+        // modal (Generic + Curve in Slice 6). Opens at the
+        // last-used calculator + restores per-calculator state.
+        {
+          label: 'Calculator…',
+          shortcut: 'C',
+          action: () => { onOpenCalculator?.(); setOpenMenu(null); },
         },
         { separator: true },
         { label: 'Arc', shortcut: 'A', action: () => { toolStore.setTool('DRAW_ARC'); setOpenMenu(null); } },

@@ -21,7 +21,9 @@ const SRC = fs.readFileSync(
 
 describe('Slice 237 — FillPattern type imported', () => {
   it('imports FillPattern alongside Feature from @/lib/cad/types', () => {
-    expect(SRC).toMatch(/import type \{ Feature, FillPattern \} from '@\/lib\/cad\/types';/);
+    // cad-fill-stacking Slice 6c added FillLayer to the import; allow
+    // any subset that includes Feature + FillPattern.
+    expect(SRC).toMatch(/import type \{[^}]*\bFeature\b[^}]*\bFillPattern\b[^}]*\} from '@\/lib\/cad\/types';/);
   });
 });
 
@@ -42,19 +44,22 @@ describe('Slice 237 — Fill pattern section in PropertyPanel', () => {
   });
 });
 
-describe('Slice 237 — pattern options grid covers every enum value', () => {
-  // The grid must include each FillPattern variant so the surveyor
-  // can reach every texture from the picker. Lock the value set so a
-  // future refactor can't silently drop an option.
+describe('Slice 237 — pattern options grid covers every picker-reachable value', () => {
+  // The picker must include each user-facing pattern so the surveyor
+  // can reach it. cad-fill-rotation Slice 4 — collapsed the 4 fixed
+  // hatch ids (DIAGONAL_LEFT/RIGHT, HORIZONTAL_LINES, VERTICAL_LINES)
+  // into one "LINES" entry now that the Angle slider can spin a
+  // hatch to any direction; the 4 legacy ids stay valid in the
+  // dispatcher for back-compat with saved drawings but are no longer
+  // surfaced in the picker. Lock the new option set.
   const variants = [
     'NONE',
     'DOT_UNIFORM',
     'DOT_GRAVEL',
-    'DIAGONAL_RIGHT',
-    'DIAGONAL_LEFT',
+    'LINES',
+    // cad-fill-stacking Slice 4 — DASHED_LINES joins the Hatches group.
+    'DASHED_LINES',
     'CROSSHATCH',
-    'HORIZONTAL_LINES',
-    'VERTICAL_LINES',
     'BRICK',
     'WAVE',
   ] as const;
@@ -77,9 +82,17 @@ describe('Slice 237 — pattern selection commits via updateFeature', () => {
   it('updates the feature with the chosen FillPattern preserved through the spread', () => {
     // cad-fills polish 2026-05-30 — the dropdown's onChange writes
     // `next` (the cast e.target.value) instead of the per-button
-    // `opt.value`, but it still goes through the same updateFeature
-    // call with the same style spread + isOverride flag.
-    expect(SRC).toMatch(/drawingStore\.updateFeature\(feature\.id, \{\s*style: \{ \.\.\.DEFAULT_FEATURE_STYLE, \.\.\.feature\.style, fillPattern: next, isOverride: true \},\s*\}\);/);
+    // `opt.value`. cad-fill-stacking Slice 1 — the same call now
+    // also seeds patternColor (black) + fillOpacity (1) on a first
+    // pick so the pattern renders immediately. Lock the multi-line
+    // shape.
+    expect(SRC).toMatch(/drawingStore\.updateFeature\(feature\.id, \{\s*style: \{[\s\S]*?\.\.\.DEFAULT_FEATURE_STYLE,[\s\S]*?\.\.\.feature\.style,[\s\S]*?fillPattern: next,[\s\S]*?patternColor: seededColor,[\s\S]*?fillOpacity: seededOpacity,[\s\S]*?isOverride: true,[\s\S]*?\},\s*\}\);/);
+  });
+
+  it('seeds patternColor + fillOpacity on first pick so the fill renders immediately (no need to also pick a color)', () => {
+    expect(SRC).toMatch(/const isFirstPick = next !== 'NONE' && next !== 'SOLID';/);
+    expect(SRC).toMatch(/const seededColor = feature\.style\.patternColor \?\? \(isFirstPick \? '#000000' : null\);/);
+    expect(SRC).toMatch(/const seededOpacity = Number\.isFinite\(feature\.style\.fillOpacity\)\s*\?\s*feature\.style\.fillOpacity\s*:\s*\(isFirstPick \? 1 : feature\.style\.fillOpacity\);/);
   });
 });
 

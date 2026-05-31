@@ -107,6 +107,13 @@ export interface FeatureGroup {
   /** All members must share this layerId. */
   layerId: string;
   featureIds: string[];
+  /** cad-layer-grouping Slice 2 — optional parent group id (groups
+   *  inside groups). null/undefined = layer-root group. Existing
+   *  groups normalize to `parentGroupId: null` so saved drawings
+   *  load unchanged. Cycle prevention enforced by
+   *  `lib/cad/feature-groups.ts` + the drawing-store's
+   *  moveFeatureGroup action. */
+  parentGroupId?: string | null;
 }
 
 export interface DrawingDocument {
@@ -481,6 +488,70 @@ export interface FeatureStyle {
    *  / wave stroke weight, so the user can make a pattern read heavier
    *  or lighter without changing its spacing. */
   patternScale?: number;
+  /** cad-fill-rotation Slice 1 — pattern rotation in DEGREES around
+   *  the polygon's bounding-box center. 0 (default) = the historical
+   *  unrotated baseline. Rotation works for every pattern (dots /
+   *  random-dots / hatch / brick / wave). */
+  patternRotation?: number;
+  /** cad-fill-stacking Slice 3 — per-brick width + height (px).
+   *  Optional ⇒ derived from density (existing drawings unchanged). */
+  brickWidth?: number;
+  brickHeight?: number;
+  /** cad-fill-stacking Slice 3 — wave amplitude (height, px) +
+   *  period (wavelength, px). Optional ⇒ derived from density. */
+  waveAmplitude?: number;
+  wavePeriod?: number;
+  /** cad-fill-stacking Slice 4 — DASHED_LINES dash + gap lengths in
+   *  px. Optional ⇒ derived from density. Dash length is the visible
+   *  stroke; gap length is the empty space between dashes. Both
+   *  clamped to ≥ 1 px so a zero slider doesn't infinite-loop. */
+  patternDashLen?: number;
+  patternGapLen?: number;
+
+  /** cad-fill-stacking Slice 6 — stack of infill layers rendered
+   *  bottom-to-top on the same polygon. When present, supersedes the
+   *  legacy single-pattern fields above for rendering. When absent,
+   *  the legacy fields define an implicit single-layer stack so
+   *  saved drawings render unchanged. See
+   *  `lib/cad/styles/fill-stack.ts` for the migration + resolver. */
+  fillStack?: FillLayer[];
+}
+
+/** cad-fill-stacking Slice 6 — one layer of a stacked infill. Each
+ *  layer carries everything `FillPatternConfig` cares about plus an
+ *  `eye` toggle for the layer list. Z-order = array order; the LAST
+ *  element in `fillStack[]` draws on top.
+ *
+ *  The same shape is used by the migration helper to project a
+ *  legacy single-pattern FeatureStyle into a 1-element stack. */
+export interface FillLayer {
+  /** Pattern variant. 'NONE' / 'SOLID' are legal but render nothing
+   *  in the stacked draw path (the surveyor uses them as placeholder
+   *  rows). */
+  pattern: FillPattern;
+  /** Pattern color (hex). null ⇒ fallback to black at render time
+   *  (same default the single-pattern path uses). */
+  color: string | null;
+  /** Density 0.25 – 4. */
+  density: number;
+  /** Thickness multiplier 0.25 – 4. */
+  scale: number;
+  /** Rotation in degrees, 0–359. */
+  rotation: number;
+  /** Opacity 0–1 for this layer alone. Stacked rendering means a
+   *  partially-transparent layer lets the layer beneath show
+   *  through. */
+  opacity: number;
+  /** Eye toggle — true (default) means the layer is drawn. False
+   *  hides it without removing it from the stack. */
+  visible: boolean;
+  // Per-pattern extras — mirror the FeatureStyle fields one-for-one.
+  brickWidth?: number;
+  brickHeight?: number;
+  waveAmplitude?: number;
+  wavePeriod?: number;
+  dashLen?: number;
+  gapLen?: number;
 }
 
 export type FillPattern =
@@ -494,13 +565,24 @@ export type FillPattern =
   | 'DOT_GRAVEL_FINE'
   | 'DOT_GRAVEL_COARSE'
   | 'DOT_SAND'
+  // cad-fill-rotation Slice 4 — `LINES` is the canonical hatch
+  // pattern; the legacy DIAGONAL_LEFT / DIAGONAL_RIGHT /
+  // HORIZONTAL_LINES / VERTICAL_LINES ids stay valid in the
+  // dispatcher (saved drawings render unchanged) but the picker
+  // surfaces them all as "Lines" with the angle slider pre-filled.
+  | 'LINES'
   | 'DIAGONAL_LEFT'
   | 'DIAGONAL_RIGHT'
   | 'CROSSHATCH'
   | 'HORIZONTAL_LINES'
   | 'VERTICAL_LINES'
   | 'BRICK'
-  | 'WAVE';
+  | 'WAVE'
+  // cad-fill-stacking Slice 4 — dashed hatch. Same base as `LINES`
+  // (parallel hatch through the bbox at the chosen angle) but each
+  // hatch line is broken into dash+gap segments. Angle slider works
+  // the same way; new dashLen/gapLen sliders tune the dash rhythm.
+  | 'DASHED_LINES';
 
 // --- LAYERS ---
 

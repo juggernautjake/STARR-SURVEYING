@@ -6,7 +6,13 @@ import { Image as ImageIcon } from 'lucide-react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
-import type { Feature, FillPattern } from '@/lib/cad/types';
+import type { Feature, FillLayer, FillPattern } from '@/lib/cad/types';
+// cad-fill-stacking Slice 6c — stack helpers for the layer-list UI.
+import {
+  resolveFillStack,
+  legacyStyleToFillLayer,
+  normalizeFillLayer,
+} from '@/lib/cad/styles/fill-stack';
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
@@ -621,6 +627,14 @@ export default function PropertyPanel() {
                 onClick={() => {
                   const layerId = features[0].layerId;
                   const baseColor = features[0].style.color ?? DEFAULT_FEATURE_STYLE.color;
+                  // cad-fill-stacking Slice 2 — start the fill in the
+                  // selection-blue (#0088ff) instead of the inherited
+                  // source-line color (which is often null → grey from
+                  // the layer default). The user complained the
+                  // polygon's highlight read as grey while editing
+                  // infill; matching the selection color makes the
+                  // "this is selected" visual unmistakable.
+                  const seededFillColor = '#0088ff';
                   const polygon = {
                     id: generateId(),
                     type: 'POLYGON' as const,
@@ -633,7 +647,7 @@ export default function PropertyPanel() {
                       // Invisible stroke so we don't double the user's
                       // existing boundary lines — only the fill shows.
                       opacity: 0,
-                      fillColor: baseColor,
+                      fillColor: seededFillColor,
                       fillOpacity: 0.25,
                       isOverride: true,
                     },
@@ -1328,13 +1342,30 @@ export default function PropertyPanel() {
               older saved drawings keep rendering. */}
           {computeFeatureArea(feature).squareFeet > 0 && (() => {
             // Read the raw stored value, then normalize for the
-            // dropdown so legacy gravel variants surface as "Gravel".
+            // dropdown so legacy gravel variants surface as "Gravel"
+            // (cad-fills polish) and the 4 legacy hatch ids surface
+            // as the single "Lines" entry (cad-fill-rotation Slice 4).
             const rawPattern: FillPattern = feature.style.fillPattern ?? 'NONE';
+            // cad-fill-rotation Slice 4 — the legacy hatch ids carry
+            // an inherent angle baked into the dispatcher (HORIZONTAL
+            // = 0, VERTICAL = 90, DIAGONAL_RIGHT = 45, DIAGONAL_LEFT =
+            // -45 / 315). When the picker normalizes them to LINES,
+            // we add that inherent angle to the saved patternRotation
+            // so the angle slider shows the EFFECTIVE rotation the
+            // user has been looking at.
+            const legacyHatchAngle: number | null =
+              rawPattern === 'HORIZONTAL_LINES' ? 0 :
+              rawPattern === 'VERTICAL_LINES'   ? 90 :
+              rawPattern === 'DIAGONAL_RIGHT'   ? 45 :
+              rawPattern === 'DIAGONAL_LEFT'    ? 315 :
+              null;
             const currentPattern: FillPattern =
               rawPattern === 'DOT_GRAVEL_FINE'
                 || rawPattern === 'DOT_GRAVEL_COARSE'
                 || rawPattern === 'DOT_SAND'
                 ? 'DOT_GRAVEL'
+                : legacyHatchAngle !== null
+                ? 'LINES'
                 : rawPattern;
             interface PatternOption { value: FillPattern; label: string; }
             interface PatternGroup { label: string; options: PatternOption[]; }
@@ -1342,14 +1373,25 @@ export default function PropertyPanel() {
               { label: '', options: [{ value: 'NONE', label: 'No fill' }] },
               { label: 'Stipple', options: [
                 { value: 'DOT_UNIFORM', label: 'Dots' },
-                { value: 'DOT_GRAVEL', label: 'Gravel' },
+                // cad-fill-rotation Slice 1 — renamed from "Gravel".
+                // The pattern is the random-sized-and-spaced dots
+                // surveyors use for many things (gravel pad, mulch,
+                // landscape scrub, natural-earth tone), so the label
+                // shouldn't pin it to one use. Storage id stays
+                // DOT_GRAVEL — no migration.
+                { value: 'DOT_GRAVEL', label: 'Random dots' },
               ] },
+              // cad-fill-rotation Slice 4 — collapsed the 4 fixed-
+              // direction hatches into ONE "Lines" entry now that the
+              // Angle slider can spin a hatch to any direction. Cross-
+              // hatch stays because it's two angles at once (not
+              // expressible via one slider). The legacy 4 ids are
+              // still accepted in the dispatcher; the picker
+              // normalizes them on read above (`legacyHatchAngle`).
               { label: 'Hatches', options: [
-                { value: 'DIAGONAL_RIGHT', label: 'Diagonal /' },
-                { value: 'DIAGONAL_LEFT', label: 'Diagonal \\' },
+                { value: 'LINES', label: 'Lines' },
+                { value: 'DASHED_LINES', label: 'Dashed lines' },
                 { value: 'CROSSHATCH', label: 'Crosshatch' },
-                { value: 'HORIZONTAL_LINES', label: 'Horizontal lines' },
-                { value: 'VERTICAL_LINES', label: 'Vertical lines' },
               ] },
               { label: 'Pattern', options: [
                 { value: 'BRICK', label: 'Brick' },
@@ -1362,11 +1404,224 @@ export default function PropertyPanel() {
             const patternOptions = patternGroups.flatMap((g) => g.options);
             const patternDensity = feature.style.patternDensity ?? 1;
             const patternScale = feature.style.patternScale ?? 1;
+            // cad-fill-rotation Slice 1 — rotation in DEGREES, 0–359.
+            // Slice 4 — when the saved id is a legacy hatch (its
+            // inherent angle is baked into the dispatcher), the
+            // displayed angle = stored patternRotation + the
+            // inherent angle, wrapped into 0..359, so the slider
+            // shows the EFFECTIVE rotation.
+            const storedRotation = feature.style.patternRotation ?? 0;
+            const patternRotation = legacyHatchAngle === null
+              ? storedRotation
+              : (((storedRotation + legacyHatchAngle) % 360) + 360) % 360;
+            // Clamp + sanitize a number, treating NaN as the fallback so
+            // a partially-typed value (e.g. an empty input) doesn't blow
+            // the field state up.
+            const clamp = (v: number, lo: number, hi: number, fb: number) =>
+              !Number.isFinite(v) ? fb : Math.max(lo, Math.min(hi, v));
+
+            // cad-fill-stacking Slice 6c — resolved stack + active-
+            // layer index for the layer-list UI. resolveFillStack
+            // returns the explicit stack when set, or projects the
+            // legacy single-pattern fields into a 1-element stack so
+            // the list ALWAYS has at least one row when there's any
+            // fill at all.
+            const resolvedStack = resolveFillStack(feature.style);
+            const hasExplicitStack = Array.isArray(feature.style.fillStack);
+
+            // cad-fill-stacking Slice 6c — layer-list mutations.
+            // "+ Add layer": the FIRST add migrates the legacy fields
+            // into fillStack[0] via legacyStyleToFillLayer (so layer 0
+            // captures the current single-pattern look), then appends
+            // a NONE-placeholder layer the surveyor will pick a
+            // pattern for. Subsequent adds just append.
+            const addLayer = () => {
+              let stack = feature.style.fillStack;
+              if (!Array.isArray(stack)) {
+                const projected = legacyStyleToFillLayer(feature.style);
+                stack = projected ? [projected] : [];
+              }
+              const next = [...stack, normalizeFillLayer({ pattern: 'NONE', color: '#000000' })];
+              drawingStore.updateFeature(feature.id, {
+                style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: next, isOverride: true },
+              });
+            };
+
+            // Eye toggle + delete + per-row pattern + per-row color
+            // ALL route through updateFillLayerAt / removeFillLayerAt
+            // and write the new fillStack back. Same first-add-migrates
+            // behavior so the user can also tweak layer 0's visibility
+            // even when there's only one (legacy-projected) layer.
+            const ensureExplicitStack = (): FillLayer[] => {
+              if (Array.isArray(feature.style.fillStack)) {
+                return feature.style.fillStack;
+              }
+              const projected = legacyStyleToFillLayer(feature.style);
+              return projected ? [projected] : [];
+            };
+            const writeStack = (next: FillLayer[]) => {
+              drawingStore.updateFeature(feature.id, {
+                style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: next, isOverride: true },
+              });
+            };
+            const setLayerVisibility = (idx: number, visible: boolean) => {
+              const stack = ensureExplicitStack();
+              if (idx < 0 || idx >= stack.length) return;
+              const next = stack.map((l, i) => (i === idx ? normalizeFillLayer({ ...l, visible }) : l));
+              writeStack(next);
+            };
+            const setLayerPattern = (idx: number, pattern: FillPattern) => {
+              const stack = ensureExplicitStack();
+              if (idx < 0 || idx >= stack.length) return;
+              const next = stack.map((l, i) => (i === idx ? normalizeFillLayer({ ...l, pattern }) : l));
+              writeStack(next);
+            };
+            const setLayerColor = (idx: number, color: string) => {
+              const stack = ensureExplicitStack();
+              if (idx < 0 || idx >= stack.length) return;
+              const next = stack.map((l, i) => (i === idx ? normalizeFillLayer({ ...l, color }) : l));
+              writeStack(next);
+            };
+            const deleteLayer = (idx: number) => {
+              const stack = ensureExplicitStack();
+              const next = stack.filter((_, i) => i !== idx);
+              if (next.length === 0) {
+                // Last layer removed — drop fillStack entirely AND
+                // reset legacy fillPattern to NONE so we stop
+                // rendering anything.
+                drawingStore.updateFeature(feature.id, {
+                  style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: undefined, fillPattern: 'NONE', isOverride: true },
+                });
+                return;
+              }
+              if (next.length === 1) {
+                // Reduced to a single layer → auto un-stack: copy
+                // that layer's fields back into the legacy slots so
+                // the full params card returns, and clear fillStack
+                // so the renderer takes the legacy fast path.
+                const sole = next[0];
+                drawingStore.updateFeature(feature.id, {
+                  style: {
+                    ...DEFAULT_FEATURE_STYLE,
+                    ...feature.style,
+                    fillStack: undefined,
+                    fillPattern: sole.pattern,
+                    patternColor: sole.color,
+                    patternDensity: sole.density,
+                    patternScale: sole.scale,
+                    patternRotation: sole.rotation,
+                    fillOpacity: sole.opacity,
+                    brickWidth: sole.brickWidth,
+                    brickHeight: sole.brickHeight,
+                    waveAmplitude: sole.waveAmplitude,
+                    wavePeriod: sole.wavePeriod,
+                    patternDashLen: sole.dashLen,
+                    patternGapLen: sole.gapLen,
+                    isOverride: true,
+                  },
+                });
+                return;
+              }
+              writeStack(next);
+            };
+
             return (
               <div
                 data-testid="property-panel-fill-pattern"
                 className="space-y-2 border-t border-gray-700 pt-2 mt-1"
               >
+                {/* cad-fill-stacking Slice 6c — multi-layer infill
+                    list. When fillStack is explicit (≥ 1 layer), the
+                    layer list IS the editing surface: the legacy
+                    pattern picker + params card hide so we don't
+                    confuse the user with controls that write to
+                    legacy fields the renderer is ignoring. When
+                    fillStack reduces back to a single layer via the
+                    list's delete button, deleteLayer auto un-stacks
+                    (copies layer 0's fields back into legacy slots,
+                    clears fillStack) so the params card returns. */}
+                {hasExplicitStack && (
+                  <div
+                    data-testid="property-panel-fill-stack"
+                    className="space-y-1 rounded border border-gray-700 bg-gray-800/50 p-2"
+                  >
+                    <div className="text-gray-500 text-[10px] uppercase tracking-wider">
+                      Infill layers ({resolvedStack.length})
+                    </div>
+                    {resolvedStack.map((layer, idx) => (
+                      <div
+                        key={`layer-${idx}`}
+                        data-testid={`property-panel-fill-stack-row-${idx}`}
+                        className="flex items-center gap-1 rounded bg-gray-900/50 px-1.5 py-1"
+                      >
+                        <button
+                          type="button"
+                          title={layer.visible ? 'Hide layer' : 'Show layer'}
+                          data-testid={`property-panel-fill-stack-eye-${idx}`}
+                          className={`text-[11px] px-1 ${layer.visible ? 'text-gray-200' : 'text-gray-600'}`}
+                          onClick={() => setLayerVisibility(idx, !layer.visible)}
+                        >
+                          {layer.visible ? '👁' : '⊘'}
+                        </button>
+                        <select
+                          value={layer.pattern}
+                          data-testid={`property-panel-fill-stack-pattern-${idx}`}
+                          className="flex-1 text-[11px] bg-gray-800 border border-gray-700 text-gray-100 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => setLayerPattern(idx, e.target.value as FillPattern)}
+                        >
+                          {patternGroups.map((group, gi) =>
+                            group.label ? (
+                              <optgroup key={`sl-g-${gi}`} label={group.label}>
+                                {group.options.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                              </optgroup>
+                            ) : (
+                              group.options.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))
+                            ),
+                          )}
+                        </select>
+                        <input
+                          type="color"
+                          value={layer.color ?? '#000000'}
+                          data-testid={`property-panel-fill-stack-color-${idx}`}
+                          className="w-6 h-6 rounded border border-gray-700 bg-gray-900 cursor-pointer"
+                          title="Layer color"
+                          onChange={(e) => setLayerColor(idx, e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          title="Delete layer"
+                          data-testid={`property-panel-fill-stack-delete-${idx}`}
+                          className="text-[11px] text-red-400 hover:text-red-300 px-1"
+                          onClick={() => deleteLayer(idx)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      data-testid="property-panel-fill-stack-add"
+                      className="w-full text-[11px] text-gray-300 bg-gray-700 hover:bg-gray-600 rounded px-2 py-1 mt-1 transition-colors"
+                      onClick={addLayer}
+                    >
+                      + Add layer
+                    </button>
+                    <div className="text-gray-500 text-[9px] italic pt-1">
+                      Per-layer density / thickness / angle tuning is
+                      coming in 6d — for now extra layers use the
+                      default 1× density, 1× thickness, 0° rotation.
+                    </div>
+                  </div>
+                )}
+
+                {/* Legacy single-pattern picker + params card. Hidden
+                    when fillStack is explicit so the user isn't
+                    confused by controls that write to ignored fields. */}
+                {!hasExplicitStack && (<>
                 <label className="block">
                   <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">
                     Fill pattern
@@ -1377,8 +1632,26 @@ export default function PropertyPanel() {
                     className="w-full text-[11px] bg-gray-800 border border-gray-600 text-gray-100 rounded px-2 py-1.5 hover:bg-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
                     onChange={(e) => {
                       const next = e.target.value as FillPattern;
+                      // cad-fill-stacking Slice 1 — first-pick defaults
+                      // so the pattern is visible IMMEDIATELY without
+                      // the user having to also pick a color + opacity.
+                      // We only seed when the field is currently
+                      // missing (so a user-picked color/opacity isn't
+                      // overwritten on re-pick).
+                      const isFirstPick = next !== 'NONE' && next !== 'SOLID';
+                      const seededColor = feature.style.patternColor ?? (isFirstPick ? '#000000' : null);
+                      const seededOpacity = Number.isFinite(feature.style.fillOpacity)
+                        ? feature.style.fillOpacity
+                        : (isFirstPick ? 1 : feature.style.fillOpacity);
                       drawingStore.updateFeature(feature.id, {
-                        style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: next, isOverride: true },
+                        style: {
+                          ...DEFAULT_FEATURE_STYLE,
+                          ...feature.style,
+                          fillPattern: next,
+                          patternColor: seededColor,
+                          fillOpacity: seededOpacity,
+                          isOverride: true,
+                        },
                       });
                     }}
                   >
@@ -1418,55 +1691,482 @@ export default function PropertyPanel() {
                 {/* cad-fills Slice 1 — editable pattern parameters.
                     Density drives dot spacing + hatch spacing + brick
                     course size + wave spacing/wavelength; Thickness
-                    scales dot radius + line weight. Shown only when a
-                    real pattern is active. */}
+                    scales dot radius + line weight; cad-fill-rotation
+                    Slice 1 adds Angle so any pattern (dots, random
+                    dots, hatch, brick, wave) can be spun to a custom
+                    direction. Each row has a slider AND a numeric
+                    input so the surveyor can drag for fast tuning or
+                    type for exact values. */}
                 {currentPattern !== 'NONE' && currentPattern !== 'SOLID' && (
                   <div
                     className="space-y-2 rounded border border-gray-700 bg-gray-800/50 p-2"
                     data-testid="property-panel-fill-pattern-params"
                   >
+                    {/* cad-fill-stacking Slice 5 — Opacity, 0–1.
+                        Lives at the top of the params card so it's
+                        the first control after the pattern picker
+                        (the user can immediately fade an infill they
+                        just applied). The render path's
+                        `patternAlpha` already derives from
+                        `feature.style.fillOpacity` — this row just
+                        surfaces the knob with the same slider +
+                        paired numeric input affordance the other
+                        rows use. */}
+                    {(() => {
+                      const fillOpacity = Number.isFinite(feature.style.fillOpacity)
+                        ? (feature.style.fillOpacity as number)
+                        : 1;
+                      return (
+                        <label className="block">
+                          <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                            <span className="uppercase tracking-wider">Opacity</span>
+                            <span className="tabular-nums text-gray-200">{fillOpacity.toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={fillOpacity}
+                              data-testid="property-panel-fill-pattern-opacity"
+                              className="flex-1 accent-blue-500"
+                              onChange={(e) => {
+                                drawingStore.updateFeature(feature.id, {
+                                  style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillOpacity: clamp(parseFloat(e.target.value), 0, 1, 1), isOverride: true },
+                                });
+                              }}
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={fillOpacity}
+                              data-testid="property-panel-fill-pattern-opacity-input"
+                              className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                              onChange={(e) => {
+                                drawingStore.updateFeature(feature.id, {
+                                  style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillOpacity: clamp(parseFloat(e.target.value), 0, 1, 1), isOverride: true },
+                                });
+                              }}
+                            />
+                          </div>
+                        </label>
+                      );
+                    })()}
+
+                    {/* Density */}
                     <label className="block">
                       <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
                         <span className="uppercase tracking-wider">Density</span>
                         <span className="tabular-nums text-gray-200">{patternDensity.toFixed(2)}×</span>
                       </div>
-                      <input
-                        type="range"
-                        min={0.25}
-                        max={4}
-                        step={0.25}
-                        value={patternDensity}
-                        data-testid="property-panel-fill-pattern-density"
-                        className="w-full accent-blue-500"
-                        onChange={(e) => {
-                          drawingStore.updateFeature(feature.id, {
-                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: parseFloat(e.target.value), isOverride: true },
-                          });
-                        }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternDensity}
+                          data-testid="property-panel-fill-pattern-density"
+                          className="flex-1 accent-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                        <input
+                          type="number"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternDensity}
+                          data-testid="property-panel-fill-pattern-density-input"
+                          className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                      </div>
                     </label>
+
+                    {/* Thickness */}
                     <label className="block">
                       <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
                         <span className="uppercase tracking-wider">Thickness</span>
                         <span className="tabular-nums text-gray-200">{patternScale.toFixed(2)}×</span>
                       </div>
-                      <input
-                        type="range"
-                        min={0.25}
-                        max={4}
-                        step={0.25}
-                        value={patternScale}
-                        data-testid="property-panel-fill-pattern-thickness"
-                        className="w-full accent-blue-500"
-                        onChange={(e) => {
-                          drawingStore.updateFeature(feature.id, {
-                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: parseFloat(e.target.value), isOverride: true },
-                          });
-                        }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternScale}
+                          data-testid="property-panel-fill-pattern-thickness"
+                          className="flex-1 accent-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                        <input
+                          type="number"
+                          min={0.25}
+                          max={4}
+                          step={0.05}
+                          value={patternScale}
+                          data-testid="property-panel-fill-pattern-thickness-input"
+                          className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => {
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
+                            });
+                          }}
+                        />
+                      </div>
                     </label>
+
+                    {/* cad-fill-rotation Slice 1 — Angle, 0–359°. */}
+                    <label className="block">
+                      <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                        <span className="uppercase tracking-wider">Angle</span>
+                        <span className="tabular-nums text-gray-200">{Math.round(patternRotation)}°</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={359}
+                          step={1}
+                          value={patternRotation}
+                          data-testid="property-panel-fill-pattern-angle"
+                          className="flex-1 accent-blue-500"
+                          onChange={(e) => {
+                            const newAngle = clamp(parseFloat(e.target.value), 0, 359, 0);
+                            // cad-fill-rotation Slice 4 — when the
+                            // user drags angle on a legacy hatch id,
+                            // migrate to LINES so the slider value =
+                            // the effective rotation directly (no
+                            // inherent baked angle to add).
+                            const nextFillPattern: FillPattern = legacyHatchAngle !== null ? 'LINES' : (rawPattern as FillPattern);
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: nextFillPattern, patternRotation: newAngle, isOverride: true },
+                            });
+                          }}
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={359}
+                          step={1}
+                          value={patternRotation}
+                          data-testid="property-panel-fill-pattern-angle-input"
+                          className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => {
+                            // Wrap typed values into 0..359 so an entry
+                            // like 360 resolves to 0 and -10 → 350.
+                            const raw = parseFloat(e.target.value);
+                            const wrapped = !Number.isFinite(raw) ? 0 : ((Math.round(raw) % 360) + 360) % 360;
+                            // Same legacy-hatch migration as the slider.
+                            const nextFillPattern: FillPattern = legacyHatchAngle !== null ? 'LINES' : (rawPattern as FillPattern);
+                            drawingStore.updateFeature(feature.id, {
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: nextFillPattern, patternRotation: wrapped, isOverride: true },
+                            });
+                          }}
+                        />
+                      </div>
+                    </label>
+
+                    {/* cad-fill-stacking Slice 3 — BRICK per-axis
+                        sliders (width + height) shown only when the
+                        active pattern is BRICK. Both render live and
+                        carry a paired numeric input so the surveyor
+                        can drag for fast tuning or type for exact
+                        values. Range 4–120 px covers small mortar
+                        joints up to large cobble courses. */}
+                    {currentPattern === 'BRICK' && (() => {
+                      const brickWidth = Number.isFinite(feature.style.brickWidth) ? (feature.style.brickWidth as number) : 24;
+                      const brickHeight = Number.isFinite(feature.style.brickHeight) ? (feature.style.brickHeight as number) : 12;
+                      return (
+                        <>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Brick width</span>
+                              <span className="tabular-nums text-gray-200">{brickWidth.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickWidth}
+                                data-testid="property-panel-fill-pattern-brick-width"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickWidth: clamp(parseFloat(e.target.value), 4, 120, 24), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickWidth}
+                                data-testid="property-panel-fill-pattern-brick-width-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickWidth: clamp(parseFloat(e.target.value), 4, 120, 24), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Brick height</span>
+                              <span className="tabular-nums text-gray-200">{brickHeight.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickHeight}
+                                data-testid="property-panel-fill-pattern-brick-height"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickHeight: clamp(parseFloat(e.target.value), 4, 120, 12), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickHeight}
+                                data-testid="property-panel-fill-pattern-brick-height-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickHeight: clamp(parseFloat(e.target.value), 4, 120, 12), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                        </>
+                      );
+                    })()}
+
+                    {/* cad-fill-stacking Slice 3 — WAVE amplitude
+                        (height) + period (wavelength) sliders shown
+                        only when the active pattern is WAVE. Amplitude
+                        0–60 px covers a flat ripple up to a tall
+                        breaker; period 8–240 px covers tight chop up
+                        to a long swell. Each carries a paired numeric
+                        input. */}
+                    {/* cad-fill-stacking Slice 4 — DASHED_LINES dash +
+                        gap sliders shown only when the active pattern
+                        is DASHED_LINES. Dash 1–60 px covers a small
+                        tick up to a long bar; gap 1–60 px gives the
+                        same range for the empty space. Paired numeric
+                        inputs mirror the other slider rows. */}
+                    {currentPattern === 'DASHED_LINES' && (() => {
+                      const dashLen = Number.isFinite(feature.style.patternDashLen) ? (feature.style.patternDashLen as number) : 8;
+                      const gapLen = Number.isFinite(feature.style.patternGapLen) ? (feature.style.patternGapLen as number) : 4;
+                      return (
+                        <>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Dash length</span>
+                              <span className="tabular-nums text-gray-200">{dashLen.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={dashLen}
+                                data-testid="property-panel-fill-pattern-dash-len"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDashLen: clamp(parseFloat(e.target.value), 1, 60, 8), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={dashLen}
+                                data-testid="property-panel-fill-pattern-dash-len-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDashLen: clamp(parseFloat(e.target.value), 1, 60, 8), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Gap length</span>
+                              <span className="tabular-nums text-gray-200">{gapLen.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={gapLen}
+                                data-testid="property-panel-fill-pattern-gap-len"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternGapLen: clamp(parseFloat(e.target.value), 1, 60, 4), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={gapLen}
+                                data-testid="property-panel-fill-pattern-gap-len-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternGapLen: clamp(parseFloat(e.target.value), 1, 60, 4), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                        </>
+                      );
+                    })()}
+
+                    {currentPattern === 'WAVE' && (() => {
+                      const waveAmplitude = Number.isFinite(feature.style.waveAmplitude) ? (feature.style.waveAmplitude as number) : 6;
+                      const wavePeriod = Number.isFinite(feature.style.wavePeriod) ? (feature.style.wavePeriod as number) : 60;
+                      return (
+                        <>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Wave amplitude</span>
+                              <span className="tabular-nums text-gray-200">{waveAmplitude.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={0}
+                                max={60}
+                                step={1}
+                                value={waveAmplitude}
+                                data-testid="property-panel-fill-pattern-wave-amplitude"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, waveAmplitude: clamp(parseFloat(e.target.value), 0, 60, 6), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                max={60}
+                                step={1}
+                                value={waveAmplitude}
+                                data-testid="property-panel-fill-pattern-wave-amplitude-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, waveAmplitude: clamp(parseFloat(e.target.value), 0, 60, 6), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Wave period</span>
+                              <span className="tabular-nums text-gray-200">{wavePeriod.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={8}
+                                max={240}
+                                step={1}
+                                value={wavePeriod}
+                                data-testid="property-panel-fill-pattern-wave-period"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, wavePeriod: clamp(parseFloat(e.target.value), 8, 240, 60), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={8}
+                                max={240}
+                                step={1}
+                                value={wavePeriod}
+                                data-testid="property-panel-fill-pattern-wave-period-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, wavePeriod: clamp(parseFloat(e.target.value), 8, 240, 60), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
+
+                {/* cad-fill-stacking Slice 6c — "+ Add layer" button
+                    in single-pattern mode. Shown only when there's
+                    already a non-NONE pattern (so layer 0 has
+                    something to migrate). Clicking migrates the
+                    current legacy fields into fillStack[0] via
+                    addLayer + appends a NONE-placeholder layer the
+                    surveyor picks a pattern for, switching the UI
+                    into stacked-mode. */}
+                {currentPattern !== 'NONE' && currentPattern !== 'SOLID' && (
+                  <button
+                    type="button"
+                    data-testid="property-panel-fill-stack-start"
+                    className="w-full text-[11px] text-gray-300 bg-gray-700 hover:bg-gray-600 rounded px-2 py-1 transition-colors"
+                    onClick={addLayer}
+                  >
+                    + Add layer (stack another pattern)
+                  </button>
+                )}
+                </>)}
               </div>
             );
           })()}

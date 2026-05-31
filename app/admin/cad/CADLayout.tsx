@@ -52,6 +52,10 @@ import BidirectionalSync from './components/BidirectionalSync';
 import ReviewQueuePanel from './components/ReviewQueuePanel';
 import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
+// cad-calculator-suite Slice 4 — new multi-calculator modal +
+// picker. Coexists with the legacy CurveCalculator entry until
+// the Slice-6 Curve migration folds it in.
+import CalculatorModal from './components/CalculatorModal';
 import NewDrawingDialog from './components/NewDrawingDialog';
 import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
 import FullscreenToggle from './components/FullscreenToggle';
@@ -188,6 +192,8 @@ export default function CADLayout() {
   const [showAIDrawingDialog, setShowAIDrawingDialog] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
+  // cad-calculator-suite Slice 4 — new calculator suite modal.
+  const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [showDrawingRotation, setShowDrawingRotation] = useState(false);
   const [showTitleBlock, setShowTitleBlock] = useState(false);
   const [showImagePanel, setShowImagePanel] = useState(false);
@@ -1021,6 +1027,7 @@ export default function CADLayout() {
         onOpenAIDrawing={() => setShowAIDrawingDialog(true)}
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
         onOpenCurveCalculator={() => setShowCurveCalculator(true)}
+        onOpenCalculator={() => setShowCalculatorModal(true)}
         onOpenOrientationDialog={() => setShowOrientationDialog(true)}
         onOpenDrawingRotation={() => setShowDrawingRotation(true)}
         onOpenTitleBlock={() => setShowTitleBlock(true)}
@@ -1302,6 +1309,12 @@ export default function CADLayout() {
 
       {/* Curve Calculator dialog */}
       {showCurveCalculator && <CurveCalculator onClose={() => setShowCurveCalculator(false)} />}
+
+      {/* cad-calculator-suite Slice 4 — new calculator suite modal.
+          Picker switches between registered calculators; each one's
+          working state lives in useCalculatorStore (Slice 1) so
+          closing + reopening restores last-used + state. */}
+      <CalculatorModal open={showCalculatorModal} onClose={() => setShowCalculatorModal(false)} />
 
       {/* Survey Orientation Adjustment dialog */}
       {showOrientationDialog && <OrientationDialog onClose={() => setShowOrientationDialog(false)} />}

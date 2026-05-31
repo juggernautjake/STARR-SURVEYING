@@ -12,10 +12,16 @@ import { confirmAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
+// cad-layer-grouping-and-context-menus Slice 1 — POLYGON/POLYLINE
+// expand-chevron helpers for the layer panel.
+import { formatFeatureVertices, isExpandableFeature } from '@/lib/cad/feature-vertices';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 import NewLayerDialog from './NewLayerDialog';
+// cad-layer-grouping Slice 5 — unified context menu for layer-panel
+// group rows (and, in future slices, feature rows + layer rows).
+import TargetContextMenu, { type ContextMenuTarget } from './TargetContextMenu';
 
 // Accessible palette for new layers — visually distinct, good contrast
 const LAYER_COLOR_PALETTE = [
@@ -66,6 +72,13 @@ export default function LayerPanel() {
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
   /** Feature groups that are expanded (showing group members). */
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  /** cad-layer-grouping-and-context-menus Slice 1 — POLYLINE /
+   *  POLYGON feature rows that are expanded to show their
+   *  constituent vertices as read-only child rows. */
+  const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
+  /** cad-layer-grouping Slice 5 — open target context menu (group /
+   *  feature / layer / selection). Null when no menu is open. */
+  const [targetMenu, setTargetMenu] = useState<{ target: ContextMenuTarget; x: number; y: number } | null>(null);
   /** Currently renaming group id. */
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameGroupValue, setRenameGroupValue] = useState('');
@@ -372,8 +385,12 @@ export default function LayerPanel() {
       <div className="flex-1 overflow-y-auto" onContextMenu={handlePanelContextMenu}>
         {filteredLayers.map((layer) => {
           const isExpanded = expandedLayers.has(layer.id);
-          // All features on this layer
-          const layerFeatures = Object.values(doc.features).filter((f) => f.layerId === layer.id && !f.hidden);
+          // All features on this layer. cad-fill-rotation Slice 2 —
+          // include hidden features too so the layer tree can show an
+          // eye toggle per row (was filtering them out, which made
+          // hiding an element from the canvas right-click also vanish
+          // it from the tree, with no way to bring it back from here).
+          const layerFeatures = Object.values(doc.features).filter((f) => f.layerId === layer.id);
           // Check if any feature on this layer is selected or hovered
           const hasSelectedFeature = layerFeatures.some((f) => selectedIds.has(f.id));
           const hasHoveredFeature  = !!hoveredId && layerFeatures.some((f) => f.id === hoveredId);
@@ -381,10 +398,177 @@ export default function LayerPanel() {
           const hasTBActivity = layer.id === 'SURVEY-INFO' && (hoveredTBElem !== null || selectedTBElem !== null);
           const isHighlighted = hasSelectedFeature || hasHoveredFeature || hasTBActivity;
 
-          // Groups on this layer
+          // Groups on this layer. cad-layer-grouping Slice 3 — the
+          // tree renderer below only walks root-level groups (those
+          // with no parentGroupId); nested groups are reached via
+          // recursion inside `renderGroup`. Keep the full `layerGroups`
+          // list around so the recursive walker can look up children.
           const layerGroups = Object.values(doc.featureGroups ?? {}).filter((g) => g.layerId === layer.id);
+          const rootLayerGroups = layerGroups.filter((g) => (g.parentGroupId ?? null) === null);
           // Ungrouped features
           const ungroupedFeatures = layerFeatures.filter((f) => !f.featureGroupId);
+
+          // cad-layer-grouping Slice 3 — recursive group renderer.
+          // Renders one FeatureGroup row + (when expanded) its child
+          // groups (recursive call at depth + 1) followed by its
+          // member features. Indentation is 12px per depth level
+          // applied to the OUTER div, so all descendants of a
+          // nested group inherit the same offset and stack
+          // cleanly. Depth 0 = layer-root group ⇒ no extra padding,
+          // pixel-identical to the pre-Slice-3 flat render.
+          const renderGroup = (group: import('@/lib/cad/types').FeatureGroup, depth: number): React.ReactNode => {
+            const groupFeatures = (group.featureIds ?? [])
+              .map((id) => doc.features[id])
+              .filter(Boolean);
+            const groupSelected = groupFeatures.some((f) => selectedIds.has(f.id));
+            const groupHovered  = !!hoveredId && groupFeatures.some((f) => f.id === hoveredId);
+            const isGroupExpanded = expandedGroups.has(group.id);
+            const childGroups = layerGroups.filter((g) => (g.parentGroupId ?? null) === group.id);
+            return (
+              <div
+                key={group.id}
+                data-group-id={group.id}
+                data-group-depth={depth}
+                style={depth > 0 ? { paddingLeft: `${depth * 0.75}rem` } : undefined}
+              >
+                {/* Group header row */}
+                <div
+                  className={`flex items-center gap-1 px-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors ${
+                    groupSelected || groupHovered ? 'text-blue-300' : 'text-gray-400'
+                  }`}
+                  onClick={(e) => handleGroupClick(group.id, e)}
+                  onDoubleClick={() => startRenameGroup(group.id)}
+                  // cad-layer-grouping Slice 5 — right-click opens
+                  // the unified TargetContextMenu for this group.
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTargetMenu({ target: { kind: 'group', id: group.id }, x: e.clientX, y: e.clientY });
+                  }}
+                  title="Click to select group. Double-click to rename. Right-click for more."
+                >
+                  <button
+                    className="flex-shrink-0 text-gray-500 hover:text-gray-300 p-0.5"
+                    onClick={(e) => { e.stopPropagation(); toggleGroupExpand(group.id); }}
+                    title={isGroupExpanded ? 'Collapse group' : 'Expand group'}
+                    aria-label={isGroupExpanded ? 'Collapse group' : 'Expand group'}
+                  >
+                    {isGroupExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                  </button>
+                  <Layers size={9} className="text-gray-600 shrink-0" />
+                  {renamingGroupId === group.id ? (
+                    <input
+                      ref={renameGroupRef}
+                      className="flex-1 bg-gray-600 text-white text-xs px-1 rounded outline-none min-w-0"
+                      value={renameGroupValue}
+                      onChange={(e) => setRenameGroupValue(e.target.value)}
+                      onBlur={commitRenameGroup}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRenameGroup();
+                        if (e.key === 'Escape') setRenamingGroupId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="text-[10px] font-semibold truncate">{group.name}</span>
+                  )}
+                  <span className="ml-auto text-[9px] text-gray-600 shrink-0 pr-0.5">
+                    {groupFeatures.length}
+                  </span>
+                  <button
+                    className="text-gray-600 hover:text-red-400 shrink-0 p-0.5"
+                    onClick={(e) => { e.stopPropagation(); store.ungroupFeatures(group.id); }}
+                    title="Ungroup"
+                  >
+                    <X size={9} />
+                  </button>
+                </div>
+                {/* Expanded body — child groups first, then member
+                    features, mirroring how a CAD layer-panel tree
+                    typically presents container vs leaf children. */}
+                {isGroupExpanded && (
+                  <>
+                    {childGroups.map((child) => renderGroup(child, depth + 1))}
+                    {groupFeatures.map((feat) => {
+                      const isSelected = selectedIds.has(feat.id);
+                      const isHovered  = hoveredId === feat.id;
+                      const isHidden = feat.hidden === true;
+                      const expandable = isExpandableFeature(feat);
+                      const isExpanded = expandable && expandedFeatures.has(feat.id);
+                      return (
+                        <div key={feat.id} data-feature-row={feat.id}>
+                          <div
+                            className={`flex items-center gap-1 pl-6 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
+                              isHidden
+                                ? 'text-gray-600 italic'
+                                : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
+                            }`}
+                            onClick={(e) => handleFeatureClick(feat.id, e)}
+                            title={feat.id}
+                            data-feature-id={feat.id}
+                            data-hidden={isHidden ? 'true' : 'false'}
+                          >
+                            {expandable ? (
+                              <button
+                                type="button"
+                                aria-label={isExpanded ? 'Collapse vertices' : 'Expand vertices'}
+                                data-testid={`layer-panel-feature-expand-${feat.id}`}
+                                className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-100 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedFeatures((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(feat.id)) next.delete(feat.id);
+                                    else next.add(feat.id);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                              </button>
+                            ) : (
+                              <span className="shrink-0 w-3" aria-hidden />
+                            )}
+                            <button
+                              type="button"
+                              aria-label={isHidden ? 'Show feature' : 'Hide feature'}
+                              aria-pressed={isHidden}
+                              title={isHidden ? 'Show feature' : 'Hide feature'}
+                              data-testid={`layer-panel-feature-eye-${feat.id}`}
+                              className={`shrink-0 p-0.5 rounded transition-colors ${
+                                isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isHidden) store.unhideFeature(feat.id);
+                                else store.hideFeature(feat.id);
+                              }}
+                            >
+                              {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                            </button>
+                            <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                          </div>
+                          {isExpanded && (
+                            <div data-testid={`layer-panel-feature-vertices-${feat.id}`}>
+                              {formatFeatureVertices(feat).map((line, i) => (
+                                <div
+                                  key={`v-${i}`}
+                                  className="pl-12 pr-1 py-0.5 text-[10px] text-gray-600 tabular-nums truncate"
+                                >
+                                  {line}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            );
+          };
 
           return (
             <div key={layer.id}>
@@ -669,99 +853,100 @@ export default function LayerPanel() {
                       </>
                     );
                   })()}
-                  {/* Groups */}
-                  {layerGroups.map((group) => {
-                    const groupFeatures = (group.featureIds ?? [])
-                      .map((id) => doc.features[id])
-                      .filter(Boolean);
-                    const groupSelected = groupFeatures.some((f) => selectedIds.has(f.id));
-                    const groupHovered  = !!hoveredId && groupFeatures.some((f) => f.id === hoveredId);
-                    const isGroupExpanded = expandedGroups.has(group.id);
-
-                    return (
-                      <div key={group.id}>
-                        {/* Group header row */}
-                        <div
-                          className={`flex items-center gap-1 px-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors ${
-                            groupSelected || groupHovered ? 'text-blue-300' : 'text-gray-400'
-                          }`}
-                          onClick={(e) => handleGroupClick(group.id, e)}
-                          onDoubleClick={() => startRenameGroup(group.id)}
-                          title="Click to select group. Double-click to rename."
-                        >
-                          {/* Expand/collapse toggle for group members */}
-                          <button
-                            className="flex-shrink-0 text-gray-500 hover:text-gray-300 p-0.5"
-                            onClick={(e) => { e.stopPropagation(); toggleGroupExpand(group.id); }}
-                            title={isGroupExpanded ? 'Collapse group' : 'Expand group'}
-                            aria-label={isGroupExpanded ? 'Collapse group' : 'Expand group'}
-                          >
-                            {isGroupExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                          </button>
-                          <Layers size={9} className="text-gray-600 shrink-0" />
-                          {renamingGroupId === group.id ? (
-                            <input
-                              ref={renameGroupRef}
-                              className="flex-1 bg-gray-600 text-white text-xs px-1 rounded outline-none min-w-0"
-                              value={renameGroupValue}
-                              onChange={(e) => setRenameGroupValue(e.target.value)}
-                              onBlur={commitRenameGroup}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') commitRenameGroup();
-                                if (e.key === 'Escape') setRenamingGroupId(null);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              autoFocus
-                            />
-                          ) : (
-                            <span className="text-[10px] font-semibold truncate">{group.name}</span>
-                          )}
-                          <span className="ml-auto text-[9px] text-gray-600 shrink-0 pr-0.5">
-                            {groupFeatures.length}
-                          </span>
-                          <button
-                            className="text-gray-600 hover:text-red-400 shrink-0 p-0.5"
-                            onClick={(e) => { e.stopPropagation(); store.ungroupFeatures(group.id); }}
-                            title="Ungroup"
-                          >
-                            <X size={9} />
-                          </button>
-                        </div>
-                        {/* Group members — only visible when group is expanded */}
-                        {isGroupExpanded && groupFeatures.map((feat) => {
-                          const isSelected = selectedIds.has(feat.id);
-                          const isHovered  = hoveredId === feat.id;
-                          return (
-                            <div
-                              key={feat.id}
-                              className={`flex items-center gap-1 pl-6 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
-                                isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
-                              }`}
-                              onClick={(e) => handleFeatureClick(feat.id, e)}
-                              title={feat.id}
-                            >
-                              <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                  {/* Groups — cad-layer-grouping Slice 3: recursive
+                      tree render. Iterates ROOT-level groups only;
+                      `renderGroup` walks children via recursion when
+                      a parent is expanded. */}
+                  {rootLayerGroups.map((group) => renderGroup(group, 0))}
 
                   {/* Ungrouped features */}
                   {ungroupedFeatures.map((feat) => {
                     const isSelected = selectedIds.has(feat.id);
                     const isHovered  = hoveredId === feat.id;
+                    const isHidden = feat.hidden === true;
+                    // cad-layer-grouping-and-context-menus Slice 1 —
+                    // chevron-expandable POLYGON/POLYLINE rows.
+                    const expandable = isExpandableFeature(feat);
+                    const isExpanded = expandable && expandedFeatures.has(feat.id);
                     return (
-                      <div
-                        key={feat.id}
-                        className={`flex items-center gap-1 pl-2 pr-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors text-[10px] ${
-                          isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
-                        }`}
-                        onClick={(e) => handleFeatureClick(feat.id, e)}
-                        title={feat.id}
-                      >
-                        <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                      <div key={feat.id} data-feature-row={feat.id}>
+                        <div
+                          className={`flex items-center gap-1 pl-2 pr-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors text-[10px] ${
+                            isHidden
+                              ? 'text-gray-600 italic'
+                              : isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
+                          }`}
+                          onClick={(e) => handleFeatureClick(feat.id, e)}
+                          title={feat.id}
+                          data-feature-id={feat.id}
+                          data-hidden={isHidden ? 'true' : 'false'}
+                        >
+                          {/* cad-layer-grouping Slice 1 — expand
+                              chevron for POLYLINE / POLYGON. Hidden
+                              for other feature types so the row width
+                              stays consistent. */}
+                          {expandable ? (
+                            <button
+                              type="button"
+                              aria-label={isExpanded ? 'Collapse vertices' : 'Expand vertices'}
+                              data-testid={`layer-panel-feature-expand-${feat.id}`}
+                              className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-100 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedFeatures((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(feat.id)) next.delete(feat.id);
+                                  else next.add(feat.id);
+                                  return next;
+                                });
+                              }}
+                            >
+                              {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                            </button>
+                          ) : (
+                            <span className="shrink-0 w-3" aria-hidden />
+                          )}
+                          {/* cad-fill-rotation Slice 2 — per-feature eye
+                              toggle. Two-way bound to Feature.hidden so
+                              right-click "Hide Element" auto-updates the
+                              icon. stopPropagation so clicking the eye
+                              doesn't also fire handleFeatureClick. */}
+                          <button
+                            type="button"
+                            aria-label={isHidden ? 'Show feature' : 'Hide feature'}
+                            aria-pressed={isHidden}
+                            title={isHidden ? 'Show feature' : 'Hide feature'}
+                            data-testid={`layer-panel-feature-eye-${feat.id}`}
+                            className={`shrink-0 p-0.5 rounded transition-colors ${
+                              isHidden ? 'text-gray-600 hover:text-gray-300' : 'text-gray-400 hover:text-gray-100'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isHidden) store.unhideFeature(feat.id);
+                              else store.hideFeature(feat.id);
+                            }}
+                          >
+                            {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                          </button>
+                          <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                        </div>
+                        {/* cad-layer-grouping Slice 1 — expanded
+                            vertex list. Read-only display; per-vertex
+                            hideability requires the "Explode to
+                            segments" right-click op (Slice 6 of this
+                            plan). */}
+                        {isExpanded && (
+                          <div data-testid={`layer-panel-feature-vertices-${feat.id}`}>
+                            {formatFeatureVertices(feat).map((line, i) => (
+                              <div
+                                key={`v-${i}`}
+                                className="pl-8 pr-1 py-0.5 text-[10px] text-gray-600 tabular-nums truncate"
+                              >
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -813,6 +998,19 @@ export default function LayerPanel() {
           className="fixed inset-0 z-40"
           onClick={() => { setContextMenu(null); setPanelMenu(null); }}
           onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); setPanelMenu(null); }}
+        />
+      )}
+
+      {/* cad-layer-grouping Slice 5 — TargetContextMenu for group
+          right-click. The component manages its own outside-click
+          + Escape dismissal so we just render it conditionally. */}
+      {targetMenu && (
+        <TargetContextMenu
+          target={targetMenu.target}
+          x={targetMenu.x}
+          y={targetMenu.y}
+          onRequestRename={(groupId) => startRenameGroup(groupId)}
+          onClose={() => setTargetMenu(null)}
         />
       )}
 

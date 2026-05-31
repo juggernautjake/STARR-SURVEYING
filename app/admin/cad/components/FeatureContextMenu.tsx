@@ -60,6 +60,7 @@ import {
   alignSelection,
   reverseFeature,
   explodeFeature,
+  explodeFeatureGrouped,
   smoothPolyline,
   simplifyPolylineFeature,
   divideFeatureBy,
@@ -979,6 +980,16 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
                         id: 'explode',
                         label: 'Explode (burst into LINEs)',
                         action: () => { explodeFeature(feature.id); onClose(); },
+                      },
+                      // cad-layer-grouping Slice 6 — grouped variant:
+                      // bursts into LINEs AND wraps them in a
+                      // FeatureGroup named after the source, so the
+                      // surveyor can still treat the result as one
+                      // logical unit in the LayerPanel.
+                      {
+                        id: 'explodeGrouped',
+                        label: 'Explode to segments (grouped)',
+                        action: () => { explodeFeatureGrouped(feature.id); onClose(); },
                       }]
                     : []),
                   // Smooth → Spline. Requires ≥ 3 vertices on a chain feature.

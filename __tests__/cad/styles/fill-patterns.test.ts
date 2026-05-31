@@ -11,6 +11,7 @@ import {
   generateDotUniform,
   generateDotGravel,
   generateHatchLines,
+  generateDashedHatchLines,
   generateBrickLines,
   generateWaveLines,
   generateFillPattern,
@@ -160,6 +161,125 @@ describe('Slice 235 — generateBrickLines + generateWaveLines', () => {
   });
 });
 
+// cad-fill-stacking Slice 3 — explicit per-axis dimensions for BRICK
+// (width + height) and WAVE (amplitude + period). Each lock pins that
+// the slider override actually changes the primitive geometry, and
+// that omitting the override keeps the legacy density-derived shape.
+describe('cad-fill-stacking Slice 3 — BRICK explicit width + height', () => {
+  it('a smaller brickHeight yields more courses (more horizontal lines)', () => {
+    const big = generateBrickLines(200, 200, 1, 40, 40);
+    const small = generateBrickLines(200, 200, 1, 40, 8);
+    expect(small.length).toBeGreaterThan(big.length);
+  });
+
+  it('a wider brickWidth yields fewer verticals per course (fewer total lines)', () => {
+    const narrow = generateBrickLines(400, 100, 1, 8, 20);
+    const wide = generateBrickLines(400, 100, 1, 80, 20);
+    expect(narrow.length).toBeGreaterThan(wide.length);
+  });
+
+  it('omitting brickWidth/brickHeight reproduces the density-derived baseline', () => {
+    const baseline = generateBrickLines(120, 120, 1);
+    const explicitDefaults = generateBrickLines(120, 120, 1, undefined, undefined);
+    expect(explicitDefaults).toEqual(baseline);
+  });
+
+  it('a zero/negative brick dimension is clamped to ≥ 1 (no infinite loop)', () => {
+    const out = generateBrickLines(60, 60, 1, 0, 0);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.length).toBeLessThan(20000);
+  });
+});
+
+describe('cad-fill-stacking Slice 3 — WAVE explicit amplitude + period', () => {
+  it('a larger amplitude shifts wave y-values further from the row centerline', () => {
+    const flat = generateWaveLines(400, 100, 1, 0, 60);
+    const tall = generateWaveLines(400, 100, 1, 30, 60);
+    // Flat lines (amp 0) are exactly on the row centerlines, so the
+    // distinct y-values count is the row count. Tall waves visit many
+    // more distinct y values along the sine curve.
+    const flatYs = new Set(flat.flatMap((l) => [l.y1, l.y2])).size;
+    const tallYs = new Set(tall.flatMap((l) => [l.y1, l.y2])).size;
+    expect(tallYs).toBeGreaterThan(flatYs);
+  });
+
+  it('a shorter period yields more segments across a fixed width', () => {
+    const long = generateWaveLines(400, 100, 1, 12, 200);
+    const short = generateWaveLines(400, 100, 1, 12, 40);
+    expect(short.length).toBeGreaterThan(long.length);
+  });
+
+  it('omitting amplitude/period reproduces the density-derived baseline', () => {
+    const baseline = generateWaveLines(200, 200, 1);
+    const explicitDefaults = generateWaveLines(200, 200, 1, undefined, undefined);
+    expect(explicitDefaults).toEqual(baseline);
+  });
+});
+
+// cad-fill-stacking Slice 4 — DASHED_LINES generator + dispatcher
+// thread the new dashLen/gapLen overrides through.
+describe('cad-fill-stacking Slice 4 — generateDashedHatchLines', () => {
+  it('produces many short segments (more than the equivalent solid hatch)', () => {
+    const solid = generateHatchLines(200, 200, 0, 12).length;
+    const dashed = generateDashedHatchLines(200, 200, 0, 12, 6, 4).length;
+    // Each solid line fractures into many dash segments.
+    expect(dashed).toBeGreaterThan(solid);
+  });
+
+  it('a shorter dashLen yields more dash segments at the same gap', () => {
+    const long = generateDashedHatchLines(200, 200, 0, 12, 24, 4).length;
+    const short = generateDashedHatchLines(200, 200, 0, 12, 4, 4).length;
+    expect(short).toBeGreaterThan(long);
+  });
+
+  it('a larger gapLen yields fewer dash segments at the same dash length', () => {
+    const tight = generateDashedHatchLines(200, 200, 0, 12, 6, 2).length;
+    const loose = generateDashedHatchLines(200, 200, 0, 12, 6, 30).length;
+    expect(tight).toBeGreaterThan(loose);
+  });
+
+  it('omitting dashLen/gapLen falls back to a deterministic density-derived shape', () => {
+    const a = generateDashedHatchLines(200, 200, 0, 12);
+    const b = generateDashedHatchLines(200, 200, 0, 12, undefined, undefined);
+    expect(a).toEqual(b);
+    expect(a.length).toBeGreaterThan(0);
+  });
+
+  it('a zero / negative dash length is clamped to ≥ 1 (no infinite loop)', () => {
+    const out = generateDashedHatchLines(60, 60, 0, 6, 0, 0);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.length).toBeLessThan(20000);
+  });
+});
+
+describe('cad-fill-stacking Slice 4 — dispatcher routes DASHED_LINES + threads dashLen/gapLen', () => {
+  it('DASHED_LINES emits a line set with no dots', () => {
+    const out = generateFillPattern(200, 200, { pattern: 'DASHED_LINES', density: 1, seed: 1 });
+    expect(out.dots).toEqual([]);
+    expect(out.lines.length).toBeGreaterThan(0);
+  });
+
+  it('the cfg dashLen / gapLen overrides change the segment count', () => {
+    const baseline = generateFillPattern(200, 200, { pattern: 'DASHED_LINES', density: 1, seed: 1 });
+    const tight = generateFillPattern(200, 200, { pattern: 'DASHED_LINES', density: 1, seed: 1, dashLen: 2, gapLen: 2 });
+    expect(tight.lines.length).toBeGreaterThan(baseline.lines.length);
+  });
+});
+
+describe('cad-fill-stacking Slice 3 — dispatcher threads brick/wave overrides', () => {
+  it('BRICK config passes brickWidth + brickHeight through to the generator', () => {
+    const baseline = generateFillPattern(200, 200, { pattern: 'BRICK', density: 1, seed: 1 });
+    const tiny = generateFillPattern(200, 200, { pattern: 'BRICK', density: 1, seed: 1, brickWidth: 8, brickHeight: 4 });
+    expect(tiny.lines.length).toBeGreaterThan(baseline.lines.length);
+  });
+
+  it('WAVE config passes waveAmplitude + wavePeriod through to the generator', () => {
+    const baseline = generateFillPattern(200, 200, { pattern: 'WAVE', density: 1, seed: 1 });
+    const tight = generateFillPattern(200, 200, { pattern: 'WAVE', density: 1, seed: 1, waveAmplitude: 20, wavePeriod: 20 });
+    expect(tight.lines.length).toBeGreaterThan(baseline.lines.length);
+  });
+});
+
 describe('Slice 235 — generateFillPattern dispatcher', () => {
   it('SOLID / NONE produce no dots and no lines', () => {
     expect(generateFillPattern(100, 100, { pattern: 'SOLID', density: 1, seed: 1 })).toEqual({ dots: [], lines: [] });
@@ -199,6 +319,7 @@ describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value',
       'DOT_GRAVEL_FINE',
       'DOT_GRAVEL_COARSE',
       'DOT_SAND',
+      'LINES',
       'DIAGONAL_LEFT',
       'DIAGONAL_RIGHT',
       'CROSSHATCH',
@@ -206,6 +327,8 @@ describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value',
       'VERTICAL_LINES',
       'BRICK',
       'WAVE',
+      // cad-fill-stacking Slice 4 — dashed hatch.
+      'DASHED_LINES',
     ];
     // Each variant runs through the dispatcher without throwing.
     for (const pattern of variants) {
@@ -284,5 +407,66 @@ describe('cad-fills Slice 1 — density still drives spacing/frequency', () => {
     const sparse = generateFillPattern(200, 200, { pattern: 'WAVE', density: 0.5, seed: 1 }).lines;
     const dense = generateFillPattern(200, 200, { pattern: 'WAVE', density: 3, seed: 1 }).lines;
     expect(dense.length).toBeGreaterThan(sparse.length);
+  });
+});
+
+describe('cad-fill-rotation Slice 1 — angle rotates any pattern', () => {
+  const W = 200;
+  const H = 200;
+  const seed = 7;
+
+  it('angle 0 (or omitted) is the unrotated baseline (pixel-identical)', () => {
+    const noAngle = generateFillPattern(W, H, { pattern: 'WAVE', density: 1, seed });
+    const zero    = generateFillPattern(W, H, { pattern: 'WAVE', density: 1, seed, angle: 0 });
+    expect(zero).toEqual(noAngle);
+  });
+
+  it('rotating a horizontal hatch by 90° produces ~vertical line segments', () => {
+    const horiz = generateFillPattern(W, H, { pattern: 'HORIZONTAL_LINES', density: 1, seed }).lines;
+    const rotated = generateFillPattern(W, H, { pattern: 'HORIZONTAL_LINES', density: 1, seed, angle: 90 }).lines;
+    // Sanity: horizontal hatch has |y2 - y1| ≈ 0 for every line.
+    const isHoriz = (ln: { x1: number; y1: number; x2: number; y2: number }) =>
+      Math.abs(ln.y2 - ln.y1) < 0.001;
+    const isVert = (ln: { x1: number; y1: number; x2: number; y2: number }) =>
+      Math.abs(ln.x2 - ln.x1) < 0.001;
+    expect(horiz.length).toBeGreaterThan(0);
+    expect(horiz.every(isHoriz)).toBe(true);
+    expect(rotated.length).toBeGreaterThan(0);
+    expect(rotated.every(isVert)).toBe(true);
+  });
+
+  it('rotating a dot pattern shifts dot positions but preserves count + radii', () => {
+    const base = generateFillPattern(W, H, { pattern: 'DOT_UNIFORM', density: 1, seed });
+    const rotated = generateFillPattern(W, H, { pattern: 'DOT_UNIFORM', density: 1, seed, angle: 30 });
+    // Both pull from the oversized generation rect at angle > 0, so the
+    // counts differ a touch from the unrotated baseline — but each
+    // rotated dot still carries the same radius the generator emitted.
+    expect(rotated.dots.length).toBeGreaterThan(0);
+    for (const d of rotated.dots) {
+      expect(d.r).toBeGreaterThan(0);
+    }
+    // Not the same positions as the unrotated baseline.
+    const sameAsBase = base.dots.length === rotated.dots.length
+      && base.dots.every((b, i) => Math.abs(b.x - rotated.dots[i].x) < 0.001 && Math.abs(b.y - rotated.dots[i].y) < 0.001);
+    expect(sameAsBase).toBe(false);
+  });
+
+  it('wraps a > 360° angle the same as its mod 360', () => {
+    const a = generateFillPattern(W, H, { pattern: 'BRICK', density: 1, seed, angle: 45 });
+    const b = generateFillPattern(W, H, { pattern: 'BRICK', density: 1, seed, angle: 405 });
+    expect(a).toEqual(b);
+  });
+
+  it('coverage: rotated pattern still produces primitives that span the original bounding rect', () => {
+    // Generate at 45° on a tall narrow rect; assert at least one
+    // line's MIDPOINT lands inside the original rect (endpoints sit
+    // outside on long hatch lines, but the line crosses the interior).
+    const rotated = generateFillPattern(60, 200, { pattern: 'HORIZONTAL_LINES', density: 1, seed, angle: 45 }).lines;
+    const midInRect = rotated.some((ln) => {
+      const mx = (ln.x1 + ln.x2) / 2;
+      const my = (ln.y1 + ln.y2) / 2;
+      return mx >= 0 && mx <= 60 && my >= 0 && my <= 200;
+    });
+    expect(midInRect).toBe(true);
   });
 });

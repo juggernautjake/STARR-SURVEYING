@@ -1089,6 +1089,52 @@ export function explodeFeature(featureId: string): boolean {
 }
 
 /**
+ * cad-layer-grouping Slice 6 — explode a POLYLINE / POLYGON into
+ * per-segment LINE features AND wrap the result in a FeatureGroup
+ * named after the source. The grouped result lets the surveyor:
+ *
+ *   - keep the explosion as one logical unit (the group is the
+ *     "polygon" entry in the LayerPanel), and
+ *   - drill into the group to hide / restyle a single segment
+ *     without affecting the others.
+ *
+ * Delegates the explosion to `explodeFeature` (so the source-
+ * feature → LINE mapping stays in one place). On a successful
+ * explode, takes the just-selected line ids and runs them through
+ * `drawingStore.groupFeatures` with a name derived from the
+ * source. Returns true on success.
+ *
+ * Undo note: the source explode pushes its own batch (the lines
+ * come and go atomically). The group creation is a separate state
+ * mutation that doesn't push a dedicated undo entry — undoing the
+ * explode brings the source back + removes the lines; the group
+ * record's featureIds become stale refs but the group itself
+ * harmlessly sticks around (cleaned up the next time anything
+ * touches it via removeFeatureFromGroup or by a future
+ * orphan-group sweep). A dedicated MODIFY_FEATURE_GROUPS undo op
+ * is a follow-up if surveyors hit the orphan-state often enough
+ * to notice.
+ */
+export function explodeFeatureGrouped(featureId: string): boolean {
+  const source = useDrawingStore.getState().getFeature(featureId);
+  if (!source) return false;
+  // Default group name = the source's display name if present, else
+  // a short type+id label so the LayerPanel entry reads cleanly.
+  const sourceName =
+    (source.properties?.name as string | undefined) ??
+    `${source.type} ${source.id.slice(0, 6)}`;
+  const ok = explodeFeature(featureId);
+  if (!ok) return false;
+  // explodeFeature replaces the selection with the new line ids; re-
+  // read the selection store AFTER the mutation so we see the
+  // updated set (zustand's getState() snapshots are not live).
+  const newLineIds = Array.from(useSelectionStore.getState().selectedIds);
+  if (newLineIds.length < 2) return true; // 1-segment LINE source: nothing to group
+  useDrawingStore.getState().groupFeatures(newLineIds, sourceName);
+  return true;
+}
+
+/**
  * Walk a vertex chain and return the world-space point at
  * `t * totalArcLength`, where `t ∈ [0, 1]`. Used by
  * `divideFeatureBy` to drop POINT features at equal
