@@ -30,6 +30,9 @@ import { downloadTrv, importTrvFromText, type TrvImportReport } from '@/lib/cad/
 // cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
 // to the survey title block (non-destructive).
 import { applyTrvMetadataToTitleBlock } from '@/lib/cad/io/trv-titleblock';
+// cad-trv-import-display Slice 3 — auto-size the paper sheet to
+// fit the imported survey extent + pick a standard 1" = N' scale.
+import { fitPaperToBounds, bboxOfFeaturePoints } from '@/lib/cad/io/trv-paper-fit';
 // cad-trv-import-export-deep-semantic Pass 8 — sniff file format
 // + structured error diagnostics for the Open… dialog.
 import { detectFileFormat, buildFileLoadDiagnostic, formatFileLoadDiagnostic, type FileLoadDiagnostic } from '@/lib/cad/io/file-detect';
@@ -207,6 +210,43 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     return () => window.removeEventListener('cad:openExportLayers', handler);
   }, []);
 
+  // cad-trv-import-display Slice 3 — auto-size the paper sheet
+  // around the imported survey extent + pick a standard 1" = N'
+  // engineering scale. The bare zoom-extents (Slice 1) panned
+  // the CAMERA to the survey; this also moves the paper SHEET +
+  // updates the title-block scaleLabel + the drawingScale so the
+  // print + the canvas line up. Only fires when the import has
+  // ≥ 1 feature with geometry; otherwise the existing paper
+  // settings stay untouched.
+  function maybeFitPaperToImportedFeatures(features: ReadonlyArray<unknown>) {
+    try {
+      const bbox = bboxOfFeaturePoints(features as Parameters<typeof bboxOfFeaturePoints>[0]);
+      if (!bbox) return;
+      const fit = fitPaperToBounds(bbox);
+      if (!fit) {
+        cadLog.warn('FileIO', `TRV import bbox doesn't fit even ARCH_E at 10000 ft/in scale — leaving paper settings alone.`);
+        return;
+      }
+      drawingStore.updateSettings({
+        paperSize: fit.paperSize,
+        paperOrientation: fit.paperOrientation,
+        drawingScale: fit.drawingScale,
+        paperOrigin: fit.paperOriginWorld,
+      });
+      // Title-block scale label only fills if currently empty
+      // (matching the non-destructive policy of the metadata
+      // apply step). The surveyor can override afterward via
+      // the Title Block panel.
+      const tb = drawingStore.document.settings?.titleBlock;
+      if (tb && (!tb.scaleLabel || tb.scaleLabel.trim().length === 0)) {
+        drawingStore.updateSettings({ titleBlock: { ...tb, scaleLabel: fit.scaleLabel } });
+      }
+      cadLog.info('FileIO', `Fitted paper to imported survey: ${fit.paperSize} ${fit.paperOrientation} @ ${fit.scaleLabel}`);
+    } catch (err) {
+      cadLog.warn('FileIO', 'Paper auto-fit failed; falling back to existing paper.', err);
+    }
+  }
+
   function openFileDialog() {
     const input = Object.assign(document.createElement('input'), {
       type: 'file',
@@ -272,6 +312,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
               if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current) });
             }
           }
+          maybeFitPaperToImportedFeatures(report.mapped.features);
           setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
           setFileLoading(false);
           return;
@@ -441,6 +482,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       // plane survey feet (typical GNSS: northing ~10M, easting
       // ~3M). Without auto-zoom the imported survey lands miles
       // off-screen and the user sees an empty canvas.
+      maybeFitPaperToImportedFeatures(report.mapped.features);
       setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
     };
     input.click();
