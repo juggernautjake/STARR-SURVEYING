@@ -147,14 +147,29 @@
   and the MenuBar prop + entry + legacy preservation.
 - Full cad suite (2130) green; typecheck + lint clean.
 
-### Slice 5 — Persistence + last-used restore
+### Slice 5 — Persistence + last-used restore ✅ shipped 2026-05-31
 
-- Calculator-store persistence wires through to `localStorage`
-  via a small `subscribe`-style middleware. On mount, the modal
-  reads the persisted active id + state blobs and restores them.
-- Tests: simulated reload (clear store + re-init from the
-  localStorage blob) restores the active calculator + each
-  calculator's state.
+- Slice 1's `persist` middleware already writes through to
+  `localStorage` under the versioned key `starr-cad-calc-suite-v1`
+  with `partialize` keeping both `activeCalculatorId` + `states`.
+  This slice adds end-to-end specs that prove the contract holds.
+- 6 new specs in `calculator-store-persistence.test.ts` (with a
+  per-file `localStorage` shim so the `node` vitest env can drive
+  the persist middleware without jsdom):
+  - Round-trip: writes land in localStorage under the stable key
+    with both the active id + the per-calc state blob.
+  - Rehydrate: hand-seed the persist blob → `persist.rehydrate()`
+    → assert active id + per-calc state restored.
+  - Simulated reload: write to both calculators, switch modules
+    (`vi.resetModules()`), re-import, rehydrate — both
+    calculators' state survives, active id stays on the last-used.
+  - `resetAll` wipes both in-memory state AND the persisted blob
+    so a next reload starts clean.
+  - Source-text locks on the persist config: key
+    `starr-cad-calc-suite-v1` + version 1 + partialize keeps
+    both fields (so neither silently drops on a future config
+    edit).
+- Full cad suite (2136) green; typecheck + lint clean.
 
 ### Slice 6 — Curve calculator migration
 
