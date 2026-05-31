@@ -71,7 +71,47 @@ three live samples — 9/9 specs pass). What's missing is
 - Tests: pure decoder over a curated set of 51 color values
   → expected hex; mapper writes color onto the feature.
 
-### Pass 8 — Curve detection + ARC feature creation
+### Pass 7 — Curve detection + ARC / SPLINE feature creation ✅ shipped 2026-05-31
+
+- New pure module `lib/cad/geometry/curve-fit.ts`:
+  - `detectCurvedRuns(points, opts?)` — walks a vertex chain,
+    flags interior vertices whose turn-angle exceeds the
+    threshold (5° default), groups ≥ 2 consecutive flags into
+    runs, extends each run by ±1 vertex (the PC + PT
+    tangent endpoints).
+  - `fitArcThroughPoints(points)` — least-squares circle fit
+    via 3×3 Cramer's rule. Returns `{ center, radius,
+    startAngle, endAngle, anticlockwise, maxResidual }` or
+    null on collinear / < 3 points.
+  - `fitSplineControlPoints(points)` — Catmull-Rom →
+    cubic-Bezier conversion (tension 0.5) producing the
+    3N+1 control-point array our `SplineGeometry` expects.
+    Interpolating: every input point is an anchor.
+- Mapper extension: `mapTraverse` now returns
+  `Feature[]` (the polyline + 0+ ARC / SPLINE curve features).
+  For each detected run, fits an arc; falls back to spline when
+  residual > `ARC_FIT_RESIDUAL_TOLERANCE` (0.05 ft). Each curve
+  feature lives on the same layer as its polyline + carries
+  `properties.curveOfTraverse` pointing at the source so the
+  surveyor can navigate both. The polyline KEEPS its full
+  vertex chain so area / boundary computations stay correct.
+- Polyline's `properties.trvCurveRuns` records the detected
+  runs as JSON (`{ startIndex, endIndex, kind, residual }[]`)
+  so a downstream serializer / UI tool can refer back.
+- 16 specs lock the pure helpers (detection across straight /
+  arc / mixed / corner / custom-threshold; arc fit recovers
+  exact center+radius / handles offset centers / detects
+  CW vs CCW / returns null on collinear; spline emits 3N+1
+  cps + interpolates every input). 5 mapper specs lock the
+  ARC + polyline-preserve + curveOfTraverse + JSON
+  `trvCurveRuns` + straight-line no-curve paths.
+- Full cad suite (2217) green; typecheck + lint clean.
+
+### Pass 8 — Curve detection + ARC feature creation ✅ subsumed by Pass 7
+
+Pass 7 above ships exactly this — `detectCurvedRuns` + arc fit +
+spline fallback + per-curve feature emission with
+`curveOfTraverse` back-reference.
 
 - Detect curved segments inside traverses by inspecting the
   styling records (codes 32-49 carry curve metadata) +
