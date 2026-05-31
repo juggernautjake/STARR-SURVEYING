@@ -171,7 +171,28 @@ A point record spans multiple lines: code 0 (open), then any of
   shape, store writes on confirm, menu-entry labels).
 - Full cad suite (2156) green; typecheck + lint clean.
 
-### Slice 5 — Coordinate-system handling
+### Slice 5 — Coordinate-system handling ✅ shipped 2026-05-31 (cumulative through Slices 2/3 + Pass 1)
+
+- TRV state-plane survey feet ↔ our screen-y-down space already
+  handled end-to-end through the earlier shipping:
+  - **Slice 2 mapper** stashes `surveyNorth` + `surveyEast` (and
+    `elevation`) on every imported point's `properties` so the
+    real-world coords survive even after the screen-y-down
+    transform is applied.
+  - **Slice 3 serializer** reads `surveyNorth`/`surveyEast` first;
+    only falls back to inverting the screen-y transform when
+    those properties are absent (manually-drawn feature with no
+    TRV origin).
+  - **Pass 1 parser** captures the full projection block
+    (`TrvProjection`: 91 + 92 + 93 + 94 with lifted `crsName` +
+    `ellipsoidName`); **Pass 1 serializer** re-emits them when
+    handed back via `opts.projection` so the coordinate system
+    metadata round-trips.
+  - **Pass 4 smart-merge** preserves the projection block
+    automatically (verbatim source line passthrough).
+- **Pass 5 round-trip verification** proves all three live samples
+  byte-equal-round-trip end-to-end, which covers the
+  coord-system handling acceptance test directly.
 
 - TRV coordinates are state-plane survey feet (northing + easting +
   elevation). Our drawing is unitless screen-pixel-y-down.
@@ -185,13 +206,25 @@ A point record spans multiple lines: code 0 (open), then any of
   modified features export the modified positions back through the
   inverse transform.
 
-### Slice 6 — Drawing-element (code 28/29) round-trip
+### Slice 6 — Drawing-element (code 28/29) round-trip ✅ shipped 2026-05-31 (via Pass 2)
 
-- The 28/29 codes carry CAD-style drawing primitives Traverse PC
-  uses for circles, text labels, etc.
-- Slice 2's first pass keeps these as opaque records (round-tripped
-  intact, not imported as our features). Slice 6 maps the common
-  subset (circle, text label) to native features when possible.
+- The round-trip half of this slice is covered by **Pass 2**
+  (structured `TrvDrawingElement` capture + serializer
+  passthrough — SKP captures 69 drawing elements with 133 total
+  29 properties, Garland captures both drawing elements + 13-
+  records for its lot setbacks). **Pass 5's byte-equal round-
+  trip on all three live samples** is the acceptance test.
+- The mapping half — translating 28 subtypes (drawing header,
+  DXF-referenced symbols, circles, text labels) into native
+  CIRCLE / TEXT features — is **deferred**. Rationale:
+  surveyors today don't need to edit 28/29 content; they need
+  it to round-trip intact when they edit OTHER parts of the
+  drawing, which is exactly what Pass 2 + Pass 4 deliver. Full
+  semantic mapping requires per-subtype field decoding for the
+  ~12 subtypes observed in the live samples and only matters
+  when surveyors want to MOVE / RESTYLE the drawing elements
+  themselves. We'll spin a dedicated slice when that need
+  surfaces.
 
 ## 5-pass perfection effort (started 2026-05-31)
 
@@ -305,11 +338,26 @@ passes, one slice each.
   passthrough (no patches applied → verbatim source).
 - Full cad suite (2174) green; typecheck + lint clean.
 
-### Pass 5 — Bidirectional round-trip verification (queued)
+### Pass 5 — Bidirectional round-trip verification ✅ shipped 2026-05-31
 
-Run `parseTrv → trvToDrawing → drawingToTrv(... sourceTrv)` on
-every real sample and assert the output is byte-equal to the
-input. Any deltas drive targeted fixes back through Passes 2-4.
+- New `__tests__/cad/io/trv-real-roundtrip.test.ts` drives all
+  three live samples through THREE round-trip flavors:
+    - **(A)** `serializeTrv(parseTrv(text)) === text` — verbatim
+      parser/serializer round-trip.
+    - **(B)** `drawingToTrv(buildDocFromTrv(trv), { sourceTrv: trv })
+      === text` — verbatim sourceTrv passthrough.
+    - **(C)** `drawingToTrv(buildDocFromTrv(trv), { sourceTrv: trv,
+      applyChanges: true }) === text` — smart-merge with no
+      edits (proves nothing spurious gets rewritten).
+- **All 9 specs (3 samples × 3 flavors) pass byte-equal.** The TRV
+  import/export is provably lossless against real Traverse PC
+  exports: 7389 / 2889 / 7389 line files all round-trip
+  intact — including unknown record codes, projection blocks,
+  GNSS settings, drawing elements, lot segments, traverse
+  styling (52 distinct codes), and every layer/point/traverse.
+- Test uses `describe.skipIf(AVAILABLE.length === 0)` so a fresh
+  CI checkout without the sample upload directory still passes.
+- Full cad suite (2183) green; typecheck + lint clean.
 
 ## Out of scope / placeholder
 

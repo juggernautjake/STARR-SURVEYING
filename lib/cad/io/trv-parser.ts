@@ -4,7 +4,7 @@
 // files. The format is line-oriented CSV with a leading numeric
 // record code (or `#` for a comment / section marker). See the
 // format reference in
-// docs/planning/in-progress/cad-trv-import-export-2026-05-31.md.
+// docs/planning/completed/cad-trv-import-export-2026-05-31.md.
 //
 // Design goals:
 //
