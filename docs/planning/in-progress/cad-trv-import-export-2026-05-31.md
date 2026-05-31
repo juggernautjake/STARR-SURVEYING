@@ -144,15 +144,32 @@ A point record spans multiple lines: code 0 (open), then any of
   rewrite + reference renumbering. Covered by the
   "5-pass" perfection work below.
 
-### Slice 4 — UI: File menu "Import TRV…" + "Export TRV…"
+### Slice 4 — UI: File menu "Import TRV…" + "Export TRV…" ✅ shipped 2026-05-31
 
-- File menu entry opens an `<input type="file" accept=".TRV,.trv">`,
-  reads as text, runs parser + mapper, opens a confirmation modal
-  showing layer + point + traverse counts before applying.
-- Export prompts for a filename (defaults to `<projectName>.TRV`),
-  triggers a download Blob.
-- Tests: smoke test that the menu items wire to the right handlers;
-  source-text spec on the menu entries.
+- New `lib/cad/io/trv-io.ts` with two thin wrappers:
+  - `importTrvFromText(text) → TrvImportReport` runs parser +
+    mapper, surfaces layer / point / traverse counts +
+    consolidated notes (parser errors + mapper notes).
+  - `downloadTrv(doc, opts?) → { byteSize, filename }` serializes
+    a DrawingDocument + triggers a Blob download (slugged
+    filename from `doc.name`, falls back to `survey.TRV`).
+- MenuBar wiring:
+  - File → Export → "Export as Traverse PC (.TRV)…" calls
+    `exportTrv()` (logs bytes + filename to `cadLog`).
+  - File → Import → "Import Traverse PC (.TRV)…" opens a
+    `<input type="file" accept=".TRV,.trv">`, reads the chosen
+    file as text, parses + previews counts + first-5 notes in a
+    `window.confirm()` prompt, then `drawingStore.addLayer` /
+    `addFeatures` to merge into the current drawing on confirm.
+- Surveyor can now actually round-trip: open a TRV, edit it,
+  export it back out. Earlier slices (parser, mapper, serializer)
+  already proved that's lossless for our supported records;
+  Slice 4 connects the UI.
+- 10 specs cover the wrappers (counts report, filename slug,
+  explicit filename override, empty-name fallback) + the
+  MenuBar wiring (imports, exportTrv / importTrv function
+  shape, store writes on confirm, menu-entry labels).
+- Full cad suite (2156) green; typecheck + lint clean.
 
 ### Slice 5 — Coordinate-system handling
 
