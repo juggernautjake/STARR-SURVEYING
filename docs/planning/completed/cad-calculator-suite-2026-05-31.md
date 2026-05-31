@@ -171,12 +171,32 @@
     edit).
 - Full cad suite (2136) green; typecheck + lint clean.
 
-### Slice 6 — Curve calculator migration
+### Slice 6 — Curve calculator migration ✅ shipped 2026-05-31
 
-- Existing `CurveCalculator.tsx` refactored to use the new
-  calculator-store for its working state (no more component-local
-  useState). After migration, the user can close + reopen the
-  modal and see their curve inputs preserved.
+- New `app/admin/cad/components/CurveCalculatorBody.tsx` —
+  frameless Curve calculator body (no ModalFrame chrome). State
+  lives entirely in `useCalculatorStore` under `'curve'` via a
+  `CurveCalcState` interface that mirrors every input + the last
+  computed result + error / validation message. Close + reopen
+  the modal: every input is preserved.
+- Delegates to the same `computeCurve` + `crossValidateCurve`
+  kernel as the legacy CurveCalculator (no logic divergence).
+- `CalculatorModal` now renders `<CurveCalculatorBody />` for the
+  `'curve'` target; the prior "Slice 6 migration queued"
+  placeholder is gone. `CalculatorPicker` shows just "Curve".
+- **Legacy `CurveCalculator.tsx` (ModalFrame + `onPlace` canvas
+  placement) stays mounted** on the standalone Tools → Curve
+  Calculator… MenuBar entry. It's the only path that supports
+  the "Place on Drawing" button (needs canvas-side wiring); the
+  calculator-suite Curve is for tuning + copy-to-clipboard.
+  Folding place-on-drawing into the suite is a small follow-up
+  if surveyors want it.
+- 11 source-text specs lock the state shape, the store wiring
+  (subscribe + INITIAL fallback + setCalculatorState writes),
+  the compute delegation, every UI testid (method dropdown,
+  compute button, result + error block, copy button), and the
+  CalculatorModal import + render branch.
+- Full cad suite (2146) green; typecheck + lint clean.
 
 ## Out of scope / placeholder
 

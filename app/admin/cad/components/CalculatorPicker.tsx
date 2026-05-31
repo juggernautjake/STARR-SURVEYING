@@ -19,7 +19,7 @@ interface RegisteredCalculator {
  *  CalculatorModal switch. */
 export const REGISTERED_CALCULATORS: ReadonlyArray<RegisteredCalculator> = [
   { id: 'generic', label: 'Generic' },
-  { id: 'curve',   label: 'Curve (Slice 6 migration queued)' },
+  { id: 'curve',   label: 'Curve' },
 ];
 
 export default function CalculatorPicker() {

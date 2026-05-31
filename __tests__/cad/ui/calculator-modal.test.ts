@@ -61,9 +61,9 @@ describe('CalculatorModal', () => {
     expect(MODAL_SRC).toMatch(/\{activeId === 'generic' && <GenericCalculator \/>\}/);
   });
 
-  it('renders a placeholder for the curve calculator (Slice 6 migration queued)', () => {
-    expect(MODAL_SRC).toContain('data-testid="calculator-modal-curve-placeholder"');
-    expect(MODAL_SRC).toMatch(/Slice 6/);
+  it('renders CurveCalculatorBody when activeId === "curve" (Slice 6 migration)', () => {
+    expect(MODAL_SRC).toMatch(/import CurveCalculatorBody from '\.\/CurveCalculatorBody';/);
+    expect(MODAL_SRC).toMatch(/\{activeId === 'curve' && <CurveCalculatorBody \/>\}/);
   });
 
   it('passes a sensible naturalSize to ResizableModal (360 × 460 baseline)', () => {

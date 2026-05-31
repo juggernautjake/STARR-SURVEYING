@@ -11,6 +11,10 @@
 import ResizableModal from './ResizableModal';
 import CalculatorPicker from './CalculatorPicker';
 import GenericCalculator from './GenericCalculator';
+// cad-calculator-suite Slice 6 — Curve calculator migrated into the
+// suite (frameless body; the legacy ModalFrame entry stays for the
+// onPlace canvas-placement flow).
+import CurveCalculatorBody from './CurveCalculatorBody';
 import { useCalculatorStore } from '@/lib/cad/store';
 
 interface CalculatorModalProps {
@@ -37,23 +41,7 @@ export default function CalculatorModal({ open, onClose }: CalculatorModalProps)
       {/* Active-calculator switch. Adding a new calculator =
           new picker entry + new branch here. */}
       {activeId === 'generic' && <GenericCalculator />}
-      {activeId === 'curve' && (
-        <div
-          data-testid="calculator-modal-curve-placeholder"
-          className="flex flex-col items-center justify-center h-full p-6 text-center text-xs text-gray-400"
-        >
-          <p className="mb-2">
-            The Curve Calculator is currently reachable via the
-            <strong className="text-gray-200"> Tools → Curve Calculator… </strong>
-            menu entry.
-          </p>
-          <p>
-            Migration into this suite is queued for cad-calculator-suite
-            Slice 6 so the full calculator picker + resizable modal
-            experience covers it too.
-          </p>
-        </div>
-      )}
+      {activeId === 'curve' && <CurveCalculatorBody />}
     </ResizableModal>
   );
 }
