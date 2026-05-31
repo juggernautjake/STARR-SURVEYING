@@ -621,6 +621,14 @@ export default function PropertyPanel() {
                 onClick={() => {
                   const layerId = features[0].layerId;
                   const baseColor = features[0].style.color ?? DEFAULT_FEATURE_STYLE.color;
+                  // cad-fill-stacking Slice 2 — start the fill in the
+                  // selection-blue (#0088ff) instead of the inherited
+                  // source-line color (which is often null → grey from
+                  // the layer default). The user complained the
+                  // polygon's highlight read as grey while editing
+                  // infill; matching the selection color makes the
+                  // "this is selected" visual unmistakable.
+                  const seededFillColor = '#0088ff';
                   const polygon = {
                     id: generateId(),
                     type: 'POLYGON' as const,
@@ -633,7 +641,7 @@ export default function PropertyPanel() {
                       // Invisible stroke so we don't double the user's
                       // existing boundary lines — only the fill shows.
                       opacity: 0,
-                      fillColor: baseColor,
+                      fillColor: seededFillColor,
                       fillOpacity: 0.25,
                       isOverride: true,
                     },

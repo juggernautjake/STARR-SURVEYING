@@ -87,7 +87,25 @@
 - Tests: spec on the pure pattern-alpha helper; spec the picker
   seeds patternColor on first selection.
 
-### Slice 2 — Selection highlight blue in the fill panel
+### Slice 2 — Selection highlight blue while editing fill ✅ shipped 2026-05-30
+
+- Root cause was two-fold: (a) the "Fill enclosed area" multi-select
+  flow seeded the polygon's `fillColor` to `baseColor` (the source
+  line's color — often null → grey from the layer default), so the
+  resulting polygon's solid-fill wash read as grey; (b) the existing
+  selection-outline weight (1.5 + 0.5 = 2 px) gets visually drowned
+  by a textured fill once a pattern is active.
+- **Fix A**: the "Fill enclosed area" flow now seeds
+  `fillColor: '#0088ff'` (the same `selectionColor` default) so the
+  new polygon's translucent fill matches the selection color the
+  moment it's created. The user can change the color later.
+- **Fix B**: `drawFeature`'s selection-outline width bumps by +1 px
+  when `feature.style.fillPattern` is set to anything but NONE/SOLID,
+  so the blue outline reads cleanly over dots / hatches / brick /
+  wave.
+- Tests: 4 source-text asserts in `selection-blue-over-fill.test.ts`
+  lock both fixes.
+- Full cad suite (1842) green; typecheck + lint clean.
 
 - Locate the "polygon highlighted" color the panel uses while the
   fill picker is open (grey today). Replace with the same accent

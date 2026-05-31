@@ -4264,9 +4264,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const feature = drawingStore.getFeature(featureId);
       if (!feature) continue;
 
-      // Highlight: selection color outline — width from settings
+      // Highlight: selection color outline — width from settings.
+      // cad-fill-stacking Slice 2 — when a fill pattern is active the
+      // outline competes with the textured fill underneath, so bump
+      // the stroke weight so the blue reads clearly over dots / hatches
+      // / brick / wave.
       const geom = feature.geometry;
-      const selLineW = docSettings.selectionLineWidth ?? 1.5;
+      const baseSelLineW = docSettings.selectionLineWidth ?? 1.5;
+      const hasFillPattern = !!feature.style.fillPattern
+        && feature.style.fillPattern !== 'NONE'
+        && feature.style.fillPattern !== 'SOLID';
+      const selLineW = hasFillPattern ? baseSelLineW + 1 : baseSelLineW;
       const selZoom = useViewportStore.getState().zoom;
       g.lineStyle(selLineW + 0.5, selColor, 1);
       switch (geom.type) {
