@@ -159,3 +159,90 @@ describe('serializeTrv — verbatim round-trip', () => {
     expect(serializeTrv(parseTrv(SAMPLE))).toBe(SAMPLE);
   });
 });
+
+// cad-trv-import-export Pass 1 — projection + project metadata +
+// GNSS records (codes 90 / 91-94 / 101-106 / 198-199).
+describe('parseTrv — Pass 1: projection block (91-94)', () => {
+  const FIXTURE = [
+    '999,begin',
+    '80,26.000',
+    '90,C:\\path\\file.doc',
+    '91,-1,1,1,0,,0,,-1,Local.crs,None.pgm,0',
+    '92,6378137.0000,0.0033528106812,298.2572221008827,GRS 80,6356752.3141,0.0066943800229',
+    '93,1.0000000000,0.0000000000,0.000,0,0',
+    '94,15.00,10.00,10.00',
+    '999,end',
+  ].join('\r\n');
+
+  it('captures every raw 91-94 field array verbatim', () => {
+    const doc = parseTrv(FIXTURE);
+    expect(doc.projection).not.toBeNull();
+    // `Local.crs` lands at field index 8 (two consecutive commas
+    // in the source insert empty intermediate fields).
+    expect(doc.projection!.raw91[8]).toBe('Local.crs');
+    expect(doc.projection!.raw92.length).toBe(6);
+    expect(doc.projection!.raw93[0]).toBe('1.0000000000');
+    expect(doc.projection!.raw94).toEqual(['15.00', '10.00', '10.00']);
+  });
+
+  it('lifts crsName from 91 + ellipsoidName from 92', () => {
+    const doc = parseTrv(FIXTURE);
+    expect(doc.projection!.crsName).toBe('Local.crs');
+    expect(doc.projection!.ellipsoidName).toBe('GRS 80');
+  });
+
+  it('projection is null when no 91-94 record appears', () => {
+    expect(parseTrv('999,begin\r\n999,end').projection).toBeNull();
+  });
+});
+
+describe('parseTrv — Pass 1: project metadata (90, 101-106)', () => {
+  const FIXTURE = [
+    '999,begin',
+    '90,C:\\Users\\test\\sample.doc',
+    '101,SAMPLE PROJECT',
+    '102,31-5-2026',
+    '103,1',
+    '104,0',
+    '105,0',
+    '106,42',
+    '999,end',
+  ].join('\r\n');
+
+  it('extracts every metadata field', () => {
+    const doc = parseTrv(FIXTURE);
+    expect(doc.metadata.sourcePath).toBe('C:\\Users\\test\\sample.doc');
+    expect(doc.metadata.projectName).toBe('SAMPLE PROJECT');
+    expect(doc.metadata.surveyDate).toBe('31-5-2026');
+    expect(doc.metadata.scale).toBe('1');
+    expect(doc.metadata.units).toBe('0');
+    expect(doc.metadata.raw105).toBe('0');
+    expect(doc.metadata.pointCount).toBe(42);
+  });
+
+  it('every metadata field defaults to null when absent', () => {
+    const doc = parseTrv('999,begin\r\n999,end');
+    expect(doc.metadata.sourcePath).toBeNull();
+    expect(doc.metadata.projectName).toBeNull();
+    expect(doc.metadata.pointCount).toBeNull();
+  });
+});
+
+describe('parseTrv — Pass 1: GNSS records (198, 199)', () => {
+  it('captures 198 + 199 raw field arrays', () => {
+    const doc = parseTrv([
+      '999,begin',
+      '#,GNSS',
+      '199,0l,0,10000,@,@',
+      '198,0.100000,0.100000,5.000000,0.050000,0.050000,0.100000',
+      '999,end',
+    ].join('\r\n'));
+    expect(doc.gnss).not.toBeNull();
+    expect(doc.gnss!.raw199).toEqual(['0l', '0', '10000', '@', '@']);
+    expect(doc.gnss!.raw198.length).toBe(6);
+  });
+
+  it('gnss is null when no 198/199 record appears', () => {
+    expect(parseTrv('999,begin\r\n999,end').gnss).toBeNull();
+  });
+});

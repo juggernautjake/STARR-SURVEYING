@@ -114,6 +114,56 @@ export interface TrvParseError {
   message: string;
 }
 
+/** cad-trv-import-export Pass 1 — projection / coordinate-system
+ *  records 91-94. The raw field arrays are preserved verbatim so a
+ *  serializer can re-emit them losslessly; we additionally lift a
+ *  handful of named fields for callers that want them. */
+export interface TrvProjection {
+  /** 91 — generic projection setup. Field layout (observed):
+   *  `flag, ?, ?, ?, ?, ?, ?, ?, ?, crsName, pgmName, ?`. */
+  raw91: string[];
+  /** 92 — ellipsoid. Field layout (observed):
+   *  `semiMajor, eccSqA, flattening, ellipsoidName, semiMinor, eccSqB`. */
+  raw92: string[];
+  /** 93 — scale + rotation. `scaleX, scaleY, rotation, ?, ?`. */
+  raw93: string[];
+  /** 94 — accuracy thresholds in feet. `thresh1, thresh2, thresh3`. */
+  raw94: string[];
+  /** Lifted from 91 (typically `Local.crs` or a projection filename). */
+  crsName: string | null;
+  /** Lifted from 92 (typically `GRS 80`). */
+  ellipsoidName: string | null;
+}
+
+/** cad-trv-import-export Pass 1 — project metadata records. */
+export interface TrvMetadata {
+  /** 90 — original source document path (Windows-style in samples). */
+  sourcePath: string | null;
+  /** 101 — project / job name. */
+  projectName: string | null;
+  /** 102 — survey date as written (DD-MM-YYYY in samples). */
+  surveyDate: string | null;
+  /** 103 — scale (single field; meaning context-dependent). */
+  scale: string | null;
+  /** 104 — units flag (`0` = feet in samples; further values
+   *  undocumented). */
+  units: string | null;
+  /** 105 — unknown flag preserved verbatim. */
+  raw105: string | null;
+  /** 106 — point count snapshot at export time. */
+  pointCount: number | null;
+}
+
+/** cad-trv-import-export Pass 1 — GNSS calibration / receiver
+ *  settings. Both raw field arrays are preserved for lossless
+ *  round-trip; meaning is largely undocumented outside Traverse PC. */
+export interface TrvGnss {
+  /** 198 — accuracy thresholds (6 floats). */
+  raw198: string[];
+  /** 199 — flags + a sentinel value. */
+  raw199: string[];
+}
+
 export interface TrvDocument {
   /** Every line in the source file, in order. Comments + blanks
    *  preserved. */
@@ -128,6 +178,15 @@ export interface TrvDocument {
   points: TrvPoint[];
   /** Traverses / polylines (code 30 + `10,id` blocks). */
   traverses: TrvTraverse[];
+  /** cad-trv-import-export Pass 1 — projection / coordinate-system
+   *  block (records 91-94). null when no projection was emitted. */
+  projection: TrvProjection | null;
+  /** cad-trv-import-export Pass 1 — project metadata block
+   *  (90 / 101-106). Every field is independently optional. */
+  metadata: TrvMetadata;
+  /** cad-trv-import-export Pass 1 — GNSS settings (198 / 199).
+   *  null when the file has no GNSS section. */
+  gnss: TrvGnss | null;
   /** Non-fatal parse errors. */
   errors: TrvParseError[];
 }
@@ -169,6 +228,18 @@ export function parseTrv(input: string): TrvDocument {
   const points: TrvPoint[] = [];
   const traverses: TrvTraverse[] = [];
   let version: string | null = null;
+  // Pass 1 — projection / metadata / gnss accumulators. Populated
+  // lazily; left at null / default until their records appear.
+  let proj91: string[] | null = null;
+  let proj92: string[] | null = null;
+  let proj93: string[] | null = null;
+  let proj94: string[] | null = null;
+  let gnss198: string[] | null = null;
+  let gnss199: string[] | null = null;
+  const metadata: TrvMetadata = {
+    sourcePath: null, projectName: null, surveyDate: null,
+    scale: null, units: null, raw105: null, pointCount: null,
+  };
 
   // First pass: pull section markers out so a second pass can scope
   // its decisions (e.g. "code 0 only means a point under #,POINTS").
@@ -350,6 +421,51 @@ export function parseTrv(input: string): TrvDocument {
         commitActivePoint();
         commitActiveTraverse();
         break;
+      // Pass 1 — projection block. Code 90 carries the source
+      // document path (the .doc Traverse PC was working with). 91-94
+      // are the coordinate-system descriptors; we preserve the raw
+      // field arrays + lift a couple of named values.
+      case '90':
+        metadata.sourcePath = ln.fields.join(',') || null;
+        break;
+      case '91':
+        proj91 = ln.fields.slice();
+        break;
+      case '92':
+        proj92 = ln.fields.slice();
+        break;
+      case '93':
+        proj93 = ln.fields.slice();
+        break;
+      case '94':
+        proj94 = ln.fields.slice();
+        break;
+      // Pass 1 — project metadata block (101-106).
+      case '101':
+        metadata.projectName = ln.fields.join(',') || null;
+        break;
+      case '102':
+        metadata.surveyDate = ln.fields.join(',') || null;
+        break;
+      case '103':
+        metadata.scale = ln.fields.join(',') || null;
+        break;
+      case '104':
+        metadata.units = ln.fields.join(',') || null;
+        break;
+      case '105':
+        metadata.raw105 = ln.fields.join(',') || null;
+        break;
+      case '106':
+        metadata.pointCount = parseNum(ln.fields[0]);
+        break;
+      // Pass 1 — GNSS calibration / receiver settings.
+      case '198':
+        gnss198 = ln.fields.slice();
+        break;
+      case '199':
+        gnss199 = ln.fields.slice();
+        break;
       default:
         // Unknown code — preserved in `lines` for round-trip, no
         // interpretation needed here.
@@ -360,7 +476,24 @@ export function parseTrv(input: string): TrvDocument {
   commitActivePoint();
   commitActiveTraverse();
 
-  return { lines, version, sections, layers, points, traverses, errors };
+  // Pass 1 — assemble the projection block when any 91-94 record
+  // was seen. crsName lifted from 91 field 9; ellipsoidName from
+  // 92 field 3 (per the live samples).
+  const projection: TrvProjection | null = (proj91 || proj92 || proj93 || proj94)
+    ? {
+        raw91: proj91 ?? [],
+        raw92: proj92 ?? [],
+        raw93: proj93 ?? [],
+        raw94: proj94 ?? [],
+        crsName: proj91 && proj91[8] !== undefined ? proj91[8] : null,
+        ellipsoidName: proj92 && proj92[3] !== undefined ? proj92[3] : null,
+      }
+    : null;
+  const gnss: TrvGnss | null = (gnss198 || gnss199)
+    ? { raw198: gnss198 ?? [], raw199: gnss199 ?? [] }
+    : null;
+
+  return { lines, version, sections, layers, points, traverses, projection, metadata, gnss, errors };
 }
 
 /** Serialize a parsed TrvDocument back to its source text. By default

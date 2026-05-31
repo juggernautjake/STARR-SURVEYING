@@ -21,7 +21,7 @@
 // Pure module: no I/O, no zustand. Safe to unit-test.
 
 import type { DrawingDocument, Feature, Layer } from '../types';
-import type { TrvDocument } from './trv-parser';
+import type { TrvDocument, TrvProjection, TrvMetadata, TrvGnss } from './trv-parser';
 import { serializeTrv } from './trv-parser';
 
 export interface DrawingToTrvOptions {
@@ -32,6 +32,14 @@ export interface DrawingToTrvOptions {
   /** Traverse PC version stamp for fresh exports. Defaults to the
    *  same value we observed in the live 2026-vintage samples. */
   version?: string;
+  /** cad-trv-import-export Pass 1 — projection / metadata / gnss
+   *  blocks to emit on a fresh export. When the drawing was
+   *  imported from a TRV, callers can pass the original blocks
+   *  back through to preserve the projection setup + project
+   *  metadata even when not using sourceTrv passthrough. */
+  projection?: TrvProjection | null;
+  metadata?: TrvMetadata | null;
+  gnss?: TrvGnss | null;
 }
 
 const DEFAULT_VERSION = '26.000';
@@ -169,6 +177,28 @@ export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {
     const tid = layerIdByOurId.get(l.id) ?? '0';
     // 86,name,id,parent_id (we don't track parent; emit 0)
     out.push(`86,${l.name},${tid},0`);
+  }
+  // Pass 1 — emit the projection block + project metadata + GNSS
+  // settings when supplied. Each is independently optional; raw
+  // field arrays come straight from the imported source so the
+  // round-trip is byte-faithful.
+  const meta = opts.metadata;
+  if (meta?.sourcePath) out.push(`90,${meta.sourcePath}`);
+  const proj = opts.projection;
+  if (proj?.raw91.length) out.push(`91,${proj.raw91.join(',')}`);
+  if (proj?.raw92.length) out.push(`92,${proj.raw92.join(',')}`);
+  if (proj?.raw93.length) out.push(`93,${proj.raw93.join(',')}`);
+  if (proj?.raw94.length) out.push(`94,${proj.raw94.join(',')}`);
+  if (meta?.projectName) out.push(`101,${meta.projectName}`);
+  if (meta?.surveyDate) out.push(`102,${meta.surveyDate}`);
+  if (meta?.scale) out.push(`103,${meta.scale}`);
+  if (meta?.units) out.push(`104,${meta.units}`);
+  if (meta?.raw105) out.push(`105,${meta.raw105}`);
+  if (typeof meta?.pointCount === 'number') out.push(`106,${meta.pointCount}`);
+  if (opts.gnss) {
+    out.push('#,GNSS');
+    if (opts.gnss.raw199.length) out.push(`199,${opts.gnss.raw199.join(',')}`);
+    if (opts.gnss.raw198.length) out.push(`198,${opts.gnss.raw198.join(',')}`);
   }
   out.push('#,POINTS');
   const allFeatures = Object.values(doc.features);

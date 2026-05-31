@@ -139,6 +139,52 @@ describe('drawingToTrv — round-trip with parser', () => {
   });
 });
 
+describe('drawingToTrv — Pass 1: projection / metadata / GNSS passthrough', () => {
+  it('emits 90 sourcePath + 91-94 projection records when opts.projection / metadata are set', () => {
+    const doc = buildDrawingFromFixture();
+    const text = drawingToTrv(doc, {
+      metadata: {
+        sourcePath: 'C:\\test\\file.doc',
+        projectName: 'MY PROJECT',
+        surveyDate: '31-5-2026',
+        scale: '1',
+        units: '0',
+        raw105: '0',
+        pointCount: 2,
+      },
+      projection: {
+        raw91: ['-1', '1', '1', '0', '', '0', '', '-1', 'Local.crs', 'None.pgm', '0'],
+        raw92: ['6378137.0000', '0.0033528106812', '298.2572221008827', 'GRS 80', '6356752.3141', '0.0066943800229'],
+        raw93: ['1.0000000000', '0.0000000000', '0.000', '0', '0'],
+        raw94: ['15.00', '10.00', '10.00'],
+        crsName: 'Local.crs',
+        ellipsoidName: 'GRS 80',
+      },
+    });
+    expect(text).toContain('90,C:\\test\\file.doc');
+    expect(text).toContain('91,-1,1,1,0,,0,,-1,Local.crs,None.pgm,0');
+    expect(text).toContain('92,6378137.0000,0.0033528106812,298.2572221008827,GRS 80,6356752.3141,0.0066943800229');
+    expect(text).toContain('93,1.0000000000,0.0000000000,0.000,0,0');
+    expect(text).toContain('94,15.00,10.00,10.00');
+    expect(text).toContain('101,MY PROJECT');
+    expect(text).toContain('102,31-5-2026');
+    expect(text).toContain('106,2');
+  });
+
+  it('emits #,GNSS section + 198/199 when opts.gnss is set', () => {
+    const doc = buildDrawingFromFixture();
+    const text = drawingToTrv(doc, {
+      gnss: {
+        raw198: ['0.1', '0.1', '5.0', '0.05', '0.05', '0.1'],
+        raw199: ['0l', '0', '10000', '@', '@'],
+      },
+    });
+    expect(text).toContain('#,GNSS');
+    expect(text).toContain('199,0l,0,10000,@,@');
+    expect(text).toContain('198,0.1,0.1,5.0,0.05,0.05,0.1');
+  });
+});
+
 describe('drawingToTrv — fallback paths', () => {
   it('falls back to the inverse screen-y transform when surveyNorth/East are missing', () => {
     const layer: Layer = {

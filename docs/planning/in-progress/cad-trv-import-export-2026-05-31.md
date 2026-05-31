@@ -176,6 +176,62 @@ A point record spans multiple lines: code 0 (open), then any of
   intact, not imported as our features). Slice 6 maps the common
   subset (circle, text label) to native features when possible.
 
+## 5-pass perfection effort (started 2026-05-31)
+
+Per follow-up user ask: get the TRV translation/parsing PERFECT so
+the full file can be imported and exported losslessly. 5 iterative
+passes, one slice each.
+
+### Pass 1 — Projection / metadata / GNSS capture ✅ shipped 2026-05-31
+
+- `TrvProjection` (90 source path + 91-94 raw field arrays + lifted
+  crsName / ellipsoidName), `TrvMetadata` (90 sourcePath, 101
+  projectName, 102 surveyDate, 103 scale, 104 units, 105 raw,
+  106 pointCount), `TrvGnss` (raw 198 + 199) added to
+  `TrvDocument`.
+- Parser routes codes 90 / 91-94 / 101-106 / 198 / 199 into the new
+  structured fields; raw field arrays preserved verbatim so a
+  round-trip is byte-faithful.
+- `drawingToTrv` fresh-export grew `projection` / `metadata` /
+  `gnss` opts; emits the records (90, 91-94, 101-106, `#,GNSS`,
+  198/199) when supplied so an import → export round trip carries
+  the projection setup forward.
+- Tests: 9 parser specs (projection block, metadata fields,
+  null-when-absent, GNSS), 2 serializer specs (projection +
+  metadata + GNSS passthrough).
+- Real-sample verification: Garland (project=MISC,
+  pointCount=61, crs=Local.crs) + SKP (project=BACK CONCRETE
+  SLAB, pointCount=61, crs=Local.crs) both round-trip the metadata
+  through parse + re-emit.
+
+### Pass 2 — Drawing elements + lot/parcel records (queued)
+
+Codes 28/29 (graphical primitives: circles, text, polylines) and
+13 (lot/boundary segments). Currently round-trip as opaque
+`lines[]` entries; this pass interprets them into structured
+records and maps the common subset to native features (CIRCLE
++ TEXT + POLYGON-as-lot).
+
+### Pass 3 — Traverse styling (queued)
+
+Codes 32-71 (colors/fonts/line styles/scales) + 159-162 (label
+format templates) + 349-369 (drawing annotation UI). Parser
+collects them onto the owning traverse so the styling round-trips.
+
+### Pass 4 — Smart selective sourceTrv serializer (queued)
+
+`drawingToTrv(doc, { sourceTrv, applyChanges: true })` walks the
+sourceTrv's raw lines and patches only the records whose
+corresponding features have been edited (changed coords, added /
+removed). Unknown codes round-trip intact. This is the "Slice 3b"
+deferred item.
+
+### Pass 5 — Bidirectional round-trip verification (queued)
+
+Run `parseTrv → trvToDrawing → drawingToTrv(... sourceTrv)` on
+every real sample and assert the output is byte-equal to the
+input. Any deltas drive targeted fixes back through Passes 2-4.
+
 ## Out of scope / placeholder
 
 - DXF / DWG / SHP — separate effort; this plan covers TRV only.
