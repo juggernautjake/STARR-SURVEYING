@@ -84,17 +84,37 @@
   testids.
 - Full cad suite (2102) green; typecheck + lint clean.
 
-### Slice 3 — Resizable modal shell
+### Slice 3 — Resizable modal shell ✅ shipped 2026-05-31
 
-- New `<ResizableModal>` wrapper: HTML5 resize via a corner-drag
-  handle (no external library; `pointerdown` + `pointermove` on a
-  `resize` handle in the bottom-right corner).
-- Min size = the calculator type's natural size; max = the
-  viewport minus a margin.
-- Children that subscribe to a `ResizableContext` get the current
-  size + a scale factor (so the calculator can grow font + button
-  sizes proportionally).
-- Mounts via portal so the resize doesn't shift surrounding panels.
+- New `app/admin/cad/components/ResizableModal.tsx` — self-
+  contained shell with:
+  - Fixed-center positioning + dark backdrop (click-outside
+    closes; Escape closes via a document-level keydown listener).
+  - Corner resize handle (bottom-right). Pointer-event based —
+    `onPointerDown` captures the pointer (via `setPointerCapture`)
+    so a fast drag never loses tracking, `onPointerMove` updates
+    size from a start-anchor delta (no per-frame drift), and
+    `onPointerUp` releases.
+  - Sizes are clamped into `[naturalSize, effectiveMax]`. Max
+    defaults to viewport - 32px margin so the modal can't escape
+    the screen; explicit `maxSize` prop overrides.
+  - Title bar with optional `headerActions` slot (for the
+    upcoming Slice-4 picker dropdown) + a close `✕` button.
+- New `useResizable()` hook returns `{ size, scale }` from a
+  React context. `scale = max(1, size.width / naturalSize.width)`
+  so children can multiply their font / button sizes
+  proportionally as the modal expands. Hook throws when used
+  outside the modal — catches misuse loudly.
+- Re-opens at `naturalSize` (effect resets on close); persistent
+  sizing across sessions is a future layer-on via the
+  calculator-store.
+- 13 source-text specs lock the public API
+  (`useResizable` + hook throw + context-value shape), the resize-
+  handle wiring (testid, pointer events, pointer capture), the
+  clamp call, every close path (backdrop / Escape / close button),
+  the context provider, the scale formula, and the
+  viewport-aware default max.
+- Full cad suite (2115) green; typecheck + lint clean.
 
 ### Slice 4 — Calculator picker + integrate into the modal
 
