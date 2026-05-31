@@ -51,17 +51,38 @@
   restores defaults, `getActiveState` narrowing works.
 - Full cad suite (2064) green; typecheck + lint clean.
 
-### Slice 2 — `<GenericCalculator />` (Windows-style)
+### Slice 2 — `<GenericCalculator />` (Windows-style) ✅ shipped 2026-05-31
 
-- A standalone calculator component: number pad + operators (+ −
-  × ÷) + memory + `C` + `CE` + `=` + decimal + `±`.
-- Chained-operation contract: typing `12 + 3 + 4 =` shows `19`
-  with each `+` press displaying the running subtotal.
-- Wide screen support: number pad fills the available space when
-  the modal is resized larger.
-- All buttons keyboard-accessible (digits + + - * / Enter = . Esc).
-- Stores its working tape in the calculator store under
-  `'generic'`.
+- Pure state machine in `lib/cad/calculators/generic-engine.ts`:
+  `GenericCalcState = { display, pending, op, justEvaluated,
+  awaitingOperand, tape }` + actions
+  (`inputDigit`/`Decimal`/`Op`/`Equals`/`Clear`/`ClearEntry`/`SignFlip`/`Backspace`)
+  + helpers (`parseDisplay`/`formatDisplay`/`applyOp`).
+- Chained-operation contract verified: `12 + 3 + 4 =` returns
+  `19`, with each `+` press showing the running subtotal
+  (`12 + 3 +` → display 15, pending 15, op +).
+- Left-to-right evaluation (`3 * 4 + 2 = 14`, no precedence —
+  matches Win calc).
+- Divide-by-zero ⇒ display `Error`; sign-flip / backspace
+  protect 0; tape records each operator + `=` press.
+- React component `GenericCalculator.tsx`:
+  - Subscribes to `useCalculatorStore` `states.generic` slot so
+    re-renders are reactive; writes via `setCalculatorState('generic',
+    next)`. Falls back to `INITIAL_GENERIC_STATE` on fresh
+    sessions.
+  - 4-col × 5-row keypad with digits + operators + `C`/`CE`/`⌫`/`±`/`.`/`=`.
+  - Document-level keydown listener for `0-9`, `.`, `+`, `-`,
+    `*`, `/`, `Enter` (or `=`), `Backspace`, `Escape`/`C` (clear),
+    `Delete` (CE), `F9` (sign-flip). Skips when an input /
+    textarea / contentEditable has focus so it doesn't fight the
+    command bar.
+  - Rolling tape (last 6 entries) above the live display.
+- 27 engine specs lock every action's behavior + the chained-op
+  contract + edge cases (divide-by-0, decimal entry, sign flip,
+  backspace). 12 UI source-text specs lock the store wiring,
+  every keypad button + keyboard binding, and the tape / display
+  testids.
+- Full cad suite (2102) green; typecheck + lint clean.
 
 ### Slice 3 — Resizable modal shell
 
