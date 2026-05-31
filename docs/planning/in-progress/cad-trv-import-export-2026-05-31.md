@@ -79,24 +79,41 @@ A point record spans multiple lines: code 0 (open), then any of
   `serializeTrv(parseTrv(x)) === x` for record-preserving cases;
   layers extracted with correct id/parent.
 
-### Slice 2 — Pure mapper: TRV → drawing doc
+### Slice 2 — Pure mapper: TRV → drawing doc ✅ shipped 2026-05-31
 
-- `lib/cad/io/trv-to-drawing.ts`:
-  ```
-  trvToDrawing(doc: TrvDocument): { layers, features, mappingNotes }
-  ```
-- Maps:
-  - 86 records → our `Layer` records (id keyed by TRV layer id).
-  - Point records → POINT features (geometry: { x: east, y:
-    -north } in our local screen-y-down coordinates; preserves
-    elevation in `properties.elevation`, description in
-    `properties.label`).
-  - Each traverse (30 + 10-pair sequence) → one POLYLINE feature
-    (or POLYGON when the first/last point ids match) referencing
-    the imported point coordinates by lookup.
-- Tests: source → output snapshots for each sample; layers preserve
-  hierarchy (parent_id → our layer.parentId once Slice 1 of
-  layer-grouping lands; nullable until then).
+- `lib/cad/io/trv-to-drawing.ts` ships `trvToDrawing(doc) →
+  { layers, features, notes }` mapping a parsed TrvDocument into
+  the shape our drawing store consumes.
+- Layers: one Layer per TRV `86` record, id prefixed `trv-layer:<id>`
+  to avoid collisions with our system layers. Defaults visible /
+  unlocked / SOLID. Source order preserved via `sortOrder`. (TRV
+  layer parent_id is dropped — our `Layer` interface has no
+  hierarchy field; the FeatureGroup nesting from cad-layer-grouping
+  Slice 2 is a separate concern.)
+- Points: one POINT Feature per TRV point with parseable coords.
+  TRV (north, east) → our (east, -north) for screen-y-down space.
+  Preserves: `elevation` (when present), `label` (description),
+  `surveyNorth` + `surveyEast` (so Slice 3 can invert the
+  transform on export), `trvPointId`, `trvMethodCode`. Layer
+  reference resolved via the TRV→our-id map. Points without coords
+  are SKIPPED with a note.
+- Traverses: each `30 + 10-pair` sequence becomes one Feature.
+  Closed (first ref id === last ref id) → POLYGON with duplicate
+  closing vertex dropped; open → POLYLINE. Refs that don't resolve
+  to a known point are skipped + noted. Carries
+  `name` / `trvPointRefs` / `trvSourceLine` on properties.
+- Returns a `notes[]` array of non-fatal mapping issues for
+  surfacing in the Slice-4 import confirmation modal.
+- Tests: 14 unit specs cover layers (count, ids, sort, defaults),
+  points (count, ids, coord transform, properties, layer
+  assignment, skipped-with-coords case), traverses (closed
+  POLYGON, open POLYLINE, coord transform, properties, skipped
+  on < 2 refs), and the full-fixture composition.
+- Smoke-tested against the live samples: Garland (19 layers, 792
+  points, 19 traverses) and SKP (19 layers, 199 points, 20
+  traverses) both round-trip with structured notes for skipped
+  items.
+- Full cad suite (2037) green; typecheck + lint clean.
 
 ### Slice 3 — Pure serializer: drawing doc → TRV text
 
