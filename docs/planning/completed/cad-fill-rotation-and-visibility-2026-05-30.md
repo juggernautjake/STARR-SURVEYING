@@ -133,7 +133,28 @@ fill-picker dropdown polish:*
 - Spec: layer hidden → canvas renderer skips the overlays; spec on
   the TEXT-feature reachability on the SURVEY-INFO layer.
 
-### Slice 4 — Collapse the 4 fixed hatch options into one "Lines" + angle
+### Slice 4 — Collapse the 4 fixed hatch options into one "Lines" + angle ✅ shipped 2026-05-30
+
+- New canonical `LINES` id added to the `FillPattern` union +
+  dispatcher (same base as `HORIZONTAL_LINES`, 0°; the rotation
+  wrapper applies `config.angle` to spin it anywhere).
+- The 4 legacy hatch ids (`DIAGONAL_LEFT/RIGHT`, `HORIZONTAL_LINES`,
+  `VERTICAL_LINES`) stay valid in the dispatcher so saved drawings
+  render identically.
+- Picker dropdown's "Hatches" group went from 5 entries → 2: "Lines"
+  + "Crosshatch" (crosshatch stays because it's two angles at once,
+  not expressible via one slider).
+- Picker normalizes on read: any of the 4 legacy ids surfaces as
+  "Lines" in the dropdown AND adds the legacy inherent angle (0 / 90
+  / 45 / 315) to the saved `patternRotation`, so the angle slider
+  shows the EFFECTIVE rotation the user has been looking at.
+- Picker migrates on write: dragging the angle slider on a legacy
+  hatch feature commits `fillPattern: 'LINES'` + the new angle (no
+  more baked inherent angle). New picks of "Lines" commit `LINES`
+  directly.
+- Source-text picker test updated for the new variant list (NONE +
+  DOT_UNIFORM + DOT_GRAVEL + LINES + CROSSHATCH + BRICK + WAVE).
+- Full cad suite (1838) green; typecheck + lint clean.
 
 - Now that rotation works, "Diagonal /", "Diagonal \\", "Horizontal
   lines", "Vertical lines" are the same pattern at 45 / 135 / 0 /

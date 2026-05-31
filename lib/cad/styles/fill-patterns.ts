@@ -345,6 +345,12 @@ function rawPattern(
       return { dots: [], lines: generateHatchLines(w, h, 0, hatchSpacing(density)) };
     case 'VERTICAL_LINES':
       return { dots: [], lines: generateHatchLines(w, h, 90, hatchSpacing(density)) };
+    // cad-fill-rotation Slice 4 — canonical hatch. Same base as
+    // HORIZONTAL_LINES (0°); the dispatcher's rotation wrapper
+    // applies `config.angle` to spin it anywhere. The 4 legacy
+    // hatch ids stay above for back-compat with saved drawings.
+    case 'LINES':
+      return { dots: [], lines: generateHatchLines(w, h, 0, hatchSpacing(density)) };
     case 'BRICK':
       return { dots: [], lines: generateBrickLines(w, h, density) };
     case 'WAVE':

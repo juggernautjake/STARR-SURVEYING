@@ -42,19 +42,20 @@ describe('Slice 237 — Fill pattern section in PropertyPanel', () => {
   });
 });
 
-describe('Slice 237 — pattern options grid covers every enum value', () => {
-  // The grid must include each FillPattern variant so the surveyor
-  // can reach every texture from the picker. Lock the value set so a
-  // future refactor can't silently drop an option.
+describe('Slice 237 — pattern options grid covers every picker-reachable value', () => {
+  // The picker must include each user-facing pattern so the surveyor
+  // can reach it. cad-fill-rotation Slice 4 — collapsed the 4 fixed
+  // hatch ids (DIAGONAL_LEFT/RIGHT, HORIZONTAL_LINES, VERTICAL_LINES)
+  // into one "LINES" entry now that the Angle slider can spin a
+  // hatch to any direction; the 4 legacy ids stay valid in the
+  // dispatcher for back-compat with saved drawings but are no longer
+  // surfaced in the picker. Lock the new option set.
   const variants = [
     'NONE',
     'DOT_UNIFORM',
     'DOT_GRAVEL',
-    'DIAGONAL_RIGHT',
-    'DIAGONAL_LEFT',
+    'LINES',
     'CROSSHATCH',
-    'HORIZONTAL_LINES',
-    'VERTICAL_LINES',
     'BRICK',
     'WAVE',
   ] as const;

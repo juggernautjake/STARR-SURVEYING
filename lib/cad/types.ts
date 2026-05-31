@@ -499,6 +499,12 @@ export type FillPattern =
   | 'DOT_GRAVEL_FINE'
   | 'DOT_GRAVEL_COARSE'
   | 'DOT_SAND'
+  // cad-fill-rotation Slice 4 — `LINES` is the canonical hatch
+  // pattern; the legacy DIAGONAL_LEFT / DIAGONAL_RIGHT /
+  // HORIZONTAL_LINES / VERTICAL_LINES ids stay valid in the
+  // dispatcher (saved drawings render unchanged) but the picker
+  // surfaces them all as "Lines" with the angle slider pre-filled.
+  | 'LINES'
   | 'DIAGONAL_LEFT'
   | 'DIAGONAL_RIGHT'
   | 'CROSSHATCH'

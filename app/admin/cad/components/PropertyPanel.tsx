@@ -1328,13 +1328,30 @@ export default function PropertyPanel() {
               older saved drawings keep rendering. */}
           {computeFeatureArea(feature).squareFeet > 0 && (() => {
             // Read the raw stored value, then normalize for the
-            // dropdown so legacy gravel variants surface as "Gravel".
+            // dropdown so legacy gravel variants surface as "Gravel"
+            // (cad-fills polish) and the 4 legacy hatch ids surface
+            // as the single "Lines" entry (cad-fill-rotation Slice 4).
             const rawPattern: FillPattern = feature.style.fillPattern ?? 'NONE';
+            // cad-fill-rotation Slice 4 — the legacy hatch ids carry
+            // an inherent angle baked into the dispatcher (HORIZONTAL
+            // = 0, VERTICAL = 90, DIAGONAL_RIGHT = 45, DIAGONAL_LEFT =
+            // -45 / 315). When the picker normalizes them to LINES,
+            // we add that inherent angle to the saved patternRotation
+            // so the angle slider shows the EFFECTIVE rotation the
+            // user has been looking at.
+            const legacyHatchAngle: number | null =
+              rawPattern === 'HORIZONTAL_LINES' ? 0 :
+              rawPattern === 'VERTICAL_LINES'   ? 90 :
+              rawPattern === 'DIAGONAL_RIGHT'   ? 45 :
+              rawPattern === 'DIAGONAL_LEFT'    ? 315 :
+              null;
             const currentPattern: FillPattern =
               rawPattern === 'DOT_GRAVEL_FINE'
                 || rawPattern === 'DOT_GRAVEL_COARSE'
                 || rawPattern === 'DOT_SAND'
                 ? 'DOT_GRAVEL'
+                : legacyHatchAngle !== null
+                ? 'LINES'
                 : rawPattern;
             interface PatternOption { value: FillPattern; label: string; }
             interface PatternGroup { label: string; options: PatternOption[]; }
@@ -1350,12 +1367,16 @@ export default function PropertyPanel() {
                 // DOT_GRAVEL — no migration.
                 { value: 'DOT_GRAVEL', label: 'Random dots' },
               ] },
+              // cad-fill-rotation Slice 4 — collapsed the 4 fixed-
+              // direction hatches into ONE "Lines" entry now that the
+              // Angle slider can spin a hatch to any direction. Cross-
+              // hatch stays because it's two angles at once (not
+              // expressible via one slider). The legacy 4 ids are
+              // still accepted in the dispatcher; the picker
+              // normalizes them on read above (`legacyHatchAngle`).
               { label: 'Hatches', options: [
-                { value: 'DIAGONAL_RIGHT', label: 'Diagonal /' },
-                { value: 'DIAGONAL_LEFT', label: 'Diagonal \\' },
+                { value: 'LINES', label: 'Lines' },
                 { value: 'CROSSHATCH', label: 'Crosshatch' },
-                { value: 'HORIZONTAL_LINES', label: 'Horizontal lines' },
-                { value: 'VERTICAL_LINES', label: 'Vertical lines' },
               ] },
               { label: 'Pattern', options: [
                 { value: 'BRICK', label: 'Brick' },
@@ -1369,7 +1390,15 @@ export default function PropertyPanel() {
             const patternDensity = feature.style.patternDensity ?? 1;
             const patternScale = feature.style.patternScale ?? 1;
             // cad-fill-rotation Slice 1 — rotation in DEGREES, 0–359.
-            const patternRotation = feature.style.patternRotation ?? 0;
+            // Slice 4 — when the saved id is a legacy hatch (its
+            // inherent angle is baked into the dispatcher), the
+            // displayed angle = stored patternRotation + the
+            // inherent angle, wrapped into 0..359, so the slider
+            // shows the EFFECTIVE rotation.
+            const storedRotation = feature.style.patternRotation ?? 0;
+            const patternRotation = legacyHatchAngle === null
+              ? storedRotation
+              : (((storedRotation + legacyHatchAngle) % 360) + 360) % 360;
             // Clamp + sanitize a number, treating NaN as the fallback so
             // a partially-typed value (e.g. an empty input) doesn't blow
             // the field state up.
@@ -1552,8 +1581,15 @@ export default function PropertyPanel() {
                           data-testid="property-panel-fill-pattern-angle"
                           className="flex-1 accent-blue-500"
                           onChange={(e) => {
+                            const newAngle = clamp(parseFloat(e.target.value), 0, 359, 0);
+                            // cad-fill-rotation Slice 4 — when the
+                            // user drags angle on a legacy hatch id,
+                            // migrate to LINES so the slider value =
+                            // the effective rotation directly (no
+                            // inherent baked angle to add).
+                            const nextFillPattern: FillPattern = legacyHatchAngle !== null ? 'LINES' : (rawPattern as FillPattern);
                             drawingStore.updateFeature(feature.id, {
-                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternRotation: clamp(parseFloat(e.target.value), 0, 359, 0), isOverride: true },
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: nextFillPattern, patternRotation: newAngle, isOverride: true },
                             });
                           }}
                         />
@@ -1570,8 +1606,10 @@ export default function PropertyPanel() {
                             // like 360 resolves to 0 and -10 → 350.
                             const raw = parseFloat(e.target.value);
                             const wrapped = !Number.isFinite(raw) ? 0 : ((Math.round(raw) % 360) + 360) % 360;
+                            // Same legacy-hatch migration as the slider.
+                            const nextFillPattern: FillPattern = legacyHatchAngle !== null ? 'LINES' : (rawPattern as FillPattern);
                             drawingStore.updateFeature(feature.id, {
-                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternRotation: wrapped, isOverride: true },
+                              style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: nextFillPattern, patternRotation: wrapped, isOverride: true },
                             });
                           }}
                         />
