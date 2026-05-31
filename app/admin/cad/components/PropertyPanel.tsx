@@ -6,7 +6,13 @@ import { Image as ImageIcon } from 'lucide-react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
-import type { Feature, FillPattern } from '@/lib/cad/types';
+import type { Feature, FillLayer, FillPattern } from '@/lib/cad/types';
+// cad-fill-stacking Slice 6c — stack helpers for the layer-list UI.
+import {
+  resolveFillStack,
+  legacyStyleToFillLayer,
+  normalizeFillLayer,
+} from '@/lib/cad/styles/fill-stack';
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
@@ -1413,11 +1419,209 @@ export default function PropertyPanel() {
             // the field state up.
             const clamp = (v: number, lo: number, hi: number, fb: number) =>
               !Number.isFinite(v) ? fb : Math.max(lo, Math.min(hi, v));
+
+            // cad-fill-stacking Slice 6c — resolved stack + active-
+            // layer index for the layer-list UI. resolveFillStack
+            // returns the explicit stack when set, or projects the
+            // legacy single-pattern fields into a 1-element stack so
+            // the list ALWAYS has at least one row when there's any
+            // fill at all.
+            const resolvedStack = resolveFillStack(feature.style);
+            const hasExplicitStack = Array.isArray(feature.style.fillStack);
+
+            // cad-fill-stacking Slice 6c — layer-list mutations.
+            // "+ Add layer": the FIRST add migrates the legacy fields
+            // into fillStack[0] via legacyStyleToFillLayer (so layer 0
+            // captures the current single-pattern look), then appends
+            // a NONE-placeholder layer the surveyor will pick a
+            // pattern for. Subsequent adds just append.
+            const addLayer = () => {
+              let stack = feature.style.fillStack;
+              if (!Array.isArray(stack)) {
+                const projected = legacyStyleToFillLayer(feature.style);
+                stack = projected ? [projected] : [];
+              }
+              const next = [...stack, normalizeFillLayer({ pattern: 'NONE', color: '#000000' })];
+              drawingStore.updateFeature(feature.id, {
+                style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: next, isOverride: true },
+              });
+            };
+
+            // Eye toggle + delete + per-row pattern + per-row color
+            // ALL route through updateFillLayerAt / removeFillLayerAt
+            // and write the new fillStack back. Same first-add-migrates
+            // behavior so the user can also tweak layer 0's visibility
+            // even when there's only one (legacy-projected) layer.
+            const ensureExplicitStack = (): FillLayer[] => {
+              if (Array.isArray(feature.style.fillStack)) {
+                return feature.style.fillStack;
+              }
+              const projected = legacyStyleToFillLayer(feature.style);
+              return projected ? [projected] : [];
+            };
+            const writeStack = (next: FillLayer[]) => {
+              drawingStore.updateFeature(feature.id, {
+                style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: next, isOverride: true },
+              });
+            };
+            const setLayerVisibility = (idx: number, visible: boolean) => {
+              const stack = ensureExplicitStack();
+              if (idx < 0 || idx >= stack.length) return;
+              const next = stack.map((l, i) => (i === idx ? normalizeFillLayer({ ...l, visible }) : l));
+              writeStack(next);
+            };
+            const setLayerPattern = (idx: number, pattern: FillPattern) => {
+              const stack = ensureExplicitStack();
+              if (idx < 0 || idx >= stack.length) return;
+              const next = stack.map((l, i) => (i === idx ? normalizeFillLayer({ ...l, pattern }) : l));
+              writeStack(next);
+            };
+            const setLayerColor = (idx: number, color: string) => {
+              const stack = ensureExplicitStack();
+              if (idx < 0 || idx >= stack.length) return;
+              const next = stack.map((l, i) => (i === idx ? normalizeFillLayer({ ...l, color }) : l));
+              writeStack(next);
+            };
+            const deleteLayer = (idx: number) => {
+              const stack = ensureExplicitStack();
+              const next = stack.filter((_, i) => i !== idx);
+              if (next.length === 0) {
+                // Last layer removed — drop fillStack entirely AND
+                // reset legacy fillPattern to NONE so we stop
+                // rendering anything.
+                drawingStore.updateFeature(feature.id, {
+                  style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: undefined, fillPattern: 'NONE', isOverride: true },
+                });
+                return;
+              }
+              if (next.length === 1) {
+                // Reduced to a single layer → auto un-stack: copy
+                // that layer's fields back into the legacy slots so
+                // the full params card returns, and clear fillStack
+                // so the renderer takes the legacy fast path.
+                const sole = next[0];
+                drawingStore.updateFeature(feature.id, {
+                  style: {
+                    ...DEFAULT_FEATURE_STYLE,
+                    ...feature.style,
+                    fillStack: undefined,
+                    fillPattern: sole.pattern,
+                    patternColor: sole.color,
+                    patternDensity: sole.density,
+                    patternScale: sole.scale,
+                    patternRotation: sole.rotation,
+                    fillOpacity: sole.opacity,
+                    brickWidth: sole.brickWidth,
+                    brickHeight: sole.brickHeight,
+                    waveAmplitude: sole.waveAmplitude,
+                    wavePeriod: sole.wavePeriod,
+                    patternDashLen: sole.dashLen,
+                    patternGapLen: sole.gapLen,
+                    isOverride: true,
+                  },
+                });
+                return;
+              }
+              writeStack(next);
+            };
+
             return (
               <div
                 data-testid="property-panel-fill-pattern"
                 className="space-y-2 border-t border-gray-700 pt-2 mt-1"
               >
+                {/* cad-fill-stacking Slice 6c — multi-layer infill
+                    list. When fillStack is explicit (≥ 1 layer), the
+                    layer list IS the editing surface: the legacy
+                    pattern picker + params card hide so we don't
+                    confuse the user with controls that write to
+                    legacy fields the renderer is ignoring. When
+                    fillStack reduces back to a single layer via the
+                    list's delete button, deleteLayer auto un-stacks
+                    (copies layer 0's fields back into legacy slots,
+                    clears fillStack) so the params card returns. */}
+                {hasExplicitStack && (
+                  <div
+                    data-testid="property-panel-fill-stack"
+                    className="space-y-1 rounded border border-gray-700 bg-gray-800/50 p-2"
+                  >
+                    <div className="text-gray-500 text-[10px] uppercase tracking-wider">
+                      Infill layers ({resolvedStack.length})
+                    </div>
+                    {resolvedStack.map((layer, idx) => (
+                      <div
+                        key={`layer-${idx}`}
+                        data-testid={`property-panel-fill-stack-row-${idx}`}
+                        className="flex items-center gap-1 rounded bg-gray-900/50 px-1.5 py-1"
+                      >
+                        <button
+                          type="button"
+                          title={layer.visible ? 'Hide layer' : 'Show layer'}
+                          data-testid={`property-panel-fill-stack-eye-${idx}`}
+                          className={`text-[11px] px-1 ${layer.visible ? 'text-gray-200' : 'text-gray-600'}`}
+                          onClick={() => setLayerVisibility(idx, !layer.visible)}
+                        >
+                          {layer.visible ? '👁' : '⊘'}
+                        </button>
+                        <select
+                          value={layer.pattern}
+                          data-testid={`property-panel-fill-stack-pattern-${idx}`}
+                          className="flex-1 text-[11px] bg-gray-800 border border-gray-700 text-gray-100 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                          onChange={(e) => setLayerPattern(idx, e.target.value as FillPattern)}
+                        >
+                          {patternGroups.map((group, gi) =>
+                            group.label ? (
+                              <optgroup key={`sl-g-${gi}`} label={group.label}>
+                                {group.options.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                              </optgroup>
+                            ) : (
+                              group.options.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))
+                            ),
+                          )}
+                        </select>
+                        <input
+                          type="color"
+                          value={layer.color ?? '#000000'}
+                          data-testid={`property-panel-fill-stack-color-${idx}`}
+                          className="w-6 h-6 rounded border border-gray-700 bg-gray-900 cursor-pointer"
+                          title="Layer color"
+                          onChange={(e) => setLayerColor(idx, e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          title="Delete layer"
+                          data-testid={`property-panel-fill-stack-delete-${idx}`}
+                          className="text-[11px] text-red-400 hover:text-red-300 px-1"
+                          onClick={() => deleteLayer(idx)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      data-testid="property-panel-fill-stack-add"
+                      className="w-full text-[11px] text-gray-300 bg-gray-700 hover:bg-gray-600 rounded px-2 py-1 mt-1 transition-colors"
+                      onClick={addLayer}
+                    >
+                      + Add layer
+                    </button>
+                    <div className="text-gray-500 text-[9px] italic pt-1">
+                      Per-layer density / thickness / angle tuning is
+                      coming in 6d — for now extra layers use the
+                      default 1× density, 1× thickness, 0° rotation.
+                    </div>
+                  </div>
+                )}
+
+                {/* Legacy single-pattern picker + params card. Hidden
+                    when fillStack is explicit so the user isn't
+                    confused by controls that write to ignored fields. */}
+                {!hasExplicitStack && (<>
                 <label className="block">
                   <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">
                     Fill pattern
@@ -1943,6 +2147,26 @@ export default function PropertyPanel() {
                     })()}
                   </div>
                 )}
+
+                {/* cad-fill-stacking Slice 6c — "+ Add layer" button
+                    in single-pattern mode. Shown only when there's
+                    already a non-NONE pattern (so layer 0 has
+                    something to migrate). Clicking migrates the
+                    current legacy fields into fillStack[0] via
+                    addLayer + appends a NONE-placeholder layer the
+                    surveyor picks a pattern for, switching the UI
+                    into stacked-mode. */}
+                {currentPattern !== 'NONE' && currentPattern !== 'SOLID' && (
+                  <button
+                    type="button"
+                    data-testid="property-panel-fill-stack-start"
+                    className="w-full text-[11px] text-gray-300 bg-gray-700 hover:bg-gray-600 rounded px-2 py-1 transition-colors"
+                    onClick={addLayer}
+                  >
+                    + Add layer (stack another pattern)
+                  </button>
+                )}
+                </>)}
               </div>
             );
           })()}

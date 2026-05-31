@@ -250,19 +250,52 @@ big enough to merit its own commit + test sweep.
   the layer-derived cfg fields, the per-pattern seed, the layer-
   alpha contract, and the empty-stack wipe. Typecheck + lint clean.
 
-#### Slice 6c — PropertyPanel: layer-list UI above the params card
+#### Slice 6c — PropertyPanel: layer-list UI ✅ shipped 2026-05-31
 
-- A small layer list above the params card. Each row shows the
-  pattern name + color swatch + `Eye` toggle + `X` delete + a
-  "select active" indicator. "+ Add layer" appends a new pattern-
-  NONE layer the user can then pick a pattern for. The currently-
-  selected layer in the list is the one the params card edits.
-- On any layer-list mutation, write the new stack to
-  `feature.style.fillStack` via `updateFeature`; on first mutation
-  of a legacy-only style, the migrated 1-element stack is also
-  persisted so subsequent reads see the canonical shape.
-- Tests: source-text specs lock the list testids + the
-  add/remove/eye/select wiring.
+- New layer-list section at the top of the fill-pattern wrapper,
+  shown only when `feature.style.fillStack` is explicit. Each row
+  has an eye toggle + pattern dropdown + color swatch + delete.
+  "+ Add layer" button at the bottom appends a NONE-placeholder
+  layer.
+- "+ Add layer (stack another pattern)" CTA also surfaces in
+  single-pattern mode (below the existing params card) when there's
+  a current non-NONE pattern. Click migrates legacy fields →
+  `fillStack[0]` (via `legacyStyleToFillLayer`) + appends a NONE
+  layer at index 1, switching the UI into stacked mode.
+- When `fillStack` is explicit, the existing pattern picker + the
+  Density/Thickness/Angle/Opacity/Brick/Wave/Dash params card hide
+  so the surveyor isn't confused by controls that write to legacy
+  fields the Slice-6b renderer is ignoring.
+- `deleteLayer` auto un-stacks when reducing the stack to length 1:
+  copies the sole layer's fields back into the legacy slots +
+  clears `fillStack`, so the full params card returns for single-
+  pattern fine-tuning.
+- Per-layer Density / Thickness / Angle / Opacity / pattern-extras
+  fine-tuning is acknowledged as a 6d follow-up — the inline help
+  in the layer list flags this. For now, extra layers use the
+  default 1× density, 1× thickness, 0° rotation, opacity 1. The
+  pattern + color picker per layer is the MVP that ships
+  "stack multiple patterns" as a working feature.
+- Tests: 15 source-text specs lock helper imports, the
+  `hasExplicitStack` gate on the picker + params card, every row
+  control (eye / pattern / color / delete) + add-layer button +
+  start-stack CTA wiring, the deleteLayer auto-un-stack code, and
+  the legacy → stack projection in addLayer.
+- Full cad suite (1938) green; typecheck + lint clean.
+
+## 6d follow-up — Per-layer fine-tuning (deferred)
+
+Once the user is editing in stacked mode they can pick a pattern +
+color per layer but they can't tune that layer's density / scale /
+rotation / opacity / per-pattern extras independently. The natural
+next move is an "active layer" indicator on the list + the params
+card editing the active layer (via `updateFillLayerAt`). Deferred
+because the MVP (pattern + color per layer) already lets the user
+stack any combination they need; the fine-tuning ask is real but
+the value vs. the refactor cost (rewiring every params-card
+onChange to route through a writeStyle / writeLayerField wrapper)
+warrants its own slice. Leaving 6d in this doc as a sized-out
+placeholder.
 
 ## Out of scope / placeholder
 

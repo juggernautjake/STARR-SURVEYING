@@ -21,7 +21,9 @@ const SRC = fs.readFileSync(
 
 describe('Slice 237 — FillPattern type imported', () => {
   it('imports FillPattern alongside Feature from @/lib/cad/types', () => {
-    expect(SRC).toMatch(/import type \{ Feature, FillPattern \} from '@\/lib\/cad\/types';/);
+    // cad-fill-stacking Slice 6c added FillLayer to the import; allow
+    // any subset that includes Feature + FillPattern.
+    expect(SRC).toMatch(/import type \{[^}]*\bFeature\b[^}]*\bFillPattern\b[^}]*\} from '@\/lib\/cad\/types';/);
   });
 });
 
