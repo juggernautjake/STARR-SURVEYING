@@ -270,16 +270,25 @@ export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {
   return out.join(CRLF);
 }
 
-/** cad-trv-import-export Pass 4 — smart-merge serializer. Walks
- *  every raw line of `sourceTrv`. When a `2,N,E,Z` point-coord
- *  line belongs to a point whose coords have been edited in the
- *  current drawing, rewrite the line; otherwise re-emit verbatim.
- *  Unknown record codes round-trip unchanged. Add / remove of
- *  points is deferred — those land at the end of the POINTS
- *  section in a future pass.
+/** cad-trv-import-export Pass 4 + Pass 9 — smart-merge serializer.
+ *  Walks every raw line of `sourceTrv` and produces a TRV that
+ *  reflects the current drawing while preserving source structure
+ *  + unknown codes:
  *
- *  Coord comparison: tolerates a 1e-6 ft delta so float
- *  round-tripping doesn't trigger a spurious rewrite. */
+ *  - **Coord patch** (Pass 4): point-coord (`2,N,E,Z`) lines for
+ *    moved points are rewritten; tolerance 1e-6 ft.
+ *  - **Deletes** (Pass 9): a point that was in the source but is
+ *    GONE from the current doc has its entire block (`0,id` →
+ *    `2,...` inclusive) dropped from the output. Traverse `10,id`
+ *    refs to deleted points are dropped (and the matching `11,...`
+ *    edge descriptor with them).
+ *  - **Adds** (Pass 9): features that have no `trvPointId` (POINT
+ *    features the surveyor added after import) are emitted as
+ *    fresh point blocks just before `999,end`.
+ *  - **`95,N` count rewrite** (Pass 9): the points-count header is
+ *    updated to (original count - deletes + adds).
+ *
+ *  Every other source line round-trips verbatim. */
 function mergeSourceTrvWithDoc(sourceTrv: TrvDocument, doc: DrawingDocument): string {
   type Patch = { line: number; north: number; east: number; elevation: number };
   const patches: Patch[] = [];
@@ -288,23 +297,93 @@ function mergeSourceTrvWithDoc(sourceTrv: TrvDocument, doc: DrawingDocument): st
     const trvPointId = f.properties.trvPointId;
     if (typeof trvPointId === 'string') featuresByTrvId.set(trvPointId, f);
   }
+
+  // Pass 9 — detect deletes: source points whose trvPointId is no
+  // longer in the doc. Their entire block lines (0/1/2/3/4) get
+  // marked for skip.
+  const deletedTrvIds = new Set<string>();
+  const skipLines = new Set<number>();
   for (const p of sourceTrv.points) {
+    if (featuresByTrvId.has(p.id)) continue;
+    deletedTrvIds.add(p.id);
+    // Mark the point block's lines for skip: from the 0,<id> line
+    // through the next 0 or section boundary or 999.
+    for (let i = p.sourceLine; i < sourceTrv.lines.length; i++) {
+      const ln = sourceTrv.lines[i];
+      if (i !== p.sourceLine && (ln.code === '0' || ln.code === '#' || ln.code === '999')) break;
+      skipLines.add(i);
+    }
+  }
+  // Traverse refs to deleted points: also skip the 10,<id> line +
+  // the following 11,... edge-descriptor line (which is paired).
+  for (let i = 0; i < sourceTrv.lines.length; i++) {
+    const ln = sourceTrv.lines[i];
+    if (ln.code === '10' && deletedTrvIds.has((ln.fields[0] ?? '').trim())) {
+      skipLines.add(i);
+      const next = sourceTrv.lines[i + 1];
+      if (next && next.code === '11') skipLines.add(i + 1);
+    }
+  }
+
+  // Pass 4 — coord patches for moved points.
+  for (const p of sourceTrv.points) {
+    if (deletedTrvIds.has(p.id)) continue;
     const feat = featuresByTrvId.get(p.id);
-    if (!feat) continue; // Point was deleted — handled in a later pass.
+    if (!feat) continue;
     const { north, east, elevation } = pointCoords(feat);
     const sourceLineOfTwo = findLineIndex(sourceTrv, p.sourceLine, '2');
     if (sourceLineOfTwo === -1) continue;
     const dN = Math.abs(north - (p.north ?? 0));
     const dE = Math.abs(east - (p.east ?? 0));
     const dZ = Math.abs(elevation - (p.elevation ?? 0));
-    if (dN < 1e-6 && dE < 1e-6 && dZ < 1e-6) continue; // No change.
+    if (dN < 1e-6 && dE < 1e-6 && dZ < 1e-6) continue;
     patches.push({ line: sourceLineOfTwo, north, east, elevation });
   }
-  const newRaws = sourceTrv.lines.map((l) => l.raw);
-  for (const p of patches) {
-    newRaws[p.line] = `2,${num(p.north)},${num(p.east)},${num(p.elevation, 3)}`;
+
+  // Pass 9 — detect adds: POINT features without a trvPointId.
+  // Each gets its own 0/1/3/4/2 block appended just before 999,end.
+  const addedPoints: Feature[] = [];
+  for (const f of Object.values(doc.features)) {
+    if (f.type !== 'POINT') continue;
+    if (typeof f.properties.trvPointId === 'string') continue;
+    addedPoints.push(f);
   }
-  return newRaws.join(CRLF);
+
+  // Walk + emit.
+  const layerIdByOurId = new Map<string, string>();
+  // The merge path doesn't have a layerOrder to compute layerIdByOurId
+  // from, so synthesize the map from the source's 86 records — we
+  // need it for emitPoint to write a valid `3,<layerId>` line.
+  for (const l of sourceTrv.layers) layerIdByOurId.set(`trv-layer:${l.id}`, l.id);
+  const out: string[] = [];
+  // Rewrite `95,<count>` lines to the new total. There may be
+  // multiple `95` lines per file (the live samples have one); we
+  // patch every occurrence.
+  const newPointCount = sourceTrv.points.length - deletedTrvIds.size + addedPoints.length;
+  for (let i = 0; i < sourceTrv.lines.length; i++) {
+    if (skipLines.has(i)) continue;
+    const ln = sourceTrv.lines[i];
+    // Patch coords?
+    const patch = patches.find((p) => p.line === i);
+    if (patch) {
+      out.push(`2,${num(patch.north)},${num(patch.east)},${num(patch.elevation, 3)}`);
+      continue;
+    }
+    // Rewrite the points-count line.
+    if (ln.code === '95') {
+      out.push(`95,${newPointCount}`);
+      continue;
+    }
+    // Append new-point blocks right before `999,end` (the LAST
+    // line of the source).
+    if (ln.code === '999' && (ln.fields[0] ?? '').trim() === 'end' && addedPoints.length > 0) {
+      for (const f of addedPoints) {
+        for (const newLine of emitPoint(f, layerIdByOurId)) out.push(newLine);
+      }
+    }
+    out.push(ln.raw);
+  }
+  return out.join(CRLF);
 }
 
 /** Find the first line at-or-after `startIdx` whose code equals

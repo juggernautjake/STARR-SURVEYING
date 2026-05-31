@@ -160,17 +160,29 @@ valid JSON"` alert with no actionable hint. Two-part fix:
   POLYLINE and stash the raw curve params on
   `properties.trvCurveParams` so an export can re-emit them.
 
-### Pass 9 — Smart-merge add / remove for points
+### Pass 9 — Smart-merge add / remove for points ✅ shipped 2026-05-31
 
-- Extend Pass 4's smart-merger:
-  - New points (feature with no `trvPointId`) get appended
-    inside the `#,POINTS` section with the next available id.
-  - Deleted points (a `0,<id>` block in source with no matching
-    feature) are skipped on emit.
-  - Traverse `10,<ref>` lines that reference deleted points
-    are also skipped.
-- Tests: round-trip with one added + one deleted point produces
-  the expected output; the rest of the source stays verbatim.
+- `mergeSourceTrvWithDoc` extended:
+  - **Deletes**: each source point with no matching feature in
+    the current doc has its entire block (`0,<id>` → next 0 /
+    section / 999) dropped from the output. Traverse `10,<ref>`
+    refs to deleted points are dropped, and the paired `11,…`
+    edge descriptor with them.
+  - **Adds**: each POINT feature without a `trvPointId` (the
+    surveyor added it after import) is emitted as a fresh
+    `0/1/3/4/2` block just before `999,end`. Layer reference
+    resolved via the source's 86-records map.
+  - **Count fix**: the `95,<N>` points-count header is
+    rewritten to `original - deletes + adds`.
+- 4 new specs cover: delete drops the block + its traverse
+  refs; the 95 count is patched; new POINT features land
+  before 999,end with their coords inverse-transformed; the
+  combined delete+add path produces the correct final count.
+- Pass 4's earlier "empty doc passthrough" spec updated — the
+  empty-doc case now means "delete every source point," which
+  is the correct new behavior (it previously short-circuited
+  to verbatim because deletes weren't implemented).
+- Full cad suite (2237) green; typecheck + lint clean.
 
 ### Pass 10 — End-to-end editability acceptance + Traverse-PC
 reopen verification
