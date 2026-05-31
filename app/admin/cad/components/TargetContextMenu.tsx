@@ -16,8 +16,12 @@
 // menus so users can right-click anywhere in the panel and get
 // actions that work.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDrawingStore, useSelectionStore } from '@/lib/cad/store';
+// cad-layer-grouping Slice 5 amendment — descendant lookup for the
+// "Move to group…" submenu so we exclude self + descendants from the
+// available targets (cycle prevention).
+import { allDescendants } from '@/lib/cad/feature-groups';
 
 /** Discriminated target for the menu. `group` is the only kind we
  *  surface in Slice 5; the other kinds are sketched here so future
@@ -49,6 +53,10 @@ export default function TargetContextMenu({
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const ref = useRef<HTMLDivElement | null>(null);
+  // cad-layer-grouping Slice 5 amendment — controls the inline
+  // "Move to group…" submenu (which group should the user pick as
+  // the new parent). Local state; closes with the parent menu.
+  const [moveSubOpen, setMoveSubOpen] = useState(false);
 
   // Close on outside click / Escape — same pattern the other
   // context menus in the codebase use.
@@ -86,6 +94,19 @@ export default function TargetContextMenu({
       return null;
     }
     const isNested = (group.parentGroupId ?? null) !== null;
+    // cad-layer-grouping Slice 5 amendment — possible reparent
+    // targets for the "Move to group…" submenu: every other group on
+    // the same layer that's NOT this group and NOT a descendant of
+    // it (cycle guard). The store's moveFeatureGroup also enforces
+    // this at write time, but pre-filtering keeps invalid options
+    // off the menu.
+    const allGroups = drawingStore.document.featureGroups ?? {};
+    const descendants = new Set(allDescendants(allGroups, group.id));
+    const moveTargets = Object.values(allGroups).filter((g) =>
+      g.id !== group.id
+      && g.layerId === group.layerId
+      && !descendants.has(g.id),
+    );
     const item = (label: string, action: () => void, opts: { danger?: boolean; disabled?: boolean } = {}) => (
       <button
         type="button"
@@ -129,6 +150,47 @@ export default function TargetContextMenu({
         {isNested && item('Move to layer root', () => {
           drawingStore.moveFeatureGroup(group.id, null);
         })}
+        {/* cad-layer-grouping Slice 5 amendment — "Move to group…"
+            opens an inline submenu listing valid parent targets on
+            the same layer. Shown only when there's at least one
+            other eligible group; clicking a target calls
+            moveFeatureGroup, which double-checks the cycle guard at
+            the store level. */}
+        {moveTargets.length > 0 && (
+          <>
+            <button
+              type="button"
+              data-testid="target-context-menu-item-move-to-group"
+              onClick={() => setMoveSubOpen((v) => !v)}
+              className="w-full text-left px-3 py-1 text-xs text-gray-200 hover:bg-gray-700 transition-colors flex items-center justify-between"
+            >
+              <span>Move to group…</span>
+              <span className="text-gray-500">{moveSubOpen ? '▾' : '▸'}</span>
+            </button>
+            {moveSubOpen && (
+              <div
+                data-testid="target-context-menu-move-submenu"
+                className="pl-3 max-h-40 overflow-y-auto"
+              >
+                {moveTargets.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    data-testid={`target-context-menu-move-target-${t.id}`}
+                    onClick={() => {
+                      drawingStore.moveFeatureGroup(group.id, t.id);
+                      onClose();
+                    }}
+                    className="w-full text-left px-3 py-1 text-xs text-gray-300 hover:bg-gray-700 transition-colors truncate"
+                    title={t.name}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
         <div className="my-0.5 border-t border-gray-700" />
         {item('Ungroup', () => {
           drawingStore.ungroupFeatures(group.id);

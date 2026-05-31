@@ -64,6 +64,35 @@ describe('TargetContextMenu — GROUP target menu items', () => {
   });
 });
 
+describe('TargetContextMenu — "Move to group…" submenu (Slice 5 amendment)', () => {
+  it('imports allDescendants from feature-groups for the cycle-guarded target list', () => {
+    expect(COMPONENT_SRC).toMatch(/import \{ allDescendants \} from '@\/lib\/cad\/feature-groups';/);
+  });
+
+  it('computes moveTargets by filtering out self + descendants on the same layer', () => {
+    expect(COMPONENT_SRC).toMatch(
+      /const descendants = new Set\(allDescendants\(allGroups, group\.id\)\);/,
+    );
+    expect(COMPONENT_SRC).toMatch(
+      /const moveTargets = Object\.values\(allGroups\)\.filter\(\(g\) =>\s*g\.id !== group\.id\s*&& g\.layerId === group\.layerId\s*&& !descendants\.has\(g\.id\),\s*\);/,
+    );
+  });
+
+  it('renders the "Move to group…" toggle only when moveTargets.length > 0', () => {
+    expect(COMPONENT_SRC).toMatch(
+      /\{moveTargets\.length > 0 && \([\s\S]*?data-testid="target-context-menu-item-move-to-group"/,
+    );
+  });
+
+  it('renders one button per move target inside the inline submenu wired to moveFeatureGroup', () => {
+    expect(COMPONENT_SRC).toMatch(/data-testid="target-context-menu-move-submenu"/);
+    expect(COMPONENT_SRC).toMatch(
+      /data-testid=\{`target-context-menu-move-target-\$\{t\.id\}`\}/,
+    );
+    expect(COMPONENT_SRC).toMatch(/drawingStore\.moveFeatureGroup\(group\.id, t\.id\);/);
+  });
+});
+
 describe('TargetContextMenu — outside-click + Escape dismissal', () => {
   it('attaches mousedown / click / contextmenu listeners on mount and removes them on unmount', () => {
     expect(COMPONENT_SRC).toMatch(/document\.addEventListener\('mousedown', onDown\);/);

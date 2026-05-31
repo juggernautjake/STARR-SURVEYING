@@ -181,6 +181,16 @@ layer panel + right-click menus:*
   today; it can happen incrementally as future surfaces need menu
   items. The point of Slice 5 was filling the missing right-click
   on group rows, which is now done.
+- **Amendment shipped 2026-05-31** — "Move to group…" submenu
+  added to the group menu. Lists every other group on the same
+  layer that's not the source itself and not one of its
+  descendants (cycle guard via `allDescendants`). Clicking a
+  target calls `drawingStore.moveFeatureGroup(source.id, target.id)`;
+  the store-level cycle guard runs a second check. 4 new source-
+  text specs lock the import, the moveTargets filter, the toggle
+  gate, and the per-target button wiring. This amendment makes
+  Slice 7's deferral rationale (below) accurate: right-click
+  reparenting is now a real, complete affordance.
 - Tests: 12 source-text specs lock the discriminated-union type,
   every group menu item's wiring (select / rename / move /
   ungroup), the stale-id null return, the outside-click +
@@ -224,12 +234,18 @@ layer panel + right-click menus:*
   polygon is fragile geometry work) doesn't justify a slice today.
 - Full cad suite (2019) green; typecheck + lint clean.
 
-### Slice 7 — Drag-and-drop reparenting (deferred unless requested)
+### Slice 7 — Drag-and-drop reparenting ⏸ deferred 2026-05-31
 
 - Reparent groups + features by dragging the row to a new parent.
-- Implementation-cost-vs-value: the right-click "Move to group…"
-  from Slice 5 already covers the use case. Defer until the user
-  asks for it explicitly.
+- **Rationale for deferral**: Slice 5's "Move to group…" submenu
+  (added as an amendment 2026-05-31) already lets the surveyor
+  reparent any group via right-click → pick a target. The
+  drag-and-drop affordance is a UX nicety on top, not a
+  capability gap — its implementation cost (HTML5 drag-drop on
+  recursive tree rows, drop-position indicators, undo wiring,
+  cross-browser quirks, scroll-on-drag) clearly exceeds the
+  marginal value over the existing context-menu path. Will
+  revisit if the surveyor asks for it.
 
 ## Out of scope / placeholder
 
