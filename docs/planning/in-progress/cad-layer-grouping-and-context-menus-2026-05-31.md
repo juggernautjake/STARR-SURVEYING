@@ -188,18 +188,41 @@ layer panel + right-click menus:*
   useState, the onContextMenu handler, and the conditional render.
 - Full cad suite (2011) green; typecheck + lint clean.
 
-### Slice 6 — "Explode polygon to segments"
+### Slice 6 — "Explode polygon to segments" ✅ shipped 2026-05-31
 
-- Right-click on a POLYLINE / POLYGON feature gains an "Explode" item
-  that:
-    1. Creates one LINE feature per segment (N - 1 for polyline,
-       N for closed polygon).
-    2. Wraps the new lines in a FeatureGroup named after the source
-       (so the surveyor can still treat them as a unit OR drill in
-       and hide a single segment).
-    3. Deletes the original feature in the same undo step.
-- Inverse op ("Re-merge segments to polygon") deferred to a later
-  slice if asked.
+- New operation `explodeFeatureGrouped(featureId)` in
+  `lib/cad/operations.ts`. Delegates to the existing
+  `explodeFeature` for the source-feature → LINE mapping, then
+  wraps the resulting selection in a FeatureGroup named after the
+  source (or `<TYPE> <shortId>` when the source has no name).
+  Returns false on a non-existent source; returns true (no group
+  created) when the explode produces a single LINE (LINE sources
+  are already a single segment — the existing explodeFeature
+  no-ops on them).
+- New menu entry **"Explode to segments (grouped)"** added next to
+  the existing **"Explode (burst into LINEs)"** in
+  `FeatureContextMenu`'s Edit submenu, gated on the same
+  POLYLINE / POLYGON / MIXED rule. Both variants stay so the
+  surveyor can choose grouped vs. ungrouped per situation.
+- Undo: the source `explodeFeature` pushes its own batch (source
+  removed + lines added, atomic). The group create is a separate
+  state mutation that doesn't push a dedicated undo entry — on
+  undo the lines are removed and the group's `featureIds` becomes
+  stale; the group sits orphaned but inert until something touches
+  it. A dedicated `MODIFY_FEATURE_GROUPS` undo op is a documented
+  follow-up if the orphan state becomes a real complaint.
+- Tests: 8 specs lock the per-segment line counts for POLYGON and
+  POLYLINE sources, the group's name + member-count, the
+  `<TYPE> <shortId>` fallback, every line carrying the new
+  `featureGroupId`, the non-existent-id no-op, the FeatureContextMenu
+  import, and the menu-entry source-text wiring.
+- **Deferred — inverse op "Re-merge segments to polygon".** The
+  plan explicitly notes this as deferred-unless-asked; the
+  grouped-explode result already lets the surveyor work with the
+  segments together via the new FeatureGroup, so the inverse op's
+  marginal value vs. cost (merging arbitrary line sets into a
+  polygon is fragile geometry work) doesn't justify a slice today.
+- Full cad suite (2019) green; typecheck + lint clean.
 
 ### Slice 7 — Drag-and-drop reparenting (deferred unless requested)
 
