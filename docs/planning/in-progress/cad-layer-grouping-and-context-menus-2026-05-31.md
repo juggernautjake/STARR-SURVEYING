@@ -126,18 +126,35 @@ layer panel + right-click menus:*
   child-before-features order, and the `data-group-depth` stamp.
 - Full cad suite (1990) green; typecheck + lint clean.
 
-### Slice 4 — Multi-select → right-click → "Group selected"
+### Slice 4 — Multi-select → right-click → "Group selected" ✅ shipped 2026-05-31 (parent-inference + store wiring)
 
-- New context-menu entry on the canvas right-click when ≥ 2 features
-  are selected: "Group selected (N)". Creates a new FeatureGroup
-  with the selection as members; if all selected features share a
-  parent group, the new group becomes a child of that parent; else
-  layer-root.
-- The new group is added to the active layer ⇒ if selection spans
-  multiple layers, prompt the user to pick the destination layer
-  (single-line modal, layer dropdown).
-- Tests: pure helper that computes the destination parentGroupId
-  from a selection set + spec on the new context-menu entry.
+- Discovered the canvas "Group Selected (N)" menu entry was ALREADY
+  in `FeatureContextMenu.tsx` from earlier work (line ~1085) +
+  `handleGroupSelected` already enforces same-layer + already-grouped
+  guards. The new contribution for Slice 4 is the
+  nested-group-aware backend:
+    - **Pure helper** `computeDestinationParentGroup(selection)` in
+      `lib/cad/feature-groups.ts` — returns the shared
+      `featureGroupId` when every selected feature belongs to the
+      SAME existing group (new sub-group nests under that parent),
+      else `null` (layer-root). All-or-nothing rule keeps the
+      semantics unambiguous.
+    - **Store** `drawingStore.groupFeatures(ids, name, parentGroupId?)`
+      gained an optional third arg. The new group's `parentGroupId`
+      is set + validated: the parent must exist and share the same
+      layer; mismatches reject with null so the tree never crosses
+      layers.
+- Tests: 6 pure-helper specs lock empty / all-ungrouped / mixed /
+  shared / spanning / missing-field cases; 3 store-level specs lock
+  the default null behavior, the sub-group create with explicit
+  parentGroupId, and the rejection on a non-existent parent.
+- **Deferred — cross-layer destination prompt.** When a selection
+  spans multiple layers the existing UI already raises an alert.
+  Replacing it with a destination-layer modal is its own slice
+  (needs a real modal component, undo wiring for the implied
+  layer-move, and tests). The current alert UX is functional and
+  rare; deferred until the surveyor asks for it.
+- Full cad suite (1999) green; typecheck + lint clean.
 
 ### Slice 5 — Unified context-menu component
 

@@ -90,3 +90,30 @@ export function wouldCreateCycle(
 export function childrenOf(groups: FeatureGroupMap, parentId: string | null): FeatureGroup[] {
   return Object.values(groups).filter((g) => parentOf(g) === parentId);
 }
+
+/** cad-layer-grouping Slice 4 — compute the destination
+ *  parentGroupId for a "Group Selected" operation. Returns:
+ *
+ *   - The shared `featureGroupId` when ALL features in the selection
+ *     already belong to the SAME existing group (the new sub-group
+ *     nests under that parent).
+ *   - `null` otherwise (selection spans multiple groups, or contains
+ *     ungrouped features) — the new group becomes a layer-root
+ *     group.
+ *
+ *  Pure: takes the features' featureGroupId values directly, so it
+ *  doesn't need to know about the store. The caller hands in the
+ *  list of currently-selected features. */
+export function computeDestinationParentGroup(
+  selection: ReadonlyArray<{ featureGroupId?: string | null }>,
+): string | null {
+  if (selection.length === 0) return null;
+  const groupIds = new Set<string | null>();
+  for (const f of selection) groupIds.add(f.featureGroupId ?? null);
+  // All-or-nothing rule: every selected feature must share the EXACT
+  // same group id (or all be ungrouped). Mixed ⇒ null (layer-root).
+  if (groupIds.size !== 1) return null;
+  const sole = groupIds.values().next().value as string | null;
+  // All ungrouped ⇒ layer-root.
+  return sole === undefined || sole === null ? null : sole;
+}

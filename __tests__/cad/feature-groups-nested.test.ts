@@ -13,6 +13,7 @@ import {
   allDescendants,
   wouldCreateCycle,
   childrenOf,
+  computeDestinationParentGroup,
   type FeatureGroupMap,
 } from '@/lib/cad/feature-groups';
 import { useDrawingStore } from '@/lib/cad/store/drawing-store';
@@ -160,6 +161,47 @@ describe('childrenOf', () => {
 // reparents safely, rejects cycles (returns false + no-op), and
 // allows moving back to layer-root via newParentId === null.
 
+// cad-layer-grouping Slice 4 — destination-parent inference for the
+// "Group Selected" multi-select right-click action.
+describe('computeDestinationParentGroup', () => {
+  it('returns null for an empty selection', () => {
+    expect(computeDestinationParentGroup([])).toBeNull();
+  });
+
+  it('returns null when every selected feature is ungrouped (layer-root destination)', () => {
+    expect(computeDestinationParentGroup([
+      { featureGroupId: null },
+      { featureGroupId: null },
+    ])).toBeNull();
+  });
+
+  it('returns null when featureGroupId is missing entirely (treated as ungrouped)', () => {
+    expect(computeDestinationParentGroup([{}, {}, {}])).toBeNull();
+  });
+
+  it('returns the shared group id when ALL features share the same parent group', () => {
+    expect(computeDestinationParentGroup([
+      { featureGroupId: 'parent-1' },
+      { featureGroupId: 'parent-1' },
+      { featureGroupId: 'parent-1' },
+    ])).toBe('parent-1');
+  });
+
+  it('returns null when the selection mixes grouped + ungrouped features', () => {
+    expect(computeDestinationParentGroup([
+      { featureGroupId: 'parent-1' },
+      { featureGroupId: null },
+    ])).toBeNull();
+  });
+
+  it('returns null when the selection spans multiple distinct groups', () => {
+    expect(computeDestinationParentGroup([
+      { featureGroupId: 'a' },
+      { featureGroupId: 'b' },
+    ])).toBeNull();
+  });
+});
+
 describe('drawingStore.moveFeatureGroup — cycle prevention', () => {
   beforeEach(() => {
     // Seed three groups in a chain root → child → grand on a single
@@ -214,5 +256,52 @@ describe('drawingStore.moveFeatureGroup — cycle prevention', () => {
   it('returns false when the target parent does not exist', () => {
     const store = useDrawingStore.getState();
     expect(store.moveFeatureGroup('sibling', 'ghost-id')).toBe(false);
+  });
+});
+
+// cad-layer-grouping Slice 4 — groupFeatures(ids, name, parentGroupId)
+// accepts an optional parent so the multi-select right-click can nest
+// a new sub-group under an existing FeatureGroup.
+describe('drawingStore.groupFeatures(parentGroupId) — nested create', () => {
+  it('the resulting group carries parentGroupId === null when omitted (back-compat)', () => {
+    const layerId = useDrawingStore.getState().activeLayerId;
+    const f1 = `f-${Math.random().toString(16).slice(2)}`;
+    const f2 = `f-${Math.random().toString(16).slice(2)}`;
+    useDrawingStore.getState().addFeature({ id: f1, type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 0 } }, properties: {}, style: {} as never, layerId } as never);
+    useDrawingStore.getState().addFeature({ id: f2, type: 'POINT', geometry: { type: 'POINT', point: { x: 1, y: 1 } }, properties: {}, style: {} as never, layerId } as never);
+    const group = useDrawingStore.getState().groupFeatures([f1, f2]);
+    expect(group).not.toBeNull();
+    expect(group!.parentGroupId ?? null).toBeNull();
+  });
+
+  it('creates a sub-group whose parentGroupId points at an existing group on the same layer', () => {
+    const layerId = useDrawingStore.getState().activeLayerId;
+    // Seed a parent group directly on the doc so we don't need to
+    // round-trip through groupFeatures twice.
+    useDrawingStore.setState((s) => ({
+      document: {
+        ...s.document,
+        featureGroups: {
+          ...s.document.featureGroups,
+          parent1: { id: 'parent1', name: 'parent1', layerId, featureIds: [], parentGroupId: null },
+        },
+      },
+    }));
+    const f1 = `f-${Math.random().toString(16).slice(2)}`;
+    const f2 = `f-${Math.random().toString(16).slice(2)}`;
+    useDrawingStore.getState().addFeature({ id: f1, type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 0 } }, properties: {}, style: {} as never, layerId } as never);
+    useDrawingStore.getState().addFeature({ id: f2, type: 'POINT', geometry: { type: 'POINT', point: { x: 1, y: 1 } }, properties: {}, style: {} as never, layerId } as never);
+    const sub = useDrawingStore.getState().groupFeatures([f1, f2], 'Sub', 'parent1');
+    expect(sub).not.toBeNull();
+    expect(sub!.parentGroupId).toBe('parent1');
+  });
+
+  it('returns null when the supplied parentGroupId references a non-existent group', () => {
+    const layerId = useDrawingStore.getState().activeLayerId;
+    const f1 = `f-${Math.random().toString(16).slice(2)}`;
+    const f2 = `f-${Math.random().toString(16).slice(2)}`;
+    useDrawingStore.getState().addFeature({ id: f1, type: 'POINT', geometry: { type: 'POINT', point: { x: 0, y: 0 } }, properties: {}, style: {} as never, layerId } as never);
+    useDrawingStore.getState().addFeature({ id: f2, type: 'POINT', geometry: { type: 'POINT', point: { x: 1, y: 1 } }, properties: {}, style: {} as never, layerId } as never);
+    expect(useDrawingStore.getState().groupFeatures([f1, f2], undefined, 'ghost')).toBeNull();
   });
 });

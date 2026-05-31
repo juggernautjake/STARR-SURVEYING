@@ -94,8 +94,12 @@ interface DrawingStore {
    * All features must be on the same layer; returns null if they are not.
    * Returns null if any feature is already a member of another group — the
    * caller must remove the feature from its current group first.
+   *
+   * cad-layer-grouping Slice 4 — optional `parentGroupId` nests the
+   * new group under an existing FeatureGroup (groups within groups).
+   * Defaults to layer-root.
    */
-  groupFeatures: (featureIds: string[], name?: string) => FeatureGroup | null;
+  groupFeatures: (featureIds: string[], name?: string, parentGroupId?: string | null) => FeatureGroup | null;
   /** Remove a feature group (features remain but are ungrouped). */
   ungroupFeatures: (groupId: string) => void;
   /**
@@ -522,7 +526,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   // ── Feature group actions ────────────────────────────────────────────────────
 
-  groupFeatures: (featureIds, name) => {
+  groupFeatures: (featureIds, name, parentGroupId) => {
     const state = get();
     const features = featureIds.map((id) => state.document.features[id]).filter(Boolean);
     if (features.length < 2) return null;
@@ -531,6 +535,15 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     if (features.some((f) => f.layerId !== layerId)) return null;
     // Reject if any feature already belongs to a group — it must be removed first
     if (features.some((f) => f.featureGroupId)) return null;
+    // cad-layer-grouping Slice 4 — if a parentGroupId is supplied,
+    // it must reference an existing group on the same layer.
+    // Anything else (unknown id, cross-layer) is rejected so the
+    // resulting tree never crosses layers.
+    const normalizedParent: string | null = parentGroupId ?? null;
+    if (normalizedParent !== null) {
+      const parent = state.document.featureGroups[normalizedParent];
+      if (!parent || parent.layerId !== layerId) return null;
+    }
     const groupId = generateId();
     // Generate a unique group name: prefer the user-supplied name, else use
     // a short UUID fragment so names remain unique even after groups are deleted.
@@ -540,6 +553,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       name: name || defaultName,
       layerId,
       featureIds: featureIds.filter((id) => !!state.document.features[id]),
+      parentGroupId: normalizedParent,
     };
     const updatedFeatures = { ...state.document.features };
     for (const id of group.featureIds) {
