@@ -1,5 +1,9 @@
 // lib/cad/import/validation.ts
 import type { SurveyPoint, LineString, PointGroup, ValidationIssue } from '../types';
+// cad-duplicate-point-handling Slice 2 — structured
+// UNKNOWN_POINT_REFERENCE issues for line-strings that point at
+// undefined point ids.
+import { findUnknownPointRefs } from './unknown-refs';
 
 // cad-import-validation-dedup-and-copy Slice 1 — keep the
 // ValidationIssue shape (consumers compile against the legacy
@@ -133,6 +137,13 @@ export function validatePoints(
       }
     }
   }
+
+  // ── 4b. Unknown point references ──
+  // cad-duplicate-point-handling Slice 2 — line-strings that
+  // reference a point id not in the points list surface as
+  // structured UNKNOWN_POINT_REFERENCE warnings (was: silently
+  // dropped during render).
+  for (const issue of findUnknownPointRefs(points, lineStrings)) issues.push(issue);
 
   // ── 5. Single-point line strings ──
   for (const ls of lineStrings) {

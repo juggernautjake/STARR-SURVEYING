@@ -69,7 +69,25 @@ Full cad suite (2318) green; typecheck + lint clean.
   renamed; non-collisions untouched; rename log enumerates
   every change with its `kind`.
 
-### Slice 2 — Unknown-point-reference issue type
+### Slice 2 — Unknown-point-reference issue type ✅ shipped 2026-05-31
+
+- `ValidationIssueType` extended with `UNKNOWN_POINT_REFERENCE`.
+- New pure module `lib/cad/import/unknown-refs.ts`:
+  - `findUnknownPointRefs(points, lineStrings)` — every LineString
+    that references a point id not in the points list yields one
+    WARNING issue with the line-string id in `pointId` (so the UI
+    can link back to the affected feature) and the missing ref +
+    code base in the message.
+  - `findOrphanPoints(points, lineStrings)` — INFO-level companion
+    that flags points NOT referenced by any line string. Useful
+    for QA of multi-system exports. Opt-in.
+- Validator integrates `findUnknownPointRefs` so the field-data
+  Validate step lists every dangling ref as a structured issue
+  alongside the other warnings.
+- 6 new specs cover: clean set → no issues; per-ref WARNING
+  emission; message format; pointId routing to the line-string
+  id; orphan-point INFO detection; validator integration.
+- Full cad suite (2324) green; typecheck + lint clean.
 
 - Extend `ValidationIssueType` with `UNKNOWN_POINT_REFERENCE`.
 - New helper `findUnknownPointRefs(points, lineStrings)` walks

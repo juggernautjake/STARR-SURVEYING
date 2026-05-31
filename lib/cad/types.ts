@@ -1051,7 +1051,13 @@ export type ValidationIssueType =
   | 'SINGLE_POINT_LINE'
   | 'MIXED_CODES_IN_SEQUENCE'
   | 'NAME_SUFFIX_AMBIGUOUS'
-  | 'CALC_WITHOUT_FIELD';
+  | 'CALC_WITHOUT_FIELD'
+  // cad-duplicate-point-handling Slice 2 — a polyline / traverse
+  // referenced a point id that wasn't defined in the points list.
+  // Surfaced as ERROR for traverse refs (the polyline can't draw
+  // without it) and WARNING for line-string refs (the auto-build
+  // line code dropped the unknown vertex).
+  | 'UNKNOWN_POINT_REFERENCE';
 
 export interface SurveyPoint {
   id: string;
