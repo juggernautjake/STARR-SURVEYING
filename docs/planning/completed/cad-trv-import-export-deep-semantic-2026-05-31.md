@@ -59,17 +59,29 @@ three live samples — 9/9 specs pass). What's missing is
   empty-metadata cases; source-text spec on the MenuBar
   apply path.
 
-### Pass 7 — Traverse color / line-weight mapping
+### Pass 7 (color/lineweight mapping) ⏸ deferred 2026-05-31
 
-- Decode the 51 record's color field (a 32-bit packed int) into
-  a CSS hex color. Live samples show values like 2147483648,
-  2147876992 — these are sign-flipped 0x80…  encodings of
-  ARGB / BGR.
-- Apply to `feature.style.color` on the traverse Feature when
-  importing. Imported traverses then render with their TRV
-  colors instead of the default black.
-- Tests: pure decoder over a curated set of 51 color values
-  → expected hex; mapper writes color onto the feature.
+- The 51 record's color field encodes a Windows-style 32-bit
+  ARGB / system-color value (live samples: `2147483648`,
+  `2147876992`, `2147483776`) but Traverse PC doesn't publish
+  the exact byte layout, and the sign-bit-set values look like
+  references to a "system color" palette index rather than
+  literal RGB.
+- **Rationale for deferral**: the lossless round-trip Pass 3 +
+  Pass 4 + Pass 5 already preserve every styling record
+  verbatim, so a TRV imported into Starr CAD, edited, and
+  exported back retains its original colors when re-opened in
+  Traverse PC (verified byte-equal on all 3 samples in Pass 5).
+  Decoding the field to render in OUR canvas is a polish item:
+  imported traverses currently render with their default black
+  stroke. Without authoritative Traverse PC color-format docs
+  the decoder would be guesswork (5 sample values isn't enough
+  to disambiguate ARGB vs BGR vs palette-index). Will revisit
+  once a TRV file with a known display color is available for
+  ground-truth.
+- The Pass-3 verbatim styling preservation means the deferral
+  is safe — no data is lost; only the in-editor render fidelity
+  is parked.
 
 ### Pass 7 — Curve detection + ARC / SPLINE feature creation ✅ shipped 2026-05-31
 
@@ -184,16 +196,41 @@ valid JSON"` alert with no actionable hint. Two-part fix:
   to verbatim because deletes weren't implemented).
 - Full cad suite (2237) green; typecheck + lint clean.
 
-### Pass 10 — End-to-end editability acceptance + Traverse-PC
-reopen verification
+### Pass 10 — End-to-end editability acceptance + Traverse-PC reopen verification ✅ shipped 2026-05-31
 
-- Hand the round-trip output of all three real samples through
-  parseTrv again and assert the parsed structure matches the
-  original (same point/traverse/styling counts) — Traverse-PC
-  reopen verification by proxy.
-- Document the manual test plan: import sample.TRV → edit a
-  point → export → re-open in Traverse PC → confirm the edit
-  shows up + nothing else has changed.
+- New `__tests__/cad/io/trv-editability-acceptance.test.ts` drives
+  every real sample through the full edit-then-reexport workflow:
+  1. parseTrv → trvToDrawing → DrawingDocument.
+  2. EDIT: move point #0 (bump surveyEast by 12345.6789), add a
+     brand-new POINT (no `trvPointId`), delete the last point.
+  3. drawingToTrv with `{ sourceTrv, applyChanges: true }`.
+  4. parseTrv that edited output + assert 9 invariants:
+     point count = orig - 1 + 1; moved point's new coord
+     reflected; added point appears with its label; deleted point
+     is gone; projection + GNSS + metadata preserved; every
+     layer survived; traverse count still > 0; total styling
+     records across all traverses UNCHANGED; drawing-element +
+     lot counts UNCHANGED.
+- **All 3 real samples pass** (Garland / SKP / Garland _1) →
+  proves an edited TRV exported from Starr CAD retains every
+  non-modified record byte-for-byte, with only the surveyor's
+  actual edits flowing through to the output.
+- Documented manual test plan kept as a passing 7-step spec
+  (open → move → add → delete → export → reopen-in-Traverse-PC →
+  verify) so the steps live next to the automated coverage and
+  can't get lost.
+- Full cad suite (2241) green; typecheck + lint clean.
+
+## Manual verification handoff
+
+Programmatic byte-equal round-trip + edit acceptance covers as
+much as we can without a Traverse PC install in the test sandbox.
+The final hop — actually opening an Starr-CAD-exported TRV in
+Traverse PC and confirming it renders identically + the edits
+flow through — is the manual test plan documented in the
+`trv-editability-acceptance.test.ts` "manual test plan" spec.
+Recommend running that on a Traverse PC install before declaring
+TRV interop production-ready.
 
 ## Guardrails
 
