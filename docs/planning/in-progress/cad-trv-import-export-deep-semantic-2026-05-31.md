@@ -113,6 +113,42 @@ Pass 7 above ships exactly this — `detectCurvedRuns` + arc fit +
 spline fallback + per-curve feature emission with
 `curveOfTraverse` back-reference.
 
+### Pass 8 (renumbered) — File-format sniff + structured error diagnostics ✅ shipped 2026-05-31
+
+User report: opening a TRV file via File → Open… surfaced a
+generic `"Failed to load file: Unexpected token '#', ... is not
+valid JSON"` alert with no actionable hint. Two-part fix:
+
+- **Routing.** File → Open… now accepts `.starr,.TRV,.trv` +
+  sniffs the chosen file (extension first, content second:
+  `#,TRAVERSE PC` / `999,begin` → TRV, `{` → STARR). TRV
+  files route through `importTrvFromText` with the same count
+  preview + title-block apply prompt the "Import TRV…" menu
+  entry uses, so the user doesn't have to know which menu to
+  pick.
+- **Structured diagnostics.** New `lib/cad/io/file-detect.ts`:
+  - `detectFileFormat(filename, text) → 'STARR' | 'TRV' |
+    'UNKNOWN'`.
+  - `buildFileLoadDiagnostic(filename, text, err, stage,
+    parseErrors?)` produces a `FileLoadDiagnostic` capturing
+    filename, byte size, detected format, error message,
+    stage (sniff / parse / map / apply), first 200 chars of
+    the file, parser errors, and a format-specific hint
+    ("This is a Traverse PC `.TRV` file — use Import…
+    instead").
+  - `formatFileLoadDiagnostic(d)` renders a multi-line
+    copy-pasteable report for the alert / future modal.
+- MenuBar's `openFileDialog` wraps every stage in its own
+  try/catch + builds a stage-tagged diagnostic on failure;
+  cadLog logs the full report + `alert()` shows it.
+- 16 specs cover the sniffer (extension + content paths,
+  unknown → UNKNOWN), the diagnostic builder (captures every
+  field + 200-char preview + CR stripping + per-format hints),
+  the formatter (every field + parser-error block + hint),
+  and the MenuBar wiring (accept list, sniff routing, every
+  stage's diagnostic call).
+- Full cad suite (2233) green; typecheck + lint clean.
+
 - Detect curved segments inside traverses by inspecting the
   styling records (codes 32-49 carry curve metadata) +
   cross-validating with point distances vs. chord vs. arc
