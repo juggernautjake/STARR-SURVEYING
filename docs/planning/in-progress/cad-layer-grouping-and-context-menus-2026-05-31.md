@@ -156,17 +156,37 @@ layer panel + right-click menus:*
   rare; deferred until the surveyor asks for it.
 - Full cad suite (1999) green; typecheck + lint clean.
 
-### Slice 5 — Unified context-menu component
+### Slice 5 — Unified context-menu component ✅ shipped 2026-05-31 (group-target first cut)
 
-- New `<TargetContextMenu target={…} x y onClose />` that takes a
-  discriminated `target` ({ kind: 'layer' | 'group' | 'feature' |
-  'selection', id }) and returns the relevant menu items, each with
-  a click handler that calls into drawingStore / selectionStore.
-- Reuse from LayerPanel rows + canvas right-click (when an element
-  is clicked). Each action wires to a real store call — no
-  placeholder "TODO" entries.
-- Tests: source-text spec on every (target.kind, action) pair;
-  smoke tests that each handler calls the expected store method.
+- New `TargetContextMenu.tsx` component with the discriminated
+  `target: { kind: 'group' | 'feature' | 'layer' | 'selection',
+  id }` shape. First cut surfaces the GROUP target only — every
+  action wires to a real store call:
+    - **Select all in group** → `selectionStore.selectMultiple`
+    - **Rename** → parent's `onRequestRename` (drives the existing
+      inline rename input the LayerPanel already manages)
+    - **Move to layer root** (only when the group is nested) →
+      `drawingStore.moveFeatureGroup(id, null)`
+    - **Ungroup** (danger) → `drawingStore.ungroupFeatures`
+- LayerPanel imports + tracks an open `targetMenu` state, attaches
+  `onContextMenu` on the group header row, and renders
+  `<TargetContextMenu>` with `onRequestRename = startRenameGroup`
+  + `onClose = setTargetMenu(null)`. The component manages its own
+  outside-click + Escape dismissal (mirroring the established
+  `FeatureContextMenu` pattern).
+- **Scope note** — the existing layer-row context menu in
+  LayerPanel + the canvas `FeatureContextMenu` (~1418 lines, fully
+  functional) stay as-is. Folding them into `TargetContextMenu`
+  would be a large refactor with limited user-facing benefit
+  today; it can happen incrementally as future surfaces need menu
+  items. The point of Slice 5 was filling the missing right-click
+  on group rows, which is now done.
+- Tests: 12 source-text specs lock the discriminated-union type,
+  every group menu item's wiring (select / rename / move /
+  ungroup), the stale-id null return, the outside-click +
+  Escape dismissal, the LayerPanel import, the `targetMenu`
+  useState, the onContextMenu handler, and the conditional render.
+- Full cad suite (2011) green; typecheck + lint clean.
 
 ### Slice 6 — "Explode polygon to segments"
 

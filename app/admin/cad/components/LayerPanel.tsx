@@ -19,6 +19,9 @@ import { transferSelectionToLayer } from '@/lib/cad/operations';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 import NewLayerDialog from './NewLayerDialog';
+// cad-layer-grouping Slice 5 — unified context menu for layer-panel
+// group rows (and, in future slices, feature rows + layer rows).
+import TargetContextMenu, { type ContextMenuTarget } from './TargetContextMenu';
 
 // Accessible palette for new layers — visually distinct, good contrast
 const LAYER_COLOR_PALETTE = [
@@ -73,6 +76,9 @@ export default function LayerPanel() {
    *  POLYGON feature rows that are expanded to show their
    *  constituent vertices as read-only child rows. */
   const [expandedFeatures, setExpandedFeatures] = useState<Set<string>>(new Set());
+  /** cad-layer-grouping Slice 5 — open target context menu (group /
+   *  feature / layer / selection). Null when no menu is open. */
+  const [targetMenu, setTargetMenu] = useState<{ target: ContextMenuTarget; x: number; y: number } | null>(null);
   /** Currently renaming group id. */
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameGroupValue, setRenameGroupValue] = useState('');
@@ -432,7 +438,14 @@ export default function LayerPanel() {
                   }`}
                   onClick={(e) => handleGroupClick(group.id, e)}
                   onDoubleClick={() => startRenameGroup(group.id)}
-                  title="Click to select group. Double-click to rename."
+                  // cad-layer-grouping Slice 5 — right-click opens
+                  // the unified TargetContextMenu for this group.
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTargetMenu({ target: { kind: 'group', id: group.id }, x: e.clientX, y: e.clientY });
+                  }}
+                  title="Click to select group. Double-click to rename. Right-click for more."
                 >
                   <button
                     className="flex-shrink-0 text-gray-500 hover:text-gray-300 p-0.5"
@@ -985,6 +998,19 @@ export default function LayerPanel() {
           className="fixed inset-0 z-40"
           onClick={() => { setContextMenu(null); setPanelMenu(null); }}
           onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); setPanelMenu(null); }}
+        />
+      )}
+
+      {/* cad-layer-grouping Slice 5 — TargetContextMenu for group
+          right-click. The component manages its own outside-click
+          + Escape dismissal so we just render it conditionally. */}
+      {targetMenu && (
+        <TargetContextMenu
+          target={targetMenu.target}
+          x={targetMenu.x}
+          y={targetMenu.y}
+          onRequestRename={(groupId) => startRenameGroup(groupId)}
+          onClose={() => setTargetMenu(null)}
         />
       )}
 
