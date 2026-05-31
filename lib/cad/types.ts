@@ -486,6 +486,14 @@ export interface FeatureStyle {
    *  unrotated baseline. Rotation works for every pattern (dots /
    *  random-dots / hatch / brick / wave). */
   patternRotation?: number;
+  /** cad-fill-stacking Slice 3 — per-brick width + height (px).
+   *  Optional ⇒ derived from density (existing drawings unchanged). */
+  brickWidth?: number;
+  brickHeight?: number;
+  /** cad-fill-stacking Slice 3 — wave amplitude (height, px) +
+   *  period (wavelength, px). Optional ⇒ derived from density. */
+  waveAmplitude?: number;
+  wavePeriod?: number;
 }
 
 export type FillPattern =

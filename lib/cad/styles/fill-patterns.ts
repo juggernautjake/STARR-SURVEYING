@@ -66,6 +66,17 @@ export interface FillPatternConfig {
    *  can spin a brick course or a wave row to any angle without
    *  reaching for a different pattern type. */
   angle?: number;
+  /** cad-fill-stacking Slice 3 — explicit brick dimensions in px.
+   *  Optional ⇒ derived from density. Lets the user tune the brick
+   *  width + height independently. */
+  brickWidth?: number;
+  brickHeight?: number;
+  /** cad-fill-stacking Slice 3 — explicit wave dimensions in px.
+   *  Optional ⇒ derived from density. `waveAmplitude` is wave height
+   *  (peak deviation from the row centerline); `wavePeriod` is the
+   *  wavelength (one full cycle). */
+  waveAmplitude?: number;
+  wavePeriod?: number;
 }
 
 /** Clamp a 0.25–4 multiplier; non-finite / non-positive → 1. */
@@ -241,24 +252,36 @@ export function generateHatchLines(
 }
 
 /** BRICK — alternating offset rectangles drawn as a line set.
- *  Returns the line segments forming the brick courses. */
+ *  Returns the line segments forming the brick courses.
+ *
+ *  cad-fill-stacking Slice 3 — `brickWidth` / `brickHeight` are
+ *  optional explicit overrides (in screen px). Either omitted ⇒
+ *  derived from density the same as before, so existing drawings
+ *  render unchanged. Both clamped to a sensible minimum so a slider
+ *  pulled to zero doesn't crash the loop. */
 export function generateBrickLines(
   width: number,
   height: number,
   density: number,
+  brickWidth?: number,
+  brickHeight?: number,
 ): PatternLine[] {
   if (width <= 0 || height <= 0) return [];
   const clamped = Math.max(0.25, Math.min(4, density));
-  const courseHeight = Math.max(6, 12 / clamped);
-  const brickWidth = courseHeight * 2;
+  const courseHeight = Number.isFinite(brickHeight) && (brickHeight as number) >= 1
+    ? Math.max(1, brickHeight as number)
+    : Math.max(6, 12 / clamped);
+  const courseWidth = Number.isFinite(brickWidth) && (brickWidth as number) >= 1
+    ? Math.max(1, brickWidth as number)
+    : courseHeight * 2;
   const lines: PatternLine[] = [];
   let row = 0;
   for (let y = 0; y <= height; y += courseHeight) {
     // Horizontal course line
     lines.push({ x1: 0, y1: y, x2: width, y2: y });
     // Vertical bricks, offset by half-brick every other row.
-    const offset = row % 2 === 0 ? 0 : brickWidth / 2;
-    for (let x = offset; x <= width; x += brickWidth) {
+    const offset = row % 2 === 0 ? 0 : courseWidth / 2;
+    for (let x = offset; x <= width; x += courseWidth) {
       const yEnd = Math.min(height, y + courseHeight);
       lines.push({ x1: x, y1: y, x2: x, y2: yEnd });
     }
@@ -268,24 +291,35 @@ export function generateBrickLines(
 }
 
 /** WAVE — repeating sinusoidal rows. Returned as polylines flattened
- *  to a line set so the caller can stroke them through Graphics. */
+ *  to a line set so the caller can stroke them through Graphics.
+ *
+ *  cad-fill-stacking Slice 3 — `amplitude` / `period` are optional
+ *  explicit overrides (px). When omitted ⇒ derived from density the
+ *  same as before. `amplitude` is wave HEIGHT (peak deviation from the
+ *  row centerline); `period` is the wavelength (one full cycle). */
 export function generateWaveLines(
   width: number,
   height: number,
   density: number,
+  amplitude?: number,
+  period?: number,
 ): PatternLine[] {
   if (width <= 0 || height <= 0) return [];
   const clamped = Math.max(0.25, Math.min(4, density));
   const rowSpacing = Math.max(8, 18 / clamped);
-  const amplitude = rowSpacing * 0.35;
-  const wavelength = rowSpacing * 3.5;
+  const amp = Number.isFinite(amplitude) && (amplitude as number) >= 0
+    ? Math.max(0, amplitude as number)
+    : rowSpacing * 0.35;
+  const wavelength = Number.isFinite(period) && (period as number) >= 1
+    ? Math.max(1, period as number)
+    : rowSpacing * 3.5;
   const segmentsPerWave = 12;
   const dx = wavelength / segmentsPerWave;
   const lines: PatternLine[] = [];
   for (let y = rowSpacing; y < height; y += rowSpacing) {
-    let prev: Point2D = { x: 0, y: y + Math.sin(0) * amplitude };
+    let prev: Point2D = { x: 0, y: y + Math.sin(0) * amp };
     for (let x = dx; x <= width; x += dx) {
-      const next = { x, y: y + Math.sin((x / wavelength) * Math.PI * 2) * amplitude };
+      const next = { x, y: y + Math.sin((x / wavelength) * Math.PI * 2) * amp };
       lines.push({ x1: prev.x, y1: prev.y, x2: next.x, y2: next.y });
       prev = next;
     }
@@ -352,9 +386,9 @@ function rawPattern(
     case 'LINES':
       return { dots: [], lines: generateHatchLines(w, h, 0, hatchSpacing(density)) };
     case 'BRICK':
-      return { dots: [], lines: generateBrickLines(w, h, density) };
+      return { dots: [], lines: generateBrickLines(w, h, density, config.brickWidth, config.brickHeight) };
     case 'WAVE':
-      return { dots: [], lines: generateWaveLines(w, h, density) };
+      return { dots: [], lines: generateWaveLines(w, h, density, config.waveAmplitude, config.wavePeriod) };
     default:
       return { dots: [], lines: [] };
   }

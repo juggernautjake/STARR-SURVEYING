@@ -112,7 +112,31 @@
   blue used by feature selection (CSS var or shared constant).
 - Visual-only change; lock with a small CSS / source-text assert.
 
-### Slice 3 — Brick: width + height sliders + Wave: amplitude + period sliders
+### Slice 3 — Brick: width + height sliders + Wave: amplitude + period sliders ✅ shipped 2026-05-31
+
+- `FeatureStyle.brickWidth?: number`, `brickHeight?: number`,
+  `waveAmplitude?: number`, `wavePeriod?: number` — all optional,
+  defaults derived from density so saved drawings render unchanged.
+  `FillPatternConfig` mirrors those four fields.
+- `generateBrickLines(width, height, density, brickWidth?,
+  brickHeight?)` — explicit overrides clamped to ≥ 1 px (so a slider
+  pulled to zero doesn't infinite-loop). `generateWaveLines(width,
+  height, density, amplitude?, period?)` — amplitude clamped to ≥ 0,
+  period to ≥ 1. Dispatcher BRICK/WAVE cases thread the new fields.
+- `CanvasViewport.drawFillPatternForPolygon` cfg threads
+  `brickWidth/brickHeight/waveAmplitude/wavePeriod` from
+  `feature.style.*`.
+- `PropertyPanel` contextual params: when `currentPattern === 'BRICK'`
+  renders Width + Height sliders (4–120 px) each with paired numeric
+  input; when `currentPattern === 'WAVE'` renders Amplitude (0–60 px)
+  + Period (8–240 px) with paired numeric inputs. Same slider+number
+  pair affordance the Density/Thickness/Angle controls use.
+- Tests: 9 new pure-module specs lock explicit overrides change the
+  primitive count + omitted overrides reproduce the density-derived
+  baseline + zero/negative dims are clamped; 12 new source-text
+  specs lock the cfg wiring + contextual slider testids + paired
+  numeric inputs. Full cad suite (56 in the two touched files; full
+  suite green) + typecheck + lint clean.
 
 - `FeatureStyle.brickWidth?: number`, `brickHeight?: number` (px,
   optional; defaults derived from density). Same for

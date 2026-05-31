@@ -3766,6 +3766,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // cad-fill-rotation Slice 1 — pattern rotation in degrees
       // around the bounding-box center (0 = unrotated baseline).
       angle: feature.style.patternRotation ?? 0,
+      // cad-fill-stacking Slice 3 — explicit per-axis dimensions for
+      // BRICK (width + height) and WAVE (amplitude + period). Optional
+      // ⇒ pure generator falls back to density-derived defaults, so
+      // saved drawings render unchanged.
+      brickWidth: feature.style.brickWidth,
+      brickHeight: feature.style.brickHeight,
+      waveAmplitude: feature.style.waveAmplitude,
+      wavePeriod: feature.style.wavePeriod,
     };
     const { dots, lines } = generateFillPattern(width, height, cfg);
     // cad-fill-stacking Slice 1 — pattern color defaults to black,

@@ -1623,6 +1623,182 @@ export default function PropertyPanel() {
                         />
                       </div>
                     </label>
+
+                    {/* cad-fill-stacking Slice 3 — BRICK per-axis
+                        sliders (width + height) shown only when the
+                        active pattern is BRICK. Both render live and
+                        carry a paired numeric input so the surveyor
+                        can drag for fast tuning or type for exact
+                        values. Range 4–120 px covers small mortar
+                        joints up to large cobble courses. */}
+                    {currentPattern === 'BRICK' && (() => {
+                      const brickWidth = Number.isFinite(feature.style.brickWidth) ? (feature.style.brickWidth as number) : 24;
+                      const brickHeight = Number.isFinite(feature.style.brickHeight) ? (feature.style.brickHeight as number) : 12;
+                      return (
+                        <>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Brick width</span>
+                              <span className="tabular-nums text-gray-200">{brickWidth.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickWidth}
+                                data-testid="property-panel-fill-pattern-brick-width"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickWidth: clamp(parseFloat(e.target.value), 4, 120, 24), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickWidth}
+                                data-testid="property-panel-fill-pattern-brick-width-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickWidth: clamp(parseFloat(e.target.value), 4, 120, 24), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Brick height</span>
+                              <span className="tabular-nums text-gray-200">{brickHeight.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickHeight}
+                                data-testid="property-panel-fill-pattern-brick-height"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickHeight: clamp(parseFloat(e.target.value), 4, 120, 12), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={4}
+                                max={120}
+                                step={1}
+                                value={brickHeight}
+                                data-testid="property-panel-fill-pattern-brick-height-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickHeight: clamp(parseFloat(e.target.value), 4, 120, 12), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                        </>
+                      );
+                    })()}
+
+                    {/* cad-fill-stacking Slice 3 — WAVE amplitude
+                        (height) + period (wavelength) sliders shown
+                        only when the active pattern is WAVE. Amplitude
+                        0–60 px covers a flat ripple up to a tall
+                        breaker; period 8–240 px covers tight chop up
+                        to a long swell. Each carries a paired numeric
+                        input. */}
+                    {currentPattern === 'WAVE' && (() => {
+                      const waveAmplitude = Number.isFinite(feature.style.waveAmplitude) ? (feature.style.waveAmplitude as number) : 6;
+                      const wavePeriod = Number.isFinite(feature.style.wavePeriod) ? (feature.style.wavePeriod as number) : 60;
+                      return (
+                        <>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Wave amplitude</span>
+                              <span className="tabular-nums text-gray-200">{waveAmplitude.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={0}
+                                max={60}
+                                step={1}
+                                value={waveAmplitude}
+                                data-testid="property-panel-fill-pattern-wave-amplitude"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, waveAmplitude: clamp(parseFloat(e.target.value), 0, 60, 6), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                max={60}
+                                step={1}
+                                value={waveAmplitude}
+                                data-testid="property-panel-fill-pattern-wave-amplitude-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, waveAmplitude: clamp(parseFloat(e.target.value), 0, 60, 6), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Wave period</span>
+                              <span className="tabular-nums text-gray-200">{wavePeriod.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={8}
+                                max={240}
+                                step={1}
+                                value={wavePeriod}
+                                data-testid="property-panel-fill-pattern-wave-period"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, wavePeriod: clamp(parseFloat(e.target.value), 8, 240, 60), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={8}
+                                max={240}
+                                step={1}
+                                value={wavePeriod}
+                                data-testid="property-panel-fill-pattern-wave-period-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, wavePeriod: clamp(parseFloat(e.target.value), 8, 240, 60), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

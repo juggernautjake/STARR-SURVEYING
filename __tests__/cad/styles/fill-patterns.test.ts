@@ -160,6 +160,75 @@ describe('Slice 235 — generateBrickLines + generateWaveLines', () => {
   });
 });
 
+// cad-fill-stacking Slice 3 — explicit per-axis dimensions for BRICK
+// (width + height) and WAVE (amplitude + period). Each lock pins that
+// the slider override actually changes the primitive geometry, and
+// that omitting the override keeps the legacy density-derived shape.
+describe('cad-fill-stacking Slice 3 — BRICK explicit width + height', () => {
+  it('a smaller brickHeight yields more courses (more horizontal lines)', () => {
+    const big = generateBrickLines(200, 200, 1, 40, 40);
+    const small = generateBrickLines(200, 200, 1, 40, 8);
+    expect(small.length).toBeGreaterThan(big.length);
+  });
+
+  it('a wider brickWidth yields fewer verticals per course (fewer total lines)', () => {
+    const narrow = generateBrickLines(400, 100, 1, 8, 20);
+    const wide = generateBrickLines(400, 100, 1, 80, 20);
+    expect(narrow.length).toBeGreaterThan(wide.length);
+  });
+
+  it('omitting brickWidth/brickHeight reproduces the density-derived baseline', () => {
+    const baseline = generateBrickLines(120, 120, 1);
+    const explicitDefaults = generateBrickLines(120, 120, 1, undefined, undefined);
+    expect(explicitDefaults).toEqual(baseline);
+  });
+
+  it('a zero/negative brick dimension is clamped to ≥ 1 (no infinite loop)', () => {
+    const out = generateBrickLines(60, 60, 1, 0, 0);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.length).toBeLessThan(20000);
+  });
+});
+
+describe('cad-fill-stacking Slice 3 — WAVE explicit amplitude + period', () => {
+  it('a larger amplitude shifts wave y-values further from the row centerline', () => {
+    const flat = generateWaveLines(400, 100, 1, 0, 60);
+    const tall = generateWaveLines(400, 100, 1, 30, 60);
+    // Flat lines (amp 0) are exactly on the row centerlines, so the
+    // distinct y-values count is the row count. Tall waves visit many
+    // more distinct y values along the sine curve.
+    const flatYs = new Set(flat.flatMap((l) => [l.y1, l.y2])).size;
+    const tallYs = new Set(tall.flatMap((l) => [l.y1, l.y2])).size;
+    expect(tallYs).toBeGreaterThan(flatYs);
+  });
+
+  it('a shorter period yields more segments across a fixed width', () => {
+    const long = generateWaveLines(400, 100, 1, 12, 200);
+    const short = generateWaveLines(400, 100, 1, 12, 40);
+    expect(short.length).toBeGreaterThan(long.length);
+  });
+
+  it('omitting amplitude/period reproduces the density-derived baseline', () => {
+    const baseline = generateWaveLines(200, 200, 1);
+    const explicitDefaults = generateWaveLines(200, 200, 1, undefined, undefined);
+    expect(explicitDefaults).toEqual(baseline);
+  });
+});
+
+describe('cad-fill-stacking Slice 3 — dispatcher threads brick/wave overrides', () => {
+  it('BRICK config passes brickWidth + brickHeight through to the generator', () => {
+    const baseline = generateFillPattern(200, 200, { pattern: 'BRICK', density: 1, seed: 1 });
+    const tiny = generateFillPattern(200, 200, { pattern: 'BRICK', density: 1, seed: 1, brickWidth: 8, brickHeight: 4 });
+    expect(tiny.lines.length).toBeGreaterThan(baseline.lines.length);
+  });
+
+  it('WAVE config passes waveAmplitude + wavePeriod through to the generator', () => {
+    const baseline = generateFillPattern(200, 200, { pattern: 'WAVE', density: 1, seed: 1 });
+    const tight = generateFillPattern(200, 200, { pattern: 'WAVE', density: 1, seed: 1, waveAmplitude: 20, wavePeriod: 20 });
+    expect(tight.lines.length).toBeGreaterThan(baseline.lines.length);
+  });
+});
+
 describe('Slice 235 — generateFillPattern dispatcher', () => {
   it('SOLID / NONE produce no dots and no lines', () => {
     expect(generateFillPattern(100, 100, { pattern: 'SOLID', density: 1, seed: 1 })).toEqual({ dots: [], lines: [] });
