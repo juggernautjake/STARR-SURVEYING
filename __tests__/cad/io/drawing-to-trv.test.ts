@@ -185,6 +185,45 @@ describe('drawingToTrv — Pass 1: projection / metadata / GNSS passthrough', ()
   });
 });
 
+describe('drawingToTrv — Pass 3: traverse styling records re-emit', () => {
+  it('emits captured styling records (from JSON on properties.trvStylingRecords) between 31 and the first 10', () => {
+    // Build a doc whose traverse feature carries trvStylingRecords.
+    const fixture = [
+      '999,begin',
+      '#,POINTS', '95,2',
+      '0,1', '2,1,1,0',
+      '0,2', '2,2,2,0',
+      '#,TRAVERSE',
+      '30,boundary',
+      '50,wow',
+      '70,1.5,foo',
+      '10,1', '11,1,0,0,3,0',
+      '10,2', '11,1,1,0,3,0',
+      '999,end',
+    ].join('\r\n');
+    const trv = parseTrv(fixture);
+    const mapped = trvToDrawing(trv);
+    const layers: Record<string, Layer> = {};
+    for (const l of mapped.layers) layers[l.id] = l;
+    const features: Record<string, Feature> = {};
+    for (const f of mapped.features) features[f.id] = f;
+    const doc: DrawingDocument = {
+      id: 'd', name: '', created: '', modified: '', author: '',
+      features, layers, layerOrder: mapped.layers.map((l) => l.id),
+      featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
+    } as unknown as DrawingDocument;
+    const text = drawingToTrv(doc);
+    expect(text).toContain('30,boundary');
+    expect(text).toContain('50,wow');
+    expect(text).toContain('70,1.5,foo');
+    // Styling records must precede the first 10 reference.
+    const idx50 = text.indexOf('50,wow');
+    const idx10 = text.indexOf('10,1');
+    expect(idx50).toBeGreaterThan(0);
+    expect(idx50).toBeLessThan(idx10);
+  });
+});
+
 describe('drawingToTrv — Pass 2: drawing elements + lot segments passthrough', () => {
   it('emits each TrvDrawingElement as 28 header + N 29 props', () => {
     const doc = buildDrawingFromFixture();

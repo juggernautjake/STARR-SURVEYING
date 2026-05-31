@@ -142,6 +142,22 @@ function emitTraverse(f: Feature, sourceLineCounter: { i: number }, layerIdByOur
   const ourLayerId = f.layerId;
   const trvLid = ourLayerId ? layerIdByOurId.get(ourLayerId) ?? '0' : '0';
   lines.push(`31,0,${refs.length},0,0`);
+  // Pass 3 — re-emit any captured styling records (32-76, 159-162,
+  // 349-369, etc.) before the 10/11 ref pairs. Source order in the
+  // live samples puts them between 31 and the first 10, so we
+  // mirror that. The JSON-serialized capture lives in
+  // properties.trvStylingRecords.
+  const rawStyling = typeof f.properties.trvStylingRecords === 'string'
+    ? f.properties.trvStylingRecords
+    : null;
+  if (rawStyling) {
+    try {
+      const parsed = JSON.parse(rawStyling) as Array<{ code: string; fields: string[] }>;
+      for (const r of parsed) lines.push(`${r.code},${r.fields.join(',')}`);
+    } catch {
+      // Malformed JSON — silently skip rather than break the export.
+    }
+  }
   refs.forEach((ref, i) => {
     lines.push(`10,${ref}`);
     lines.push(`11,1,${i},0,${trvLid},0`);

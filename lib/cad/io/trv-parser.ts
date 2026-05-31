@@ -104,6 +104,14 @@ export interface TrvTraverse {
    *  edge descriptor seen in the block. Null when no edge descriptor
    *  was present. */
   layerId: string | null;
+  /** cad-trv-import-export Pass 3 — every UN-INTERPRETED record
+   *  that appeared inside this traverse block (between its `30,`
+   *  opener and the next traverse / section boundary). Each entry
+   *  preserves the raw record code + field array so a downstream
+   *  serializer can re-emit the styling / metadata / label-format
+   *  records (32-76, 159-162, 349-369, etc.) verbatim, even though
+   *  this Pass doesn't interpret their subtype semantics. */
+  stylingRecords: Array<{ code: string; fields: string[] }>;
   /** Source line of the traverse's first marker (the `30,<name>` or
    *  the first `10,<id>` if no name was present). */
   sourceLine: number;
@@ -424,6 +432,7 @@ export function parseTrv(input: string): TrvDocument {
           name: (ln.fields[0] ?? '').trim() || null,
           pointIds: [],
           layerId: null,
+          stylingRecords: [],
           sourceLine: i,
         };
         break;
@@ -450,6 +459,7 @@ export function parseTrv(input: string): TrvDocument {
             name: null,
             pointIds: [],
             layerId: null,
+            stylingRecords: [],
             sourceLine: i,
           };
         }
@@ -542,9 +552,29 @@ export function parseTrv(input: string): TrvDocument {
         lotSegments.push({ fields: ln.fields.slice(), sourceLine: i });
         break;
       default:
-        // Unknown code — preserved in `lines` for round-trip, no
-        // interpretation needed here.
+        // Unknown code. Pass 3 — if an active traverse is open,
+        // these records belong to its styling block (32-76, 159-162,
+        // 349-369, etc.). Preserve them so the serializer can re-
+        // emit verbatim. Otherwise the line still lives in `lines[]`
+        // for verbatim round-trip via serializeTrv.
+        if (activeTraverse !== null) {
+          activeTraverse.stylingRecords.push({ code: ln.code, fields: ln.fields.slice() });
+        }
         break;
+    }
+    // Pass 3 — code `1` (description) has its own switch case that
+    // ONLY writes when an active point is open. Inside a traverse
+    // block with no active point, the `1` would otherwise silently
+    // drop. Catch it here so the round-trip preserves the
+    // traverse's description record. (Other codes that hit the
+    // default branch are already captured above when activeTraverse
+    // is set.)
+    if (
+      activeTraverse !== null
+      && activePoint === null
+      && ln.code === '1'
+    ) {
+      activeTraverse.stylingRecords.push({ code: ln.code, fields: ln.fields.slice() });
     }
   }
   // Flush at EOF.

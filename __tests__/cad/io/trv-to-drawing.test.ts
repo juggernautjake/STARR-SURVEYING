@@ -150,6 +150,49 @@ describe('trvToDrawing — traverses', () => {
     expect(typeof traverse.properties.trvSourceLine).toBe('number');
   });
 
+  it('Pass 3 — preserves the traverse\'s styling records as JSON on properties.trvStylingRecords', () => {
+    const fixture = [
+      '999,begin',
+      '#,TRAVERSE',
+      '30,boundary',
+      '50,style-a',
+      '70,1.5,foo',
+      '10,1',
+      '11,1,0,0,3,0',
+      '10,2',
+      '11,1,1,0,3,0',
+      '999,end',
+    ].join('\r\n');
+    const { features } = trvToDrawing(parseTrv(fixture));
+    // No points present in this fixture (only a #,TRAVERSE
+    // section), so the traverse should still resolve via its point
+    // refs missing → fewer than 2 resolved → traverse is skipped
+    // with a note. Add the points so the traverse maps.
+    const fixtureWithPoints = [
+      '999,begin',
+      '#,POINTS', '95,2',
+      '0,1', '2,1,1,0',
+      '0,2', '2,2,2,0',
+      '#,TRAVERSE',
+      '30,boundary',
+      '50,style-a',
+      '70,1.5,foo',
+      '10,1', '11,1,0,0,3,0',
+      '10,2', '11,1,1,0,3,0',
+      '999,end',
+    ].join('\r\n');
+    const out = trvToDrawing(parseTrv(fixtureWithPoints));
+    const t = out.features.find((f) => f.type === 'POLYLINE')!;
+    const raw = t.properties.trvStylingRecords as string;
+    const parsed = JSON.parse(raw);
+    expect(parsed).toEqual([
+      { code: '50', fields: ['style-a'] },
+      { code: '70', fields: ['1.5', 'foo'] },
+    ]);
+    // Avoid unused-binding lint on the throwaway `features`.
+    expect(features).toBeDefined();
+  });
+
   it('traverse with < 2 resolvable refs is skipped + noted', () => {
     const dangling = [
       '999,begin',

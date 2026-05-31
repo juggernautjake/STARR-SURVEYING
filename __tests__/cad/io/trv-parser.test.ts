@@ -292,6 +292,57 @@ describe('parseTrv — Pass 2: drawing elements (28/29)', () => {
   });
 });
 
+// cad-trv-import-export Pass 3 — styling records (32-76, 159-162,
+// 349-369, etc.) inside a traverse block.
+describe('parseTrv — Pass 3: traverse styling capture', () => {
+  const FIXTURE = [
+    '999,begin',
+    '#,TRAVERSE',
+    '30,boundary',
+    '1,F:\\sample.csv',
+    '31,536870914,3,1,0',
+    '33,6810.215416',
+    '50,0,',
+    '51,5,0,9,2560',
+    '159,P\\D\\Z,fmt',
+    '70,0,5.0',
+    '10,1',
+    '11,1,0,0,3,0',
+    '10,2',
+    '11,1,1,0,3,0',
+    '999,end',
+  ].join('\r\n');
+
+  it('captures every non-(10/11/30) record between the 30 opener and the next traverse/section', () => {
+    const t = parseTrv(FIXTURE).traverses[0];
+    expect(t.stylingRecords.map((r) => r.code)).toEqual(['1', '31', '33', '50', '51', '159', '70']);
+  });
+
+  it('preserves each styling record\'s raw field array', () => {
+    const t = parseTrv(FIXTURE).traverses[0];
+    const r51 = t.stylingRecords.find((r) => r.code === '51')!;
+    expect(r51.fields).toEqual(['5', '0', '9', '2560']);
+  });
+
+  it('stylingRecords is empty when the traverse has only its 30 + 10/11 pairs', () => {
+    const minimal = ['999,begin', '#,TRAVERSE', '30,t', '10,1', '11,1,0,0,3,0', '999,end'].join('\r\n');
+    expect(parseTrv(minimal).traverses[0].stylingRecords).toEqual([]);
+  });
+
+  it('each new traverse starts with an empty stylingRecords array (no cross-contamination)', () => {
+    const two = [
+      '999,begin', '#,TRAVERSE',
+      '30,a', '50,style-a', '10,1', '11,1,0,0,3,0',
+      '30,b', '60,style-b', '10,2', '11,1,0,0,3,0',
+      '999,end',
+    ].join('\r\n');
+    const ts = parseTrv(two).traverses;
+    expect(ts.length).toBe(2);
+    expect(ts[0].stylingRecords.map((r) => r.code)).toEqual(['50']);
+    expect(ts[1].stylingRecords.map((r) => r.code)).toEqual(['60']);
+  });
+});
+
 describe('parseTrv — Pass 2: lot/parcel segments (13)', () => {
   it('captures each 13 record as a TrvLotSegment with raw fields', () => {
     const doc = parseTrv([

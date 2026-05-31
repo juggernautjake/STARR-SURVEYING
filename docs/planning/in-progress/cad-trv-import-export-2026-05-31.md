@@ -256,11 +256,31 @@ passes, one slice each.
   semantic mapping is its own future pass when surveyors need to
   EDIT 28/29 content vs. just preserve it on round-trip.
 
-### Pass 3 — Traverse styling (queued)
+### Pass 3 — Traverse styling capture ✅ shipped 2026-05-31
 
-Codes 32-71 (colors/fonts/line styles/scales) + 159-162 (label
-format templates) + 349-369 (drawing annotation UI). Parser
-collects them onto the owning traverse so the styling round-trips.
+- `TrvTraverse` gained `stylingRecords: Array<{ code; fields }>`.
+  Parser routes every UN-INTERPRETED record encountered between a
+  traverse's `30` opener and the next traverse / section /
+  document boundary into that array. Code `1` (description)
+  inside a traverse with no active point is also captured (its
+  own switch case would otherwise drop it).
+- Real-sample verification: SKP yields 1107 styling records
+  across 24 traverses, covering 52 distinct codes (1, 31-71, 76,
+  129-141, 159-162, 349-369). Every record we previously dropped
+  on the floor now survives a parse → map → serialize round-trip.
+- Mapper forwards `t.stylingRecords` onto
+  `feature.properties.trvStylingRecords` as a JSON string (feature
+  properties only accept primitives).
+- Serializer's `emitTraverse` re-emits the captured styling
+  records BETWEEN the `31,...` metadata line and the first
+  `10,<ref>` reference, matching source order in the live samples.
+  Malformed JSON is silently skipped rather than breaking export.
+- Tests: 4 new parser specs (capture order + per-record raw fields
+  + empty-when-minimal + no cross-contamination across multiple
+  traverses), 1 mapper spec (JSON encoded on
+  `trvStylingRecords`), 1 serializer spec (records emit between
+  `31` and `10` with the correct order).
+- Full cad suite (2171) green; typecheck + lint clean.
 
 ### Pass 4 — Smart selective sourceTrv serializer (queued)
 

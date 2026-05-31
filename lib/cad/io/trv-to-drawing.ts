@@ -154,6 +154,13 @@ function mapTraverse(
     trvPointRefs: t.pointIds.join(','),
   };
   if (t.name !== null) properties.name = t.name;
+  // Pass 3 — preserve the traverse's full styling record sequence
+  // (32-76, 159-162, 349-369, etc.) as JSON so the round-trip
+  // re-emits it. Feature properties only accept primitives, so JSON-
+  // encode the array of { code, fields } records.
+  if (t.stylingRecords.length > 0) {
+    properties.trvStylingRecords = JSON.stringify(t.stylingRecords);
+  }
   return {
     id: traverseKey(t.sourceLine),
     type,
