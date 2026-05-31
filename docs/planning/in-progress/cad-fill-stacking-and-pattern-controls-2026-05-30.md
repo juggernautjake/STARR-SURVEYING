@@ -149,16 +149,33 @@
   waveAmplitude/Period when `WAVE`). Each pair carries the same
   numeric-input affordance Slice 1 added.
 
-### Slice 4 — Dashed-line infill
+### Slice 4 — Dashed-line infill ✅ shipped 2026-05-31
 
-- New pattern id `DASHED_LINES` (generic angle via the existing
-  rotation; the user gets dashed at any orientation via the Angle
-  slider, so we don't need 4 dashed variants).
-- `generateDashedHatchLines(width, height, angle, spacing, dashLen,
-  gapLen)` emits short segments. New `FeatureStyle.patternDashLen?`
-  + `patternGapLen?` so the user can tune the dash rhythm; defaults
-  derived from density when omitted.
-- Picker dropdown gains "Dashed lines" in the Hatches group.
+- `FillPattern` union gains `DASHED_LINES`. `FeatureStyle` gains
+  optional `patternDashLen?` + `patternGapLen?` (px). Both default-
+  derived from density when omitted so saved drawings render
+  unchanged. `FillPatternConfig` mirrors `dashLen` + `gapLen`.
+- `generateDashedHatchLines(width, height, angleDeg, spacing,
+  dashLen?, gapLen?)` reuses the parallel-hatch geometry but
+  fractures each hatch line into dash + gap segments. Rows are
+  phase-staggered so adjacent rows don't form a grid. Clamps both
+  dash + gap to ≥ 1 px so a zero slider doesn't infinite-loop.
+- Dispatcher routes `'DASHED_LINES'` through the new generator;
+  rotation wrapper spins it via the same angle slider every other
+  pattern uses (no separate Diagonal/Horizontal/Vertical dashed
+  variants needed).
+- `CanvasViewport.drawFillPatternForPolygon` cfg threads
+  `dashLen`/`gapLen` from `feature.style.patternDashLen` /
+  `patternGapLen`.
+- `PropertyPanel` dropdown adds "Dashed lines" in the Hatches
+  optgroup; contextual sliders show Dash Length + Gap Length (1–60
+  px each) only when the active pattern is DASHED_LINES, each with
+  a paired numeric input.
+- Tests: 7 new pure-module specs lock the generator's shape +
+  override behavior + clamp; the variants-list source-text lock
+  picks up DASHED_LINES; 7 new UI source-text specs lock the picker
+  entry + slider testids + cfg wiring. Full fill suite (110) green;
+  typecheck + lint clean.
 
 ### Slice 5 — Opacity slider
 

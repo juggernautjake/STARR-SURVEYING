@@ -3774,6 +3774,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       brickHeight: feature.style.brickHeight,
       waveAmplitude: feature.style.waveAmplitude,
       wavePeriod: feature.style.wavePeriod,
+      // cad-fill-stacking Slice 4 — DASHED_LINES dash + gap lengths.
+      dashLen: feature.style.patternDashLen,
+      gapLen: feature.style.patternGapLen,
     };
     const { dots, lines } = generateFillPattern(width, height, cfg);
     // cad-fill-stacking Slice 1 — pattern color defaults to black,

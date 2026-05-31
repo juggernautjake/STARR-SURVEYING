@@ -61,7 +61,12 @@ describe('Slice 236 — drawFillPatternForPolygon helper', () => {
   it('routes the FillPatternConfig through generateFillPattern with a per-feature seed', () => {
     // cad-fills Slice 1 added `scale` (thickness); cad-fill-rotation
     // Slice 1 added `angle` (pattern rotation in degrees, 0 = baseline).
-    expect(SRC).toMatch(/const cfg: FillPatternConfig = \{\s*pattern,\s*density: feature\.style\.patternDensity \?\? 1,\s*seed: hashSeed\(feature\.id\),[\s\S]*?scale: feature\.style\.patternScale \?\? 1,[\s\S]*?angle: feature\.style\.patternRotation \?\? 0,\s*\};/);
+    // cad-fill-stacking Slices 3 + 4 added optional per-pattern
+    // extras after `angle:` (brickWidth/brickHeight/waveAmplitude/
+    // wavePeriod, then dashLen/gapLen). The regex stays lenient on
+    // anything between `angle:` and the cfg-close so subsequent
+    // additions don't churn the source-text lock.
+    expect(SRC).toMatch(/const cfg: FillPatternConfig = \{\s*pattern,\s*density: feature\.style\.patternDensity \?\? 1,\s*seed: hashSeed\(feature\.id\),[\s\S]*?scale: feature\.style\.patternScale \?\? 1,[\s\S]*?angle: feature\.style\.patternRotation \?\? 0,[\s\S]*?\};/);
     expect(SRC).toMatch(/const \{ dots, lines \} = generateFillPattern\(width, height, cfg\);/);
   });
 

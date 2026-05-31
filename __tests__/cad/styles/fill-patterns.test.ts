@@ -11,6 +11,7 @@ import {
   generateDotUniform,
   generateDotGravel,
   generateHatchLines,
+  generateDashedHatchLines,
   generateBrickLines,
   generateWaveLines,
   generateFillPattern,
@@ -215,6 +216,56 @@ describe('cad-fill-stacking Slice 3 — WAVE explicit amplitude + period', () =>
   });
 });
 
+// cad-fill-stacking Slice 4 — DASHED_LINES generator + dispatcher
+// thread the new dashLen/gapLen overrides through.
+describe('cad-fill-stacking Slice 4 — generateDashedHatchLines', () => {
+  it('produces many short segments (more than the equivalent solid hatch)', () => {
+    const solid = generateHatchLines(200, 200, 0, 12).length;
+    const dashed = generateDashedHatchLines(200, 200, 0, 12, 6, 4).length;
+    // Each solid line fractures into many dash segments.
+    expect(dashed).toBeGreaterThan(solid);
+  });
+
+  it('a shorter dashLen yields more dash segments at the same gap', () => {
+    const long = generateDashedHatchLines(200, 200, 0, 12, 24, 4).length;
+    const short = generateDashedHatchLines(200, 200, 0, 12, 4, 4).length;
+    expect(short).toBeGreaterThan(long);
+  });
+
+  it('a larger gapLen yields fewer dash segments at the same dash length', () => {
+    const tight = generateDashedHatchLines(200, 200, 0, 12, 6, 2).length;
+    const loose = generateDashedHatchLines(200, 200, 0, 12, 6, 30).length;
+    expect(tight).toBeGreaterThan(loose);
+  });
+
+  it('omitting dashLen/gapLen falls back to a deterministic density-derived shape', () => {
+    const a = generateDashedHatchLines(200, 200, 0, 12);
+    const b = generateDashedHatchLines(200, 200, 0, 12, undefined, undefined);
+    expect(a).toEqual(b);
+    expect(a.length).toBeGreaterThan(0);
+  });
+
+  it('a zero / negative dash length is clamped to ≥ 1 (no infinite loop)', () => {
+    const out = generateDashedHatchLines(60, 60, 0, 6, 0, 0);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.length).toBeLessThan(20000);
+  });
+});
+
+describe('cad-fill-stacking Slice 4 — dispatcher routes DASHED_LINES + threads dashLen/gapLen', () => {
+  it('DASHED_LINES emits a line set with no dots', () => {
+    const out = generateFillPattern(200, 200, { pattern: 'DASHED_LINES', density: 1, seed: 1 });
+    expect(out.dots).toEqual([]);
+    expect(out.lines.length).toBeGreaterThan(0);
+  });
+
+  it('the cfg dashLen / gapLen overrides change the segment count', () => {
+    const baseline = generateFillPattern(200, 200, { pattern: 'DASHED_LINES', density: 1, seed: 1 });
+    const tight = generateFillPattern(200, 200, { pattern: 'DASHED_LINES', density: 1, seed: 1, dashLen: 2, gapLen: 2 });
+    expect(tight.lines.length).toBeGreaterThan(baseline.lines.length);
+  });
+});
+
 describe('cad-fill-stacking Slice 3 — dispatcher threads brick/wave overrides', () => {
   it('BRICK config passes brickWidth + brickHeight through to the generator', () => {
     const baseline = generateFillPattern(200, 200, { pattern: 'BRICK', density: 1, seed: 1 });
@@ -268,6 +319,7 @@ describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value',
       'DOT_GRAVEL_FINE',
       'DOT_GRAVEL_COARSE',
       'DOT_SAND',
+      'LINES',
       'DIAGONAL_LEFT',
       'DIAGONAL_RIGHT',
       'CROSSHATCH',
@@ -275,6 +327,8 @@ describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value',
       'VERTICAL_LINES',
       'BRICK',
       'WAVE',
+      // cad-fill-stacking Slice 4 — dashed hatch.
+      'DASHED_LINES',
     ];
     // Each variant runs through the dispatcher without throwing.
     for (const pattern of variants) {

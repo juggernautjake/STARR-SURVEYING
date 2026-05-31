@@ -494,6 +494,12 @@ export interface FeatureStyle {
    *  period (wavelength, px). Optional ⇒ derived from density. */
   waveAmplitude?: number;
   wavePeriod?: number;
+  /** cad-fill-stacking Slice 4 — DASHED_LINES dash + gap lengths in
+   *  px. Optional ⇒ derived from density. Dash length is the visible
+   *  stroke; gap length is the empty space between dashes. Both
+   *  clamped to ≥ 1 px so a zero slider doesn't infinite-loop. */
+  patternDashLen?: number;
+  patternGapLen?: number;
 }
 
 export type FillPattern =
@@ -519,7 +525,12 @@ export type FillPattern =
   | 'HORIZONTAL_LINES'
   | 'VERTICAL_LINES'
   | 'BRICK'
-  | 'WAVE';
+  | 'WAVE'
+  // cad-fill-stacking Slice 4 — dashed hatch. Same base as `LINES`
+  // (parallel hatch through the bbox at the chosen angle) but each
+  // hatch line is broken into dash+gap segments. Angle slider works
+  // the same way; new dashLen/gapLen sliders tune the dash rhythm.
+  | 'DASHED_LINES';
 
 // --- LAYERS ---
 

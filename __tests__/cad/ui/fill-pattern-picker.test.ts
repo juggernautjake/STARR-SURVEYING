@@ -55,6 +55,8 @@ describe('Slice 237 — pattern options grid covers every picker-reachable value
     'DOT_UNIFORM',
     'DOT_GRAVEL',
     'LINES',
+    // cad-fill-stacking Slice 4 — DASHED_LINES joins the Hatches group.
+    'DASHED_LINES',
     'CROSSHATCH',
     'BRICK',
     'WAVE',

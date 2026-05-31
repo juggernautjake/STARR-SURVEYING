@@ -77,6 +77,10 @@ export interface FillPatternConfig {
    *  wavelength (one full cycle). */
   waveAmplitude?: number;
   wavePeriod?: number;
+  /** cad-fill-stacking Slice 4 — DASHED_LINES dash + gap lengths in
+   *  px. Optional ⇒ derived from density. */
+  dashLen?: number;
+  gapLen?: number;
 }
 
 /** Clamp a 0.25–4 multiplier; non-finite / non-positive → 1. */
@@ -251,6 +255,64 @@ export function generateHatchLines(
   return lines;
 }
 
+/** DASHED hatch — same parallel-hatch geometry as `generateHatchLines`
+ *  but each line is fractured into visible-dash + empty-gap segments.
+ *  cad-fill-stacking Slice 4. The angle is supplied just like the
+ *  hatch family; the dispatcher's rotation wrapper handles spinning
+ *  the whole set to a user-chosen angle.
+ *
+ *  `dashLen` / `gapLen` are in screen px; both clamped to ≥ 1 so a
+ *  slider pulled to zero doesn't infinite-loop. When omitted, sane
+ *  defaults are derived from density (matching the hatch spacing
+ *  family). */
+export function generateDashedHatchLines(
+  width: number,
+  height: number,
+  angleDeg: number,
+  spacing: number,
+  dashLen?: number,
+  gapLen?: number,
+): PatternLine[] {
+  if (width <= 0 || height <= 0 || spacing <= 0) return [];
+  const dash = Number.isFinite(dashLen) && (dashLen as number) >= 1
+    ? Math.max(1, dashLen as number)
+    : Math.max(4, spacing * 0.6);
+  const gap = Number.isFinite(gapLen) && (gapLen as number) >= 1
+    ? Math.max(1, gapLen as number)
+    : Math.max(2, spacing * 0.4);
+  const stride = dash + gap;
+  const lines: PatternLine[] = [];
+  const θ = (angleDeg * Math.PI) / 180;
+  const cosθ = Math.cos(θ);
+  const sinθ = Math.sin(θ);
+  const span = Math.abs(width * cosθ) + Math.abs(height * sinθ);
+  const halfSpan = span / 2;
+  const cx = width / 2;
+  const cy = height / 2;
+  const perpX = -sinθ;
+  const perpY = cosθ;
+  const max = Math.ceil(Math.max(width, height) / spacing) + 2;
+  // Stagger the dash phase per row so adjacent rows don't form a
+  // gridded look (matches typical CAD dashed-fill conventions).
+  for (let i = -max; i <= max; i++) {
+    const offset = i * spacing;
+    const baseX = cx + perpX * offset;
+    const baseY = cy + perpY * offset;
+    const phase = (Math.abs(i) % 2) * (stride / 2);
+    for (let t = -halfSpan + phase; t < halfSpan; t += stride) {
+      const t0 = t;
+      const t1 = Math.min(halfSpan, t + dash);
+      lines.push({
+        x1: baseX + cosθ * t0,
+        y1: baseY + sinθ * t0,
+        x2: baseX + cosθ * t1,
+        y2: baseY + sinθ * t1,
+      });
+    }
+  }
+  return lines;
+}
+
 /** BRICK — alternating offset rectangles drawn as a line set.
  *  Returns the line segments forming the brick courses.
  *
@@ -385,6 +447,12 @@ function rawPattern(
     // hatch ids stay above for back-compat with saved drawings.
     case 'LINES':
       return { dots: [], lines: generateHatchLines(w, h, 0, hatchSpacing(density)) };
+    // cad-fill-stacking Slice 4 — dashed hatch at 0°; the rotation
+    // wrapper spins it to the user-chosen angle. dashLen/gapLen
+    // thread through from the cfg, or fall back to density-derived
+    // defaults inside the generator.
+    case 'DASHED_LINES':
+      return { dots: [], lines: generateDashedHatchLines(w, h, 0, hatchSpacing(density), config.dashLen, config.gapLen) };
     case 'BRICK':
       return { dots: [], lines: generateBrickLines(w, h, density, config.brickWidth, config.brickHeight) };
     case 'WAVE':

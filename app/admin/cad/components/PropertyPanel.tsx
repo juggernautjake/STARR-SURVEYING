@@ -1384,6 +1384,7 @@ export default function PropertyPanel() {
               // normalizes them on read above (`legacyHatchAngle`).
               { label: 'Hatches', options: [
                 { value: 'LINES', label: 'Lines' },
+                { value: 'DASHED_LINES', label: 'Dashed lines' },
                 { value: 'CROSSHATCH', label: 'Crosshatch' },
               ] },
               { label: 'Pattern', options: [
@@ -1719,6 +1720,93 @@ export default function PropertyPanel() {
                         breaker; period 8–240 px covers tight chop up
                         to a long swell. Each carries a paired numeric
                         input. */}
+                    {/* cad-fill-stacking Slice 4 — DASHED_LINES dash +
+                        gap sliders shown only when the active pattern
+                        is DASHED_LINES. Dash 1–60 px covers a small
+                        tick up to a long bar; gap 1–60 px gives the
+                        same range for the empty space. Paired numeric
+                        inputs mirror the other slider rows. */}
+                    {currentPattern === 'DASHED_LINES' && (() => {
+                      const dashLen = Number.isFinite(feature.style.patternDashLen) ? (feature.style.patternDashLen as number) : 8;
+                      const gapLen = Number.isFinite(feature.style.patternGapLen) ? (feature.style.patternGapLen as number) : 4;
+                      return (
+                        <>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Dash length</span>
+                              <span className="tabular-nums text-gray-200">{dashLen.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={dashLen}
+                                data-testid="property-panel-fill-pattern-dash-len"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDashLen: clamp(parseFloat(e.target.value), 1, 60, 8), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={dashLen}
+                                data-testid="property-panel-fill-pattern-dash-len-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDashLen: clamp(parseFloat(e.target.value), 1, 60, 8), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                          <label className="block">
+                            <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                              <span className="uppercase tracking-wider">Gap length</span>
+                              <span className="tabular-nums text-gray-200">{gapLen.toFixed(0)} px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={gapLen}
+                                data-testid="property-panel-fill-pattern-gap-len"
+                                className="flex-1 accent-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternGapLen: clamp(parseFloat(e.target.value), 1, 60, 4), isOverride: true },
+                                  });
+                                }}
+                              />
+                              <input
+                                type="number"
+                                min={1}
+                                max={60}
+                                step={1}
+                                value={gapLen}
+                                data-testid="property-panel-fill-pattern-gap-len-input"
+                                className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                                onChange={(e) => {
+                                  drawingStore.updateFeature(feature.id, {
+                                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternGapLen: clamp(parseFloat(e.target.value), 1, 60, 4), isOverride: true },
+                                  });
+                                }}
+                              />
+                            </div>
+                          </label>
+                        </>
+                      );
+                    })()}
+
                     {currentPattern === 'WAVE' && (() => {
                       const waveAmplitude = Number.isFinite(feature.style.waveAmplitude) ? (feature.style.waveAmplitude as number) : 6;
                       const wavePeriod = Number.isFinite(feature.style.wavePeriod) ? (feature.style.wavePeriod as number) : 60;
