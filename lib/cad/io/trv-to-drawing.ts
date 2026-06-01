@@ -60,6 +60,19 @@ export interface TrvMappingResult {
   notes: string[];
 }
 
+/** cad-trv-fidelity Slice 5 — recognise TPC's construction/duplicate
+ *  traverse naming so they import HIDDEN (they're working artifacts TPC
+ *  doesn't plot): `Copy-…`, `DUP-…`, parallel offsets `Right/Left N
+ *  Feet-…`, and `… offsets`. CSV master-lists are handled separately in
+ *  mapTraverse (rendered as points only). */
+function isConstructionTraverse(name: string | null): boolean {
+  if (!name) return false;
+  const n = name.trim();
+  return /^(copy|dup)-/i.test(n)
+    || /^(right|left)\s+[\d.]+\s*f(?:ee|oo)?t-/i.test(n)
+    || /\boffsets?$/i.test(n);
+}
+
 /** Default Layer fields. */
 function makeLayer(id: string, name: string, sortOrder: number): Layer {
   return {
@@ -485,13 +498,30 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   }
 
   const traverseFeatures: Feature[] = [];
+  let hiddenConstruction = 0;
   for (const t of doc.traverses) {
     // Pass 7 — mapTraverse returns an array (1 polyline + N
     // optional ARC/SPLINE curve features) so each detected curve
     // run becomes an editable native curve alongside the
     // boundary polyline.
     const feats = mapTraverse(t, pointById, layerIdByTrvId, notes);
-    for (const f of feats) traverseFeatures.push(f);
+    // cad-trv-fidelity Slice 5 — TPC working COPIES / DUPLICATES /
+    // parallel OFFSET traverses are construction artifacts it doesn't
+    // plot. Import them HIDDEN so they don't show as stray lines
+    // (parity with TPC) but stay in the doc + Layers panel for the
+    // surveyor to unhide. CSV master-lists are handled separately.
+    const construction = isConstructionTraverse(t.name);
+    for (const f of feats) {
+      if (construction) {
+        f.hidden = true;
+        f.properties.trvConstruction = true;
+      }
+      traverseFeatures.push(f);
+    }
+    if (construction && feats.length > 0) hiddenConstruction++;
+  }
+  if (hiddenConstruction > 0) {
+    notes.push(`Hid ${hiddenConstruction} construction/duplicate/offset traverse(s) (copies, DUPs, parallel offsets) to match TPC — unhide them in the Layers panel if needed`);
   }
 
   // cad-trv-line-curve-fidelity Slice 2 — attach TPC's verbatim

@@ -240,6 +240,22 @@ get no code→symbol assignment.
   layer; formatting fields populated; round-trip byte-stable.
 
 ### Slice 5 — Hidden-element parity + a "show hidden" affordance
+
+> **DONE (2026-06-01) — construction/duplicate traverses import
+> hidden.** Investigation: the TRV has no per-layer visibility bit (the
+> `86` records are TPC's static layer LIBRARY) and the `31`/`51` flag
+> bitmasks are unconfirmed — BUT the traverse NAMES reliably reveal
+> TPC's non-plotted working artifacts: `Copy-…`, `DUP-…`, parallel
+> offsets `Right/Left N Feet-…`, and `… offsets` (CSV master-lists were
+> already points-only). These are the "stray lines." `isConstructionTraverse`
+> detects them and `trvToDrawing` imports their features with
+> `hidden:true` (+ `properties.trvConstruction`) — parity with TPC, no
+> stray lines — while keeping them in the doc + Layers panel (eye-off,
+> toggleable; `getVisibleFeatures` already filters `hidden`). The panel
+> already lists hidden features with a per-feature eye, so the "show
+> hidden" affordance exists. Hidden ≠ dropped, so round-trip is
+> unaffected. Hillsboro: 11 construction traverses hidden. Tests in
+> `trv-construction-hidden.test.ts`. Suite 2556 green.
 - Parse TRV per-element/per-traverse HIDDEN state (investigate which
   records carry visibility — e.g. layer/traverse styling flags, the
   `86` layer `visible` bit, or a per-element flag) and apply it: imported
