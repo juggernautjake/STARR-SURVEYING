@@ -1,5 +1,18 @@
 # TRV drawing-element rendering — recover the full plotted drawing — 2026-06-01
 
+> **STATUS: COMPLETE (2026-06-01).** All 7 slices shipped. Recovered
+> the `28` drawing-element layer Traverse PC stores the plotted
+> drawing in: `28,16` connector lines (deduped against traverses),
+> `28,30` polylines, `28,4` lines, and `28,5` world text — rendered as
+> `trvDerived` echoes on the file-named Drawing layer, with paper-space
+> `28,5` folded into the structured title block. Round-trip stays
+> byte-stable (verbatim `28` block is the source of truth). Deferrals
+> documented inline: geometric paper-space placement (`28,5`/`28,6` —
+> needs the TPC paper transform), line-type code mapping (needs cross-
+> file ground truth), Drawing-Groups→layer-groups (fights the 2-layer
+> import), and edit-through `28` round-trip (FUTURE). Full cad suite
+> 2513 green; typecheck + lint clean.
+
 *User:*
 
 > *"Please review these two files. One is a trv and the other is a
@@ -307,6 +320,23 @@ fully selectable/editable like any other feature.
 - Tests as above.
 
 ### Slice 7 — Metadata polish + import-dialog counts (low priority / optional)
+
+> **DONE (2026-06-01).** Added `renderedElements` (connector lines /
+> element polylines / element lines / text annotations) to
+> `TrvImportReport`, computed from `trvElementKind`, plus a pure
+> `formatRenderedElements` helper. Both MenuBar import-confirm dialogs
+> (Open + Import TRV) now show a `drawing: …` summary line so the
+> surveyor sees the linework/text recovered beyond points + traverses.
+> Documented the preserved-but-unmapped record codes (`100` Drawing
+> Groups, `136-162` label format templates, `349-369` print/report
+> config) in the `trv-parser.ts` header so they're not re-flagged.
+> Specs in `trv-io.test.ts`. Suite 2513 green.
+>
+> **Deferred — `100` Drawing Groups → Starr layer groups.** Rationale:
+> the TRV import deliberately collapses every source layer into two
+> synthetic Drawing/Points layers (per the user's earlier request), so
+> re-deriving TPC's panel groupings as Starr layer groups would fight
+> that structure for little gain; the records round-trip verbatim.
 
 - `100` Drawing Groups (`100,Plats,4,0`) → optionally surface as Starr
   layer groups (or just keep preserved). `136–162` (bearing/distance
