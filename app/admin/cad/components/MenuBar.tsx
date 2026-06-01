@@ -323,6 +323,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             Object.values(drawingStore.document.features),
           );
           drawingStore.addFeatures(dedupedOpen.features);
+          // cad-trv-fidelity Slice 2 — add the per-traverse feature
+          // groups so each traverse shows as a sublayer in the panel.
+          drawingStore.addFeatureGroups(report.mapped.featureGroups);
           if (dedupedOpen.renames.length > 0) {
             cadLog.info('FileIO', `Auto-renamed ${dedupedOpen.renames.length} colliding TRV point id(s) on import`);
           }
@@ -513,6 +516,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         Object.values(drawingStore.document.features),
       );
       drawingStore.addFeatures(dedupedImport.features);
+      // cad-trv-fidelity Slice 2 — per-traverse feature groups (sublayers).
+      drawingStore.addFeatureGroups(report.mapped.featureGroups);
       if (dedupedImport.renames.length > 0) {
         cadLog.info('FileIO', `Auto-renamed ${dedupedImport.renames.length} colliding TRV point id(s) on import`);
       }

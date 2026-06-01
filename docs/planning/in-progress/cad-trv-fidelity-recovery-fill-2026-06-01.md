@@ -185,6 +185,24 @@ get no code→symbol assignment.
 > traverse layers via `groupId`, and build the LayerPanel LayerGroup-
 > container UI. 2c — per-traverse point mirrors ("each traverse with
 > its points"). Not yet shipped.
+>
+> **DONE (2026-06-01) — delivered via FEATURE GROUPS (lower-risk than a
+> layer-model change).** Each TRV traverse now imports as a NAMED
+> feature group on the Drawing layer: `trvToDrawing` builds one group
+> per traverse from `t.name`, stamps `featureGroupId` on the traverse's
+> polyline/curves, and returns `TrvMappingResult.featureGroups`; a new
+> `drawingStore.addFeatureGroups` action is applied at both MenuBar
+> import sites. The LayerPanel ALREADY renders feature groups as
+> collapsible nested sub-items within a layer, so every traverse
+> (BOUNDARY, east fence, …) shows as a "sublayer" under the file's
+> Drawing layer — satisfying the "traverse sublayers" intent WITHOUT
+> the layer-model refactor that would have broken the 20+ two-layer
+> tests + the byte-stable round-trip (both intact, groups aren't
+> exported). Tests in `trv-traverse-groups.test.ts`. Suite 2576 green.
+> (Connectors/element-shapes/text stay ungrouped — attributing them to a
+> traverse is the Slice 4 tethering work; per-traverse point mirrors +
+> an optional single Drawing-group container over the traverse groups
+> remain as polish.)
 - In `trv-to-drawing.ts`, replace the two flat layers with:
   - One `LayerGroup` "<prefix> — Drawing" (the collapsible container).
   - One `Layer` per traverse, `groupId` = that group, named from

@@ -109,6 +109,11 @@ interface DrawingStore {
    * Defaults to layer-root.
    */
   groupFeatures: (featureIds: string[], name?: string, parentGroupId?: string | null) => FeatureGroup | null;
+  /** cad-trv-fidelity Slice 2 — add pre-built feature groups (e.g. one
+   *  per imported TRV traverse) to the document in one shot. The member
+   *  features are expected to already carry the matching
+   *  `featureGroupId`. */
+  addFeatureGroups: (groups: FeatureGroup[]) => void;
   /** Remove a feature group (features remain but are ungrouped). */
   ungroupFeatures: (groupId: string) => void;
   /**
@@ -581,6 +586,17 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     }));
     return group;
   },
+
+  addFeatureGroups: (groups) =>
+    set((state) => {
+      if (groups.length === 0) return state;
+      const featureGroups = { ...state.document.featureGroups };
+      for (const g of groups) featureGroups[g.id] = g;
+      return {
+        document: { ...state.document, featureGroups, modified: new Date().toISOString() },
+        isDirty: true,
+      };
+    }),
 
   ungroupFeatures: (groupId) =>
     set((state) => {

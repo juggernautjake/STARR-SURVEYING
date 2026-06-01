@@ -28,6 +28,7 @@ import type {
   Feature,
   FeatureGeometry,
   FeatureStyle,
+  FeatureGroup,
   Layer,
   FeatureType,
 } from '../types';
@@ -57,6 +58,10 @@ import { decodeTrvLineStyle } from './trv-line-style';
 export interface TrvMappingResult {
   layers: Layer[];
   features: Feature[];
+  /** cad-trv-fidelity Slice 2 — one feature group per TRV traverse
+   *  (named after the traverse), so each traverse's linework appears as
+   *  a collapsible sub-item under the Drawing layer in the panel. */
+  featureGroups: FeatureGroup[];
   notes: string[];
 }
 
@@ -498,6 +503,9 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   }
 
   const traverseFeatures: Feature[] = [];
+  // cad-trv-fidelity Slice 2 — collect each traverse's feature ids so we
+  // can wrap them in a named feature group (a per-traverse "sublayer").
+  const traverseGroupSpecs: Array<{ name: string; featureIds: string[] }> = [];
   let hiddenConstruction = 0;
   for (const t of doc.traverses) {
     // Pass 7 — mapTraverse returns an array (1 polyline + N
@@ -519,6 +527,12 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
       traverseFeatures.push(f);
     }
     if (construction && feats.length > 0) hiddenConstruction++;
+    if (feats.length > 0) {
+      traverseGroupSpecs.push({
+        name: t.name && t.name.trim() ? t.name.trim() : `Traverse ${traverseGroupSpecs.length + 1}`,
+        featureIds: feats.map((f) => f.id),
+      });
+    }
   }
   if (hiddenConstruction > 0) {
     notes.push(`Hid ${hiddenConstruction} construction/duplicate/offset traverse(s) (copies, DUPs, parallel offsets) to match TPC — unhide them in the Layers panel if needed`);
@@ -781,9 +795,35 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     style: { ...f.style },
     properties: { ...f.properties, trvPointMirror: true },
   }));
+  // cad-trv-fidelity Slice 2 — wrap each traverse's features in a named
+  // feature group on the Drawing layer, so every traverse (boundary,
+  // building, road, …) is a collapsible "sublayer" in the Layers panel.
+  // Lower-risk than a layer-model change: the two synthetic layers stay,
+  // and the panel already renders feature groups nested within a layer.
+  const traverseFeatById = new Map<string, Feature>();
+  for (const f of traverseFeatures) traverseFeatById.set(f.id, f);
+  const featureGroups: FeatureGroup[] = [];
+  traverseGroupSpecs.forEach((spec, i) => {
+    const groupId = `trv-traverse-group:${slugify(prefix)}:${i}`;
+    const memberIds = spec.featureIds.filter((id) => traverseFeatById.has(id));
+    if (memberIds.length === 0) return;
+    for (const id of memberIds) {
+      const f = traverseFeatById.get(id)!;
+      f.featureGroupId = groupId;
+    }
+    featureGroups.push({
+      id: groupId,
+      name: spec.name,
+      layerId: drawingLayerId,
+      featureIds: memberIds,
+      parentGroupId: null,
+    });
+  });
+
   return {
     layers,
     features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures, ...elementShapeFeatures, ...textFeatures],
+    featureGroups,
     notes,
   };
 }
