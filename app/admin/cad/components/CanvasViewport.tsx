@@ -2575,7 +2575,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // graphics (not real Feature rows on the layer), so they need an
     // explicit visibility hook — without this, the SURVEY-INFO eye
     // was dead. Falls back to "visible" if the layer is missing.
-    const surveyInfoLayer = drawingStore.document.layers['SURVEY-INFO'];
+    //
+    // cad-survey-info-hide Slice 1 — read the LIVE document via
+    // getState() (not the stale `drawingStore` hook closure). This
+    // function runs from a requestAnimationFrame loop, so the
+    // captured `drawingStore.document` could hold the SURVEY-INFO
+    // visibility as of the last React render — making the eye
+    // toggle appear dead. `renderPaperFurniture` already reads
+    // getState(); match it.
+    const surveyInfoLayer = useDrawingStore.getState().document.layers['SURVEY-INFO'];
     const tbVisible = surveyInfoLayer ? surveyInfoLayer.visible !== false : true;
     pixi.titleBlockLayer.visible = tbVisible;
     if (!tbVisible) {

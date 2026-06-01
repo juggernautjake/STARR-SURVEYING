@@ -11,11 +11,16 @@
 //   drawingStore.addFeatures(features);
 //
 // Coordinate convention: TRV uses state-plane survey FEET with axes
-// (north, east, elevation). Our drawing space is unitless screen-
-// y-DOWN, so the natural mapping is `x = east, y = -north`. The
-// original survey coords are stashed on `feature.properties` (as
-// `surveyNorth` / `surveyEast` / `surveyElevation`) so Slice 5's
-// serializer can invert the transform on export.
+// (north, east, elevation). Starr's WORLD space is Y-UP (north =
+// +y), matching the native field-data importer
+// (`linework-features.ts` uses `{ x: easting, y: northing }`) and
+// the AI coord helper. So the mapping is `x = east, y = +north`.
+// (Earlier this negated north, which vertically MIRRORED the
+// survey relative to the north arrow + paper — the user caught
+// the flip.) The original survey coords are stashed on
+// `feature.properties` (`surveyNorth` / `surveyEast` /
+// `surveyElevation`) so the serializer can invert losslessly on
+// export.
 //
 // Pure module: no DOM, no zustand. Safe to unit-test.
 
@@ -37,10 +42,9 @@ import { extractPointLabels, extractLineLabels, extractAreaLabels } from './trv-
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
-// cad-trv-bearings-and-distances Slice 2 — seed display prefs
-// on the synthetic TRV layers so bearings + distances + point
-// labels render immediately on import.
-import { DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
+// cad-trv-straight-line-styling Slice 1 — decode 51/71 → line
+// type + weight + fill.
+import { decodeTrvLineStyle } from './trv-line-style';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -169,7 +173,7 @@ function mapPoint(
     type: 'POINT',
     geometry: {
       type: 'POINT',
-      point: { x: p.east, y: -p.north },
+      point: { x: p.east, y: p.north },
     } as Feature['geometry'],
     layerId: layerId ?? '',
     style: defaultStyle(),
@@ -225,7 +229,7 @@ function mapTraverse(
     // the survey, and produce visible spaghetti lines once the
     // view auto-fits.
     if (p.north === 0 && p.east === 0 && (p.elevation === 0 || p.elevation === null)) continue;
-    resolved.push({ id: ref, x: p.east, y: -p.north });
+    resolved.push({ id: ref, x: p.east, y: p.north });
   }
   if (resolved.length < 2) {
     notes.push(`Traverse "${t.name ?? 'unnamed'}" — fewer than 2 resolvable points; skipped`);
@@ -327,6 +331,29 @@ function mapTraverse(
   if (detectedRuns.length > 0) {
     properties.trvCurveRuns = JSON.stringify(detectedRuns);
   }
+  // cad-trv-straight-line-styling Slice 1 — decode the cracked
+  // 51 / 71 line-style records into the polyline's style so
+  // imported straight lines render with the right line type
+  // (fence wire vs solid), weight (bold boundary), and fill
+  // (DECK diagonal hatch, ROAD percent screen) — matching TPC.
+  const lineStyle = decodeTrvLineStyle(t.stylingRecords);
+  const style = defaultStyle();
+  style.lineTypeId = lineStyle.lineTypeId;
+  if (lineStyle.isBold) style.lineWeight = 0.5;
+  if (lineStyle.fillPattern !== 'NONE') {
+    style.fillPattern = lineStyle.fillPattern;
+    style.patternRotation = lineStyle.fillRotation;
+    style.patternDensity = lineStyle.fillDensity;
+    // Fill renders need a pattern color + a non-zero fill opacity
+    // (the import default is outline-only). Black @ full opacity
+    // matches TPC's dark-gray hatch closely enough; the surveyor
+    // can recolor via the infill panel.
+    style.patternColor = '#000000';
+    style.fillOpacity = 1;
+    if (typeof lineStyle.tpcFillName === 'string') {
+      properties.trvFillName = lineStyle.tpcFillName;
+    }
+  }
   const polyline: Feature = {
     id: traverseId,
     type,
@@ -335,7 +362,7 @@ function mapTraverse(
       vertices: vertices.map((v) => ({ x: v.x, y: v.y })),
     } as Feature['geometry'],
     layerId,
-    style: defaultStyle(),
+    style,
     properties,
   } as Feature;
   return [polyline, ...curveFeatures];
@@ -488,26 +515,20 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   const prefix = trvLayerPrefix(doc);
   const drawingLayerId = trvDrawingLayerKey(prefix);
   const pointsLayerId = trvPointsLayerKey(prefix);
-  // cad-trv-bearings-and-distances Slice 2 — seed display prefs
-  // on the TRV Drawing layer so per-segment bearings + distances
-  // render immediately on import (matching TPC's default Traverse
-  // View output). The user can toggle these off via the
-  // layer-preferences panel.
+  // cad-trv-label-prefs-off Slice 1 — imported layers come in with
+  // ALL display-preference toggles OFF (no seeded displayPreferences
+  // → the label generator falls back to DEFAULT_LAYER_DISPLAY_
+  // PREFERENCES, everything false). The user explicitly wants
+  // anything IMPORTED (TRV / field data) to start with every
+  // toggle off; only `.starr` / saved files carry their stored
+  // preferences. (Previously we seeded showBearings / showPoint-
+  // Names true — but seeding the PREF without generating the
+  // textLabels left an inconsistent "toggle looks on, nothing
+  // renders" state. With no seeding, flipping a toggle in the
+  // panel is a real false→true change that regenerates + shows
+  // the labels.)
   const drawingLayer = makeLayer(drawingLayerId, `${prefix} — Drawing`, 1000);
-  drawingLayer.displayPreferences = {
-    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
-    showBearings: true,
-    showDistances: true,
-  };
-  // Same default on the Points layer for the point-name label
-  // toggle so each POINT feature shows its descriptive label
-  // (the user explicitly asked for this last session).
   const pointsLayer = makeLayer(pointsLayerId, `${prefix} — Points`, 1001);
-  pointsLayer.displayPreferences = {
-    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
-    showPointNames: true,
-    showPointDescriptions: true,
-  };
   const layers: Layer[] = [drawingLayer, pointsLayer];
   for (const f of pointFeatures) {
     const originalLayerId = f.layerId;

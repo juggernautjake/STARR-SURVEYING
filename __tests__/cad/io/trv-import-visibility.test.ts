@@ -83,13 +83,24 @@ describe('trvToDrawing — Garland sample: every feature visible end-to-end', ()
       expect(f.style.color).not.toBeNull();
       if (typeof f.style.lineWeight === 'number') expect(f.style.lineWeight).toBeGreaterThan(0);
     }
-    // Sanity-check: at least 1 POLYGON survives + is OUTLINE-only.
+    // Sanity-check: at least 1 POLYGON survives.
     const polygons = features.filter((f) => f.type === 'POLYGON');
     expect(polygons.length).toBeGreaterThan(0);
+    // cad-trv-straight-line-styling Slice 1 — polygons are
+    // outline-only by DEFAULT, but a polygon whose TPC traverse
+    // declared a fill (decoded from 71) now legitimately carries
+    // a fillPattern. So we assert the WEAKER invariant: every
+    // polygon either has no fill (NONE/null) OR a recognized
+    // Starr fill pattern with a non-null pattern color — never a
+    // broken half-state.
+    const VALID_PATTERNS = new Set(['NONE', 'SOLID', 'DOT_UNIFORM', 'DOT_GRAVEL', 'LINES', 'CROSSHATCH', 'BRICK', 'WAVE']);
     for (const poly of polygons) {
-      const s = poly.style as { fillColor?: string | null; fillPattern?: string };
-      expect(s.fillColor).toBeNull();
-      expect(s.fillPattern).toBe('NONE');
+      const s = poly.style as { fillColor?: string | null; fillPattern?: string; patternColor?: string | null };
+      expect(VALID_PATTERNS.has(s.fillPattern ?? 'NONE')).toBe(true);
+      if (s.fillPattern && s.fillPattern !== 'NONE') {
+        // A real fill must carry a pattern color so it renders.
+        expect(s.patternColor).toBeTruthy();
+      }
     }
   });
 });

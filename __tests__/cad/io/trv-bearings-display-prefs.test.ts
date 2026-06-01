@@ -33,28 +33,28 @@ const FIXTURE = [
   '999,end',
 ].join('\r\n');
 
-describe('TRV mapper — Drawing layer seeds showBearings + showDistances', () => {
-  it('the synthetic Drawing layer has showBearings + showDistances = true', () => {
+// cad-trv-label-prefs-off Slice 1 — imported layers come in with
+// ALL display-preference toggles OFF. (Reversed the earlier
+// seeding: the user wants anything imported to start with every
+// label toggle off; only .starr / saved files carry stored
+// prefs. Seeding the pref without generating textLabels also left
+// a dead "toggle on, nothing renders" state.)
+describe('TRV mapper — imported layers start with ALL label toggles OFF', () => {
+  it('the Drawing layer does NOT pre-enable bearings / distances', () => {
     const { layers } = trvToDrawing(parseTrv(FIXTURE));
     const drawing = layers.find((l) => l.id.startsWith('trv-drawing:'));
     expect(drawing).toBeDefined();
-    expect(drawing!.displayPreferences?.showBearings).toBe(true);
-    expect(drawing!.displayPreferences?.showDistances).toBe(true);
+    // No seeded displayPreferences → undefined (label generator
+    // falls back to the all-off DEFAULT).
+    expect(drawing!.displayPreferences?.showBearings ?? false).toBe(false);
+    expect(drawing!.displayPreferences?.showDistances ?? false).toBe(false);
   });
 
-  it('the synthetic Points layer seeds showPointNames + showPointDescriptions', () => {
+  it('the Points layer does NOT pre-enable point names / descriptions', () => {
     const { layers } = trvToDrawing(parseTrv(FIXTURE));
     const pts = layers.find((l) => l.id.startsWith('trv-points:'));
     expect(pts).toBeDefined();
-    expect(pts!.displayPreferences?.showPointNames).toBe(true);
-    expect(pts!.displayPreferences?.showPointDescriptions).toBe(true);
-  });
-
-  it('other prefs stay at DEFAULT (false) on the Drawing layer', () => {
-    const { layers } = trvToDrawing(parseTrv(FIXTURE));
-    const drawing = layers.find((l) => l.id.startsWith('trv-drawing:'))!;
-    expect(drawing.displayPreferences?.showLineLabels).toBe(false);
-    expect(drawing.displayPreferences?.showArea).toBe(false);
-    expect(drawing.displayPreferences?.showPointNames).toBe(false);
+    expect(pts!.displayPreferences?.showPointNames ?? false).toBe(false);
+    expect(pts!.displayPreferences?.showPointDescriptions ?? false).toBe(false);
   });
 });

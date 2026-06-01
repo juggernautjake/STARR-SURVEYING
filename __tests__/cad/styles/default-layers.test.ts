@@ -38,6 +38,13 @@ describe('default-layers (slimmed)', () => {
     );
   });
 
+  it('the starter drawing layer (id DEFAULT) displays as "Layer 1"', () => {
+    // cad-survey-info-hide Slice 1 — renamed from "Default" so a
+    // fresh drawing's empty starter layer reads naturally.
+    const starter = PHASE3_DEFAULT_LAYERS.find((l) => l.id === 'DEFAULT');
+    expect(starter?.name).toBe('Layer 1');
+  });
+
   it('every layer has required fields + valid shape', () => {
     for (const layer of PHASE3_DEFAULT_LAYERS) {
       expect(layer.id).toBeTruthy();

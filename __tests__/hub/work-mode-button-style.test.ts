@@ -84,11 +84,30 @@ describe('Work Mode button — hover-only spinning red/white/blue ring (2026-05-
 });
 
 describe('Work Mode button — vertical centering in the greeting actions column', () => {
-  it('actions column stretches to the panel full height so align-items: center actually centers', () => {
+  // cad-hub-greeting 2026-06-01 — the actions column was switched
+  // from a stretched flex child (`align-self: stretch` + relying on
+  // `align-items: center`) to ABSOLUTE positioning so it
+  // vertical-centers against the FULL card height (not just the
+  // first flex line), and sits in from the right edge. `align-self:
+  // stretch` does nothing on an absolutely-positioned element, so
+  // the contract this test enforces is now the absolute-centering
+  // form: `position: absolute` + `top: 50%` + `translateY(-50%)`.
+  it('actions column is absolutely positioned + transform-centered on the card', () => {
     const start = CSS.indexOf('.hub-greeting__actions {');
     const end = CSS.indexOf('}', start);
     const block = start >= 0 ? CSS.slice(start, end + 1) : '';
-    expect(block).toMatch(/align-self:\s*stretch/);
+    expect(block).toMatch(/position:\s*absolute/);
+    expect(block).toMatch(/top:\s*50%/);
+    expect(block).toMatch(/transform:\s*translateY\(-50%\)/);
     expect(block).toMatch(/align-items:\s*center/);
+  });
+
+  it('the greeting card is the positioning anchor (position: relative)', () => {
+    // The absolute actions column needs the card to establish a
+    // containing block, else it would center against the viewport.
+    const start = CSS.indexOf('.hub-greeting {');
+    const end = CSS.indexOf('}', start);
+    const block = start >= 0 ? CSS.slice(start, end + 1) : '';
+    expect(block).toMatch(/position:\s*relative/);
   });
 });

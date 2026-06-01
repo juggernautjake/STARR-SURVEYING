@@ -47,8 +47,10 @@ export const PHASE3_DEFAULT_LAYERS: Layer[] = [
 
   // ── Drawing ──
   // DEFAULT = single starting drawing layer the surveyor can
-  // place geometry on out of the box.
-  { id: 'DEFAULT',       name: 'Default',      visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.50, lineTypeId: 'SOLID', opacity: 1, groupId: 'grp-drawing',     sortOrder: 0, isDefault: true, isProtected: false, autoAssignCodes: [] },
+  // place geometry on out of the box. Display name "Layer 1"
+  // (id stays DEFAULT so the AI layer-router + code-library
+  // references that target the starter layer keep working).
+  { id: 'DEFAULT',       name: 'Layer 1',      visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.50, lineTypeId: 'SOLID', opacity: 1, groupId: 'grp-drawing',     sortOrder: 0, isDefault: true, isProtected: false, autoAssignCodes: [] },
 ];
 
 /** Get all default layers as a Record<id, Layer>. */

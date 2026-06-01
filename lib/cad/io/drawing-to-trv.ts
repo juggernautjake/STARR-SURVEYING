@@ -80,9 +80,13 @@ function pointCoords(f: Feature): { north: number; east: number; elevation: numb
   const surveyNorth = f.properties.surveyNorth;
   const surveyEast = f.properties.surveyEast;
   const elevation = f.properties.elevation;
+  // World space is Y-UP (north = +y), matching the importer. For a
+  // feature without the surveyNorth stash (e.g. a point the
+  // surveyor added in Starr), north = +y. (Was -y back when the
+  // importer negated north — corrected with the import flip.)
   const north = typeof surveyNorth === 'number'
     ? surveyNorth
-    : (typeof f.geometry.point?.y === 'number' ? -f.geometry.point.y : 0);
+    : (typeof f.geometry.point?.y === 'number' ? f.geometry.point.y : 0);
   const east = typeof surveyEast === 'number'
     ? surveyEast
     : (typeof f.geometry.point?.x === 'number' ? f.geometry.point.x : 0);
