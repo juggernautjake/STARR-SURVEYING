@@ -273,6 +273,22 @@ fully selectable/editable like any other feature.
 
 ### Slice 6 — Line-type / fill decode hardening
 
+> **DONE (2026-06-01).** Investigation finding: the Hillsboro `51`
+> records are NOT a separate font-only shape that gets misread — they
+> ARE the per-traverse line-style records (f0=weight, f1=line-type)
+> with the label font fields appended, and `decodeTrvLineStyle`
+> already reads f0/f1 correctly (the existing DECK/ROAD/FENCE/BOUNDARY
+> specs are 35-field records). Fill is already bounds-safe:
+> `tpcFillIndexToStarr` returns null for index ≥ 47, so `71,60`
+> (index 55) → NONE with no throw. Added regression specs for both
+> (`trv-line-style.test.ts`): out-of-catalog fill → NONE, and the
+> unmapped line-type code 40 (sw adjoiner line) → SOLID fallback.
+> Documented the observed-but-unconfirmed `51` field1 codes
+> (0/6/10/39/40) in `lineTypeCodeToStarr` with a TODO to ground-truth
+> them across more exports before mapping — deliberately NOT mapped
+> from a single sample (the records round-trip verbatim regardless).
+> Suite 2510 green.
+
 - The `51` records in this file are 35-field **font/label** styling
   blocks (contain `Arial,Arial`), a different shape from the line-style
   `51`s cracked earlier. **Verify `decodeTrvLineStyle`

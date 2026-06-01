@@ -83,11 +83,22 @@ export function decodeTrvLineStyle(
 /** Map a TPC `51` line-type code to a Starr line-type id.
  *  Conservative: only the codes confirmed against ground truth
  *  are mapped; everything else falls back to SOLID (the source
- *  record still round-trips verbatim). */
+ *  record still round-trips verbatim).
+ *
+ *  cad-trv-drawing-element-rendering Slice 6 — observed-but-
+ *  UNCONFIRMED `51` field1 codes across the Hillsboro sample:
+ *  `0` (CSV master-list traverses), `6`, `10`, `39`, `40` ("sw
+ *  adjoiner line" — likely a dashed neighbor line). These are
+ *  deliberately NOT mapped: a single file isn't enough ground
+ *  truth to assign a dash pattern without risking wrong styling on
+ *  other files. TODO: ground-truth code→line-type across more TPC
+ *  exports (pair each with its plotted PDF) before extending this
+ *  map. Until then SOLID is the safe default + the records still
+ *  round-trip verbatim. */
 function lineTypeCodeToStarr(code: number): string {
   if (code === -43) return 'FENCE_BARBED_WIRE'; // TPC "Fence Wire"
-  // 1 = Solid (the overwhelming default). Any other positive code
-  // is an unconfirmed TPC line type → SOLID until ground-truthed.
+  // 1 = Solid (the overwhelming default). Any other code is an
+  // unconfirmed TPC line type → SOLID until ground-truthed.
   return 'SOLID';
 }
 
