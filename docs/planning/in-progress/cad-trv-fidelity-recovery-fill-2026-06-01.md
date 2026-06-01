@@ -262,11 +262,25 @@ get no code→symbol assignment.
 > (was dense `DOT_GRAVEL`) in `trv-fill-patterns.ts`. Tests:
 > `fill-patterns.test.ts` (deterministic, 3 blades/tuft, denser→more),
 > picker + TPC-mapping tests updated. Suite 2542 green.
-> **Remaining (6b/6c):** `fillBackgroundColor` + `fillBackgroundOpacity`
-> style fields + render (solid bg under the pattern) + the InfoPanel
-> background-color picker and the TWO opacity sliders (background +
-> texture) with value inputs; and a density bump / cross-pattern
-> consistency pass for 1:1 PDF fidelity.
+> **6c DONE (2026-06-01) — import density boost.** Natural-texture TPC
+> fills now import a touch denser for closer 1:1 with the PDF: Gravel/
+> Concrete/Earth/Clay `DOT_GRAVEL` 1→1.5, Cross/Diagonal-Cross
+> `CROSSHATCH` 1→1.4, Brick 1→1.25, Water/Swamp `WAVE` 1→1.25 (Sand
+> stays 2; large-confetti 0.5). Import-only (render/UI untouched);
+> density stays per-feature editable. Test added in
+> `trv-line-curve-fidelity.test.ts`. Suite 2543 green.
+>
+> **6b FINDING (2026-06-01) — capability already exists via fillStack.**
+> The PropertyPanel infill editor uses the `fillStack` model where EACH
+> layer already has an independent `color` + `opacity` + pattern, so
+> "black lines on grey with separate opacities" is achievable TODAY by
+> stacking a SOLID grey layer (its own opacity) under a LINES black
+> layer (its own opacity) — and the param sliders already pair a range
+> with a numeric value input. So 6b is a UX-clarity task (a simpler
+> "background color + background opacity / texture color + texture
+> opacity" framing over the stack), NOT a missing capability. Deferred
+> as UX polish until prioritized; document inline so it isn't re-scoped
+> as a data-model gap.
 - `FeatureStyle`: add `fillBackgroundColor?: string | null` and
   `fillBackgroundOpacity?: number` (texture opacity stays `fillOpacity`).
   Render the background as a solid fill UNDER the pattern in

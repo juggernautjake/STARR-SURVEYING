@@ -120,6 +120,16 @@ describe('tpcFillNameToStarr — cross + brick + lines + dots + wave', () => {
     expect(tpcFillNameToStarr('Forest')).toMatchObject({ pattern: 'GRASS' });
     expect(tpcFillNameToStarr('Grass')).toMatchObject({ pattern: 'GRASS' });
   });
+
+  it('natural-texture fills import at a boosted density for closer 1:1 (Slice 6)', () => {
+    expect(tpcFillNameToStarr('Gravel')).toMatchObject({ pattern: 'DOT_GRAVEL', density: 1.5 });
+    expect(tpcFillNameToStarr('Concrete')).toMatchObject({ pattern: 'DOT_GRAVEL', density: 1.5 });
+    expect(tpcFillNameToStarr('Cross')).toMatchObject({ pattern: 'CROSSHATCH', density: 1.4 });
+    expect(tpcFillNameToStarr('Brick')).toMatchObject({ pattern: 'BRICK', density: 1.25 });
+    expect(tpcFillNameToStarr('Water')).toMatchObject({ pattern: 'WAVE', density: 1.25 });
+    // Sand stays at its existing explicit density (unchanged).
+    expect(tpcFillNameToStarr('Sand')).toMatchObject({ pattern: 'DOT_GRAVEL', density: 2 });
+  });
 });
 
 describe('tpcFillNameToStarr — percent screens', () => {
