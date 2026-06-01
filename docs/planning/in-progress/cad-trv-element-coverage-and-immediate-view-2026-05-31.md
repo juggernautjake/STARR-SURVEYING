@@ -68,7 +68,27 @@ but the camera lands on outliers + the survey looks tiny.
   wiring; behavioral spec on a paper-size → viewport-zoom
   pure helper.
 
-### Slice 2 — Map TRV drawing elements (28/29) to Starr TEXT / symbol features
+### Slice 2 — Map TRV drawing elements (28/29) → POINT labels ✅ shipped 2026-05-31
+
+- New pure module `lib/cad/io/trv-drawing-elements.ts`:
+  - `extractPointLabels(elements)` walks every 28/29 element,
+    finds subtype-12 entries (`28,12,<pointId>` + paired
+    `29,5,...,"<text>¶"`), and returns clean point-label records.
+  - `cleanLabelText(raw)` strips trailing pilcrows, splits multi-
+    line label payloads on `¶` (U+00B6), joins DC4-separated
+    tokens with a single space.
+- Mapper integration in `trvToDrawing`: after the POINT pass,
+  walks the extracted labels + attaches them to matching POINT
+  features as `properties.label` + `properties.trvLabelSourceLine`.
+  Non-destructive: the point's native `1,<description>` wins
+  when both exist.
+- 14 specs cover: `cleanLabelText` strip / split / DC4 join /
+  empty payloads; `extractPointLabels` filters non-subtype-12,
+  extracts cleaned text, handles missing text-runs, document
+  ordering preserved; mapper attaches on empty native label +
+  preserves native description when present; Garland sample
+  yields the expected "309 inside 315 1in" label.
+- Full cad suite (2363) green; typecheck + lint clean.
 
 - 28/29 records carry north arrows, scale bars, legend boxes,
   title-block text, label callouts. ~48-69 per file.

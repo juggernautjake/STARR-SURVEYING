@@ -29,6 +29,11 @@ import type { TrvDocument, TrvLayer, TrvPoint, TrvTraverse } from './trv-parser'
 // cad-trv-import-export-deep-semantic Pass 7 — curve detection
 // + best-fit ARC / SPLINE for traverses with curved geometry.
 import { detectCurvedRuns, fitArcThroughPoints, fitSplineControlPoints } from '../geometry/curve-fit';
+// cad-trv-element-coverage Slice 2 — drawing-element subtype-12
+// point labels feed into the mapped POINT features so the
+// descriptive text (e.g. "309 inside 315 1in") shows next to
+// each point on import.
+import { extractPointLabels } from './trv-drawing-elements';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -279,6 +284,35 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   for (const p of doc.points) {
     const feat = mapPoint(p, layerIdByTrvId, notes);
     if (feat) pointFeatures.push(feat);
+  }
+
+  // cad-trv-element-coverage Slice 2 — enrich POINT features
+  // with the descriptive labels TRV's 28/29 drawing elements
+  // attached to them. Subtype-12 elements (`28,12,<pointId>`)
+  // carry the multi-line label text the surveyor expected to
+  // see next to their point on the plot. We use the LABEL
+  // (multi-line, joined with `\n`) as `properties.label` when
+  // the point doesn't already have a description (point's own
+  // `1,<description>` line wins when both exist). Falls back
+  // silently when no labels are present.
+  const labels = extractPointLabels(doc.drawingElements);
+  if (labels.length > 0) {
+    const featByTrvId = new Map<string, Feature>();
+    for (const f of pointFeatures) {
+      const tid = f.properties.trvPointId;
+      if (typeof tid === 'string') featByTrvId.set(tid, f);
+    }
+    let attached = 0;
+    for (const lbl of labels) {
+      const feat = featByTrvId.get(lbl.trvPointId);
+      if (!feat) continue;
+      const existing = feat.properties.label;
+      if (typeof existing === 'string' && existing.trim().length > 0) continue;
+      feat.properties.label = lbl.label;
+      feat.properties.trvLabelSourceLine = lbl.sourceLine;
+      attached++;
+    }
+    if (attached > 0) notes.push(`Attached ${attached} descriptive label(s) from drawing-element subtype 12`);
   }
 
   const traverseFeatures: Feature[] = [];
