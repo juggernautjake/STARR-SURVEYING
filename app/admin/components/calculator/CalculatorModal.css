@@ -718,3 +718,70 @@
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* cad-trv-fidelity Slice 14 — Generic Calculator. Flex column that
+   fills the modal body; the keypad is a 4-col grid with 1fr rows/cols
+   so it scales proportionally as the modal is expanded. Font sizes use
+   clamp() against the viewport so labels grow with the window without
+   manual breakpoints. */
+.generic-calc {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  gap: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+  /* Establish a query container so the cqw-based font sizes below scale
+     the display + keys proportionally as the modal is expanded. */
+  container-type: size;
+}
+.generic-calc__display {
+  flex: 0 0 auto;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: clamp(1.5rem, 6cqw, 3rem);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.generic-calc__keypad {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 6px;
+}
+.generic-calc__key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: clamp(0.95rem, 4cqw, 1.6rem);
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease, transform 60ms ease;
+}
+.generic-calc__key:hover { background: #334155; }
+.generic-calc__key:active { transform: translateY(1px); }
+.generic-calc__key--op { background: #1d4ed8; color: #ffffff; border-color: #1d4ed8; }
+.generic-calc__key--op:hover { background: #2563eb; }
+.generic-calc__key--fn { background: #0f172a; color: #cbd5e1; }
+.generic-calc__key--fn:hover { background: #1e293b; }
+.generic-calc__key--equals { background: #16a34a; color: #ffffff; border-color: #16a34a; }
+.generic-calc__key--equals:hover { background: #22c55e; }

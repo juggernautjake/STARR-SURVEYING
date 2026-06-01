@@ -484,7 +484,24 @@ the import path); a source-lock that `app/admin/cad/` has no
 `window.confirm(`/`window.alert(` left in user-facing paths.
 
 ### Slice 14 — Generic calculator + expandable, proportionally-scaling calculator modals
-*Added 2026-06-01 (user follow-up).* The floating-menu calculator
+*Added 2026-06-01 (user follow-up).*
+> **GENERIC CALCULATOR DONE (2026-06-01).** Built a Windows-calculator-
+> style default: pure `lib/calculators/generic/engine.ts` (digit entry,
+> +−×÷ chaining, `=` repeat, %, ±, ., C/CE, ⌫, divide-by-zero guard) +
+> `GenericCalculator.tsx` (keyboard support, 4-col grid). Registered as
+> `'generic'` (brand `Generic`), listed FIRST, and set as `DEFAULT_MODEL`;
+> wired into `renderModel`. Its layout is a flex column with a `1fr`
+> grid keypad + `container-type: size` so it scales proportionally on
+> its own. Tests: `generic-engine.test.ts` (11) + `generic-registration.test.ts`.
+> Suite green.
+> **Remaining (14b):** make the calculator MODAL expandable/resizable
+> and make EVERY calculator (the existing TI/Casio/HP models too) scale
+> proportionally with the window without breaking layout; then THREE
+> styling passes + verify expand on each model. (The generic calc
+> already scales; the device models use fixed `width/height` from
+> `ModelDef` + absolute keypad layouts, so they need a wrapping
+> proportional scaler — transform: scale to the ModelDef aspect — and a
+> resize handle on `ModalFrame`.) The floating-menu calculator
 button opens specific surveying calculators; the user wants:
 - A NEW **"Generic Calculator"** as the default — a simple
   Windows-calculator-style arithmetic calc (digits, + − × ÷, %, ±, .,
