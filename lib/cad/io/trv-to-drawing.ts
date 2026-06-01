@@ -132,13 +132,25 @@ function mapPoint(
     return null;
   }
   const layerId = p.layerId !== null ? layerIdByTrvId.get(p.layerId) ?? null : null;
+  // cad-trv-import-polish Slice 4 — stamp the standard Starr
+  // property names (pointName, description) IN ADDITION to the
+  // TRV-specific ones. The layer-preference panel's "Show point
+  // names" + "Show point descriptions" toggles read these
+  // standard fields via `generate-labels.ts`; without them the
+  // toggles silently no-op on imported features.
   const properties: Record<string, string | number | boolean> = {
     trvPointId: p.id,
     surveyNorth: p.north,
     surveyEast: p.east,
+    // Standard Starr fields so the layer-preference panel works
+    // out of the box on imported points.
+    pointName: p.id,
   };
   if (p.elevation !== null) properties.elevation = p.elevation;
-  if (p.description !== null) properties.label = p.description;
+  if (p.description !== null) {
+    properties.label = p.description;
+    properties.description = p.description;
+  }
   if (p.methodCode !== null) properties.trvMethodCode = p.methodCode;
   return {
     id: pointKey(p.id),
@@ -372,6 +384,10 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
       const existing = feat.properties.label;
       if (typeof existing === 'string' && existing.trim().length > 0) continue;
       feat.properties.label = lbl.label;
+      // cad-trv-import-polish Slice 4 — mirror onto the standard
+      // Starr `description` field so the layer-preference panel's
+      // "Show point descriptions" toggle picks it up.
+      feat.properties.description = lbl.label;
       feat.properties.trvLabelSourceLine = lbl.sourceLine;
       attached++;
     }

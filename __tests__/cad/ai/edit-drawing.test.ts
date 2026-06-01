@@ -123,7 +123,11 @@ describe('applyEditDrawing', () => {
       ] }],
     });
     const doc = useDrawingStore.getState().document;
-    const layer = Object.values(doc.layers).find((l) => l.name === 'STRUCTURES');
+    // cad-trv-import-polish Slice 2 — default starting layers
+    // now seed every new drawing, including a `Structures` layer
+    // (id `STRUCTURES`). The AI's case-insensitive name matcher
+    // routes `STRUCTURES` to it, so we look up by id here.
+    const layer = doc.layers['STRUCTURES'] ?? Object.values(doc.layers).find((l) => l.name.toLowerCase() === 'structures');
     expect(layer).toBeDefined();
     const f = useDrawingStore.getState().getAllFeatures()[0];
     expect(f.layerId).toBe(layer!.id);
@@ -392,7 +396,11 @@ describe('applyEditDrawing', () => {
     const summary = applyEditDrawing(action!);
     expect(summary).toContain('added 1');
     const doc = useDrawingStore.getState().document;
-    const layer = Object.values(doc.layers).find((l) => l.name === 'STRUCTURES');
+    // cad-trv-import-polish Slice 2 — default starting layers
+    // now seed every new drawing, including a `Structures` layer
+    // (id `STRUCTURES`). The AI's case-insensitive name matcher
+    // routes `STRUCTURES` to it, so we look up by id here.
+    const layer = doc.layers['STRUCTURES'] ?? Object.values(doc.layers).find((l) => l.name.toLowerCase() === 'structures');
     const poly = useDrawingStore.getState().getAllFeatures().find((f) => f.type === 'POLYGON')!;
     expect(poly.layerId).toBe(layer!.id);
     expect(poly.style.fillColor).toBe('#dddddd');

@@ -72,7 +72,36 @@ them.
 - Tests: a curved polyline still has ONE polyline + zero
   spline features; arc-fit emission still works.
 
-### Slice 2 — Preserve default starting layers across TRV import
+### Slice 2 — Preserve default starting layers across TRV import ✅ shipped 2026-05-31
+
+Audit root cause: `createDefaultDocument()` in `drawing-store.ts`
+was returning a doc with `layers: {}` + `layerOrder: []`. The
+PHASE3 default starting layers (BOUNDARY, BOUNDARY-MON,
+EASEMENT, STRUCTURES, FENCE, ROW, NORTH-ARROW, SURVEY-INFO,
+etc.) were never being seeded — they only appeared in saved
+.starr documents that already had them. So the user's "default
+layers are being removed when we import" was actually "the
+defaults were never there to start with."
+
+Fix: `createDefaultDocument()` now seeds:
+- `layers` from `getDefaultLayersRecord()` (28 default layers
+  across 6 layer groups)
+- `layerOrder` from `getDefaultLayerOrder()`
+- `layerGroups` from `DEFAULT_LAYER_GROUPS` (Boundary &
+  Control / Improvements / Utilities / Natural Features /
+  Transportation / Annotation & Misc)
+- `layerGroupOrder` matching the source order
+
+5 new specs lock the preservation contract via the live store:
+every default layer survives the TRV import, user-created
+layers survive, isDefault flags retained, TRV layers append
+to the END of layerOrder, pre-existing features stay intact.
+
+One legacy AI test (`edit-drawing.test.ts > auto-creates a
+layer named ON add`) updated — the AI's case-insensitive layer
+matcher now routes `'STRUCTURES'` to the seeded default
+`Structures` layer instead of creating a new one (which is the
+correct behavior — the test was asserting the wrong shape).
 
 - Investigate `addLayer` semantics + the TRV import flow. Add a
   spec that locks "every default layer present before the import
@@ -145,6 +174,33 @@ User refined the ask:
   LayerPanel renders them nested.
 - Tests: import produces N TRV layers + 1 wrapping group; the
   group's name reflects the TRV project metadata.
+
+### Slice 4 — Layer-preference panel options work on imported elements ✅ shipped 2026-05-31
+
+Audit: `lib/cad/labels/generate-labels.ts` reads
+`feature.properties.pointName` (for "Show point names") and
+`feature.properties.description` (for "Show point descriptions").
+TRV-imported POINT features were stamping `trvPointId` +
+`label` instead, so the toggles silently no-op'd on imported
+elements.
+
+Fix: TRV mapper now ALSO stamps the standard Starr property
+names:
+- `properties.pointName` ← TRV point id (every point)
+- `properties.description` ← native `1,<desc>` line (when
+  present)
+- The subtype-12 drawing-element label attach step ALSO
+  mirrors into `properties.description` so labels surfaced
+  from `28,12,<pointId>` blocks flow through too.
+
+The original TRV-specific fields (`trvPointId`, `label`) stay
+in place so existing readers + the round-trip path continue to
+work.
+
+4 new specs lock the bridge: `pointName` always set, native
+description mirrors to both `label` + `description`, a point
+with no description has neither field, drawing-element labels
+also mirror to `description`.
 
 ## Guardrails
 

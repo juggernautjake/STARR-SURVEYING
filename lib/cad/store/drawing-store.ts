@@ -5,11 +5,20 @@ import type { DrawingDocument, Feature, FeatureGroup, Layer, DrawingSettings, Te
 import { wouldCreateCycle } from '../feature-groups';
 import { generateId } from '../types';
 import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
+// cad-trv-import-polish Slice 2 — seed every new drawing with
+// the default starting layers + their layer groups.
+import { getDefaultLayersRecord, getDefaultLayerOrder, DEFAULT_LAYER_GROUPS } from '../styles/default-layers';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
 
 // Start with a completely blank document — no layers, no features.
 // The user must create a new drawing or import data to begin working.
 function createDefaultDocument(): DrawingDocument {
+  // cad-trv-import-polish Slice 2 — seed every new drawing with
+  // the PHASE3 default starting layers + layer groups. Without
+  // this the user gets an empty layer panel + any TRV import
+  // looks like it "removed" the defaults. (The defaults weren't
+  // there to start; this fix gives every new drawing the
+  // expected starting set the user sees on a fresh project.)
   return {
     id: generateId(),
     name: 'Untitled Drawing',
@@ -17,11 +26,11 @@ function createDefaultDocument(): DrawingDocument {
     modified: new Date().toISOString(),
     author: '',
     features: {},
-    layers: {},
-    layerOrder: [],
+    layers: getDefaultLayersRecord(),
+    layerOrder: getDefaultLayerOrder(),
     featureGroups: {},
-    layerGroups: {},
-    layerGroupOrder: [],
+    layerGroups: Object.fromEntries(DEFAULT_LAYER_GROUPS.map((g) => [g.id, g])),
+    layerGroupOrder: DEFAULT_LAYER_GROUPS.map((g) => g.id),
     customSymbols: [],
     customLineTypes: [],
     codeStyleOverrides: {},
