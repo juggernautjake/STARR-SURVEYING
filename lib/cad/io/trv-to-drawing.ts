@@ -148,6 +148,14 @@ function mapPoint(
   };
   if (p.elevation !== null) properties.elevation = p.elevation;
   if (p.description !== null) {
+    // cad-trv-drawing-parsing Slice 2 — also stamp `code` so the
+    // layer-prefs "Show point descriptions" branch finds a value
+    // when the description doesn't resolve to a known code-library
+    // alpha+numeric pair (the common case for TRV imports —
+    // descriptions are free-form text like "309 inside 315 1in").
+    // The label generator falls back to `properties.code` when no
+    // recognized code is present.
+    properties.code = p.description;
     properties.label = p.description;
     properties.description = p.description;
   }
@@ -183,6 +191,21 @@ function mapTraverse(
   layerIdByTrvId: Map<string, string>,
   notes: string[],
 ): Feature[] {
+  // cad-trv-drawing-parsing Slice 1 — Traverse PC names
+  // master point lists from a CSV / TXT import with the import
+  // source filename (e.g. `26074.csv`, `Copy-26074.csv`,
+  // `DUP-26074.csv`). Traverse PC renders these as POINT
+  // SYMBOLS only — they're NOT drawing polylines. Our mapper
+  // would otherwise connect 200+ unrelated survey shots in row
+  // order, producing the "all over the place" visual mess the
+  // user reported. Skip the polyline; the member points still
+  // come through the points pass as native POINT features.
+  // Case-insensitive `.csv` suffix is the strongest signal —
+  // `.txt` would be ambiguous so we keep that conservative.
+  if (t.name && /\.csv\b/i.test(t.name)) {
+    notes.push(`Skipped CSV master-list traverse "${t.name}" (${t.pointIds.length} points, rendered as POINT symbols only)`);
+    return [];
+  }
   // Resolve coords by point id; skip missing refs but record them.
   const resolved: Array<{ id: string; x: number; y: number }> = [];
   for (const ref of t.pointIds) {
