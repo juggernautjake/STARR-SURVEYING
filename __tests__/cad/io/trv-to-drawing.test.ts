@@ -224,8 +224,13 @@ describe('trvToDrawing — traverses', () => {
 
 // cad-trv-import-export-deep-semantic Pass 7 — curve detection
 // emits an additional ARC feature when the polyline geometry has
-// a curved run (residual within tolerance) and SPLINE when not.
-describe('trvToDrawing — Pass 7: curve detection + ARC / SPLINE emission', () => {
+// a curved run (residual within tolerance). cad-trv-import-polish
+// Slice 1 — SPLINE fallback emission was REMOVED; the polyline
+// already faithfully follows the source vertices, so adding a
+// SPLINE alongside it double-drew the same geometry. Detection
+// metadata still lands in properties.trvCurveRuns for a future
+// "convert segment to spline" tool.
+describe('trvToDrawing — Pass 7: curve detection + ARC emission', () => {
   function arcPointsFixture(): string {
     // Generate ~quarter-circle of radius 100 at origin, 10 pts.
     // Wrap into a TRV fixture with 10 points + a traverse
@@ -287,6 +292,37 @@ describe('trvToDrawing — Pass 7: curve detection + ARC / SPLINE emission', () 
     expect(Array.isArray(runs)).toBe(true);
     expect(runs.length).toBe(1);
     expect(runs[0].kind).toBe('ARC');
+  });
+
+  it('cad-trv-import-polish Slice 1: a NON-circular curved run no longer emits a SPLINE feature', () => {
+    // Hand-crafted free-form curve (not a circle): the run is
+    // detected but no SPLINE feature is emitted; the polyline
+    // alone covers the vertices, and trvCurveRuns records the
+    // detection metadata.
+    const lines: string[] = ['999,begin', '#,POINTS', '95,8'];
+    // S-curve sampling — definitely curved, definitely not a circle
+    for (let i = 0; i < 8; i++) {
+      const t = i / 7;
+      const east = 100 * t;
+      const north = 30 * Math.sin(t * Math.PI * 2);
+      lines.push(`0,p${i}`);
+      lines.push(`2,${north.toFixed(6)},${east.toFixed(6)},0`);
+    }
+    lines.push('#,TRAVERSE');
+    lines.push('30,scurve');
+    lines.push('31,0,8,0,0');
+    for (let i = 0; i < 8; i++) {
+      lines.push(`10,p${i}`);
+      lines.push(`11,1,${i},0,3,0`);
+    }
+    lines.push('999,end');
+    const { features } = trvToDrawing(parseTrv(lines.join('\r\n')));
+    expect(features.filter((f) => f.type === 'SPLINE')).toEqual([]);
+    const poly = features.find((f) => f.type === 'POLYLINE')!;
+    // Detection still recorded for a future converter tool.
+    const runs = JSON.parse(poly.properties.trvCurveRuns as string);
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs.some((r: { kind: string }) => r.kind === 'SPLINE')).toBe(true);
   });
 
   it('does NOT emit any curve features for a straight polyline', () => {

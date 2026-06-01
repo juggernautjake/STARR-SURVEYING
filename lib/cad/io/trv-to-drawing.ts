@@ -28,7 +28,7 @@ import type {
 import type { TrvDocument, TrvLayer, TrvPoint, TrvTraverse } from './trv-parser';
 // cad-trv-import-export-deep-semantic Pass 7 — curve detection
 // + best-fit ARC / SPLINE for traverses with curved geometry.
-import { detectCurvedRuns, fitArcThroughPoints, fitSplineControlPoints } from '../geometry/curve-fit';
+import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // cad-trv-element-coverage Slice 2 — drawing-element subtype-12
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
@@ -214,6 +214,10 @@ function mapTraverse(
     const slice = vertices.slice(run.startIndex, run.endIndex + 1).map((v) => ({ x: v.x, y: v.y }));
     const arc = fitArcThroughPoints(slice);
     if (arc && arc.maxResidual <= ARC_FIT_RESIDUAL_TOLERANCE) {
+      // True circular arc — emit an editable ARC feature
+      // alongside the polyline (the polyline still passes through
+      // the same vertices but the ARC gives the surveyor center +
+      // radius handles).
       curveFeatures.push({
         id: `${traverseId}:arc:${curveIdx}`,
         type: 'ARC',
@@ -230,21 +234,16 @@ function mapTraverse(
       } as Feature);
       detectedRuns.push({ startIndex: run.startIndex, endIndex: run.endIndex, kind: 'ARC', residual: arc.maxResidual });
     } else {
-      const cp = fitSplineControlPoints(slice);
-      curveFeatures.push({
-        id: `${traverseId}:spline:${curveIdx}`,
-        type: 'SPLINE',
-        geometry: { type: 'SPLINE', spline: { controlPoints: cp, isClosed: false } } as Feature['geometry'],
-        layerId,
-        style: defaultStyle(),
-        properties: {
-          curveOfTraverse: traverseId,
-          curveKind: 'SPLINE',
-          curveRunStartIdx: run.startIndex,
-          curveRunEndIdx: run.endIndex,
-          arcResidual: arc?.maxResidual ?? -1,
-        },
-      } as Feature);
+      // cad-trv-import-polish Slice 1 — Spline fallback emission
+      // REMOVED. The Garland sample produces 126 spline features
+      // alongside its 11 polylines/polygons, all drawing through
+      // the same vertices — the user sees doubled-up scribbled
+      // curves. The polyline already faithfully follows every
+      // vertex in the source, so the spline was visually
+      // redundant. We still RECORD the detected run in
+      // properties.trvCurveRuns so a future "Convert polyline
+      // segment to spline" tool can read the metadata; we just
+      // don't emit a SPLINE feature that double-draws.
       detectedRuns.push({ startIndex: run.startIndex, endIndex: run.endIndex, kind: 'SPLINE', residual: arc?.maxResidual ?? -1 });
     }
     curveIdx++;
