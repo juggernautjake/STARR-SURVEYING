@@ -161,6 +161,30 @@ get no code→symbol assignment.
   linework/points/text immediately, framed in view.
 
 ### Slice 2 — TRV import: per-traverse layers under a Drawing group + one Points layer
+
+> **INVESTIGATION (2026-06-01) — larger than one slice; split needed.**
+> Findings from reading the live code: (1) NO store action exists to
+> add a `LayerGroup` (only `DEFAULT_LAYER_GROUPS` at store init) — need
+> an `addLayerGroup` action. (2) `LayerPanel` does NOT render
+> `LayerGroup` containers of layers; its "groups" are FEATURE groups
+> (`doc.featureGroups` filtered by `g.layerId === layer.id`) nested
+> INSIDE each layer. So "traverse sublayers under a Drawing group"
+> needs NEW LayerPanel UI to render LayerGroup containers with member
+> layers. (3) `TrvMappingResult` (`trv-to-drawing.ts:54`) returns only
+> `{layers, features, notes}`; the consumer (`MenuBar.tsx:310,485`)
+> applies layers via `addLayer` (respects `layer.groupId`) + features
+> via `addFeatures`, but applies NO groups. (4) Many tests assert the
+> current 2-layer structure (`layerCount === 2`, ids `trv-drawing:`/
+> `trv-points:`) and will need migration. Each traverse polyline
+> already carries `properties.name = t.name` + `trvPointRefs`.
+> **Split plan:** 2a — `trvToDrawing` emits one named Layer per
+> traverse (linework) + a catch-all "<prefix> — Drawing" layer
+> (connectors/shapes/text/mirrors) + the "<prefix> — Points" layer;
+> return + apply (flat, no group yet); migrate the affected tests.
+> 2b — add `addLayerGroup` + a "Drawing" LayerGroup, parent the
+> traverse layers via `groupId`, and build the LayerPanel LayerGroup-
+> container UI. 2c — per-traverse point mirrors ("each traverse with
+> its points"). Not yet shipped.
 - In `trv-to-drawing.ts`, replace the two flat layers with:
   - One `LayerGroup` "<prefix> — Drawing" (the collapsible container).
   - One `Layer` per traverse, `groupId` = that group, named from
@@ -300,6 +324,34 @@ broken. Build a full bug-reporting flow:
 - Tests: modal opens from the button; submit validates + writes a
   report record + raises an admin alert; page selector includes the
   current page.
+
+### Slice 12 — Blue buttons must have white text
+*Added 2026-06-01 (user follow-up).*
+> **DONE (2026-06-01).** Audited solid-blue buttons site-wide. The
+> marketing-site CSS blue buttons (`var(--brand-blue)` in Home/Contact/
+> ServiceArea/etc.) already set `color:#FFFFFF`. The real offenders
+> were CAD Tailwind buttons that set a blue (or red danger) fill but no
+> text color, so the label inherited dark text: the SHARED
+> `ConfirmDialog` confirm button (high impact — used by many CAD
+> modals), `AnnotationPanel` (×2), `StandardNotesEditor`, `PrintDialog`
+> — all now `text-white`. Regression test `blue-button-contrast.test.ts`
+> locks it. (A non-CAD bg-blue match in `billing/page.tsx` is a chart
+> bar, not a button — left alone.)
+
+### Slice 13 — Unify all CAD modals/messages to Starr CAD styling (kill native confirm/alert)
+*Added 2026-06-01 (user follow-up).* Replace the native
+`window.confirm` / `window.alert` popups (48 in `app/admin/cad/`),
+especially the TRV/data IMPORT confirmation popups in `MenuBar.tsx`
+(Open + Import flows) the user dislikes, with the existing custom
+Starr-styled modal system (`ConfirmDialog` / `confirmAction` +
+`ModalFrame`). Action: build/extend a promise-based confirm + an
+info/alert modal on `ModalFrame`; route every CAD `window.confirm`/
+`alert` through them; replace the import-confirm `window.confirm` with
+a styled import-summary modal (counts + notes + the title-block-apply
+prompt in one Starr-themed dialog). Audit non-CAD admin areas for the
+same. Tests: import flow uses the styled modal (no `window.confirm` in
+the import path); a source-lock that `app/admin/cad/` has no
+`window.confirm(`/`window.alert(` left in user-facing paths.
 
 ## Deferrals (revisit, documented per the README rubric)
 - Geometric paper-space placement of title-block `28,5`/`28,6` (needs

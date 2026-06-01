@@ -206,7 +206,7 @@ export default function PrintDialog({ onClose }: Props) {
               }));
               onClose();
             }}
-            className="px-4 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 transition-colors"
+            className="px-4 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors"
           >
             Export PDF
           </button>

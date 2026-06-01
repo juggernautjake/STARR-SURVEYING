@@ -99,8 +99,8 @@ export default function ConfirmDialog() {
 
   const danger = state.danger ?? false;
   const confirmBtnClass = danger
-    ? 'bg-red-700 border-red-600 hover:bg-red-600'
-    : 'bg-blue-700 border-blue-600 hover:bg-blue-600';
+    ? 'bg-red-700 border-red-600 hover:bg-red-600 text-white'
+    : 'bg-blue-700 border-blue-600 hover:bg-blue-600 text-white';
 
   return (
     <ModalFrame
