@@ -603,6 +603,9 @@ export type FillPattern =
   | 'VERTICAL_LINES'
   | 'BRICK'
   | 'WAVE'
+  // cad-trv-fidelity Slice 6 — meadow/lawn tufts (upward blades on a
+  // jittered grid). Maps TPC "Grass" / "Forest" fills.
+  | 'GRASS'
   // cad-fill-stacking Slice 4 — dashed hatch. Same base as `LINES`
   // (parallel hatch through the bbox at the chosen angle) but each
   // hatch line is broken into dash+gap segments. Angle slider works

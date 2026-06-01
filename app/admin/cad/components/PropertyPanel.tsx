@@ -1396,6 +1396,9 @@ export default function PropertyPanel() {
               { label: 'Pattern', options: [
                 { value: 'BRICK', label: 'Brick' },
                 { value: 'WAVE', label: 'Wave' },
+                // cad-trv-fidelity Slice 6 — meadow/lawn tufts; maps
+                // TPC "Grass" / "Forest" fills.
+                { value: 'GRASS', label: 'Grass' },
               ] },
             ];
             // Flat option list (so the source-text test that walks

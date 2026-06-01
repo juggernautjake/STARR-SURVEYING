@@ -389,6 +389,46 @@ export function generateWaveLines(
   return lines;
 }
 
+/** cad-trv-fidelity Slice 6 — GRASS infill: little upward tufts (a
+ *  short center blade + two splayed blades) scattered on a jittered
+ *  grid. Reads as a meadow/lawn hatch and maps the TPC "Grass" /
+ *  "Forest" fills far better than the old dot-gravel approximation.
+ *  Output is line segments in screen px (y grows downward, so a blade
+ *  points "up" toward smaller y). Deterministic via the seed so the
+ *  fill is stable across redraws + test fixtures. */
+export function generateGrassTufts(
+  width: number,
+  height: number,
+  density: number,
+  seed: number,
+  scale?: number,
+): PatternLine[] {
+  if (width <= 0 || height <= 0) return [];
+  const clamped = Math.max(0.25, Math.min(4, density));
+  // Tighter base spacing than dots so a lawn reads dense at 1×.
+  const spacing = Math.max(7, 14 / clamped);
+  const sc = Number.isFinite(scale) && (scale as number) > 0 ? (scale as number) : 1;
+  const bladeH = spacing * 0.6 * sc;
+  const rng = new SeededRng(seed || 0x9e3779b9);
+  const lines: PatternLine[] = [];
+  for (let gy = spacing; gy < height + spacing; gy += spacing) {
+    for (let gx = spacing; gx < width + spacing; gx += spacing) {
+      // Jitter within the cell so tufts don't sit on a visible grid.
+      const cx = gx + (rng.next() - 0.5) * spacing * 0.7;
+      const cy = gy + (rng.next() - 0.5) * spacing * 0.7;
+      if (cx < 0 || cx > width || cy < 0 || cy > height) continue;
+      const h = bladeH * (0.75 + rng.next() * 0.5); // vary blade height
+      const spread = h * 0.4;
+      // center blade
+      lines.push({ x1: cx, y1: cy, x2: cx, y2: cy - h });
+      // left + right blades fan out from the base
+      lines.push({ x1: cx, y1: cy, x2: cx - spread, y2: cy - h * 0.82 });
+      lines.push({ x1: cx, y1: cy, x2: cx + spread, y2: cy - h * 0.82 });
+    }
+  }
+  return lines;
+}
+
 /** Top-level dispatcher used by the Pixi render path (Slice 236).
  *  Returns the dot set, the line set, or both — caller decides how
  *  each gets drawn (drawCircle for dots, moveTo/lineTo for lines).
@@ -457,6 +497,8 @@ function rawPattern(
       return { dots: [], lines: generateBrickLines(w, h, density, config.brickWidth, config.brickHeight) };
     case 'WAVE':
       return { dots: [], lines: generateWaveLines(w, h, density, config.waveAmplitude, config.wavePeriod) };
+    case 'GRASS':
+      return { dots: [], lines: generateGrassTufts(w, h, density, config.seed, scale) };
     default:
       return { dots: [], lines: [] };
   }

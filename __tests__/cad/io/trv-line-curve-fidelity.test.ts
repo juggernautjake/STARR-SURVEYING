@@ -114,8 +114,11 @@ describe('tpcFillNameToStarr — cross + brick + lines + dots + wave', () => {
     expect(tpcFillNameToStarr('Water')).toMatchObject({ pattern: 'WAVE' });
     expect(tpcFillNameToStarr('Swamp (filled)')).toMatchObject({ pattern: 'WAVE' });
   });
-  it('Forest / Grass → dense DOT_GRAVEL', () => {
-    expect(tpcFillNameToStarr('Forest')).toMatchObject({ pattern: 'DOT_GRAVEL', density: 2 });
+  it('Forest / Grass → the dedicated GRASS tuft pattern', () => {
+    // cad-trv-fidelity Slice 6 — was DOT_GRAVEL density 2; now mapped
+    // to the dedicated GRASS pattern for a closer plat match.
+    expect(tpcFillNameToStarr('Forest')).toMatchObject({ pattern: 'GRASS' });
+    expect(tpcFillNameToStarr('Grass')).toMatchObject({ pattern: 'GRASS' });
   });
 });
 

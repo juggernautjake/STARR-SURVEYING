@@ -122,9 +122,12 @@ export function tpcFillNameToStarr(name: string): StarrFillSpec | null {
   if (lower === 'water' || lower === 'water (filled)' || lower === 'swamp' || lower === 'swamp (filled)') {
     return { pattern: 'WAVE', rotation: 0, density: 1, tpcName: clean };
   }
-  // ── Vegetation → dense stipple ──
+  // ── Vegetation → grass tufts ──
+  // cad-trv-fidelity Slice 6 — map TPC grass/forest fills to the
+  // dedicated GRASS pattern (upward blades) instead of the old
+  // dense-dot approximation, for a much closer match to the plat.
   if (lower === 'forest' || lower === 'forest (filled)' || lower === 'grass') {
-    return { pattern: 'DOT_GRAVEL', rotation: 0, density: 2, tpcName: clean };
+    return { pattern: 'GRASS', rotation: 0, density: 1, tpcName: clean };
   }
   // ── Percent screens → uniform dots, density scaled by % ──
   const pct = /^(\d+)\s+percent$/.exec(lower);

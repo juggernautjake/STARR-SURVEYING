@@ -253,6 +253,20 @@ get no code→symbol assignment.
   `hidden=true`; the panel shows it hideable.
 
 ### Slice 6 — Fill: background color + separate opacities + density + grass + consistency
+
+> **PARTIAL (2026-06-01) — GRASS pattern done.** Added a dedicated
+> `GRASS` `FillPattern`: `generateGrassTufts` (upward 3-blade tufts on a
+> seeded jittered grid) in `fill-patterns.ts`, wired into the dispatcher
+> + the FillPattern union (`types.ts`) + the PropertyPanel picker
+> ("Pattern → Grass"). TPC "Grass"/"Forest" fills now map to `GRASS`
+> (was dense `DOT_GRAVEL`) in `trv-fill-patterns.ts`. Tests:
+> `fill-patterns.test.ts` (deterministic, 3 blades/tuft, denser→more),
+> picker + TPC-mapping tests updated. Suite 2542 green.
+> **Remaining (6b/6c):** `fillBackgroundColor` + `fillBackgroundOpacity`
+> style fields + render (solid bg under the pattern) + the InfoPanel
+> background-color picker and the TWO opacity sliders (background +
+> texture) with value inputs; and a density bump / cross-pattern
+> consistency pass for 1:1 PDF fidelity.
 - `FeatureStyle`: add `fillBackgroundColor?: string | null` and
   `fillBackgroundOpacity?: number` (texture opacity stays `fillOpacity`).
   Render the background as a solid fill UNDER the pattern in

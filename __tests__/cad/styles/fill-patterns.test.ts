@@ -309,6 +309,27 @@ describe('Slice 235 — generateFillPattern dispatcher', () => {
   });
 });
 
+describe('cad-trv-fidelity Slice 6 — GRASS tufts', () => {
+  it('generates upward blade segments (3 per tuft) deterministically', () => {
+    const a = generateFillPattern(100, 100, { pattern: 'GRASS', density: 1, seed: 7 });
+    const b = generateFillPattern(100, 100, { pattern: 'GRASS', density: 1, seed: 7 });
+    expect(a.dots).toEqual([]);
+    expect(a.lines.length).toBeGreaterThan(0);
+    expect(a.lines.length % 3).toBe(0); // 3 blades per tuft
+    expect(a.lines).toEqual(b.lines); // deterministic for a fixed seed
+    // Every blade points "up" (end y is above the base y) within the rect.
+    for (const ln of a.lines) {
+      expect(ln.y2).toBeLessThanOrEqual(ln.y1);
+    }
+  });
+
+  it('denser density yields more tufts', () => {
+    const sparse = generateFillPattern(120, 120, { pattern: 'GRASS', density: 0.5, seed: 3 });
+    const dense = generateFillPattern(120, 120, { pattern: 'GRASS', density: 3, seed: 3 });
+    expect(dense.lines.length).toBeGreaterThan(sparse.lines.length);
+  });
+});
+
 describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value', () => {
   it('source declares the FillPattern union with all 11 variants', () => {
     const variants: import('@/lib/cad/types').FillPattern[] = [
@@ -327,6 +348,8 @@ describe('Slice 235 — FeatureStyle.fillPattern type accepts every enum value',
       'VERTICAL_LINES',
       'BRICK',
       'WAVE',
+      // cad-trv-fidelity Slice 6 — grass tufts.
+      'GRASS',
       // cad-fill-stacking Slice 4 — dashed hatch.
       'DASHED_LINES',
     ];
