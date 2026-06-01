@@ -11,11 +11,16 @@
 //   drawingStore.addFeatures(features);
 //
 // Coordinate convention: TRV uses state-plane survey FEET with axes
-// (north, east, elevation). Our drawing space is unitless screen-
-// y-DOWN, so the natural mapping is `x = east, y = -north`. The
-// original survey coords are stashed on `feature.properties` (as
-// `surveyNorth` / `surveyEast` / `surveyElevation`) so Slice 5's
-// serializer can invert the transform on export.
+// (north, east, elevation). Starr's WORLD space is Y-UP (north =
+// +y), matching the native field-data importer
+// (`linework-features.ts` uses `{ x: easting, y: northing }`) and
+// the AI coord helper. So the mapping is `x = east, y = +north`.
+// (Earlier this negated north, which vertically MIRRORED the
+// survey relative to the north arrow + paper — the user caught
+// the flip.) The original survey coords are stashed on
+// `feature.properties` (`surveyNorth` / `surveyEast` /
+// `surveyElevation`) so the serializer can invert losslessly on
+// export.
 //
 // Pure module: no DOM, no zustand. Safe to unit-test.
 
@@ -172,7 +177,7 @@ function mapPoint(
     type: 'POINT',
     geometry: {
       type: 'POINT',
-      point: { x: p.east, y: -p.north },
+      point: { x: p.east, y: p.north },
     } as Feature['geometry'],
     layerId: layerId ?? '',
     style: defaultStyle(),
@@ -228,7 +233,7 @@ function mapTraverse(
     // the survey, and produce visible spaghetti lines once the
     // view auto-fits.
     if (p.north === 0 && p.east === 0 && (p.elevation === 0 || p.elevation === null)) continue;
-    resolved.push({ id: ref, x: p.east, y: -p.north });
+    resolved.push({ id: ref, x: p.east, y: p.north });
   }
   if (resolved.length < 2) {
     notes.push(`Traverse "${t.name ?? 'unnamed'}" — fewer than 2 resolvable points; skipped`);

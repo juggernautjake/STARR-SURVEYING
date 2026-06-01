@@ -21,8 +21,11 @@ const SRC = fs.readFileSync(
 );
 
 describe('renderTitleBlock — SURVEY-INFO layer visibility gates the overlay', () => {
-  it('reads the SURVEY-INFO layer from drawingStore.document.layers', () => {
-    expect(SRC).toMatch(/const surveyInfoLayer = drawingStore\.document\.layers\['SURVEY-INFO'\];/);
+  it('reads the SURVEY-INFO layer from the LIVE store via getState() (not a stale hook closure)', () => {
+    // cad-survey-info-hide Slice 1 — the render loop is an RAF
+    // callback, so the gate must read getState() to see the
+    // current visibility the moment the eye is toggled.
+    expect(SRC).toMatch(/const surveyInfoLayer = useDrawingStore\.getState\(\)\.document\.layers\['SURVEY-INFO'\];/);
   });
 
   it('derives a tbVisible flag from the layer\'s visible field (default true when the layer is missing)', () => {

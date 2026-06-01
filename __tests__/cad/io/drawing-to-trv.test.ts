@@ -137,7 +137,7 @@ describe('drawingToTrv — Pass 9: smart-merge add / remove for points', () => {
     const newPoint: Feature = {
       id: 'fresh:1',
       type: 'POINT',
-      geometry: { type: 'POINT', point: { x: 1234, y: -5678 } } as Feature['geometry'],
+      geometry: { type: 'POINT', point: { x: 1234, y: 5678 } } as Feature['geometry'],
       layerId: mapped.layers[0].id,
       style: {} as never,
       properties: { label: 'new pt' },
@@ -158,8 +158,8 @@ describe('drawingToTrv — Pass 9: smart-merge add / remove for points', () => {
     expect(merged).toContain('1,new pt');
     // Count is bumped to (original 2 + 1 added) = 3.
     expect(merged).toContain('95,3');
-    // New point's coords are inverse-screen-transformed: x=east=1234,
-    // y=-north → north=5678.
+    // New point's coords are inverse-transformed (Y-UP): x=east=1234,
+    // north=+y=5678.
     expect(merged).toMatch(/2,5678,1234,0/);
     // 999,end still terminates the file.
     expect(merged.split('\r\n').pop()).toBe('999,end');
@@ -459,7 +459,7 @@ describe('drawingToTrv — Pass 2: drawing elements + lot segments passthrough',
 });
 
 describe('drawingToTrv — fallback paths', () => {
-  it('falls back to the inverse screen-y transform when surveyNorth/East are missing', () => {
+  it('falls back to the Y-UP inverse transform (north = +y) when surveyNorth/East are missing', () => {
     const layer: Layer = {
       id: 'trv-layer:3', name: 'L', visible: true, locked: false, frozen: false,
       color: '#000', lineWeight: 0.5, lineTypeId: 'SOLID', opacity: 1,
@@ -469,7 +469,7 @@ describe('drawingToTrv — fallback paths', () => {
     const f: Feature = {
       id: 'trv-point:42',
       type: 'POINT',
-      geometry: { type: 'POINT', point: { x: 100, y: -200 } } as Feature['geometry'],
+      geometry: { type: 'POINT', point: { x: 100, y: 200 } } as Feature['geometry'],
       layerId: 'trv-layer:3',
       style: {} as never,
       properties: {},
@@ -486,7 +486,7 @@ describe('drawingToTrv — fallback paths', () => {
       customLineTypes: [],
     } as unknown as DrawingDocument;
     const text = drawingToTrv(doc);
-    // x = east = 100; y = -200 ⇒ north = 200.
+    // x = east = 100; north = +y = 200 (Y-UP convention).
     expect(text).toMatch(/2,200,100,0/);
   });
 });

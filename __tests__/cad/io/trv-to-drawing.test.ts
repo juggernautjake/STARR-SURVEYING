@@ -97,12 +97,13 @@ describe('trvToDrawing — points', () => {
     expect(points.map((p) => p.id).sort()).toEqual(['trv-point:1', 'trv-point:2', 'trv-point:3']);
   });
 
-  it('maps (north, east, z) → (east, -north) in screen-y-down space', () => {
+  it('maps (north, east) → (east, north) in Starr Y-UP world space', () => {
     const { features } = build();
     const p1 = features.find((f) => f.id === 'trv-point:1')!;
-    // TRV point 1: north=4994.142, east=4999.068
+    // TRV point 1: north=4994.142, east=4999.068. Starr world is
+    // Y-UP (north = +y) — matching the native field-data importer.
     expect(p1.geometry.point?.x).toBeCloseTo(4999.0675795, 6);
-    expect(p1.geometry.point?.y).toBeCloseTo(-4994.142075, 6);
+    expect(p1.geometry.point?.y).toBeCloseTo(4994.142075, 6);
   });
 
   it('preserves elevation / description / source coords on properties', () => {
@@ -161,12 +162,12 @@ describe('trvToDrawing — traverses', () => {
     expect(traverse.geometry.vertices?.length).toBe(3);
   });
 
-  it('traverse vertices match the imported points in (east, -north) space', () => {
+  it('traverse vertices match the imported points in (east, north) Y-UP space', () => {
     const { features } = build();
     const traverse = features.find((f) => f.type === 'POLYGON')!;
     const verts = traverse.geometry.vertices!;
     expect(verts[0].x).toBeCloseTo(4999.0675795, 6);
-    expect(verts[0].y).toBeCloseTo(-4994.142075, 6);
+    expect(verts[0].y).toBeCloseTo(4994.142075, 6);
   });
 
   it('traverse carries the source-line + ref-id list + name on properties', () => {
