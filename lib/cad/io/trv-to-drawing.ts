@@ -29,6 +29,14 @@ import type { TrvDocument, TrvLayer, TrvPoint, TrvTraverse } from './trv-parser'
 // cad-trv-import-export-deep-semantic Pass 7 — curve detection
 // + best-fit ARC / SPLINE for traverses with curved geometry.
 import { detectCurvedRuns, fitArcThroughPoints, fitSplineControlPoints } from '../geometry/curve-fit';
+// cad-trv-element-coverage Slice 2 — drawing-element subtype-12
+// point labels feed into the mapped POINT features so the
+// descriptive text (e.g. "309 inside 315 1in") shows next to
+// each point on import.
+import { extractPointLabels } from './trv-drawing-elements';
+// cad-trv-element-coverage Slice 4 — partial decoder for the
+// per-traverse fill styling records (51 / 70 / 71).
+import { extractTrvFillSummary } from './trv-fill-styling';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -65,6 +73,14 @@ function defaultStyle(): FeatureStyle {
   return {
     color: '#000000',
     lineWeight: 0.5,
+    // cad-trv-element-coverage Slice 3a — opacity is FULLY VISIBLE
+    // by default. The user's "not be hidden or fully opaque" ask:
+    // hidden = opacity 0 (we don't do that); fully-opaque-blocking
+    // refers to filled polygons that block underlying features.
+    // Below we explicitly set fillColor / fillPattern to a no-fill
+    // configuration so a closed polygon imports as an OUTLINE
+    // ONLY — no opaque area to hide other features behind. The
+    // user can opt into a fill via the property panel.
     opacity: 1,
     lineTypeId: null,
     symbolId: null,
@@ -73,6 +89,9 @@ function defaultStyle(): FeatureStyle {
     labelVisible: null,
     labelFormat: null,
     labelOffset: { x: 0, y: 0 },
+    fillColor: null,
+    fillPattern: 'NONE',
+    fillOpacity: 1,
   } as unknown as FeatureStyle;
 }
 
@@ -243,6 +262,26 @@ function mapTraverse(
   if (t.stylingRecords.length > 0) {
     properties.trvStylingRecords = JSON.stringify(t.stylingRecords);
   }
+  // cad-trv-element-coverage Slice 4 — surface fill-bearing
+  // traverses. The user asked us to "map the infill patterns
+  // from the trv" — without Traverse PC docs we can't pick a
+  // specific Starr fillPattern subtype, but the binary signal
+  // for "this traverse has fill" (71 field 0 > 0) is clean.
+  // Stamping these properties so:
+  //   (a) the user knows which traverses came with fill specs;
+  //   (b) the existing PropertyPanel infill picker can be
+  //       opened on the feature + the user can manually pick a
+  //       Starr pattern that matches their drawing intent.
+  // Raw subtype / scale / rotation values preserved verbatim
+  // so a future semantic decoder can use them as input.
+  const fill = extractTrvFillSummary(t.stylingRecords);
+  if (fill.hasFill) {
+    properties.trvHasFillSpec = true;
+    if (fill.fillKindCode !== null) properties.trvFillKindCode = fill.fillKindCode;
+    if (fill.subtypeIndex !== null) properties.trvFillSubtypeIndex = fill.subtypeIndex;
+    if (fill.scale !== null) properties.trvFillScale = fill.scale;
+    if (fill.param170 !== null) properties.trvFillParam170 = fill.param170;
+  }
   // Pass 7 — record the detected curve runs so a downstream
   // serializer (or UI tool) can refer back to which segments
   // were curve-fit on import. The original polyline stays
@@ -279,6 +318,35 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   for (const p of doc.points) {
     const feat = mapPoint(p, layerIdByTrvId, notes);
     if (feat) pointFeatures.push(feat);
+  }
+
+  // cad-trv-element-coverage Slice 2 — enrich POINT features
+  // with the descriptive labels TRV's 28/29 drawing elements
+  // attached to them. Subtype-12 elements (`28,12,<pointId>`)
+  // carry the multi-line label text the surveyor expected to
+  // see next to their point on the plot. We use the LABEL
+  // (multi-line, joined with `\n`) as `properties.label` when
+  // the point doesn't already have a description (point's own
+  // `1,<description>` line wins when both exist). Falls back
+  // silently when no labels are present.
+  const labels = extractPointLabels(doc.drawingElements);
+  if (labels.length > 0) {
+    const featByTrvId = new Map<string, Feature>();
+    for (const f of pointFeatures) {
+      const tid = f.properties.trvPointId;
+      if (typeof tid === 'string') featByTrvId.set(tid, f);
+    }
+    let attached = 0;
+    for (const lbl of labels) {
+      const feat = featByTrvId.get(lbl.trvPointId);
+      if (!feat) continue;
+      const existing = feat.properties.label;
+      if (typeof existing === 'string' && existing.trim().length > 0) continue;
+      feat.properties.label = lbl.label;
+      feat.properties.trvLabelSourceLine = lbl.sourceLine;
+      attached++;
+    }
+    if (attached > 0) notes.push(`Attached ${attached} descriptive label(s) from drawing-element subtype 12`);
   }
 
   const traverseFeatures: Feature[] = [];

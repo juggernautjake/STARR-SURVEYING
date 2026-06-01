@@ -335,7 +335,12 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             }
           }
           maybeFitPaperToImportedFeatures(report.mapped.features);
-          setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+          // cad-trv-element-coverage Slice 1 — zoom to the PAPER
+          // sheet (sized to the robust bbox by paper-fit above)
+          // not the strict feature bbox, so outlier GPS shots
+          // don't drag the camera out + the lot is immediately
+          // viewable.
+          setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomToPaper')), 200);
           setFileLoading(false);
           return;
         }
@@ -515,7 +520,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       // ~3M). Without auto-zoom the imported survey lands miles
       // off-screen and the user sees an empty canvas.
       maybeFitPaperToImportedFeatures(report.mapped.features);
-      setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+      // cad-trv-element-coverage Slice 1 — zoom to the PAPER
+      // sheet (sized to the robust bbox by paper-fit above)
+      // not the strict feature bbox, so outlier GPS shots don't
+      // drag the camera out + the lot is immediately viewable.
+      setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomToPaper')), 200);
     };
     input.click();
   }
