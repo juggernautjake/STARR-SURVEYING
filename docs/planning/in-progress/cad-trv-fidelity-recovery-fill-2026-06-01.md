@@ -340,9 +340,19 @@ get no code→symbol assignment.
 > layer (its own opacity) — and the param sliders already pair a range
 > with a numeric value input. So 6b is a UX-clarity task (a simpler
 > "background color + background opacity / texture color + texture
-> opacity" framing over the stack), NOT a missing capability. Deferred
-> as UX polish until prioritized; document inline so it isn't re-scoped
-> as a data-model gap.
+> opacity" framing over the stack), NOT a missing capability.
+>
+> **6b DONE (2026-06-01) — dedicated background color + dual opacity.**
+> Added `FeatureStyle.fillBackgroundOpacity`; both base-fill render
+> sites (polygon + circle/ellipse) now use `fillBackgroundOpacity ??
+> fillOpacity ?? alpha`, so the solid BACKGROUND fill's opacity is
+> independent of the texture/pattern opacity (`fillOpacity`). The
+> PropertyPanel gains a "Background" group — a background COLOUR picker
+> (`fillColor`) + a background-opacity slider WITH a paired numeric
+> input — above the pattern picker; texture colour (`patternColor`) +
+> texture opacity already existed. All four knobs are separate (slider +
+> value input each) → "black hatch on grey" is first-class. Test
+> `fill-background-opacity.test.ts`. Suite 2582 green.
 - `FeatureStyle`: add `fillBackgroundColor?: string | null` and
   `fillBackgroundOpacity?: number` (texture opacity stays `fillOpacity`).
   Render the background as a solid fill UNDER the pattern in

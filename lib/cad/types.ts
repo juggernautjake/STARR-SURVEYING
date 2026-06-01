@@ -494,6 +494,12 @@ export interface FeatureStyle {
    *  spline). null/undefined = no fill (stroke only, current behavior). */
   fillColor?: string | null;
   fillOpacity?: number;       // 0–1, defaults to opacity when omitted
+  /** cad-trv-fidelity Slice 6b — opacity of the solid BACKGROUND fill
+   *  (the `fillColor` base), independent of the texture/pattern opacity
+   *  (`fillOpacity`). Lets the surveyor set e.g. black hatch lines on a
+   *  semi-transparent grey background. Defaults to `fillOpacity` when
+   *  omitted, so existing drawings render unchanged. */
+  fillBackgroundOpacity?: number;
 
   /** Slice 235 — closed-shape texture / shading fill. Overlays the
    *  base fillColor with a procedural pattern: uniform stipple,
