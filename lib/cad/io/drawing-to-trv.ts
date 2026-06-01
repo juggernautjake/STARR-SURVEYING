@@ -240,7 +240,11 @@ export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {
   }
   out.push('#,POINTS');
   const allFeatures = Object.values(doc.features);
-  const points = allFeatures.filter((f) => f.type === 'POINT');
+  // cad-trv-dual-layer-filename Slice 2 — point MIRRORS (the copies
+  // that render on the Drawing layer alongside the linework) are
+  // render-only echoes. Skip them so each point is emitted exactly
+  // once + the `95,N` count stays correct.
+  const points = allFeatures.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror);
   out.push(`95,${points.length}`);
   for (const p of points) {
     for (const line of emitPoint(p, layerIdByOurId)) out.push(line);
@@ -298,6 +302,10 @@ function mergeSourceTrvWithDoc(sourceTrv: TrvDocument, doc: DrawingDocument): st
   const patches: Patch[] = [];
   const featuresByTrvId = new Map<string, Feature>();
   for (const f of Object.values(doc.features)) {
+    // cad-trv-dual-layer-filename Slice 2 — let the canonical point
+    // (not its render-only Drawing-layer mirror) own the trvPointId
+    // slot so coord patches/deletes resolve against the real point.
+    if (f.properties.trvPointMirror) continue;
     const trvPointId = f.properties.trvPointId;
     if (typeof trvPointId === 'string') featuresByTrvId.set(trvPointId, f);
   }

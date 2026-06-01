@@ -63,7 +63,12 @@ describe.skipIf(AVAILABLE.length === 0)('Pass 10 — end-to-end editability acce
       const originalTraverseCount = trv.traverses.length;
 
       // Pick three points to edit / delete + synthesize one to add.
-      const pointFeatures = Object.values(doc.features).filter((f) => f.type === 'POINT');
+      // cad-trv-dual-layer-filename Slice 2 — operate on the CANONICAL
+      // points (skip the render-only Drawing-layer mirrors, which
+      // share a trvPointId with their twin + don't round-trip).
+      const pointFeatures = Object.values(doc.features).filter(
+        (f) => f.type === 'POINT' && !f.properties.trvPointMirror,
+      );
       expect(pointFeatures.length).toBeGreaterThan(2); // safety
       const movedFeat = pointFeatures[0];
       const deletedFeat = pointFeatures[pointFeatures.length - 1];

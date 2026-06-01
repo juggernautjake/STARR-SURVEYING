@@ -389,9 +389,18 @@ function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'import';
 }
 
+/** Options for {@link trvToDrawing}. */
+export interface TrvToDrawingOptions {
+  /** cad-trv-dual-layer-filename Slice 1 — when set, use this string
+   *  verbatim as the synthetic layer-name prefix (the surveyor wants
+   *  the imported FILE's name on the layers, e.g. "Smith Boundary —
+   *  Drawing"). Falls back to the project-name prefix when omitted. */
+  layerPrefix?: string;
+}
+
 /** Project a parsed `TrvDocument` into the layers + features the
  *  drawing store consumes. Pure: no I/O, no zustand. */
-export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
+export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): TrvMappingResult {
   const notes: string[] = [];
   // Internal scratch maps for the per-feature stamping below.
   // layerIdByTrvId continues to map "TRV layer id → Starr layer
@@ -512,7 +521,9 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   // so the surveyor can filter / colour-by / audit by source
   // layer; the source TRV layer ids are still preserved in the
   // round-trip data (the parser keeps `doc.layers`).
-  const prefix = trvLayerPrefix(doc);
+  // cad-trv-dual-layer-filename Slice 1 — prefer the imported FILE
+  // name (threaded via opts.layerPrefix) over the TRV project name.
+  const prefix = (opts.layerPrefix ?? '').trim() || trvLayerPrefix(doc);
   const drawingLayerId = trvDrawingLayerKey(prefix);
   const pointsLayerId = trvPointsLayerKey(prefix);
   // cad-trv-label-prefs-off Slice 1 — imported layers come in with
@@ -542,9 +553,24 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
     const originalName = trvLayerNameByStarrId(originalLayerId, trvLayerNameById);
     if (originalName) f.properties.trvOriginalLayer = originalName;
   }
+  // cad-trv-dual-layer-filename Slice 2 — the surveyor wants the
+  // points to ALSO appear on the Drawing layer alongside the
+  // linework ("everything"), while the dedicated Points layer keeps
+  // just the points for independent label control. We add a
+  // render-only MIRROR of each point onto the Drawing layer. Mirrors
+  // carry `properties.trvPointMirror = true` so the TRV serializer
+  // emits each point ONCE and the import deduper leaves them alone;
+  // they keep their `trvPointId` so the smart-merge round-trip never
+  // mistakes a mirror for a freshly-added point.
+  const pointMirrors: Feature[] = pointFeatures.map((f) => ({
+    ...f,
+    id: `${f.id}:draw`,
+    layerId: drawingLayerId,
+    properties: { ...f.properties, trvPointMirror: true },
+  }));
   return {
     layers,
-    features: [...pointFeatures, ...traverseFeatures],
+    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures],
     notes,
   };
 }

@@ -39,11 +39,18 @@ describe('TRV → 2-layer restructure', () => {
     ]);
   });
 
-  it('every POINT feature lands on the Points layer', () => {
+  it('canonical POINT features land on the Points layer; mirrors land on Drawing', () => {
+    // cad-trv-dual-layer-filename Slice 2 — the surveyor wants points
+    // on BOTH layers: the dedicated Points layer keeps just the
+    // points (for label control), and a render-only mirror of each
+    // point also sits on the Drawing layer alongside the linework.
     const { features } = trvToDrawing(parseTrv(FIXTURE));
-    const points = features.filter((f) => f.type === 'POINT');
-    expect(points.length).toBeGreaterThan(0);
-    for (const p of points) expect(p.layerId).toBe('trv-points:trv-sample-project');
+    const canonical = features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror);
+    const mirrors = features.filter((f) => f.type === 'POINT' && f.properties.trvPointMirror);
+    expect(canonical.length).toBeGreaterThan(0);
+    expect(mirrors.length).toBe(canonical.length);
+    for (const p of canonical) expect(p.layerId).toBe('trv-points:trv-sample-project');
+    for (const m of mirrors) expect(m.layerId).toBe('trv-drawing:trv-sample-project');
   });
 
   it('every POLYLINE / POLYGON / ARC feature lands on the Drawing layer', () => {
@@ -73,8 +80,10 @@ describe('TRV 2-layer restructure — Garland sample', () => {
   it.skipIf(!fs.existsSync(sample))('Garland lands on exactly 2 layers (Drawing + Points)', () => {
     const out = trvToDrawing(parseTrv(fs.readFileSync(sample, 'latin1')));
     expect(out.layers.length).toBe(2);
-    const points = out.features.filter((f) => f.type === 'POINT');
-    const drawing = out.features.filter((f) => f.type !== 'POINT');
+    // cad-trv-dual-layer-filename Slice 2 — canonical points on the
+    // Points layer; mirrors + linework on the Drawing layer.
+    const points = out.features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror);
+    const drawing = out.features.filter((f) => f.type !== 'POINT' || f.properties.trvPointMirror);
     for (const p of points) expect(p.layerId).toBe(out.layers[1].id);
     for (const d of drawing) expect(d.layerId).toBe(out.layers[0].id);
     // Stamping preserved — at least 1 feature carries each

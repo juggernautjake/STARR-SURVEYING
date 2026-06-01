@@ -57,7 +57,11 @@ export function dedupeTrvFeaturesAgainstDrawing(
   const renames: PointRename[] = [];
 
   for (const f of newFeatures) {
-    if (f.type !== 'POINT') {
+    // cad-trv-dual-layer-filename Slice 2 — render-only point mirrors
+    // (the Drawing-layer copies) share their canonical point's
+    // trvPointId. Leave them untouched + out of the used-id set so
+    // they don't trigger a spurious `:N` rename against their twin.
+    if (f.type !== 'POINT' || f.properties.trvPointMirror) {
       out.push(f);
       continue;
     }

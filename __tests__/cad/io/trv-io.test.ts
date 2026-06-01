@@ -92,7 +92,9 @@ describe('MenuBar — TRV import/export wiring', () => {
   it('declares importTrv() that opens a file picker + previews counts', () => {
     expect(MENUBAR_SRC).toMatch(/function importTrv\(\)/);
     expect(MENUBAR_SRC).toMatch(/input\.accept = '\.TRV,\.trv,text\/plain'/);
-    expect(MENUBAR_SRC).toMatch(/importTrvFromText\(text\)/);
+    // cad-trv-dual-layer-filename Slice 1 — the file name is threaded
+    // through so the imported layers are named after the FILE.
+    expect(MENUBAR_SRC).toMatch(/importTrvFromText\(text, \{ fileName: file\.name \}\)/);
     expect(MENUBAR_SRC).toMatch(/window\.confirm\(/);
   });
 

@@ -145,7 +145,9 @@ describe('MenuBar — Pass 8 open-dialog routing + diagnostics', () => {
   it('sniffs the file format + routes TRV through importTrvFromText', () => {
     expect(SRC).toMatch(/const format = detectFileFormat\(file\.name, text\);/);
     expect(SRC).toMatch(/if \(format === 'TRV'\)/);
-    expect(SRC).toMatch(/importTrvFromText\(text\)/);
+    // cad-trv-dual-layer-filename Slice 1 — the file name is threaded
+    // through so the imported layers are named after the FILE.
+    expect(SRC).toMatch(/importTrvFromText\(text, \{ fileName: file\.name \}\)/);
   });
 
   it('every failure path goes through buildFileLoadDiagnostic + formatFileLoadDiagnostic', () => {

@@ -30,13 +30,27 @@ export interface TrvImportReport {
   metadata: TrvMetadata;
 }
 
+/** Options for {@link importTrvFromText}. */
+export interface ImportTrvOptions {
+  /** cad-trv-dual-layer-filename Slice 1 — the source file's name
+   *  (e.g. `Smith Boundary.TRV`). Its base name (directory +
+   *  extension stripped) becomes the synthetic layer-name prefix so
+   *  the imported layers are named after the FILE rather than a
+   *  generic "TRV". */
+  fileName?: string;
+}
+
 /** Parse a TRV file's text + map it into our layers + features.
  *  Returns the mapped result + a count summary the caller can show
  *  in a preview modal before committing to the store. */
-export function importTrvFromText(text: string): TrvImportReport {
+export function importTrvFromText(text: string, opts: ImportTrvOptions = {}): TrvImportReport {
   const trv = parseTrv(text);
-  const mapped = trvToDrawing(trv);
-  const points = mapped.features.filter((f) => f.type === 'POINT').length;
+  const layerPrefix = opts.fileName ? fileBaseName(opts.fileName) : undefined;
+  const mapped = trvToDrawing(trv, layerPrefix ? { layerPrefix } : {});
+  // cad-trv-dual-layer-filename Slice 2 — count the CANONICAL points
+  // only; the Drawing-layer mirrors are render echoes and shouldn't
+  // double the count shown in the import-confirm dialog.
+  const points = mapped.features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror).length;
   const traverses = mapped.features.filter((f) => f.type === 'POLYLINE' || f.type === 'POLYGON').length;
   return {
     layerCount: mapped.layers.length,
@@ -73,4 +87,14 @@ export function downloadTrv(doc: DrawingDocument, opts: { filename?: string } = 
 /** Filename-safe slug: alphanumerics + dash, rest stripped. */
 function slug(s: string): string {
   return s.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'survey';
+}
+
+/** cad-trv-dual-layer-filename Slice 1 — turn a file name (possibly
+ *  with a path + extension) into a clean display base name used as
+ *  the imported-layer prefix. `C:\jobs\Smith Boundary.TRV` →
+ *  `Smith Boundary`. Falls back to `TRV Import` when empty. */
+export function fileBaseName(fileName: string): string {
+  const leaf = fileName.split(/[\\/]/).pop() ?? fileName;
+  const noExt = leaf.replace(/\.[^.]+$/, '');
+  return noExt.trim() || 'TRV Import';
 }

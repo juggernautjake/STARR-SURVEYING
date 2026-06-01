@@ -34,7 +34,9 @@ describe('trvToDrawing — placeholder (2,0,0,0) point skip', () => {
 
   it('the (0,0,0) placeholder points do NOT produce features', () => {
     const out = trvToDrawing(parseTrv(fixture));
-    const points = out.features.filter((f) => f.type === 'POINT');
+    // cad-trv-dual-layer-filename Slice 2 — count canonical points
+    // only (each also mirrors onto the Drawing layer).
+    const points = out.features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror);
     expect(points.length).toBe(1);
     expect(points[0].properties.trvPointId).toBe('real');
   });

@@ -288,7 +288,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           // Route TRV files through the same import flow as
           // File → Import → "Import Traverse PC (.TRV)…" with
           // the count preview + non-destructive title-block apply.
-          const report: TrvImportReport = importTrvFromText(text);
+          const report: TrvImportReport = importTrvFromText(text, { fileName: file.name });
           const noteSummary = report.notes.length > 0
             ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
             : '';
@@ -459,7 +459,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       const text = await file.text();
       let report: TrvImportReport;
       try {
-        report = importTrvFromText(text);
+        report = importTrvFromText(text, { fileName: file.name });
       } catch (err) {
         cadLog.error('FileIO', 'TRV parse failed', err);
         alert('Failed to parse TRV file. Check that it came from Traverse PC.');

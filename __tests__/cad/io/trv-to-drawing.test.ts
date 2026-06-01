@@ -90,9 +90,12 @@ describe('trvToDrawing — layers', () => {
 });
 
 describe('trvToDrawing — points', () => {
-  it('emits one POINT Feature per point, ids prefixed with `trv-point:`', () => {
+  it('emits one CANONICAL POINT Feature per point, ids prefixed with `trv-point:`', () => {
     const { features } = build();
-    const points = features.filter((f) => f.type === 'POINT');
+    // cad-trv-dual-layer-filename Slice 2 — points now ALSO mirror
+    // onto the Drawing layer; the canonical (non-mirror) set is one
+    // per source point.
+    const points = features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror);
     expect(points.length).toBe(3);
     expect(points.map((p) => p.id).sort()).toEqual(['trv-point:1', 'trv-point:2', 'trv-point:3']);
   });
@@ -139,7 +142,9 @@ describe('trvToDrawing — points', () => {
       '999,end',
     ].join('\r\n');
     const { features, notes } = trvToDrawing(parseTrv(broken));
-    expect(features.filter((f) => f.type === 'POINT').map((f) => f.id)).toEqual(['trv-point:a']);
+    expect(
+      features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror).map((f) => f.id),
+    ).toEqual(['trv-point:a']);
     expect(notes.some((n) => n.includes('b') && n.includes('missing coordinates'))).toBe(true);
   });
 });
@@ -373,7 +378,11 @@ describe('trvToDrawing — composition', () => {
   it('returns layers + features + notes for the full fixture in one call', () => {
     const out = build();
     expect(out.layers.length).toBe(2);
-    expect(out.features.length).toBe(4); // 3 points + 1 polygon
+    // cad-trv-dual-layer-filename Slice 2 — 3 canonical points + 3
+    // Drawing-layer mirrors + 1 polygon = 7 features.
+    expect(out.features.length).toBe(7);
+    expect(out.features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror).length).toBe(3);
+    expect(out.features.filter((f) => f.properties.trvPointMirror).length).toBe(3);
     expect(out.notes).toEqual([]);
   });
 });
