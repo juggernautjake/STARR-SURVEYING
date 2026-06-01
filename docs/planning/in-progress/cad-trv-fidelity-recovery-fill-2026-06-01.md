@@ -297,6 +297,22 @@ get no code→symbol assignment.
   generates primitives; TPC grass→GRASS mapping; density unit checks.
 
 ### Slice 7 — Import line types + point symbols
+
+> **PARTIAL (2026-06-01) — point-symbol RENDERING wired.** The symbol
+> library + renderer existed but POINT features always drew a bare
+> crosshair (`style.symbolId` was ignored). The POINT draw path in
+> `CanvasViewport` now renders the assigned symbol via
+> `findSymbol` + `renderSymbol` (monument / utility / vegetation glyph,
+> sized by `symbolSize`, rotated by `symbolRotation`, falling back to
+> the crosshair when no/unknown symbol). Test
+> `point-symbol-render.test.ts` locks the wiring + verifies a library
+> monument glyph draws. Suite 2547 green.
+> **Remaining:** (a) ASSIGN symbols to imported TRV points by code
+> (`PointCodeDefinition.defaultSymbolId` — monument codes → IR/IP
+> symbols) in `mapPoint`; (b) decode TPC `51` line-type codes
+> (0/6/10/39/40, ground-truthed vs the PDF — e.g. adjoiner = dashed) to
+> the existing `linetype-library` types in `decodeTrvLineStyle` + assign
+> the `lineTypeId` to the traverse polyline.
 - Line types: ground-truth the TPC `51` field1 codes (0/6/10/39/40)
   against the PDF (e.g. adjoiner = dashed) and map them to the existing
   catalog (`DASHED`, etc.) in `decodeTrvLineStyle`; assign the decoded

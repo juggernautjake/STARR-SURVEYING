@@ -147,6 +147,10 @@ import {
 } from '@/lib/cad/geometry/curve-render';
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
+// cad-trv-fidelity Slice 7 — render assigned point symbols (monument /
+// utility / vegetation glyphs) on POINT features.
+import { findSymbol } from '@/lib/cad/styles/symbol-library';
+import { renderSymbol } from '@/lib/cad/styles/symbol-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
 import { generateFillPattern, patternLineWeight, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
@@ -2001,12 +2005,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     switch (geom.type) {
       case 'POINT': {
         const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-        const size = 4;
-        g.lineStyle(weight, color, alpha);
-        g.moveTo(sx - size, sy);
-        g.lineTo(sx + size, sy);
-        g.moveTo(sx, sy - size);
-        g.lineTo(sx, sy + size);
+        // cad-trv-fidelity Slice 7 — when the style carries a symbolId
+        // (e.g. an iron-rod monument assigned by point code), render
+        // that glyph from the symbol library; otherwise fall back to
+        // the simple crosshair.
+        const symbolId = feature.style.symbolId;
+        const symbol = symbolId
+          ? findSymbol(symbolId, useDrawingStore.getState().document.customSymbols ?? [])
+          : undefined;
+        if (symbol) {
+          const symPx = feature.style.symbolSize && feature.style.symbolSize > 0
+            ? feature.style.symbolSize
+            : 14;
+          renderSymbol(g, symbol, sx, sy, symPx, feature.style.symbolRotation ?? 0, color, alpha);
+        } else {
+          const size = 4;
+          g.lineStyle(weight, color, alpha);
+          g.moveTo(sx - size, sy);
+          g.lineTo(sx + size, sy);
+          g.moveTo(sx, sy - size);
+          g.lineTo(sx, sy + size);
+        }
         break;
       }
       case 'LINE': {
