@@ -11,7 +11,7 @@ import { useMediaStore } from '@/lib/cad/media/media-store';
 import { confirmAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
-import type { Layer } from '@/lib/cad/types';
+import type { Layer, TitleBlockConfig } from '@/lib/cad/types';
 // cad-layer-grouping-and-context-menus Slice 1 — POLYGON/POLYLINE
 // expand-chevron helpers for the layer panel.
 import { formatFeatureVertices, isExpandableFeature } from '@/lib/cad/feature-vertices';
@@ -818,21 +818,34 @@ export default function LayerPanel() {
               {/* Expanded feature tree */}
               {isExpanded && (
                 <div className="ml-4 border-l border-gray-700">
-                  {/* Special: SURVEY-INFO layer always shows default survey elements */}
+                  {/* Special: SURVEY-INFO layer always shows the default
+                      survey furniture elements. cad-survey-info-element-hide
+                      — each now has its OWN eye toggle bound to a
+                      per-element TitleBlockConfig flag, so the surveyor can
+                      hide the title block / signature / scale bar / north
+                      arrow individually (the layer eye above still hides
+                      them all at once). */}
                   {layer.id === 'SURVEY-INFO' && (() => {
                     const tb = doc.settings?.titleBlock;
-                    const tbVisible = tb?.visible !== false;
-                    const surveyElements = [
-                      { key: 'titleBlock',      label: 'Title Block',            visible: tbVisible },
-                      { key: 'signatureBlock',  label: 'Seal / Signature Block', visible: tbVisible },
-                      { key: 'scaleBar',        label: 'Graphic Scale',          visible: tbVisible && (tb?.scaleBarVisible !== false) },
-                      { key: 'northArrow',      label: 'Compass / North Arrow',  visible: tbVisible },
+                    // key = the TitleBlockConfig flag this row toggles;
+                    // hoverKey = the canvas element id for hover/selection
+                    // highlight sync.
+                    const surveyElements: Array<{
+                      key: keyof TitleBlockConfig;
+                      hoverKey: string;
+                      label: string;
+                      visible: boolean;
+                    }> = [
+                      { key: 'visible',               hoverKey: 'titleBlock',     label: 'Title Block',            visible: tb?.visible !== false },
+                      { key: 'signatureBlockVisible', hoverKey: 'signatureBlock', label: 'Seal / Signature Block', visible: tb?.signatureBlockVisible !== false },
+                      { key: 'scaleBarVisible',       hoverKey: 'scaleBar',       label: 'Graphic Scale',          visible: tb?.scaleBarVisible !== false },
+                      { key: 'northArrowVisible',     hoverKey: 'northArrow',     label: 'Compass / North Arrow',  visible: tb?.northArrowVisible !== false },
                     ];
                     return (
                       <>
                         {surveyElements.map((el) => {
-                          const isElHovered  = hoveredTBElem  === el.key;
-                          const isElSelected = selectedTBElem === el.key;
+                          const isElHovered  = hoveredTBElem  === el.hoverKey;
+                          const isElSelected = selectedTBElem === el.hoverKey;
                           return (
                             <div
                               key={el.key}
@@ -841,12 +854,28 @@ export default function LayerPanel() {
                                   ? 'text-blue-300 bg-blue-900/20'
                                   : isElHovered
                                   ? 'text-blue-200'
-                                  : 'text-gray-400'
+                                  : el.visible ? 'text-gray-400' : 'text-gray-600'
                               }`}
-                              title={el.visible ? 'Visible' : 'Hidden (title block is hidden)'}
+                              title={el.visible ? `Hide ${el.label}` : `Show ${el.label}`}
                             >
+                              <span className="shrink-0 w-3" aria-hidden />
+                              <button
+                                type="button"
+                                aria-label={el.visible ? `Hide ${el.label}` : `Show ${el.label}`}
+                                aria-pressed={!el.visible}
+                                title={el.visible ? `Hide ${el.label}` : `Show ${el.label}`}
+                                data-testid={`layer-panel-survey-info-eye-${el.key}`}
+                                className={`shrink-0 p-0.5 rounded transition-colors ${
+                                  el.visible ? 'text-gray-400 hover:text-gray-100' : 'text-gray-600 hover:text-gray-300'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  store.updateTitleBlock({ [el.key]: !el.visible } as Partial<TitleBlockConfig>);
+                                }}
+                              >
+                                {el.visible ? <Eye size={10} /> : <EyeOff size={10} />}
+                              </button>
                               <span className={`truncate ${el.visible ? '' : 'line-through opacity-50'}`}>{el.label}</span>
-                              {!el.visible && <span className="text-gray-600 text-[9px] ml-auto">hidden</span>}
                             </div>
                           );
                         })}

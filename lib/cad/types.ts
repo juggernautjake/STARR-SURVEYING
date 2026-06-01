@@ -297,6 +297,17 @@ export interface TitleBlockConfig {
   /** Data-URL of an uploaded square seal image, rendered in the seal column. null/absent = the "OFFICIAL SEAL" placeholder text. */
   sealImageDataUrl?: string | null;
 
+  // ── Per-element visibility (cad-survey-info-element-hide) ──
+  // Each default SURVEY-INFO furniture element can be hidden on its
+  // own from the Layers panel, independent of the SURVEY-INFO layer
+  // eye (which still hides ALL furniture at once). Undefined = visible.
+  /** Show the title-block BOX. Default: true */
+  // (the existing `visible` flag above doubles as the title-block box toggle)
+  /** Show the seal / signature block. Default: true */
+  signatureBlockVisible?: boolean;
+  /** Show the compass / north arrow. Default: true */
+  northArrowVisible?: boolean;
+
   // ── Scale bar ──
   /** Show the checkered graphic scale bar. Default: true */
   scaleBarVisible?: boolean;

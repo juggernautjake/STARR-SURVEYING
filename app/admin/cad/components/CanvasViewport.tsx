@@ -2650,7 +2650,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const doc = useDrawingStore.getState().document;
     const tb  = doc.settings.titleBlock;
-    if (!tb?.visible) return;
+    // cad-survey-info-element-hide — proceed even when the title-block
+    // BOX itself is hidden, so the OTHER furniture elements (scale bar /
+    // signature / north arrow) can still render based on their own
+    // per-element visibility flags. The title-block box, signature, and
+    // north arrow are gated individually via container.visible at the
+    // end of this function; the scale bar is gated inline below. (The
+    // SURVEY-INFO layer eye, handled above, remains the master "hide
+    // all furniture" switch.)
+    if (!tb) return;
 
     const { paperSize, paperOrientation, drawingScale } = doc.settings;
     let [pw, ph] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
@@ -3369,6 +3377,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       unitsLbl.anchor.set(0, 0);
       unitsLbl.position.set(sbScrLeft + barLenPx + 6, barTop + barH + tickH + 1);
     }
+
+    // cad-survey-info-element-hide — apply each default furniture
+    // element's OWN visibility flag by toggling its container, so the
+    // surveyor can hide the title block box / signature / scale bar /
+    // north arrow individually from the Layers panel (independent of
+    // the SURVEY-INFO layer eye, which already hid them all at once).
+    // Undefined flag = visible. We also null the hit-bounds of any
+    // hidden element so an invisible overlay can't capture clicks or
+    // context menus.
+    const tbBoxVisible = tb.visible !== false;
+    const sigVisible   = tb.signatureBlockVisible !== false;
+    const naVisible    = tb.northArrowVisible !== false;
+    pixi.tbTitleBlockContainer.visible = tbBoxVisible;
+    pixi.tbSignatureContainer.visible  = sigVisible;
+    pixi.tbNorthArrowContainer.visible = naVisible;
+    if (!tbBoxVisible) tbBoundsRef.current.titleBlock = null;
+    if (!sigVisible) {
+      tbBoundsRef.current.signatureBlock = null;
+      tbBoundsRef.current.officialSealLabel = null;
+    }
+    if (!naVisible) tbBoundsRef.current.northArrow = null;
   }
 
   // ─────────────────────────────────────────────────────────────────
