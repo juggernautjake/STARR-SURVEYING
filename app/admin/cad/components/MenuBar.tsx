@@ -27,6 +27,7 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 // cad-trv-import-export Slice 4 — File menu Import / Export TRV.
 import { downloadTrv, importTrvFromText, type TrvImportReport } from '@/lib/cad/io/trv-io';
+import { requestDiscard } from '../hooks/useUnsavedChangesGuard';
 // cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
 // to the survey title block (non-destructive).
 import { applyTrvMetadataToTitleBlock } from '@/lib/cad/io/trv-titleblock';
@@ -288,7 +289,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           // Route TRV files through the same import flow as
           // File → Import → "Import Traverse PC (.TRV)…" with
           // the count preview + non-destructive title-block apply.
-          const report: TrvImportReport = importTrvFromText(text);
+          const report: TrvImportReport = importTrvFromText(text, { fileName: file.name });
           const noteSummary = report.notes.length > 0
             ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
             : '';
@@ -459,7 +460,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       const text = await file.text();
       let report: TrvImportReport;
       try {
-        report = importTrvFromText(text);
+        report = importTrvFromText(text, { fileName: file.name });
       } catch (err) {
         cadLog.error('FileIO', 'TRV parse failed', err);
         alert('Failed to parse TRV file. Check that it came from Traverse PC.');
@@ -752,7 +753,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       label: 'File',
       items: [
         { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
-        { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
+        { label: 'Open…', shortcut: 'Ctrl+O', action: () => requestDiscard(openFileDialog) },
         { label: 'Open Saved Drawing…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
         { label: 'File Manager…', action: () => { window.dispatchEvent(new CustomEvent('cad:openFileManager')); setOpenMenu(null); } },
         // drawings-collaboration Slice 4 — notes thread for the current
@@ -799,7 +800,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             // cad-trv-import-export Slice 4 — opens a file picker,
             // parses + previews counts in a confirm dialog, then
             // appends layers + features to the current drawing.
-            { label: 'Import Traverse PC (.TRV)…', action: () => { importTrv(); setOpenMenu(null); } },
+            { label: 'Import Traverse PC (.TRV)…', action: () => { requestDiscard(importTrv); setOpenMenu(null); } },
           ],
         },
         { separator: true },

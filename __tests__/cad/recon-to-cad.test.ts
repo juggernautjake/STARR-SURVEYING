@@ -97,15 +97,15 @@ describe('convertReconToCAD — basic structure', () => {
   });
 
   it('includes the slimmed default starting layers', () => {
-    // cad-hub-greeting-and-field-data-trv-route Slice 3 — default
-    // layer set is now SURVEY-INFO + TITLE-BLOCK + ANNOTATION +
-    // DEFAULT only. Recon → CAD converter still needs to surface
-    // the minimum the surveyor expects to see after conversion.
+    // 2026-06-01 — default layer set trimmed to just SURVEY-INFO +
+    // DEFAULT (Layer 1). The standalone TITLE-BLOCK + ANNOTATION
+    // layers are no longer pre-seeded; their ids remain valid
+    // logical routing tags for auto-generated annotations (which
+    // render off their own visible flag, not a document layer).
     const doc = convertReconToCAD(makeDrawing(), []);
     expect(doc.layers['SURVEY-INFO']).toBeDefined();
-    expect(doc.layers['TITLE-BLOCK']).toBeDefined();
-    expect(doc.layers['ANNOTATION']).toBeDefined();
     expect(doc.layers['DEFAULT']).toBeDefined();
+    expect(Object.keys(doc.layers)).toHaveLength(2);
   });
 
   it('returns empty features when given no elements', () => {

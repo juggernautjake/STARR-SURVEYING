@@ -94,22 +94,31 @@ describe('survey CSV: point name + full description extraction', () => {
     }
   });
 
-  it('produces a POINT_NAME and numeric POINT_DESCRIPTION label by default', () => {
+  it('produces a POINT_NAME and a raw-text POINT_DESCRIPTION label by default', () => {
+    // cad-point-code-description-labels 2026-06-01 — POINT_DESCRIPTION
+    // now shows the RAW human description; code-resolution (numeric ↔
+    // alpha) moved to the separate POINT_CODE label / showPointCodes.
     useDrawingStore.getState().updateSettings({ codeDisplayMode: 'NUMERIC' });
     const pt = byName.get('21fnd')!;
     const labels = generateLabelsForFeature(pointFeature(pt), labelLayer, DEFAULT_DISPLAY_PREFERENCES);
     const name = labels.find((l) => l.kind === 'POINT_NAME');
     const desc = labels.find((l) => l.kind === 'POINT_DESCRIPTION');
     expect(name?.text).toBe('21fnd');
-    expect(desc?.text).toBe('310 ACS'); // numeric code 310 + remainder
+    expect(desc?.text).toBe('310 ACS'); // raw description text
   });
 
-  it('switches the description code to alpha when codeDisplayMode = ALPHA', () => {
-    useDrawingStore.getState().updateSettings({ codeDisplayMode: 'ALPHA' });
+  it('POINT_CODE switches numeric ↔ alpha with codeDisplayMode (showPointCodes)', () => {
+    const codeLayer: Layer = {
+      ...labelLayer,
+      displayPreferences: { ...labelLayer.displayPreferences!, showPointCodes: true },
+    };
     const pt = byName.get('21fnd')!; // numeric 310 ↔ alpha BC03
-    const labels = generateLabelsForFeature(pointFeature(pt), labelLayer, DEFAULT_DISPLAY_PREFERENCES);
-    const desc = labels.find((l) => l.kind === 'POINT_DESCRIPTION');
-    expect(desc?.text).toBe('BC03 ACS');
+    useDrawingStore.getState().updateSettings({ codeDisplayMode: 'NUMERIC' });
+    let labels = generateLabelsForFeature(pointFeature(pt), codeLayer, DEFAULT_DISPLAY_PREFERENCES);
+    expect(labels.find((l) => l.kind === 'POINT_CODE')?.text).toBe('310 ACS');
+    useDrawingStore.getState().updateSettings({ codeDisplayMode: 'ALPHA' });
+    labels = generateLabelsForFeature(pointFeature(pt), codeLayer, DEFAULT_DISPLAY_PREFERENCES);
+    expect(labels.find((l) => l.kind === 'POINT_CODE')?.text).toBe('BC03 ACS');
     useDrawingStore.getState().updateSettings({ codeDisplayMode: 'NUMERIC' }); // reset
   });
 

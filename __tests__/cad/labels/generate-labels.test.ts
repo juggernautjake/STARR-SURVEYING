@@ -101,6 +101,50 @@ describe('generateLabelsForFeature', () => {
     expect(labels.find((l) => l.kind === 'POINT_NAME')?.text).toBe('PT1');
   });
 
+  // cad-point-code-description-labels 2026-06-01 — independent
+  // CODE + DESCRIPTION toggles.
+  it('generates POINT_CODE from properties.code when showPointCodes is true', () => {
+    const layer = makeLayer({
+      displayPreferences: { ...DEFAULT_LAYER_DISPLAY_PREFERENCES, showPointCodes: true },
+    });
+    const feature = makePointFeature({ properties: { name: 'PT1', code: '309 w/ angle iron', description: 'human desc' } });
+    const labels = generateLabelsForFeature(feature, layer, DEFAULT_DISPLAY_PREFERENCES);
+    const code = labels.find((l) => l.kind === 'POINT_CODE');
+    expect(code).toBeDefined();
+    expect(code?.text).toBe('309 w/ angle iron');
+    // Description must NOT emit when only the code toggle is on.
+    expect(labels.some((l) => l.kind === 'POINT_DESCRIPTION')).toBe(false);
+  });
+
+  it('generates POINT_DESCRIPTION from properties.description when showPointDescriptions is true', () => {
+    const layer = makeLayer({
+      displayPreferences: { ...DEFAULT_LAYER_DISPLAY_PREFERENCES, showPointDescriptions: true },
+    });
+    const feature = makePointFeature({ properties: { name: 'PT1', code: '309', description: 'iron rod found' } });
+    const labels = generateLabelsForFeature(feature, layer, DEFAULT_DISPLAY_PREFERENCES);
+    const desc = labels.find((l) => l.kind === 'POINT_DESCRIPTION');
+    expect(desc?.text).toBe('iron rod found');
+    expect(labels.some((l) => l.kind === 'POINT_CODE')).toBe(false);
+  });
+
+  it('code + description are independent — both render when both toggles are on', () => {
+    const layer = makeLayer({
+      displayPreferences: { ...DEFAULT_LAYER_DISPLAY_PREFERENCES, showPointCodes: true, showPointDescriptions: true },
+    });
+    const feature = makePointFeature({ properties: { name: 'PT1', code: '309', description: 'iron rod found' } });
+    const labels = generateLabelsForFeature(feature, layer, DEFAULT_DISPLAY_PREFERENCES);
+    expect(labels.find((l) => l.kind === 'POINT_CODE')?.text).toBe('309');
+    expect(labels.find((l) => l.kind === 'POINT_DESCRIPTION')?.text).toBe('iron rod found');
+  });
+
+  it('point label color defaults to null (inherits the layer color → visible, not opaque)', () => {
+    const layer = makeLayer({
+      displayPreferences: { ...DEFAULT_LAYER_DISPLAY_PREFERENCES, showPointNames: true },
+    });
+    const labels = generateLabelsForFeature(makePointFeature(), layer, DEFAULT_DISPLAY_PREFERENCES);
+    expect(labels.find((l) => l.kind === 'POINT_NAME')?.style.color ?? null).toBeNull();
+  });
+
   it('generates point elevation label when showPointElevations is true', () => {
     const layer = makeLayer({
       displayPreferences: { ...DEFAULT_LAYER_DISPLAY_PREFERENCES, showPointElevations: true },

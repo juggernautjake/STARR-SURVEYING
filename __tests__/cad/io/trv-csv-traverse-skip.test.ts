@@ -57,7 +57,9 @@ describe('mapTraverse — skips CSV master-list traverses', () => {
     // the 3 source points still land as POINT features regardless
     // of whether the traverse polyline was skipped.
     const { features } = trvToDrawing(parseTrv(fixture('26074.csv')));
-    expect(features.filter((f) => f.type === 'POINT').length).toBe(3);
+    // cad-trv-dual-layer-filename Slice 2 — count canonical points
+    // only (each also mirrors onto the Drawing layer).
+    expect(features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror).length).toBe(3);
   });
 
   it('the skip note reports the point count + the symbol-only rendering hint', () => {

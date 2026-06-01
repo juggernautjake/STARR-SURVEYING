@@ -193,28 +193,38 @@ export function generateLabelsForFeature(
       }
     }
 
-    if (layerPrefs.showPointDescriptions) {
-      // Resolve the code in the document's chosen display mode (numeric
-      // "308" vs alpha "BC01") and append any human remainder. Falls back
-      // to the stored raw description for points imported before both
-      // code forms were captured.
+    // cad-point-code-description-labels 2026-06-01 — CODE and
+    // DESCRIPTION are now INDEPENDENT toggles. The code label
+    // resolves to the document's chosen code form (numeric "308"
+    // vs alpha "BC01") when the code is recognized in the library,
+    // else the raw `properties.code`. The description label shows
+    // the human `properties.description`. For TRV imports both
+    // come from the same source text, so enabling both shows it
+    // twice — that's intentional + the surveyor picks which they
+    // want.
+    if (layerPrefs.showPointCodes) {
       const alpha = feature.properties.code;
       const numeric = feature.properties.codeNumeric;
-      // Only swap to the resolved code form when the code is actually
-      // recognized in the library (alpha ≠ numeric, e.g. BC03 ↔ 310).
-      // For unrecognized free-text codes ("brick", "txdot row marker")
-      // alpha === numeric === the uppercased word, so we instead show the
-      // raw description exactly as imported (preserves the original case).
       const recognized = alpha != null && numeric != null && String(alpha) !== String(numeric);
-      let desc: string;
+      let codeStr: string;
       if (recognized) {
-        const codeStr = String(codeDisplayMode === 'NUMERIC' ? numeric : alpha);
+        const resolved = String(codeDisplayMode === 'NUMERIC' ? numeric : alpha);
         const remainder = feature.properties.codeText != null ? String(feature.properties.codeText) : '';
-        desc = [codeStr, remainder].filter((s) => s.trim()).join(' ');
-        if (!desc) desc = String(feature.properties.description ?? '');
+        codeStr = [resolved, remainder].filter((s) => s.trim()).join(' ');
       } else {
-        desc = String(feature.properties.description ?? feature.properties.code ?? '');
+        codeStr = String(feature.properties.code ?? '');
       }
+      if (codeStr) {
+        result.push(addOrKeep('POINT_CODE', codeStr, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointCodeTextStyle'));
+        yStep -= lineStep('pointCodeTextStyle');
+      }
+    }
+
+    if (layerPrefs.showPointDescriptions) {
+      // The human description. Falls back to the raw code only when
+      // no description is present (legacy points that stored just a
+      // code).
+      const desc = String(feature.properties.description ?? feature.properties.code ?? '');
       if (desc) {
         result.push(addOrKeep('POINT_DESCRIPTION', desc, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointDescriptionTextStyle'));
         yStep -= lineStep('pointDescriptionTextStyle');

@@ -89,7 +89,9 @@ import {
   useImportStore,
 } from '@/lib/cad/store';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
-import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
+import { useRouter } from 'next/navigation';
+import { useUnsavedChangesGuard, requestDiscard } from './hooks/useUnsavedChangesGuard';
+import UnsavedChangesModal from './components/UnsavedChangesModal';
 import { useHotkeys } from './hooks/useHotkeys';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -163,6 +165,7 @@ export default function CADLayout() {
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const undoStore = useUndoStore();
+  const router = useRouter();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
   // Lightweight count for the collapsed Point Data bar.
   const pointCount = useMemo(
@@ -189,9 +192,12 @@ export default function CADLayout() {
   // Always reset the import wizard before opening so a new file starts at
   // step 1 — the store is an in-memory singleton, so without this a prior
   // completed import would reopen stuck on "Done".
+  // Guarded: importing into an unsaved drawing prompts to save first.
   const openImport = () => {
-    useImportStore.getState().reset();
-    setShowImportDialog(true);
+    requestDiscard(() => {
+      useImportStore.getState().reset();
+      setShowImportDialog(true);
+    });
   };
   const [showAIDrawingDialog, setShowAIDrawingDialog] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
@@ -389,11 +395,14 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:openSealPicker', handler);
   }, []);
 
-  // Open the import wizard (always reset to step 1 first).
+  // Open the import wizard (always reset to step 1 first). Routed
+  // through `openImport`, which guards against discarding unsaved
+  // changes.
   useEffect(() => {
-    const handler = () => { useImportStore.getState().reset(); setShowImportDialog(true); };
+    const handler = () => openImport();
     window.addEventListener('cad:openImport', handler);
     return () => window.removeEventListener('cad:openImport', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Phase 3 §15 — code-to-style mapping panel
@@ -522,12 +531,50 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:openSketchReconcileDialog', handler);
   }, []);
 
-  // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
+  // Listen for new drawing dialog event (dispatched by MenuBar "New
+  // Drawing"). Guarded: starting a new drawing over unsaved changes
+  // prompts to save first. On startup the doc is clean, so the
+  // dialog still opens immediately.
   useEffect(() => {
-    const handler = () => setShowNewDrawingDialog(true);
+    const handler = () => requestDiscard(() => setShowNewDrawingDialog(true));
     window.addEventListener('cad:openNewDrawingDialog', handler);
     return () => window.removeEventListener('cad:openNewDrawingDialog', handler);
   }, []);
+
+  // Guard client-side navigation AWAY from the CAD page. `beforeunload`
+  // (registered above) covers tab-close / refresh / address-bar nav,
+  // but Next.js <Link> clicks don't trigger it. A capture-phase click
+  // interceptor catches plain left-clicks on anchors that leave
+  // /admin/cad while the drawing is dirty, and routes them through the
+  // unsaved-changes prompt. Modified clicks (new tab), downloads, and
+  // in-page anchors are left alone.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const anchor = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      if (anchor.target && anchor.target !== '_self') return;
+      if (anchor.hasAttribute('download')) return;
+      const href = anchor.getAttribute('href') ?? '';
+      // In-page anchors + non-navigations (mailto:/tel:/javascript:).
+      if (!href || href.startsWith('#')) return;
+      let dest: URL;
+      try {
+        dest = new URL(anchor.href, window.location.href);
+      } catch {
+        return;
+      }
+      if (dest.origin !== window.location.origin) return; // external → let the browser/beforeunload handle it
+      // Same path (in-page nav / query change) → don't guard.
+      if (dest.pathname === window.location.pathname) return;
+      if (!useDrawingStore.getState().isDirty) return; // clean → let it proceed
+      e.preventDefault();
+      e.stopPropagation();
+      requestDiscard(() => router.push(dest.pathname + dest.search + dest.hash));
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [router]);
 
   // Listen for layer preferences open event
   useEffect(() => {
@@ -1333,6 +1380,10 @@ export default function CADLayout() {
           onImportComplete={() => { setShowImportDialog(false); setPointViewerCollapsed(false); }}
         />
       )}
+
+      {/* Unsaved-changes guard — prompts to save before any discard
+          action (New / Open / Import / leaving the CAD page). */}
+      <UnsavedChangesModal />
 
       {/* Phase 6 AI drawing pipeline dialog */}
       {showAIDrawingDialog && (
