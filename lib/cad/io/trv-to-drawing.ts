@@ -45,10 +45,6 @@ import { extractTrvFillSummary } from './trv-fill-styling';
 // cad-trv-straight-line-styling Slice 1 — decode 51/71 → line
 // type + weight + fill.
 import { decodeTrvLineStyle } from './trv-line-style';
-// cad-trv-bearings-and-distances Slice 2 — seed display prefs
-// on the synthetic TRV layers so bearings + distances + point
-// labels render immediately on import.
-import { DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -519,26 +515,20 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   const prefix = trvLayerPrefix(doc);
   const drawingLayerId = trvDrawingLayerKey(prefix);
   const pointsLayerId = trvPointsLayerKey(prefix);
-  // cad-trv-bearings-and-distances Slice 2 — seed display prefs
-  // on the TRV Drawing layer so per-segment bearings + distances
-  // render immediately on import (matching TPC's default Traverse
-  // View output). The user can toggle these off via the
-  // layer-preferences panel.
+  // cad-trv-label-prefs-off Slice 1 — imported layers come in with
+  // ALL display-preference toggles OFF (no seeded displayPreferences
+  // → the label generator falls back to DEFAULT_LAYER_DISPLAY_
+  // PREFERENCES, everything false). The user explicitly wants
+  // anything IMPORTED (TRV / field data) to start with every
+  // toggle off; only `.starr` / saved files carry their stored
+  // preferences. (Previously we seeded showBearings / showPoint-
+  // Names true — but seeding the PREF without generating the
+  // textLabels left an inconsistent "toggle looks on, nothing
+  // renders" state. With no seeding, flipping a toggle in the
+  // panel is a real false→true change that regenerates + shows
+  // the labels.)
   const drawingLayer = makeLayer(drawingLayerId, `${prefix} — Drawing`, 1000);
-  drawingLayer.displayPreferences = {
-    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
-    showBearings: true,
-    showDistances: true,
-  };
-  // Same default on the Points layer for the point-name label
-  // toggle so each POINT feature shows its descriptive label
-  // (the user explicitly asked for this last session).
   const pointsLayer = makeLayer(pointsLayerId, `${prefix} — Points`, 1001);
-  pointsLayer.displayPreferences = {
-    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
-    showPointNames: true,
-    showPointDescriptions: true,
-  };
   const layers: Layer[] = [drawingLayer, pointsLayer];
   for (const f of pointFeatures) {
     const originalLayerId = f.layerId;
