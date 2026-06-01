@@ -80,7 +80,61 @@ them.
 - If `addLayer` is overwriting, switch to a "skip if id exists"
   variant or namespace TRV ids explicitly.
 
-### Slice 3 — Nest imported TRV layers under one parent layer group
+### Slice 3 — Restructure TRV imports onto ONE main layer + a Points-Only layer ✅ shipped 2026-05-31
+
+- `trvToDrawing` now emits exactly TWO synthetic Starr layers
+  per import:
+  - `TRV: <project> — Drawing` (sortOrder 1000) holds every
+    POLYLINE / POLYGON / ARC.
+  - `TRV: <project> — Points` (sortOrder 1001) holds every
+    POINT.
+- Prefix derived from `doc.metadata.projectName`; falls back to
+  `TRV Import` when the source has no project name.
+- Each mapped feature carries `properties.trvOriginalLayer`
+  with the source TRV layer name (Boundaries / Topo / Easements
+  / etc.) so the user can filter / colour-by / audit by source
+  layer. The source layer ids stay in the round-trip data
+  (parsed `doc.layers`) so smart-merge serialization still
+  re-emits them.
+- New `trvLayerPrefix(doc)` + `trvDrawingLayerKey` +
+  `trvPointsLayerKey` + `trvLayerNameByStarrId` helpers (pure).
+- 6 new specs lock the restructure end-to-end (Drawing /
+  Points split, original-layer-name stamping, project-name vs
+  fallback prefix, Garland integration). Affected legacy
+  tests (3 fresh-export + 1 trv-io + 2 trv-to-drawing) updated
+  to expect the new 2-layer behavior; smart-merge round-trip
+  specs continue to pass unchanged (the merge path re-emits
+  source layers verbatim from sourceTrv.lines).
+- Full cad suite (2385) green; typecheck + lint clean.
+
+User refined the ask:
+> "Put all of the trv layers that get imported into one layer
+>  so that we can select the main layer to edit and manage all
+>  of the new element data."
+> "Make sure that there is a layer created that only has the
+>  point data, and none of the layer lines or anything like
+>  that. … display the point names and point codes and
+>  everything."
+
+- After mapping a TRV doc, collapse the 19 TRV layers into
+  TWO Starr layers:
+  - `TRV: <project> — Drawing` — every POLYLINE / POLYGON /
+    ARC feature
+  - `TRV: <project> — Points` — every POINT feature, with
+    `properties.label` already carrying the description (Slice
+    2 of element-coverage) so the existing point-label panel
+    options will render them.
+- Each feature's original TRV layer name lives on
+  `properties.trvOriginalLayer` for filter / colour-by /
+  audit. The 19 source TRV layers stay in the round-trip data
+  (`trvOriginalLayer`) so the smart-merge serializer still
+  re-emits the source layer assignments.
+- Default starting layers (NORTH-ARROW, SURVEY-INFO, etc.)
+  are NOT touched by the import — the new TRV layers are
+  added alongside.
+- Tests: import yields exactly 2 new layers; every POINT lands
+  on Points; every POLYLINE/POLYGON/ARC lands on Drawing;
+  default layers still present; trvOriginalLayer preserved.
 
 - After mapping a TRV doc, wrap all `trv-layer:*` layers in a
   new `LayerGroup` named "TRV Import — <project name>" (or

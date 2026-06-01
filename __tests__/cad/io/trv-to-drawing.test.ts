@@ -51,16 +51,31 @@ function build() {
 }
 
 describe('trvToDrawing — layers', () => {
-  it('emits one Layer per 86 record, ids prefixed with `trv-layer:`', () => {
+  // cad-trv-import-polish Slice 3 — the mapper now emits exactly
+  // TWO synthetic destination layers per import (Drawing +
+  // Points) so the LayerPanel can show the import as a single
+  // unit and the user can toggle point labels / line styling
+  // independently. Source TRV layer names land on each feature's
+  // `properties.trvOriginalLayer` for filter / colour-by.
+  it('emits exactly TWO synthetic layers (Drawing + Points)', () => {
     const { layers } = build();
     expect(layers.length).toBe(2);
-    expect(layers.map((l) => l.id)).toEqual(['trv-layer:3', 'trv-layer:18']);
-    expect(layers.map((l) => l.name)).toEqual(['Boundaries', 'Topo']);
+    expect(layers.map((l) => l.id)).toEqual(['trv-drawing:trv-import', 'trv-points:trv-import']);
+    expect(layers.map((l) => l.name)).toEqual(['TRV Import — Drawing', 'TRV Import — Points']);
   });
 
-  it('layers preserve source order via sortOrder', () => {
-    const { layers } = build();
-    expect(layers.map((l) => l.sortOrder)).toEqual([0, 1]);
+  it('uses the TRV project name in the layer prefix when present', () => {
+    const trvWithName = [
+      '999,begin',
+      '101,Sample Survey',
+      '#,SURVEY',
+      '86,Boundaries,3,0',
+      '#,POINTS', '95,1',
+      '0,1', '3,3', '4,5,0,0', '2,100,200,0',
+      '999,end',
+    ].join('\r\n');
+    const { layers } = trvToDrawing(parseTrv(trvWithName));
+    expect(layers.map((l) => l.name)).toEqual(['TRV: Sample Survey — Drawing', 'TRV: Sample Survey — Points']);
   });
 
   it('layer defaults render as visible/unlocked/SOLID', () => {
@@ -100,10 +115,14 @@ describe('trvToDrawing — points', () => {
     expect(p1.properties.trvPointId).toBe('1');
   });
 
-  it('assigns the point to its TRV layer via the layerIdByTrvId map', () => {
+  it('assigns the point to the synthetic Points layer + stamps the original TRV layer name', () => {
     const { features } = build();
     const p1 = features.find((f) => f.id === 'trv-point:1')!;
-    expect(p1.layerId).toBe('trv-layer:3');
+    // cad-trv-import-polish Slice 3 — every POINT lands on the
+    // synthetic Points layer; the original TRV layer name lives
+    // on `properties.trvOriginalLayer` for filter / audit.
+    expect(p1.layerId).toBe('trv-points:trv-import');
+    expect(p1.properties.trvOriginalLayer).toBe('Boundaries');
   });
 
   it('points with no coordinates are skipped + noted', () => {

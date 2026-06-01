@@ -277,14 +277,25 @@ describe('drawingToTrv — fresh export', () => {
     const doc = buildDrawingFromFixture();
     const text = drawingToTrv(doc);
     const sixes = text.split('\r\n').filter((l) => l.startsWith('86,'));
-    expect(sixes).toEqual(['86,Boundaries,3,0', '86,Topo,18,0']);
+    // cad-trv-import-polish Slice 3 — fresh-export now sees the
+    // 2 synthetic destination layers (the mapper no longer
+    // surfaces the 19 source TRV layers to the drawing store).
+    // For an imported-then-exported round-trip, the smart-merge
+    // path (test below) is the realistic case + still re-emits
+    // the source 86 records from sourceTrv.lines verbatim.
+    expect(sixes.length).toBe(2);
   });
 
   it('emits one 0/...,1,...,3,...,4,...,2,... block per POINT feature', () => {
     const doc = buildDrawingFromFixture();
     const text = drawingToTrv(doc);
-    expect(text).toMatch(/0,1\r\n1,corner SE\r\n3,3\r\n4,5,0,0\r\n2,4994\.142075,4999\.0675795,700/);
-    expect(text).toMatch(/0,2\r\n1,corner SW\r\n3,3\r\n4,5,0,0\r\n2,4994\.142075,4900,700\.5/);
+    // Point ids + descriptions survive; the layer-id field on
+    // the 3,... line now points at one of the synthetic layer
+    // ids instead of the source TRV id.
+    expect(text).toMatch(/0,1\r\n1,corner SE/);
+    expect(text).toMatch(/2,4994\.142075,4999\.0675795,700/);
+    expect(text).toMatch(/0,2\r\n1,corner SW/);
+    expect(text).toMatch(/2,4994\.142075,4900,700\.5/);
   });
 
   it('emits 95,<pointCount> ahead of the point blocks', () => {
@@ -298,9 +309,7 @@ describe('drawingToTrv — fresh export', () => {
     const text = drawingToTrv(doc);
     expect(text).toContain('30,perimeter');
     expect(text).toContain('10,1');
-    expect(text).toContain('11,1,0,0,3,0');
     expect(text).toContain('10,2');
-    expect(text).toContain('11,1,1,0,3,0');
   });
 });
 
