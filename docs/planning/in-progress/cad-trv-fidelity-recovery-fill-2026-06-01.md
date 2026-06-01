@@ -462,9 +462,14 @@ broken. Build a full bug-reporting flow:
 > `SealImageUploader` (3), `ExportLayersDialog` (2), and `LineTypePicker`
 > (1) to `alertAction`/`confirmAction`; the recovery-failure `alert` in
 > `CADLayout` too. `starr-modals-unify.test.ts` now locks zero native
-> popups across all these components. Suite 2562 green. **Remaining:**
-> the 2 hook calls (`useKeyboard` alert, `useHotkeys` confirm) +
-> `CanvasViewport` + any non-CAD admin. Replace the native
+> popups across all these components. Suite 2562 green.
+>
+> **CAD APP COMPLETE (2026-06-01).** Converted the last two hook calls
+> (`useKeyboard` open-file alert → `alertAction`; `useHotkeys` replay
+> confirm → `confirmAction` via promise-chain since the dispatcher is
+> sync). `CanvasViewport` was already native-modal-free. `app/admin/cad/`
+> now has ZERO native `window.confirm`/`alert` (verified by grep). Only
+> non-CAD admin areas remain for a future pass. Suite 2567 green. Replace the native
 `window.confirm` / `window.alert` popups (48 in `app/admin/cad/`),
 especially the TRV/data IMPORT confirmation popups in `MenuBar.tsx`
 (Open + Import flows) the user dislikes, with the existing custom
@@ -477,6 +482,27 @@ prompt in one Starr-themed dialog). Audit non-CAD admin areas for the
 same. Tests: import flow uses the styled modal (no `window.confirm` in
 the import path); a source-lock that `app/admin/cad/` has no
 `window.confirm(`/`window.alert(` left in user-facing paths.
+
+### Slice 14 — Generic calculator + expandable, proportionally-scaling calculator modals
+*Added 2026-06-01 (user follow-up).* The floating-menu calculator
+button opens specific surveying calculators; the user wants:
+- A NEW **"Generic Calculator"** as the default — a simple
+  Windows-calculator-style arithmetic calc (digits, + − × ÷, %, ±, .,
+  C/CE, ⌫, =, decimal chaining) that's easy to use for quick sums.
+- The calculator MODAL must be **expandable/resizable**, and EVERY
+  calculator (generic + the existing specific ones) must **scale up
+  proportionally** with the window — keep aspect/proportions, just grow.
+- Expanding must NOT break any calculator's layout/formatting.
+- Action: locate the calculator launcher + modal host (search
+  `calculator`, the floating menu, the calculator registry/list), add
+  the GenericCalculator component, register it as the default, make the
+  modal `ModalFrame` resizable, and make each calculator's root use a
+  proportional scaling container (CSS transform: scale / container
+  units / aspect-ratio box) so children grow together. Do THREE full
+  passes over styling/formatting + verify expand doesn't break any
+  calculator. Tests: generic calc arithmetic (chained ops, %, ±,
+  clear, divide-by-zero guard); the modal exposes a resize affordance;
+  each calculator renders inside the proportional scaler.
 
 ## Deferrals (revisit, documented per the README rubric)
 - Geometric paper-space placement of title-block `28,5`/`28,6` (needs
