@@ -37,6 +37,9 @@ import { extractPointLabels, extractLineLabels, extractAreaLabels } from './trv-
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
+// cad-trv-straight-line-styling Slice 1 — decode 51/71 → line
+// type + weight + fill.
+import { decodeTrvLineStyle } from './trv-line-style';
 // cad-trv-bearings-and-distances Slice 2 — seed display prefs
 // on the synthetic TRV layers so bearings + distances + point
 // labels render immediately on import.
@@ -327,6 +330,29 @@ function mapTraverse(
   if (detectedRuns.length > 0) {
     properties.trvCurveRuns = JSON.stringify(detectedRuns);
   }
+  // cad-trv-straight-line-styling Slice 1 — decode the cracked
+  // 51 / 71 line-style records into the polyline's style so
+  // imported straight lines render with the right line type
+  // (fence wire vs solid), weight (bold boundary), and fill
+  // (DECK diagonal hatch, ROAD percent screen) — matching TPC.
+  const lineStyle = decodeTrvLineStyle(t.stylingRecords);
+  const style = defaultStyle();
+  style.lineTypeId = lineStyle.lineTypeId;
+  if (lineStyle.isBold) style.lineWeight = 0.5;
+  if (lineStyle.fillPattern !== 'NONE') {
+    style.fillPattern = lineStyle.fillPattern;
+    style.patternRotation = lineStyle.fillRotation;
+    style.patternDensity = lineStyle.fillDensity;
+    // Fill renders need a pattern color + a non-zero fill opacity
+    // (the import default is outline-only). Black @ full opacity
+    // matches TPC's dark-gray hatch closely enough; the surveyor
+    // can recolor via the infill panel.
+    style.patternColor = '#000000';
+    style.fillOpacity = 1;
+    if (typeof lineStyle.tpcFillName === 'string') {
+      properties.trvFillName = lineStyle.tpcFillName;
+    }
+  }
   const polyline: Feature = {
     id: traverseId,
     type,
@@ -335,7 +361,7 @@ function mapTraverse(
       vertices: vertices.map((v) => ({ x: v.x, y: v.y })),
     } as Feature['geometry'],
     layerId,
-    style: defaultStyle(),
+    style,
     properties,
   } as Feature;
   return [polyline, ...curveFeatures];
