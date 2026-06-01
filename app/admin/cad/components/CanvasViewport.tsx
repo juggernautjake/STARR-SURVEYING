@@ -147,6 +147,10 @@ import {
 } from '@/lib/cad/geometry/curve-render';
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
+// cad-trv-fidelity Slice 7 — render assigned point symbols (monument /
+// utility / vegetation glyphs) on POINT features.
+import { findSymbol } from '@/lib/cad/styles/symbol-library';
+import { renderSymbol } from '@/lib/cad/styles/symbol-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
 import { generateFillPattern, patternLineWeight, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
@@ -1993,7 +1997,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const fi = parseInt(fc.replace('#', ''), 16);
       if (!Number.isFinite(fi)) return;
       g.lineStyle(0);
-      g.beginFill(fi, Math.max(0, Math.min(1, feature.style.fillOpacity ?? alpha)));
+      g.beginFill(fi, Math.max(0, Math.min(1, feature.style.fillBackgroundOpacity ?? feature.style.fillOpacity ?? alpha)));
       drawFn();
       g.endFill();
     };
@@ -2001,12 +2005,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     switch (geom.type) {
       case 'POINT': {
         const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-        const size = 4;
-        g.lineStyle(weight, color, alpha);
-        g.moveTo(sx - size, sy);
-        g.lineTo(sx + size, sy);
-        g.moveTo(sx, sy - size);
-        g.lineTo(sx, sy + size);
+        // cad-trv-fidelity Slice 7 — when the style carries a symbolId
+        // (e.g. an iron-rod monument assigned by point code), render
+        // that glyph from the symbol library; otherwise fall back to
+        // the simple crosshair.
+        const symbolId = feature.style.symbolId;
+        const symbol = symbolId
+          ? findSymbol(symbolId, useDrawingStore.getState().document.customSymbols ?? [])
+          : undefined;
+        if (symbol) {
+          const symPx = feature.style.symbolSize && feature.style.symbolSize > 0
+            ? feature.style.symbolSize
+            : 14;
+          renderSymbol(g, symbol, sx, sy, symPx, feature.style.symbolRotation ?? 0, color, alpha);
+        } else {
+          const size = 4;
+          g.lineStyle(weight, color, alpha);
+          g.moveTo(sx - size, sy);
+          g.lineTo(sx + size, sy);
+          g.moveTo(sx, sy - size);
+          g.lineTo(sx, sy + size);
+        }
         break;
       }
       case 'LINE': {
@@ -2068,7 +2087,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (feature.style.fillColor) {
           const fillInt = parseInt(feature.style.fillColor.replace('#', ''), 16);
           if (Number.isFinite(fillInt)) {
-            g.beginFill(fillInt, Math.max(0, Math.min(1, feature.style.fillOpacity ?? alpha)));
+            g.beginFill(fillInt, Math.max(0, Math.min(1, feature.style.fillBackgroundOpacity ?? feature.style.fillOpacity ?? alpha)));
             g.moveTo(screenPts[0].x, screenPts[0].y);
             for (let i = 1; i < screenPts.length; i++) g.lineTo(screenPts[i].x, screenPts[i].y);
             g.closePath();
@@ -2650,7 +2669,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const doc = useDrawingStore.getState().document;
     const tb  = doc.settings.titleBlock;
-    if (!tb?.visible) return;
+    // cad-survey-info-element-hide — proceed even when the title-block
+    // BOX itself is hidden, so the OTHER furniture elements (scale bar /
+    // signature / north arrow) can still render based on their own
+    // per-element visibility flags. The title-block box, signature, and
+    // north arrow are gated individually via container.visible at the
+    // end of this function; the scale bar is gated inline below. (The
+    // SURVEY-INFO layer eye, handled above, remains the master "hide
+    // all furniture" switch.)
+    if (!tb) return;
 
     const { paperSize, paperOrientation, drawingScale } = doc.settings;
     let [pw, ph] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
@@ -3369,6 +3396,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       unitsLbl.anchor.set(0, 0);
       unitsLbl.position.set(sbScrLeft + barLenPx + 6, barTop + barH + tickH + 1);
     }
+
+    // cad-survey-info-element-hide — apply each default furniture
+    // element's OWN visibility flag by toggling its container, so the
+    // surveyor can hide the title block box / signature / scale bar /
+    // north arrow individually from the Layers panel (independent of
+    // the SURVEY-INFO layer eye, which already hid them all at once).
+    // Undefined flag = visible. We also null the hit-bounds of any
+    // hidden element so an invisible overlay can't capture clicks or
+    // context menus.
+    const tbBoxVisible = tb.visible !== false;
+    const sigVisible   = tb.signatureBlockVisible !== false;
+    const naVisible    = tb.northArrowVisible !== false;
+    pixi.tbTitleBlockContainer.visible = tbBoxVisible;
+    pixi.tbSignatureContainer.visible  = sigVisible;
+    pixi.tbNorthArrowContainer.visible = naVisible;
+    if (!tbBoxVisible) tbBoundsRef.current.titleBlock = null;
+    if (!sigVisible) {
+      tbBoundsRef.current.signatureBlock = null;
+      tbBoundsRef.current.officialSealLabel = null;
+    }
+    if (!naVisible) tbBoundsRef.current.northArrow = null;
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -4250,7 +4298,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           fill: color, align,
         });
         textObj = new pixi.TextClass(geom.textContent, style);
-        textObj.anchor.set(0, 0.5);
         textObj.resolution = pixi.app.renderer.resolution;
         pixi.labelTexts.set(key, textObj);
         pixi.labelLayer.addChild(textObj);
@@ -4265,6 +4312,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         s.align = align;
       }
 
+      // cad-trv-fidelity Slice 4 — anchor the text block by its
+      // alignment so CENTER-aligned (imported TRV) text is centered on
+      // its point, while LEFT-aligned (text-tool default) text keeps its
+      // left edge at the point. Updated every frame so an alignment
+      // change re-anchors without re-allocating the Text object.
+      const anchorX = align === 'center' ? 0.5 : align === 'right' ? 1 : 0;
+      textObj.anchor.set(anchorX, 0.5);
       textObj.position.set(sx, sy);
       textObj.rotation = -rotation;
       textObj.alpha = alpha;

@@ -10,7 +10,7 @@ import path from 'node:path';
 import { parseTrv } from '@/lib/cad/io/trv-parser';
 import { trvToDrawing } from '@/lib/cad/io/trv-to-drawing';
 import { drawingToTrv } from '@/lib/cad/io/drawing-to-trv';
-import { extractTextElements } from '@/lib/cad/io/trv-drawing-elements';
+import { extractTextElements, wrapSurveyLabel } from '@/lib/cad/io/trv-drawing-elements';
 import type { DrawingDocument, Feature, Layer } from '@/lib/cad/types';
 
 const WORLD = '28,5,3304420.64,10711661.37,0,0,4.00,0,0,grass';
@@ -101,3 +101,63 @@ function makeDoc(features: Feature[]): DrawingDocument {
     featureGroups: {}, layerGroups: {}, layerGroupOrder: [],
   } as unknown as DrawingDocument;
 }
+
+// cad-trv-fidelity Slice 4 — balanced wrap + center alignment.
+describe('wrapSurveyLabel', () => {
+  const noMidWordBreak = (orig: string, wrapped: string) => {
+    // Rejoining the wrapped lines with spaces must reproduce the words.
+    expect(wrapped.split('\n').join(' ').split(/\s+/)).toEqual(orig.split(/\s+/));
+  };
+  it('leaves a single word / short label on one line', () => {
+    expect(wrapSurveyLabel('grass')).toBe('grass');
+    expect(wrapSurveyLabel('conc.')).toBe('conc.');
+    expect(wrapSurveyLabel('2 a/c units')).toBe('2 a/c units'); // ≤14 chars
+  });
+  it('balance-wraps a long multi-word label without splitting words', () => {
+    const t = 'asphalt driveway and parking';
+    const w = wrapSurveyLabel(t);
+    expect(w).toContain('\n');
+    noMidWordBreak(t, w);
+    // No line is longer than the longest word + the wrap target slack.
+    for (const line of w.split('\n')) expect(line.trim().length).toBeGreaterThan(0);
+  });
+  it('respects TPC explicit line breaks (does not re-wrap)', () => {
+    expect(wrapSurveyLabel('cell tower and\nchain link fence\nenclosure'))
+      .toBe('cell tower and\nchain link fence\nenclosure');
+  });
+  it('never breaks inside a very long single word', () => {
+    expect(wrapSurveyLabel('supercalifragilisticexpialidocious')).toBe('supercalifragilisticexpialidocious');
+  });
+});
+
+describe('imported TRV text is centered + Arial + wrapped', () => {
+  it('world text features carry textAlign center, Arial, and wrapped content', () => {
+    const trv = [
+      '999,begin', '#,POINTS', '95,1', '0,1', '3,0', '4,5,0,0', '2,100,200,0',
+      '#,DRAWING',
+      '28,5,3304500.00,10711600.00,0,0,5.00,0,0,asphalt driveway and parking',
+      '999,end',
+    ].join('\r\n');
+    const { features } = trvToDrawing(parseTrv(trv));
+    const txt = features.find((f) => f.properties.trvElementKind === 'ELEMENT_TEXT')!;
+    expect(txt.properties.textAlign).toBe('center');
+    expect(txt.properties.fontFamily).toBe('Arial');
+    expect(String(txt.geometry.textContent)).toContain('\n');
+  });
+});
+
+describe('lot area annotation → editable centered TEXT', () => {
+  const sample = path.join(__dirname, '..', '..', 'fixtures', 'trv', 'hillsboro-nazarene.trv');
+  it.skipIf(!fs.existsSync(sample))('renders the boundary area label as a centered TEXT feature', () => {
+    const { features } = trvToDrawing(parseTrv(fs.readFileSync(sample, 'latin1')));
+    const area = features.find((f) => f.properties.trvAreaAnnotation);
+    expect(area).toBeTruthy();
+    expect(area!.type).toBe('TEXT');
+    expect(area!.properties.textAlign).toBe('center');
+    // The lot area (347347 SqFt = 7.974 Acres) with SqFt split onto its
+    // own line for readability.
+    expect(String(area!.geometry.textContent)).toContain('SqFt\n');
+    expect(String(area!.geometry.textContent)).toMatch(/Acres/);
+    expect(area!.geometry.point).toBeDefined();
+  });
+});

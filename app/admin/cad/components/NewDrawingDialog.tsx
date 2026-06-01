@@ -65,6 +65,13 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
 
     drawingStore.setActiveLayer(layerId);
 
+    // cad-trv-fidelity Slice 9 — a brand-new drawing the surveyor
+    // hasn't touched yet must NOT count as unsaved. Setting it up
+    // (newDocument / updateSettings / addLayer) flips isDirty true, so
+    // mark it clean here; the next REAL edit re-flags it dirty and the
+    // exit / beforeunload guards prompt only then.
+    drawingStore.markClean();
+
     onClose();
     // Allow the canvas to initialise before zooming to the new document extents
     setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);

@@ -18,6 +18,7 @@
 import { useRef } from 'react';
 
 import { useDeliveryStore } from '@/lib/cad/store';
+import { alertAction } from './ConfirmDialog';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ACCEPTED_MIME = new Set([
@@ -37,13 +38,11 @@ export default function SealImageUploader() {
 
   function handleFile(file: File) {
     if (!ACCEPTED_MIME.has(file.type)) {
-      alert(
-        'Seal image must be PNG, JPG, or SVG. Re-export and try again.'
-      );
+      void alertAction({ title: 'Starr CAD', message: 'Seal image must be PNG, JPG, or SVG. Re-export and try again.' });
       return;
     }
     if (file.size > MAX_BYTES) {
-      alert('Seal image must be 2 MB or smaller.');
+      void alertAction({ title: 'Starr CAD', message: 'Seal image must be 2 MB or smaller.' });
       return;
     }
     const reader = new FileReader();
@@ -54,7 +53,7 @@ export default function SealImageUploader() {
       }
     };
     reader.onerror = () => {
-      alert('Could not read the seal image. Try a different file.');
+      void alertAction({ title: 'Starr CAD', message: 'Could not read the seal image. Try a different file.' });
     };
     reader.readAsDataURL(file);
   }

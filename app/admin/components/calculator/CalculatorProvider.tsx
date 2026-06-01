@@ -16,6 +16,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { CalculatorModal } from './CalculatorModal';
+import { GenericCalculator } from './models/GenericCalculator';
 import { Ti36xPro } from './models/Ti36xPro';
 import { Ti30xsMultiView } from './models/Ti30xsMultiView';
 import { Ti30xa } from './models/Ti30xa';
@@ -25,6 +26,7 @@ import { Hp35s } from './models/Hp35s';
 import { Hp33s } from './models/Hp33s';
 
 export type ModelKey =
+  | 'generic'
   | 'ti-36x-pro'
   | 'ti-30xs-multiview'
   | 'ti-30xa'
@@ -35,7 +37,7 @@ export type ModelKey =
 
 export interface ModelDef {
   key: ModelKey;
-  brand: 'TI' | 'Casio' | 'HP';
+  brand: 'Generic' | 'TI' | 'Casio' | 'HP';
   label: string;
   /** Default modal dimensions per device. Real keypads have a natural ratio. */
   width: number;
@@ -45,6 +47,9 @@ export interface ModelDef {
 }
 
 export const CALCULATOR_MODELS: ModelDef[] = [
+  // cad-trv-fidelity Slice 14 — the DEFAULT generic arithmetic calc,
+  // listed first. Simple Windows-calculator-style; not exam-specific.
+  { key: 'generic',           brand: 'Generic', label: 'Generic Calculator', width: 320, height: 460, phase: 1 },
   // Widths bumped per user feedback — earlier widths cramped the keys.
   // Heights also bumped a touch to keep the keypad aspect-ratio sane.
   // Phase 2: representative algebraic.
@@ -63,7 +68,8 @@ export const CALCULATOR_MODELS: ModelDef[] = [
 ];
 
 const LAST_MODEL_STORAGE_KEY = 'calculatorLastModel';
-const DEFAULT_MODEL: ModelKey = 'ti-36x-pro';
+// cad-trv-fidelity Slice 14 — the generic arithmetic calc is the default.
+const DEFAULT_MODEL: ModelKey = 'generic';
 
 interface CalculatorCtx {
   isOpen: boolean;
@@ -276,6 +282,7 @@ function mapKey(key: string): string | null {
 
 function renderModel(model: ModelDef) {
   // C-6+ replaces each placeholder with the real shell as phases ship.
+  if (model.key === 'generic') return <GenericCalculator />;
   if (model.key === 'ti-36x-pro') return <Ti36xPro />;
   if (model.key === 'ti-30xs-multiview') return <Ti30xsMultiView />;
   if (model.key === 'ti-30xa') return <Ti30xa />;

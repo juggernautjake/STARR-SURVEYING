@@ -62,6 +62,29 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+// cad-trv-fidelity Slice 14b — the modal is expandable. A single SCALE
+// factor multiplies the model's natural width/height; the body content
+// is rendered at its base size and `transform: scale()`d to fill, so
+// EVERY calculator (the generic grid + the absolute-layout device
+// models) grows perfectly proportionally with zero layout breakage.
+const MIN_SCALE = 1;
+const MAX_SCALE = 3;
+
+function readScale(key: string): number {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const raw = window.localStorage.getItem(`${key}:scale`);
+    const n = raw ? parseFloat(raw) : NaN;
+    if (Number.isFinite(n)) return clamp(n, MIN_SCALE, MAX_SCALE);
+  } catch { /* ignore */ }
+  return 1;
+}
+
+function writeScale(key: string, scale: number): void {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.setItem(`${key}:scale`, String(scale)); } catch { /* ignore */ }
+}
+
 export function CalculatorModal({
   open,
   title,
@@ -75,12 +98,19 @@ export function CalculatorModal({
 }: CalculatorModalProps) {
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 64, y: 64 });
+  const [scale, setScale] = useState(1);
   const dragOffsetRef = useRef<Position | null>(null);
+  const resizeRef = useRef<{ startX: number; startY: number; startScale: number } | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
+
+  // Scaled (on-screen) dimensions — base size × the user's expand factor.
+  const scaledWidth = Math.round(width * scale);
+  const scaledHeight = Math.round(height * scale);
 
   // Hydrate position from localStorage; SSR-safe via mounted gate.
   useEffect(() => {
     setMounted(true);
+    setScale(readScale(storageKey));
     const stored = readPosition(storageKey);
     if (stored) {
       setPosition(clampToViewport(stored, width, height));
@@ -129,9 +159,9 @@ export function CalculatorModal({
     const newPos = clampToViewport({
       x: e.clientX - dragOffsetRef.current.x,
       y: e.clientY - dragOffsetRef.current.y,
-    }, width, height);
+    }, scaledWidth, scaledHeight);
     setPosition(newPos);
-  }, [width, height]);
+  }, [scaledWidth, scaledHeight]);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragOffsetRef.current) return;
@@ -142,6 +172,36 @@ export function CalculatorModal({
       return prev;
     });
   }, [storageKey]);
+
+  // ── Resize (corner handle) — adjusts the proportional scale factor ──
+  const onResizeDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    resizeRef.current = { startX: e.clientX, startY: e.clientY, startScale: scale };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [scale]);
+
+  const onResizeMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const r = resizeRef.current;
+    if (!r) return;
+    e.preventDefault();
+    // Drive scale by the diagonal drag so width + height grow together,
+    // keeping the model's aspect ratio exactly.
+    const dx = e.clientX - r.startX;
+    const dy = e.clientY - r.startY;
+    const delta = (dx / width + dy / height) / 2;
+    setScale(clamp(r.startScale + delta, MIN_SCALE, MAX_SCALE));
+  }, [width, height]);
+
+  const onResizeUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizeRef.current) return;
+    resizeRef.current = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    setScale(prev => {
+      writeScale(storageKey, prev);
+      setPosition(p => clampToViewport(p, width * prev, height * prev));
+      return prev;
+    });
+  }, [storageKey, width, height]);
 
   if (!mounted || !open) return null;
 
@@ -154,10 +214,7 @@ export function CalculatorModal({
       style={{
         left: position.x,
         top: position.y,
-        width,
-        // Height grows to the children — we keep an explicit height for
-        // the layout container, but children may overflow scroll within.
-        // The body area is height - header(40) - toolbar(if any).
+        width: scaledWidth,
       }}
     >
       <div
@@ -195,9 +252,31 @@ export function CalculatorModal({
         </div>
       </div>
       {toolbar && <div className="calc-modal__toolbar">{toolbar}</div>}
-      <div className="calc-modal__body" style={{ width, height }}>
-        {children}
+      {/* cad-trv-fidelity Slice 14b — the body is sized to the SCALED
+          dimensions; the inner wrapper renders each calculator at its
+          natural base size and is transform-scaled to fill, so every
+          model grows proportionally with no layout breakage. */}
+      <div className="calc-modal__body" style={{ width: scaledWidth, height: scaledHeight, overflow: 'hidden' }}>
+        <div
+          className="calc-modal__scaler"
+          style={{ width, height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+        >
+          {children}
+        </div>
       </div>
+      {/* Resize handle (bottom-right corner) — drag to expand. */}
+      <div
+        className="calc-modal__resize"
+        data-no-drag
+        data-testid="calc-modal-resize"
+        title="Drag to resize"
+        aria-label="Resize calculator"
+        onPointerDown={onResizeDown}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeUp}
+        onPointerCancel={onResizeUp}
+        style={{ touchAction: 'none' }}
+      />
     </div>
   );
 

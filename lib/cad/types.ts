@@ -297,6 +297,17 @@ export interface TitleBlockConfig {
   /** Data-URL of an uploaded square seal image, rendered in the seal column. null/absent = the "OFFICIAL SEAL" placeholder text. */
   sealImageDataUrl?: string | null;
 
+  // ── Per-element visibility (cad-survey-info-element-hide) ──
+  // Each default SURVEY-INFO furniture element can be hidden on its
+  // own from the Layers panel, independent of the SURVEY-INFO layer
+  // eye (which still hides ALL furniture at once). Undefined = visible.
+  /** Show the title-block BOX. Default: true */
+  // (the existing `visible` flag above doubles as the title-block box toggle)
+  /** Show the seal / signature block. Default: true */
+  signatureBlockVisible?: boolean;
+  /** Show the compass / north arrow. Default: true */
+  northArrowVisible?: boolean;
+
   // ── Scale bar ──
   /** Show the checkered graphic scale bar. Default: true */
   scaleBarVisible?: boolean;
@@ -483,6 +494,12 @@ export interface FeatureStyle {
    *  spline). null/undefined = no fill (stroke only, current behavior). */
   fillColor?: string | null;
   fillOpacity?: number;       // 0–1, defaults to opacity when omitted
+  /** cad-trv-fidelity Slice 6b — opacity of the solid BACKGROUND fill
+   *  (the `fillColor` base), independent of the texture/pattern opacity
+   *  (`fillOpacity`). Lets the surveyor set e.g. black hatch lines on a
+   *  semi-transparent grey background. Defaults to `fillOpacity` when
+   *  omitted, so existing drawings render unchanged. */
+  fillBackgroundOpacity?: number;
 
   /** Slice 235 — closed-shape texture / shading fill. Overlays the
    *  base fillColor with a procedural pattern: uniform stipple,
@@ -592,6 +609,9 @@ export type FillPattern =
   | 'VERTICAL_LINES'
   | 'BRICK'
   | 'WAVE'
+  // cad-trv-fidelity Slice 6 — meadow/lawn tufts (upward blades on a
+  // jittered grid). Maps TPC "Grass" / "Forest" fills.
+  | 'GRASS'
   // cad-fill-stacking Slice 4 — dashed hatch. Same base as `LINES`
   // (parallel hatch through the bbox at the chosen angle) but each
   // hatch line is broken into dash+gap segments. Angle slider works

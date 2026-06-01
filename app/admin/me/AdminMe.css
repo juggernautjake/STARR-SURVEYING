@@ -231,13 +231,22 @@
   isolation: isolate;
 }
 
-/* hub-greeting-button-polish 2026-05-30 — red/white/blue radial
+/* hub-greeting-button-polish 2026-05-30 — red/white/blue conic
  * spinning border that lights up on hover. Painted on a ::before
  * pseudo-element sized 4px outside the button on all sides, filled
  * with a conic gradient, then masked into a ring so only the border
  * shows. Hidden by default (opacity 0) so the rest state stays calm;
- * fades in on hover and rotates at a steady pace until the cursor
- * leaves. Disabled when the user prefers reduced motion. */
+ * fades in on hover. The COLORS cycle around a STATIONARY ring by
+ * animating the gradient's `from` angle (a registered @property so
+ * the browser interpolates it) — NOT by rotating the element, which
+ * would spin the whole stadium-shaped ring geometry. Disabled when
+ * the user prefers reduced motion. */
+@property --wm-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
 .hub-greeting__work-mode-btn.hub-btn::before {
   content: '';
   position: absolute;
@@ -245,7 +254,7 @@
   border-radius: 9999px;
   padding: 4px;
   background: conic-gradient(
-    from 0deg,
+    from var(--wm-border-angle, 0deg),
     var(--brand-red, #B42318),
     #ffffff,
     var(--brand-blue, #1d4ed8),
@@ -266,8 +275,10 @@
   z-index: -1;
 }
 
+/* Spin the COLORS around the fixed ring by advancing the gradient
+ * angle. The ring shape never moves. */
 @keyframes hub-greeting-work-mode-spin {
-  to { transform: rotate(360deg); }
+  to { --wm-border-angle: 360deg; }
 }
 
 .hub-greeting__work-mode-btn.hub-btn:hover::before,
@@ -295,7 +306,9 @@
    * `a:hover { color: var(--brand-blue) }`). */
   border-color: #FFFFFF;
   color: #FFFFFF !important;
-  transform: translateY(-2px);
+  /* Lift + ENLARGE on hover. The border ring (::before, inset -4px)
+   * scales with the button so the spinning-color frame grows too. */
+  transform: translateY(-2px) scale(1.05);
   filter: brightness(1.05);
   box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5),
               0 4px 8px rgba(0, 0, 0, 0.25);

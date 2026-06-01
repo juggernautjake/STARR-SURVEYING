@@ -14,6 +14,7 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { computeBounds, featureBounds } from '@/lib/cad/geometry/bounds';
+import { alertAction } from '../components/ConfirmDialog';
 import { transformFeature, translate } from '@/lib/cad/geometry/transform';
 import type { Feature } from '@/lib/cad/types';
 import { copyCadSelection, pasteCadClipboard, duplicateSelection } from '@/lib/cad/operations';
@@ -478,7 +479,7 @@ export function useKeyboard() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to load file.';
         cadLog.error('FileIO', 'Failed to open .starr file', err);
-        alert(`${msg}\n\nMake sure this is a valid .starr drawing file.`);
+        void alertAction({ title: 'Starr CAD', message: `${msg}\n\nMake sure this is a valid .starr drawing file.` });
       }
     };
     input.click();

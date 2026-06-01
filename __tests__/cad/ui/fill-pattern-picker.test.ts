@@ -62,6 +62,8 @@ describe('Slice 237 — pattern options grid covers every picker-reachable value
     'CROSSHATCH',
     'BRICK',
     'WAVE',
+    // cad-trv-fidelity Slice 6 — dedicated grass-tuft fill.
+    'GRASS',
   ] as const;
 
   it('declares a per-swatch data-testid template (interpolated by opt.value)', () => {

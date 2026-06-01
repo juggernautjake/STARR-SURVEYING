@@ -118,7 +118,7 @@ export default function StandardNotesEditor() {
           <button
             onClick={addCustomNote}
             disabled={!customInput.trim()}
-            className="mt-1 w-full px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="mt-1 w-full px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Add Custom Note
           </button>

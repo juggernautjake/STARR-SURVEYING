@@ -97,6 +97,45 @@ describe('Enter Work Mode CTA — gradient green pill (matches estimate banner)'
     expect(block).toMatch(/box-shadow:[\s\S]*?rgba\(16,\s*185,\s*129/);
   });
 
+  it('hover ENLARGES the CTA (scale) on top of the lift', () => {
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn:hover,');
+    expect(block).toMatch(/transform:\s*translateY\(-2px\)\s+scale\(/);
+  });
+});
+
+describe('Enter Work Mode CTA — stationary border, spinning colors', () => {
+  // The red/white/blue frame must be a FIXED ring whose COLORS cycle.
+  // Achieved by animating the conic-gradient `from` angle (a registered
+  // @property), NOT by rotating the ::before element (which spins the
+  // whole stadium-shaped ring geometry — the bug we're fixing).
+  it('registers the --wm-border-angle custom property as an <angle>', () => {
+    const prop = css.match(/@property\s+--wm-border-angle\s*\{[\s\S]*?\}/);
+    expect(prop).not.toBeNull();
+    expect(prop![0]).toMatch(/syntax:\s*'<angle>'/);
+    expect(prop![0]).toMatch(/initial-value:\s*0deg/);
+  });
+
+  it('the ::before ring fills a conic-gradient driven by the angle property', () => {
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn::before');
+    expect(block).not.toBe('');
+    expect(block).toMatch(/conic-gradient\(\s*from\s+var\(--wm-border-angle/);
+    // The ring must NOT be rotated as an element (that spins the shape).
+    expect(block).not.toMatch(/transform:\s*rotate/);
+  });
+
+  it('the spin keyframe animates the gradient angle, not an element rotation', () => {
+    const kf = css.match(/@keyframes\s+hub-greeting-work-mode-spin\s*\{[\s\S]*?\}\s*\}/);
+    expect(kf).not.toBeNull();
+    expect(kf![0]).toMatch(/--wm-border-angle:\s*360deg/);
+    expect(kf![0]).not.toMatch(/transform:\s*rotate/);
+  });
+
+  it('the animation only runs on hover / focus-visible (calm at rest)', () => {
+    const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn:hover::before,');
+    expect(block).toMatch(/opacity:\s*1/);
+    expect(block).toMatch(/animation:\s*hub-greeting-work-mode-spin/);
+  });
+
   it('active state presses the CTA back to the base + dims slightly so the click registers', () => {
     const block = ruleBlock('.hub-greeting__work-mode-btn.hub-btn:active,');
     expect(block).not.toBe('');

@@ -1396,6 +1396,9 @@ export default function PropertyPanel() {
               { label: 'Pattern', options: [
                 { value: 'BRICK', label: 'Brick' },
                 { value: 'WAVE', label: 'Wave' },
+                // cad-trv-fidelity Slice 6 — meadow/lawn tufts; maps
+                // TPC "Grass" / "Forest" fills.
+                { value: 'GRASS', label: 'Grass' },
               ] },
             ];
             // Flat option list (so the source-text test that walks
@@ -1622,6 +1625,56 @@ export default function PropertyPanel() {
                     when fillStack is explicit so the user isn't
                     confused by controls that write to ignored fields. */}
                 {!hasExplicitStack && (<>
+                {/* cad-trv-fidelity Slice 6b — fill BACKGROUND: a solid
+                    colour under the texture, with its OWN opacity
+                    (separate from the texture opacity in the pattern
+                    params below), so the surveyor can do e.g. black
+                    hatch lines on a semi-transparent grey background. */}
+                {(() => {
+                  const bgColor = feature.style.fillColor ?? '#cccccc';
+                  const bgOpacity = Number.isFinite(feature.style.fillBackgroundOpacity)
+                    ? (feature.style.fillBackgroundOpacity as number)
+                    : (Number.isFinite(feature.style.fillOpacity) ? (feature.style.fillOpacity as number) : 1);
+                  const setBgOpacity = (v: number) => drawingStore.updateFeature(feature.id, {
+                    style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillBackgroundOpacity: clamp(v, 0, 1, 1), isOverride: true },
+                  });
+                  return (
+                    <div className="space-y-2 rounded border border-gray-700 bg-gray-800/50 p-2" data-testid="property-panel-fill-background">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-gray-400 text-[10px] uppercase tracking-wider">Background</span>
+                        <input
+                          type="color"
+                          data-testid="property-panel-fill-background-color"
+                          className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
+                          value={bgColor}
+                          onChange={(e) => drawingStore.updateFeature(feature.id, {
+                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillColor: e.target.value, isOverride: true },
+                          })}
+                        />
+                      </div>
+                      <label className="block">
+                        <div className="flex items-baseline justify-between text-[10px] text-gray-400 mb-0.5">
+                          <span className="uppercase tracking-wider">Background opacity</span>
+                          <span className="tabular-nums text-gray-200">{bgOpacity.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range" min={0} max={1} step={0.05} value={bgOpacity}
+                            data-testid="property-panel-fill-background-opacity"
+                            className="flex-1 accent-blue-500"
+                            onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
+                          />
+                          <input
+                            type="number" min={0} max={1} step={0.05} value={bgOpacity}
+                            data-testid="property-panel-fill-background-opacity-input"
+                            className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                            onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
+                          />
+                        </div>
+                      </label>
+                    </div>
+                  );
+                })()}
                 <label className="block">
                   <span className="block text-gray-500 text-[10px] uppercase tracking-wider mb-1">
                     Fill pattern

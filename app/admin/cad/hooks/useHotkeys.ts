@@ -23,6 +23,7 @@ import {
   type HotkeyEngine,
 } from '@/lib/cad/hotkeys';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
+import { confirmAction } from '../components/ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { undoMostRecentAIBatch } from '@/lib/cad/ai/undo-batch';
 import {
@@ -495,20 +496,27 @@ export function dispatchDefaultAction(action: BindableAction): void {
         }));
         return;
       }
-      const confirmed = window.confirm(
-        `Replay ${total} AI turn${total === 1 ? '' : 's'} against the current document?\n\n` +
+      // cad-trv-fidelity Slice 13 — Starr-styled confirm (the dispatcher
+      // is sync, so chain the promise rather than awaiting).
+      confirmAction({
+        title: 'Replay AI sequence?',
+        message:
+          `Replay ${total} AI turn${total === 1 ? '' : 's'} against the current document?\n\n` +
           'Each prompt re-fires through the AI proposer; proposals land in the queue for review just like a fresh run.',
-      );
-      if (!confirmed) return;
-      ai.replayAISequence().then((result) => {
-        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-          detail: {
-            text:
-              `Replay complete — ${result.replayed} succeeded` +
-              (result.failed > 0 ? `, ${result.failed} failed` : '') +
-              (result.aborted ? ', aborted' : '') + '.',
-          },
-        }));
+        confirmLabel: 'Replay',
+        cancelLabel: 'Cancel',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        ai.replayAISequence().then((result) => {
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: {
+              text:
+                `Replay complete — ${result.replayed} succeeded` +
+                (result.failed > 0 ? `, ${result.failed} failed` : '') +
+                (result.aborted ? ', aborted' : '') + '.',
+            },
+          }));
+        });
       });
       return;
     }

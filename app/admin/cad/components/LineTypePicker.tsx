@@ -10,6 +10,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Plus, Pencil, Trash2 } from 'lucide-react';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+import { confirmAction } from './ConfirmDialog';
 import type { LineTypeDefinition } from '@/lib/cad/styles/types';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 import { useDrawingStore } from '@/lib/cad/store';
@@ -212,11 +213,16 @@ export default function LineTypePicker(props: LineTypePickerProps) {
                           <button
                             type="button"
                             title="Delete"
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              if (window.confirm(`Delete custom line type "${lt.name}"?`)) {
-                                removeCustomLineType(lt.id);
-                              }
+                              const ok = await confirmAction({
+                                title: 'Delete line type?',
+                                message: `Delete custom line type "${lt.name}"?`,
+                                confirmLabel: 'Delete',
+                                cancelLabel: 'Cancel',
+                                danger: true,
+                              });
+                              if (ok) removeCustomLineType(lt.id);
                             }}
                             className="p-1 rounded text-gray-300 hover:text-white hover:bg-red-600/60 opacity-0 group-hover:opacity-100 transition-opacity"
                           >

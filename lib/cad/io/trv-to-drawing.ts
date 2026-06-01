@@ -28,6 +28,7 @@ import type {
   Feature,
   FeatureGeometry,
   FeatureStyle,
+  FeatureGroup,
   Layer,
   FeatureType,
 } from '../types';
@@ -39,7 +40,10 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
-import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements } from './trv-drawing-elements';
+import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements, wrapSurveyLabel } from './trv-drawing-elements';
+// cad-trv-fidelity Slice 7 — assign a monument/utility symbol to an
+// imported point when its feature code matches a symbol's assignedCodes.
+import { getSymbolsByAssignedCode } from '../styles/symbol-library';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -54,7 +58,24 @@ import { decodeTrvLineStyle } from './trv-line-style';
 export interface TrvMappingResult {
   layers: Layer[];
   features: Feature[];
+  /** cad-trv-fidelity Slice 2 — one feature group per TRV traverse
+   *  (named after the traverse), so each traverse's linework appears as
+   *  a collapsible sub-item under the Drawing layer in the panel. */
+  featureGroups: FeatureGroup[];
   notes: string[];
+}
+
+/** cad-trv-fidelity Slice 5 — recognise TPC's construction/duplicate
+ *  traverse naming so they import HIDDEN (they're working artifacts TPC
+ *  doesn't plot): `Copy-…`, `DUP-…`, parallel offsets `Right/Left N
+ *  Feet-…`, and `… offsets`. CSV master-lists are handled separately in
+ *  mapTraverse (rendered as points only). */
+function isConstructionTraverse(name: string | null): boolean {
+  if (!name) return false;
+  const n = name.trim();
+  return /^(copy|dup)-/i.test(n)
+    || /^(right|left)\s+[\d.]+\s*f(?:ee|oo)?t-/i.test(n)
+    || /\boffsets?$/i.test(n);
 }
 
 /** Default Layer fields. */
@@ -179,6 +200,19 @@ function mapPoint(
     properties.description = p.description;
   }
   if (p.methodCode !== null) properties.trvMethodCode = p.methodCode;
+  // cad-trv-fidelity Slice 7 — assign a point symbol when the TRV
+  // feature code (the first token of the description) EXACTLY matches a
+  // symbol's assignedCodes (e.g. "309" → its monument glyph). Exact
+  // match only, so a free-form description never mis-assigns; points
+  // with no matching code keep the default crosshair.
+  const style = defaultStyle();
+  if (p.description) {
+    const token = p.description.trim().split(/\s+/)[0];
+    if (token) {
+      const matches = getSymbolsByAssignedCode(token);
+      if (matches.length > 0) style.symbolId = matches[0].id;
+    }
+  }
   return {
     id: pointKey(p.id),
     type: 'POINT',
@@ -187,7 +221,7 @@ function mapPoint(
       point: { x: p.east, y: p.north },
     } as Feature['geometry'],
     layerId: layerId ?? '',
-    style: defaultStyle(),
+    style,
     properties,
   } as Feature;
 }
@@ -469,13 +503,39 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   }
 
   const traverseFeatures: Feature[] = [];
+  // cad-trv-fidelity Slice 2 — collect each traverse's feature ids so we
+  // can wrap them in a named feature group (a per-traverse "sublayer").
+  const traverseGroupSpecs: Array<{ name: string; featureIds: string[] }> = [];
+  let hiddenConstruction = 0;
   for (const t of doc.traverses) {
     // Pass 7 — mapTraverse returns an array (1 polyline + N
     // optional ARC/SPLINE curve features) so each detected curve
     // run becomes an editable native curve alongside the
     // boundary polyline.
     const feats = mapTraverse(t, pointById, layerIdByTrvId, notes);
-    for (const f of feats) traverseFeatures.push(f);
+    // cad-trv-fidelity Slice 5 — TPC working COPIES / DUPLICATES /
+    // parallel OFFSET traverses are construction artifacts it doesn't
+    // plot. Import them HIDDEN so they don't show as stray lines
+    // (parity with TPC) but stay in the doc + Layers panel for the
+    // surveyor to unhide. CSV master-lists are handled separately.
+    const construction = isConstructionTraverse(t.name);
+    for (const f of feats) {
+      if (construction) {
+        f.hidden = true;
+        f.properties.trvConstruction = true;
+      }
+      traverseFeatures.push(f);
+    }
+    if (construction && feats.length > 0) hiddenConstruction++;
+    if (feats.length > 0) {
+      traverseGroupSpecs.push({
+        name: t.name && t.name.trim() ? t.name.trim() : `Traverse ${traverseGroupSpecs.length + 1}`,
+        featureIds: feats.map((f) => f.id),
+      });
+    }
+  }
+  if (hiddenConstruction > 0) {
+    notes.push(`Hid ${hiddenConstruction} construction/duplicate/offset traverse(s) (copies, DUPs, parallel offsets) to match TPC — unhide them in the Layers panel if needed`);
   }
 
   // cad-trv-line-curve-fidelity Slice 2 — attach TPC's verbatim
@@ -488,6 +548,11 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   // so the render + round-trip paths can consume + re-emit them.
   const lineLabels = extractLineLabels(doc.drawingElements);
   const areaLabels = extractAreaLabels(doc.drawingElements);
+  // cad-trv-fidelity Slice 4 — the lot AREA label (28,14, e.g.
+  // "43362 SqFt / 0.995 Acres") was captured as metadata but never
+  // rendered. Capture its text + the boundary centroid here, then emit
+  // it as an editable, centered TEXT feature in the text-features block.
+  let areaLabelSpec: { text: string; x: number; y: number } | null = null;
   if (lineLabels.length > 0 || areaLabels.length > 0) {
     const polylineFeatures = traverseFeatures.filter(
       (f) => f.type === 'POLYLINE' || f.type === 'POLYGON',
@@ -521,7 +586,21 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
       const boundary = polygons.sort(
         (a, b) => (b.geometry.vertices?.length ?? 0) - (a.geometry.vertices?.length ?? 0),
       )[0];
-      if (boundary) boundary.properties.trvAreaLabel = areaLabels[0].text;
+      if (boundary) {
+        boundary.properties.trvAreaLabel = areaLabels[0].text;
+        // Centroid (vertex average) of the boundary → where the area
+        // annotation sits.
+        const vs = boundary.geometry.vertices ?? [];
+        if (vs.length > 0) {
+          const cx = vs.reduce((s, v) => s + v.x, 0) / vs.length;
+          const cy = vs.reduce((s, v) => s + v.y, 0) / vs.length;
+          // Some TPC files drop the separator between the SqFt value and
+          // the acreage ("347347 SqFt7.974 Acres"); split it onto its own
+          // line so the lot area reads cleanly.
+          const text = areaLabels[0].text.replace(/(SqFt|Sq\.?\s*Ft\.?)(?=\d)/i, '$1\n');
+          areaLabelSpec = { text, x: cx, y: cy };
+        }
+      }
     }
     notes.push(`Attached ${lineLabels.length} segment label(s) + ${areaLabels.length} area label(s) from drawing elements`);
   }
@@ -693,10 +772,17 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     let nText = 0;
     for (const t of extractTextElements(doc.drawingElements)) {
       if (t.space !== 'WORLD') continue;
+      // cad-trv-fidelity Slice 4 — follow TPC's exact placement (the
+      // world x/y) + font size. We keep TPC's own line breaks when
+      // present; otherwise we balance-wrap the label (whole words only)
+      // and CENTER it, which is the requested fallback when no explicit
+      // formatting is available. Font family is Arial (TPC's plat font,
+      // per the `51` style records).
+      const content = wrapSurveyLabel(t.text);
       textFeatures.push({
         id: `trv-text:${t.sourceLine}`,
         type: 'TEXT',
-        geometry: { type: 'TEXT', point: { x: t.x, y: t.y }, textContent: t.text },
+        geometry: { type: 'TEXT', point: { x: t.x, y: t.y }, textContent: content },
         layerId: drawingLayerId,
         style: defaultStyle(),
         properties: {
@@ -704,11 +790,33 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
           trvElementKind: 'ELEMENT_TEXT',
           trvElementSourceLine: t.sourceLine,
           fontSize: t.fontSize > 0 ? t.fontSize : 6,
+          fontFamily: 'Arial',
+          textAlign: 'center',
         },
       });
       nText++;
     }
     if (nText > 0) notes.push(`Rendered ${nText} map text annotation(s) from drawing-element subtype 5`);
+    // cad-trv-fidelity Slice 4 — the lot AREA annotation as an editable,
+    // centered TEXT feature at the boundary centroid.
+    if (areaLabelSpec) {
+      textFeatures.push({
+        id: `trv-area-label:${slugify(prefix)}`,
+        type: 'TEXT',
+        geometry: { type: 'TEXT', point: { x: areaLabelSpec.x, y: areaLabelSpec.y }, textContent: wrapSurveyLabel(areaLabelSpec.text) },
+        layerId: drawingLayerId,
+        style: defaultStyle(),
+        properties: {
+          trvDerived: true,
+          trvElementKind: 'ELEMENT_TEXT',
+          trvAreaAnnotation: true,
+          fontSize: 8,
+          fontFamily: 'Arial',
+          textAlign: 'center',
+        },
+      });
+      notes.push('Rendered the lot area annotation as editable text');
+    }
   }
   // cad-trv-dual-layer-filename Slice 2 — the surveyor wants two
   // INDEPENDENT layers that happen to start with the same points:
@@ -726,9 +834,35 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     style: { ...f.style },
     properties: { ...f.properties, trvPointMirror: true },
   }));
+  // cad-trv-fidelity Slice 2 — wrap each traverse's features in a named
+  // feature group on the Drawing layer, so every traverse (boundary,
+  // building, road, …) is a collapsible "sublayer" in the Layers panel.
+  // Lower-risk than a layer-model change: the two synthetic layers stay,
+  // and the panel already renders feature groups nested within a layer.
+  const traverseFeatById = new Map<string, Feature>();
+  for (const f of traverseFeatures) traverseFeatById.set(f.id, f);
+  const featureGroups: FeatureGroup[] = [];
+  traverseGroupSpecs.forEach((spec, i) => {
+    const groupId = `trv-traverse-group:${slugify(prefix)}:${i}`;
+    const memberIds = spec.featureIds.filter((id) => traverseFeatById.has(id));
+    if (memberIds.length === 0) return;
+    for (const id of memberIds) {
+      const f = traverseFeatById.get(id)!;
+      f.featureGroupId = groupId;
+    }
+    featureGroups.push({
+      id: groupId,
+      name: spec.name,
+      layerId: drawingLayerId,
+      featureIds: memberIds,
+      parentGroupId: null,
+    });
+  });
+
   return {
     layers,
     features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures, ...elementShapeFeatures, ...textFeatures],
+    featureGroups,
     notes,
   };
 }

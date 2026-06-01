@@ -97,15 +97,19 @@ export function tpcFillNameToStarr(name: string): StarrFillSpec | null {
     return { pattern: 'LINES', rotation: 135, density: densityForWeight(lower), tpcName: clean };
   }
   // ── Cross families ──
+  // cad-trv-fidelity Slice 6 — modest density boost on the natural-
+  // texture fills so an imported plat reads closer to 1:1 with the TPC
+  // PDF (the prior 1.0 baseline imported a touch sparse). Density is
+  // still fully editable per-feature via the infill panel afterward.
   if (lower === 'cross') {
-    return { pattern: 'CROSSHATCH', rotation: 0, density: 1, tpcName: clean };
+    return { pattern: 'CROSSHATCH', rotation: 0, density: 1.4, tpcName: clean };
   }
   if (lower === 'diagonal cross') {
-    return { pattern: 'CROSSHATCH', rotation: 45, density: 1, tpcName: clean };
+    return { pattern: 'CROSSHATCH', rotation: 45, density: 1.4, tpcName: clean };
   }
   // ── Brick ──
   if (lower === 'brick' || lower === 'brick filled') {
-    return { pattern: 'BRICK', rotation: 0, density: 1, tpcName: clean };
+    return { pattern: 'BRICK', rotation: 0, density: 1.25, tpcName: clean };
   }
   // ── Vertical / horizontal line families ──
   if (lower === 'light vertical' || lower === 'narrow vertical' || lower === 'dark vertical' || lower === 'dashed vertical') {
@@ -116,15 +120,18 @@ export function tpcFillNameToStarr(name: string): StarrFillSpec | null {
   }
   // ── Stipple / dot families (natural-earth textures) ──
   if (lower === 'gravel' || lower === 'sand' || lower === 'earth' || lower === 'clay' || lower === 'concrete' || lower === 'small confetti' || lower === 'large confetti') {
-    return { pattern: 'DOT_GRAVEL', rotation: 0, density: lower === 'large confetti' ? 0.5 : lower === 'sand' ? 2 : 1, tpcName: clean };
+    return { pattern: 'DOT_GRAVEL', rotation: 0, density: lower === 'large confetti' ? 0.5 : lower === 'sand' ? 2 : 1.5, tpcName: clean };
   }
   // ── Water / swamp → wave ──
   if (lower === 'water' || lower === 'water (filled)' || lower === 'swamp' || lower === 'swamp (filled)') {
-    return { pattern: 'WAVE', rotation: 0, density: 1, tpcName: clean };
+    return { pattern: 'WAVE', rotation: 0, density: 1.25, tpcName: clean };
   }
-  // ── Vegetation → dense stipple ──
+  // ── Vegetation → grass tufts ──
+  // cad-trv-fidelity Slice 6 — map TPC grass/forest fills to the
+  // dedicated GRASS pattern (upward blades) instead of the old
+  // dense-dot approximation, for a much closer match to the plat.
   if (lower === 'forest' || lower === 'forest (filled)' || lower === 'grass') {
-    return { pattern: 'DOT_GRAVEL', rotation: 0, density: 2, tpcName: clean };
+    return { pattern: 'GRASS', rotation: 0, density: 1, tpcName: clean };
   }
   // ── Percent screens → uniform dots, density scaled by % ──
   const pct = /^(\d+)\s+percent$/.exec(lower);

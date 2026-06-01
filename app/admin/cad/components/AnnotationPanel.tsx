@@ -133,7 +133,7 @@ export default function AnnotationPanel() {
             </div>
             <button
               onClick={handleAutoAnnotate}
-              className="w-full px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 transition-colors"
+              className="w-full px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors"
             >
               Auto-Annotate All
             </button>
@@ -172,7 +172,7 @@ export default function AnnotationPanel() {
             <button
               onClick={handleRunOptimizer}
               disabled={annotations.length === 0}
-              className="w-full px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="w-full px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Run Optimizer
             </button>
