@@ -241,6 +241,20 @@ fully selectable/editable like any other feature.
 
 ### Slice 5 — Round-trip safety for derived features
 
+> **DONE (2026-06-01).** The `trvDerived` guard mechanism shipped
+> incrementally across Slices 1-4 (point + traverse filters in
+> `drawingToTrv`, plus `featuresByTrvId` + add passes in
+> `mergeSourceTrvWithDoc`). This slice adds the consolidating proof:
+> `trv-derived-roundtrip.test.ts` builds the full Hillsboro doc (with
+> connectors + element polylines/lines + text echoes present) and
+> asserts the smart-merge export is byte-equal to the source, the
+> fresh export's `95,N` counts only real points, and the emitted
+> `30,` traverse-opener count equals the real traverses only. The
+> `Feature.properties` flags (`trvDerived`, `trvElementKind`,
+> `trvElementSourceLine`, `trvPointMirror`) are now documented in
+> `types.ts`; they already fit the `string|number|boolean` value
+> type. Suite 2507 green.
+
 - `lib/cad/types.ts`: document the new `properties` flags
   (`trvDerived`, `trvElementKind`, `trvElementSourceLine`). They are
   free-form `Feature.properties` keys (no type change needed beyond a
