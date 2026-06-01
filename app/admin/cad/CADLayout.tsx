@@ -965,8 +965,15 @@ export default function CADLayout() {
                   }
                   setRecoveryDiscardArmed(false);
                   setRecoveryPayload(null);
-                  // Zoom to the recovered drawing's extents
-                  setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+                  // cad-trv-fidelity-recovery Slice 1 — frame the PAPER
+                  // (sized to content on a TRV import), NOT the raw
+                  // feature extents. A recovered doc's geometry can sit
+                  // at survey coordinates while the camera is still at
+                  // the origin default; viewport culling then drops
+                  // every feature + the paper renders off-screen, so the
+                  // page + drawings look like they "didn't render at
+                  // all". Paper-fit is robust against stray outliers.
+                  setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomToPaper')), 200);
                 }}
               >
                 Restore this version

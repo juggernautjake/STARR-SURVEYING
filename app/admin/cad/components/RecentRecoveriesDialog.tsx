@@ -79,8 +79,16 @@ export default function RecentRecoveriesDialog({ open, onClose }: Props) {
         'AutoSave',
         `Recovered drawing "${doc.name}" from autosave (${entry.savedAt})`
       );
+      // cad-trv-fidelity-recovery Slice 1 — frame the PAPER (which a
+      // TRV import sizes to the content bbox), not the raw feature
+      // extents. A recovered doc's geometry can sit at survey
+      // coordinates (~3.3M, 10.7M) while the camera is still at the
+      // origin default — viewport culling then drops every feature and
+      // the paper renders off-screen, so the page + drawings look like
+      // they "didn't render at all". Zooming to the paper rectangle is
+      // robust against stray outliers + guarantees the content is framed.
       setTimeout(
-        () => window.dispatchEvent(new CustomEvent('cad:zoomExtents')),
+        () => window.dispatchEvent(new CustomEvent('cad:zoomToPaper')),
         200
       );
       onClose();

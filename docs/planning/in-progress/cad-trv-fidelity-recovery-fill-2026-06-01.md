@@ -131,6 +131,21 @@ get no code→symbol assignment.
 > are shipped or explicitly deferred.
 
 ### Slice 1 — Fix file-recovery rendering (URGENT)
+
+> **DONE (2026-06-01).** Root cause: the render + data paths are correct
+> (autosave writes the full doc, `validateAndMigrateDocument` preserves
+> features+settings, `loadDocument` loads it, the RAF render loop reads
+> live state) — but recovery dispatched `cad:zoomExtents`, which fits the
+> raw feature bbox. A recovered TRV doc's geometry sits at survey
+> coordinates (~3.3M, 10.7M) while the camera is still at the origin
+> default, so viewport culling dropped every feature and the paper
+> rendered off-screen → "page + drawings didn't render at all". Fix:
+> both recovery handlers (`CADLayout.tsx` Restore + `RecentRecoveriesDialog.tsx`)
+> now dispatch `cad:zoomToPaper` (frames the content-sized paper, robust
+> against stray outliers — the same pattern TRV import uses). Regression
+> test `recovery-render.test.ts` locks the data path (JSON round-trip
+> preserves features + paperOrigin) + the reframe wiring. Suite 2524
+> green.
 - Reproduce: import a TRV (or draw), let autosave fire, reload, click
   Restore — confirm layers populate but paper + features don't render.
 - Diagnose against the leads above. Most likely fix areas: ensure
@@ -243,6 +258,48 @@ get no code→symbol assignment.
   test-locked where feasible.
 
 ---
+
+### Slice 9 — Don't prompt to save an untouched new drawing on exit
+*Added 2026-06-01 (user follow-up).* Opening a fresh CAD instance and
+exiting without drawing anything must NOT prompt to save. Only prompt
+when the drawing has actually changed. The store already tracks
+`isDirty` (`drawing-store.ts`), and the nav guard reads
+`useDrawingStore.getState().isDirty` (`CADLayout.tsx:570`) — but a brand
+new doc may start dirty, or the exit button (`MenuBar.tsx:1268`) may not
+consult `isDirty`. Action: ensure a pristine new drawing starts
+`isDirty:false` and stays clean until a real edit; gate BOTH the exit
+button and the `beforeunload`/router nav guard on `isDirty`. Test: a new
+doc is not dirty; exit with no edits doesn't prompt; an edit flips dirty
+and exit prompts.
+
+### Slice 10 — Exit returns to the page the user came from
+*Added 2026-06-01 (user follow-up).* The Exit button currently routes to
+the research/CAD menu instead of the previous page. There's a
+`returnTo` concept (`MenuBar.tsx:1268-1281` `cad-exit-return-path`).
+Action: capture the actual referring page on CAD entry (e.g. stash
+`document.referrer`/the prior in-app route in sessionStorage when
+navigating INTO the CAD, or use router history) and make Exit navigate
+back to that exact page; fall back to the menu only when no prior page
+is known. Test: entering from page X and clicking Exit returns to X.
+
+### Slice 11 — Working bug-report system (floating-menu button)
+*Added 2026-06-01 (user follow-up).* The "Report a bug" button in the
+bottom-right floating menu (with calculator / handbook / messages) is
+broken. Build a full bug-reporting flow:
+- Clicking it opens a MODAL: a free-text context field (what happened /
+  when), a page selector (dropdown of app pages, defaulting to / able to
+  pick the CURRENT page), optional severity, and submit/cancel.
+- On submit, persist the report for admin review (find the existing
+  data layer — Supabase/API route; mirror how other admin records are
+  stored) and ALERT the admin (notification/inbox row, matching the
+  existing admin-alert mechanism).
+- Wire the floating-menu button to open the modal. Locate the floating
+  menu component (search `handbook`, `calculator`, `messages`, "Report
+  a bug" in `app/admin/`), the admin notification/alert system, and the
+  persistence layer first.
+- Tests: modal opens from the button; submit validates + writes a
+  report record + raises an admin alert; page selector includes the
+  current page.
 
 ## Deferrals (revisit, documented per the README rubric)
 - Geometric paper-space placement of title-block `28,5`/`28,6` (needs
