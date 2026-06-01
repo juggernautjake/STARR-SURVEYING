@@ -166,6 +166,17 @@ fully selectable/editable like any other feature.
 
 ### Slice 3 — `28,5` world-placed text annotations → TEXT features
 
+> **DONE (2026-06-01).** `extractTextElements` added: parses
+> `28,5,x,y,a,b,fontSize,c,d,<text>`, rejoins comma-bearing text from
+> field 9+, cleans `¶`/DC4 via `cleanLabelText`, and splits WORLD vs
+> PAPER by |coord|>100000. `trvToDrawing` renders WORLD text as
+> `trvDerived` TEXT features at (E,N)→(x,y) on the Drawing layer, with
+> the TPC size on `properties.fontSize` (what `CanvasViewport` reads).
+> TEXT isn't part of the TRV feature-export, so round-trip stays
+> byte-stable (verified). Paper-space `28,5` deferred to Slice 4.
+> Specs in `trv-text-elements.test.ts`; Hillsboro renders ~56
+> annotations incl. "grass". Suite 2496 green.
+
 - `trv-drawing-elements.ts`: add `extractTextElements(elements)` →
   `{ x:number; y:number; fontSize:number; text:string; space:'WORLD'|'PAPER'; sourceLine:number }[]`.
   Format `28,5,x,y,a,b,fontSize,c,d,text` — `text` = LAST field

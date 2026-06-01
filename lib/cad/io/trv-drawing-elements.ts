@@ -153,6 +153,52 @@ export function extractConnectors(elements: ReadonlyArray<TrvDrawingElement>): C
   return out;
 }
 
+/** cad-trv-drawing-element-rendering Slice 3 — a `28,5` text element.
+ *  Layout: `28,5,x,y,a,b,fontSize,c,d,<text…>`. Traverse PC uses it
+ *  for BOTH the world-placed site annotations ("grass", "asphalt
+ *  parking", deed calls) AND the paper-space title-block text (firm
+ *  name, job no.). World vs paper is told apart by coordinate
+ *  magnitude. The text payload is everything from field 9 onward —
+ *  JOINED with ',' because legal notes contain commas — then cleaned
+ *  of the `¶` multi-line separator. */
+export interface TextElement {
+  /** Placement coordinate. WORLD → (E, N); PAPER → title-block units. */
+  x: number;
+  y: number;
+  /** TPC point size (field 6). */
+  fontSize: number;
+  /** Cleaned, multi-line (`\n`) text. */
+  text: string;
+  /** WORLD-placed (survey coords) vs PAPER-space (title block). */
+  space: 'WORLD' | 'PAPER';
+  /** Source line of the `28,5` record. */
+  sourceLine: number;
+}
+
+/** Coordinates beyond this magnitude are world (state-plane feet);
+ *  smaller ones are paper-space title-block placements. */
+const TEXT_WORLD_THRESHOLD = 100000;
+
+/** Walk every drawing element + extract subtype-5 text elements. */
+export function extractTextElements(elements: ReadonlyArray<TrvDrawingElement>): TextElement[] {
+  const out: TextElement[] = [];
+  for (const de of elements) {
+    if (de.header[0] !== '5') continue;
+    const x = Number(de.header[1]);
+    const y = Number(de.header[2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const fontSize = Number(de.header[5]);
+    // Text = fields 9..end joined with ',' (it may contain commas),
+    // then cleaned of pilcrow / DC4.
+    const text = cleanLabelText(de.header.slice(8).join(','));
+    if (text.length === 0) continue;
+    const space: TextElement['space'] =
+      Math.abs(x) > TEXT_WORLD_THRESHOLD || Math.abs(y) > TEXT_WORLD_THRESHOLD ? 'WORLD' : 'PAPER';
+    out.push({ x, y, fontSize: Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 0, text, space, sourceLine: de.sourceLine });
+  }
+  return out;
+}
+
 /** cad-trv-drawing-element-rendering Slice 2 — a free geometry
  *  drawing element with coordinates carried INLINE in the `28`
  *  header (not via point-id refs):
