@@ -70,6 +70,14 @@ function defaultStyle(): FeatureStyle {
   return {
     color: '#000000',
     lineWeight: 0.5,
+    // cad-trv-element-coverage Slice 3a — opacity is FULLY VISIBLE
+    // by default. The user's "not be hidden or fully opaque" ask:
+    // hidden = opacity 0 (we don't do that); fully-opaque-blocking
+    // refers to filled polygons that block underlying features.
+    // Below we explicitly set fillColor / fillPattern to a no-fill
+    // configuration so a closed polygon imports as an OUTLINE
+    // ONLY — no opaque area to hide other features behind. The
+    // user can opt into a fill via the property panel.
     opacity: 1,
     lineTypeId: null,
     symbolId: null,
@@ -78,6 +86,9 @@ function defaultStyle(): FeatureStyle {
     labelVisible: null,
     labelFormat: null,
     labelOffset: { x: 0, y: 0 },
+    fillColor: null,
+    fillPattern: 'NONE',
+    fillOpacity: 1,
   } as unknown as FeatureStyle;
 }
 

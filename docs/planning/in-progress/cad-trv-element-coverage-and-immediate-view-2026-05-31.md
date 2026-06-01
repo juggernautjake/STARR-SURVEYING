@@ -104,7 +104,69 @@ but the camera lands on outliers + the survey looks tiny.
 - Tests: per-subtype mapper unit tests + Garland-sample
   integration counting the new TEXT features.
 
-### Slice 3 — Map TRV lot segments (13) to Starr POLYGON features
+### Slice 3a — Visibility audit + outline-only polygon defaults ✅ shipped 2026-05-31
+
+User ask: "Make sure all of the lines and elements actually
+show up and are not hidden or fully opaque, unless the trv
+specifies that they should be."
+
+Audit result on the live Garland sample:
+- Every imported Layer is `visible: true` (already correct).
+- Every imported Feature has `opacity: 1`, `color: '#000000'`,
+  `lineWeight: 0.5` (already correct).
+- POLYGON features previously inherited the bare `defaultStyle()`
+  which omitted `fillColor` / `fillPattern`. Render path treats
+  `undefined` `fillColor` as no-fill (already outline-only), but
+  the defensive fix is to set them EXPLICITLY so the contract is
+  visible at the call site + future fill-mapping work can layer
+  on top deterministically.
+
+Fix: `defaultStyle()` in `trv-to-drawing.ts` now stamps
+`fillColor: null`, `fillPattern: 'NONE'`, `fillOpacity: 1` so
+closed polygons are unambiguously OUTLINE-ONLY on import. No
+opaque area to hide other features behind.
+
+5 specs lock the visibility contract (every layer visible,
+every feature opacity > 0 + color + lineWeight > 0, every
+POLYGON outline-only) — synthetic + Garland end-to-end.
+
+Full cad suite (2368) green; typecheck + lint clean.
+
+### Slice 3 — Map TRV lot segments (13) to Starr features (deferred — needs parser-context change)
+
+Diagnostic on Garland: the 3 surviving 13 records aren't
+standalone lot boundaries — they're vertex-indexed annotations
+INSIDE a traverse block (`13,524288,0,0,0,0,5,3533f` references
+vertex 5 of the active traverse, lot name `3533f`). Mapping
+these to Starr features requires the parser to track which
+traverse the 13 belongs to + which vertex index resolves to
+which point. Captured for round-trip; semantic mapping queued
+as a separate slice once we have a multi-lot sample to validate
+against (the current samples only have 3 lot annotations, none
+forming closed lot boundaries).
+
+### Slice 4 — Map TRV infill patterns (51 / 70 / 71 styling records) (queued)
+
+User ask: "the infill patterns from the trv also map to the
+infill options that we have. Check the scale of infill and
+attributes of the infill from the trv and come up with
+equivalent infill options."
+
+Per-traverse styling records (51, 70, 71) carry the TRV fill
+specification (pattern type, color, scale, rotation). They are
+already captured opaquely in `traverse.stylingRecords` so
+round-trip stays byte-equal. Decoding them into our
+`fillPattern` / `patternColor` / `patternDensity` /
+`patternRotation` / `patternScale` style fields requires:
+  - Identifying which TRV pattern subtype maps to which of our
+    8 fill patterns (DOT_UNIFORM / DOT_GRAVEL / LINES /
+    CROSSHATCH / BRICK / WAVE / SOLID / NONE).
+  - Decoding the 32-bit color packed field in 51 (deferred in
+    earlier work — no Traverse PC docs for the encoding).
+  - Calibrating density / rotation / scale to match the visual.
+
+Queued as the next slice; will benefit from a TRV sample with
+explicit known fill so we can ground-truth the decoder.
 
 - 13 records: lot/parcel boundary segments. Group consecutive
   13 records by their `polyId` field + emit one POLYGON per
