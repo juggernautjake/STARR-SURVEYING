@@ -26,11 +26,16 @@ const FIXTURE = [
 describe('importTrvFromText', () => {
   it('returns a counts report + the mapped result', () => {
     const r = importTrvFromText(FIXTURE);
-    expect(r.layerCount).toBe(1);
+    // cad-trv-import-polish Slice 3 — mapper now emits exactly
+    // TWO synthetic layers per import (Drawing + Points).
+    expect(r.layerCount).toBe(2);
     expect(r.pointCount).toBe(1);
     expect(r.traverseCount).toBe(0);
     expect(r.notes).toEqual([]);
-    expect(r.mapped.layers[0].id).toBe('trv-layer:3');
+    // cad-trv-import-polish Slice 3 — mapper now emits synthetic
+    // Drawing + Points layers (no project name in fixture →
+    // "TRV Import" prefix).
+    expect(r.mapped.layers[0].id).toBe('trv-drawing:trv-import');
     expect(r.mapped.features[0].type).toBe('POINT');
   });
 

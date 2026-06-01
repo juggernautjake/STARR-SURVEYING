@@ -28,7 +28,7 @@ import type {
 import type { TrvDocument, TrvLayer, TrvPoint, TrvTraverse } from './trv-parser';
 // cad-trv-import-export-deep-semantic Pass 7 — curve detection
 // + best-fit ARC / SPLINE for traverses with curved geometry.
-import { detectCurvedRuns, fitArcThroughPoints, fitSplineControlPoints } from '../geometry/curve-fit';
+import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // cad-trv-element-coverage Slice 2 — drawing-element subtype-12
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
@@ -132,13 +132,25 @@ function mapPoint(
     return null;
   }
   const layerId = p.layerId !== null ? layerIdByTrvId.get(p.layerId) ?? null : null;
+  // cad-trv-import-polish Slice 4 — stamp the standard Starr
+  // property names (pointName, description) IN ADDITION to the
+  // TRV-specific ones. The layer-preference panel's "Show point
+  // names" + "Show point descriptions" toggles read these
+  // standard fields via `generate-labels.ts`; without them the
+  // toggles silently no-op on imported features.
   const properties: Record<string, string | number | boolean> = {
     trvPointId: p.id,
     surveyNorth: p.north,
     surveyEast: p.east,
+    // Standard Starr fields so the layer-preference panel works
+    // out of the box on imported points.
+    pointName: p.id,
   };
   if (p.elevation !== null) properties.elevation = p.elevation;
-  if (p.description !== null) properties.label = p.description;
+  if (p.description !== null) {
+    properties.label = p.description;
+    properties.description = p.description;
+  }
   if (p.methodCode !== null) properties.trvMethodCode = p.methodCode;
   return {
     id: pointKey(p.id),
@@ -214,6 +226,10 @@ function mapTraverse(
     const slice = vertices.slice(run.startIndex, run.endIndex + 1).map((v) => ({ x: v.x, y: v.y }));
     const arc = fitArcThroughPoints(slice);
     if (arc && arc.maxResidual <= ARC_FIT_RESIDUAL_TOLERANCE) {
+      // True circular arc — emit an editable ARC feature
+      // alongside the polyline (the polyline still passes through
+      // the same vertices but the ARC gives the surveyor center +
+      // radius handles).
       curveFeatures.push({
         id: `${traverseId}:arc:${curveIdx}`,
         type: 'ARC',
@@ -230,21 +246,16 @@ function mapTraverse(
       } as Feature);
       detectedRuns.push({ startIndex: run.startIndex, endIndex: run.endIndex, kind: 'ARC', residual: arc.maxResidual });
     } else {
-      const cp = fitSplineControlPoints(slice);
-      curveFeatures.push({
-        id: `${traverseId}:spline:${curveIdx}`,
-        type: 'SPLINE',
-        geometry: { type: 'SPLINE', spline: { controlPoints: cp, isClosed: false } } as Feature['geometry'],
-        layerId,
-        style: defaultStyle(),
-        properties: {
-          curveOfTraverse: traverseId,
-          curveKind: 'SPLINE',
-          curveRunStartIdx: run.startIndex,
-          curveRunEndIdx: run.endIndex,
-          arcResidual: arc?.maxResidual ?? -1,
-        },
-      } as Feature);
+      // cad-trv-import-polish Slice 1 — Spline fallback emission
+      // REMOVED. The Garland sample produces 126 spline features
+      // alongside its 11 polylines/polygons, all drawing through
+      // the same vertices — the user sees doubled-up scribbled
+      // curves. The polyline already faithfully follows every
+      // vertex in the source, so the spline was visually
+      // redundant. We still RECORD the detected run in
+      // properties.trvCurveRuns so a future "Convert polyline
+      // segment to spline" tool can read the metadata; we just
+      // don't emit a SPLINE feature that double-draws.
       detectedRuns.push({ startIndex: run.startIndex, endIndex: run.endIndex, kind: 'SPLINE', residual: arc?.maxResidual ?? -1 });
     }
     curveIdx++;
@@ -303,11 +314,41 @@ function mapTraverse(
   return [polyline, ...curveFeatures];
 }
 
+/** cad-trv-import-polish Slice 3 — synthetic destination layers
+ *  for a TRV import. Two layers per import:
+ *
+ *    - `${prefix} — Drawing` holds every POLYLINE / POLYGON /
+ *      ARC traverse feature.
+ *    - `${prefix} — Points` holds every POINT feature, so the
+ *      surveyor can toggle the layer-preference panel options
+ *      (point labels, point codes, etc.) without affecting the
+ *      drawing strokes.
+ *
+ *  Each feature additionally carries `properties.trvOriginalLayer`
+ *  with the name of the source TRV layer (Boundaries / Topo /
+ *  Easements / etc.) for filter / colour-by / audit. The source
+ *  layer ids stay accessible via the TrvDocument's `layers`
+ *  table so a future round-trip can re-emit them. */
+const trvDrawingLayerKey = (prefix: string) => `trv-drawing:${slugify(prefix)}`;
+const trvPointsLayerKey = (prefix: string) => `trv-points:${slugify(prefix)}`;
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'import';
+}
+
 /** Project a parsed `TrvDocument` into the layers + features the
  *  drawing store consumes. Pure: no I/O, no zustand. */
 export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   const notes: string[] = [];
-  const layers: Layer[] = doc.layers.map((l, i) => mapLayer(l, i));
+  // Internal scratch maps for the per-feature stamping below.
+  // layerIdByTrvId continues to map "TRV layer id → Starr layer
+  // id" the way mapPoint / mapTraverse expect; we use the
+  // OLD-style layerKey(...) so existing tests + the smart-merge
+  // serializer keep working. After all features are mapped we
+  // REWRITE feature.layerId to point at the synthetic Drawing
+  // or Points layer, and stamp `properties.trvOriginalLayer`
+  // with the source layer NAME for filter / audit.
+  const trvLayerNameById = new Map<string, string>();
+  for (const l of doc.layers) trvLayerNameById.set(l.id, l.name || `Layer ${l.id}`);
   const layerIdByTrvId = new Map<string, string>();
   for (const l of doc.layers) layerIdByTrvId.set(l.id, layerKey(l.id));
 
@@ -343,6 +384,10 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
       const existing = feat.properties.label;
       if (typeof existing === 'string' && existing.trim().length > 0) continue;
       feat.properties.label = lbl.label;
+      // cad-trv-import-polish Slice 4 — mirror onto the standard
+      // Starr `description` field so the layer-preference panel's
+      // "Show point descriptions" toggle picks it up.
+      feat.properties.description = lbl.label;
       feat.properties.trvLabelSourceLine = lbl.sourceLine;
       attached++;
     }
@@ -359,9 +404,55 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
     for (const f of feats) traverseFeatures.push(f);
   }
 
+  // cad-trv-import-polish Slice 3 — build the two synthetic
+  // destination layers + re-stamp every feature's layerId. The
+  // ORIGINAL TRV layer name lands on `properties.trvOriginalLayer`
+  // so the surveyor can filter / colour-by / audit by source
+  // layer; the source TRV layer ids are still preserved in the
+  // round-trip data (the parser keeps `doc.layers`).
+  const prefix = trvLayerPrefix(doc);
+  const drawingLayerId = trvDrawingLayerKey(prefix);
+  const pointsLayerId = trvPointsLayerKey(prefix);
+  const layers: Layer[] = [
+    makeLayer(drawingLayerId, `${prefix} — Drawing`, 1000),
+    makeLayer(pointsLayerId, `${prefix} — Points`, 1001),
+  ];
+  for (const f of pointFeatures) {
+    const originalLayerId = f.layerId;
+    f.layerId = pointsLayerId;
+    const originalName = trvLayerNameByStarrId(originalLayerId, trvLayerNameById);
+    if (originalName) f.properties.trvOriginalLayer = originalName;
+  }
+  for (const f of traverseFeatures) {
+    const originalLayerId = f.layerId;
+    f.layerId = drawingLayerId;
+    const originalName = trvLayerNameByStarrId(originalLayerId, trvLayerNameById);
+    if (originalName) f.properties.trvOriginalLayer = originalName;
+  }
   return {
     layers,
     features: [...pointFeatures, ...traverseFeatures],
     notes,
   };
+}
+
+/** Build a human-friendly prefix for the two synthetic layers
+ *  from the TRV project metadata. Falls back to "TRV Import"
+ *  when the source has no project name. */
+function trvLayerPrefix(doc: TrvDocument): string {
+  const m = doc.metadata;
+  const name = (m.projectName ?? '').trim();
+  return name.length > 0 ? `TRV: ${name}` : 'TRV Import';
+}
+
+/** Reverse-look-up: given the Starr layer id the mapPoint /
+ *  mapTraverse helpers stamped onto a feature (something like
+ *  `trv-layer:3`), return the source TRV layer NAME (e.g.
+ *  `Boundaries`). Used to stamp `properties.trvOriginalLayer`
+ *  on each feature for filter / audit. */
+function trvLayerNameByStarrId(starrLayerId: string, trvLayerNameById: Map<string, string>): string | null {
+  // The helpers stamped `layerKey(trvId)` = `trv-layer:${trvId}`.
+  const match = /^trv-layer:(.+)$/.exec(starrLayerId);
+  if (!match) return null;
+  return trvLayerNameById.get(match[1]) ?? null;
 }
