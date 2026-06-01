@@ -359,7 +359,22 @@ broken. Build a full bug-reporting flow:
 > bar, not a button — left alone.)
 
 ### Slice 13 — Unify all CAD modals/messages to Starr CAD styling (kill native confirm/alert)
-*Added 2026-06-01 (user follow-up).* Replace the native
+*Added 2026-06-01 (user follow-up).*
+> **PARTIAL (2026-06-01) — import popups done.** Converted the
+> TRV/data IMPORT popups the user explicitly disliked (both the Open
+> and Import flows in `MenuBar.tsx`) from native `window.confirm`/
+> `alert` to the existing Starr-styled `confirmAction` modal: the
+> import-summary preview, the title-block-apply prompt, and the
+> parse-failure error all now render in the themed `ConfirmDialog`
+> (added `whitespace-pre-line` so the multi-line count/notes summary
+> displays cleanly). Test updated in `trv-io.test.ts` (import uses
+> `confirmAction`, no `window.confirm` in `importTrv`). Suite 2532
+> green. **Remaining (follow-up):** the Exit-button unsaved-changes
+> `window.confirm`, the save/export error `alert`s in `MenuBar.tsx`
+> (lines ~155/194/437/447/462/575/585/596), and an audit of the other
+> ~40 native `confirm`/`alert` calls across `app/admin/cad/` +
+> non-CAD admin — route them through `confirmAction` / a small
+> `alertAction` info-modal built on `ModalFrame`. Replace the native
 `window.confirm` / `window.alert` popups (48 in `app/admin/cad/`),
 especially the TRV/data IMPORT confirmation popups in `MenuBar.tsx`
 (Open + Import flows) the user dislikes, with the existing custom

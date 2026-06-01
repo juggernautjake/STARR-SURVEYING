@@ -114,7 +114,7 @@ export default function ConfirmDialog() {
       minHeight={150}
     >
       <div ref={dialogRef} className="flex flex-col h-full">
-        <div className="px-4 py-3 text-xs text-gray-300 leading-relaxed flex-1">
+        <div className="px-4 py-3 text-xs text-gray-300 leading-relaxed flex-1 whitespace-pre-line overflow-y-auto">
           {state.message}
         </div>
         <div className="px-4 py-3 flex items-center justify-end gap-2 border-t border-gray-700 bg-gray-900/50">

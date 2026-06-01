@@ -27,6 +27,7 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 // cad-trv-import-export Slice 4 — File menu Import / Export TRV.
 import { downloadTrv, importTrvFromText, formatRenderedElements, type TrvImportReport } from '@/lib/cad/io/trv-io';
+import { confirmAction } from './ConfirmDialog';
 import { requestDiscard } from '../hooks/useUnsavedChangesGuard';
 // cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
 // to the survey title block (non-destructive).
@@ -294,15 +295,21 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
             : '';
           const drawingSummary = formatRenderedElements(report.renderedElements);
-          const ok = window.confirm(
-            `Open ${file.name} as a Traverse PC TRV?\n\n` +
-            `  ${report.layerCount} layer(s)\n` +
-            `  ${report.pointCount} point(s)\n` +
-            `  ${report.traverseCount} traverse(s)` +
-            (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
-            noteSummary +
-            `\n\nThis will ADD the records to the current drawing.`
-          );
+          // cad-trv-fidelity Slice 13 — Starr-styled import modal in
+          // place of the native window.confirm popup.
+          const ok = await confirmAction({
+            title: 'Open Traverse PC (.TRV)',
+            message:
+              `Open ${file.name} as a Traverse PC TRV?\n\n` +
+              `  ${report.layerCount} layer(s)\n` +
+              `  ${report.pointCount} point(s)\n` +
+              `  ${report.traverseCount} traverse(s)` +
+              (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
+              noteSummary +
+              `\n\nThis will ADD the records to the current drawing.`,
+            confirmLabel: 'Open',
+            cancelLabel: 'Cancel',
+          });
           if (!ok) {
             setFileLoading(false);
             return;
@@ -324,14 +331,18 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           const m = report.metadata;
           const hasMetadata = !!(m.projectName || m.surveyDate || m.scale || m.sourcePath);
           if (hasMetadata) {
-            const applyMeta = window.confirm(
-              'Apply TRV project metadata to the survey title block?\n\n' +
-              (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
-              (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
-              (m.scale       ? `  Scale: ${m.scale}\n` : '') +
-              (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
-              '\nOnly fields you haven\'t set will be filled (non-destructive).'
-            );
+            const applyMeta = await confirmAction({
+              title: 'Apply title-block metadata?',
+              message:
+                'Apply TRV project metadata to the survey title block?\n\n' +
+                (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
+                (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
+                (m.scale       ? `  Scale: ${m.scale}\n` : '') +
+                (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
+                '\nOnly fields you haven\'t set will be filled (non-destructive).',
+              confirmLabel: 'Apply',
+              cancelLabel: 'Skip',
+            });
             if (applyMeta) {
               const current = drawingStore.document.settings?.titleBlock;
               if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints) });
@@ -465,22 +476,33 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         report = importTrvFromText(text, { fileName: file.name });
       } catch (err) {
         cadLog.error('FileIO', 'TRV parse failed', err);
-        alert('Failed to parse TRV file. Check that it came from Traverse PC.');
+        await confirmAction({
+          title: 'Import failed',
+          message: 'Failed to parse TRV file. Check that it came from Traverse PC.',
+          confirmLabel: 'OK',
+          cancelLabel: 'Close',
+        });
         return;
       }
       const noteSummary = report.notes.length > 0
         ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
         : '';
       const drawingSummary = formatRenderedElements(report.renderedElements);
-      const ok = window.confirm(
-        `Import ${file.name}?\n\n` +
-        `  ${report.layerCount} layer(s)\n` +
-        `  ${report.pointCount} point(s)\n` +
-        `  ${report.traverseCount} traverse(s)` +
-        (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
-        noteSummary +
-        `\n\nThis will ADD the records to the current drawing.`
-      );
+      // cad-trv-fidelity Slice 13 — Starr-styled import modal in place
+      // of the native window.confirm popup.
+      const ok = await confirmAction({
+        title: 'Import Traverse PC (.TRV)',
+        message:
+          `Import ${file.name}?\n\n` +
+          `  ${report.layerCount} layer(s)\n` +
+          `  ${report.pointCount} point(s)\n` +
+          `  ${report.traverseCount} traverse(s)` +
+          (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
+          noteSummary +
+          `\n\nThis will ADD the records to the current drawing.`,
+        confirmLabel: 'Import',
+        cancelLabel: 'Cancel',
+      });
       if (!ok) return;
       for (const l of report.mapped.layers) drawingStore.addLayer(l);
       // cad-duplicate-point-handling Slice 4 — rename any
@@ -503,14 +525,18 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       const m = report.metadata;
       const hasMetadata = !!(m.projectName || m.surveyDate || m.scale || m.sourcePath);
       if (hasMetadata) {
-        const applyMeta = window.confirm(
-          'Apply TRV project metadata to the survey title block?\n\n' +
-          (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
-          (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
-          (m.scale       ? `  Scale: ${m.scale}\n` : '') +
-          (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
-          '\nOnly fields you haven\'t set will be filled (non-destructive).'
-        );
+        const applyMeta = await confirmAction({
+          title: 'Apply title-block metadata?',
+          message:
+            'Apply TRV project metadata to the survey title block?\n\n' +
+            (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
+            (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
+            (m.scale       ? `  Scale: ${m.scale}\n` : '') +
+            (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
+            '\nOnly fields you haven\'t set will be filled (non-destructive).',
+          confirmLabel: 'Apply',
+          cancelLabel: 'Skip',
+        });
         if (applyMeta) {
           const current = drawingStore.document.settings?.titleBlock;
           if (current) {

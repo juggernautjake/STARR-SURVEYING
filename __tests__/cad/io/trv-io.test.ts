@@ -128,7 +128,17 @@ describe('MenuBar — TRV import/export wiring', () => {
     // cad-trv-dual-layer-filename Slice 1 — the file name is threaded
     // through so the imported layers are named after the FILE.
     expect(MENUBAR_SRC).toMatch(/importTrvFromText\(text, \{ fileName: file\.name \}\)/);
-    expect(MENUBAR_SRC).toMatch(/window\.confirm\(/);
+    // cad-trv-fidelity Slice 13 — the import preview is the Starr-styled
+    // confirm modal now, NOT the native window.confirm popup.
+    expect(MENUBAR_SRC).toMatch(/import \{ confirmAction \} from '\.\/ConfirmDialog';/);
+    // Isolate the importTrv() function body.
+    const start = MENUBAR_SRC.indexOf('function importTrv()');
+    const after = MENUBAR_SRC.slice(start + 'function importTrv()'.length);
+    const nextFn = after.indexOf('\n  function ');
+    const importFn = nextFn > 0 ? after.slice(0, nextFn) : after;
+    expect(importFn).toMatch(/await confirmAction\(\{[\s\S]*?title: 'Import Traverse PC \(\.TRV\)'/);
+    // …and no longer uses the native confirm for the import preview.
+    expect(importFn).not.toMatch(/window\.confirm\(/);
   });
 
   it('appends layers + features to the drawing store on confirm', () => {
