@@ -307,12 +307,19 @@ get no code→symbol assignment.
 > the crosshair when no/unknown symbol). Test
 > `point-symbol-render.test.ts` locks the wiring + verifies a library
 > monument glyph draws. Suite 2547 green.
-> **Remaining:** (a) ASSIGN symbols to imported TRV points by code
-> (`PointCodeDefinition.defaultSymbolId` — monument codes → IR/IP
-> symbols) in `mapPoint`; (b) decode TPC `51` line-type codes
-> (0/6/10/39/40, ground-truthed vs the PDF — e.g. adjoiner = dashed) to
-> the existing `linetype-library` types in `decodeTrvLineStyle` + assign
-> the `lineTypeId` to the traverse polyline.
+> **(a) DONE (2026-06-01) — code→symbol assignment.** `mapPoint` now
+> assigns `style.symbolId` when the TRV feature code (first token of the
+> `1,…` description) EXACTLY matches a symbol's `assignedCodes` (e.g.
+> `309` → `MON_IR_050_FOUND`). Exact-match only, so free-form
+> descriptions never mis-assign; unmatched points keep the crosshair.
+> Test `trv-point-symbol-assign.test.ts`. Suite 2551 green.
+> **(b) Remaining — line-type import.** Decode TPC `51` field1 codes
+> (0/6/10/39/40) to `linetype-library` dash types + assign the
+> `lineTypeId` to the traverse polyline. BLOCKED on ground truth: a
+> single sample isn't enough to map a code→dash pattern without risking
+> wrong styling on other files (per the Slice 6 line-type note). Needs
+> cross-file confirmation (pair each code with its plotted PDF) before
+> mapping; SOLID stays the safe default + records round-trip verbatim.
 - Line types: ground-truth the TPC `51` field1 codes (0/6/10/39/40)
   against the PDF (e.g. adjoiner = dashed) and map them to the existing
   catalog (`DASHED`, etc.) in `decodeTrvLineStyle`; assign the decoded

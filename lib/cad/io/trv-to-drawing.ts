@@ -40,6 +40,9 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
 import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements } from './trv-drawing-elements';
+// cad-trv-fidelity Slice 7 — assign a monument/utility symbol to an
+// imported point when its feature code matches a symbol's assignedCodes.
+import { getSymbolsByAssignedCode } from '../styles/symbol-library';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -179,6 +182,19 @@ function mapPoint(
     properties.description = p.description;
   }
   if (p.methodCode !== null) properties.trvMethodCode = p.methodCode;
+  // cad-trv-fidelity Slice 7 — assign a point symbol when the TRV
+  // feature code (the first token of the description) EXACTLY matches a
+  // symbol's assignedCodes (e.g. "309" → its monument glyph). Exact
+  // match only, so a free-form description never mis-assigns; points
+  // with no matching code keep the default crosshair.
+  const style = defaultStyle();
+  if (p.description) {
+    const token = p.description.trim().split(/\s+/)[0];
+    if (token) {
+      const matches = getSymbolsByAssignedCode(token);
+      if (matches.length > 0) style.symbolId = matches[0].id;
+    }
+  }
   return {
     id: pointKey(p.id),
     type: 'POINT',
@@ -187,7 +203,7 @@ function mapPoint(
       point: { x: p.east, y: p.north },
     } as Feature['geometry'],
     layerId: layerId ?? '',
-    style: defaultStyle(),
+    style,
     properties,
   } as Feature;
 }
