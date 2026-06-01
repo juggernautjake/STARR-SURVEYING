@@ -26,6 +26,7 @@
 
 import type {
   Feature,
+  FeatureGeometry,
   FeatureStyle,
   Layer,
   FeatureType,
@@ -74,6 +75,16 @@ function makeLayer(id: string, name: string, sortOrder: number): Layer {
     isProtected: false,
     autoAssignCodes: [],
   };
+}
+
+/** cad-trv-dual-layer-filename Slice 2 — deep clone a POINT
+ *  feature's geometry so the Drawing-layer copy and the Points-
+ *  layer original share no object references. Without this the
+ *  inner `{ x, y }` `point` is aliased + editing one layer would
+ *  bleed into the other on any in-place mutation. */
+function clonePointGeometry(g: FeatureGeometry): FeatureGeometry {
+  if (g.type !== 'POINT' || !g.point) return { ...g };
+  return { ...g, point: { x: g.point.x, y: g.point.y } };
 }
 
 /** Default Feature style. */
@@ -553,19 +564,20 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     const originalName = trvLayerNameByStarrId(originalLayerId, trvLayerNameById);
     if (originalName) f.properties.trvOriginalLayer = originalName;
   }
-  // cad-trv-dual-layer-filename Slice 2 — the surveyor wants the
-  // points to ALSO appear on the Drawing layer alongside the
-  // linework ("everything"), while the dedicated Points layer keeps
-  // just the points for independent label control. We add a
-  // render-only MIRROR of each point onto the Drawing layer. Mirrors
-  // carry `properties.trvPointMirror = true` so the TRV serializer
-  // emits each point ONCE and the import deduper leaves them alone;
-  // they keep their `trvPointId` so the smart-merge round-trip never
-  // mistakes a mirror for a freshly-added point.
+  // cad-trv-dual-layer-filename Slice 2 — the surveyor wants two
+  // INDEPENDENT layers that happen to start with the same points:
+  // the Points layer holds just the points, the Drawing layer holds
+  // points + lines + everything. Editing one layer must not affect
+  // the other, so each Drawing-layer point is a deep clone of its
+  // Points-layer twin with no shared references. The trvPointMirror
+  // flag is purely a "don't double-export" marker for the TRV round-
+  // trip — the canonical (Points-layer) point owns the TRV slot.
   const pointMirrors: Feature[] = pointFeatures.map((f) => ({
     ...f,
     id: `${f.id}:draw`,
     layerId: drawingLayerId,
+    geometry: clonePointGeometry(f.geometry),
+    style: { ...f.style },
     properties: { ...f.properties, trvPointMirror: true },
   }));
   return {
