@@ -3,10 +3,11 @@
 // directly from any page. Opens a panel to create or view existing threads.
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { PAGE_TITLES } from './AdminLayoutClient';
 
 interface DiscussionThread {
   id: string;
@@ -79,9 +80,26 @@ export default function DiscussionThreadButton() {
   const [escalation, setEscalation] = useState('low');
   const [initialMessage, setInitialMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // The page the issue is about — defaults to the CURRENT page but the
+  // reporter can pick any admin page from the selector.
+  const [pagePath, setPagePath] = useState(pathname);
 
   const userEmail = session?.user?.email;
   const pageContext = getPageContext(pathname);
+
+  // Sorted admin page options (label A→Z) for the page selector. The
+  // current page is guaranteed present even if it isn't in PAGE_TITLES.
+  const pageOptions = useMemo(() => {
+    const entries = Object.entries(PAGE_TITLES);
+    if (!PAGE_TITLES[pathname]) {
+      entries.push([pathname, `${getPageContext(pathname).pageTitle || 'This page'} (current)`]);
+    }
+    return entries.sort((a, b) => a[1].localeCompare(b[1]));
+  }, [pathname]);
+
+  // Re-default the selector to the current page whenever it changes or
+  // the panel reopens, so "report a bug" starts on the page you're on.
+  useEffect(() => { setPagePath(pathname); }, [pathname]);
 
   // Fetch recent threads for this page
   const fetchThreads = useCallback(async () => {
@@ -123,9 +141,9 @@ export default function DiscussionThreadButton() {
           description: description.trim() || null,
           thread_type: threadType,
           escalation_level: escalation,
-          page_path: pathname,
-          page_title: pageContext.pageTitle,
-          content_type: pageContext.contentType,
+          page_path: pagePath,
+          page_title: PAGE_TITLES[pagePath] ?? getPageContext(pagePath).pageTitle,
+          content_type: getPageContext(pagePath).contentType,
           initial_message: initialMessage.trim() || null,
         }),
       });
@@ -136,6 +154,7 @@ export default function DiscussionThreadButton() {
         setThreadType('general');
         setEscalation('low');
         setInitialMessage('');
+        setPagePath(pathname);
         setView('list');
         fetchThreads();
       }
@@ -279,6 +298,21 @@ export default function DiscussionThreadButton() {
                   </select>
                 </div>
               </div>
+
+              {/* Page selector — which page the issue occurred on.
+                  Defaults to the current page; pick any admin page. */}
+              <label className="admin-label">Page this is about</label>
+              <select
+                className="admin-select"
+                value={pagePath}
+                onChange={e => setPagePath(e.target.value)}
+              >
+                {pageOptions.map(([path, label]) => (
+                  <option key={path} value={path}>
+                    {label}{path === pathname ? ' — current' : ''}
+                  </option>
+                ))}
+              </select>
 
               <label className="admin-label">Description</label>
               <textarea

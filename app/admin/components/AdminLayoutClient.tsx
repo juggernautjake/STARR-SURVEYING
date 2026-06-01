@@ -34,7 +34,9 @@ import '../styles/AdminResponsive.css';
 // layout via FloatingActionMenu and is reachable from every admin page.
 import '../styles/AdminFieldWork.css';
 
-const PAGE_TITLES: Record<string, string> = {
+// Exported so the bug-report page selector (DiscussionThreadButton) can
+// offer the same admin route → label list the nav uses.
+export const PAGE_TITLES: Record<string, string> = {
   '/admin/me': 'Hub',
   '/admin/work': 'Work',
   '/admin/office': 'Office',

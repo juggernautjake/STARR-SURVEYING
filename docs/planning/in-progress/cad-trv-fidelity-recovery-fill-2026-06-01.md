@@ -419,7 +419,19 @@ back to that exact page; fall back to the menu only when no prior page
 is known. Test: entering from page X and clicking Exit returns to X.
 
 ### Slice 11 — Working bug-report system (floating-menu button)
-*Added 2026-06-01 (user follow-up).* The "Report a bug" button in the
+*Added 2026-06-01 (user follow-up).*
+> **DONE (2026-06-01).** Investigation: the FAB's report button is
+> `DiscussionThreadButton`, which ALREADY opens a modal (title +
+> description + initial message + type incl. "Bug / Broken" +
+> escalation), POSTs to `/api/admin/discussions` (stored for review +
+> listed), and the route ALREADY inserts admin `notifications` ("Notify
+> other admins") — so storage + admin alerting exist. The missing piece
+> vs the spec was page CHOICE: `page_path` was hard-wired to the current
+> pathname. Added a **page selector** — `PAGE_TITLES` is now exported
+> from `AdminLayoutClient` and the form has a "Page this is about"
+> dropdown of all admin pages (sorted, current page guaranteed present +
+> marked "current", defaulting to it); submit sends the SELECTED page +
+> its title. Tests in `bug-report-page-selector.test.ts`. Suite green. The "Report a bug" button in the
 bottom-right floating menu (with calculator / handbook / messages) is
 broken. Build a full bug-reporting flow:
 - Clicking it opens a MODAL: a free-text context field (what happened /
