@@ -332,7 +332,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             );
             if (applyMeta) {
               const current = drawingStore.document.settings?.titleBlock;
-              if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current) });
+              if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints) });
             }
           }
           maybeFitPaperToImportedFeatures(report.mapped.features);
@@ -510,7 +510,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         if (applyMeta) {
           const current = drawingStore.document.settings?.titleBlock;
           if (current) {
-            const nextTitleBlock = applyTrvMetadataToTitleBlock(m, current);
+            const nextTitleBlock = applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints);
             drawingStore.updateSettings({ titleBlock: nextTitleBlock });
             cadLog.info('FileIO', 'Applied TRV metadata to title block');
           }

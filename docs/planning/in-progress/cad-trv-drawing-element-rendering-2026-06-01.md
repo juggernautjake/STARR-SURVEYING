@@ -199,6 +199,29 @@ fully selectable/editable like any other feature.
 
 ### Slice 4 — `28,5` paper-space title block + `28,6` leaders
 
+> **DONE (2026-06-01) — structured fields shipped; geometric
+> placement deferred.** `extractTitleBlockHints` pattern-detects the
+> firm name, surveyor name + RPLS license (cert line), job number +
+> customer ("JOB NO… CUSTOMER:"), and flood note from the paper-space
+> `28,5` text. `applyTrvMetadataToTitleBlock` now takes these hints
+> (3rd arg) and fills the matching title-block fields non-
+> destructively; `TrvImportReport.titleBlockHints` carries them and
+> both MenuBar apply sites pass them. The report's point/traverse
+> counts were also corrected to exclude `trvDerived` features. Specs
+> in `trv-titleblock.test.ts` (incl. a Hillsboro end-to-end hint
+> check). Suite 2503 green.
+>
+> **Deferred — geometric paper-space placement** of `28,5` positioned
+> text and `28,6` leader/dimension lines. Rationale: Starr features
+> live in WORLD space and TPC's paper-coordinate transform (origin /
+> scale relative to the sheet) is not reverse-engineered; placing the
+> raw small coords (e.g. `-1.90, 1.60`) as world features would land
+> them at the world origin, far from the survey — wrong, and worse
+> than recovering the content into the structured title block, which
+> renders in Starr's own block. Revisit if the paper transform is
+> mapped (the `28,5`/`28,6` records still round-trip verbatim, so
+> nothing is lost).
+
 - Paper-space `28,5` (`space==='PAPER'`): emit `TEXT` features in
   **paper space** on the protected `SURVEY-INFO` layer, positioned by
   the small coords, preserving font size. This recovers firm name, job

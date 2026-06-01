@@ -14,6 +14,7 @@ import type { DrawingDocument } from '../types';
 import { parseTrv, type TrvMetadata } from './trv-parser';
 import { trvToDrawing, type TrvMappingResult } from './trv-to-drawing';
 import { drawingToTrv } from './drawing-to-trv';
+import { extractTitleBlockHints, type TrvTitleBlockHints } from './trv-titleblock';
 
 export interface TrvImportReport {
   layerCount: number;
@@ -28,6 +29,11 @@ export interface TrvImportReport {
    *  it to the drawing's title block via
    *  `applyTrvMetadataToTitleBlock`. */
   metadata: TrvMetadata;
+  /** cad-trv-drawing-element-rendering Slice 4 — structured title-
+   *  block fields recovered from paper-space `28,5` text (firm /
+   *  surveyor / job / customer / flood note), passed as the 3rd
+   *  arg to `applyTrvMetadataToTitleBlock`. */
+  titleBlockHints: TrvTitleBlockHints;
 }
 
 /** Options for {@link importTrvFromText}. */
@@ -50,8 +56,16 @@ export function importTrvFromText(text: string, opts: ImportTrvOptions = {}): Tr
   // cad-trv-dual-layer-filename Slice 2 — count the CANONICAL points
   // only; the Drawing-layer mirrors are render echoes and shouldn't
   // double the count shown in the import-confirm dialog.
-  const points = mapped.features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror).length;
-  const traverses = mapped.features.filter((f) => f.type === 'POLYLINE' || f.type === 'POLYGON').length;
+  // cad-trv-drawing-element-rendering Slices 2-3 — `trvDerived`
+  // features (connector lines, element polylines, text) are rendered
+  // from the `28` block and must not inflate the point/traverse
+  // counts the confirm dialog reports.
+  const points = mapped.features.filter(
+    (f) => f.type === 'POINT' && !f.properties.trvPointMirror && !f.properties.trvDerived,
+  ).length;
+  const traverses = mapped.features.filter(
+    (f) => (f.type === 'POLYLINE' || f.type === 'POLYGON') && !f.properties.trvDerived,
+  ).length;
   return {
     layerCount: mapped.layers.length,
     pointCount: points,
@@ -59,6 +73,7 @@ export function importTrvFromText(text: string, opts: ImportTrvOptions = {}): Tr
     notes: [...trv.errors.map((e) => `Line ${e.lineIndex}: ${e.message}`), ...mapped.notes],
     mapped,
     metadata: trv.metadata,
+    titleBlockHints: extractTitleBlockHints(trv.drawingElements),
   };
 }
 
