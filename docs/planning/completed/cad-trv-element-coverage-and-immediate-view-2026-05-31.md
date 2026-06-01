@@ -145,7 +145,55 @@ as a separate slice once we have a multi-lot sample to validate
 against (the current samples only have 3 lot annotations, none
 forming closed lot boundaries).
 
-### Slice 4 — Map TRV infill patterns (51 / 70 / 71 styling records) (queued)
+### Slice 4 — Map TRV infill patterns (51 / 70 / 71) — partial decode shipped 2026-05-31
+
+User ask: "the infill patterns from the trv also map to the
+infill options that we have."
+
+Diagnostic on Garland (20 traverses): the `71` record's field 0
+is a clean fill-presence signal — 9 of 20 traverses use the
+default `71,0,7` (no fill), the rest use values 1 / 4 / 5 / 22
+/ 23 indicating different fill subtypes. The `70` record carries
+a stable `scale` (always 5.0) + `param170` (always 170.000000,
+likely a rotation in degrees but ground-truth undecoded).
+
+What's shipped:
+- New pure module `lib/cad/io/trv-fill-styling.ts`:
+  - `hasTrvFillSpec(records)` — true when any `71` record has
+    field 0 > 0.
+  - `extractTrvFillSummary(records)` — returns
+    `{ hasFill, fillKindCode, subtypeIndex, scale, param170 }`
+    pulling the first fill-bearing 71 + the first 70.
+- Mapper integration: `trvToDrawing` stamps every
+  fill-bearing traverse's polygon/polyline feature with
+  `properties.trvHasFillSpec: true` + the raw
+  `trvFillKindCode` / `trvFillSubtypeIndex` / `trvFillScale` /
+  `trvFillParam170` so the surveyor knows the TRV expected a
+  fill there + the existing PropertyPanel infill picker can be
+  opened on the feature for a manual pattern pick.
+- 10 specs: pure decoder (empty / default / fill-bearing /
+  first-wins / unrelated-records); mapper stamping on a
+  synthetic DECK + verification that defaults stay unstamped;
+  Garland sample yields ≥ 5 fill-bearing features.
+
+What's DEFERRED (a separate slice when ground-truth is
+available):
+- Auto-picking a specific Starr `fillPattern`
+  (DOT_UNIFORM / CROSSHATCH / BRICK / WAVE / etc.) from the
+  raw subtype code. Without a TRV sample that has a KNOWN
+  explicit fill (e.g. "this `71,5,37` traverse should render
+  as brick"), a decoder would guess + could mislead the
+  surveyor. The metadata is now preserved verbatim + the
+  surveyor can pick the right Starr pattern manually via
+  the existing PropertyPanel infill picker.
+- 32-bit color decoding in `51` field 4 (deferred in earlier
+  work, same rationale).
+
+## Status
+
+All four slices shipped (3 + 3a partially, 4 partially) or
+explicitly deferred with rationale. Plan doc moves to
+`completed/`.
 
 User ask: "the infill patterns from the trv also map to the
 infill options that we have. Check the scale of infill and

@@ -34,6 +34,9 @@ import { detectCurvedRuns, fitArcThroughPoints, fitSplineControlPoints } from '.
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
 import { extractPointLabels } from './trv-drawing-elements';
+// cad-trv-element-coverage Slice 4 — partial decoder for the
+// per-traverse fill styling records (51 / 70 / 71).
+import { extractTrvFillSummary } from './trv-fill-styling';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -258,6 +261,26 @@ function mapTraverse(
   // encode the array of { code, fields } records.
   if (t.stylingRecords.length > 0) {
     properties.trvStylingRecords = JSON.stringify(t.stylingRecords);
+  }
+  // cad-trv-element-coverage Slice 4 — surface fill-bearing
+  // traverses. The user asked us to "map the infill patterns
+  // from the trv" — without Traverse PC docs we can't pick a
+  // specific Starr fillPattern subtype, but the binary signal
+  // for "this traverse has fill" (71 field 0 > 0) is clean.
+  // Stamping these properties so:
+  //   (a) the user knows which traverses came with fill specs;
+  //   (b) the existing PropertyPanel infill picker can be
+  //       opened on the feature + the user can manually pick a
+  //       Starr pattern that matches their drawing intent.
+  // Raw subtype / scale / rotation values preserved verbatim
+  // so a future semantic decoder can use them as input.
+  const fill = extractTrvFillSummary(t.stylingRecords);
+  if (fill.hasFill) {
+    properties.trvHasFillSpec = true;
+    if (fill.fillKindCode !== null) properties.trvFillKindCode = fill.fillKindCode;
+    if (fill.subtypeIndex !== null) properties.trvFillSubtypeIndex = fill.subtypeIndex;
+    if (fill.scale !== null) properties.trvFillScale = fill.scale;
+    if (fill.param170 !== null) properties.trvFillParam170 = fill.param170;
   }
   // Pass 7 — record the detected curve runs so a downstream
   // serializer (or UI tool) can refer back to which segments
