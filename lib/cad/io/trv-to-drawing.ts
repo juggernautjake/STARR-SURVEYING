@@ -33,10 +33,14 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
-import { extractPointLabels } from './trv-drawing-elements';
+import { extractPointLabels, extractLineLabels, extractAreaLabels } from './trv-drawing-elements';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
+// cad-trv-bearings-and-distances Slice 2 — seed display prefs
+// on the synthetic TRV layers so bearings + distances + point
+// labels render immediately on import.
+import { DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -148,6 +152,14 @@ function mapPoint(
   };
   if (p.elevation !== null) properties.elevation = p.elevation;
   if (p.description !== null) {
+    // cad-trv-drawing-parsing Slice 2 — also stamp `code` so the
+    // layer-prefs "Show point descriptions" branch finds a value
+    // when the description doesn't resolve to a known code-library
+    // alpha+numeric pair (the common case for TRV imports —
+    // descriptions are free-form text like "309 inside 315 1in").
+    // The label generator falls back to `properties.code` when no
+    // recognized code is present.
+    properties.code = p.description;
     properties.label = p.description;
     properties.description = p.description;
   }
@@ -183,6 +195,21 @@ function mapTraverse(
   layerIdByTrvId: Map<string, string>,
   notes: string[],
 ): Feature[] {
+  // cad-trv-drawing-parsing Slice 1 — Traverse PC names
+  // master point lists from a CSV / TXT import with the import
+  // source filename (e.g. `26074.csv`, `Copy-26074.csv`,
+  // `DUP-26074.csv`). Traverse PC renders these as POINT
+  // SYMBOLS only — they're NOT drawing polylines. Our mapper
+  // would otherwise connect 200+ unrelated survey shots in row
+  // order, producing the "all over the place" visual mess the
+  // user reported. Skip the polyline; the member points still
+  // come through the points pass as native POINT features.
+  // Case-insensitive `.csv` suffix is the strongest signal —
+  // `.txt` would be ambiguous so we keep that conservative.
+  if (t.name && /\.csv\b/i.test(t.name)) {
+    notes.push(`Skipped CSV master-list traverse "${t.name}" (${t.pointIds.length} points, rendered as POINT symbols only)`);
+    return [];
+  }
   // Resolve coords by point id; skip missing refs but record them.
   const resolved: Array<{ id: string; x: number; y: number }> = [];
   for (const ref of t.pointIds) {
@@ -404,6 +431,54 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
     for (const f of feats) traverseFeatures.push(f);
   }
 
+  // cad-trv-line-curve-fidelity Slice 2 — attach TPC's verbatim
+  // segment labels (28,15) + area annotations (28,14) onto the
+  // matching traverse polyline. The label text is TPC's exact
+  // rendered string ("N 73°34'00" W 299.62'"), so using it
+  // guarantees a pixel-match where present; segments without an
+  // explicit 28,15 still get our computed bearing (which already
+  // matches TPC to the second). Stored as JSON on the polyline
+  // so the render + round-trip paths can consume + re-emit them.
+  const lineLabels = extractLineLabels(doc.drawingElements);
+  const areaLabels = extractAreaLabels(doc.drawingElements);
+  if (lineLabels.length > 0 || areaLabels.length > 0) {
+    const polylineFeatures = traverseFeatures.filter(
+      (f) => f.type === 'POLYLINE' || f.type === 'POLYGON',
+    );
+    // Attach each line label to the polyline whose ordered point
+    // refs contain the from→to (or to→from) consecutive pair.
+    for (const lbl of lineLabels) {
+      const owner = polylineFeatures.find((f) => {
+        const refs = String(f.properties.trvPointRefs ?? '').split(',');
+        for (let i = 0; i < refs.length - 1; i++) {
+          if ((refs[i] === lbl.fromId && refs[i + 1] === lbl.toId) ||
+              (refs[i] === lbl.toId && refs[i + 1] === lbl.fromId)) {
+            return true;
+          }
+        }
+        return false;
+      });
+      if (!owner) continue;
+      const existing = owner.properties.trvSegmentLabels;
+      const arr: Array<{ fromId: string; toId: string; text: string }> =
+        typeof existing === 'string' ? JSON.parse(existing) : [];
+      arr.push({ fromId: lbl.fromId, toId: lbl.toId, text: lbl.text });
+      owner.properties.trvSegmentLabels = JSON.stringify(arr);
+    }
+    // Attach the FIRST area label to the largest closed polygon
+    // (closed traverses carry the lot area). When multiple
+    // polygons exist we pick the one with the most vertices as
+    // the boundary heuristic.
+    if (areaLabels.length > 0) {
+      const polygons = polylineFeatures.filter((f) => f.type === 'POLYGON');
+      const boundary = polygons.sort(
+        (a, b) => (b.geometry.vertices?.length ?? 0) - (a.geometry.vertices?.length ?? 0),
+      )[0];
+      if (boundary) boundary.properties.trvAreaLabel = areaLabels[0].text;
+    }
+    notes.push(`Attached ${lineLabels.length} segment label(s) + ${areaLabels.length} area label(s) from drawing elements`);
+  }
+
   // cad-trv-import-polish Slice 3 — build the two synthetic
   // destination layers + re-stamp every feature's layerId. The
   // ORIGINAL TRV layer name lands on `properties.trvOriginalLayer`
@@ -413,10 +488,27 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   const prefix = trvLayerPrefix(doc);
   const drawingLayerId = trvDrawingLayerKey(prefix);
   const pointsLayerId = trvPointsLayerKey(prefix);
-  const layers: Layer[] = [
-    makeLayer(drawingLayerId, `${prefix} — Drawing`, 1000),
-    makeLayer(pointsLayerId, `${prefix} — Points`, 1001),
-  ];
+  // cad-trv-bearings-and-distances Slice 2 — seed display prefs
+  // on the TRV Drawing layer so per-segment bearings + distances
+  // render immediately on import (matching TPC's default Traverse
+  // View output). The user can toggle these off via the
+  // layer-preferences panel.
+  const drawingLayer = makeLayer(drawingLayerId, `${prefix} — Drawing`, 1000);
+  drawingLayer.displayPreferences = {
+    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+    showBearings: true,
+    showDistances: true,
+  };
+  // Same default on the Points layer for the point-name label
+  // toggle so each POINT feature shows its descriptive label
+  // (the user explicitly asked for this last session).
+  const pointsLayer = makeLayer(pointsLayerId, `${prefix} — Points`, 1001);
+  pointsLayer.displayPreferences = {
+    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+    showPointNames: true,
+    showPointDescriptions: true,
+  };
+  const layers: Layer[] = [drawingLayer, pointsLayer];
   for (const f of pointFeatures) {
     const originalLayerId = f.layerId;
     f.layerId = pointsLayerId;

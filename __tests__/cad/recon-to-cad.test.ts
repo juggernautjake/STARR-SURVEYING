@@ -96,13 +96,16 @@ describe('convertReconToCAD — basic structure', () => {
     expect(doc.author).toBe('STARR RECON');
   });
 
-  it('includes all standard survey layers', () => {
+  it('includes the slimmed default starting layers', () => {
+    // cad-hub-greeting-and-field-data-trv-route Slice 3 — default
+    // layer set is now SURVEY-INFO + TITLE-BLOCK + ANNOTATION +
+    // DEFAULT only. Recon → CAD converter still needs to surface
+    // the minimum the surveyor expects to see after conversion.
     const doc = convertReconToCAD(makeDrawing(), []);
-    expect(doc.layers['BOUNDARY']).toBeDefined();
-    expect(doc.layers['BOUNDARY-MON']).toBeDefined();
-    expect(doc.layers['EASEMENT']).toBeDefined();
-    expect(doc.layers['ROW']).toBeDefined();
+    expect(doc.layers['SURVEY-INFO']).toBeDefined();
+    expect(doc.layers['TITLE-BLOCK']).toBeDefined();
     expect(doc.layers['ANNOTATION']).toBeDefined();
+    expect(doc.layers['DEFAULT']).toBeDefined();
   });
 
   it('returns empty features when given no elements', () => {

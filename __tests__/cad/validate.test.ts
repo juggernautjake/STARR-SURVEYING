@@ -207,9 +207,11 @@ describe('validateAndMigrateDocument — layer migration', () => {
 
 describe('validateAndMigrateDocument — layer groups', () => {
   it('creates default layer groups when absent', () => {
+    // cad-hub-greeting-and-field-data-trv-route Slice 3 — default
+    // groups slimmed from 6 down to 2 (Survey Info + Drawing).
     const raw = makeMinimalRaw();
     const result = validateAndMigrateDocument(raw);
-    expect(Object.keys(result.layerGroups).length).toBeGreaterThanOrEqual(6);
+    expect(Object.keys(result.layerGroups).length).toBeGreaterThanOrEqual(2);
   });
 
   it('preserves existing layer groups', () => {

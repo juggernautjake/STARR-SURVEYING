@@ -84,3 +84,64 @@ export function cleanLabelText(raw: string): string {
     .filter((line) => line.length > 0)
     .join('\n');
 }
+
+/** cad-trv-line-curve-fidelity Slice 1 — a `28,15,<from>,<to>`
+ *  line-segment label. Traverse PC draws the bearing+distance
+ *  text along the line connecting two points, with the verbatim
+ *  string in the paired `29,5,...` record's last field
+ *  (e.g. `N 73°34'00" W 299.62'`). Capturing TPC's exact string
+ *  guarantees a pixel-match on the rendered label. */
+export interface LineSegmentLabel {
+  /** TRV point id at the start of the labeled segment. */
+  fromId: string;
+  /** TRV point id at the end of the labeled segment. */
+  toId: string;
+  /** TPC's verbatim label text (cleaned of pilcrow / DC4). */
+  text: string;
+  /** Source line of the opening `28,15` record. */
+  sourceLine: number;
+}
+
+/** Walk every drawing element + extract subtype-15 line-segment
+ *  labels (the `28,15,<from>,<to>` blocks). */
+export function extractLineLabels(elements: ReadonlyArray<TrvDrawingElement>): LineSegmentLabel[] {
+  const out: LineSegmentLabel[] = [];
+  for (const de of elements) {
+    if (de.header[0] !== '15') continue;
+    const fromId = de.header[1];
+    const toId = de.header[2];
+    if (typeof fromId !== 'string' || fromId.length === 0) continue;
+    if (typeof toId !== 'string' || toId.length === 0) continue;
+    const textRun = de.properties.find((p) => p[0] === '5');
+    const raw = textRun?.[textRun.length - 1] ?? '';
+    const text = cleanLabelText(String(raw));
+    if (text.length === 0) continue;
+    out.push({ fromId, toId, text, sourceLine: de.sourceLine });
+  }
+  return out;
+}
+
+/** cad-trv-line-curve-fidelity Slice 1 — a `28,14,<n>` area /
+ *  free-text annotation. Traverse PC uses this for the closed-
+ *  traverse area callout (e.g. `43362 SqFt / 0.995 Acres`). */
+export interface AreaLabel {
+  /** TPC's verbatim text (cleaned). */
+  text: string;
+  /** Source line of the opening `28,14` record. */
+  sourceLine: number;
+}
+
+/** Walk every drawing element + extract subtype-14 area / text
+ *  annotations (the `28,14,<n>` blocks). */
+export function extractAreaLabels(elements: ReadonlyArray<TrvDrawingElement>): AreaLabel[] {
+  const out: AreaLabel[] = [];
+  for (const de of elements) {
+    if (de.header[0] !== '14') continue;
+    const textRun = de.properties.find((p) => p[0] === '5');
+    const raw = textRun?.[textRun.length - 1] ?? '';
+    const text = cleanLabelText(String(raw));
+    if (text.length === 0) continue;
+    out.push({ text, sourceLine: de.sourceLine });
+  }
+  return out;
+}
