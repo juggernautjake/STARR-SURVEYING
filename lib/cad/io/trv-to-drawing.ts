@@ -33,7 +33,7 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
-import { extractPointLabels } from './trv-drawing-elements';
+import { extractPointLabels, extractLineLabels, extractAreaLabels } from './trv-drawing-elements';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -429,6 +429,54 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
     // boundary polyline.
     const feats = mapTraverse(t, pointById, layerIdByTrvId, notes);
     for (const f of feats) traverseFeatures.push(f);
+  }
+
+  // cad-trv-line-curve-fidelity Slice 2 — attach TPC's verbatim
+  // segment labels (28,15) + area annotations (28,14) onto the
+  // matching traverse polyline. The label text is TPC's exact
+  // rendered string ("N 73°34'00" W 299.62'"), so using it
+  // guarantees a pixel-match where present; segments without an
+  // explicit 28,15 still get our computed bearing (which already
+  // matches TPC to the second). Stored as JSON on the polyline
+  // so the render + round-trip paths can consume + re-emit them.
+  const lineLabels = extractLineLabels(doc.drawingElements);
+  const areaLabels = extractAreaLabels(doc.drawingElements);
+  if (lineLabels.length > 0 || areaLabels.length > 0) {
+    const polylineFeatures = traverseFeatures.filter(
+      (f) => f.type === 'POLYLINE' || f.type === 'POLYGON',
+    );
+    // Attach each line label to the polyline whose ordered point
+    // refs contain the from→to (or to→from) consecutive pair.
+    for (const lbl of lineLabels) {
+      const owner = polylineFeatures.find((f) => {
+        const refs = String(f.properties.trvPointRefs ?? '').split(',');
+        for (let i = 0; i < refs.length - 1; i++) {
+          if ((refs[i] === lbl.fromId && refs[i + 1] === lbl.toId) ||
+              (refs[i] === lbl.toId && refs[i + 1] === lbl.fromId)) {
+            return true;
+          }
+        }
+        return false;
+      });
+      if (!owner) continue;
+      const existing = owner.properties.trvSegmentLabels;
+      const arr: Array<{ fromId: string; toId: string; text: string }> =
+        typeof existing === 'string' ? JSON.parse(existing) : [];
+      arr.push({ fromId: lbl.fromId, toId: lbl.toId, text: lbl.text });
+      owner.properties.trvSegmentLabels = JSON.stringify(arr);
+    }
+    // Attach the FIRST area label to the largest closed polygon
+    // (closed traverses carry the lot area). When multiple
+    // polygons exist we pick the one with the most vertices as
+    // the boundary heuristic.
+    if (areaLabels.length > 0) {
+      const polygons = polylineFeatures.filter((f) => f.type === 'POLYGON');
+      const boundary = polygons.sort(
+        (a, b) => (b.geometry.vertices?.length ?? 0) - (a.geometry.vertices?.length ?? 0),
+      )[0];
+      if (boundary) boundary.properties.trvAreaLabel = areaLabels[0].text;
+    }
+    notes.push(`Attached ${lineLabels.length} segment label(s) + ${areaLabels.length} area label(s) from drawing elements`);
   }
 
   // cad-trv-import-polish Slice 3 — build the two synthetic

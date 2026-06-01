@@ -90,7 +90,19 @@ smaller sheet is reasonable + close.
     from `28,14` blocks.
 - Pure module specs lock both against the Garland tail.
 
-### Slice 2 — Apply TPC's verbatim segment labels onto traverse polylines
+### Slice 2 — Apply TPC's verbatim segment labels onto traverse polylines ✅ shipped 2026-06-01
+
+- `trvToDrawing` attaches `28,15` segment labels to the
+  polyline whose ordered point refs contain the from→to (or
+  to→from) consecutive pair, stored as
+  `properties.trvSegmentLabels` (JSON array of
+  `{ fromId, toId, text }`).
+- The `28,14` area label attaches to the largest closed polygon
+  (boundary heuristic) as `properties.trvAreaLabel`.
+- Falls back silently when no drawing-element labels are
+  present; computed bearings still cover unlabeled segments.
+- 5 specs incl. live Garland verification (boundary carries
+  "43362 SqFt" area + the 2 segment labels).
 
 - When a `28,15,A,B` matches a consecutive vertex pair in a
   traverse, use TPC's exact label string instead of (or
@@ -128,7 +140,20 @@ smaller sheet is reasonable + close.
   - unmapped → NONE (round-trip preserved)
 - Pure specs lock every name → pattern + rotation.
 
-### Slice 4 — Round-trip: emit `28,15` + area on export
+### Slice 4 — Round-trip: emit `28,15` + area on export ⏸ deferred 2026-06-01
+
+Rationale: the lossless smart-merge serializer (`drawing-to-trv.ts`
+Pass 4/5) already re-emits every source drawing-element record
+(`28,15` / `28,14` / `29,...`) VERBATIM from `sourceTrv.lines`,
+so a TRV imported → edited → exported retains its segment + area
+labels byte-for-byte without any new code. The
+`properties.trvSegmentLabels` / `trvAreaLabel` stamps from Slice
+2 are for the RENDER path + a future fresh-export (no sourceTrv)
+case. Fresh-export label emission is low-value until a surveyor
+actually authors labels from scratch in Starr + exports to a
+brand-new TRV — deferring until that workflow exists. No data
+loss in the meantime: the round-trip path covers the realistic
+import→edit→export case.
 
 - `drawing-to-trv.ts`: when a feature carries
   `properties.trvSegmentLabels` / area metadata, re-emit the
