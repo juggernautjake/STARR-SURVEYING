@@ -121,6 +121,37 @@ export function extractLineLabels(elements: ReadonlyArray<TrvDrawingElement>): L
   return out;
 }
 
+/** cad-trv-drawing-element-rendering Slice 1 — a `28,16,<from>,<to>`
+ *  connector. Traverse PC draws a straight line segment between two
+ *  survey points as a drawing element (edge of pavement, building
+ *  lines, fences, etc.) — distinct from the boundary traverses. The
+ *  geometry is implied by the two referenced point ids, so we only
+ *  capture the id pair here + resolve coords at map time. */
+export interface Connector {
+  /** TRV point id at the start of the connector segment. */
+  fromId: string;
+  /** TRV point id at the end of the connector segment. */
+  toId: string;
+  /** Source line of the `28,16` record. */
+  sourceLine: number;
+}
+
+/** Walk every drawing element + extract subtype-16 point-to-point
+ *  connector segments (`28,16,<from>,<to>`). */
+export function extractConnectors(elements: ReadonlyArray<TrvDrawingElement>): Connector[] {
+  const out: Connector[] = [];
+  for (const de of elements) {
+    if (de.header[0] !== '16') continue;
+    const fromId = de.header[1];
+    const toId = de.header[2];
+    if (typeof fromId !== 'string' || fromId.length === 0) continue;
+    if (typeof toId !== 'string' || toId.length === 0) continue;
+    if (fromId === toId) continue;
+    out.push({ fromId, toId, sourceLine: de.sourceLine });
+  }
+  return out;
+}
+
 /** cad-trv-line-curve-fidelity Slice 1 — a `28,14,<n>` area /
  *  free-text annotation. Traverse PC uses this for the closed-
  *  traverse area callout (e.g. `43362 SqFt / 0.995 Acres`). */

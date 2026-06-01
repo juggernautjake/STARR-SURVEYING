@@ -99,6 +99,21 @@ fully selectable/editable like any other feature.
 
 ### Slice 1 — `28,16` connector lines → linework (deduped)
 
+> **DONE (2026-06-01).** `extractConnectors` added; `trvToDrawing`
+> renders `28,16` as `trvDerived` LINE features on the file-named
+> Drawing layer, deduped against rendered-traverse edges (undirected
+> keys + POLYGON closing edge). The `trvDerived` round-trip guard is
+> in place across `drawingToTrv` (point + traverse filters) and
+> `mergeSourceTrvWithDoc` (featuresByTrvId + add passes), so derived
+> echoes never double-emit. Fixture `__tests__/fixtures/trv/
+> hillsboro-nazarene.trv` added; specs in `trv-connectors.test.ts`.
+> Note from the real sample: all 12 of its `28,16` connectors
+> coincide with rendered traverse edges, so they correctly dedup to
+> 0 new lines — the value shows on files where connectors are
+> standalone linework. Chain-merging into POLYLINEs was deferred (no
+> standalone-connector chains in the sample to validate against;
+> individual LINEs are correct and editable). Suite 2483 green.
+
 - `trv-drawing-elements.ts`: add `extractConnectors(elements)` →
   `{ fromId: string; toId: string; sourceLine: number }[]` (header[0]
   === '16', header[1]=fromId, header[2]=toId).

@@ -39,7 +39,7 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
-import { extractPointLabels, extractLineLabels, extractAreaLabels } from './trv-drawing-elements';
+import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors } from './trv-drawing-elements';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -564,6 +564,75 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     const originalName = trvLayerNameByStarrId(originalLayerId, trvLayerNameById);
     if (originalName) f.properties.trvOriginalLayer = originalName;
   }
+  // cad-trv-drawing-element-rendering Slice 1 — render `28,16`
+  // connector segments (point-id pairs) as LINE features on the
+  // Drawing layer. These are the plotted linework TPC draws between
+  // shots (pavement edges, building lines, fences) and are a major
+  // part of the drawing we previously dropped. Two safeguards:
+  //   - DEDUP against traverse edges: many connectors echo a
+  //     boundary the traverse already draws, so we skip any pair
+  //     that is a consecutive edge of a rendered traverse polyline
+  //     (else the plat shows doubled lines).
+  //   - `trvDerived` marks them as render echoes of the verbatim
+  //     `28` block so the round-trip serializer never re-emits them.
+  const connectorFeatures: Feature[] = [];
+  {
+    const connectors = extractConnectors(doc.drawingElements);
+    if (connectors.length > 0) {
+      const featByTrvId = new Map<string, Feature>();
+      for (const f of pointFeatures) {
+        const tid = f.properties.trvPointId;
+        if (typeof tid === 'string') featByTrvId.set(tid, f);
+      }
+      // Build the set of undirected point-pair edges the traverses
+      // already draw, so coincident connectors don't double up.
+      const traverseEdges = new Set<string>();
+      const edgeKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+      for (const f of traverseFeatures) {
+        const refs = String(f.properties.trvPointRefs ?? '')
+          .split(',')
+          .filter((s) => s.length > 0);
+        for (let i = 0; i < refs.length - 1; i++) traverseEdges.add(edgeKey(refs[i], refs[i + 1]));
+        // Closed traverses also draw the implicit last→first edge.
+        if (f.type === 'POLYGON' && refs.length > 2) traverseEdges.add(edgeKey(refs[refs.length - 1], refs[0]));
+      }
+      let rendered = 0;
+      let deduped = 0;
+      let missing = 0;
+      const seen = new Set<string>();
+      for (const c of connectors) {
+        const key = edgeKey(c.fromId, c.toId);
+        if (traverseEdges.has(key)) { deduped++; continue; }
+        if (seen.has(key)) continue; // collapse duplicate 28,16 records
+        seen.add(key);
+        const a = featByTrvId.get(c.fromId);
+        const b = featByTrvId.get(c.toId);
+        const pa = a?.geometry.point;
+        const pb = b?.geometry.point;
+        if (!pa || !pb) { missing++; continue; }
+        connectorFeatures.push({
+          id: `trv-connector:${c.sourceLine}`,
+          type: 'LINE',
+          geometry: { type: 'LINE', start: { x: pa.x, y: pa.y }, end: { x: pb.x, y: pb.y } },
+          layerId: drawingLayerId,
+          style: defaultStyle(),
+          properties: {
+            trvDerived: true,
+            trvElementKind: 'CONNECTOR',
+            trvElementSourceLine: c.sourceLine,
+            trvPointRefs: `${c.fromId},${c.toId}`,
+          },
+        });
+        rendered++;
+      }
+      if (rendered > 0 || deduped > 0 || missing > 0) {
+        const bits = [`Subtype-16 connectors: rendered ${rendered} line(s)`];
+        if (deduped > 0) bits.push(`${deduped} already drawn by traverses (deduped)`);
+        if (missing > 0) bits.push(`${missing} skipped (missing point ref)`);
+        notes.push(bits.join('; '));
+      }
+    }
+  }
   // cad-trv-dual-layer-filename Slice 2 — the surveyor wants two
   // INDEPENDENT layers that happen to start with the same points:
   // the Points layer holds just the points, the Drawing layer holds
@@ -582,7 +651,7 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   }));
   return {
     layers,
-    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures],
+    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures],
     notes,
   };
 }
