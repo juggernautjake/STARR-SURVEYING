@@ -96,11 +96,12 @@ describe('MenuBar — Slice 1: auto-zoom after TRV import', () => {
     'utf8',
   );
 
-  it('the dedicated "Import TRV…" path dispatches cad:zoomExtents post-import', () => {
-    // Both the Open-route (already had the dispatch) and the
-    // Import-route should fire. Counting at least 2 dispatches
-    // catches the previous miss.
-    const matches = SRC.match(/cad:zoomExtents/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+  it('both TRV branches auto-zoom after import (cad:zoomToPaper, not the strict cad:zoomExtents)', () => {
+    // cad-trv-element-coverage Slice 1 — the TRV branches now
+    // fire cad:zoomToPaper so the camera lands on the auto-sized
+    // paper sheet (sized to the robust bbox) instead of the
+    // strict feature bbox (which can include stray-GPS outliers).
+    const toPaper = SRC.match(/cad:zoomToPaper/g) ?? [];
+    expect(toPaper.length).toBeGreaterThanOrEqual(2);
   });
 });

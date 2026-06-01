@@ -12258,6 +12258,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       });
       if (allPts.length > 0) vpStore.zoomToExtents(computeBounds(allPts));
     };
+    // cad-trv-element-coverage-and-immediate-view Slice 1 — zoom
+    // to the PAPER rectangle rather than the strict feature bbox.
+    // After a TRV import the strict bbox can be dragged out by a
+    // single stray GPS point (~13k ft on Garland) and the camera
+    // zooms to fit ALL features, leaving the actual lot tiny on
+    // screen. Paper-fit has already sized the sheet to the robust
+    // (1-99th percentile) bbox; zooming to that sheet guarantees
+    // the lot is fully framed + immediately viewable on import.
+    // Outliers are still in the doc — surveyor pans to them.
+    const onZoomToPaper = () => {
+      const dwgStore = useDrawingStore.getState();
+      const vpStore = useViewportStore.getState();
+      const { paperSize: ps, paperOrientation: po, drawingScale: ds, paperOrigin } = dwgStore.document.settings;
+      let [pw, ph] = PAPER_SIZE_MAP[ps ?? 'TABLOID'] ?? [11, 17];
+      if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
+      const paperW = pw * (ds ?? 50);
+      const paperH = ph * (ds ?? 50);
+      const ox = paperOrigin?.x ?? 0;
+      const oy = paperOrigin?.y ?? 0;
+      vpStore.zoomToExtents({ minX: ox, minY: oy, maxX: ox + paperW, maxY: oy + paperH }, 0.05);
+    };
     // Fit the drawing to the page WITHOUT moving any geometry: pick a plot
     // scale that frames the data, then position the paper sheet (paperOrigin)
     // centered over it. Coordinates / distances / angles never change — only
@@ -12433,6 +12454,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
+    window.addEventListener('cad:zoomToPaper', onZoomToPaper);
     window.addEventListener('cad:fitDrawingToPage', onFitToPage);
     window.addEventListener('cad:buildLineworkFromCodes', onBuildLinework);
     window.addEventListener('cad:zoomIn', onZoomInEv);
@@ -12832,6 +12854,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
+      window.removeEventListener('cad:zoomToPaper', onZoomToPaper);
       window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
       window.removeEventListener('cad:buildLineworkFromCodes', onBuildLinework);
       window.removeEventListener('cad:zoomIn', onZoomInEv);

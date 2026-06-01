@@ -174,6 +174,32 @@ export function bboxOfFeaturePoints(features: ReadonlyArray<FeatureLike>): Bound
   return { minX, minY, maxX, maxY };
 }
 
+/** cad-trv-element-coverage Slice 1 — paper-rectangle world
+ *  bounds for the `cad:zoomToPaper` event. Given the drawing
+ *  settings (paper size + orientation + drawing scale + origin),
+ *  returns the world-space rectangle the camera should fit so
+ *  the entire paper sheet is visible. Inverse of `fitPaperToBounds`
+ *  in that this computes the viewport target FROM the settings,
+ *  rather than computing the settings FROM the bbox. Pure helper
+ *  so the on-canvas handler can stay a one-liner. */
+export function paperRectWorld(settings: {
+  paperSize?: PaperSize;
+  paperOrientation?: PaperOrientation;
+  drawingScale?: number;
+  paperOrigin?: { x: number; y: number };
+}): Bounds {
+  const ps = settings.paperSize ?? 'TABLOID';
+  const po = settings.paperOrientation ?? 'PORTRAIT';
+  const ds = settings.drawingScale ?? 50;
+  const [pwBase, phBase] = PAPER_SIZES_IN[ps];
+  const [paperW, paperH] = po === 'LANDSCAPE'
+    ? [Math.max(pwBase, phBase), Math.min(pwBase, phBase)]
+    : [Math.min(pwBase, phBase), Math.max(pwBase, phBase)];
+  const ox = settings.paperOrigin?.x ?? 0;
+  const oy = settings.paperOrigin?.y ?? 0;
+  return { minX: ox, minY: oy, maxX: ox + paperW * ds, maxY: oy + paperH * ds };
+}
+
 /** Outlier-resistant bbox — drops points outside the [pLo, pHi]
  *  percentile of each axis before bounding. Use this for PAPER
  *  auto-fit so a single stray GPS shot doesn't blow the paper up
