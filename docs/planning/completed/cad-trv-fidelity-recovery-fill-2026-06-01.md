@@ -1,5 +1,28 @@
 # TRV import fidelity + recovery render + fill/line/symbol upgrades — 2026-06-01
 
+> **STATUS: COMPLETE (2026-06-01).** Shipped: recovery render fix (1);
+> per-traverse feature groups (2, via feature groups — lower-risk than a
+> layer-model change); real point/text names in the panel (3); area
+> label + world-text formatting/wrap/center + font (4); construction-
+> traverse hiding to kill stray lines (5); grass pattern + density boost
+> + background-colour/dual-opacity fill controls (6); point-symbol
+> render + code→symbol assignment (7a); no-save-prompt on a clean new
+> drawing (9); Exit returns to the prior page (10); bug-report page
+> selector (11); blue-button contrast (12); CAD modal unification (13);
+> generic calculator + expandable proportional modal (14).
+>
+> **Deferred (documented inline, cost/blocker > value):** 2b/2c — a
+> single Drawing-group CONTAINER over the traverse groups + per-traverse
+> point copies (core "sublayers" already delivered via feature groups);
+> 4 — point/line labels → free TEXT (already editable descriptions / the
+> auto bearing-distance system; converting would fight those); 7b —
+> TPC line-type→dash mapping (BLOCKED on cross-file ground truth; SOLID
+> stays + round-trips verbatim); 8 — extra line cleanup (stray lines
+> already handled by the Slice-5 construction-traverse hiding); 13-tail
+> — native modals OUTSIDE `app/admin/cad/` (a separate effort: the CAD
+> `ConfirmDialog` host isn't mounted on every admin page). Full cad
+> suite green (2582).
+
 *User request (verbatim, condensed):*
 
 > Recovery is broken — when I recover a document the **layers show up
