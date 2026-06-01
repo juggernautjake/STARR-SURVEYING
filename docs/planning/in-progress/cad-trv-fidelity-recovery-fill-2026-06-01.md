@@ -284,7 +284,17 @@ get no code→symbol assignment.
 ---
 
 ### Slice 9 — Don't prompt to save an untouched new drawing on exit
-*Added 2026-06-01 (user follow-up).* Opening a fresh CAD instance and
+*Added 2026-06-01 (user follow-up).*
+> **DONE (2026-06-01).** Root cause: the store starts `isDirty:false`
+> and both guards (Exit button `if (drawingStore.isDirty)`,
+> `useUnsavedChangesGuard` `if (!isDirty) return`) already gate on it —
+> but `NewDrawingDialog.handleCreate` builds the doc via
+> `newDocument`/`updateSettings`/`addLayer`, each flipping `isDirty`
+> true, so a freshly-created untouched drawing looked unsaved. Fix:
+> `handleCreate` now calls `drawingStore.markClean()` after setup (before
+> close); the next real edit re-flags dirty. Regression test
+> `new-drawing-clean.test.ts` (store dirty lifecycle + the
+> create/exit/beforeunload wiring). Suite 2532 green. Opening a fresh CAD instance and
 exiting without drawing anything must NOT prompt to save. Only prompt
 when the drawing has actually changed. The store already tracks
 `isDirty` (`drawing-store.ts`), and the nav guard reads
