@@ -3994,7 +3994,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // label wins, and the surveyor wants the point name/number visible.
       // Non-point labels keep their original order.
       const POINT_DRAW_ORDER: Record<string, number> = {
-        POINT_COORDINATES: 0, POINT_ELEVATION: 1, POINT_DESCRIPTION: 2, POINT_NAME: 3,
+        POINT_COORDINATES: 0, POINT_ELEVATION: 1, POINT_DESCRIPTION: 2, POINT_CODE: 3, POINT_NAME: 4,
       };
       const orderedLabels = labels
         .map((l, i) => ({ l, i }))
@@ -4017,7 +4017,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         let anchorWorld: Point2D = { x: 0, y: 0 };
         let segmentIndex = -1;
 
-        if (label.kind === 'POINT_NAME' || label.kind === 'POINT_DESCRIPTION' ||
+        if (label.kind === 'POINT_NAME' || label.kind === 'POINT_CODE' || label.kind === 'POINT_DESCRIPTION' ||
             label.kind === 'POINT_ELEVATION' || label.kind === 'POINT_COORDINATES') {
           if (geom.point) {
             anchorWorld = geom.point;

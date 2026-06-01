@@ -388,10 +388,16 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
             tooltip="Display point name/number near each point on this layer."
           />
           <Toggle
+            label="Show Codes"
+            checked={prefs.showPointCodes ?? false}
+            onChange={(v) => update({ showPointCodes: v })}
+            tooltip="Display the point CODE (e.g. 309, BC03) near each point — separate from the human description."
+          />
+          <Toggle
             label="Show Descriptions"
             checked={prefs.showPointDescriptions}
             onChange={(v) => update({ showPointDescriptions: v })}
-            tooltip="Display point description or code near each point."
+            tooltip="Display the point's human description near each point — separate from the code."
           />
           <Toggle
             label="Show Elevations"
@@ -439,6 +445,14 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               label="Point Name"
               style={prefs.pointNameTextStyle}
               onChange={(s) => update({ pointNameTextStyle: s })}
+              layerColor={layer.color}
+            />
+          )}
+          {prefs.showPointCodes && (
+            <TextStyleEditor
+              label="Code"
+              style={prefs.pointCodeTextStyle ?? prefs.pointDescriptionTextStyle}
+              onChange={(s) => update({ pointCodeTextStyle: s })}
               layerColor={layer.color}
             />
           )}

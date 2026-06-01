@@ -1152,6 +1152,7 @@ export type TextLabelKind =
   | 'DISTANCE'
   | 'AREA'
   | 'POINT_NAME'
+  | 'POINT_CODE'
   | 'POINT_DESCRIPTION'
   | 'POINT_ELEVATION'
   | 'POINT_COORDINATES'
@@ -1173,6 +1174,10 @@ export interface LayerDisplayPreferences {
 
   // ── What to show on points ──
   showPointNames: boolean;
+  /** cad-point-code-description-labels 2026-06-01 — the point's
+   *  CODE (resolved alpha/numeric, or the raw `properties.code`),
+   *  separate from the human description. */
+  showPointCodes?: boolean;
   showPointDescriptions: boolean;
   showPointElevations: boolean;
   showPointCoordinates: boolean;
@@ -1186,6 +1191,8 @@ export interface LayerDisplayPreferences {
   distanceTextStyle: TextLabelStyle;
   areaTextStyle: TextLabelStyle;
   pointNameTextStyle: TextLabelStyle;
+  /** Style for the POINT_CODE label (optional for back-compat). */
+  pointCodeTextStyle?: TextLabelStyle;
   pointDescriptionTextStyle: TextLabelStyle;
   pointElevationTextStyle: TextLabelStyle;
   pointCoordinateTextStyle: TextLabelStyle;

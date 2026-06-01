@@ -140,6 +140,7 @@ export const DEFAULT_LAYER_DISPLAY_PREFERENCES: LayerDisplayPreferences = {
   showLineLabels: false,
 
   showPointNames: false,
+  showPointCodes: false,
   showPointDescriptions: false,
   showPointElevations: false,
   showPointCoordinates: false,
@@ -151,6 +152,7 @@ export const DEFAULT_LAYER_DISPLAY_PREFERENCES: LayerDisplayPreferences = {
   distanceTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
   areaTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 14, fontWeight: 'bold' },
   pointNameTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontWeight: 'bold' },
+  pointCodeTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
   pointDescriptionTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
   pointElevationTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 10 },
   pointCoordinateTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 10, fontFamily: 'Courier New' },
