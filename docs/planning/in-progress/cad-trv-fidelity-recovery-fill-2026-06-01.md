@@ -256,9 +256,20 @@ get no code→symbol assignment.
 > `renderTextFeatures` now anchors the block by alignment (center →
 > 0.5) so centered text centers on its point. Tests in
 > `trv-text-elements.test.ts`. Suite 2572 green.
-> **Remaining (the original Slice 4):** turn point/line/area labels
-> (`28,12/15/14`) — currently metadata strings — into editable TEXT
-> features + tether them to the owning traverse layer.
+> **AREA LABEL DONE (2026-06-01).** The lot AREA label (`28,14`) was
+> captured but never rendered; it now imports as an editable, centered
+> TEXT feature at the boundary polygon's centroid (`trvAreaAnnotation`),
+> with a cleanup that splits a run-together "SqFt<digits>" onto two
+> lines. Verified on Hillsboro (347347 SqFt / 7.974 Acres). Test in
+> `trv-text-elements.test.ts`.
+> **DEFERRED — point (`28,12`) + line (`28,15`) labels → free TEXT.**
+> Rationale: the BULK of plat text (the 56 world `28,5` annotations +
+> the area label) is already editable TEXT; point labels already import
+> as editable point DESCRIPTIONS (shown via the layer toggle), and line
+> labels feed the existing auto bearing/distance LABEL system —
+> converting those to free TEXT would fight established systems for
+> marginal gain. Revisit only if free-text editing of those is
+> specifically needed.
 - Convert point/line/area labels (`28,12/15/14`) from metadata strings
   into real editable `TEXT` features (like the text tool), placed at the
   TPC label coordinates, carrying captured formatting (font size/family/

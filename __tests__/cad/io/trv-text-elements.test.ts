@@ -145,3 +145,19 @@ describe('imported TRV text is centered + Arial + wrapped', () => {
     expect(String(txt.geometry.textContent)).toContain('\n');
   });
 });
+
+describe('lot area annotation → editable centered TEXT', () => {
+  const sample = path.join(__dirname, '..', '..', 'fixtures', 'trv', 'hillsboro-nazarene.trv');
+  it.skipIf(!fs.existsSync(sample))('renders the boundary area label as a centered TEXT feature', () => {
+    const { features } = trvToDrawing(parseTrv(fs.readFileSync(sample, 'latin1')));
+    const area = features.find((f) => f.properties.trvAreaAnnotation);
+    expect(area).toBeTruthy();
+    expect(area!.type).toBe('TEXT');
+    expect(area!.properties.textAlign).toBe('center');
+    // The lot area (347347 SqFt = 7.974 Acres) with SqFt split onto its
+    // own line for readability.
+    expect(String(area!.geometry.textContent)).toContain('SqFt\n');
+    expect(String(area!.geometry.textContent)).toMatch(/Acres/);
+    expect(area!.geometry.point).toBeDefined();
+  });
+});

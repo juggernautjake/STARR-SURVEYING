@@ -548,6 +548,11 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   // so the render + round-trip paths can consume + re-emit them.
   const lineLabels = extractLineLabels(doc.drawingElements);
   const areaLabels = extractAreaLabels(doc.drawingElements);
+  // cad-trv-fidelity Slice 4 — the lot AREA label (28,14, e.g.
+  // "43362 SqFt / 0.995 Acres") was captured as metadata but never
+  // rendered. Capture its text + the boundary centroid here, then emit
+  // it as an editable, centered TEXT feature in the text-features block.
+  let areaLabelSpec: { text: string; x: number; y: number } | null = null;
   if (lineLabels.length > 0 || areaLabels.length > 0) {
     const polylineFeatures = traverseFeatures.filter(
       (f) => f.type === 'POLYLINE' || f.type === 'POLYGON',
@@ -581,7 +586,21 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
       const boundary = polygons.sort(
         (a, b) => (b.geometry.vertices?.length ?? 0) - (a.geometry.vertices?.length ?? 0),
       )[0];
-      if (boundary) boundary.properties.trvAreaLabel = areaLabels[0].text;
+      if (boundary) {
+        boundary.properties.trvAreaLabel = areaLabels[0].text;
+        // Centroid (vertex average) of the boundary → where the area
+        // annotation sits.
+        const vs = boundary.geometry.vertices ?? [];
+        if (vs.length > 0) {
+          const cx = vs.reduce((s, v) => s + v.x, 0) / vs.length;
+          const cy = vs.reduce((s, v) => s + v.y, 0) / vs.length;
+          // Some TPC files drop the separator between the SqFt value and
+          // the acreage ("347347 SqFt7.974 Acres"); split it onto its own
+          // line so the lot area reads cleanly.
+          const text = areaLabels[0].text.replace(/(SqFt|Sq\.?\s*Ft\.?)(?=\d)/i, '$1\n');
+          areaLabelSpec = { text, x: cx, y: cy };
+        }
+      }
     }
     notes.push(`Attached ${lineLabels.length} segment label(s) + ${areaLabels.length} area label(s) from drawing elements`);
   }
@@ -778,6 +797,26 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
       nText++;
     }
     if (nText > 0) notes.push(`Rendered ${nText} map text annotation(s) from drawing-element subtype 5`);
+    // cad-trv-fidelity Slice 4 — the lot AREA annotation as an editable,
+    // centered TEXT feature at the boundary centroid.
+    if (areaLabelSpec) {
+      textFeatures.push({
+        id: `trv-area-label:${slugify(prefix)}`,
+        type: 'TEXT',
+        geometry: { type: 'TEXT', point: { x: areaLabelSpec.x, y: areaLabelSpec.y }, textContent: wrapSurveyLabel(areaLabelSpec.text) },
+        layerId: drawingLayerId,
+        style: defaultStyle(),
+        properties: {
+          trvDerived: true,
+          trvElementKind: 'ELEMENT_TEXT',
+          trvAreaAnnotation: true,
+          fontSize: 8,
+          fontFamily: 'Arial',
+          textAlign: 'center',
+        },
+      });
+      notes.push('Rendered the lot area annotation as editable text');
+    }
   }
   // cad-trv-dual-layer-filename Slice 2 — the surveyor wants two
   // INDEPENDENT layers that happen to start with the same points:
