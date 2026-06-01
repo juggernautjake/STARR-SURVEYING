@@ -72,12 +72,20 @@
   background: linear-gradient(135deg, var(--color-brand-navy) 0%, #2949C7 100%);
   color: var(--color-text-on-brand);
   border-color: transparent;
+  /* cad-hub-greeting Slice 1 — anchor for absolute-positioned
+   * actions column so the Enter Work Mode button vertical-centers
+   * against the FULL card height (heading + role pills) instead of
+   * just the first flex line (which sits at the top). */
+  position: relative;
 }
 
 .hub-greeting > div:first-child {
   /* Heading column — grows but doesn't crush the actions */
   flex: 1 1 18rem;
   min-width: 0;
+  /* cad-hub-greeting Slice 1 — keep the heading text from running
+   * under the absolutely-positioned actions block. */
+  padding-right: 14rem;
 }
 
 .hub-greeting__heading {
@@ -112,17 +120,18 @@
   display: flex;
   gap: 0.6rem;
   flex-wrap: wrap;
-  /* Slice 218 — center the Enter Work Mode CTA in its column so the
-   * action reads as the main affordance on the greeting card.
-   * hub-greeting-button-polish 2026-05-30 — stretch the actions column
-   * to the panel's full height so `align-items: center` actually
-   * vertical-centers the Enter Work Mode button against the heading
-   * column (was top-aligning because flex-wrap row + auto height left
-   * nothing to center against). */
+  /* cad-hub-greeting Slice 1 — absolute positioning pins the
+   * actions column to the vertical center of the FULL card
+   * (not just the first flex line as a stretched flex child).
+   * `right` offset moves the button in from the edge per the
+   * user's "move it in to the left a bit more" ask. The card
+   * has `position: relative` to anchor this. */
+  position: absolute;
+  top: 50%;
+  right: 2.5rem;
+  transform: translateY(-50%);
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
-  align-self: stretch;
 }
 
 /* hub-widget-excellence-01 Slice 2 — the user's roles as colored pills

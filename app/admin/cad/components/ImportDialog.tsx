@@ -100,6 +100,17 @@ function FileSelectStep() {
 
   const previewLines = rawText.split('\n').slice(0, 10).join('\n');
 
+  // cad-hub-greeting-and-field-data-trv-route Slice 2 — detect
+  // when a Traverse PC `.TRV` file landed in the field-data
+  // wizard by mistake. The CSV parser would treat every TRV
+  // record line as a "point" (the record code becomes a point
+  // number, the layer-id column becomes a "code"), producing
+  // thousands of false-positive validation warnings. Sniff
+  // upfront + offer a clear "Use Import TRV instead" path.
+  const isTrvByExtension = !!file && /\.trv$/i.test(file.name);
+  const isTrvByContent = !!rawText && (rawText.startsWith('#,TRAVERSE PC') || /^\s*999,begin\b/m.test(rawText.slice(0, 256)));
+  const looksLikeTrv = isTrvByExtension || isTrvByContent;
+
   return (
     <div className="space-y-4">
       {/* Drop zone */}
@@ -136,8 +147,39 @@ function FileSelectStep() {
         </div>
       )}
 
+      {/* cad-hub-greeting-and-field-data-trv-route Slice 2 —
+          callout when a Traverse PC `.TRV` file is mistakenly
+          picked here. Field-data parsers would treat every
+          TRV record as a CSV row + flood the validate step
+          with thousands of false-positive errors. */}
+      {looksLikeTrv && (
+        <div
+          className="border border-amber-500/50 bg-amber-500/10 rounded-lg p-3 text-sm"
+          data-testid="import-dialog-trv-redirect"
+        >
+          <p className="text-amber-300 font-semibold mb-1">This looks like a Traverse PC (.TRV) file</p>
+          <p className="text-amber-200/90 text-xs mb-2">
+            The field-data importer parses each line as a single point row. TRV records have entirely
+            different shapes — running this file through would produce thousands of false-positive
+            errors. Close this dialog and use <span className="font-semibold">File → Import → &quot;Import
+            Traverse PC (.TRV)…&quot;</span> instead.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('cad:closeImportDialog'));
+              setTimeout(() => window.dispatchEvent(new CustomEvent('cad:openImportTrv')), 50);
+            }}
+            className="text-xs px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-amber-950 font-semibold"
+            data-testid="import-dialog-trv-switch"
+          >
+            Switch to Import Traverse PC (.TRV)…
+          </button>
+        </div>
+      )}
+
       {/* Preset selector */}
-      {(fileType === 'CSV' || fileType === 'TXT') && <PresetPicker />}
+      {(fileType === 'CSV' || fileType === 'TXT') && !looksLikeTrv && <PresetPicker />}
 
       {/* Raw preview */}
       {rawText && (

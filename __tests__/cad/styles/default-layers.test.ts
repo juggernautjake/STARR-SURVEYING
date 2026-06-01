@@ -1,4 +1,8 @@
-// __tests__/cad/styles/default-layers.test.ts — Unit tests for default layer definitions
+// __tests__/cad/styles/default-layers.test.ts — minimal default layers
+//
+// cad-hub-greeting-and-field-data-trv-route Slice 3 — slimmed
+// from 23 default layers across 6 groups down to 4 default
+// layers across 2 groups (Survey Info + Drawing) per user ask.
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_LAYER_GROUPS,
@@ -7,145 +11,81 @@ import {
   getDefaultLayerOrder,
 } from '@/lib/cad/styles/default-layers';
 
-describe('default-layers', () => {
-  // ── Layer groups ────────────────────────────────────────────────────────
-
-  it('has exactly 6 default layer groups', () => {
-    expect(DEFAULT_LAYER_GROUPS).toHaveLength(6);
+describe('default-layers (slimmed)', () => {
+  // ── Layer groups ──────────────────────────────────────────
+  it('has exactly 2 default layer groups (Survey Info + Drawing)', () => {
+    expect(DEFAULT_LAYER_GROUPS).toHaveLength(2);
+    expect(DEFAULT_LAYER_GROUPS.map((g) => g.id)).toEqual(['grp-survey-info', 'grp-drawing']);
   });
 
-  it('every group has required fields', () => {
+  it('every group has required fields + sortOrder uniqueness', () => {
+    const orders = new Set<number>();
     for (const group of DEFAULT_LAYER_GROUPS) {
-      expect(group.id,           `${group.id}.id`).toBeTruthy();
-      expect(group.name,         `${group.id}.name`).toBeTruthy();
-      expect(typeof group.collapsed, `${group.id}.collapsed`).toBe('boolean');
-      expect(typeof group.sortOrder, `${group.id}.sortOrder`).toBe('number');
+      expect(group.id).toBeTruthy();
+      expect(group.name).toBeTruthy();
+      expect(typeof group.collapsed).toBe('boolean');
+      expect(typeof group.sortOrder).toBe('number');
+      expect(orders.has(group.sortOrder)).toBe(false);
+      orders.add(group.sortOrder);
     }
   });
 
-  it('group IDs are unique', () => {
-    const ids = DEFAULT_LAYER_GROUPS.map(g => g.id);
-    expect(new Set(ids).size).toBe(ids.length);
+  // ── Default layers ────────────────────────────────────────
+  it('has exactly 4 default layers', () => {
+    expect(PHASE3_DEFAULT_LAYERS).toHaveLength(4);
+    expect(PHASE3_DEFAULT_LAYERS.map((l) => l.id).sort()).toEqual(
+      ['ANNOTATION', 'DEFAULT', 'SURVEY-INFO', 'TITLE-BLOCK'],
+    );
   });
 
-  it('sortOrder values are unique within groups', () => {
-    const orders = DEFAULT_LAYER_GROUPS.map(g => g.sortOrder);
-    expect(new Set(orders).size).toBe(orders.length);
-  });
-
-  // ── Default layers ──────────────────────────────────────────────────────
-
-  it('has exactly 23 default layers', () => {
-    expect(PHASE3_DEFAULT_LAYERS).toHaveLength(23);
-  });
-
-  it('every layer has required fields', () => {
+  it('every layer has required fields + valid shape', () => {
     for (const layer of PHASE3_DEFAULT_LAYERS) {
-      expect(layer.id,           `${layer.id}.id`).toBeTruthy();
-      expect(layer.name,         `${layer.id}.name`).toBeTruthy();
-      expect(typeof layer.visible,     `${layer.id}.visible`).toBe('boolean');
-      expect(typeof layer.locked,      `${layer.id}.locked`).toBe('boolean');
-      expect(typeof layer.frozen,      `${layer.id}.frozen`).toBe('boolean');
-      expect(layer.color,        `${layer.id}.color`).toMatch(/^#[0-9A-Fa-f]{6}$/);
-      expect(layer.lineWeight,   `${layer.id}.lineWeight`).toBeGreaterThan(0);
-      expect(layer.lineTypeId,   `${layer.id}.lineTypeId`).toBeTruthy();
-      expect(typeof layer.opacity,     `${layer.id}.opacity`).toBe('number');
-      expect(layer.opacity,      `${layer.id}.opacity`).toBeGreaterThan(0);
-      expect(typeof layer.sortOrder,   `${layer.id}.sortOrder`).toBe('number');
-      expect(typeof layer.isDefault,   `${layer.id}.isDefault`).toBe('boolean');
-      expect(typeof layer.isProtected, `${layer.id}.isProtected`).toBe('boolean');
-      expect(Array.isArray(layer.autoAssignCodes), `${layer.id}.autoAssignCodes`).toBe(true);
+      expect(layer.id).toBeTruthy();
+      expect(layer.name).toBeTruthy();
+      expect(typeof layer.visible).toBe('boolean');
+      expect(typeof layer.locked).toBe('boolean');
+      expect(typeof layer.frozen).toBe('boolean');
+      expect(layer.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(layer.lineWeight).toBeGreaterThan(0);
+      expect(layer.lineTypeId).toBeTruthy();
+      expect(layer.opacity).toBeGreaterThan(0);
+      expect(layer.isDefault).toBe(true);
+      expect(layer.visible).toBe(true);
+      expect(layer.locked).toBe(false);
+      expect(layer.frozen).toBe(false);
     }
   });
 
-  it('all default layers have isDefault=true', () => {
-    for (const layer of PHASE3_DEFAULT_LAYERS) {
-      expect(layer.isDefault, `${layer.id}.isDefault`).toBe(true);
-    }
+  it('SURVEY-INFO is protected (so the paper furniture can\'t be accidentally deleted)', () => {
+    const surveyInfo = PHASE3_DEFAULT_LAYERS.find((l) => l.id === 'SURVEY-INFO');
+    expect(surveyInfo?.isProtected).toBe(true);
   });
 
-  it('all default layers start visible, unlocked, and not frozen', () => {
-    for (const layer of PHASE3_DEFAULT_LAYERS) {
-      expect(layer.visible, `${layer.id} visible`).toBe(true);
-      expect(layer.locked,  `${layer.id} locked`).toBe(false);
-      expect(layer.frozen,  `${layer.id} frozen`).toBe(false);
-    }
-  });
-
-  it('layer IDs are unique', () => {
-    const ids = PHASE3_DEFAULT_LAYERS.map(l => l.id);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it('all groupIds reference a valid group', () => {
-    const groupIds = new Set(DEFAULT_LAYER_GROUPS.map(g => g.id));
+  it('every groupId references a valid group', () => {
+    const groupIds = new Set(DEFAULT_LAYER_GROUPS.map((g) => g.id));
     for (const layer of PHASE3_DEFAULT_LAYERS) {
       if (layer.groupId !== null) {
-        expect(groupIds.has(layer.groupId), `${layer.id}.groupId=${layer.groupId}`).toBe(true);
+        expect(groupIds.has(layer.groupId)).toBe(true);
       }
-    }
-  });
-
-  it('no two layers in the same group share the same sortOrder', () => {
-    const groupOrders = new Map<string, Set<number>>();
-    for (const layer of PHASE3_DEFAULT_LAYERS) {
-      const gid = layer.groupId ?? '__top';
-      if (!groupOrders.has(gid)) groupOrders.set(gid, new Set());
-      const set = groupOrders.get(gid)!;
-      expect(set.has(layer.sortOrder), `duplicate sortOrder ${layer.sortOrder} in group ${gid}`).toBe(false);
-      set.add(layer.sortOrder);
     }
   });
 
   it('lineTypeIds reference valid built-in types', () => {
     const validLineTypes = new Set(['SOLID', 'DASHED', 'DASHED_HEAVY', 'DOTTED', 'DASH_DOT', 'DASH_DOT_DOT', 'CENTER', 'PHANTOM']);
     for (const layer of PHASE3_DEFAULT_LAYERS) {
-      expect(validLineTypes.has(layer.lineTypeId), `${layer.id}.lineTypeId=${layer.lineTypeId}`).toBe(true);
+      expect(validLineTypes.has(layer.lineTypeId)).toBe(true);
     }
   });
 
-  // Required layers by name
-  it('includes a BOUNDARY layer', () => {
-    expect(PHASE3_DEFAULT_LAYERS.some(l => l.id === 'BOUNDARY')).toBe(true);
-  });
-
-  it('includes a CONTROL (Survey Control) layer', () => {
-    expect(PHASE3_DEFAULT_LAYERS.some(l => l.id === 'CONTROL')).toBe(true);
-  });
-
-  it('includes a FENCE layer', () => {
-    expect(PHASE3_DEFAULT_LAYERS.some(l => l.id === 'FENCE')).toBe(true);
-  });
-
-  it('includes a MISC layer (fallback for unrecognised codes)', () => {
-    expect(PHASE3_DEFAULT_LAYERS.some(l => l.id === 'MISC')).toBe(true);
-  });
-
-  // ── getDefaultLayersRecord ──────────────────────────────────────────────
-
-  it('getDefaultLayersRecord returns a record keyed by layer ID', () => {
+  it('getDefaultLayersRecord returns exactly 4 entries keyed by id', () => {
     const record = getDefaultLayersRecord();
+    expect(Object.keys(record)).toHaveLength(4);
     for (const layer of PHASE3_DEFAULT_LAYERS) {
-      expect(record[layer.id], `record[${layer.id}]`).toBeDefined();
-      expect(record[layer.id].id).toBe(layer.id);
+      expect(record[layer.id]?.id).toBe(layer.id);
     }
   });
 
-  it('getDefaultLayersRecord returns exactly 23 entries', () => {
-    expect(Object.keys(getDefaultLayersRecord())).toHaveLength(23);
-  });
-
-  // ── getDefaultLayerOrder ────────────────────────────────────────────────
-
-  it('getDefaultLayerOrder returns an array of 23 IDs', () => {
-    const order = getDefaultLayerOrder();
-    expect(order).toHaveLength(23);
-  });
-
-  it('getDefaultLayerOrder contains every layer ID', () => {
-    const order = new Set(getDefaultLayerOrder());
-    for (const layer of PHASE3_DEFAULT_LAYERS) {
-      expect(order.has(layer.id), `${layer.id} in layerOrder`).toBe(true);
-    }
+  it('getDefaultLayerOrder returns 4 ids in source order', () => {
+    expect(getDefaultLayerOrder()).toEqual(['SURVEY-INFO', 'TITLE-BLOCK', 'ANNOTATION', 'DEFAULT']);
   });
 });
