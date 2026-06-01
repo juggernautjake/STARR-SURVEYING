@@ -37,6 +37,10 @@ import { extractPointLabels } from './trv-drawing-elements';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
+// cad-trv-bearings-and-distances Slice 2 — seed display prefs
+// on the synthetic TRV layers so bearings + distances + point
+// labels render immediately on import.
+import { DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -436,10 +440,27 @@ export function trvToDrawing(doc: TrvDocument): TrvMappingResult {
   const prefix = trvLayerPrefix(doc);
   const drawingLayerId = trvDrawingLayerKey(prefix);
   const pointsLayerId = trvPointsLayerKey(prefix);
-  const layers: Layer[] = [
-    makeLayer(drawingLayerId, `${prefix} — Drawing`, 1000),
-    makeLayer(pointsLayerId, `${prefix} — Points`, 1001),
-  ];
+  // cad-trv-bearings-and-distances Slice 2 — seed display prefs
+  // on the TRV Drawing layer so per-segment bearings + distances
+  // render immediately on import (matching TPC's default Traverse
+  // View output). The user can toggle these off via the
+  // layer-preferences panel.
+  const drawingLayer = makeLayer(drawingLayerId, `${prefix} — Drawing`, 1000);
+  drawingLayer.displayPreferences = {
+    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+    showBearings: true,
+    showDistances: true,
+  };
+  // Same default on the Points layer for the point-name label
+  // toggle so each POINT feature shows its descriptive label
+  // (the user explicitly asked for this last session).
+  const pointsLayer = makeLayer(pointsLayerId, `${prefix} — Points`, 1001);
+  pointsLayer.displayPreferences = {
+    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+    showPointNames: true,
+    showPointDescriptions: true,
+  };
+  const layers: Layer[] = [drawingLayer, pointsLayer];
   for (const f of pointFeatures) {
     const originalLayerId = f.layerId;
     f.layerId = pointsLayerId;
