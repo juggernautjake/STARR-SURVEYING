@@ -13,6 +13,7 @@ import { useDrawingStore, useAnnotationStore } from '@/lib/cad/store';
 import { scopeDocument, downloadDxf, downloadLandXML } from '@/lib/cad/delivery';
 import { downloadCsv } from '@/lib/cad/persistence/export-csv';
 import { cadLog } from '@/lib/cad/logger';
+import { alertAction } from './ConfirmDialog';
 import { useExitTransition } from '../hooks/useExitTransition';
 
 type Format = 'CSV' | 'DXF' | 'LANDXML';
@@ -37,7 +38,7 @@ export default function ExportLayersDialog({ onClose }: { onClose: () => void })
 
   function doExport() {
     if (selected.size === 0) {
-      alert('Select at least one layer to export.');
+      void alertAction({ title: 'Starr CAD', message: 'Select at least one layer to export.' });
       return;
     }
     try {
@@ -56,7 +57,7 @@ export default function ExportLayersDialog({ onClose }: { onClose: () => void })
       requestClose();
     } catch (err) {
       cadLog.error('FileIO', 'Layer export failed', err);
-      alert('Failed to export the chosen layers. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export the chosen layers. Try again, or contact support if it keeps failing.' });
     }
   }
 

@@ -22,7 +22,7 @@ import {
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import { daysUntilPurge } from '@/lib/jobs/soft-delete';
-import { confirmAction } from './ConfirmDialog';
+import { confirmAction, alertAction } from './ConfirmDialog';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface FolderRow {
@@ -291,7 +291,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (parentId) setExpanded((s) => new Set(s).add(parentId));
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Could not create folder');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Could not create folder' });
     } finally {
       setBusy(false);
     }
@@ -310,7 +310,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Rename failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Rename failed' });
     } finally {
       setBusy(false);
     }
@@ -338,7 +338,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (selectedFolderId === f.id) setSelectedFolderId(null);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Delete failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Delete failed' });
     } finally {
       setBusy(false);
     }
@@ -363,7 +363,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       onClose();
       setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to open drawing');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Failed to open drawing' });
     } finally {
       setBusy(false);
     }
@@ -401,7 +401,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (!post.ok) throw new Error((await post.json().catch(() => ({})) as { error?: string }).error ?? `Server ${post.status}`);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Copy failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Copy failed' });
     } finally {
       setBusy(false);
     }
@@ -426,7 +426,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       await refresh();
       if (cb && newId) cb(newId);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Could not create folder');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Could not create folder' });
     } finally {
       setBusy(false);
     }
@@ -445,7 +445,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Move failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Move failed' });
     } finally {
       setBusy(false);
     }
@@ -471,7 +471,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Update failed' });
     } finally {
       setBusy(false);
     }
@@ -492,7 +492,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Delete failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Delete failed' });
     } finally {
       setBusy(false);
     }
@@ -511,7 +511,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
       await loadDeleted();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Restore failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Restore failed' });
     } finally {
       setBusy(false);
     }
@@ -543,7 +543,7 @@ export default function FileManagerDialog({ onClose }: Props) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Export failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Export failed' });
     }
   }
 
@@ -574,7 +574,7 @@ export default function FileManagerDialog({ onClose }: Props) {
           });
         } catch (err) {
           cadLog.warn('FileIO', `Import failed for ${file.name}`, err);
-          alert(`Could not import "${file.name}": ${err instanceof Error ? err.message : 'invalid file'}`);
+          void alertAction({ title: 'Starr CAD', message: `Could not import "${file.name}": ${err instanceof Error ? err.message : 'invalid file'}` });
         }
       }
       await refresh();

@@ -41,3 +41,19 @@ describe('MenuBar — no native window.confirm / alert remain', () => {
     expect(SRC).toMatch(/confirmLabel: 'Leave'/);
   });
 });
+
+describe('CAD dialog components — no native window.confirm / alert', () => {
+  const FILES = [
+    'app/admin/cad/components/FileManagerDialog.tsx',
+    'app/admin/cad/components/SaveToDBDialog.tsx',
+    'app/admin/cad/components/SealImageUploader.tsx',
+    'app/admin/cad/components/ExportLayersDialog.tsx',
+    'app/admin/cad/components/LineTypePicker.tsx',
+  ];
+  it.each(FILES)('%s uses the Starr modal helpers, not native popups', (file) => {
+    const src = read(file);
+    expect(/(^|[^.\w])alert\(/.test(src)).toBe(false);
+    expect(src.includes('window.confirm(')).toBe(false);
+    expect(src).toMatch(/from '\.\/ConfirmDialog'/);
+  });
+});

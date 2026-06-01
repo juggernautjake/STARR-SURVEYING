@@ -10,6 +10,7 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { requestDiscard } from '../hooks/useUnsavedChangesGuard';
+import { confirmAction, alertAction } from './ConfirmDialog';
 
 interface SavedDrawingMeta {
   id: string;
@@ -211,7 +212,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
       }
       setDrawings((prev) => prev.map((d) => (d.id === id ? { ...d, name: trimmed } : d)));
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Rename failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Rename failed' });
     }
   }
 
@@ -234,13 +235,20 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Export failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Export failed' });
     }
   }
 
   // ── Delete handler ────────────────────────────────────────────────────
   async function handleDelete(id: string, name: string) {
-    if (!window.confirm(`Delete "${name}" from your saved drawings? This cannot be undone.`)) return;
+    const ok = await confirmAction({
+      title: 'Delete drawing?',
+      message: `Delete "${name}" from your saved drawings? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/cad/drawings?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) {
@@ -249,7 +257,7 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
       }
       setDrawings((prev) => prev.filter((d) => d.id !== id));
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Delete failed');
+      void alertAction({ title: 'Starr CAD', message: err instanceof Error ? err.message : 'Delete failed' });
     }
   }
 

@@ -455,7 +455,16 @@ broken. Build a full bug-reporting flow:
 > `starr-modals-unify.test.ts`). Suite 2562 green. **Remaining
 > (follow-up):** audit the other native `confirm`/`alert` calls in the
 > rest of `app/admin/cad/` (CanvasViewport etc.) + non-CAD admin and
-> route them through `confirmAction`/`alertAction` too. Replace the native
+> route them through `confirmAction`/`alertAction` too.
+>
+> **DIALOG COMPONENTS DONE (2026-06-01).** Converted every native
+> `alert`/`confirm` in `FileManagerDialog` (12), `SaveToDBDialog` (4),
+> `SealImageUploader` (3), `ExportLayersDialog` (2), and `LineTypePicker`
+> (1) to `alertAction`/`confirmAction`; the recovery-failure `alert` in
+> `CADLayout` too. `starr-modals-unify.test.ts` now locks zero native
+> popups across all these components. Suite 2562 green. **Remaining:**
+> the 2 hook calls (`useKeyboard` alert, `useHotkeys` confirm) +
+> `CanvasViewport` + any non-CAD admin. Replace the native
 `window.confirm` / `window.alert` popups (48 in `app/admin/cad/`),
 especially the TRV/data IMPORT confirmation popups in `MenuBar.tsx`
 (Open + Import flows) the user dislikes, with the existing custom

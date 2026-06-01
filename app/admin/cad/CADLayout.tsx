@@ -12,7 +12,7 @@ import StatusBar from './components/StatusBar';
 import ToolOptionsBar from './components/ToolOptionsBar';
 import UndoRedoButtons from './components/UndoRedoButtons';
 import CommandPalette from './components/CommandPalette';
-import ConfirmDialog from './components/ConfirmDialog';
+import ConfirmDialog, { alertAction } from './components/ConfirmDialog';
 import KeyboardShortcutOverlay from './components/KeyboardShortcutOverlay';
 // cad-multi-error-report-modal Slice 1 — global session-wide
 // error / bug modal. Listens to useErrorReportStore + surfaces
@@ -961,7 +961,7 @@ export default function CADLayout() {
                     cadLog.info('AutoSave', `Recovered drawing: ${doc.name}`);
                   } catch (err) {
                     cadLog.error('AutoSave', 'Recovery failed — document was invalid', err);
-                    alert('The auto-save could not be recovered (invalid format). Starting fresh.');
+                    void alertAction({ title: 'Starr CAD', message: 'The auto-save could not be recovered (invalid format). Starting fresh.' });
                   }
                   setRecoveryDiscardArmed(false);
                   setRecoveryPayload(null);
