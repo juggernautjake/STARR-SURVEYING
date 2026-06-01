@@ -9,14 +9,70 @@
 // etc.
 
 import type { TitleBlockConfig } from '../types';
-import type { TrvMetadata } from './trv-parser';
+import type { TrvMetadata, TrvDrawingElement } from './trv-parser';
+import { extractTextElements } from './trv-drawing-elements';
+
+/** cad-trv-drawing-element-rendering Slice 4 — structured title-block
+ *  values recovered from the paper-space `28,5` text elements (firm
+ *  name, surveyor + RPLS license, job no., customer, flood note).
+ *  The TRV metadata codes (90 / 101-106) DON'T carry these, so the
+ *  drawing-element text is the only source. Filled into the title
+ *  block non-destructively alongside `applyTrvMetadataToTitleBlock`. */
+export interface TrvTitleBlockHints {
+  firmName?: string;
+  surveyorName?: string;
+  surveyorLicense?: string;
+  projectNumber?: string;
+  clientName?: string;
+  notes?: string;
+}
+
+/** Detect structured title-block fields from the PAPER-space `28,5`
+ *  text elements. Pure: no DOM/store. Pattern-driven (specific
+ *  regexes) so an unexpected line is left alone rather than
+ *  mis-assigned. */
+export function extractTitleBlockHints(elements: ReadonlyArray<TrvDrawingElement>): TrvTitleBlockHints {
+  const hints: TrvTitleBlockHints = {};
+  const paper = extractTextElements(elements).filter((e) => e.space === 'PAPER');
+  for (const el of paper) {
+    const t = el.text.replace(/\s*\n\s*/g, ' ').trim(); // flatten multi-line for matching
+    // Surveyor certification → name + RPLS number.
+    let m = t.match(/\bI,\s*(.+?),\s*Registered Professional Land\s*Surveyor\s*No\.?\s*(\d+)/i);
+    if (m) {
+      hints.surveyorName ??= m[1].trim();
+      hints.surveyorLicense ??= m[2].trim();
+      continue;
+    }
+    // Job number + customer.
+    m = t.match(/JOB\s*NO\.?\s*(\S+)\s+CUSTOMER:\s*(.+?)\s*$/i);
+    if (m) {
+      hints.projectNumber ??= m[1].trim();
+      hints.clientName ??= m[2].trim();
+      continue;
+    }
+    // Firm name — short line naming a surveying firm (not the firm-
+    // license line, which reads "...SURV. FIRM NO...").
+    if (!hints.firmName && /\b(SURVEYING|SURVEYORS)\b/i.test(t) && t.length <= 40 && !/LICENSED|FIRM\s*NO/i.test(t)) {
+      hints.firmName = t;
+      continue;
+    }
+    // Flood-zone note.
+    if (!hints.notes && /\bFEMA\b|flood\s*plain/i.test(t)) {
+      hints.notes = t;
+      continue;
+    }
+  }
+  return hints;
+}
 
 /** Patch the title block with TRV metadata values where the
  *  current field is empty. Returns a fresh TitleBlockConfig
- *  (no mutation of the input). */
+ *  (no mutation of the input). `hints` (Slice 4) fills the
+ *  firm / surveyor / job fields the metadata codes don't carry. */
 export function applyTrvMetadataToTitleBlock(
   metadata: TrvMetadata,
   current: TitleBlockConfig,
+  hints?: TrvTitleBlockHints,
 ): TitleBlockConfig {
   const next: TitleBlockConfig = { ...current };
   // Project name: 101.
@@ -38,6 +94,16 @@ export function applyTrvMetadataToTitleBlock(
   // can trace the origin.
   if (isEmpty(next.notes) && nonEmpty(metadata.sourcePath)) {
     next.notes = `Imported from ${metadata.sourcePath as string}`;
+  }
+  // Slice 4 — structured fields recovered from paper-space `28,5`
+  // text. Non-destructive: only fills currently-empty fields.
+  if (hints) {
+    if (isEmpty(next.firmName) && nonEmpty(hints.firmName)) next.firmName = hints.firmName;
+    if (isEmpty(next.surveyorName) && nonEmpty(hints.surveyorName)) next.surveyorName = hints.surveyorName;
+    if (isEmpty(next.surveyorLicense) && nonEmpty(hints.surveyorLicense)) next.surveyorLicense = hints.surveyorLicense;
+    if (isEmpty(next.projectNumber) && nonEmpty(hints.projectNumber)) next.projectNumber = hints.projectNumber;
+    if (isEmpty(next.clientName) && nonEmpty(hints.clientName)) next.clientName = hints.clientName;
+    if (isEmpty(next.notes) && nonEmpty(hints.notes)) next.notes = hints.notes;
   }
   return next;
 }

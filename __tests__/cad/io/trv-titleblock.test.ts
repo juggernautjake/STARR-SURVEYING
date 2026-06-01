@@ -4,7 +4,8 @@
 // metadata to the survey title block (non-destructive).
 
 import { describe, it, expect } from 'vitest';
-import { applyTrvMetadataToTitleBlock, formatTrvDate, formatTrvScale } from '@/lib/cad/io/trv-titleblock';
+import { applyTrvMetadataToTitleBlock, extractTitleBlockHints, formatTrvDate, formatTrvScale } from '@/lib/cad/io/trv-titleblock';
+import { parseTrv } from '@/lib/cad/io/trv-parser';
 import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
 import type { TitleBlockConfig } from '@/lib/cad/types';
 
@@ -96,6 +97,67 @@ describe('applyTrvMetadataToTitleBlock', () => {
   });
 });
 
+// cad-trv-drawing-element-rendering Slice 4 — structured title-block
+// fields recovered from paper-space 28,5 text.
+describe('extractTitleBlockHints', () => {
+  const TB_FIXTURE = [
+    '999,begin', '#,DRAWING',
+    '28,5,-1.90,1.60,5,1,14.00,0,6,STARR SURVEYING',                                   // firm
+    '28,5,-3.05,1.38,0,0,8.00,0,0,TEXAS LICENSED SURV. FIRM NO. 10193754',             // NOT the firm name
+    '28,5,0.25,1.86,0,0,10.00,0,0,I, Henry S. Maddux III, Registered Professional Land Surveyor No. 6706, do certify that this plat represents a survey.', // surveyor + RPLS
+    '28,5,-3.44,0.75,0,0,10.00,0,0,JOB NO. 26078    CUSTOMER:  DON\'NELL GREER',        // job + customer
+    '28,5,-2.48,6.45,0,0,9.00,0,6,According to FEMA FIRM PANEL No. 48217C0265D this property lies in Zone X.', // flood note
+    '28,5,3304420.64,10711661.37,0,0,4.00,0,0,grass',                                   // WORLD → ignored
+    '999,end',
+  ].join('\r\n');
+
+  const hints = extractTitleBlockHints(parseTrv(TB_FIXTURE).drawingElements);
+
+  it('detects the firm name (and not the firm-license line)', () => {
+    expect(hints.firmName).toBe('STARR SURVEYING');
+  });
+  it('detects the surveyor name + RPLS license from the cert line', () => {
+    expect(hints.surveyorName).toBe('Henry S. Maddux III');
+    expect(hints.surveyorLicense).toBe('6706');
+  });
+  it('detects the job number + customer', () => {
+    expect(hints.projectNumber).toBe('26078');
+    expect(hints.clientName).toBe("DON'NELL GREER");
+  });
+  it('detects the flood note', () => {
+    expect(hints.notes).toMatch(/FEMA/);
+  });
+
+  it('applies hints non-destructively into the title block', () => {
+    const next = applyTrvMetadataToTitleBlock(metaEmpty, baseBlock(), hints);
+    expect(next.firmName).toBe('STARR SURVEYING');
+    expect(next.surveyorName).toBe('Henry S. Maddux III');
+    expect(next.surveyorLicense).toBe('6706');
+    expect(next.projectNumber).toBe('26078');
+    expect(next.clientName).toBe("DON'NELL GREER");
+  });
+
+  it('does NOT overwrite a firm name the surveyor already set', () => {
+    const block = { ...baseBlock(), firmName: 'My Firm LLC' };
+    const next = applyTrvMetadataToTitleBlock(metaEmpty, block, hints);
+    expect(next.firmName).toBe('My Firm LLC');
+  });
+
+  it('recovers the Hillsboro title block end-to-end (importTrvFromText)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { importTrvFromText } = await import('@/lib/cad/io/trv-io');
+    const sample = path.join(process.cwd(), '__tests__', 'fixtures', 'trv', 'hillsboro-nazarene.trv');
+    if (!fs.existsSync(sample)) return; // fixture optional
+    const report = importTrvFromText(fs.readFileSync(sample, 'latin1'));
+    expect(report.titleBlockHints.firmName).toBe('STARR SURVEYING');
+    expect(report.titleBlockHints.surveyorName).toBe('Henry S. Maddux III');
+    expect(report.titleBlockHints.surveyorLicense).toBe('6706');
+    expect(report.titleBlockHints.projectNumber).toBe('26078');
+    expect(report.titleBlockHints.clientName).toBe("DON'NELL GREER");
+  });
+});
+
 describe('importTrvFromText — exposes metadata for the title-block apply step', () => {
   it('the report carries the TrvMetadata so the UI can preview/apply it', async () => {
     const { importTrvFromText } = await import('@/lib/cad/io/trv-io');
@@ -122,7 +184,9 @@ describe('MenuBar — Pass 6 title-block apply prompt', () => {
       'utf8',
     );
     expect(SRC).toMatch(/import \{ applyTrvMetadataToTitleBlock \} from '@\/lib\/cad\/io\/trv-titleblock';/);
-    expect(SRC).toMatch(/applyTrvMetadataToTitleBlock\(m, current\)/);
+    // cad-trv-drawing-element-rendering Slice 4 — the paper-space
+    // title-block hints are passed as the 3rd arg.
+    expect(SRC).toMatch(/applyTrvMetadataToTitleBlock\(m, current, report\.titleBlockHints\)/);
     expect(SRC).toMatch(/drawingStore\.updateSettings\(\{ titleBlock: nextTitleBlock \}\)/);
   });
 });

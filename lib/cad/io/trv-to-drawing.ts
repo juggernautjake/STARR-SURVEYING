@@ -26,6 +26,7 @@
 
 import type {
   Feature,
+  FeatureGeometry,
   FeatureStyle,
   Layer,
   FeatureType,
@@ -38,7 +39,7 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
-import { extractPointLabels, extractLineLabels, extractAreaLabels } from './trv-drawing-elements';
+import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements } from './trv-drawing-elements';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -74,6 +75,16 @@ function makeLayer(id: string, name: string, sortOrder: number): Layer {
     isProtected: false,
     autoAssignCodes: [],
   };
+}
+
+/** cad-trv-dual-layer-filename Slice 2 — deep clone a POINT
+ *  feature's geometry so the Drawing-layer copy and the Points-
+ *  layer original share no object references. Without this the
+ *  inner `{ x, y }` `point` is aliased + editing one layer would
+ *  bleed into the other on any in-place mutation. */
+function clonePointGeometry(g: FeatureGeometry): FeatureGeometry {
+  if (g.type !== 'POINT' || !g.point) return { ...g };
+  return { ...g, point: { x: g.point.x, y: g.point.y } };
 }
 
 /** Default Feature style. */
@@ -553,24 +564,171 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     const originalName = trvLayerNameByStarrId(originalLayerId, trvLayerNameById);
     if (originalName) f.properties.trvOriginalLayer = originalName;
   }
-  // cad-trv-dual-layer-filename Slice 2 — the surveyor wants the
-  // points to ALSO appear on the Drawing layer alongside the
-  // linework ("everything"), while the dedicated Points layer keeps
-  // just the points for independent label control. We add a
-  // render-only MIRROR of each point onto the Drawing layer. Mirrors
-  // carry `properties.trvPointMirror = true` so the TRV serializer
-  // emits each point ONCE and the import deduper leaves them alone;
-  // they keep their `trvPointId` so the smart-merge round-trip never
-  // mistakes a mirror for a freshly-added point.
+  // cad-trv-drawing-element-rendering Slice 1 — render `28,16`
+  // connector segments (point-id pairs) as LINE features on the
+  // Drawing layer. These are the plotted linework TPC draws between
+  // shots (pavement edges, building lines, fences) and are a major
+  // part of the drawing we previously dropped. Two safeguards:
+  //   - DEDUP against traverse edges: many connectors echo a
+  //     boundary the traverse already draws, so we skip any pair
+  //     that is a consecutive edge of a rendered traverse polyline
+  //     (else the plat shows doubled lines).
+  //   - `trvDerived` marks them as render echoes of the verbatim
+  //     `28` block so the round-trip serializer never re-emits them.
+  const connectorFeatures: Feature[] = [];
+  {
+    const connectors = extractConnectors(doc.drawingElements);
+    if (connectors.length > 0) {
+      const featByTrvId = new Map<string, Feature>();
+      for (const f of pointFeatures) {
+        const tid = f.properties.trvPointId;
+        if (typeof tid === 'string') featByTrvId.set(tid, f);
+      }
+      // Build the set of undirected point-pair edges the traverses
+      // already draw, so coincident connectors don't double up.
+      const traverseEdges = new Set<string>();
+      const edgeKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+      for (const f of traverseFeatures) {
+        const refs = String(f.properties.trvPointRefs ?? '')
+          .split(',')
+          .filter((s) => s.length > 0);
+        for (let i = 0; i < refs.length - 1; i++) traverseEdges.add(edgeKey(refs[i], refs[i + 1]));
+        // Closed traverses also draw the implicit last→first edge.
+        if (f.type === 'POLYGON' && refs.length > 2) traverseEdges.add(edgeKey(refs[refs.length - 1], refs[0]));
+      }
+      let rendered = 0;
+      let deduped = 0;
+      let missing = 0;
+      const seen = new Set<string>();
+      for (const c of connectors) {
+        const key = edgeKey(c.fromId, c.toId);
+        if (traverseEdges.has(key)) { deduped++; continue; }
+        if (seen.has(key)) continue; // collapse duplicate 28,16 records
+        seen.add(key);
+        const a = featByTrvId.get(c.fromId);
+        const b = featByTrvId.get(c.toId);
+        const pa = a?.geometry.point;
+        const pb = b?.geometry.point;
+        if (!pa || !pb) { missing++; continue; }
+        connectorFeatures.push({
+          id: `trv-connector:${c.sourceLine}`,
+          type: 'LINE',
+          geometry: { type: 'LINE', start: { x: pa.x, y: pa.y }, end: { x: pb.x, y: pb.y } },
+          layerId: drawingLayerId,
+          style: defaultStyle(),
+          properties: {
+            trvDerived: true,
+            trvElementKind: 'CONNECTOR',
+            trvElementSourceLine: c.sourceLine,
+            trvPointRefs: `${c.fromId},${c.toId}`,
+          },
+        });
+        rendered++;
+      }
+      if (rendered > 0 || deduped > 0 || missing > 0) {
+        const bits = [`Subtype-16 connectors: rendered ${rendered} line(s)`];
+        if (deduped > 0) bits.push(`${deduped} already drawn by traverses (deduped)`);
+        if (missing > 0) bits.push(`${missing} skipped (missing point ref)`);
+        notes.push(bits.join('; '));
+      }
+    }
+  }
+  // cad-trv-drawing-element-rendering Slice 2 — render `28,30`
+  // polylines + `28,4` line segments (coords carried inline in the
+  // header, NOT via point refs) as geometry on the Drawing layer.
+  // These are footprints / structures / reference lines TPC plotted
+  // that we previously dropped. Element coords are (E,N) → Starr
+  // {x:E,y:N}. Tagged `trvDerived` so the verbatim `28` block stays
+  // the round-trip source of truth.
+  const elementShapeFeatures: Feature[] = [];
+  {
+    const shapes = extractElementShapes(doc.drawingElements);
+    let nPoly = 0;
+    let nLine = 0;
+    for (const s of shapes) {
+      if (s.kind === 'LINE') {
+        elementShapeFeatures.push({
+          id: `trv-shape:${s.sourceLine}`,
+          type: 'LINE',
+          geometry: { type: 'LINE', start: { ...s.vertices[0] }, end: { ...s.vertices[1] } },
+          layerId: drawingLayerId,
+          style: defaultStyle(),
+          properties: {
+            trvDerived: true,
+            trvElementKind: 'ELEMENT_LINE',
+            trvElementSourceLine: s.sourceLine,
+          },
+        });
+        nLine++;
+      } else {
+        const ftype: FeatureType = s.closed ? 'POLYGON' : 'POLYLINE';
+        elementShapeFeatures.push({
+          id: `trv-shape:${s.sourceLine}`,
+          type: ftype,
+          geometry: { type: ftype, vertices: s.vertices.map((v) => ({ x: v.x, y: v.y })) },
+          layerId: drawingLayerId,
+          style: defaultStyle(),
+          properties: {
+            trvDerived: true,
+            trvElementKind: 'ELEMENT_POLYLINE',
+            trvElementSourceLine: s.sourceLine,
+            trvElementClosed: s.closed ? 1 : 0,
+          },
+        });
+        nPoly++;
+      }
+    }
+    if (nPoly > 0 || nLine > 0) {
+      notes.push(`Rendered ${nPoly} polyline(s) + ${nLine} line(s) from drawing elements (subtypes 30 / 4)`);
+    }
+  }
+  // cad-trv-drawing-element-rendering Slice 3 — render `28,5`
+  // WORLD-placed text annotations (site descriptions like "conc." /
+  // "asphalt parking", deed calls, etc.) as TEXT features at their
+  // survey coordinates. Paper-space `28,5` (title block) is handled
+  // in Slice 4. Coords are (E,N) → Starr {x:E,y:N}; the TPC point
+  // size lands on `properties.fontSize` (what the renderer reads).
+  const textFeatures: Feature[] = [];
+  {
+    let nText = 0;
+    for (const t of extractTextElements(doc.drawingElements)) {
+      if (t.space !== 'WORLD') continue;
+      textFeatures.push({
+        id: `trv-text:${t.sourceLine}`,
+        type: 'TEXT',
+        geometry: { type: 'TEXT', point: { x: t.x, y: t.y }, textContent: t.text },
+        layerId: drawingLayerId,
+        style: defaultStyle(),
+        properties: {
+          trvDerived: true,
+          trvElementKind: 'ELEMENT_TEXT',
+          trvElementSourceLine: t.sourceLine,
+          fontSize: t.fontSize > 0 ? t.fontSize : 6,
+        },
+      });
+      nText++;
+    }
+    if (nText > 0) notes.push(`Rendered ${nText} map text annotation(s) from drawing-element subtype 5`);
+  }
+  // cad-trv-dual-layer-filename Slice 2 — the surveyor wants two
+  // INDEPENDENT layers that happen to start with the same points:
+  // the Points layer holds just the points, the Drawing layer holds
+  // points + lines + everything. Editing one layer must not affect
+  // the other, so each Drawing-layer point is a deep clone of its
+  // Points-layer twin with no shared references. The trvPointMirror
+  // flag is purely a "don't double-export" marker for the TRV round-
+  // trip — the canonical (Points-layer) point owns the TRV slot.
   const pointMirrors: Feature[] = pointFeatures.map((f) => ({
     ...f,
     id: `${f.id}:draw`,
     layerId: drawingLayerId,
+    geometry: clonePointGeometry(f.geometry),
+    style: { ...f.style },
     properties: { ...f.properties, trvPointMirror: true },
   }));
   return {
     layers,
-    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures],
+    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures, ...elementShapeFeatures, ...textFeatures],
     notes,
   };
 }

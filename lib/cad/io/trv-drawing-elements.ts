@@ -27,6 +27,7 @@
 // Pure module: no DOM, no React, no store deps.
 
 import type { TrvDrawingElement } from './trv-parser';
+import type { Point2D } from '../types';
 
 /** A subtype-12 point label = `28,12,<pointId>` opener with a
  *  paired `29,5,...,...,"<text>¶"` body. The text payload is in
@@ -117,6 +118,155 @@ export function extractLineLabels(elements: ReadonlyArray<TrvDrawingElement>): L
     const text = cleanLabelText(String(raw));
     if (text.length === 0) continue;
     out.push({ fromId, toId, text, sourceLine: de.sourceLine });
+  }
+  return out;
+}
+
+/** cad-trv-drawing-element-rendering Slice 1 — a `28,16,<from>,<to>`
+ *  connector. Traverse PC draws a straight line segment between two
+ *  survey points as a drawing element (edge of pavement, building
+ *  lines, fences, etc.) — distinct from the boundary traverses. The
+ *  geometry is implied by the two referenced point ids, so we only
+ *  capture the id pair here + resolve coords at map time. */
+export interface Connector {
+  /** TRV point id at the start of the connector segment. */
+  fromId: string;
+  /** TRV point id at the end of the connector segment. */
+  toId: string;
+  /** Source line of the `28,16` record. */
+  sourceLine: number;
+}
+
+/** Walk every drawing element + extract subtype-16 point-to-point
+ *  connector segments (`28,16,<from>,<to>`). */
+export function extractConnectors(elements: ReadonlyArray<TrvDrawingElement>): Connector[] {
+  const out: Connector[] = [];
+  for (const de of elements) {
+    if (de.header[0] !== '16') continue;
+    const fromId = de.header[1];
+    const toId = de.header[2];
+    if (typeof fromId !== 'string' || fromId.length === 0) continue;
+    if (typeof toId !== 'string' || toId.length === 0) continue;
+    if (fromId === toId) continue;
+    out.push({ fromId, toId, sourceLine: de.sourceLine });
+  }
+  return out;
+}
+
+/** cad-trv-drawing-element-rendering Slice 3 — a `28,5` text element.
+ *  Layout: `28,5,x,y,a,b,fontSize,c,d,<text…>`. Traverse PC uses it
+ *  for BOTH the world-placed site annotations ("grass", "asphalt
+ *  parking", deed calls) AND the paper-space title-block text (firm
+ *  name, job no.). World vs paper is told apart by coordinate
+ *  magnitude. The text payload is everything from field 9 onward —
+ *  JOINED with ',' because legal notes contain commas — then cleaned
+ *  of the `¶` multi-line separator. */
+export interface TextElement {
+  /** Placement coordinate. WORLD → (E, N); PAPER → title-block units. */
+  x: number;
+  y: number;
+  /** TPC point size (field 6). */
+  fontSize: number;
+  /** Cleaned, multi-line (`\n`) text. */
+  text: string;
+  /** WORLD-placed (survey coords) vs PAPER-space (title block). */
+  space: 'WORLD' | 'PAPER';
+  /** Source line of the `28,5` record. */
+  sourceLine: number;
+}
+
+/** Coordinates beyond this magnitude are world (state-plane feet);
+ *  smaller ones are paper-space title-block placements. */
+const TEXT_WORLD_THRESHOLD = 100000;
+
+/** Walk every drawing element + extract subtype-5 text elements. */
+export function extractTextElements(elements: ReadonlyArray<TrvDrawingElement>): TextElement[] {
+  const out: TextElement[] = [];
+  for (const de of elements) {
+    if (de.header[0] !== '5') continue;
+    const x = Number(de.header[1]);
+    const y = Number(de.header[2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const fontSize = Number(de.header[5]);
+    // Text = fields 9..end joined with ',' (it may contain commas),
+    // then cleaned of pilcrow / DC4.
+    const text = cleanLabelText(de.header.slice(8).join(','));
+    if (text.length === 0) continue;
+    const space: TextElement['space'] =
+      Math.abs(x) > TEXT_WORLD_THRESHOLD || Math.abs(y) > TEXT_WORLD_THRESHOLD ? 'WORLD' : 'PAPER';
+    out.push({ x, y, fontSize: Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 0, text, space, sourceLine: de.sourceLine });
+  }
+  return out;
+}
+
+/** cad-trv-drawing-element-rendering Slice 2 — a free geometry
+ *  drawing element with coordinates carried INLINE in the `28`
+ *  header (not via point-id refs):
+ *    - `28,30,<nPts>,E1,N1,E2,N2,…` — a polyline (footprints,
+ *      structures, pavement). Closed when the first vertex repeats
+ *      as the last.
+ *    - `28,4,E1,N1,E2,N2,Z` — a single line segment.
+ *  Element coords are (East, North); Starr world is `{x: E, y: N}`,
+ *  so each pair maps first→x, second→y (NO swap — unlike point
+ *  records which are N,E). */
+export interface ElementShape {
+  kind: 'POLYLINE' | 'LINE';
+  /** Vertices in Starr world space (`{x: E, y: N}`). */
+  vertices: Point2D[];
+  /** True when the polyline's first + last vertex coincide (the
+   *  duplicate closing vertex is dropped from `vertices`). */
+  closed: boolean;
+  /** Source line of the `28` record. */
+  sourceLine: number;
+}
+
+const SHAPE_EPS = 1e-4;
+const samePt = (a: Point2D, b: Point2D) =>
+  Math.abs(a.x - b.x) < SHAPE_EPS && Math.abs(a.y - b.y) < SHAPE_EPS;
+
+/** Walk every drawing element + extract subtype-30 polylines and
+ *  subtype-4 line segments as world-space geometry. */
+export function extractElementShapes(elements: ReadonlyArray<TrvDrawingElement>): ElementShape[] {
+  const out: ElementShape[] = [];
+  for (const de of elements) {
+    if (de.header[0] === '4') {
+      // 28,4,E1,N1,E2,N2,Z — two endpoints (Z ignored).
+      const n = de.header.slice(1, 5).map(Number);
+      if (n.length < 4 || n.some((v) => !Number.isFinite(v))) continue;
+      const verts = [{ x: n[0], y: n[1] }, { x: n[2], y: n[3] }];
+      if (samePt(verts[0], verts[1])) continue; // zero-length
+      out.push({ kind: 'LINE', vertices: verts, closed: false, sourceLine: de.sourceLine });
+      continue;
+    }
+    if (de.header[0] === '30') {
+      // 28,30,<nPts>,E1,N1,E2,N2,… — read nPts coord pairs.
+      const nPts = Number(de.header[1]);
+      if (!Number.isFinite(nPts) || nPts < 2) continue;
+      const coords = de.header.slice(2).map(Number);
+      const verts: Point2D[] = [];
+      for (let i = 0; i + 1 < coords.length && verts.length < nPts; i += 2) {
+        const x = coords[i];
+        const y = coords[i + 1];
+        if (!Number.isFinite(x) || !Number.isFinite(y)) break;
+        verts.push({ x, y });
+      }
+      // Collapse consecutive duplicate vertices (TPC pads the last
+      // pair on some records).
+      const dedup: Point2D[] = [];
+      for (const v of verts) {
+        const last = dedup[dedup.length - 1];
+        if (last && samePt(last, v)) continue;
+        dedup.push(v);
+      }
+      if (dedup.length < 2) continue;
+      // Closed when first ≈ last → drop the closing duplicate.
+      let closed = false;
+      if (dedup.length > 2 && samePt(dedup[0], dedup[dedup.length - 1])) {
+        closed = true;
+        dedup.pop();
+      }
+      out.push({ kind: 'POLYLINE', vertices: dedup, closed, sourceLine: de.sourceLine });
+    }
   }
   return out;
 }

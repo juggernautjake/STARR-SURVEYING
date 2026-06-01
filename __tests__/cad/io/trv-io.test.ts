@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { importTrvFromText, downloadTrv } from '@/lib/cad/io/trv-io';
+import { importTrvFromText, downloadTrv, formatRenderedElements } from '@/lib/cad/io/trv-io';
 import type { DrawingDocument } from '@/lib/cad/types';
 
 const FIXTURE = [
@@ -46,6 +46,39 @@ describe('importTrvFromText', () => {
     // skipped record.
     expect(r.notes.length).toBeGreaterThan(0);
   });
+
+  // cad-trv-drawing-element-rendering Slice 7 — rendered drawing-
+  // element counts for the import-confirm dialog.
+  it('reports counts of rendered drawing-element geometry + text', () => {
+    const withElements = [
+      '999,begin', '#,POINTS', '95,2',
+      '0,A', '3,0', '4,5,0,0', '2,100,200,0',
+      '0,B', '3,0', '4,5,0,0', '2,150,250,0',
+      '#,DRAWING',
+      '28,4,400,500,450,560,0',            // element line
+      '28,30,3,200,100,250,150,300,180',   // element polyline
+      '28,5,3304420.64,10711661.37,0,0,4.00,0,0,grass', // world text
+      '999,end',
+    ].join('\r\n');
+    const r = importTrvFromText(withElements);
+    expect(r.renderedElements.elementLines).toBe(1);
+    expect(r.renderedElements.elementPolylines).toBe(1);
+    expect(r.renderedElements.textAnnotations).toBe(1);
+    // The element geometry/text must NOT inflate the point/traverse
+    // counts the dialog headlines.
+    expect(r.pointCount).toBe(2);
+    expect(r.traverseCount).toBe(0);
+  });
+});
+
+describe('formatRenderedElements', () => {
+  it('joins the non-zero rendered-element counts', () => {
+    expect(formatRenderedElements({ connectorLines: 12, elementPolylines: 11, elementLines: 7, textAnnotations: 56 }))
+      .toBe('12 connector line(s), 11 polyline(s), 7 line(s), 56 text label(s)');
+  });
+  it('returns empty string when nothing rendered', () => {
+    expect(formatRenderedElements({ connectorLines: 0, elementPolylines: 0, elementLines: 0, textAnnotations: 0 })).toBe('');
+  });
 });
 
 describe('downloadTrv', () => {
@@ -81,7 +114,7 @@ describe('MenuBar — TRV import/export wiring', () => {
   );
 
   it('imports downloadTrv + importTrvFromText + TrvImportReport from trv-io', () => {
-    expect(MENUBAR_SRC).toMatch(/import \{ downloadTrv, importTrvFromText, type TrvImportReport \} from '@\/lib\/cad\/io\/trv-io';/);
+    expect(MENUBAR_SRC).toMatch(/import \{ downloadTrv, importTrvFromText, formatRenderedElements, type TrvImportReport \} from '@\/lib\/cad\/io\/trv-io';/);
   });
 
   it('declares exportTrv() function wired to downloadTrv', () => {

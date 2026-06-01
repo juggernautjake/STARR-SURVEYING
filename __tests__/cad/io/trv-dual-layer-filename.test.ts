@@ -106,6 +106,32 @@ describe('Slice 2 — points mirror onto the Drawing layer', () => {
     }
   });
 
+  it('the two copies share NO references — moving one does not move the other', () => {
+    const { features } = trvToDrawing(parseTrv(FIXTURE), { layerPrefix: 'X' });
+    const canonical = features.filter((f) => f.type === 'POINT' && !f.properties.trvPointMirror);
+    const mirrors = features.filter((f) => f.type === 'POINT' && f.properties.trvPointMirror);
+    // Pair each canonical with its mirror by trvPointId.
+    const mirrorByTrvId = new Map<string, Feature>();
+    for (const m of mirrors) mirrorByTrvId.set(String(m.properties.trvPointId), m);
+    for (const c of canonical) {
+      const m = mirrorByTrvId.get(String(c.properties.trvPointId))!;
+      // Distinct object references at every level the user can edit.
+      expect(m).not.toBe(c);
+      expect(m.geometry).not.toBe(c.geometry);
+      expect(m.geometry.point).not.toBe(c.geometry.point);
+      expect(m.style).not.toBe(c.style);
+      expect(m.properties).not.toBe(c.properties);
+      // Simulate moving the canonical point in place; the mirror's
+      // coords must not budge.
+      const beforeMx = m.geometry.point!.x;
+      const beforeMy = m.geometry.point!.y;
+      c.geometry.point!.x += 100;
+      c.geometry.point!.y -= 50;
+      expect(m.geometry.point!.x).toBe(beforeMx);
+      expect(m.geometry.point!.y).toBe(beforeMy);
+    }
+  });
+
   it('the import deduper leaves mirrors untouched', () => {
     const { features } = trvToDrawing(parseTrv(FIXTURE), { layerPrefix: 'X' });
     // No existing drawing → no real collisions. Mirrors share their

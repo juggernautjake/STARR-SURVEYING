@@ -20,6 +20,17 @@
 //     callers can audit how each interpreted record maps back to
 //     its source line index.
 //  4. Pure module: no I/O, no DOM, no React. Safe to unit-test.
+//
+// cad-trv-drawing-element-rendering Slice 7 — record codes seen in
+// the wild that are PRESERVED VERBATIM (round-trip via `lines`) but
+// intentionally NOT interpreted into a structured view, because they
+// drive Traverse PC's own UI/report config rather than the drawn
+// geometry: `100` (Drawing Groups, e.g. `100,Plats,4,0` — TPC layer-
+// panel groupings; Starr's import deliberately collapses to two
+// synthetic Drawing/Points layers so these aren't surfaced), `136-162`
+// (per-traverse bearing/distance label format templates) and `349-369`
+// (print/report fonts, colors, margins). Don't re-flag these as
+// "missing" — they have no geometric effect and round-trip losslessly.
 
 /** A single raw line, preserved verbatim from the source file (modulo
  *  CRLF stripping). Sequential `index` matches the line order in the

@@ -83,6 +83,32 @@ describe('decodeTrvLineStyle — defaults', () => {
   });
 });
 
+// cad-trv-drawing-element-rendering Slice 6 — decode hardening
+// against the Hillsboro record shapes.
+describe('decodeTrvLineStyle — Hillsboro hardening', () => {
+  it('an out-of-catalog fill index (71,60 → index 55, beyond TPC 47) → NONE, no throw', () => {
+    const s = decodeTrvLineStyle([{ code: '71', fields: ['60', '37'] }]);
+    expect(s.fillPattern).toBe('NONE');
+    expect(s.tpcFillName).toBeNull();
+  });
+
+  it('an unmapped line-type code (51 field1 = 40, sw adjoiner line) falls back to SOLID', () => {
+    // 35-field font-bearing record, exactly the Hillsboro "sw adjoiner
+    // line" shape. f0=8 (bold) is read; f1=40 is unconfirmed → SOLID.
+    const adjoiner = [{ code: '51', fields: '8,40,0,2048,2147876992,6,8.00,0,0,6.00,0,0,1.00,1,0,Arial,Arial,0,7,2,1,4,3,0,10.00,20.00,200.00,0,2,3,3,0,2,0,4'.split(',') }];
+    const s = decodeTrvLineStyle(adjoiner);
+    expect(s.isBold).toBe(true);
+    expect(s.lineTypeId).toBe('SOLID');
+  });
+
+  it('the long 35-field BOUNDARY record (51,8,1) still decodes weight + type from f0/f1', () => {
+    const boundary = [{ code: '51', fields: '8,1,0,2432,2147876992,6,5.00,0,1,8.00,0,1,2.00,1,0,Arial,Arial,0,7,2,1,4,3,0,10.00,20.00,200.00,0,2,3,3,0,2,0,4'.split(',') }];
+    const s = decodeTrvLineStyle(boundary);
+    expect(s.isBold).toBe(true);
+    expect(s.lineTypeId).toBe('SOLID');
+  });
+});
+
 describe('trvToDrawing — applies decoded style to traverse polylines', () => {
   const file = '/root/.claude/uploads/945f3c7a-22b1-497a-95dd-c0247c40d951/f5ca728d-GARLAND_KREUGER_WHITE_OWL_LANE_TEMPLE_26074_MAY_25_2026_2.TRV';
   const fallback = '/root/.claude/uploads/3aabb6e2-d4ed-4464-a0ee-cc91d947899e/dd403c19-GARLAND_KREUGER_WHITE_OWL_LANE_TEMPLE_26074_MAY_25_2026_2.TRV';

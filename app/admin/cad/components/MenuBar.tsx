@@ -26,7 +26,7 @@ import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 // cad-trv-import-export Slice 4 — File menu Import / Export TRV.
-import { downloadTrv, importTrvFromText, type TrvImportReport } from '@/lib/cad/io/trv-io';
+import { downloadTrv, importTrvFromText, formatRenderedElements, type TrvImportReport } from '@/lib/cad/io/trv-io';
 import { requestDiscard } from '../hooks/useUnsavedChangesGuard';
 // cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
 // to the survey title block (non-destructive).
@@ -293,11 +293,13 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           const noteSummary = report.notes.length > 0
             ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
             : '';
+          const drawingSummary = formatRenderedElements(report.renderedElements);
           const ok = window.confirm(
             `Open ${file.name} as a Traverse PC TRV?\n\n` +
             `  ${report.layerCount} layer(s)\n` +
             `  ${report.pointCount} point(s)\n` +
             `  ${report.traverseCount} traverse(s)` +
+            (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
             noteSummary +
             `\n\nThis will ADD the records to the current drawing.`
           );
@@ -332,7 +334,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             );
             if (applyMeta) {
               const current = drawingStore.document.settings?.titleBlock;
-              if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current) });
+              if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints) });
             }
           }
           maybeFitPaperToImportedFeatures(report.mapped.features);
@@ -469,11 +471,13 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       const noteSummary = report.notes.length > 0
         ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
         : '';
+      const drawingSummary = formatRenderedElements(report.renderedElements);
       const ok = window.confirm(
         `Import ${file.name}?\n\n` +
         `  ${report.layerCount} layer(s)\n` +
         `  ${report.pointCount} point(s)\n` +
         `  ${report.traverseCount} traverse(s)` +
+        (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
         noteSummary +
         `\n\nThis will ADD the records to the current drawing.`
       );
@@ -510,7 +514,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         if (applyMeta) {
           const current = drawingStore.document.settings?.titleBlock;
           if (current) {
-            const nextTitleBlock = applyTrvMetadataToTitleBlock(m, current);
+            const nextTitleBlock = applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints);
             drawingStore.updateSettings({ titleBlock: nextTitleBlock });
             cadLog.info('FileIO', 'Applied TRV metadata to title block');
           }

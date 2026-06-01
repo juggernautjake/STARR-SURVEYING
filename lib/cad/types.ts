@@ -352,6 +352,20 @@ export interface Feature {
   geometry: FeatureGeometry;
   layerId: string;
   style: FeatureStyle;
+  /**
+   * Free-form per-feature metadata. Notable TRV-import keys
+   * (cad-trv-drawing-element-rendering):
+   *  - `trvPointMirror: true` — a Drawing-layer echo of a Points-
+   *    layer point (independent geometry; excluded from TRV export).
+   *  - `trvDerived: true` — a render echo synthesized from the
+   *    verbatim `28` drawing-element block (connector line, element
+   *    polyline/line, or text). Excluded from the TRV point/traverse
+   *    export so the `28` block stays the single round-trip source.
+   *  - `trvElementKind` — `'CONNECTOR' | 'ELEMENT_POLYLINE' |
+   *    'ELEMENT_LINE' | 'ELEMENT_TEXT'`.
+   *  - `trvElementSourceLine` — source line index of the originating
+   *    `28` record (for a future edit-through round-trip).
+   */
   properties: Record<string, string | number | boolean>;
 
   /** ID of the FeatureGroup this feature belongs to, or null/undefined if ungrouped. */
