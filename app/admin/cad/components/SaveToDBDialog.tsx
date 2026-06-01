@@ -9,6 +9,7 @@ import { useDrawingStore, useSelectionStore, useUndoStore, useSaveTargetStore } 
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { cadLog } from '@/lib/cad/logger';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+import { requestDiscard } from '../hooks/useUnsavedChangesGuard';
 
 interface SavedDrawingMeta {
   id: string;
@@ -147,7 +148,13 @@ export default function SaveToDBDialog({ mode, onClose }: Props) {
   }
 
   // ── Open handler ─────────────────────────────────────────────────────
-  async function handleOpen(id: string) {
+  function handleOpen(id: string) {
+    // Opening a saved drawing replaces the current one — prompt to
+    // save first if there are unsaved changes.
+    requestDiscard(() => { void doOpen(id); });
+  }
+
+  async function doOpen(id: string) {
     setOpening(true);
     setLoadError(null);
     try {
