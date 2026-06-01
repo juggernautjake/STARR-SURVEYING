@@ -90,3 +90,19 @@ describe('getCadReturnPath / setCadReturnPath / clearCadReturnPath', () => {
     expect(getCadReturnPath()).toBe('/admin/jobs/J-1042?tab=cad#drawings');
   });
 });
+
+describe('useCadReturnPathTracker — continuous non-CAD recording (Slice 10)', () => {
+  it('records EVERY non-CAD path (not just the transition) so hard nav into CAD is covered', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const src = fs.readFileSync(
+      path.join(process.cwd(), 'lib', 'admin', 'cad-return-path.ts'),
+      'utf8',
+    );
+    const hook = src.slice(src.indexOf('export function useCadReturnPathTracker'));
+    // Records whenever the current path is non-CAD …
+    expect(hook).toMatch(/if \(!isCadPath\(pathname\)\) setCadReturnPath\(pathname\)/);
+    // … and no longer gates on a prev-ref transition (the bug).
+    expect(hook).not.toMatch(/prev\.current/);
+  });
+});

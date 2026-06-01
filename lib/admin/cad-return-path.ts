@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 
 const STORAGE_KEY = 'cad:returnPath';
@@ -66,21 +66,23 @@ export function clearCadReturnPath(): void {
   }
 }
 
-/** Hook for the always-mounted admin layout: watches the pathname,
- *  and when the user transitions INTO `/admin/cad` from somewhere else
- *  (the prior tick wasn't a CAD path), stores the prior pathname as
- *  the return-to target. Skips the initial mount so a direct CAD URL
- *  (bookmark / refresh) doesn't store `/admin/cad` itself. */
+/** Hook for the always-mounted admin layout: continuously remembers
+ *  the most recent NON-CAD admin path so the CAD "Exit" button returns
+ *  there no matter HOW the user entered CAD.
+ *
+ *  cad-trv-fidelity Slice 10 — the old logic only recorded the single
+ *  non-CAD → /admin/cad CLIENT-SIDE transition (via a `prev` ref). A
+ *  HARD page load into `/admin/cad` (a fresh URL, a refresh, or any
+ *  full navigation) mounts the tracker fresh with `prev = null`, so the
+ *  transition was never observed and Exit always fell back to the
+ *  research-cad menu. Recording EVERY non-CAD path means the page the
+ *  user was on right before CAD is always on file in sessionStorage —
+ *  it was written while they were still on that page, surviving even a
+ *  hard navigation into the editor. */
 export function useCadReturnPathTracker(): void {
   const pathname = usePathname();
-  const prev = useRef<string | null>(null);
   useEffect(() => {
-    const last = prev.current;
-    prev.current = pathname;
     if (!pathname) return;
-    // Only record on a fresh transition from non-CAD into CAD.
-    if (isCadPath(pathname) && last && !isCadPath(last)) {
-      setCadReturnPath(last);
-    }
+    if (!isCadPath(pathname)) setCadReturnPath(pathname);
   }, [pathname]);
 }

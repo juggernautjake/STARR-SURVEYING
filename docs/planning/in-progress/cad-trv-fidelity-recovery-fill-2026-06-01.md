@@ -307,7 +307,17 @@ doc is not dirty; exit with no edits doesn't prompt; an edit flips dirty
 and exit prompts.
 
 ### Slice 10 — Exit returns to the page the user came from
-*Added 2026-06-01 (user follow-up).* The Exit button currently routes to
+*Added 2026-06-01 (user follow-up).*
+> **DONE (2026-06-01).** Root cause: `useCadReturnPathTracker` only
+> recorded the single non-CAD → `/admin/cad` CLIENT-SIDE transition via
+> a `prev` ref. A hard page load into CAD (fresh URL / refresh / full
+> nav) mounts the tracker with `prev=null`, so the transition was never
+> seen and Exit always fell back to the research-cad menu. Fix: the
+> tracker now continuously records EVERY non-CAD admin path to
+> sessionStorage, so the page the user was on right before CAD is
+> always on file (written while still on it, surviving a hard nav). The
+> Exit button + `getCadReturnPath` fallback are unchanged. Test added to
+> `cad-return-path.test.ts`. Suite green. The Exit button currently routes to
 the research/CAD menu instead of the previous page. There's a
 `returnTo` concept (`MenuBar.tsx:1268-1281` `cad-exit-return-path`).
 Action: capture the actual referring page on CAD entry (e.g. stash
