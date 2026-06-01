@@ -444,12 +444,18 @@ broken. Build a full bug-reporting flow:
 > (added `whitespace-pre-line` so the multi-line count/notes summary
 > displays cleanly). Test updated in `trv-io.test.ts` (import uses
 > `confirmAction`, no `window.confirm` in `importTrv`). Suite 2532
-> green. **Remaining (follow-up):** the Exit-button unsaved-changes
-> `window.confirm`, the save/export error `alert`s in `MenuBar.tsx`
-> (lines ~155/194/437/447/462/575/585/596), and an audit of the other
-> ~40 native `confirm`/`alert` calls across `app/admin/cad/` +
-> non-CAD admin — route them through `confirmAction` / a small
-> `alertAction` info-modal built on `ModalFrame`. Replace the native
+> green.
+>
+> **MenuBar DONE (2026-06-01).** Added `alertAction` (single-button
+> Starr info-modal, via a new `hideCancel` on `ConfirmDialog`). Every
+> native `window.confirm`/`alert` in `MenuBar.tsx` is now converted: the
+> Exit-button unsaved-changes prompt → `confirmAction` (danger Leave/
+> Stay), and all ~16 save/export/import `alert`s → `alertAction`.
+> MenuBar has ZERO native popups left (locked by
+> `starr-modals-unify.test.ts`). Suite 2562 green. **Remaining
+> (follow-up):** audit the other native `confirm`/`alert` calls in the
+> rest of `app/admin/cad/` (CanvasViewport etc.) + non-CAD admin and
+> route them through `confirmAction`/`alertAction` too. Replace the native
 `window.confirm` / `window.alert` popups (48 in `app/admin/cad/`),
 especially the TRV/data IMPORT confirmation popups in `MenuBar.tsx`
 (Open + Import flows) the user dislikes, with the existing custom

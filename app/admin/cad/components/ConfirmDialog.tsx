@@ -28,6 +28,10 @@ export interface ConfirmOpts {
   cancelLabel?: string;
   /** When true, the confirm button is rendered in a destructive (red) style. */
   danger?: boolean;
+  /** cad-trv-fidelity Slice 13 — when true, hide the Cancel button so
+   *  the dialog reads as a single-button INFO/alert (used by
+   *  `alertAction`). */
+  hideCancel?: boolean;
 }
 
 let pendingResolver: ((confirmed: boolean) => void) | null = null;
@@ -51,6 +55,16 @@ export function confirmAction(opts: ConfirmOpts): Promise<boolean> {
     pendingResolver = resolve;
     window.dispatchEvent(new CustomEvent('cad:openConfirmDialog', { detail: opts }));
   });
+}
+
+/**
+ * cad-trv-fidelity Slice 13 — Starr-styled replacement for the native
+ * `window.alert`: a single-button info modal. Resolves when dismissed.
+ * Use this instead of `alert(...)` so every CAD message shares the
+ * app's modal styling.
+ */
+export function alertAction(opts: Omit<ConfirmOpts, 'danger' | 'hideCancel' | 'cancelLabel'>): Promise<void> {
+  return confirmAction({ ...opts, confirmLabel: opts.confirmLabel ?? 'OK', hideCancel: true }).then(() => undefined);
 }
 
 export default function ConfirmDialog() {
@@ -118,14 +132,18 @@ export default function ConfirmDialog() {
           {state.message}
         </div>
         <div className="px-4 py-3 flex items-center justify-end gap-2 border-t border-gray-700 bg-gray-900/50">
-          <button
-            type="button"
-            className="px-3 h-7 rounded text-[12px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
-            onClick={cancel}
-            autoFocus={!danger}
-          >
-            {state.cancelLabel ?? 'Cancel'}
-          </button>
+          {/* cad-trv-fidelity Slice 13 — single-button INFO/alert hides
+              the Cancel button via hideCancel. */}
+          {!state.hideCancel && (
+            <button
+              type="button"
+              className="px-3 h-7 rounded text-[12px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={cancel}
+              autoFocus={!danger}
+            >
+              {state.cancelLabel ?? 'Cancel'}
+            </button>
+          )}
           <button
             type="button"
             className={`px-3 h-7 rounded text-[12px] border text-white transition-colors ${confirmBtnClass}`}

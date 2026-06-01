@@ -27,7 +27,7 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 // cad-trv-import-export Slice 4 — File menu Import / Export TRV.
 import { downloadTrv, importTrvFromText, formatRenderedElements, type TrvImportReport } from '@/lib/cad/io/trv-io';
-import { confirmAction } from './ConfirmDialog';
+import { confirmAction, alertAction } from './ConfirmDialog';
 import { requestDiscard } from '../hooks/useUnsavedChangesGuard';
 // cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
 // to the survey title block (non-destructive).
@@ -152,7 +152,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       cadLog.info('FileIO', `Saved drawing locally: ${name}`);
     } catch (err) {
       cadLog.error('FileIO', 'Failed to save document', err);
-      alert('Failed to save the drawing. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to save the drawing. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -191,7 +191,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Save failed';
       cadLog.error('FileIO', 'Failed to save drawing to cloud', err);
-      alert(`Couldn’t save to the cloud: ${msg}\n\nYou can try again or use “Save to Cloud…”.`);
+      void alertAction({ title: 'Starr CAD', message: `Couldn’t save to the cloud: ${msg}\n\nYou can try again or use “Save to Cloud…”.` });
     }
   }
 
@@ -434,7 +434,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       cadLog.info('FileIO', `Exported ${rowCount} points as ${flavor} CSV → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'CSV export failed', err);
-      alert('Failed to export CSV. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export CSV. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -444,7 +444,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       cadLog.info('FileIO', `Exported ${rowCount} points as Traverse PC PNEZD → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'Traverse PC export failed', err);
-      alert('Failed to export Traverse PC file. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export Traverse PC file. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -459,7 +459,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       cadLog.info('FileIO', `Exported drawing as TRV: ${filename} (${byteSize} bytes)`);
     } catch (err) {
       cadLog.error('FileIO', 'TRV export failed', err);
-      alert('Failed to export TRV. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export TRV. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -572,7 +572,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       );
     } catch (err) {
       cadLog.error('FileIO', 'DXF export failed', err);
-      alert('Failed to export DXF. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export DXF. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -582,7 +582,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       cadLog.info('FileIO', `Exported drawing as LandXML: ${filename} (${byteSize} bytes)`);
     } catch (err) {
       cadLog.error('FileIO', 'LandXML export failed', err);
-      alert('Failed to export LandXML. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export LandXML. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -593,7 +593,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   function exportSelection(format: 'CSV' | 'DXF' | 'LANDXML') {
     const ids = Array.from(selectionStore.selectedIds);
     if (ids.length === 0) {
-      alert('Select one or more features first, then choose Export selection.');
+      void alertAction({ title: 'Starr CAD', message: 'Select one or more features first, then choose Export selection.' });
       return;
     }
     try {
@@ -611,7 +611,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       }
     } catch (err) {
       cadLog.error('FileIO', `Selection export (${format}) failed`, err);
-      alert(`Failed to export the selection as ${format}. Try again, or contact support if it keeps failing.`);
+      void alertAction({ title: 'Starr CAD', message: `Failed to export the selection as ${format}. Try again, or contact support if it keeps failing.` });
     }
   }
 
@@ -625,7 +625,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       cadLog.info('FileIO', `Exported Traverse PC bundle (${pointCount} points) → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'Traverse PC bundle export failed', err);
-      alert('Failed to export Traverse PC bundle. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export Traverse PC bundle. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -655,7 +655,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         }
       } catch (err) {
         cadLog.error('FileIO', 'GeoJSON import failed', err);
-        alert('Failed to import GeoJSON. Try again, or contact support if it keeps failing.');
+        void alertAction({ title: 'Starr CAD', message: 'Failed to import GeoJSON. Try again, or contact support if it keeps failing.' });
       }
     };
     input.click();
@@ -687,7 +687,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         }
       } catch (err) {
         cadLog.error('FileIO', 'DXF import failed', err);
-        alert('Failed to import DXF. Try again, or contact support if it keeps failing.');
+        void alertAction({ title: 'Starr CAD', message: 'Failed to import DXF. Try again, or contact support if it keeps failing.' });
       }
     };
     input.click();
@@ -714,7 +714,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       );
     } catch (err) {
       cadLog.error('FileIO', 'PDF export failed', err);
-      alert('Failed to export PDF. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export PDF. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -732,9 +732,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       );
     } catch (err) {
       cadLog.error('FileIO', 'Field reference cards export failed', err);
-      alert(
-        'Failed to export field reference cards. Try again, or contact support if it keeps failing.'
-      );
+      void alertAction({
+        title: 'Starr CAD',
+        message: 'Failed to export field reference cards. Try again, or contact support if it keeps failing.',
+      });
     }
   }
 
@@ -747,7 +748,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       );
     } catch (err) {
       cadLog.error('FileIO', 'GeoJSON export failed', err);
-      alert('Failed to export GeoJSON. Try again, or contact support if it keeps failing.');
+      void alertAction({ title: 'Starr CAD', message: 'Failed to export GeoJSON. Try again, or contact support if it keeps failing.' });
     }
   }
 
@@ -769,9 +770,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       );
     } catch (err) {
       cadLog.error('FileIO', 'Deliverable bundle export failed', err);
-      alert(
-        'Failed to export deliverable bundle. Try again, or contact support if it keeps failing.'
-      );
+      void alertAction({
+        title: 'Starr CAD',
+        message: 'Failed to export deliverable bundle. Try again, or contact support if it keeps failing.',
+      });
     }
   }
 
@@ -1121,7 +1123,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         { label: 'Settings & Preferences…', action: () => { window.dispatchEvent(new CustomEvent('cad:openSettings')); setOpenMenu(null); } },
         { separator: true },
         { label: 'Keyboard Shortcuts…', action: () => { setShowShortcuts(true); setOpenMenu(null); } },
-        { label: 'About Starr CAD', action: () => alert('Starr CAD — Phase 1\nBuilt for Starr Surveying Company\nVersion 1.0') },
+        { label: 'About Starr CAD', action: () => void alertAction({ title: 'Starr CAD', message: 'Starr CAD — Phase 1\nBuilt for Starr Surveying Company\nVersion 1.0' }) },
       ],
     },
   ];
@@ -1290,7 +1292,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       <div className="mr-3 flex items-center gap-1 shrink-0">
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
             // cad-exit-return-path 2026-05-30 — send the user back to
             // the page they came from (recorded by
             // `useCadReturnPathTracker` in AdminLayoutClient), defaulting
@@ -1298,9 +1300,15 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             // URL hit / browser refresh inside CAD / cleared session).
             const returnTo = getCadReturnPath('/admin/research-cad');
             if (drawingStore.isDirty) {
-              const ok = window.confirm(
-                `You have unsaved changes. Leave the CAD editor and return to ${returnTo}? Unsaved changes will be lost.`,
-              );
+              // cad-trv-fidelity Slice 13 — Starr-styled confirm instead
+              // of the native window.confirm.
+              const ok = await confirmAction({
+                title: 'Leave the CAD editor?',
+                message: `You have unsaved changes. Leave and return to ${returnTo}? Unsaved changes will be lost.`,
+                confirmLabel: 'Leave',
+                cancelLabel: 'Stay',
+                danger: true,
+              });
               if (!ok) return;
             }
             clearCadReturnPath();
