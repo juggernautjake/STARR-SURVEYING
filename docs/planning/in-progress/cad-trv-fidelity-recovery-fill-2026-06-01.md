@@ -206,6 +206,14 @@ get no code→symbol assignment.
   byte-stable (extend `trv-derived-roundtrip.test.ts`).
 
 ### Slice 3 — Real element names in the Layer panel
+
+> **DONE (2026-06-01).** Extracted a pure `featureRowLabel`
+> (`lib/cad/feature-row-label.ts`) and wired both LayerPanel feature-row
+> spans to it. POINTs now read `Point <pointName> · <code>` (e.g.
+> `Point 309 · 20fnd`, from `properties.pointName` + `properties.code`
+> that `mapPoint` already stamps); TEXT reads `Text "<≤24-char snippet>"`
+> from `geometry.textContent` (multi-line collapsed); other types keep
+> `TYPE – name`. Unit test `feature-row-label.test.ts`. Suite 2539 green.
 - `LayerPanel` feature-row label: for `POINT`, show `Point <pointName>
   <code>` (e.g. `Point 309`, `Point 20fnd`) using `properties.pointName`
   + the point CODE (`properties.code`/`description` first token). For

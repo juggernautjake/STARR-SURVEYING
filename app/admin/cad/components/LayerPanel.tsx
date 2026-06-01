@@ -15,6 +15,7 @@ import type { Layer, TitleBlockConfig } from '@/lib/cad/types';
 // cad-layer-grouping-and-context-menus Slice 1 — POLYGON/POLYLINE
 // expand-chevron helpers for the layer panel.
 import { formatFeatureVertices, isExpandableFeature } from '@/lib/cad/feature-vertices';
+import { featureRowLabel } from '@/lib/cad/feature-row-label';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
@@ -547,7 +548,7 @@ export default function LayerPanel() {
                             >
                               {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
                             </button>
-                            <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                            <span className="truncate">{featureRowLabel(feat)}</span>
                           </div>
                           {isExpanded && (
                             <div data-testid={`layer-panel-feature-vertices-${feat.id}`}>
@@ -957,7 +958,7 @@ export default function LayerPanel() {
                           >
                             {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
                           </button>
-                          <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                          <span className="truncate">{featureRowLabel(feat)}</span>
                         </div>
                         {/* cad-layer-grouping Slice 1 — expanded
                             vertex list. Read-only display; per-vertex
