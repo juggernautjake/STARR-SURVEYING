@@ -31,10 +31,13 @@ describe('default-layers (slimmed)', () => {
   });
 
   // ── Default layers ────────────────────────────────────────
-  it('has exactly 4 default layers', () => {
-    expect(PHASE3_DEFAULT_LAYERS).toHaveLength(4);
+  // 2026-06-01 — trimmed to just SURVEY-INFO + DEFAULT (Layer 1).
+  // The standalone TITLE-BLOCK + ANNOTATION layers are no longer
+  // pre-seeded; the title-block furniture lives on SURVEY-INFO.
+  it('has exactly 2 default layers (Survey Info + Layer 1)', () => {
+    expect(PHASE3_DEFAULT_LAYERS).toHaveLength(2);
     expect(PHASE3_DEFAULT_LAYERS.map((l) => l.id).sort()).toEqual(
-      ['ANNOTATION', 'DEFAULT', 'SURVEY-INFO', 'TITLE-BLOCK'],
+      ['DEFAULT', 'SURVEY-INFO'],
     );
   });
 
@@ -84,15 +87,15 @@ describe('default-layers (slimmed)', () => {
     }
   });
 
-  it('getDefaultLayersRecord returns exactly 4 entries keyed by id', () => {
+  it('getDefaultLayersRecord returns exactly 2 entries keyed by id', () => {
     const record = getDefaultLayersRecord();
-    expect(Object.keys(record)).toHaveLength(4);
+    expect(Object.keys(record)).toHaveLength(2);
     for (const layer of PHASE3_DEFAULT_LAYERS) {
       expect(record[layer.id]?.id).toBe(layer.id);
     }
   });
 
-  it('getDefaultLayerOrder returns 4 ids in source order', () => {
-    expect(getDefaultLayerOrder()).toEqual(['SURVEY-INFO', 'TITLE-BLOCK', 'ANNOTATION', 'DEFAULT']);
+  it('getDefaultLayerOrder returns the 2 ids in source order', () => {
+    expect(getDefaultLayerOrder()).toEqual(['SURVEY-INFO', 'DEFAULT']);
   });
 });
