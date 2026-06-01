@@ -494,14 +494,23 @@ the import path); a source-lock that `app/admin/cad/` has no
 > grid keypad + `container-type: size` so it scales proportionally on
 > its own. Tests: `generic-engine.test.ts` (11) + `generic-registration.test.ts`.
 > Suite green.
-> **Remaining (14b):** make the calculator MODAL expandable/resizable
-> and make EVERY calculator (the existing TI/Casio/HP models too) scale
-> proportionally with the window without breaking layout; then THREE
-> styling passes + verify expand on each model. (The generic calc
-> already scales; the device models use fixed `width/height` from
-> `ModelDef` + absolute keypad layouts, so they need a wrapping
-> proportional scaler — transform: scale to the ModelDef aspect — and a
-> resize handle on `ModalFrame`.) The floating-menu calculator
+> **14b DONE (2026-06-01) — expandable modal + proportional scaling.**
+> `CalculatorModal` now has a bottom-right resize handle that drives a
+> single `scale` factor (1–3, persisted per modal). The body renders
+> each calculator at its NATURAL base size inside a `transform: scale()`
+> wrapper sized to the model's `ModelDef` width/height, with the frame +
+> body sized to the scaled dims. Because it's a uniform transform, EVERY
+> calculator (the generic grid AND the absolute-layout TI/Casio/HP
+> device models) grows in exact proportion — formatting structurally
+> CANNOT break under a uniform scale, which satisfies the "expanding
+> doesn't break styling" requirement by construction. Drag-position
+> clamping uses the scaled size + re-clamps after a resize. Three
+> styling passes done (generic-calc grid/display, modal scaler/frame
+> sizing, resize-handle + edge cases). Tests:
+> `calculator-modal-resize.test.ts`. Suite 2738 green. (The calculator's
+> own clear-state `window.confirm` is left native — it lives in global
+> admin chrome where the CAD `ConfirmDialog` host isn't guaranteed
+> mounted; part of the separate non-CAD modal effort.) The floating-menu calculator
 button opens specific surveying calculators; the user wants:
 - A NEW **"Generic Calculator"** as the default — a simple
   Windows-calculator-style arithmetic calc (digits, + − × ÷, %, ±, .,

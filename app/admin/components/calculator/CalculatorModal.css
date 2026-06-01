@@ -785,3 +785,27 @@
 .generic-calc__key--fn:hover { background: #1e293b; }
 .generic-calc__key--equals { background: #16a34a; color: #ffffff; border-color: #16a34a; }
 .generic-calc__key--equals:hover { background: #22c55e; }
+
+/* cad-trv-fidelity Slice 14b — expandable modal. The scaler wraps the
+   calculator at its natural base size and is transform-scaled to fill
+   the (scaled) body, so every model grows proportionally. */
+.calc-modal__scaler {
+  transform-origin: top left;
+}
+/* Bottom-right resize grip — diagonal lines hint at draggability. */
+.calc-modal__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  z-index: 2;
+  background:
+    linear-gradient(135deg, transparent 0 45%, rgba(148, 163, 184, 0.9) 45% 55%, transparent 55% 70%, rgba(148, 163, 184, 0.7) 70% 80%, transparent 80%);
+  border-bottom-right-radius: 10px;
+}
+.calc-modal__resize:hover {
+  background:
+    linear-gradient(135deg, transparent 0 45%, rgba(59, 130, 246, 1) 45% 55%, transparent 55% 70%, rgba(59, 130, 246, 0.9) 70% 80%, transparent 80%);
+}
