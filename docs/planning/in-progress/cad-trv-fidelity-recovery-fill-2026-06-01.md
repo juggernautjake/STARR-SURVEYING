@@ -224,6 +224,23 @@ get no code→symbol assignment.
 - Tests: a LayerPanel source/unit test for the three label forms.
 
 ### Slice 4 — Survey labels as editable TEXT elements + tethering + formatting
+
+> **TEXT FORMATTING/PLACEMENT/WRAP DONE (2026-06-01) — user follow-up.**
+> Imported `28,5` world text now follows TPC's EXACT placement (world
+> x/y) + font size, KEEPS TPC's own line breaks (the `¶`→`\n` from
+> `cleanLabelText`) as the authoritative formatting, and uses Arial
+> (TPC's plat font per the `51` records). When a label has NO explicit
+> breaks, `wrapSurveyLabel` balance-wraps it: target line width ≈
+> √(totalChars × 2.4), never narrower than the longest word, greedy
+> whole-word packing (NEVER splits a word) — a formula over the total
+> letters, word count, and longest word, exactly as requested. Imported
+> text is `textAlign: 'center'`; the text TOOL stays `'left'`.
+> `renderTextFeatures` now anchors the block by alignment (center →
+> 0.5) so centered text centers on its point. Tests in
+> `trv-text-elements.test.ts`. Suite 2572 green.
+> **Remaining (the original Slice 4):** turn point/line/area labels
+> (`28,12/15/14`) — currently metadata strings — into editable TEXT
+> features + tether them to the owning traverse layer.
 - Convert point/line/area labels (`28,12/15/14`) from metadata strings
   into real editable `TEXT` features (like the text tool), placed at the
   TPC label coordinates, carrying captured formatting (font size/family/

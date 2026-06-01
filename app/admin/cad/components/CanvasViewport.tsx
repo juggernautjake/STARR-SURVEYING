@@ -4298,7 +4298,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           fill: color, align,
         });
         textObj = new pixi.TextClass(geom.textContent, style);
-        textObj.anchor.set(0, 0.5);
         textObj.resolution = pixi.app.renderer.resolution;
         pixi.labelTexts.set(key, textObj);
         pixi.labelLayer.addChild(textObj);
@@ -4313,6 +4312,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         s.align = align;
       }
 
+      // cad-trv-fidelity Slice 4 — anchor the text block by its
+      // alignment so CENTER-aligned (imported TRV) text is centered on
+      // its point, while LEFT-aligned (text-tool default) text keeps its
+      // left edge at the point. Updated every frame so an alignment
+      // change re-anchors without re-allocating the Text object.
+      const anchorX = align === 'center' ? 0.5 : align === 'right' ? 1 : 0;
+      textObj.anchor.set(anchorX, 0.5);
       textObj.position.set(sx, sy);
       textObj.rotation = -rotation;
       textObj.alpha = alpha;

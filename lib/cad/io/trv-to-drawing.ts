@@ -39,7 +39,7 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
-import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements } from './trv-drawing-elements';
+import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements, wrapSurveyLabel } from './trv-drawing-elements';
 // cad-trv-fidelity Slice 7 — assign a monument/utility symbol to an
 // imported point when its feature code matches a symbol's assignedCodes.
 import { getSymbolsByAssignedCode } from '../styles/symbol-library';
@@ -739,10 +739,17 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     let nText = 0;
     for (const t of extractTextElements(doc.drawingElements)) {
       if (t.space !== 'WORLD') continue;
+      // cad-trv-fidelity Slice 4 — follow TPC's exact placement (the
+      // world x/y) + font size. We keep TPC's own line breaks when
+      // present; otherwise we balance-wrap the label (whole words only)
+      // and CENTER it, which is the requested fallback when no explicit
+      // formatting is available. Font family is Arial (TPC's plat font,
+      // per the `51` style records).
+      const content = wrapSurveyLabel(t.text);
       textFeatures.push({
         id: `trv-text:${t.sourceLine}`,
         type: 'TEXT',
-        geometry: { type: 'TEXT', point: { x: t.x, y: t.y }, textContent: t.text },
+        geometry: { type: 'TEXT', point: { x: t.x, y: t.y }, textContent: content },
         layerId: drawingLayerId,
         style: defaultStyle(),
         properties: {
@@ -750,6 +757,8 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
           trvElementKind: 'ELEMENT_TEXT',
           trvElementSourceLine: t.sourceLine,
           fontSize: t.fontSize > 0 ? t.fontSize : 6,
+          fontFamily: 'Arial',
+          textAlign: 'center',
         },
       });
       nText++;

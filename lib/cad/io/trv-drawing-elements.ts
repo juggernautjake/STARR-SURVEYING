@@ -199,6 +199,42 @@ export function extractTextElements(elements: ReadonlyArray<TrvDrawingElement>):
   return out;
 }
 
+/** cad-trv-fidelity Slice 4 — balanced word-wrap for a survey text
+ *  label that carries NO explicit line breaks. TPC's own line breaks
+ *  (the pilcrow `¶`, already turned into `\n` by `cleanLabelText`) are
+ *  the authoritative formatting and are RESPECTED untouched. For an
+ *  unbroken multi-word label we compute a tidy wrap ourselves:
+ *
+ *    - count the total letters, the words, and the longest word;
+ *    - pick a target line width ≈ √(totalChars × 2.4) — a block ~2.4×
+ *      wider than tall reads best — but never narrower than the longest
+ *      word, so a word is NEVER split mid-way;
+ *    - greedily pack whole words into lines at that width.
+ *
+ *  The caller center-aligns the result. Pure + deterministic. */
+export function wrapSurveyLabel(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  // Respect TPC's explicit line breaks — that IS the formatting.
+  if (trimmed.includes('\n')) return trimmed;
+  const words = trimmed.split(/\s+/);
+  if (words.length <= 1) return trimmed;
+  const totalChars = words.join(' ').length;
+  // Short labels read fine on a single line.
+  if (totalChars <= 14) return trimmed;
+  const longest = words.reduce((m, w) => Math.max(m, w.length), 0);
+  const target = Math.max(longest, Math.round(Math.sqrt(totalChars * 2.4)));
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if (cur === '') cur = w;
+    else if (cur.length + 1 + w.length <= target) cur += ' ' + w;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines.join('\n');
+}
+
 /** cad-trv-drawing-element-rendering Slice 2 — a free geometry
  *  drawing element with coordinates carried INLINE in the `28`
  *  header (not via point-id refs):
