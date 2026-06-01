@@ -136,6 +136,17 @@ fully selectable/editable like any other feature.
 
 ### Slice 2 — `28,30` polylines + `28,4` lines → geometry
 
+> **DONE (2026-06-01).** `extractElementShapes` added (handles both
+> `28,30` and `28,4`): reads inline (E,N) coords → `{x:E,y:N}`,
+> collapses consecutive duplicate vertices, detects closure
+> (first≈last, drops the closing dup). `trvToDrawing` maps them to
+> `trvDerived` LINE / POLYLINE / POLYGON features on the Drawing
+> layer. Round-trip safe via the existing `trvDerived` traverse-filter
+> guard (verified: derived polylines emit no `30/31`). Specs in
+> `trv-element-shapes.test.ts`; Hillsboro integration asserts all 11
+> polylines + 7 lines render. Open `28,30` are kept OPEN (not
+> force-closed) to avoid fabricating a closing edge. Suite 2490 green.
+
 - `trv-drawing-elements.ts`: add `extractElementShapes(elements)` →
   `{ kind:'POLYLINE'|'LINE'; vertices: Point2D[]; closed: boolean; sourceLine: number }[]`.
   - `28,30`: header = `['30', nPts, x1,y1, …]`; read `nPts` pairs as

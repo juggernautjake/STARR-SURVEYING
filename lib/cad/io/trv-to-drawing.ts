@@ -39,7 +39,7 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 // point labels feed into the mapped POINT features so the
 // descriptive text (e.g. "309 inside 315 1in") shows next to
 // each point on import.
-import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors } from './trv-drawing-elements';
+import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes } from './trv-drawing-elements';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -633,6 +633,55 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
       }
     }
   }
+  // cad-trv-drawing-element-rendering Slice 2 — render `28,30`
+  // polylines + `28,4` line segments (coords carried inline in the
+  // header, NOT via point refs) as geometry on the Drawing layer.
+  // These are footprints / structures / reference lines TPC plotted
+  // that we previously dropped. Element coords are (E,N) → Starr
+  // {x:E,y:N}. Tagged `trvDerived` so the verbatim `28` block stays
+  // the round-trip source of truth.
+  const elementShapeFeatures: Feature[] = [];
+  {
+    const shapes = extractElementShapes(doc.drawingElements);
+    let nPoly = 0;
+    let nLine = 0;
+    for (const s of shapes) {
+      if (s.kind === 'LINE') {
+        elementShapeFeatures.push({
+          id: `trv-shape:${s.sourceLine}`,
+          type: 'LINE',
+          geometry: { type: 'LINE', start: { ...s.vertices[0] }, end: { ...s.vertices[1] } },
+          layerId: drawingLayerId,
+          style: defaultStyle(),
+          properties: {
+            trvDerived: true,
+            trvElementKind: 'ELEMENT_LINE',
+            trvElementSourceLine: s.sourceLine,
+          },
+        });
+        nLine++;
+      } else {
+        const ftype: FeatureType = s.closed ? 'POLYGON' : 'POLYLINE';
+        elementShapeFeatures.push({
+          id: `trv-shape:${s.sourceLine}`,
+          type: ftype,
+          geometry: { type: ftype, vertices: s.vertices.map((v) => ({ x: v.x, y: v.y })) },
+          layerId: drawingLayerId,
+          style: defaultStyle(),
+          properties: {
+            trvDerived: true,
+            trvElementKind: 'ELEMENT_POLYLINE',
+            trvElementSourceLine: s.sourceLine,
+            trvElementClosed: s.closed ? 1 : 0,
+          },
+        });
+        nPoly++;
+      }
+    }
+    if (nPoly > 0 || nLine > 0) {
+      notes.push(`Rendered ${nPoly} polyline(s) + ${nLine} line(s) from drawing elements (subtypes 30 / 4)`);
+    }
+  }
   // cad-trv-dual-layer-filename Slice 2 — the surveyor wants two
   // INDEPENDENT layers that happen to start with the same points:
   // the Points layer holds just the points, the Drawing layer holds
@@ -651,7 +700,7 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   }));
   return {
     layers,
-    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures],
+    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures, ...elementShapeFeatures],
     notes,
   };
 }
