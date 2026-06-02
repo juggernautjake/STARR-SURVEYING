@@ -60,7 +60,8 @@ describe('CanvasViewport — drawFillStackForPolygon walker', () => {
   it('strokes/fills each layer with its own opacity (not the outer alpha)', () => {
     expect(SRC).toMatch(/const layerAlpha = Math\.max\(0, Math\.min\(1, layer\.opacity\)\);/);
     expect(SRC).toMatch(/entry\.tex\.beginFill\(colorInt, layerAlpha\)/);
-    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(layer\.scale\), colorInt, layerAlpha\)/);
+    // cad-trv-fidelity — line weight scaled by zoom (world-constant).
+    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(layer\.scale\) \* zoom, colorInt, layerAlpha\)/);
   });
 
   it('clears the texture entry when the resolved stack is empty (so removing every layer wipes the fill)', () => {
