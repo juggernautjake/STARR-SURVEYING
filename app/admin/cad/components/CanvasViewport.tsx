@@ -175,6 +175,12 @@ import type { ProjectImage } from '@/lib/cad/types';
 // Constants
 // ─────────────────────────────────────────────
 const HIT_TOLERANCE_PX = 5;
+// cad-trv-fidelity — infill "fineness". The fill pattern is constant in
+// WORLD units (scales with zoom); this divides the world spacing + dot
+// size + line weight uniformly so the pattern reads FINER (closer to the
+// Traverse PC plat) without changing its zoom-independence. Higher =
+// smaller/denser. Per-feature density/scale sliders still tune on top.
+const PATTERN_WORLD_DETAIL = 3;
 const DEFAULT_GRIP_SIZE = 8; // half-size of grip square in pixels (fallback)
 // Image rotation handle: how far (screen px) the circular grip floats
 // off the top edge, and the sentinel vertex index that marks it.
@@ -3794,7 +3800,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // every primitive's coords / radius / line weight by `zoom` when
     // stroking. Result: spacing + dot size + line weight are fixed in
     // world units and the pattern visibly grows when you zoom in.
+    // `ps` (pattern screen scale) folds in PATTERN_WORLD_DETAIL so the
+    // pattern also reads finer/smaller to match the plat.
     const zoom = useViewportStore.getState().zoom || 1;
+    const ps = zoom / PATTERN_WORLD_DETAIL;
 
     // Bounding rect in screen space drives the pattern generator's
     // local coordinate frame; primitives are then offset by (minX, minY)
@@ -3857,9 +3866,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       dashLen: feature.style.patternDashLen,
       gapLen: feature.style.patternGapLen,
     };
-    // Generate in WORLD-unit space (bbox ÷ zoom) so spacing + sizes are
-    // zoom-independent; scaled back up by `zoom` at stroke time below.
-    const { dots, lines } = generateFillPattern(width / zoom, height / zoom, cfg);
+    // Generate in WORLD-unit space (bbox ÷ ps) so spacing + sizes are
+    // zoom-independent + finer; scaled back up by `ps` at stroke time.
+    const { dots, lines } = generateFillPattern(width / ps, height / ps, cfg);
     // cad-fill-stacking Slice 1 — pattern color defaults to black,
     // and the pattern's alpha is derived from feature.style.fillOpacity
     // (NOT the outer stroke alpha), so picking a pattern renders
@@ -3878,21 +3887,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       : 1;
 
     entry.tex.clear();
-    // Scale every world-space primitive back to screen by `zoom` so the
+    // Scale every world-space primitive back to screen by `ps` so the
     // pattern is constant in world units (grows/shrinks with zoom).
     if (dots.length > 0) {
       entry.tex.lineStyle(0);
       entry.tex.beginFill(colorInt, patternAlpha);
-      for (const d of dots) entry.tex.drawCircle(minX + d.x * zoom, minY + d.y * zoom, d.r * zoom);
+      for (const d of dots) entry.tex.drawCircle(minX + d.x * ps, minY + d.y * ps, d.r * ps);
       entry.tex.endFill();
     }
     if (lines.length > 0) {
       // cad-fills Slice 1 — stroke weight honors the pattern thickness;
-      // also scaled by zoom so line weight is constant in world units.
-      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1) * zoom, colorInt, patternAlpha);
+      // also scaled by ps so line weight is constant in world units.
+      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1) * ps, colorInt, patternAlpha);
       for (const ln of lines) {
-        entry.tex.moveTo(minX + ln.x1 * zoom, minY + ln.y1 * zoom);
-        entry.tex.lineTo(minX + ln.x2 * zoom, minY + ln.y2 * zoom);
+        entry.tex.moveTo(minX + ln.x1 * ps, minY + ln.y1 * ps);
+        entry.tex.lineTo(minX + ln.x2 * ps, minY + ln.y2 * ps);
       }
     }
     entry.tex.visible = true;
@@ -3911,8 +3920,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (!pixi) return;
     if (screenPts.length < 3) return;
     // cad-trv-fidelity — keep each stacked-infill pattern constant in
-    // WORLD units (scales with zoom); see drawFillPatternForPolygon.
+    // WORLD units (scales with zoom) + finer; see drawFillPatternForPolygon.
     const zoom = useViewportStore.getState().zoom || 1;
+    const ps = zoom / PATTERN_WORLD_DETAIL;
 
     const layers = resolveVisibleFillLayers(feature.style);
 
@@ -3992,19 +4002,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         dashLen: layer.dashLen,
         gapLen: layer.gapLen,
       };
-      // World-unit space (÷ zoom), scaled back by zoom at stroke time.
-      const { dots, lines } = generateFillPattern(width / zoom, height / zoom, cfg);
+      // World-unit space (÷ ps), scaled back by ps at stroke time.
+      const { dots, lines } = generateFillPattern(width / ps, height / ps, cfg);
       if (dots.length > 0) {
         entry.tex.lineStyle(0);
         entry.tex.beginFill(colorInt, layerAlpha);
-        for (const d of dots) entry.tex.drawCircle(minX + d.x * zoom, minY + d.y * zoom, d.r * zoom);
+        for (const d of dots) entry.tex.drawCircle(minX + d.x * ps, minY + d.y * ps, d.r * ps);
         entry.tex.endFill();
       }
       if (lines.length > 0) {
-        entry.tex.lineStyle(patternLineWeight(layer.scale) * zoom, colorInt, layerAlpha);
+        entry.tex.lineStyle(patternLineWeight(layer.scale) * ps, colorInt, layerAlpha);
         for (const ln of lines) {
-          entry.tex.moveTo(minX + ln.x1 * zoom, minY + ln.y1 * zoom);
-          entry.tex.lineTo(minX + ln.x2 * zoom, minY + ln.y2 * zoom);
+          entry.tex.moveTo(minX + ln.x1 * ps, minY + ln.y1 * ps);
+          entry.tex.lineTo(minX + ln.x2 * ps, minY + ln.y2 * ps);
         }
       }
     }

@@ -280,8 +280,21 @@ function mapTraverse(
     notes.push(`Traverse "${t.name ?? 'unnamed'}" — fewer than 2 resolvable points; skipped`);
     return [];
   }
-  // Detect closed: first ref id === last ref id.
-  const closed = resolved.length >= 3 && resolved[0].id === resolved[resolved.length - 1].id;
+  // cad-trv-fidelity — register a closed shape as a POLYGON (fillable,
+  // carries an area) when EITHER the traverse repeats its first point id
+  // as the last, OR the first + last points sit at the SAME location
+  // (a closed boundary digitized with two distinct point ids at the
+  // closing corner — TPC does this often). Coordinate closure needs ≥4
+  // points so ≥3 distinct vertices remain after dropping the duplicate.
+  const first = resolved[0];
+  const last = resolved[resolved.length - 1];
+  const CLOSE_EPS = 1e-4;
+  const sameId = resolved.length >= 3 && first.id === last.id;
+  const sameCoord =
+    resolved.length >= 4 &&
+    Math.abs(first.x - last.x) < CLOSE_EPS &&
+    Math.abs(first.y - last.y) < CLOSE_EPS;
+  const closed = sameId || sameCoord;
   const vertices = closed ? resolved.slice(0, -1) : resolved;
   const type: FeatureType = closed ? 'POLYGON' : 'POLYLINE';
   const layerId = t.layerId !== null ? layerIdByTrvId.get(t.layerId) ?? '' : '';
