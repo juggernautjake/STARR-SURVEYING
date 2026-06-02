@@ -107,6 +107,42 @@ export default function LayerPanel() {
   const hoveredTBElem  = selectionStore.hoveredTBElem;
   const selectedTBElem = selectionStore.selectedTBElem;
 
+  // cad-trv-fidelity — when a feature is selected (e.g. clicked on the
+  // canvas), reveal it in the panel: auto-expand its layer + the full
+  // ancestry of feature groups (sublayers) it belongs to, and scroll
+  // its row into view. The layer/group ROWS already highlight off
+  // `selectedIds`; this makes that highlight visible when the branch
+  // was collapsed, so clicking a point/line on the drawing surfaces the
+  // exact layer + sublayer it lives in.
+  const selectionKey = Array.from(selectedIds).sort().join('|');
+  useEffect(() => {
+    if (selectedIds.size === 0) return;
+    const groupById = doc.featureGroups ?? {};
+    const layersToOpen = new Set<string>();
+    const groupsToOpen = new Set<string>();
+    for (const id of selectedIds) {
+      const f = doc.features[id];
+      if (!f) continue;
+      layersToOpen.add(f.layerId);
+      let gid: string | null = f.featureGroupId ?? null;
+      let guard = 0;
+      while (gid && groupById[gid] && guard++ < 50) {
+        groupsToOpen.add(gid);
+        gid = groupById[gid].parentGroupId ?? null;
+      }
+    }
+    if (layersToOpen.size > 0) setExpandedLayers((prev) => new Set([...prev, ...layersToOpen]));
+    if (groupsToOpen.size > 0) setExpandedGroups((prev) => new Set([...prev, ...groupsToOpen]));
+    const firstId = selectedIds.values().next().value;
+    if (firstId) {
+      requestAnimationFrame(() => {
+        const sel = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(firstId) : firstId;
+        document.querySelector(`[data-feature-row="${sel}"]`)?.scrollIntoView({ block: 'nearest' });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionKey]);
+
   function handleToggleVisibility(layer: Layer) {
     store.updateLayer(layer.id, { visible: !layer.visible });
   }

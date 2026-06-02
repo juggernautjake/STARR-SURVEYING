@@ -67,14 +67,14 @@ describe('Slice 236 — drawFillPatternForPolygon helper', () => {
     // anything between `angle:` and the cfg-close so subsequent
     // additions don't churn the source-text lock.
     expect(SRC).toMatch(/const cfg: FillPatternConfig = \{\s*pattern,\s*density: feature\.style\.patternDensity \?\? 1,\s*seed: hashSeed\(feature\.id\),[\s\S]*?scale: feature\.style\.patternScale \?\? 1,[\s\S]*?angle: feature\.style\.patternRotation \?\? 0,[\s\S]*?\};/);
-    // cad-trv-fidelity — generated over the WORLD bbox (÷ zoom) so the
-    // pattern is constant in world units (scales with zoom).
-    expect(SRC).toMatch(/const \{ dots, lines \} = generateFillPattern\(width \/ zoom, height \/ zoom, cfg\);/);
+    // cad-trv-fidelity — generated over the WORLD bbox (÷ ps) so the
+    // pattern is constant in world units (scales with zoom) + finer.
+    expect(SRC).toMatch(/const \{ dots, lines \} = generateFillPattern\(width \/ ps, height \/ ps, cfg\);/);
   });
 
-  it('walks dots via drawCircle and lines via moveTo/lineTo, scaled to screen by zoom', () => {
-    expect(SRC).toMatch(/for \(const d of dots\) entry\.tex\.drawCircle\(minX \+ d\.x \* zoom, minY \+ d\.y \* zoom, d\.r \* zoom\);/);
-    expect(SRC).toMatch(/for \(const ln of lines\) \{[\s\S]*?entry\.tex\.moveTo\(minX \+ ln\.x1 \* zoom, minY \+ ln\.y1 \* zoom\);[\s\S]*?entry\.tex\.lineTo\(minX \+ ln\.x2 \* zoom, minY \+ ln\.y2 \* zoom\);/);
+  it('walks dots via drawCircle and lines via moveTo/lineTo, scaled to screen by ps', () => {
+    expect(SRC).toMatch(/for \(const d of dots\) entry\.tex\.drawCircle\(minX \+ d\.x \* ps, minY \+ d\.y \* ps, d\.r \* ps\);/);
+    expect(SRC).toMatch(/for \(const ln of lines\) \{[\s\S]*?entry\.tex\.moveTo\(minX \+ ln\.x1 \* ps, minY \+ ln\.y1 \* ps\);[\s\S]*?entry\.tex\.lineTo\(minX \+ ln\.x2 \* ps, minY \+ ln\.y2 \* ps\);/);
   });
 
   it('pattern color defaults to black (cad-fill-stacking Slice 1 — no more color fallback chain through feature.style.color)', () => {
@@ -89,7 +89,7 @@ describe('Slice 236 — drawFillPatternForPolygon helper', () => {
     expect(SRC).toMatch(/const rawFillOpacity = feature\.style\.fillOpacity;/);
     expect(SRC).toMatch(/const patternAlpha = Number\.isFinite\(rawFillOpacity\)\s*\?\s*Math\.max\(0, Math\.min\(1, rawFillOpacity as number\)\)\s*:\s*1;/);
     expect(SRC).toMatch(/entry\.tex\.beginFill\(colorInt, patternAlpha\)/);
-    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(feature\.style\.patternScale \?\? 1\) \* zoom, colorInt, patternAlpha\)/);
+    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(feature\.style\.patternScale \?\? 1\) \* ps, colorInt, patternAlpha\)/);
   });
 });
 

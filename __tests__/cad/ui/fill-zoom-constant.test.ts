@@ -23,19 +23,25 @@ describe('infill pattern stays constant in world units across zoom', () => {
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('generates the pattern over the WORLD bbox (screen ÷ zoom)', () => {
-    const matches = SRC.match(/generateFillPattern\(width \/ zoom, height \/ zoom, cfg\)/g) ?? [];
+  it('derives a finer pattern screen-scale ps = zoom / PATTERN_WORLD_DETAIL', () => {
+    expect(SRC).toMatch(/const PATTERN_WORLD_DETAIL = \d+;/);
+    const matches = SRC.match(/const ps = zoom \/ PATTERN_WORLD_DETAIL;/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('scales dot positions + radius back to screen by zoom', () => {
-    expect(SRC).toMatch(/drawCircle\(minX \+ d\.x \* zoom, minY \+ d\.y \* zoom, d\.r \* zoom\)/);
+  it('generates the pattern over the WORLD bbox (screen ÷ ps)', () => {
+    const matches = SRC.match(/generateFillPattern\(width \/ ps, height \/ ps, cfg\)/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('scales line endpoints + weight by zoom', () => {
-    expect(SRC).toMatch(/moveTo\(minX \+ ln\.x1 \* zoom, minY \+ ln\.y1 \* zoom\)/);
-    expect(SRC).toMatch(/lineTo\(minX \+ ln\.x2 \* zoom, minY \+ ln\.y2 \* zoom\)/);
-    expect(SRC).toMatch(/patternLineWeight\(feature\.style\.patternScale \?\? 1\) \* zoom/);
-    expect(SRC).toMatch(/patternLineWeight\(layer\.scale\) \* zoom/);
+  it('scales dot positions + radius back to screen by ps', () => {
+    expect(SRC).toMatch(/drawCircle\(minX \+ d\.x \* ps, minY \+ d\.y \* ps, d\.r \* ps\)/);
+  });
+
+  it('scales line endpoints + weight by ps', () => {
+    expect(SRC).toMatch(/moveTo\(minX \+ ln\.x1 \* ps, minY \+ ln\.y1 \* ps\)/);
+    expect(SRC).toMatch(/lineTo\(minX \+ ln\.x2 \* ps, minY \+ ln\.y2 \* ps\)/);
+    expect(SRC).toMatch(/patternLineWeight\(feature\.style\.patternScale \?\? 1\) \* ps/);
+    expect(SRC).toMatch(/patternLineWeight\(layer\.scale\) \* ps/);
   });
 });
