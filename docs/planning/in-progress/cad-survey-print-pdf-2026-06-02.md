@@ -14,10 +14,39 @@ Two PDF paths already exist:
 
 Libs available: `jspdf` 4.2, `pdfkit` 0.17. The on-screen canvas already renders the full classic furniture set, so the data + layout exist; the gap is producing a clean, well-framed PDF/print of it.
 
-> NOTE: a research pass on classic survey-plat formatting (sheet/border
-> sizes, title-block contents, required graphic elements, certification/
-> notes, line-weight + typography conventions) is running in parallel;
-> fold its concrete checklist into Slice 1 before building.
+## Classic-plat spec (from research, 2026-06-02 — TSPS/ALTA/CAD conventions)
+Paper-space (plotted-sheet) inches, independent of survey scale:
+- **Sheet sizes:** ANSI A 8.5×11, B 11×17, D 22×34, ARCH D 24×36 (24×36
+  field default; 8.5×11 legal minimum). **Border:** heavy line inset
+  0.5in (3 sides) / 1.0–1.5in (left/binding), weight 0.70mm. Reserve the
+  right ~3.5in column for title block + notes + legend; center the
+  drawing in the rest.
+- **Round plot scale:** fit then SNAP to 1"=10/20/30/40/50/60/100/200ft;
+  never an odd ratio. Always pair a GRAPHIC bar scale with the written
+  scale.
+- **Title block** (bottom-right, ~3.5in tall): ALL-CAPS drawing title
+  ("BOUNDARY SURVEY OF…"); firm name/address/phone + firm reg #;
+  surveyor + RPLS #; client; job #; survey date; drawn/checked-by;
+  written scale; Sheet X of Y; revision block.
+- **Graphic elements:** north arrow (north-up), graphic+written scale,
+  legend/key (symbols + line types + abbreviations), monument symbols
+  (found vs set, open vs filled, labeled w/ size/material), bearing+
+  distance on each boundary line, Curve Table (No./Radius/Arc/Delta/
+  ChordBrg/Chord), area in BOTH "SQ. FT. / AC.".
+- **Text/cert:** surveyor certification block (TSPS Cat 1A / ALTA verbatim);
+  circular RPLS seal + signature + date adjacent (not over linework);
+  legal/metes-and-bounds panel; numbered general notes (basis of
+  bearings, FEMA flood zone, title-commitment disclaimer, easements,
+  adjoiner/deed calls).
+- **Line weights (mm):** border 0.70; boundary 0.50–0.70; buildings 0.35;
+  interior/tie/dimension 0.18–0.25; easements/adjoiners dashed 0.25;
+  ROW dash-dot. **Type:** upright sans (Arial/RomanS) for labels/tables,
+  serif/fixed for legal text, ALL-CAPS title. **Plotted text:** title
+  0.20–0.25in; headers 0.12in; bearing/distance 0.08–0.10in; notes
+  0.07–0.10in.
+- **Layout:** drawing optically centered; title/legend/notes stacked in
+  the right column or bottom strip; balanced white space.
+  (Exact insets/sizes are sensible CAD defaults — parameterize them.)
 
 ## Approach
 Make the **vector** export the primary, professional deliverable (crisp,
@@ -30,11 +59,16 @@ push, annotate.
 ## Slices
 
 ### Slice 1 — Sheet framing + heavy border + round plot scale
-Frame the drawing in a proper working area: a heavy border line inset
-from the sheet edge (≈0.5in), the drawing centered in the area above the
-title block, snapped to a round plot scale (1"=10/20/30/40/50/60/100')
-that fits. Reserve the title-block + notes regions. (Pull exact
-inset/region sizes from the research checklist.)
+> **DONE (2026-06-02).** `pdf-writer.ts`: FIT_TO_PAGE now snaps to a
+> ROUND engineering scale via the new exported `roundPlotScale`
+> (1"=10/20/30/40/50/60/80/100/150/200/…' — smallest that fits; huge
+> tracts round to thousands) and plots through `fixedScalePaper` so the
+> drawing centers + measures to a clean scale. Added a heavy `drawBorder`
+> frame (0.02in ≈0.5mm, inset at the margin, drawn last). The title strip
+> now receives + shows the TRUE plotted scale (`1" = N'`). Removed the
+> now-unused `fitToPaper`. Tests in `pdf-writer-framing.test.ts`. Suite
+> 2602 green. (Right-column reservation for notes/legend is handled in
+> later slices.)
 
 ### Slice 2 — North arrow + graphic scale bar + written scale (vector)
 Vector-draw a north arrow (respecting drawing rotation) and a checkered

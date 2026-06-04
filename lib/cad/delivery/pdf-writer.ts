@@ -127,10 +127,15 @@ export function exportToPdf(
   // Reserve 1 inch at the bottom of the page for the title strip.
   const titleStripHeight = 1.0;
   const drawHeight = pageHeight - margin * 2 - titleStripHeight;
-  const xform =
-    scaleMode === 'FIXED'
-      ? fixedScalePaper(extents, drawWidth, drawHeight, margin, margin + titleStripHeight, fixedScale)
-      : fitToPaper(extents, drawWidth, drawHeight, margin, margin + titleStripHeight);
+  // cad-survey-print-pdf Slice 1 — always plot at a measured scale: the
+  // user's FIXED scale, or (FIT_TO_PAGE) the nearest ROUND engineering
+  // scale that fits, so the PDF measures to a clean 1"=N' like a real
+  // plat. Both paths center the drawing in the drawable area.
+  const effectiveScale =
+    scaleMode === 'FIXED' ? fixedScale : roundPlotScale(extents, drawWidth, drawHeight);
+  const xform = fixedScalePaper(
+    extents, drawWidth, drawHeight, margin, margin + titleStripHeight, effectiveScale,
+  );
 
   // ── Render features ──────────────────────────────────────
   pdf.setLineWidth(0.005);
@@ -139,10 +144,13 @@ export function exportToPdf(
   }
 
   // ── Title strip ──────────────────────────────────────────
-  drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight);
+  drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight, effectiveScale);
 
   // ── Seal block (top-left of title strip) ─────────────────
   drawSealBlock(pdf, doc, pageWidth, margin, titleStripHeight);
+
+  // ── Heavy frame border (drawn last so it sits on top) ────
+  drawBorder(pdf, pageWidth, pageHeight, margin);
 
   const blob = pdf.output('blob');
   const filename = `${kebabCase(doc.name) || 'drawing'}.pdf`;
@@ -180,26 +188,33 @@ interface XForm {
   pageHeight: number;
 }
 
-function fitToPaper(
+// cad-survey-print-pdf Slice 1 — classic plats are plotted at a ROUND
+// engineering scale (1"=10/20/.../200'), never an odd fit ratio. Given
+// the drawable area + data extents, pick the smallest standard scale at
+// which the drawing still fits. Returns world-units (ft) per paper inch.
+const ENGINEERING_SCALES = [
+  10, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000,
+];
+export function roundPlotScale(
   extents: { min: Point2D; max: Point2D },
   drawWidth: number,
   drawHeight: number,
-  marginX: number,
-  marginYBottom: number
-): XForm {
+): number {
   const worldW = Math.max(0.001, extents.max.x - extents.min.x);
   const worldH = Math.max(0.001, extents.max.y - extents.min.y);
-  const scaleX = drawWidth / worldW;
-  const scaleY = drawHeight / worldH;
-  const scale = Math.min(scaleX, scaleY);
-  const renderedW = worldW * scale;
-  const renderedH = worldH * scale;
-  // Center within the drawable area.
-  const offsetX =
-    marginX + (drawWidth - renderedW) / 2 - extents.min.x * scale;
-  const offsetY =
-    marginYBottom + (drawHeight - renderedH) / 2 + extents.min.y * scale;
-  return { scale, offsetX, offsetY, pageHeight: 0 };
+  // paper-inches per world-unit that would exactly fit:
+  const fitScale = Math.min(drawWidth / worldW, drawHeight / worldH);
+  const needed = 1 / fitScale; // world-units per paper inch to just fit
+  for (const s of ENGINEERING_SCALES) if (s >= needed) return s;
+  return Math.ceil(needed / 1000) * 1000;
+}
+
+/** cad-survey-print-pdf Slice 1 — heavy frame border inset from the
+ *  sheet trim edge (classic plat look). */
+function drawBorder(pdf: jsPDF, pageWidth: number, pageHeight: number, inset: number): void {
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.02); // ~0.5mm heavy frame
+  pdf.rect(inset, inset, pageWidth - inset * 2, pageHeight - inset * 2);
 }
 
 /**
@@ -412,7 +427,10 @@ function drawTitleStrip(
   doc: DrawingDocument,
   pageWidth: number,
   margin: number,
-  stripHeight: number
+  stripHeight: number,
+  // cad-survey-print-pdf Slice 1 — the actual plotted scale (world-ft
+  // per paper inch) so the title block shows the true "1\" = N'".
+  plotScale?: number,
 ): void {
   const tb = doc.settings.titleBlock;
   const stripTop = pdf.internal.pageSize.getHeight() - margin - stripHeight;
@@ -439,8 +457,12 @@ function drawTitleStrip(
     pdf.text(`${tb.surveyorName}${license}`, rightX, y);
     y += 0.16;
   }
-  if (tb.scaleLabel) {
-    pdf.text(`Scale: ${tb.scaleLabel}`, rightX, y);
+  // Prefer the true plotted scale (Slice 1) over a stale stored label.
+  const scaleText = plotScale
+    ? `1" = ${plotScale}'`
+    : (tb.scaleLabel || '');
+  if (scaleText) {
+    pdf.text(`Scale: ${scaleText}`, rightX, y);
     y += 0.16;
   }
   if (tb.surveyDate) {
