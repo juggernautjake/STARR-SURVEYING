@@ -69,6 +69,27 @@ export type PdfPlotStyle = 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
 
 export type PdfScaleMode = 'FIXED' | 'FIT_TO_PAGE';
 
+/** cad-survey-print-pdf Slice 8 — surveyor certification content. Plain
+ *  data so the writer stays decoupled from the template store; the caller
+ *  (print dialog) projects the active template into this shape. `text`
+ *  may contain `{{surveyorName}}` / `{{licenseNumber}}` / `{{licenseState}}`
+ *  / `{{state}}` / `{{firmName}}` placeholders, substituted at render. */
+export interface PdfCertificationContent {
+  text: string;
+  surveyorName?: string;
+  licenseNumber?: string;
+  licenseState?: string;
+  firmName?: string;
+}
+
+/** cad-survey-print-pdf Slice 8 — general-notes block content. */
+export interface PdfNotesContent {
+  /** Block header. Default "GENERAL NOTES". */
+  title?: string;
+  /** Each entry is rendered as a numbered, wrapped note. */
+  lines: string[];
+}
+
 export interface PdfExportOptions {
   /** Margin around the drawing area, in inches. Default 0.5". */
   marginIn?: number;
@@ -97,6 +118,12 @@ export interface PdfExportOptions {
    *  is skipped automatically when the drawing uses no symbols or
    *  non-solid line types. */
   showLegend?: boolean;
+  /** cad-survey-print-pdf Slice 8 — surveyor certification block, stacked
+   *  in the left data column. Omitted/null = no certification drawn. */
+  certification?: PdfCertificationContent | null;
+  /** cad-survey-print-pdf Slice 8 — general-notes block, stacked in the
+   *  left data column. Omitted/null = no notes drawn. */
+  notes?: PdfNotesContent | null;
 }
 
 export interface PdfExportResult {
@@ -203,11 +230,20 @@ export function exportToPdf(
     drawScaleBar(pdf, margin + 0.35, pageHeight - margin - titleStripHeight - 0.4, effectiveScale);
   }
 
-  // ── Legend / key box (Slice 7) — top-left of the drawable area, on a
-  // white knockout. Skipped automatically when no symbols / non-solid
-  // line types are in use.
+  // ── Left data column (Slices 7 + 8) — legend, then general notes,
+  // then the surveyor's certification, stacked top-down on white
+  // knockouts so they read cleanly over any linework. Each block returns
+  // its bottom Y so the next sits just below it.
+  const colX = margin + 0.3;
+  let colY = margin + 0.3;
   if (options.showLegend !== false) {
-    drawLegend(pdf, collectLegendEntries(features, doc), margin + 0.3, margin + 0.3, plotStyle);
+    colY = drawLegend(pdf, collectLegendEntries(features, doc), colX, colY, plotStyle);
+  }
+  if (options.notes && options.notes.lines.length > 0) {
+    colY = drawNotesBlock(pdf, options.notes, colX, colY + 0.15);
+  }
+  if (options.certification && options.certification.text.trim().length > 0) {
+    drawCertificationBlock(pdf, options.certification, colX, colY + 0.15);
   }
 
   // ── Heavy frame border (drawn last so it sits on top) ────
@@ -1189,15 +1225,16 @@ function collectLegendEntries(features: Feature[], doc: DrawingDocument): Legend
 
 /** Draw the LEGEND key box at paper (x, y) (top-left corner). A white
  *  knockout lets it sit cleanly over any linework. Each row pairs a
- *  sample glyph / line with its name. No-op for an empty entry list. */
+ *  sample glyph / line with its name. No-op for an empty entry list.
+ *  Returns the box's bottom Y so the next stacked block sits below it. */
 function drawLegend(
   pdf: jsPDF,
   entries: LegendEntry[],
   x: number,
   y: number,
   plotStyle: PdfPlotStyle,
-): void {
-  if (entries.length === 0) return;
+): number {
+  if (entries.length === 0) return y;
   const pad = 0.1;
   const headerH = 0.26;
   const rowH = 0.2;
@@ -1246,6 +1283,99 @@ function drawLegend(
     });
     ry += rowH;
   }
+  return y + boxH;
+}
+
+// ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 8 — certification + general-notes blocks
+// ────────────────────────────────────────────────────────────
+
+const DATA_COL_W = 2.6;       // left data-column width (paper inches)
+const DATA_COL_PAD = 0.1;
+const DATA_COL_HEADER_H = 0.26;
+const DATA_COL_ROW_H = 0.13;
+
+/** Shared white-knockout box + bold header for the left-column blocks.
+ *  Returns the y at which body content should start. */
+function drawColumnBoxHeader(pdf: jsPDF, title: string, x: number, y: number, boxH: number): number {
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.01);
+  pdf.rect(x, y, DATA_COL_W, boxH, 'FD');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text(title, x + DATA_COL_PAD, y + 0.17);
+  pdf.setLineWidth(0.005);
+  pdf.line(x, y + DATA_COL_HEADER_H, x + DATA_COL_W, y + DATA_COL_HEADER_H);
+  return y + DATA_COL_HEADER_H + 0.1;
+}
+
+/** Draw the general-notes block (numbered, wrapped) in the left column.
+ *  Returns the box's bottom Y. No-op for empty notes. */
+function drawNotesBlock(pdf: jsPDF, notes: PdfNotesContent, x: number, y: number): number {
+  const items = notes.lines.filter((l) => l && l.trim().length > 0);
+  if (items.length === 0) return y;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  const innerW = DATA_COL_W - DATA_COL_PAD * 2;
+  const wrapped: string[] = [];
+  items.forEach((line, i) => {
+    const lines = pdf.splitTextToSize(`${i + 1}. ${line.trim()}`, innerW) as string[];
+    wrapped.push(...lines);
+  });
+  const boxH = DATA_COL_HEADER_H + 0.1 + wrapped.length * DATA_COL_ROW_H + DATA_COL_PAD;
+  let ry = drawColumnBoxHeader(pdf, (notes.title ?? 'GENERAL NOTES').toUpperCase(), x, y, boxH);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  pdf.setTextColor(0, 0, 0);
+  for (const ln of wrapped) {
+    pdf.text(ln, x + DATA_COL_PAD, ry);
+    ry += DATA_COL_ROW_H;
+  }
+  return y + boxH;
+}
+
+/** Draw the surveyor's certification block (paragraph + signature / date
+ *  lines) in the left column. Returns the box's bottom Y. No-op for an
+ *  empty statement. */
+function drawCertificationBlock(pdf: jsPDF, cert: PdfCertificationContent, x: number, y: number): number {
+  const raw = (cert.text ?? '').trim();
+  if (!raw) return y;
+  const filled = raw
+    .replace(/\{\{surveyorName\}\}/g, cert.surveyorName ?? '')
+    .replace(/\{\{licenseNumber\}\}/g, cert.licenseNumber ?? '')
+    .replace(/\{\{licenseState\}\}/g, cert.licenseState ?? '')
+    .replace(/\{\{state\}\}/g, cert.licenseState ?? '')
+    .replace(/\{\{firmName\}\}/g, cert.firmName ?? '');
+
+  pdf.setFont('times', 'normal');
+  pdf.setFontSize(7);
+  const innerW = DATA_COL_W - DATA_COL_PAD * 2;
+  const bodyLines: string[] = [];
+  filled.split(/\n+/).forEach((para, i) => {
+    if (i > 0) bodyLines.push('');
+    bodyLines.push(...(pdf.splitTextToSize(para.trim(), innerW) as string[]));
+  });
+  const footer = [
+    '',
+    '________________________________',
+    cert.surveyorName
+      ? `${cert.surveyorName}, RPLS${cert.licenseNumber ? ` #${cert.licenseNumber}` : ''}`
+      : 'Registered Professional Land Surveyor',
+    'Date: ____________________',
+  ];
+  const allLines = [...bodyLines, ...footer];
+  const boxH = DATA_COL_HEADER_H + 0.1 + allLines.length * DATA_COL_ROW_H + DATA_COL_PAD;
+  let ry = drawColumnBoxHeader(pdf, "SURVEYOR'S CERTIFICATION", x, y, boxH);
+  pdf.setFont('times', 'normal');
+  pdf.setFontSize(7);
+  pdf.setTextColor(0, 0, 0);
+  for (const ln of allLines) {
+    if (ln) pdf.text(ln, x + DATA_COL_PAD, ry);
+    ry += DATA_COL_ROW_H;
+  }
+  return y + boxH;
 }
 
 // ────────────────────────────────────────────────────────────

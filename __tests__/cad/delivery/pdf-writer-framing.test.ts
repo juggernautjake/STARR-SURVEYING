@@ -237,6 +237,35 @@ describe('Slice 7 — monument symbols + legend (source-locked)', () => {
     expect(SRC).toMatch(/pdf\.rect\(x, y, boxW, boxH, 'FD'\)/);
     expect(SRC).toMatch(/pdf\.text\('LEGEND'/);
     expect(SRC).toMatch(/if \(options\.showLegend !== false\)/);
-    expect(SRC).toMatch(/drawLegend\(pdf, collectLegendEntries\(features, doc\), margin \+ 0\.3, margin \+ 0\.3, plotStyle\)/);
+  });
+});
+
+describe('Slice 8 — certification + general notes blocks (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('renders a numbered, wrapped general-notes block', () => {
+    expect(SRC).toMatch(/function drawNotesBlock/);
+    expect(SRC).toMatch(/pdf\.splitTextToSize\(`\$\{i \+ 1\}\. \$\{line\.trim\(\)\}`, innerW\)/);
+    expect(SRC).toMatch(/notes\.title \?\? 'GENERAL NOTES'/);
+  });
+  it('renders the surveyor certification with substituted vars + signature/date lines', () => {
+    expect(SRC).toMatch(/function drawCertificationBlock/);
+    expect(SRC).toMatch(/\.replace\(\/\\\{\\\{surveyorName\\\}\\\}\/g, cert\.surveyorName \?\? ''\)/);
+    expect(SRC).toMatch(/\.replace\(\/\\\{\\\{state\\\}\\\}\/g, cert\.licenseState \?\? ''\)/);
+    expect(SRC).toMatch(/"SURVEYOR'S CERTIFICATION"/);
+    expect(SRC).toMatch(/Date: ____________________/);
+    // legal text in a serif face, classic-plat convention.
+    expect(SRC).toMatch(/pdf\.setFont\('times', 'normal'\)/);
+  });
+  it('stacks legend → notes → certification down the left data column', () => {
+    expect(SRC).toMatch(/colY = drawLegend\(pdf, collectLegendEntries\(features, doc\), colX, colY, plotStyle\)/);
+    expect(SRC).toMatch(/colY = drawNotesBlock\(pdf, options\.notes, colX, colY \+ 0\.15\)/);
+    expect(SRC).toMatch(/drawCertificationBlock\(pdf, options\.certification, colX, colY \+ 0\.15\)/);
+  });
+  it('shares a white-knockout box + header helper across the column blocks', () => {
+    expect(SRC).toMatch(/function drawColumnBoxHeader/);
+    expect(SRC).toMatch(/pdf\.rect\(x, y, DATA_COL_W, boxH, 'FD'\)/);
   });
 });

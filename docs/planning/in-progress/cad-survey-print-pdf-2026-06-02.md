@@ -156,9 +156,20 @@ push, annotate.
 > `pdf-writer-framing.test.ts`. Suite 2632 green.
 
 ### Slice 8 — Certification + seal + general notes block
-Lay out the surveyor's certification statement, the seal/stamp, and the
-general-notes block (basis of bearings, flood zone, title-commitment
-disclaimer, easements) in a readable, classic arrangement.
+> **DONE (2026-06-02).** The left data column now stacks legend → general
+> notes → surveyor's certification top-down on white knockouts (shared
+> `drawColumnBoxHeader`). `drawNotesBlock` renders a numbered, word-wrapped
+> GENERAL NOTES block (basis of bearings / flood zone / title-commitment
+> disclaimer / easements — whatever lines the caller supplies) using
+> `pdf.splitTextToSize`. `drawCertificationBlock` lays out the cert
+> statement in a serif (times) face — substituting `{{surveyorName}}` /
+> `{{licenseNumber}}` / `{{licenseState}}` / `{{state}}` / `{{firmName}}` —
+> followed by signature + RPLS-license + date lines. Both arrive as plain
+> data via new `PdfCertificationContent` / `PdfNotesContent` options so the
+> writer stays decoupled from the template store (the print dialog wires
+> them in Slice 9); the seal/stamp block was already in place
+> (`drawSealBlock`). Verified end-to-end with cert + notes content. Tests
+> in `pdf-writer-framing.test.ts`. Suite 2636 green.
 
 ### Slice 9 — Print + PrintDialog UX
 A real Print action (browser print of the PDF / print-to-PDF) plus a
