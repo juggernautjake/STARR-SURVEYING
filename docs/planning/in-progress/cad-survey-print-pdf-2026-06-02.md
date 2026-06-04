@@ -140,8 +140,20 @@ push, annotate.
 > 2626 green.
 
 ### Slice 7 — Monument symbols + legend/key
-Draw point symbols (found/set monuments, utilities) via the symbol
-library, and a legend/key box mapping symbols + line types to labels.
+> **DONE (2026-06-02).** POINT features now plot their assigned monument/
+> utility glyph: `drawPointFeature` resolves `style.symbolId` via
+> `findSymbol`, and `renderSymbolPdf` renders the same `SymbolDefinition`
+> paths the Pixi canvas uses (CIRCLE/RECT/PATH incl. beziers via
+> `parseSVGPathData` + `pdf.curveTo`) as crisp jsPDF vectors, sized from
+> the symbol's mm `defaultSize` so monuments plot a constant physical size
+> at any survey scale; INHERIT path colors take the feature ink, NONE
+> skips, and a missing symbol falls back to a crosshair. `collectLegendEntries`
+> gathers the distinct symbols + non-solid line types actually on the
+> sheet, and `drawLegend` draws a bordered LEGEND key box on a white
+> knockout (top-left) pairing each sample glyph / dashed line with its
+> name — auto-skipped when empty, gated on the `showLegend` option.
+> Verified end-to-end (symbol + legend + no-legend cases). Tests in
+> `pdf-writer-framing.test.ts`. Suite 2632 green.
 
 ### Slice 8 — Certification + seal + general notes block
 Lay out the surveyor's certification statement, the seal/stamp, and the

@@ -44,6 +44,9 @@ import type {
 } from '../types';
 import { PAPER_DIMENSIONS } from '../templates/types';
 import { resolveLineTypeWithFallback } from '../styles/linetype-library';
+import { findSymbol } from '../styles/symbol-library';
+import { parseSVGPathData } from '../styles/symbol-renderer';
+import type { SymbolDefinition, LineTypeDefinition } from '../styles/types';
 import { resolveVisibleFillLayers } from '../styles/fill-stack';
 import {
   generateFillPattern,
@@ -89,6 +92,11 @@ export interface PdfExportOptions {
   /** World units per paper inch — only consulted when
    *  `scaleMode === 'FIXED'`. Defaults to 50. */
   scale?: number;
+  /** cad-survey-print-pdf Slice 7 — draw the symbol/line-type legend
+   *  key box (top-left of the drawable area). Default true; the legend
+   *  is skipped automatically when the drawing uses no symbols or
+   *  non-solid line types. */
+  showLegend?: boolean;
 }
 
 export interface PdfExportResult {
@@ -193,6 +201,13 @@ export function exportToPdf(
   }
   if (tb?.scaleBarVisible !== false) {
     drawScaleBar(pdf, margin + 0.35, pageHeight - margin - titleStripHeight - 0.4, effectiveScale);
+  }
+
+  // ── Legend / key box (Slice 7) — top-left of the drawable area, on a
+  // white knockout. Skipped automatically when no symbols / non-solid
+  // line types are in use.
+  if (options.showLegend !== false) {
+    drawLegend(pdf, collectLegendEntries(features, doc), margin + 0.3, margin + 0.3, plotStyle);
   }
 
   // ── Heavy frame border (drawn last so it sits on top) ────
@@ -583,10 +598,11 @@ function drawFeature(
 
   const g = f.geometry;
   switch (f.type) {
-    case 'POINT':
-      if (g.point) drawPoint(pdf, project(g.point, xform));
-      else if (g.start) drawPoint(pdf, project(g.start, xform));
+    case 'POINT': {
+      const anchor = g.point ?? g.start;
+      if (anchor) drawPointFeature(pdf, f, doc, project(anchor, xform), plotStyle);
       return;
+    }
     case 'LINE':
       if (g.start && g.end) {
         drawLine(pdf, project(g.start, xform), project(g.end, xform));
@@ -629,9 +645,142 @@ function drawFeature(
   }
 }
 
-function drawPoint(pdf: jsPDF, p: { x: number; y: number }): void {
-  const r = 0.02;
-  pdf.circle(p.x, p.y, r, 'S');
+// cad-survey-print-pdf Slice 7 — monument / utility symbols.
+//
+// Symbols are authored in a ~10-unit local box; `defaultSize` is the
+// glyph's footprint in MILLIMETRES at 1:1 paper (so monuments plot a
+// constant physical size regardless of the survey scale — exactly the
+// CAD-block convention). We render the same SymbolDefinition paths the
+// Pixi canvas uses, but emit jsPDF vector primitives so they stay crisp.
+const SYMBOL_MIN_IN = 0.07;
+const SYMBOL_MAX_IN = 0.16;
+
+/** Plotted symbol footprint (paper inches) from its mm `defaultSize`. */
+function symbolPlotSizeIn(symbol: SymbolDefinition): number {
+  const mm = symbol.defaultSize > 0 ? symbol.defaultSize : 2.5;
+  return Math.max(SYMBOL_MIN_IN, Math.min(SYMBOL_MAX_IN, mm / MM_PER_INCH));
+}
+
+/** Resolve a symbol path's fill/stroke spec to a concrete hex, or null
+ *  (NONE) — INHERIT resolves to the feature's base ink. */
+function symPathHex(spec: string, baseHex: string): string | null {
+  if (spec === 'NONE') return null;
+  if (spec === 'INHERIT') return baseHex;
+  return spec;
+}
+
+/** Paint whatever path is currently open with the right operator. */
+function paintOpenPath(pdf: jsPDF, hasFill: boolean, hasStroke: boolean): void {
+  if (hasFill && hasStroke) pdf.fillStroke();
+  else if (hasFill) pdf.fill();
+  else pdf.stroke();
+}
+
+/** Render a SymbolDefinition centered at paper (x, y), sized `sizeIn`,
+ *  rotated `rotationDeg`, inheriting `baseHex`. Mirrors the Pixi
+ *  `renderSymbol` math (y-down local frame, scale = size/10). */
+function renderSymbolPdf(
+  pdf: jsPDF,
+  symbol: SymbolDefinition,
+  x: number,
+  y: number,
+  sizeIn: number,
+  rotationDeg: number,
+  baseHex: string,
+  plotStyle: PdfPlotStyle,
+): void {
+  if (!symbol || !Array.isArray(symbol.paths) || symbol.paths.length === 0) return;
+  if (!(sizeIn > 0)) return;
+  const scale = sizeIn / 10;
+  const rad = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const tx = (lx: number, ly: number) => ({
+    x: x + lx * scale * cos - ly * scale * sin,
+    y: y + lx * scale * sin + ly * scale * cos,
+  });
+
+  for (const path of symbol.paths) {
+    if (path.type === 'TEXT') continue;
+    const fillHex = symPathHex(path.fill, baseHex);
+    const strokeHex = symPathHex(path.stroke, baseHex);
+    const hasFill = fillHex !== null;
+    const hasStroke = strokeHex !== null;
+    if (!hasFill && !hasStroke) continue;
+    if (hasStroke) {
+      applyStroke(pdf, strokeHex as string, plotStyle);
+      pdf.setLineWidth(Math.max(0.002, path.strokeWidth * scale));
+    }
+    if (hasFill) applyFill(pdf, fillHex as string, plotStyle);
+    const op = hasFill && hasStroke ? 'FD' : hasFill ? 'F' : 'S';
+
+    switch (path.type) {
+      case 'CIRCLE': {
+        const c = tx(path.cx ?? 0, path.cy ?? 0);
+        const r = (path.r ?? 1) * scale;
+        if (r > 0) pdf.circle(c.x, c.y, r, op);
+        break;
+      }
+      case 'RECT': {
+        const rx = path.x ?? 0, ry = path.y ?? 0, w = path.width ?? 0, h = path.height ?? 0;
+        if (w === 0 || h === 0) break;
+        const p1 = tx(rx, ry), p2 = tx(rx + w, ry), p3 = tx(rx + w, ry + h), p4 = tx(rx, ry + h);
+        pdf.moveTo(p1.x, p1.y);
+        pdf.lineTo(p2.x, p2.y);
+        pdf.lineTo(p3.x, p3.y);
+        pdf.lineTo(p4.x, p4.y);
+        pdf.close();
+        paintOpenPath(pdf, hasFill, hasStroke);
+        break;
+      }
+      case 'PATH': {
+        if (!path.d) break;
+        const cmds = parseSVGPathData(path.d);
+        let started = false;
+        for (const cmd of cmds) {
+          if (cmd.type === 'M') { const p = tx(cmd.x, cmd.y); pdf.moveTo(p.x, p.y); started = true; }
+          else if (cmd.type === 'L') { const p = tx(cmd.x, cmd.y); pdf.lineTo(p.x, p.y); }
+          else if (cmd.type === 'C') {
+            const c1 = tx(cmd.x1!, cmd.y1!), c2 = tx(cmd.x2!, cmd.y2!), p = tx(cmd.x, cmd.y);
+            pdf.curveTo(c1.x, c1.y, c2.x, c2.y, p.x, p.y);
+          } else if (cmd.type === 'Z') {
+            pdf.close();
+          }
+        }
+        if (started) paintOpenPath(pdf, hasFill, hasStroke);
+        break;
+      }
+    }
+  }
+}
+
+/** Draw a POINT feature: its assigned monument/utility symbol when the
+ *  style carries a symbolId, else a small crosshair (matches the canvas). */
+function drawPointFeature(
+  pdf: jsPDF,
+  f: Feature,
+  doc: DrawingDocument,
+  p: { x: number; y: number },
+  plotStyle: PdfPlotStyle,
+): void {
+  const layer = doc.layers[f.layerId];
+  const baseHex = f.style.color ?? layer?.color ?? '#000000';
+  const symbol = f.style.symbolId
+    ? findSymbol(f.style.symbolId, doc.customSymbols ?? [])
+    : undefined;
+  if (symbol) {
+    renderSymbolPdf(
+      pdf, symbol, p.x, p.y, symbolPlotSizeIn(symbol),
+      f.style.symbolRotation ?? 0, baseHex, plotStyle,
+    );
+    return;
+  }
+  // Fallback crosshair.
+  const s = 0.03;
+  applyStroke(pdf, baseHex, plotStyle);
+  pdf.setLineWidth(0.006);
+  pdf.line(p.x - s, p.y, p.x + s, p.y);
+  pdf.line(p.x, p.y - s, p.x, p.y + s);
 }
 
 function drawLine(
@@ -1002,6 +1151,101 @@ function drawSealBlock(
   y += 0.14;
   pdf.setFontSize(6);
   pdf.text(`Hash: ${seal.signatureHash.slice(0, 16)}…`, textX, y);
+}
+
+// ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 7 — legend / key box
+// ────────────────────────────────────────────────────────────
+
+interface LegendEntry {
+  kind: 'SYMBOL' | 'LINETYPE';
+  name: string;
+  symbol?: SymbolDefinition;
+  dash?: number[];
+}
+
+/** Gather the distinct monument/utility symbols and non-solid line types
+ *  actually used by the drawing, in stable first-seen order, so the
+ *  legend only lists what's on the sheet. */
+function collectLegendEntries(features: Feature[], doc: DrawingDocument): LegendEntry[] {
+  const symbols = new Map<string, SymbolDefinition>();
+  const lineTypes = new Map<string, LineTypeDefinition>();
+  for (const f of features) {
+    if (f.type === 'POINT' && f.style.symbolId) {
+      const s = findSymbol(f.style.symbolId, doc.customSymbols ?? []);
+      if (s && !symbols.has(s.id)) symbols.set(s.id, s);
+    }
+    const ltId = f.style.lineTypeId ?? doc.layers[f.layerId]?.lineTypeId ?? 'SOLID';
+    if (ltId && ltId !== 'SOLID' && !lineTypes.has(ltId)) {
+      const lt = resolveLineTypeWithFallback(ltId, doc.customLineTypes ?? []);
+      if (lt.id !== 'SOLID') lineTypes.set(lt.id, lt);
+    }
+  }
+  const entries: LegendEntry[] = [];
+  for (const s of symbols.values()) entries.push({ kind: 'SYMBOL', name: s.name, symbol: s });
+  for (const lt of lineTypes.values()) entries.push({ kind: 'LINETYPE', name: lt.name, dash: lt.dashPattern });
+  return entries;
+}
+
+/** Draw the LEGEND key box at paper (x, y) (top-left corner). A white
+ *  knockout lets it sit cleanly over any linework. Each row pairs a
+ *  sample glyph / line with its name. No-op for an empty entry list. */
+function drawLegend(
+  pdf: jsPDF,
+  entries: LegendEntry[],
+  x: number,
+  y: number,
+  plotStyle: PdfPlotStyle,
+): void {
+  if (entries.length === 0) return;
+  const pad = 0.1;
+  const headerH = 0.26;
+  const rowH = 0.2;
+  const sampleW = 0.5;
+  const boxW = 2.3;
+  const boxH = headerH + entries.length * rowH + pad;
+
+  // White knockout + border.
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.01);
+  pdf.rect(x, y, boxW, boxH, 'FD');
+
+  // Header.
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text('LEGEND', x + pad, y + 0.17);
+  pdf.setLineWidth(0.005);
+  pdf.line(x, y + headerH, x + boxW, y + headerH);
+
+  // Rows.
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  const sampleCx = x + pad + sampleW / 2 - 0.05;
+  let ry = y + headerH;
+  for (const e of entries) {
+    const cy = ry + rowH / 2;
+    if (e.kind === 'SYMBOL' && e.symbol) {
+      renderSymbolPdf(pdf, e.symbol, sampleCx, cy, 0.12, 0, '#000000', plotStyle);
+    } else if (e.kind === 'LINETYPE') {
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.012);
+      // dash values are world-feet → a representative on-paper sample.
+      const dash = e.dash && e.dash.length > 0
+        ? e.dash.map((d) => Math.max(0.015, d * 0.01))
+        : [];
+      pdf.setLineDashPattern(dash, 0);
+      pdf.line(x + pad, cy, x + pad + sampleW, cy);
+      pdf.setLineDashPattern([], 0);
+    }
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(e.name, x + pad + sampleW + 0.1, cy, {
+      baseline: 'middle',
+      maxWidth: boxW - sampleW - pad * 2 - 0.1,
+    });
+    ry += rowH;
+  }
 }
 
 // ────────────────────────────────────────────────────────────

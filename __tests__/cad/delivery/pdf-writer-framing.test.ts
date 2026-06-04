@@ -198,3 +198,45 @@ describe('Slice 6 — TEXT features + bearing/distance/area labels (source-locke
     expect(SRC).toMatch(/baseline: 'middle'/);
   });
 });
+
+describe('Slice 7 — monument symbols + legend (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('resolves a POINT feature symbol from the library and plots it at its mm size', () => {
+    expect(SRC).toMatch(/import \{ findSymbol \} from '\.\.\/styles\/symbol-library';/);
+    expect(SRC).toMatch(/function drawPointFeature/);
+    expect(SRC).toMatch(/findSymbol\(f\.style\.symbolId, doc\.customSymbols \?\? \[\]\)/);
+    expect(SRC).toMatch(/function symbolPlotSizeIn/);
+    expect(SRC).toMatch(/mm \/ MM_PER_INCH/);
+  });
+  it('renders the same SymbolDefinition paths the canvas uses, as jsPDF vectors', () => {
+    expect(SRC).toMatch(/import \{ parseSVGPathData \} from '\.\.\/styles\/symbol-renderer';/);
+    expect(SRC).toMatch(/function renderSymbolPdf/);
+    // CIRCLE / RECT / PATH all handled, with curve support.
+    expect(SRC).toMatch(/pdf\.circle\(c\.x, c\.y, r, op\)/);
+    expect(SRC).toMatch(/pdf\.curveTo\(c1\.x, c1\.y, c2\.x, c2\.y, p\.x, p\.y\)/);
+    expect(SRC).toMatch(/const scale = sizeIn \/ 10;/);
+  });
+  it('INHERIT path colors resolve to the feature ink; NONE skips the path', () => {
+    expect(SRC).toMatch(/function symPathHex/);
+    expect(SRC).toMatch(/if \(spec === 'NONE'\) return null;/);
+    expect(SRC).toMatch(/if \(spec === 'INHERIT'\) return baseHex;/);
+  });
+  it('falls back to a crosshair when the point carries no symbol', () => {
+    expect(SRC).toMatch(/\/\/ Fallback crosshair\./);
+    expect(SRC).toMatch(/pdf\.line\(p\.x - s, p\.y, p\.x \+ s, p\.y\)/);
+  });
+  it('collects only the symbols + non-solid line types actually used', () => {
+    expect(SRC).toMatch(/function collectLegendEntries/);
+    expect(SRC).toMatch(/if \(ltId && ltId !== 'SOLID' && !lineTypes\.has\(ltId\)\)/);
+  });
+  it('draws a LEGEND box on a white knockout, gated on the showLegend option', () => {
+    expect(SRC).toMatch(/function drawLegend/);
+    expect(SRC).toMatch(/pdf\.rect\(x, y, boxW, boxH, 'FD'\)/);
+    expect(SRC).toMatch(/pdf\.text\('LEGEND'/);
+    expect(SRC).toMatch(/if \(options\.showLegend !== false\)/);
+    expect(SRC).toMatch(/drawLegend\(pdf, collectLegendEntries\(features, doc\), margin \+ 0\.3, margin \+ 0\.3, plotStyle\)/);
+  });
+});
