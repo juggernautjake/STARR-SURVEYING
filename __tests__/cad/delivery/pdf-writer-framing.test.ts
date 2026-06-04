@@ -65,3 +65,30 @@ describe('Slice 2 — north arrow + graphic scale bar (source-locked)', () => {
     expect(SRC).toMatch(/'FEET'/);
   });
 });
+
+describe('Slice 3 — full classic title block (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('builds an ALL-CAPS "<TYPE> OF <PROJECT>" drawing title, defaulting to BOUNDARY SURVEY', () => {
+    expect(SRC).toMatch(/tb\.surveyType \|\| 'BOUNDARY SURVEY'/);
+    expect(SRC).toMatch(/\$\{surveyType\} OF \$\{tb\.projectName\.toUpperCase\(\)\}/);
+  });
+  it('shows the firm name and the surveyor with an RPLS license number', () => {
+    expect(SRC).toMatch(/tb\.firmName/);
+    expect(SRC).toMatch(/, RPLS #\$\{tb\.surveyorLicense\}/);
+  });
+  it('lays out a CLIENT / JOB NO. / DATE / SCALE / SHEET field grid', () => {
+    expect(SRC).toMatch(/\['CLIENT', tb\.clientName\]/);
+    expect(SRC).toMatch(/\['JOB NO\.', tb\.projectNumber\]/);
+    expect(SRC).toMatch(/\['DATE', tb\.surveyDate\]/);
+    expect(SRC).toMatch(/\['SCALE', scaleText\]/);
+    expect(SRC).toMatch(/\['SHEET', sheet\]/);
+    // empty fields are filtered out so the grid never shows blank labels.
+    expect(SRC).toMatch(/\.filter\(\(\[, v\]\) => v && String\(v\)\.trim\(\)\.length > 0\)/);
+  });
+  it('renders the SHEET value as "<n> OF <total>" when totalSheets is set', () => {
+    expect(SRC).toMatch(/\$\{tb\.sheetNumber\}\$\{tb\.totalSheets \? ` OF \$\{tb\.totalSheets\}` : ''\}/);
+  });
+});

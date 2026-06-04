@@ -516,43 +516,63 @@ function drawTitleStrip(
   const tb = doc.settings.titleBlock;
   const stripTop = pdf.internal.pageSize.getHeight() - margin - stripHeight;
   pdf.setDrawColor(0, 0, 0);
-  pdf.setLineWidth(0.01);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setLineWidth(0.012);
   pdf.rect(margin, stripTop, pageWidth - margin * 2, stripHeight, 'S');
 
-  // Right-half: project / surveyor / scale / date
-  const rightX = pageWidth - margin - 4;
+  // cad-survey-print-pdf Slice 3 — classic title block in the right
+  // ~4.2in column (the seal block owns the left). Vertical divider so
+  // it reads as a tombstone block.
+  const blockW = 4.2;
+  const blockX = pageWidth - margin - blockW;
+  pdf.setLineWidth(0.006);
+  pdf.line(blockX, stripTop, blockX, stripTop + stripHeight);
+  const tx = blockX + 0.12;
+
+  // Drawing title — ALL CAPS, largest text (the classic plat header).
+  const surveyType = (tb.surveyType || 'BOUNDARY SURVEY').toUpperCase();
+  const title = tb.projectName ? `${surveyType} OF ${tb.projectName.toUpperCase()}` : surveyType;
   pdf.setFontSize(11);
-  pdf.text(
-    tb.projectName || doc.name || 'Drawing',
-    rightX,
-    stripTop + 0.25
-  );
-  pdf.setFontSize(8);
-  let y = stripTop + 0.45;
+  pdf.text(title, tx, stripTop + 0.2, { maxWidth: blockW - 0.24 });
+  // Underline under the title.
+  pdf.setLineWidth(0.006);
+  pdf.line(blockX, stripTop + 0.3, pageWidth - margin, stripTop + 0.3);
+
+  // Firm + surveyor.
+  let y = stripTop + 0.46;
   if (tb.firmName) {
-    pdf.text(tb.firmName, rightX, y);
-    y += 0.16;
+    pdf.setFontSize(9);
+    pdf.text(tb.firmName, tx, y);
+    y += 0.15;
   }
   if (tb.surveyorName) {
-    const license = tb.surveyorLicense ? ` (RPLS #${tb.surveyorLicense})` : '';
-    pdf.text(`${tb.surveyorName}${license}`, rightX, y);
-    y += 0.16;
+    const license = tb.surveyorLicense ? `, RPLS #${tb.surveyorLicense}` : '';
+    pdf.setFontSize(8);
+    pdf.text(`${tb.surveyorName}${license}`, tx, y);
+    y += 0.15;
   }
-  // Prefer the true plotted scale (Slice 1) over a stale stored label.
-  const scaleText = plotScale
-    ? `1" = ${plotScale}'`
-    : (tb.scaleLabel || '');
-  if (scaleText) {
-    pdf.text(`Scale: ${scaleText}`, rightX, y);
-    y += 0.16;
-  }
-  if (tb.surveyDate) {
-    pdf.text(`Date: ${tb.surveyDate}`, rightX, y);
-    y += 0.16;
-  }
-  if (tb.projectNumber) {
-    pdf.text(`Job #: ${tb.projectNumber}`, rightX, y);
-  }
+
+  // Bottom field grid: two label/value columns.
+  const scaleText = plotScale ? `1" = ${plotScale}'` : (tb.scaleLabel || '');
+  const sheet = tb.sheetNumber
+    ? `${tb.sheetNumber}${tb.totalSheets ? ` OF ${tb.totalSheets}` : ''}`
+    : '';
+  const fields: Array<[string, string]> = [
+    ['CLIENT', tb.clientName],
+    ['JOB NO.', tb.projectNumber],
+    ['DATE', tb.surveyDate],
+    ['SCALE', scaleText],
+    ['SHEET', sheet],
+  ].filter(([, v]) => v && String(v).trim().length > 0) as Array<[string, string]>;
+  pdf.setFontSize(6.5);
+  const colW = (blockW - 0.24) / 2;
+  fields.forEach(([label, value], i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const fx = tx + col * colW;
+    const fy = y + row * 0.14;
+    pdf.text(`${label}: ${value}`, fx, fy, { maxWidth: colW - 0.05 });
+  });
 }
 
 function drawSealBlock(

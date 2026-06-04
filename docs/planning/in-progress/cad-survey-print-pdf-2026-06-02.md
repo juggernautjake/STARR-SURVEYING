@@ -80,11 +80,16 @@ push, annotate.
 > Tests in `pdf-writer-framing.test.ts`. Suite 2604 green.
 
 ### Slice 3 — Full classic title block
-Enhance `drawTitleStrip` into a bordered title block (bottom-right or a
-bottom strip): drawing title (ALL-CAPS "BOUNDARY SURVEY OF…"), firm
-name/address/phone + firm reg #, surveyor + RPLS #, job #, client,
-date, drawn-by, scale, Sheet X of Y, revision block — from
-`doc.settings.titleBlock`.
+> **DONE (2026-06-02).** `drawTitleStrip` now lays out a classic
+> tombstone title block in the right ~4.2in column of the bottom strip
+> (the seal block owns the left), separated by a vertical divider. It
+> shows the ALL-CAPS drawing title `${surveyType} OF ${PROJECT}`
+> (surveyType from `titleBlock.surveyType`, default "BOUNDARY SURVEY")
+> with an underline, the firm name (9pt), the surveyor `, RPLS #<lic>`
+> (8pt), and a two-column CLIENT / JOB NO. / DATE / SCALE / SHEET field
+> grid (6.5pt) that filters out empty values and renders SHEET as
+> "<n> OF <total>". SCALE shows the TRUE plotted `1" = N'`. Tests in
+> `pdf-writer-framing.test.ts`. Suite 2608 green.
 
 ### Slice 4 — Line-weight hierarchy + line types
 Boundary heavy, interior/tie lines light, dashed easements/adjoiners;
