@@ -29,6 +29,15 @@ describe('infill pattern stays constant in world units across zoom', () => {
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('applies a global density boost (×2) + slight size shrink to both fill paths', () => {
+    expect(SRC).toMatch(/const PATTERN_DENSITY_MULT = 2;/);
+    expect(SRC).toMatch(/const PATTERN_SIZE_MULT = 0\.85;/);
+    // density multiplied, size multiplied, in both the single-pattern
+    // and stacked paths.
+    expect((SRC.match(/\* PATTERN_DENSITY_MULT/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect((SRC.match(/\* PATTERN_SIZE_MULT/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
   it('generates the pattern over the WORLD bbox (screen ÷ ps)', () => {
     const matches = SRC.match(/generateFillPattern\(width \/ ps, height \/ ps, cfg\)/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
@@ -41,7 +50,7 @@ describe('infill pattern stays constant in world units across zoom', () => {
   it('scales line endpoints + weight by ps', () => {
     expect(SRC).toMatch(/moveTo\(minX \+ ln\.x1 \* ps, minY \+ ln\.y1 \* ps\)/);
     expect(SRC).toMatch(/lineTo\(minX \+ ln\.x2 \* ps, minY \+ ln\.y2 \* ps\)/);
-    expect(SRC).toMatch(/patternLineWeight\(feature\.style\.patternScale \?\? 1\) \* ps/);
-    expect(SRC).toMatch(/patternLineWeight\(layer\.scale\) \* ps/);
+    expect(SRC).toMatch(/patternLineWeight\(\(feature\.style\.patternScale \?\? 1\) \* PATTERN_SIZE_MULT\) \* ps/);
+    expect(SRC).toMatch(/patternLineWeight\(layer\.scale \* PATTERN_SIZE_MULT\) \* ps/);
   });
 });

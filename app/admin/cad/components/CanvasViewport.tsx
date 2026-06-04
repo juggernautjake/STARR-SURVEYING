@@ -181,6 +181,13 @@ const HIT_TOLERANCE_PX = 5;
 // Traverse PC plat) without changing its zoom-independence. Higher =
 // smaller/denser. Per-feature density/scale sliders still tune on top.
 const PATTERN_WORLD_DETAIL = 3;
+// cad-trv-fidelity — global infill density × size tuning, applied on top
+// of the per-feature density/scale. DENSITY_MULT doubles how many
+// elements pack into a given area (tighter spacing); SIZE_MULT shrinks
+// each element (dot radius / line weight) slightly. Decoupled so density
+// can rise without enlarging the elements.
+const PATTERN_DENSITY_MULT = 2;
+const PATTERN_SIZE_MULT = 0.85;
 const DEFAULT_GRIP_SIZE = 8; // half-size of grip square in pixels (fallback)
 // Image rotation handle: how far (screen px) the circular grip floats
 // off the top edge, and the sentinel vertex index that marks it.
@@ -3847,10 +3854,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // local space and translate by (minX, minY) to land in the polygon.
     const cfg: FillPatternConfig = {
       pattern,
-      density: feature.style.patternDensity ?? 1,
+      // cad-trv-fidelity — global density boost (tighter spacing) on top
+      // of the per-feature density.
+      density: (feature.style.patternDensity ?? 1) * PATTERN_DENSITY_MULT,
       seed: hashSeed(feature.id),
-      // cad-fills Slice 1 — thickness multiplier (dot radius + line weight).
-      scale: feature.style.patternScale ?? 1,
+      // cad-fills Slice 1 — thickness multiplier (dot radius + line
+      // weight); shrunk slightly by the global size multiplier.
+      scale: (feature.style.patternScale ?? 1) * PATTERN_SIZE_MULT,
       // cad-fill-rotation Slice 1 — pattern rotation in degrees
       // around the bounding-box center (0 = unrotated baseline).
       angle: feature.style.patternRotation ?? 0,
@@ -3898,7 +3908,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (lines.length > 0) {
       // cad-fills Slice 1 — stroke weight honors the pattern thickness;
       // also scaled by ps so line weight is constant in world units.
-      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1) * ps, colorInt, patternAlpha);
+      entry.tex.lineStyle(patternLineWeight((feature.style.patternScale ?? 1) * PATTERN_SIZE_MULT) * ps, colorInt, patternAlpha);
       for (const ln of lines) {
         entry.tex.moveTo(minX + ln.x1 * ps, minY + ln.y1 * ps);
         entry.tex.lineTo(minX + ln.x2 * ps, minY + ln.y2 * ps);
@@ -3991,9 +4001,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       const cfg: FillPatternConfig = {
         pattern: layer.pattern,
-        density: layer.density,
+        // cad-trv-fidelity — same global density boost + size shrink as
+        // the single-pattern path.
+        density: layer.density * PATTERN_DENSITY_MULT,
         seed: hashSeed(feature.id + ':' + layer.pattern),
-        scale: layer.scale,
+        scale: layer.scale * PATTERN_SIZE_MULT,
         angle: layer.rotation,
         brickWidth: layer.brickWidth,
         brickHeight: layer.brickHeight,
@@ -4011,7 +4023,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         entry.tex.endFill();
       }
       if (lines.length > 0) {
-        entry.tex.lineStyle(patternLineWeight(layer.scale) * ps, colorInt, layerAlpha);
+        entry.tex.lineStyle(patternLineWeight(layer.scale * PATTERN_SIZE_MULT) * ps, colorInt, layerAlpha);
         for (const ln of lines) {
           entry.tex.moveTo(minX + ln.x1 * ps, minY + ln.y1 * ps);
           entry.tex.lineTo(minX + ln.x2 * ps, minY + ln.y2 * ps);

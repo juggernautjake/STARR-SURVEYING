@@ -66,7 +66,7 @@ describe('Slice 236 — drawFillPatternForPolygon helper', () => {
     // wavePeriod, then dashLen/gapLen). The regex stays lenient on
     // anything between `angle:` and the cfg-close so subsequent
     // additions don't churn the source-text lock.
-    expect(SRC).toMatch(/const cfg: FillPatternConfig = \{\s*pattern,\s*density: feature\.style\.patternDensity \?\? 1,\s*seed: hashSeed\(feature\.id\),[\s\S]*?scale: feature\.style\.patternScale \?\? 1,[\s\S]*?angle: feature\.style\.patternRotation \?\? 0,[\s\S]*?\};/);
+    expect(SRC).toMatch(/const cfg: FillPatternConfig = \{\s*pattern,[\s\S]*?density: \(feature\.style\.patternDensity \?\? 1\) \* PATTERN_DENSITY_MULT,\s*seed: hashSeed\(feature\.id\),[\s\S]*?scale: \(feature\.style\.patternScale \?\? 1\) \* PATTERN_SIZE_MULT,[\s\S]*?angle: feature\.style\.patternRotation \?\? 0,[\s\S]*?\};/);
     // cad-trv-fidelity — generated over the WORLD bbox (÷ ps) so the
     // pattern is constant in world units (scales with zoom) + finer.
     expect(SRC).toMatch(/const \{ dots, lines \} = generateFillPattern\(width \/ ps, height \/ ps, cfg\);/);
@@ -89,7 +89,7 @@ describe('Slice 236 — drawFillPatternForPolygon helper', () => {
     expect(SRC).toMatch(/const rawFillOpacity = feature\.style\.fillOpacity;/);
     expect(SRC).toMatch(/const patternAlpha = Number\.isFinite\(rawFillOpacity\)\s*\?\s*Math\.max\(0, Math\.min\(1, rawFillOpacity as number\)\)\s*:\s*1;/);
     expect(SRC).toMatch(/entry\.tex\.beginFill\(colorInt, patternAlpha\)/);
-    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(feature\.style\.patternScale \?\? 1\) \* ps, colorInt, patternAlpha\)/);
+    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(\(feature\.style\.patternScale \?\? 1\) \* PATTERN_SIZE_MULT\) \* ps, colorInt, patternAlpha\)/);
   });
 });
 
