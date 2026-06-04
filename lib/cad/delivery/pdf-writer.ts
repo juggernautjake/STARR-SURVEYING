@@ -30,7 +30,7 @@
 //   * Title-block boxed border + north arrow rendering.
 //   * Multi-page support for very large drawings.
 
-import jsPDF from 'jspdf';
+import jsPDF, { GState } from 'jspdf';
 
 import type {
   ArcGeometry,
@@ -44,6 +44,12 @@ import type {
 } from '../types';
 import { PAPER_DIMENSIONS } from '../templates/types';
 import { resolveLineTypeWithFallback } from '../styles/linetype-library';
+import { resolveVisibleFillLayers } from '../styles/fill-stack';
+import {
+  generateFillPattern,
+  patternLineWeight,
+  type FillPatternConfig,
+} from '../styles/fill-patterns';
 
 // ────────────────────────────────────────────────────────────
 // Public API
@@ -138,6 +144,14 @@ export function exportToPdf(
   const xform = fixedScalePaper(
     extents, drawWidth, drawHeight, margin, margin + titleStripHeight, effectiveScale,
   );
+
+  // ── Render closed-shape fills first (under all linework) ──
+  // Slice 5 — concrete/gravel/grass/hatch infill in vector form so the
+  // plat reads like the screen. Drawn in a pre-pass so no fill ever
+  // covers an adjacent boundary stroke.
+  for (const f of features) {
+    drawFeatureFill(pdf, f, xform, samples, plotStyle);
+  }
 
   // ── Render features ──────────────────────────────────────
   pdf.setLineWidth(0.005);
@@ -381,6 +395,156 @@ function resolveDashPatternIn(
   const lt = resolveLineTypeWithFallback(id, doc.customLineTypes ?? []);
   if (!lt.dashPattern || lt.dashPattern.length === 0) return null;
   return lt.dashPattern.map((d) => Math.max(0.002, d * xform.scale));
+}
+
+// ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 5 — closed-shape infill fills.
+//
+// Renders the same procedural fill stack the canvas draws
+// (`resolveVisibleFillLayers` → `generateFillPattern`) into vector PDF
+// primitives, clipped to the polygon via jsPDF's path clip. The pattern
+// is sized to MATCH the on-screen look: the canvas keeps the pattern
+// constant in WORLD units at `ps = zoom / PATTERN_WORLD_DETAIL`, so on
+// paper one pattern-pixel ≡ (1 / PATTERN_WORLD_DETAIL) world-feet, which
+// converts to paper inches through `xform.scale`. Same density/size
+// multipliers as the canvas so a grass/gravel/hatch area reads identically.
+// ────────────────────────────────────────────────────────────
+const PDF_PATTERN_WORLD_DETAIL = 3;
+const PDF_PATTERN_DENSITY_MULT = 2;
+const PDF_PATTERN_SIZE_MULT = 0.85;
+
+/** FNV-1a — identical to the canvas `hashSeed` so the PDF stipple lands
+ *  in the same layout the surveyor sees on screen. */
+function hashSeed(id: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i += 1) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h | 0;
+}
+
+/** The closed boundary ring (projected paper points) a feature's fill is
+ *  clipped to, or null when the feature isn't a fillable closed shape. */
+function fillRingForFeature(
+  f: Feature,
+  xform: XForm,
+  samples: number,
+): Array<{ x: number; y: number }> | null {
+  const g = f.geometry;
+  if (g.circle) {
+    const c = g.circle;
+    const ring: Point2D[] = [];
+    for (let i = 0; i < samples; i += 1) {
+      const t = (i / samples) * Math.PI * 2;
+      ring.push({ x: c.center.x + c.radius * Math.cos(t), y: c.center.y + c.radius * Math.sin(t) });
+    }
+    return ring.map((p) => project(p, xform));
+  }
+  if (g.ellipse) {
+    const e = g.ellipse;
+    const cosR = Math.cos(e.rotation);
+    const sinR = Math.sin(e.rotation);
+    const ring: Point2D[] = [];
+    for (let i = 0; i < samples; i += 1) {
+      const t = (i / samples) * Math.PI * 2;
+      const px = e.radiusX * Math.cos(t);
+      const py = e.radiusY * Math.sin(t);
+      ring.push({ x: e.center.x + px * cosR - py * sinR, y: e.center.y + px * sinR + py * cosR });
+    }
+    return ring.map((p) => project(p, xform));
+  }
+  if (g.vertices && g.vertices.length >= 3) {
+    return g.vertices.map((v) => project(v, xform));
+  }
+  if (g.spline && g.spline.isClosed && g.spline.controlPoints.length >= 3) {
+    return g.spline.controlPoints.map((v) => project(v, xform));
+  }
+  return null;
+}
+
+/** Draw a feature's resolved fill stack (bottom-to-top) clipped to its
+ *  closed boundary. No-op for features with no visible fill layers. */
+function drawFeatureFill(
+  pdf: jsPDF,
+  f: Feature,
+  xform: XForm,
+  samples: number,
+  plotStyle: PdfPlotStyle,
+): void {
+  if (xform.pageHeight === 0) {
+    xform.pageHeight = pdf.internal.pageSize.getHeight();
+  }
+  const layers = resolveVisibleFillLayers(f.style);
+  if (layers.length === 0) return;
+  const ring = fillRingForFeature(f, xform, samples);
+  if (!ring || ring.length < 3) return;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of ring) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const width = maxX - minX;
+  const height = maxY - minY;
+  if (width <= 0 || height <= 0) return;
+
+  // Clip every layer's primitives to the boundary ring.
+  pdf.saveGraphicsState();
+  pdf.moveTo(ring[0].x, ring[0].y);
+  for (let i = 1; i < ring.length; i += 1) pdf.lineTo(ring[i].x, ring[i].y);
+  pdf.close();
+  pdf.clip();
+  pdf.discardPath();
+
+  // paper-inches per pattern-pixel — matches the canvas's world-constant
+  // pattern (1 pattern-px ≡ 1/PATTERN_WORLD_DETAIL world-feet).
+  const pps = xform.scale / PDF_PATTERN_WORLD_DETAIL;
+  for (const layer of layers) {
+    const colorHex = layer.color ?? '#000000';
+    const alpha = Math.max(0, Math.min(1, layer.opacity));
+    pdf.setGState(new GState({ opacity: alpha, 'stroke-opacity': alpha }));
+
+    if (layer.pattern === 'SOLID') {
+      applyFill(pdf, colorHex, plotStyle);
+      pdf.rect(minX, minY, width, height, 'F');
+      continue;
+    }
+    if (pps <= 0) continue;
+
+    const cfg: FillPatternConfig = {
+      pattern: layer.pattern,
+      density: layer.density * PDF_PATTERN_DENSITY_MULT,
+      seed: hashSeed(f.id + ':' + layer.pattern),
+      scale: layer.scale * PDF_PATTERN_SIZE_MULT,
+      angle: layer.rotation,
+      brickWidth: layer.brickWidth,
+      brickHeight: layer.brickHeight,
+      waveAmplitude: layer.waveAmplitude,
+      wavePeriod: layer.wavePeriod,
+      dashLen: layer.dashLen,
+      gapLen: layer.gapLen,
+    };
+    const { dots, lines } = generateFillPattern(width / pps, height / pps, cfg);
+    if (dots.length > 0) {
+      applyFill(pdf, colorHex, plotStyle);
+      for (const d of dots) {
+        pdf.circle(minX + d.x * pps, minY + d.y * pps, Math.max(0.0006, d.r * pps), 'F');
+      }
+    }
+    if (lines.length > 0) {
+      applyStroke(pdf, colorHex, plotStyle);
+      pdf.setLineWidth(Math.max(0.001, patternLineWeight(layer.scale * PDF_PATTERN_SIZE_MULT) * pps));
+      for (const ln of lines) {
+        pdf.line(minX + ln.x1 * pps, minY + ln.y1 * pps, minX + ln.x2 * pps, minY + ln.y2 * pps);
+      }
+    }
+  }
+  // Reset opacity so the clipped state restore leaves a clean slate.
+  pdf.setGState(new GState({ opacity: 1, 'stroke-opacity': 1 }));
+  pdf.restoreGraphicsState();
 }
 
 function drawFeature(
@@ -667,23 +831,15 @@ function drawSealBlock(
 // Helpers
 // ────────────────────────────────────────────────────────────
 
-function applyStroke(
-  pdf: jsPDF,
-  hex: string,
-  plotStyle: PdfPlotStyle = 'AS_DISPLAYED'
-): void {
+/** Resolve a hex color to plotted RGB, honoring the plot-style mapping
+ *  (AS_DISPLAYED / MONOCHROME / GRAYSCALE). Bad input → pure black. */
+function resolveInk(hex: string, plotStyle: PdfPlotStyle): [number, number, number] {
   const cleaned = (hex ?? '').replace('#', '').trim();
-  if (cleaned.length !== 6) {
-    pdf.setDrawColor(0, 0, 0);
-    return;
-  }
+  if (cleaned.length !== 6) return [0, 0, 0];
   const r = parseInt(cleaned.slice(0, 2), 16);
   const g = parseInt(cleaned.slice(2, 4), 16);
   const b = parseInt(cleaned.slice(4, 6), 16);
-  if (![r, g, b].every((n) => Number.isFinite(n))) {
-    pdf.setDrawColor(0, 0, 0);
-    return;
-  }
+  if (![r, g, b].every((n) => Number.isFinite(n))) return [0, 0, 0];
   switch (plotStyle) {
     case 'MONOCHROME':
       // Pure black for plotters that print bitmap b/w. The
@@ -691,22 +847,37 @@ function applyStroke(
       // just give me ink-on-paper." We hard-clamp instead of
       // luminance-mapping because a faint yellow line on screen
       // (e.g. a TBM marker) should still print solidly visible.
-      pdf.setDrawColor(0, 0, 0);
-      return;
+      return [0, 0, 0];
     case 'GRAYSCALE': {
       // ITU-R BT.601 luma coefficients — preserves the
       // perceived brightness hierarchy across hue changes so
       // major features (typically darker layer colors) stay
       // visually dominant in a black-only plot.
       const luma = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-      pdf.setDrawColor(luma, luma, luma);
-      return;
+      return [luma, luma, luma];
     }
     case 'AS_DISPLAYED':
     default:
-      pdf.setDrawColor(r, g, b);
-      return;
+      return [r, g, b];
   }
+}
+
+function applyStroke(
+  pdf: jsPDF,
+  hex: string,
+  plotStyle: PdfPlotStyle = 'AS_DISPLAYED'
+): void {
+  const [r, g, b] = resolveInk(hex, plotStyle);
+  pdf.setDrawColor(r, g, b);
+}
+
+function applyFill(
+  pdf: jsPDF,
+  hex: string,
+  plotStyle: PdfPlotStyle = 'AS_DISPLAYED'
+): void {
+  const [r, g, b] = resolveInk(hex, plotStyle);
+  pdf.setFillColor(r, g, b);
 }
 
 function computeExtents(features: Feature[]): { min: Point2D; max: Point2D } {

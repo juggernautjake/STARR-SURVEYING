@@ -119,3 +119,42 @@ describe('Slice 4 — line-weight hierarchy + line types (source-locked)', () =>
     expect(SRC).toMatch(/pdf\.setLineDashPattern\(\[\], 0\);\s*\n\s*\/\/ Reset to solid|Reset to solid so the framing[\s\S]*?pdf\.setLineDashPattern\(\[\], 0\)/);
   });
 });
+
+describe('Slice 5 — closed-shape infill fills (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('reuses the canvas fill pipeline (resolveVisibleFillLayers + generateFillPattern)', () => {
+    expect(SRC).toMatch(/import \{ resolveVisibleFillLayers \} from '\.\.\/styles\/fill-stack';/);
+    expect(SRC).toMatch(/generateFillPattern,\s*\n\s*patternLineWeight,/);
+    expect(SRC).toMatch(/const layers = resolveVisibleFillLayers\(f\.style\)/);
+  });
+  it('matches the on-screen world-constant pattern density/size constants', () => {
+    expect(SRC).toMatch(/const PDF_PATTERN_WORLD_DETAIL = 3;/);
+    expect(SRC).toMatch(/const PDF_PATTERN_DENSITY_MULT = 2;/);
+    expect(SRC).toMatch(/const PDF_PATTERN_SIZE_MULT = 0\.85;/);
+    expect(SRC).toMatch(/const pps = xform\.scale \/ PDF_PATTERN_WORLD_DETAIL;/);
+  });
+  it('uses the same FNV-1a hash seed as the canvas so the stipple layout matches', () => {
+    expect(SRC).toMatch(/function hashSeed\(id: string\): number/);
+    expect(SRC).toMatch(/seed: hashSeed\(f\.id \+ ':' \+ layer\.pattern\)/);
+  });
+  it('clips each fill to the boundary ring via the jsPDF path clip', () => {
+    expect(SRC).toMatch(/pdf\.saveGraphicsState\(\)/);
+    expect(SRC).toMatch(/pdf\.clip\(\);\s*\n\s*pdf\.discardPath\(\)/);
+    expect(SRC).toMatch(/pdf\.restoreGraphicsState\(\)/);
+  });
+  it('honors per-layer opacity via a jsPDF GState', () => {
+    expect(SRC).toMatch(/import jsPDF, \{ GState \} from 'jspdf';/);
+    expect(SRC).toMatch(/new GState\(\{ opacity: alpha, 'stroke-opacity': alpha \}\)/);
+  });
+  it('draws SOLID layers as a filled bbox rect, patterns as dots + stroked lines', () => {
+    expect(SRC).toMatch(/if \(layer\.pattern === 'SOLID'\)[\s\S]*?pdf\.rect\(minX, minY, width, height, 'F'\)/);
+    expect(SRC).toMatch(/pdf\.circle\(minX \+ d\.x \* pps, minY \+ d\.y \* pps, Math\.max\(0\.0006, d\.r \* pps\), 'F'\)/);
+    expect(SRC).toMatch(/patternLineWeight\(layer\.scale \* PDF_PATTERN_SIZE_MULT\) \* pps/);
+  });
+  it('runs the fill as a pre-pass before the stroke loop (fills under linework)', () => {
+    expect(SRC).toMatch(/for \(const f of features\) \{\s*\n\s*drawFeatureFill\(pdf, f, xform, samples, plotStyle\);\s*\n\s*\}/);
+  });
+});

@@ -105,9 +105,22 @@ push, annotate.
 > `pdf-writer-framing.test.ts`. Suite green.
 
 ### Slice 5 — Infill fills in the PDF
-Render the feature fill patterns (dots/hatch/grass/etc.) in vector form
-(or a faithful approximation) so concrete/grass/etc. areas read like the
-plat, reusing the `generateFillPattern` primitives.
+> **DONE (2026-06-02).** A new `drawFeatureFill` pre-pass (run before the
+> stroke loop so no fill covers an adjacent boundary) renders each closed
+> shape's resolved fill stack in vector form, reusing the exact canvas
+> pipeline: `resolveVisibleFillLayers` → `generateFillPattern` →
+> `patternLineWeight`, seeded with the same FNV-1a `hashSeed` so the
+> stipple lands in the identical layout. The polygon/circle/ellipse/
+> closed-spline boundary ring clips every layer via jsPDF's path clip
+> (`saveGraphicsState` → `moveTo`/`lineTo`/`close` → `clip`/`discardPath`
+> → `restoreGraphicsState`); SOLID layers fill the bbox rect, dot families
+> plot as filled circles, hatch/brick/wave/grass as stroked lines. The
+> pattern is sized to MATCH the screen — one pattern-pixel ≡
+> `1/PDF_PATTERN_WORLD_DETAIL` world-feet → paper inches via `xform.scale`,
+> with the same density (×2) + size (×0.85) multipliers. Per-layer opacity
+> rides a jsPDF `GState`. `applyStroke` refactored to share a `resolveInk`
+> color resolver with the new `applyFill`. Tests in
+> `pdf-writer-framing.test.ts`. Suite 2619 green.
 
 ### Slice 6 — TEXT + bearing/distance + area labels
 Render TEXT features (the site annotations + title text), the per-segment
