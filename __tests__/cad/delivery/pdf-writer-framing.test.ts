@@ -92,3 +92,30 @@ describe('Slice 3 — full classic title block (source-locked)', () => {
     expect(SRC).toMatch(/\$\{tb\.sheetNumber\}\$\{tb\.totalSheets \? ` OF \$\{tb\.totalSheets\}` : ''\}/);
   });
 });
+
+describe('Slice 4 — line-weight hierarchy + line types (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('maps the authored mm line weight to paper inches with a hairline floor', () => {
+    expect(SRC).toMatch(/const MM_PER_INCH = 25\.4;/);
+    expect(SRC).toMatch(/function resolvePlotWeightIn/);
+    expect(SRC).toMatch(/feature\.style\.lineWeight \?\? layer\?\.lineWeight \?\? 0\.5/);
+    expect(SRC).toMatch(/Math\.max\(MIN_PLOT_WEIGHT_IN, mm \/ MM_PER_INCH\)/);
+  });
+  it('resolves each feature line type to a dash pattern in paper inches via the plot scale', () => {
+    expect(SRC).toMatch(/function resolveDashPatternIn/);
+    expect(SRC).toMatch(/feature\.style\.lineTypeId \?\? layer\?\.lineTypeId \?\? 'SOLID'/);
+    expect(SRC).toMatch(/resolveLineTypeWithFallback\(id, doc\.customLineTypes \?\? \[\]\)/);
+    expect(SRC).toMatch(/lt\.dashPattern\.map\(\(d\) => Math\.max\(0\.002, d \* xform\.scale\)\)/);
+  });
+  it('applies the per-feature weight + dash in drawFeature, points always solid', () => {
+    expect(SRC).toMatch(/pdf\.setLineWidth\(resolvePlotWeightIn\(f, layer\)\)/);
+    expect(SRC).toMatch(/f\.type === 'POINT' \? null : resolveDashPatternIn\(f, layer, doc, xform\)/);
+    expect(SRC).toMatch(/pdf\.setLineDashPattern\(dash \?\? \[\], 0\)/);
+  });
+  it('resets the dash pattern to solid after the feature loop', () => {
+    expect(SRC).toMatch(/pdf\.setLineDashPattern\(\[\], 0\);\s*\n\s*\/\/ Reset to solid|Reset to solid so the framing[\s\S]*?pdf\.setLineDashPattern\(\[\], 0\)/);
+  });
+});

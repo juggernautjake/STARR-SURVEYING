@@ -38,10 +38,12 @@ import type {
   DrawingDocument,
   EllipseGeometry,
   Feature,
+  Layer,
   Point2D,
   SplineGeometry,
 } from '../types';
 import { PAPER_DIMENSIONS } from '../templates/types';
+import { resolveLineTypeWithFallback } from '../styles/linetype-library';
 
 // ────────────────────────────────────────────────────────────
 // Public API
@@ -142,6 +144,8 @@ export function exportToPdf(
   for (const f of features) {
     drawFeature(pdf, f, doc, xform, samples, plotStyle);
   }
+  // Reset to solid so the framing/title furniture below isn't dashed.
+  pdf.setLineDashPattern([], 0);
 
   // ── Title strip ──────────────────────────────────────────
   drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight, effectiveScale);
@@ -344,6 +348,41 @@ function project(p: Point2D, x: XForm): { x: number; y: number } {
 // Feature renderers
 // ────────────────────────────────────────────────────────────
 
+// cad-survey-print-pdf Slice 4 — line-weight hierarchy + line types.
+// Layer/feature `lineWeight` is authored in MILLIMETRES (classic CAD
+// convention: border ~0.70, boundary ~0.50, buildings ~0.35, interior
+// /tie ~0.18–0.25), so the PDF maps mm → paper inches and the plat reads
+// with the same emphasis the surveyor set on screen. Dash patterns are
+// authored in WORLD FEET, so they convert to paper inches through the
+// plot scale (`xform.scale` = paper-inches per world-unit).
+const MM_PER_INCH = 25.4;
+// ~0.13mm floor so the lightest tie line still prints as a crisp hairline.
+const MIN_PLOT_WEIGHT_IN = 0.005;
+
+/** Resolve a feature's plotted stroke width in paper inches from the
+ *  feature override → layer weight hierarchy (millimetres). */
+function resolvePlotWeightIn(feature: Feature, layer: Layer | undefined): number {
+  const mm = feature.style.lineWeight ?? layer?.lineWeight ?? 0.5;
+  return Math.max(MIN_PLOT_WEIGHT_IN, mm / MM_PER_INCH);
+}
+
+/** Resolve a feature's dash pattern (paper inches) from its effective
+ *  line type, or null when it plots solid. Inline-symbol line types
+ *  (fences/utilities) that carry no dash plot solid here — their glyphs
+ *  are a later slice; the legend names them. */
+function resolveDashPatternIn(
+  feature: Feature,
+  layer: Layer | undefined,
+  doc: DrawingDocument,
+  xform: XForm,
+): number[] | null {
+  const id = feature.style.lineTypeId ?? layer?.lineTypeId ?? 'SOLID';
+  if (!id || id === 'SOLID') return null;
+  const lt = resolveLineTypeWithFallback(id, doc.customLineTypes ?? []);
+  if (!lt.dashPattern || lt.dashPattern.length === 0) return null;
+  return lt.dashPattern.map((d) => Math.max(0.002, d * xform.scale));
+}
+
 function drawFeature(
   pdf: jsPDF,
   f: Feature,
@@ -358,6 +397,14 @@ function drawFeature(
   }
   const layer = doc.layers[f.layerId];
   applyStroke(pdf, layer?.color ?? '#000000', plotStyle);
+
+  // cad-survey-print-pdf Slice 4 — set the plotted weight + dash per
+  // feature so the plat reads with proper emphasis. Points draw solid
+  // (a dashed monument dot is nonsensical); everything else honors the
+  // line type's dash rhythm.
+  pdf.setLineWidth(resolvePlotWeightIn(f, layer));
+  const dash = f.type === 'POINT' ? null : resolveDashPatternIn(f, layer, doc, xform);
+  pdf.setLineDashPattern(dash ?? [], 0);
 
   const g = f.geometry;
   switch (f.type) {

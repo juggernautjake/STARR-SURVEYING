@@ -92,9 +92,17 @@ push, annotate.
 > `pdf-writer-framing.test.ts`. Suite 2608 green.
 
 ### Slice 4 — Line-weight hierarchy + line types
-Boundary heavy, interior/tie lines light, dashed easements/adjoiners;
-honor each feature's `lineTypeId` (dash pattern) + a weight hierarchy so
-the plat reads with proper emphasis.
+> **DONE (2026-06-02).** `drawFeature` now sets the plotted stroke per
+> feature instead of one global hairline. `resolvePlotWeightIn` maps the
+> authored `lineWeight` (feature override → layer, in MILLIMETRES) to
+> paper inches with a ~0.005in hairline floor, so the boundary (≈0.50mm)
+> reads heavier than tie/interior lines (≈0.18–0.35mm) — the surveyor's
+> on-screen weight hierarchy survives to paper. `resolveDashPatternIn`
+> resolves each feature's effective line type and converts its WORLD-FEET
+> dash pattern to paper inches through the plot scale, so dashed/dotted/
+> dash-dot easement + adjoiner lines plot dashed; points always plot
+> solid and the dash is reset before the framing furniture. Tests in
+> `pdf-writer-framing.test.ts`. Suite green.
 
 ### Slice 5 — Infill fills in the PDF
 Render the feature fill patterns (dots/hatch/grass/etc.) in vector form
