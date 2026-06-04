@@ -123,9 +123,21 @@ push, annotate.
 > `pdf-writer-framing.test.ts`. Suite 2619 green.
 
 ### Slice 6 — TEXT + bearing/distance + area labels
-Render TEXT features (the site annotations + title text), the per-segment
-bearing/distance labels, and the lot area annotation, with the captured
-font/size/alignment.
+> **DONE (2026-06-02).** A text pass after the linework renders TEXT
+> features (`drawTextFeature` — site annotations + world text, with the
+> captured `properties.fontSize/fontFamily/fontWeight/fontStyle/textAlign`
+> + rotation) and every feature's visible `textLabels`
+> (`drawFeatureLabels` — bearing/distance at the segment midpoint, area at
+> the centroid, point name/code/desc at the point), mirroring the canvas
+> `renderLabels` anchor + offset math (line-relative along/perp offset vs
+> direct, world → paper via `xform.scale`). Font size plots at the TRUE
+> scale (`stylePt × scale × drawingScale × xform.scale`) so text keeps its
+> physical proportion to the geometry at any round plot scale; arbitrary
+> families map to a jsPDF core font (helvetica/times/courier) with combined
+> bold/italic; `readableAngleDeg` keeps along-line text upright. Verified
+> end-to-end with a runtime smoke export (fills + dashes + mixed-font
+> labels + TEXT all render). Tests in `pdf-writer-framing.test.ts`. Suite
+> 2626 green.
 
 ### Slice 7 — Monument symbols + legend/key
 Draw point symbols (found/set monuments, utilities) via the symbol

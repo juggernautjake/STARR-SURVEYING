@@ -161,6 +161,17 @@ export function exportToPdf(
   // Reset to solid so the framing/title furniture below isn't dashed.
   pdf.setLineDashPattern([], 0);
 
+  // ── TEXT features + bearing/distance/area labels (Slice 6) ──
+  // Drawn last so annotations read on top of the linework + fills.
+  for (const f of features) {
+    if (f.type === 'TEXT') drawTextFeature(pdf, f, doc, xform, plotStyle);
+    drawFeatureLabels(pdf, f, doc, xform, plotStyle);
+  }
+  // Reset to the default font + black ink so the title furniture below
+  // isn't left in a label's font family/color.
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(0, 0, 0);
+
   // ── Title strip ──────────────────────────────────────────
   drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight, effectiveScale);
 
@@ -708,6 +719,172 @@ function drawSpline(
   }
   if (pts.length < 2) return;
   drawPolyline(pdf, pts.map((p) => project(p, x)));
+}
+
+// ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 6 — TEXT features + bearing/distance/area
+// labels. The on-screen sizes are authored in "points on paper" relative
+// to `drawingScale`; replotting at the round `effectiveScale` keeps text
+// the same physical proportion to the geometry. Font size in PDF points:
+//   stylePt × labelScale × drawingScale × xform.scale   (xform.scale = 1/plotScale)
+// so when plotted at drawingScale the text is exactly its authored point
+// size. Anchors mirror the canvas renderLabels math exactly.
+// ────────────────────────────────────────────────────────────
+
+/** Map an arbitrary CSS-ish font family to one of jsPDF's three core
+ *  fonts (helvetica/times/courier) — the only ones embedded without a
+ *  font file, which keeps the PDF small + portable. */
+function mapFontFamily(family: string): 'helvetica' | 'times' | 'courier' {
+  const f = (family || '').toLowerCase();
+  if (f.includes('courier') || f.includes('mono')) return 'courier';
+  if (f.includes('times') || (f.includes('serif') && !f.includes('sans'))) return 'times';
+  return 'helvetica';
+}
+
+function applyFont(
+  pdf: jsPDF,
+  family: string,
+  weight: 'normal' | 'bold',
+  style: 'normal' | 'italic',
+): void {
+  const bold = weight === 'bold';
+  const italic = style === 'italic';
+  const fs = bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal';
+  pdf.setFont(mapFontFamily(family), fs);
+}
+
+/** Normalize a world rotation (radians, CCW) to a readable plot angle in
+ *  degrees: text never renders upside-down (flipped 180° when it would). */
+function readableAngleDeg(rad: number): number {
+  let deg = (rad * 180) / Math.PI;
+  deg = ((deg % 360) + 360) % 360;
+  if (deg > 180) deg -= 360;
+  if (deg > 90) deg -= 180;
+  else if (deg < -90) deg += 180;
+  return deg;
+}
+
+/** Plotted point size for a label/text authored at `stylePt` paper-points
+ *  (clamped so it never vanishes or dominates the sheet). */
+function plotPointSize(stylePt: number, labelScale: number, drawingScale: number, xform: XForm): number {
+  const pts = stylePt * labelScale * drawingScale * xform.scale;
+  return Math.max(2.5, Math.min(72, pts));
+}
+
+/** Render a TEXT feature (site annotations, world text, titles) at its
+ *  anchor with the captured font / size / alignment / rotation. */
+function drawTextFeature(
+  pdf: jsPDF,
+  f: Feature,
+  doc: DrawingDocument,
+  xform: XForm,
+  plotStyle: PdfPlotStyle,
+): void {
+  const g = f.geometry;
+  const anchor = g.point ?? g.start;
+  if (!anchor || !g.textContent) return;
+  const layer = doc.layers[f.layerId];
+  const drawingScale = doc.settings.drawingScale ?? 50;
+  const fontPt = Number(f.properties.fontSize ?? 12);
+  const fontFamily = String(f.properties.fontFamily ?? 'Arial');
+  const fontWeight = (f.properties.fontWeight ?? 'normal') as 'normal' | 'bold';
+  const fontStyle = (f.properties.fontStyle ?? 'normal') as 'normal' | 'italic';
+  const align = (f.properties.textAlign ?? 'left') as 'left' | 'center' | 'right';
+
+  const p = project(anchor, xform);
+  applyFont(pdf, fontFamily, fontWeight, fontStyle);
+  pdf.setFontSize(plotPointSize(fontPt, 1, drawingScale, xform));
+  const [r, gc, b] = resolveInk(f.style.color ?? layer?.color ?? '#000000', plotStyle);
+  pdf.setTextColor(r, gc, b);
+  pdf.text(g.textContent, p.x, p.y, {
+    align,
+    baseline: 'middle',
+    angle: readableAngleDeg(g.textRotation ?? 0),
+  });
+}
+
+/** World-space anchor a label hangs off, by kind — mirrors the canvas
+ *  `renderLabels` anchor math. null = nothing to anchor to. */
+function labelAnchorWorld(f: Feature, label: { kind: string }): Point2D | null {
+  const g = f.geometry;
+  const k = label.kind;
+  if (k.startsWith('POINT_')) return g.point ?? g.start ?? null;
+  if (k === 'BEARING' || k === 'DISTANCE') {
+    if (g.type === 'LINE' && g.start && g.end) {
+      return { x: (g.start.x + g.end.x) / 2, y: (g.start.y + g.end.y) / 2 };
+    }
+    if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
+      const kin = (f.textLabels ?? []).filter((l) => l.kind === k);
+      const segIdx = kin.indexOf(label as never);
+      const verts = g.vertices;
+      const maxSeg = g.type === 'POLYGON' ? verts.length : verts.length - 1;
+      if (segIdx >= 0 && segIdx < maxSeg) {
+        const from = verts[segIdx];
+        const to = verts[(segIdx + 1) % verts.length];
+        return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+      }
+    }
+    return null;
+  }
+  if (k === 'AREA' || k === 'PERIMETER') {
+    if (g.vertices && g.vertices.length >= 3) {
+      const cx = g.vertices.reduce((s, v) => s + v.x, 0) / g.vertices.length;
+      const cy = g.vertices.reduce((s, v) => s + v.y, 0) / g.vertices.length;
+      return { x: cx, y: cy };
+    }
+    return null;
+  }
+  return g.point ?? null;
+}
+
+/** Render a feature's visible text labels (bearing / distance / area /
+ *  point name+code+desc) at their anchor + world-unit offset, honoring
+ *  the captured font, line-relative rotation, and per-label scale. */
+function drawFeatureLabels(
+  pdf: jsPDF,
+  f: Feature,
+  doc: DrawingDocument,
+  xform: XForm,
+  plotStyle: PdfPlotStyle,
+): void {
+  const labels = f.textLabels;
+  if (!labels || labels.length === 0) return;
+  const layer = doc.layers[f.layerId];
+  const drawingScale = doc.settings.drawingScale ?? 50;
+
+  for (const label of labels) {
+    if (label.visible === false || !label.text) continue;
+    const anchorWorld = labelAnchorWorld(f, label);
+    if (!anchorWorld) continue;
+    const a = project(anchorWorld, xform);
+
+    // Offset: line-relative (along/perp, rotated by the line angle) for
+    // auto-placed line labels; direct world-unit offset otherwise. World
+    // → paper via xform.scale; paper y is down, so +world-y → −paper-y.
+    const labelScale = label.userPositioned ? 1 : label.scale;
+    let dx: number;
+    let dy: number;
+    if (label.rotation !== null && !label.userPositioned) {
+      const θ = label.rotation;
+      const along = label.offset.x * labelScale;
+      const perp = label.offset.y * labelScale;
+      dx = (Math.cos(θ) * along - Math.sin(θ) * perp) * xform.scale;
+      dy = -(Math.sin(θ) * along + Math.cos(θ) * perp) * xform.scale;
+    } else {
+      dx = label.offset.x * labelScale * xform.scale;
+      dy = -label.offset.y * labelScale * xform.scale;
+    }
+
+    applyFont(pdf, label.style.fontFamily, label.style.fontWeight, label.style.fontStyle);
+    pdf.setFontSize(plotPointSize(label.style.fontSize, labelScale, drawingScale, xform));
+    const [r, gc, b] = resolveInk(label.style.color ?? layer?.color ?? '#000000', plotStyle);
+    pdf.setTextColor(r, gc, b);
+    pdf.text(label.text, a.x + dx, a.y + dy, {
+      align: 'center',
+      baseline: 'middle',
+      angle: label.rotation !== null ? readableAngleDeg(label.rotation) : 0,
+    });
+  }
 }
 
 // ────────────────────────────────────────────────────────────

@@ -158,3 +158,43 @@ describe('Slice 5 — closed-shape infill fills (source-locked)', () => {
     expect(SRC).toMatch(/for \(const f of features\) \{\s*\n\s*drawFeatureFill\(pdf, f, xform, samples, plotStyle\);\s*\n\s*\}/);
   });
 });
+
+describe('Slice 6 — TEXT features + bearing/distance/area labels (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('renders TEXT features + feature labels in a pass after the linework', () => {
+    expect(SRC).toMatch(/if \(f\.type === 'TEXT'\) drawTextFeature\(pdf, f, doc, xform, plotStyle\)/);
+    expect(SRC).toMatch(/drawFeatureLabels\(pdf, f, doc, xform, plotStyle\)/);
+    // reset font so the title block isn't left in a label's font.
+    expect(SRC).toMatch(/pdf\.setFont\('helvetica', 'normal'\)/);
+  });
+  it('sizes text at the true plot scale (stylePt × scale × drawingScale × xform.scale)', () => {
+    expect(SRC).toMatch(/function plotPointSize/);
+    expect(SRC).toMatch(/stylePt \* labelScale \* drawingScale \* xform\.scale/);
+  });
+  it('maps arbitrary font families to a jsPDF core font + combined bold/italic style', () => {
+    expect(SRC).toMatch(/function mapFontFamily/);
+    expect(SRC).toMatch(/bold && italic \? 'bolditalic' : bold \? 'bold' : italic \? 'italic' : 'normal'/);
+  });
+  it('keeps text upright via a readable-angle normalizer', () => {
+    expect(SRC).toMatch(/function readableAngleDeg/);
+    expect(SRC).toMatch(/if \(deg > 90\) deg -= 180;\s*\n\s*else if \(deg < -90\) deg \+= 180;/);
+  });
+  it('anchors BEARING/DISTANCE at the segment midpoint and AREA at the centroid', () => {
+    expect(SRC).toMatch(/function labelAnchorWorld/);
+    expect(SRC).toMatch(/const maxSeg = g\.type === 'POLYGON' \? verts\.length : verts\.length - 1;/);
+    expect(SRC).toMatch(/k === 'AREA' \|\| k === 'PERIMETER'/);
+  });
+  it('honors line-relative vs direct label offset, converting world units to paper', () => {
+    expect(SRC).toMatch(/label\.rotation !== null && !label\.userPositioned/);
+    expect(SRC).toMatch(/dx = \(Math\.cos\(θ\) \* along - Math\.sin\(θ\) \* perp\) \* xform\.scale/);
+    expect(SRC).toMatch(/dy = -label\.offset\.y \* labelScale \* xform\.scale/);
+  });
+  it('reads TEXT feature font/alignment from feature.properties', () => {
+    expect(SRC).toMatch(/f\.properties\.fontSize \?\? 12/);
+    expect(SRC).toMatch(/f\.properties\.textAlign \?\? 'left'/);
+    expect(SRC).toMatch(/baseline: 'middle'/);
+  });
+});
