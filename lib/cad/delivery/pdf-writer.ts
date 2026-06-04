@@ -124,6 +124,12 @@ export interface PdfExportOptions {
   /** cad-survey-print-pdf Slice 8 — general-notes block, stacked in the
    *  left data column. Omitted/null = no notes drawn. */
   notes?: PdfNotesContent | null;
+  /** cad-survey-print-pdf Slice 9 — per-element print toggles (from the
+   *  Print dialog). All default true; set false to omit that furniture. */
+  showBorder?: boolean;
+  showTitleBlock?: boolean;
+  showNorthArrow?: boolean;
+  showScaleBar?: boolean;
 }
 
 export interface PdfExportResult {
@@ -208,16 +214,17 @@ export function exportToPdf(
   pdf.setTextColor(0, 0, 0);
 
   // ── Title strip ──────────────────────────────────────────
-  drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight, effectiveScale);
-
-  // ── Seal block (top-left of title strip) ─────────────────
-  drawSealBlock(pdf, doc, pageWidth, margin, titleStripHeight);
+  if (options.showTitleBlock !== false) {
+    drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight, effectiveScale);
+    // ── Seal block (top-left of title strip) ─────────────────
+    drawSealBlock(pdf, doc, pageWidth, margin, titleStripHeight);
+  }
 
   // ── North arrow (top-right) + graphic scale bar (bottom-left) ─
-  // Honor the on-screen title-block visibility toggles so a hidden
-  // element doesn't reappear in the PDF.
+  // Honor BOTH the Print-dialog element toggle and the on-screen
+  // title-block visibility toggle, so a hidden element doesn't reappear.
   const tb = doc.settings.titleBlock;
-  if (tb?.northArrowVisible !== false) {
+  if (options.showNorthArrow !== false && tb?.northArrowVisible !== false) {
     drawNorthArrow(
       pdf,
       pageWidth - margin - 0.55,
@@ -226,7 +233,7 @@ export function exportToPdf(
       doc.settings.drawingRotationDeg ?? 0,
     );
   }
-  if (tb?.scaleBarVisible !== false) {
+  if (options.showScaleBar !== false && tb?.scaleBarVisible !== false) {
     drawScaleBar(pdf, margin + 0.35, pageHeight - margin - titleStripHeight - 0.4, effectiveScale);
   }
 
@@ -247,7 +254,9 @@ export function exportToPdf(
   }
 
   // ── Heavy frame border (drawn last so it sits on top) ────
-  drawBorder(pdf, pageWidth, pageHeight, margin);
+  if (options.showBorder !== false) {
+    drawBorder(pdf, pageWidth, pageHeight, margin);
+  }
 
   const blob = pdf.output('blob');
   const filename = `${kebabCase(doc.name) || 'drawing'}.pdf`;
@@ -271,6 +280,39 @@ export function downloadPdf(
   });
   a.click();
   URL.revokeObjectURL(url);
+  return result;
+}
+
+/**
+ * cad-survey-print-pdf Slice 9 — generate the vector PDF and open the
+ * browser's print dialog for it. Prints via a hidden same-origin blob
+ * iframe (works in Chromium/Firefox); falls back to opening the PDF in a
+ * new tab so the user can print manually if the iframe print is blocked.
+ */
+export function printPdf(
+  doc: DrawingDocument,
+  options: PdfExportOptions = {}
+): PdfExportResult {
+  const result = exportToPdf(doc, options);
+  const url = URL.createObjectURL(result.blob);
+  const win = globalThis.document.defaultView ?? window;
+  const iframe = globalThis.document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  iframe.src = url;
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch {
+      win.open(url, '_blank');
+    }
+    // Keep the blob alive long enough for the print dialog to read it.
+    win.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      iframe.remove();
+    }, 60_000);
+  };
+  globalThis.document.body.appendChild(iframe);
   return result;
 }
 

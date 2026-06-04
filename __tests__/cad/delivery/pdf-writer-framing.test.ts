@@ -269,3 +269,22 @@ describe('Slice 8 — certification + general notes blocks (source-locked)', () 
     expect(SRC).toMatch(/pdf\.rect\(x, y, DATA_COL_W, boxH, 'FD'\)/);
   });
 });
+
+describe('Slice 9 — print + element toggles (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('gates every piece of furniture on its print toggle (default on)', () => {
+    expect(SRC).toMatch(/if \(options\.showTitleBlock !== false\)/);
+    expect(SRC).toMatch(/options\.showNorthArrow !== false && tb\?\.northArrowVisible !== false/);
+    expect(SRC).toMatch(/options\.showScaleBar !== false && tb\?\.scaleBarVisible !== false/);
+    expect(SRC).toMatch(/if \(options\.showBorder !== false\)/);
+  });
+  it('exposes a printPdf that opens the browser print dialog for the vector PDF', () => {
+    expect(SRC).toMatch(/export function printPdf/);
+    expect(SRC).toMatch(/iframe\.contentWindow\?\.print\(\)/);
+    // falls back to opening the PDF in a new tab if iframe print is blocked.
+    expect(SRC).toMatch(/win\.open\(url, '_blank'\)/);
+  });
+});

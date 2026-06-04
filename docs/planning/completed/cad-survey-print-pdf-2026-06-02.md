@@ -172,10 +172,32 @@ push, annotate.
 > in `pdf-writer-framing.test.ts`. Suite 2636 green.
 
 ### Slice 9 — Print + PrintDialog UX
-A real Print action (browser print of the PDF / print-to-PDF) plus a
-fleshed-out `PrintDialog`: sheet size + orientation, plot scale, element
-toggles (border/title/legend/notes/north/scale), and a preview; wire it
-to the enhanced vector writer with the raster capture as a fallback.
+> **DONE (2026-06-02).** `exportToPdf` now honors per-element print
+> toggles (`showBorder` / `showTitleBlock` / `showNorthArrow` /
+> `showScaleBar`, joining `showLegend` + cert/notes), and a new exported
+> `printPdf` opens the browser print dialog for the vector PDF via a hidden
+> same-origin blob iframe (falling back to a new tab). `PrintDialog` is
+> rebuilt around the VECTOR writer as the primary deliverable: a two-column
+> layout with all controls (sheet size + orientation, plot scale + mode,
+> plot style, the 7 element toggles) on the left and a **live PDF preview**
+> iframe on the right that regenerates (debounced) from `exportToPdf` on any
+> change. The footer has a real **Print…** (`printPdf`), **Export PDF**
+> (`downloadPdf`, vector), and **Export PNG** (raster) — building the doc by
+> overriding only the paper framing and projecting the active template's
+> certification + standard/custom notes into the writer's plain-data shape.
+> Every vector action is wrapped so it falls back to the raster
+> canvas-capture (`cad:exportImage`) if it throws. Verified element toggles
+> + fixed scale at runtime. Tests in `pdf-writer-framing.test.ts` +
+> `print-dialog-vector.test.ts`. Suite 2645 green.
+
+## Status: COMPLETE (2026-06-02)
+All nine slices are done. The vector PDF export now reproduces the
+on-screen classic plat — round plot scale, heavy frame, north arrow,
+graphic scale bar, full title block, line-weight hierarchy + dashed line
+types, infill fills, TEXT + bearing/distance/area labels, monument symbols
++ legend, and the certification/notes blocks — driven by a fleshed-out
+Print/Export dialog with a live preview and a real Print action, with the
+raster capture retained as a fallback.
 
 ## TL;DR
 The canvas already renders a classic plat; this plan makes the PDF/print
