@@ -71,9 +71,13 @@ push, annotate.
 > later slices.)
 
 ### Slice 2 — North arrow + graphic scale bar + written scale (vector)
-Vector-draw a north arrow (respecting drawing rotation) and a checkered
-graphic scale bar with tick labels + the written scale ("1\" = 50'"),
-mirroring the on-screen `TitleBlockConfig` placement/size.
+> **DONE (2026-06-02).** `drawNorthArrow` (slim two-tone filled arrow +
+> "N", rotated by `-drawingRotationDeg` so it points true north) at the
+> top-right of the drawable area, and `drawScaleBar` (checkered 4-segment
+> bar at 2in = round-scale feet, tick labels, "FEET", + the written
+> `1"=N'`) at the bottom-left. Both gated on the on-screen
+> `northArrowVisible` / `scaleBarVisible` toggles + `northArrowSizeIn`.
+> Tests in `pdf-writer-framing.test.ts`. Suite 2604 green.
 
 ### Slice 3 — Full classic title block
 Enhance `drawTitleStrip` into a bordered title block (bottom-right or a

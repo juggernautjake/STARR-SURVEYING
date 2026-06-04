@@ -149,6 +149,23 @@ export function exportToPdf(
   // ── Seal block (top-left of title strip) ─────────────────
   drawSealBlock(pdf, doc, pageWidth, margin, titleStripHeight);
 
+  // ── North arrow (top-right) + graphic scale bar (bottom-left) ─
+  // Honor the on-screen title-block visibility toggles so a hidden
+  // element doesn't reappear in the PDF.
+  const tb = doc.settings.titleBlock;
+  if (tb?.northArrowVisible !== false) {
+    drawNorthArrow(
+      pdf,
+      pageWidth - margin - 0.55,
+      margin + 0.6,
+      Math.max(0.5, tb?.northArrowSizeIn ?? 0.9),
+      doc.settings.drawingRotationDeg ?? 0,
+    );
+  }
+  if (tb?.scaleBarVisible !== false) {
+    drawScaleBar(pdf, margin + 0.35, pageHeight - margin - titleStripHeight - 0.4, effectiveScale);
+  }
+
   // ── Heavy frame border (drawn last so it sits on top) ────
   drawBorder(pdf, pageWidth, pageHeight, margin);
 
@@ -215,6 +232,70 @@ function drawBorder(pdf: jsPDF, pageWidth: number, pageHeight: number, inset: nu
   pdf.setDrawColor(0, 0, 0);
   pdf.setLineWidth(0.02); // ~0.5mm heavy frame
   pdf.rect(inset, inset, pageWidth - inset * 2, pageHeight - inset * 2);
+}
+
+/** cad-survey-print-pdf Slice 2 — a slim filled north arrow + "N",
+ *  pointing to true north (up, minus the drawing's plot rotation).
+ *  Centered at (cx, cy) in paper inches; `sizeIn` is the arrow height. */
+function drawNorthArrow(pdf: jsPDF, cx: number, cy: number, sizeIn: number, rotationDeg: number): void {
+  const h = sizeIn;
+  const w = sizeIn * 0.42;
+  const rot = (-rotationDeg * Math.PI) / 180; // CW-on-screen → CCW math, north = up
+  const rotate = (dx: number, dy: number) => ({
+    // dy negative = up; PDF y is down so we add the rotated dy.
+    x: cx + dx * Math.cos(rot) - dy * Math.sin(rot),
+    y: cy + dx * Math.sin(rot) + dy * Math.cos(rot),
+  });
+  const tip = rotate(0, -h / 2);
+  const bl = rotate(-w / 2, h / 2);
+  const br = rotate(w / 2, h / 2);
+  const mid = rotate(0, h * 0.18); // notch so the two halves read distinctly
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.008);
+  // Left half filled black, right half outline — the classic two-tone arrow.
+  pdf.setFillColor(0, 0, 0);
+  pdf.triangle(tip.x, tip.y, bl.x, bl.y, mid.x, mid.y, 'F');
+  pdf.triangle(tip.x, tip.y, br.x, br.y, mid.x, mid.y, 'S');
+  // "N" above the tip.
+  const label = rotate(0, -h / 2 - 0.14);
+  pdf.setFontSize(11);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text('N', label.x, label.y, { align: 'center' });
+}
+
+/** cad-survey-print-pdf Slice 2 — checkered graphic bar scale + tick
+ *  labels + the written scale. `plotScale` = world-ft per paper inch. */
+function drawScaleBar(pdf: jsPDF, x: number, y: number, plotScale: number): void {
+  const barLenIn = 2.0;
+  const segs = 4;
+  const segIn = barLenIn / segs;
+  const segFt = segIn * plotScale; // feet per segment
+  const barH = 0.09;
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setTextColor(0, 0, 0);
+  // Written scale above the bar.
+  pdf.setFontSize(9);
+  pdf.text(`1" = ${plotScale}'`, x, y - 0.08);
+  // Checkered segments.
+  pdf.setLineWidth(0.006);
+  for (let i = 0; i < segs; i++) {
+    const sx = x + i * segIn;
+    if (i % 2 === 0) {
+      pdf.setFillColor(0, 0, 0);
+      pdf.rect(sx, y, segIn, barH, 'F');
+    } else {
+      pdf.rect(sx, y, segIn, barH, 'S');
+    }
+  }
+  pdf.rect(x, y, barLenIn, barH, 'S'); // outer border
+  // Tick labels under each boundary.
+  pdf.setFontSize(7);
+  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(0));
+  for (let i = 0; i <= segs; i++) {
+    pdf.text(fmt(i * segFt), x + i * segIn, y + barH + 0.12, { align: 'center' });
+  }
+  pdf.setFontSize(7);
+  pdf.text('FEET', x + barLenIn + 0.1, y + barH);
 }
 
 /**

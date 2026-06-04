@@ -45,3 +45,23 @@ describe('exportToPdf framing wiring (source-locked)', () => {
     expect(SRC).toMatch(/1" = \$\{plotScale\}'/);
   });
 });
+
+describe('Slice 2 — north arrow + graphic scale bar (source-locked)', () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'lib', 'cad', 'delivery', 'pdf-writer.ts'),
+    'utf8',
+  );
+  it('draws a north arrow that respects the drawing rotation, gated on visibility', () => {
+    expect(SRC).toMatch(/function drawNorthArrow/);
+    expect(SRC).toMatch(/tb\?\.northArrowVisible !== false/);
+    expect(SRC).toMatch(/doc\.settings\.drawingRotationDeg \?\? 0/);
+  });
+  it('draws a checkered graphic scale bar with the written scale, gated on visibility', () => {
+    expect(SRC).toMatch(/function drawScaleBar/);
+    expect(SRC).toMatch(/tb\?\.scaleBarVisible !== false/);
+    expect(SRC).toMatch(/drawScaleBar\(pdf, margin \+ 0\.35,[\s\S]*?effectiveScale\)/);
+    // written scale + FEET label in the bar.
+    expect(SRC).toMatch(/`1" = \$\{plotScale\}'`/);
+    expect(SRC).toMatch(/'FEET'/);
+  });
+});
