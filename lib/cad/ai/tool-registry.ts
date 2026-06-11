@@ -37,6 +37,7 @@ import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
 import { stampProvenance, type AIProvenance } from './provenance';
 import { ensureDraftLayerFor } from './sandbox';
 import { stampDisambiguatedPointName } from '../points/disambiguate';
+import { assignSymbolForCode } from '../styles/code-to-symbol';
 import {
   calcFourthParallelogramCorner,
   calcPointFromBearingDistance,
@@ -215,12 +216,25 @@ export const addPoint: ToolDefinition<AddPointArgs, Feature> = {
       ...(args.code ? { code: args.code } : {}),
       ...(args.properties ?? {}),
     });
+    // cad-domain-audit Slice M — assign the symbol library's glyph
+    // when the code (or the free-form description token) matches a
+    // monument / utility symbol. Same rule the TRV importer uses, so
+    // a "309" point dropped via AI gets the iron-rod monument glyph
+    // instead of the default crosshair.
+    const style = defaultStyle();
+    const codeForSymbol =
+      (typeof safeProperties?.code === 'string' && safeProperties.code) ||
+      (typeof safeProperties?.description === 'string' && safeProperties.description) ||
+      args.code ||
+      '';
+    style.symbolId =
+      assignSymbolForCode(codeForSymbol, doc.customSymbols ?? []) ?? style.symbolId;
     const feature: Feature = {
       id: generateId(),
       type: 'POINT',
       geometry: { type: 'POINT', point: { x: args.x, y: args.y } },
       layerId: layerResult.result,
-      style: defaultStyle(),
+      style,
       properties: safeProperties ?? {},
     };
     return commitFeature(feature, args.provenance);

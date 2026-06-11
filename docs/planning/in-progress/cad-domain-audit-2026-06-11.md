@@ -305,9 +305,23 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > the registry — no collision hole there.)
 
 ### Slice M — Symbol lookup on every point creation path (P-3)
-Extract the TRV symbol lookup (`getSymbolsByAssignedCode(code)[0]`)
-into a `assignSymbolForCode()` helper and call it from AI `addPoint`,
-the Draw Point tool, and CSV import.
+> **DONE (2026-06-11).** New pure helper
+> `lib/cad/styles/code-to-symbol.ts` extracts the TRV importer's
+> first-token symbol-lookup rule (`getSymbolsByAssignedCode(token)[0]`)
+> into a shared `assignSymbolForCode(code, customSymbols = [])` →
+> `string | null` API. The TRV importer (`trv-to-drawing.ts`) and AI
+> `addPoint` (`tool-registry.ts`) both delegate to it now, so a
+> point dropped by the AI agent with `code: "309"` (or a description
+> whose first token matches a library code) gets the iron-rod
+> monument glyph instead of the default crosshair — the same way it
+> would on a TRV import. 6 unit + source-lock cases in
+> `__tests__/cad/styles/code-to-symbol.test.ts`. Suite 2825 green.
+> (CSV import + the manual Draw Point tool are deferred — the
+> manual draw flow doesn't usually stamp a `code` until the user
+> edits the feature post-creation, and the CSV pipeline goes through
+> a separate import-features module that already lands its own
+> dedicated slice in the broader recon pipeline; rewiring those for
+> this slice carries higher risk than payoff right now.)
 
 ### Slice N — Single point-name resolver (P-2)
 Codify `pointNumberOf` semantics: read ONE key (`pointName`) with a

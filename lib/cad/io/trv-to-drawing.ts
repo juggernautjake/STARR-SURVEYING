@@ -43,7 +43,7 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements, wrapSurveyLabel } from './trv-drawing-elements';
 // cad-trv-fidelity Slice 7 — assign a monument/utility symbol to an
 // imported point when its feature code matches a symbol's assignedCodes.
-import { getSymbolsByAssignedCode } from '../styles/symbol-library';
+import { assignSymbolForCode } from '../styles/code-to-symbol';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -271,14 +271,11 @@ function mapPoint(
   // symbol's assignedCodes (e.g. "309" → its monument glyph). Exact
   // match only, so a free-form description never mis-assigns; points
   // with no matching code keep the default crosshair.
+  // cad-domain-audit Slice M — `assignSymbolForCode` is the shared
+  // helper every point-creation path now calls (AI addPoint, CSV
+  // import, etc.), so this rule fires identically everywhere.
   const style = defaultStyle();
-  if (p.description) {
-    const token = p.description.trim().split(/\s+/)[0];
-    if (token) {
-      const matches = getSymbolsByAssignedCode(token);
-      if (matches.length > 0) style.symbolId = matches[0].id;
-    }
-  }
+  style.symbolId = assignSymbolForCode(p.description) ?? style.symbolId;
   return {
     id: pointKey(p.id),
     type: 'POINT',
