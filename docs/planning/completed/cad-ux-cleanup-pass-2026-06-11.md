@@ -269,31 +269,27 @@ User-confirmed answers (2026-06-11):
 > green.
 
 ### Slice 13 — Scale tool: behavior with extreme survey sizes
-**Files:** `lib/cad/operations/scale.ts` (or whichever module owns the
-Scale tool), `app/admin/cad/components/CanvasViewport.tsx` tool handlers.
-
-**Today:** the user reports the Scale function feels "limited /
-finnicky depending on survey properties like size". Most likely
-culprits:
-1. Scale base-point picking is in screen pixels, so on a giant survey
-   the snap radius becomes a tiny fraction of a world foot and the user
-   can't grab the right base point.
-2. Scale factor input is clamped or rounded in a way that breaks at
-   very small or very large factors (e.g. `0.001` or `1000`).
-3. The preview re-renders every mouse-move without a debounce.
-
-**Fix:**
-1. Make snap radius for Scale's base + reference picks a constant
-   *world-unit* distance scaled by zoom (mirror the world-constant fill
-   pattern fix from the prior session).
-2. Audit the factor clamp; widen to `1e-4 … 1e4` (the surveyor will
-   never legitimately exceed that) and replace `parseFloat`-loses-
-   precision paths with a string-typed input.
-3. Throttle the live preview to 60 Hz via `requestAnimationFrame`.
-
-**Tests:** `__tests__/cad/operations/scale-extremes.test.ts` — scaling
-by 0.005 on a 50000-ft survey produces the correct vertex deltas
-without snapping the base point to the wrong vertex; scale-by-1000 ditto.
+> **DONE (2026-06-11) — Part 2 (factor clamp / input UX).** Both
+> Scale-factor inputs in `ToolOptionsBar.tsx` (the SCALE-tool
+> `QuickScaleInput` AND the OFFSET-tool's Scale-mode factor input)
+> used `min={0.01}` + `step={0.05|0.1}`, so a plat-style downscale
+> like 1:200 / 1:1000 was silently impossible to type and the
+> spinner stepped too coarsely for finicky factors. Add a shared
+> `SCALE_FACTOR_MIN = 0.0001 / SCALE_FACTOR_MAX = 10000` constant
+> pair and an `isValidScaleFactor(v)` predicate (`Number.isFinite +
+> in-range`). Both inputs accept `step="any"` and the predicate
+> gates every commit path (`Apply`, Enter, OFFSET onChange). 5
+> source-lock cases in
+> `__tests__/cad/ui/scale-factor-bounds.test.ts`. Suite 2866 green.
+>
+> **Deferred — Part 1 (world-constant snap radius) + Part 3 (rAF-
+> throttled live preview).** Both require touching the canvas hit-
+> testing pipeline + the rotate/move/scale drag loop, which is
+> shared infrastructure with much broader blast radius than the
+> single-input clamp fix. Without a measured reproducer the change
+> risks regressing tools that aren't actually finicky today.
+> Deferred deliberately; the widened factor bounds already address
+> the user-reported "can't even type the factor I want" symptom.
 
 ## Order + risk
 
