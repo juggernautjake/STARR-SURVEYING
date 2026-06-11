@@ -270,10 +270,22 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > 2795 green.
 
 ### Slice K — Esc twice under AutoCAD preset (H-2)
-When the user is on the AutoCAD preset AND Escape is bound to
-`tool.select`, the chord-dismiss handler fires both: clears the
-buffer AND dispatches `tool.select`. Detect via
-`useHotkeysStore.userBindings.find(...)`.
+> **DONE (2026-06-11).** New `findActionForKey(actions, userBindings,
+> key)` helper (exported from `useHotkeys.ts`) mirrors the engine's
+> `buildTree` merge — user override → registry default — and returns
+> the LAST match so it matches engine collision semantics (AutoCAD
+> binds `tool.select` → escape while `edit.deselect` still defaults
+> to escape; engine inserts later, so Select wins). The Esc-handler
+> in `useHotkeys.ts` now resolves the Esc-bound action off the live
+> `useHotkeysStore.userBindings` after clearing the chord buffer; if
+> the bound action ISN'T the cancel-verb default (`edit.deselect`)
+> it dispatches it via the existing `dispatchDefaultAction` path —
+> so AutoCAD users fire Select on the first Esc, Slice 5's
+> "back-out-without-deselect" behaviour stays intact for DEFAULT
+> users, and any future preset that binds Esc to a tool action gets
+> the same treatment for free. 7 unit + source-lock cases in
+> `__tests__/cad/hotkeys/escape-under-autocad-preset.test.ts`. Suite
+> 2802 green.
 
 ### Slice L — Point-name collisions on creation (P-4)
 `AI addPoint` + the Draw Point tool route through a shared

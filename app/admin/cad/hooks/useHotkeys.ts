@@ -21,6 +21,7 @@ import {
   DEFAULT_ACTIONS,
   type BindableAction,
   type HotkeyEngine,
+  type UserBinding,
 } from '@/lib/cad/hotkeys';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import { confirmAction } from '../components/ConfirmDialog';
@@ -92,6 +93,31 @@ function toolForAction(actionId: string): ToolType | null {
     case 'tool.forward':  return 'FORWARD_POINT';
     default:              return null;
   }
+}
+
+/** cad-domain-audit Slice K — find the action whose RESOLVED binding
+ *  matches `key` (user override → registry default). Returns null
+ *  when nothing's bound. Mirrors the engine's `buildTree` merge
+ *  semantics so any rebind is honoured immediately. Exported for the
+ *  Slice K test fixture. */
+export function findActionForKey(
+  actions: ReadonlyArray<BindableAction>,
+  userBindings: ReadonlyArray<UserBinding>,
+  key: string,
+): BindableAction | null {
+  const overrideById = new Map<string, string | null>();
+  for (const ub of userBindings) overrideById.set(ub.actionId, ub.key);
+  // Mirror the engine's `buildTree` semantics: when two actions
+  // resolve to the same key (e.g. AutoCAD preset binds tool.select →
+  // escape while edit.deselect still defaults to escape), the later-
+  // inserted action wins. Walk the list and remember the last match.
+  let last: BindableAction | null = null;
+  for (const action of actions) {
+    const override = overrideById.get(action.id);
+    const resolved = override === undefined ? action.defaultKey : override;
+    if (resolved === key) last = action;
+  }
+  return last;
 }
 
 /** True when the event target is an editable surface that
@@ -169,6 +195,20 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
         engine.resetBuffer();
         event.preventDefault();
         emitPrefix();
+        // cad-domain-audit Slice K — Slice 5 made Esc a "back out of
+        // a chord" verb under the DEFAULT preset (Esc → edit.deselect)
+        // and explicitly suppresses the bound action so the surveyor
+        // can abort an accidental chord without also deselecting. But
+        // the AutoCAD preset rebinds Esc to `tool.select`, and those
+        // surveyors expect Esc to STILL fire Select even when a chord
+        // was buffered. Discriminator: dispatch the bound action UNLESS
+        // it's the cancel-verb default (`edit.deselect`). Reading the
+        // live store keeps a runtime rebind in effect.
+        const liveBindings = useHotkeysStore.getState().userBindings;
+        const escAction = findActionForKey(DEFAULT_ACTIONS, liveBindings, 'escape');
+        if (escAction && escAction.id !== 'edit.deselect') {
+          dispatchDefaultAction(escAction);
+        }
         return;
       }
       const handled = engine.handleKeyEvent(event);
