@@ -214,9 +214,15 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > case only fires inside `removeLayer` which is now correct in-place.)
 
 ### Slice G — Reset-prefs runs label regen (L-5)
-`LayerPreferencesPanel.resetToDefaults()` calls
-`regenerateLayerLabels(layerId)` exactly the same way the
-`update()` companion does. One-line fix.
+> **DONE (2026-06-11).** `LayerPreferencesPanel.resetToDefaults` now
+> writes `DEFAULT_LAYER_DISPLAY_PREFERENCES`, then re-runs
+> `regenerateLayerLabels` against the merged-reset prefs and pipes
+> the result through `store.setFeatureTextLabels` — the exact same
+> sequence the `update()` companion uses. The "reset doesn't visibly
+> do anything" UX hole is closed: existing labels redraw with the
+> default text + visibility the moment the surveyor clicks reset.
+> 3 source-lock cases in
+> `__tests__/cad/ui/layer-prefs-reset-regen.test.ts`. Suite 2772 green.
 
 ### Slice H — Hardcoded `'ANNOTATION'` / `'TITLE-BLOCK'` targets fall
 back gracefully (L-6). Label + recon writers check

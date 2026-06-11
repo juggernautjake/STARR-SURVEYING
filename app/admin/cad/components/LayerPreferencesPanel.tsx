@@ -272,7 +272,23 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
   }
 
   function resetToDefaults() {
+    // cad-domain-audit Slice G — mirror the `update()` companion
+    // above: write the prefs, then regenerate every label on this
+    // layer through the new merged prefs. Previously reset wrote the
+    // prefs but never re-ran `regenerateLayerLabels`, so existing
+    // labels kept their old text/visibility until the surveyor
+    // touched any other toggle — a silent "did nothing" UX.
     store.updateLayerDisplayPreferences(layerId, { ...DEFAULT_LAYER_DISPLAY_PREFERENCES });
+    const features = store.getFeaturesOnLayer(layerId);
+    const displayPrefs = store.document.settings.displayPreferences;
+    const labelMap = regenerateLayerLabels(
+      features,
+      { ...layer, displayPreferences: { ...DEFAULT_LAYER_DISPLAY_PREFERENCES } },
+      displayPrefs,
+    );
+    labelMap.forEach((labels, featureId) => {
+      store.setFeatureTextLabels(featureId, labels);
+    });
   }
 
   if (!open) return null;
