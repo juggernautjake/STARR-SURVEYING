@@ -26,17 +26,50 @@ describe('panel ↔ canvas selection sync', () => {
     expect(SRC).toMatch(/layersToOpen\.add\(f\.layerId\)/);
     // Walks the feature-group parent chain so nested sublayers all open.
     expect(SRC).toMatch(/gid = groupById\[gid\]\.parentGroupId \?\? null/);
-    expect(SRC).toMatch(/setExpandedLayers\(\(prev\) => new Set\(\[\.\.\.prev, \.\.\.layersToOpen\]\)\)/);
-    expect(SRC).toMatch(/setExpandedGroups\(\(prev\) => new Set\(\[\.\.\.prev, \.\.\.groupsToOpen\]\)\)/);
   });
 
-  it('scrolls the selected feature row into view', () => {
+  it('scrolls the selected feature row into view only when it is offscreen', () => {
     expect(SRC).toMatch(/data-feature-row="\$\{sel\}"/);
-    expect(SRC).toMatch(/scrollIntoView\(\{ block: 'nearest' \}\)/);
+    // cad-ux-cleanup-pass Slice 1 — visibility check before scrolling
+    // so the surveyor's panel scroll doesn't jump while they navigate.
+    expect(SRC).toMatch(/row\.getBoundingClientRect\(\)/);
+    expect(SRC).toMatch(/if \(top < 0 \|\| bottom > viewportH\)/);
+    expect(SRC).toMatch(/row\.scrollIntoView\(\{ block: 'nearest' \}\)/);
   });
 
   it('the layer + group rows highlight when a contained feature is selected', () => {
     expect(SRC).toMatch(/layerFeatures\.some\(\(f\) => selectedIds\.has\(f\.id\)\)/);
     expect(SRC).toMatch(/groupFeatures\.some\(\(f\) => selectedIds\.has\(f\.id\)\)/);
+  });
+});
+
+describe('cad-ux-cleanup-pass Slice 1 — auto-expand only tracks our own opens', () => {
+  it('two refs track the layers + groups WE opened automatically', () => {
+    expect(SRC).toMatch(/autoOpenedLayersRef = useRef<Set<string>>\(new Set\(\)\)/);
+    expect(SRC).toMatch(/autoOpenedGroupsRef = useRef<Set<string>>\(new Set\(\)\)/);
+  });
+
+  it('skips ids that are already expanded so user-opened rows are NOT tracked as auto', () => {
+    expect(SRC).toMatch(/for \(const id of layersToOpen\) \{\s*\n\s*if \(next\.has\(id\)\) continue;[\s\S]*?autoOpenedLayersRef\.current\.add\(id\)/);
+    expect(SRC).toMatch(/for \(const id of groupsToOpen\) \{\s*\n\s*if \(next\.has\(id\)\) continue;[\s\S]*?autoOpenedGroupsRef\.current\.add\(id\)/);
+  });
+
+  it('collapses ALL auto-opened ids when the selection clears', () => {
+    expect(SRC).toMatch(
+      /if \(selectedIds\.size === 0\) \{[\s\S]*?for \(const id of autoLayers\) next\.delete\(id\)[\s\S]*?for \(const id of autoGroups\) next\.delete\(id\)/,
+    );
+    // Refs are reset to a fresh set after collapsing so the next
+    // selection starts from a clean state.
+    expect(SRC).toMatch(/autoOpenedLayersRef\.current = new Set\(\)/);
+    expect(SRC).toMatch(/autoOpenedGroupsRef\.current = new Set\(\)/);
+  });
+
+  it('toggle handlers hand control back to the user by dropping the id from the auto-set', () => {
+    expect(SRC).toMatch(
+      /function toggleLayerExpand\(layerId: string\) \{[\s\S]*?autoOpenedLayersRef\.current\.delete\(layerId\)/,
+    );
+    expect(SRC).toMatch(
+      /function toggleGroupExpand\(groupId: string\) \{[\s\S]*?autoOpenedGroupsRef\.current\.delete\(groupId\)/,
+    );
   });
 });

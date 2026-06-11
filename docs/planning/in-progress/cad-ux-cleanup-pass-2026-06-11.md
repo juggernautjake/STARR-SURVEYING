@@ -48,28 +48,20 @@ User-confirmed answers (2026-06-11):
 ## Slices
 
 ### Slice 1 — Layer panel selection-sync: less invasive
-**File:** `app/admin/cad/components/LayerPanel.tsx` (the `useEffect`
-keyed on `selectionKey` around L117–144 — added in the prior
-selection-sync work).
-
-**Today:** every selection change unions new layer/group ids into the
-expanded sets and never collapses them, so the panel ratchets open until
-the user manually collapses each row.
-
-**Fix:**
-1. Track an `autoExpanded` set so the effect only inserts ids that the
-   USER hasn't already collapsed (collapsing once disables auto-expand
-   for that id until next session).
-2. On selection CLEAR (`selectedIds.size === 0`), collapse every id we
-   added via auto-expand. User-expanded ids stay open.
-3. Scroll the focused feature row into view without forcing the layer
-   open when it's already in the viewport — `IntersectionObserver` or a
-   single `getBoundingClientRect` check.
-
-**Tests:** `__tests__/cad/ui/layer-panel-selection-sync.test.ts` —
-extend with: (a) collapsing an auto-expanded layer suppresses re-expand
-for the same id; (b) clearing selection collapses only auto-expanded ids;
-(c) source-lock the IntersectionObserver / scroll guard.
+> **DONE (2026-06-11).** Two refs (`autoOpenedLayersRef`,
+> `autoOpenedGroupsRef`) track exactly which layer / group ids we
+> opened automatically. The selection effect only adds an id when
+> it isn't already expanded (so user-opened rows are never claimed
+> as auto), and `toggleLayerExpand` / `toggleGroupExpand` drop the
+> id from the auto-set the instant the user touches it — so a layer
+> they manually collapse mid-selection stays collapsed on the next
+> selection. When the selection clears, the effect collapses every
+> id remaining in the auto-set and resets the refs to a fresh state.
+> The scroll-into-view now bails when the row's
+> `getBoundingClientRect()` is already inside the viewport
+> (`top >= 0 && bottom <= viewportH`) so the panel doesn't nudge
+> while the surveyor's navigating. Existing source-lock test
+> extended with 4 new cases; suite 2723 green.
 
 ### Slice 2 — TRV duplicate point names: keep the original
 > **DONE (2026-06-11).** `trv-to-drawing.ts` now disambiguates duplicate

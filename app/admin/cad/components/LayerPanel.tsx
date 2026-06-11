@@ -115,9 +115,41 @@ export default function LayerPanel() {
   // `selectedIds`; this makes that highlight visible when the branch
   // was collapsed, so clicking a point/line on the drawing surfaces the
   // exact layer + sublayer it lives in.
+  //
+  // cad-ux-cleanup-pass Slice 1 — the original implementation was a
+  // one-way ratchet (it only ever opened, never closed), so selecting
+  // a point left every visited layer expanded until the surveyor
+  // manually collapsed each one. We now track which ids we opened
+  // ourselves in refs; deselecting collapses them back, and the
+  // toggle handlers drop any id the user manually collapses so we
+  // don't re-open it the next time a point on that layer is touched.
+  const autoOpenedLayersRef = useRef<Set<string>>(new Set());
+  const autoOpenedGroupsRef = useRef<Set<string>>(new Set());
   const selectionKey = Array.from(selectedIds).sort().join('|');
   useEffect(() => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0) {
+      // Collapse back the ids we auto-opened for the prior selection;
+      // ids the user expanded manually (NOT in the auto-set) stay open.
+      const autoLayers = autoOpenedLayersRef.current;
+      const autoGroups = autoOpenedGroupsRef.current;
+      if (autoLayers.size > 0) {
+        setExpandedLayers((prev) => {
+          const next = new Set(prev);
+          for (const id of autoLayers) next.delete(id);
+          return next;
+        });
+        autoOpenedLayersRef.current = new Set();
+      }
+      if (autoGroups.size > 0) {
+        setExpandedGroups((prev) => {
+          const next = new Set(prev);
+          for (const id of autoGroups) next.delete(id);
+          return next;
+        });
+        autoOpenedGroupsRef.current = new Set();
+      }
+      return;
+    }
     const groupById = doc.featureGroups ?? {};
     const layersToOpen = new Set<string>();
     const groupsToOpen = new Set<string>();
@@ -132,13 +164,45 @@ export default function LayerPanel() {
         gid = groupById[gid].parentGroupId ?? null;
       }
     }
-    if (layersToOpen.size > 0) setExpandedLayers((prev) => new Set([...prev, ...layersToOpen]));
-    if (groupsToOpen.size > 0) setExpandedGroups((prev) => new Set([...prev, ...groupsToOpen]));
+    if (layersToOpen.size > 0) {
+      setExpandedLayers((prev) => {
+        const next = new Set(prev);
+        for (const id of layersToOpen) {
+          if (next.has(id)) continue;
+          next.add(id);
+          autoOpenedLayersRef.current.add(id);
+        }
+        return next;
+      });
+    }
+    if (groupsToOpen.size > 0) {
+      setExpandedGroups((prev) => {
+        const next = new Set(prev);
+        for (const id of groupsToOpen) {
+          if (next.has(id)) continue;
+          next.add(id);
+          autoOpenedGroupsRef.current.add(id);
+        }
+        return next;
+      });
+    }
     const firstId = selectedIds.values().next().value;
     if (firstId) {
       requestAnimationFrame(() => {
         const sel = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(firstId) : firstId;
-        document.querySelector(`[data-feature-row="${sel}"]`)?.scrollIntoView({ block: 'nearest' });
+        const row = document.querySelector(`[data-feature-row="${sel}"]`);
+        if (!row) return;
+        // Skip the scroll when the row is already in view — the
+        // previous unconditional scrollIntoView nudged the panel even
+        // when nothing needed to move, which jumped the surveyor's
+        // view away from where they were looking.
+        const rect = row.getBoundingClientRect();
+        const top = rect.top;
+        const bottom = rect.bottom;
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        if (top < 0 || bottom > viewportH) {
+          row.scrollIntoView({ block: 'nearest' });
+        }
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -343,6 +407,12 @@ export default function LayerPanel() {
   }
 
   function toggleLayerExpand(layerId: string) {
+    // cad-ux-cleanup-pass Slice 1 — once the user collapses (or
+    // re-opens) a layer manually, hand control back to them: drop the
+    // id from the auto-set so the deselect-collapse pass leaves it
+    // alone and the next selection doesn't reopen what they just
+    // closed.
+    autoOpenedLayersRef.current.delete(layerId);
     setExpandedLayers((prev) => {
       const next = new Set(prev);
       if (next.has(layerId)) next.delete(layerId);
@@ -352,6 +422,7 @@ export default function LayerPanel() {
   }
 
   function toggleGroupExpand(groupId: string) {
+    autoOpenedGroupsRef.current.delete(groupId);
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) next.delete(groupId);
