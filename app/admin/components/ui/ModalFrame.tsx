@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useHotkeyContext } from '@/app/admin/cad/hooks/useHotkeyContext';
 
 type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
@@ -127,6 +128,13 @@ export default function ModalFrame({
     | { kind: 'resize'; dir: ResizeDir; start: Rect; pointerX: number; pointerY: number }
     | null
   >(null);
+
+  // cad-domain-audit Slice I — narrow hotkey context to DIALOG while
+  // the modal is open so canvas tool hotkeys (`s` Select, `p` Point,
+  // chord prefixes, etc.) don't accidentally fire when the surveyor
+  // is interacting with this dialog. Restored to the previous top
+  // (typically CANVAS) when the modal closes / unmounts.
+  useHotkeyContext('DIALOG', open);
 
   // Initialise position/size once the modal opens (SSR-safe).
   useEffect(() => {

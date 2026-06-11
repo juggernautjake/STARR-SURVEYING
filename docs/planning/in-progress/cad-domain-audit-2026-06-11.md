@@ -240,11 +240,21 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > constant + bans regressions (12 cases). Suite 2784 green.
 
 ### Slice I — Hotkey context narrowing (H-1, H-4)
-Wire `useHotkeysStore.setActiveContext('DIALOG')` to every modal
-mount path (`ModalFrame.tsx` covers most). The command bar focus
-handler sets `'COMMAND_BAR'`. Add a `useHotkeyContext(context)`
-helper so other surfaces can opt in without boilerplate. Tests:
-`__tests__/cad/hotkeys/context-narrowing.test.ts`.
+> **DONE (2026-06-11).** New
+> `app/admin/cad/hooks/useHotkeyContext.ts` hook + module-level
+> push/pop stack. `useHotkeyContext(context, enabled = true)` pushes
+> the given `ActionContext` while the host component is mounted and
+> restores the previous top on unmount; nesting + out-of-order pops
+> are handled (last-occurrence wins). `ModalFrame` calls
+> `useHotkeyContext('DIALOG', open)` so every modal automatically
+> narrows the hotkey engine — canvas tool shortcuts (`s`, `p`, chord
+> prefixes) stop firing inside dialogs. `CommandBar` calls
+> `useHotkeyContext('COMMAND_BAR', uiStore.commandBarFocused)` so the
+> same narrowing applies while the command-bar input is focused. The
+> hook exports `__pushHotkeyContextForTests` + the underlying stack
+> so unit tests exercise push / pop / top-wins / out-of-order
+> semantics without spinning up React. 5 unit + source-lock cases in
+> `__tests__/cad/hotkeys/context-narrowing.test.ts`. Suite 2789 green.
 
 ### Slice J — Chord HUD respects user bindings (H-3)
 Replace ChordHUD's `useMemo` index with one that reads
