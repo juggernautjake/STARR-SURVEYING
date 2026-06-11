@@ -96,6 +96,24 @@ export function rowToWorldPoint(
 
 export type PointRowField = 'northing' | 'easting' | 'elevation' | 'code' | 'description';
 
+/** cad-domain-audit Slice P — returns true when an edit to this row
+ *  field changes a value the layer's display labels render from, so
+ *  the caller knows to re-run label generation. Coordinate edits also
+ *  matter because POINT_COORDINATES + the anchor for every label
+ *  shifts when the point moves. */
+export function rowEditAffectsLabels(field: PointRowField): boolean {
+  switch (field) {
+    case 'code':
+    case 'description':
+    case 'elevation':
+    case 'northing':
+    case 'easting':
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * Produce a `Partial<Feature>` update for an edited row field (excluding
  * `name`, which is handled by the guarded rename flow §10.3). Returns

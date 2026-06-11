@@ -17,6 +17,7 @@ import type { Layer, TitleBlockConfig } from '@/lib/cad/types';
 import { formatFeatureVertices, isExpandableFeature } from '@/lib/cad/feature-vertices';
 import { featureRowLabel } from '@/lib/cad/feature-row-label';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
+import { useTransferStore } from '@/lib/cad/store';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 import NewLayerDialog from './NewLayerDialog';
@@ -96,9 +97,31 @@ export default function LayerPanel() {
   // lose context after typing a filter that excludes their
   // current selection.
   const filterTrim = filterText.trim().toLowerCase();
+  // cad-ux-cleanup-pass Slice 7 — feature counts indexed by layerId
+  // once per render, so the empty-default-layer suppression below + any
+  // future tests share the same source of truth.
+  const featureCountByLayer = new Map<string, number>();
+  for (const f of Object.values(doc.features)) {
+    featureCountByLayer.set(f.layerId, (featureCountByLayer.get(f.layerId) ?? 0) + 1);
+  }
+  // cad-ux-cleanup-pass Slice 7 — hide the SEEDED "Layer 1" from the
+  // panel while it's still empty AND carrying its default name, so a
+  // fresh drawing doesn't open with a useless empty row. The moment
+  // the surveyor draws on it OR renames it, this heuristic stops
+  // applying and the row reappears. The layer itself stays in
+  // `doc.layers` (so `activeLayerId === 'DEFAULT'` still resolves +
+  // every existing layer-style fallback keeps working) — only the
+  // panel rendering filters it out.
+  function isHideableSeededDefault(l: Layer): boolean {
+    if (l.id !== 'DEFAULT') return false;
+    if ((featureCountByLayer.get(l.id) ?? 0) > 0) return false;
+    if (l.name !== 'Layer 1') return false;
+    return true;
+  }
+  const visibleLayers = layers.filter((l) => l.id === activeLayerId || !isHideableSeededDefault(l));
   const filteredLayers = filterTrim.length === 0
-    ? layers
-    : layers.filter((l) => l.name.toLowerCase().includes(filterTrim) || l.id === activeLayerId);
+    ? visibleLayers
+    : visibleLayers.filter((l) => l.name.toLowerCase().includes(filterTrim) || l.id === activeLayerId);
 
   // Track selected and hovered feature IDs for layer highlighting
   const selectedIds    = selectionStore.selectedIds;
@@ -114,9 +137,41 @@ export default function LayerPanel() {
   // `selectedIds`; this makes that highlight visible when the branch
   // was collapsed, so clicking a point/line on the drawing surfaces the
   // exact layer + sublayer it lives in.
+  //
+  // cad-ux-cleanup-pass Slice 1 — the original implementation was a
+  // one-way ratchet (it only ever opened, never closed), so selecting
+  // a point left every visited layer expanded until the surveyor
+  // manually collapsed each one. We now track which ids we opened
+  // ourselves in refs; deselecting collapses them back, and the
+  // toggle handlers drop any id the user manually collapses so we
+  // don't re-open it the next time a point on that layer is touched.
+  const autoOpenedLayersRef = useRef<Set<string>>(new Set());
+  const autoOpenedGroupsRef = useRef<Set<string>>(new Set());
   const selectionKey = Array.from(selectedIds).sort().join('|');
   useEffect(() => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0) {
+      // Collapse back the ids we auto-opened for the prior selection;
+      // ids the user expanded manually (NOT in the auto-set) stay open.
+      const autoLayers = autoOpenedLayersRef.current;
+      const autoGroups = autoOpenedGroupsRef.current;
+      if (autoLayers.size > 0) {
+        setExpandedLayers((prev) => {
+          const next = new Set(prev);
+          for (const id of autoLayers) next.delete(id);
+          return next;
+        });
+        autoOpenedLayersRef.current = new Set();
+      }
+      if (autoGroups.size > 0) {
+        setExpandedGroups((prev) => {
+          const next = new Set(prev);
+          for (const id of autoGroups) next.delete(id);
+          return next;
+        });
+        autoOpenedGroupsRef.current = new Set();
+      }
+      return;
+    }
     const groupById = doc.featureGroups ?? {};
     const layersToOpen = new Set<string>();
     const groupsToOpen = new Set<string>();
@@ -131,13 +186,45 @@ export default function LayerPanel() {
         gid = groupById[gid].parentGroupId ?? null;
       }
     }
-    if (layersToOpen.size > 0) setExpandedLayers((prev) => new Set([...prev, ...layersToOpen]));
-    if (groupsToOpen.size > 0) setExpandedGroups((prev) => new Set([...prev, ...groupsToOpen]));
+    if (layersToOpen.size > 0) {
+      setExpandedLayers((prev) => {
+        const next = new Set(prev);
+        for (const id of layersToOpen) {
+          if (next.has(id)) continue;
+          next.add(id);
+          autoOpenedLayersRef.current.add(id);
+        }
+        return next;
+      });
+    }
+    if (groupsToOpen.size > 0) {
+      setExpandedGroups((prev) => {
+        const next = new Set(prev);
+        for (const id of groupsToOpen) {
+          if (next.has(id)) continue;
+          next.add(id);
+          autoOpenedGroupsRef.current.add(id);
+        }
+        return next;
+      });
+    }
     const firstId = selectedIds.values().next().value;
     if (firstId) {
       requestAnimationFrame(() => {
         const sel = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(firstId) : firstId;
-        document.querySelector(`[data-feature-row="${sel}"]`)?.scrollIntoView({ block: 'nearest' });
+        const row = document.querySelector(`[data-feature-row="${sel}"]`);
+        if (!row) return;
+        // Skip the scroll when the row is already in view — the
+        // previous unconditional scrollIntoView nudged the panel even
+        // when nothing needed to move, which jumped the surveyor's
+        // view away from where they were looking.
+        const rect = row.getBoundingClientRect();
+        const top = rect.top;
+        const bottom = rect.bottom;
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        if (top < 0 || bottom > viewportH) {
+          row.scrollIntoView({ block: 'nearest' });
+        }
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,9 +318,26 @@ export default function LayerPanel() {
   }
 
   function commitRename() {
-    if (renamingId && renameValue.trim()) {
-      store.updateLayer(renamingId, { name: renameValue.trim() });
+    if (!renamingId) { setRenamingId(null); return; }
+    const trimmed = renameValue.trim();
+    if (!trimmed) { setRenamingId(null); return; }
+    // cad-domain-audit Slice B — reject a name that's already in use
+    // (case-insensitive), ignoring the layer being renamed itself.
+    // Mirrors the AI `createLayer` tool's collision check so the rule
+    // is identical no matter who creates the name. A Starr-styled
+    // command-bar toast tells the surveyor the rename was rejected;
+    // a no-op rename (same name) commits silently.
+    const collision = Object.values(doc.layers).find(
+      (l) => l.id !== renamingId && l.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (collision) {
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `Layer named '${trimmed}' already exists (id=${collision.id}). Rename cancelled.` },
+      }));
+      setRenamingId(null);
+      return;
     }
+    store.updateLayer(renamingId, { name: trimmed });
     setRenamingId(null);
   }
 
@@ -281,16 +385,38 @@ export default function LayerPanel() {
     store.removeLayer(layerId);
   }
 
+  /** cad-ux-cleanup-pass Slice 8 — open the existing Layer Transfer
+   *  dialog pre-targeted at `layerId` so the surveyor can move points
+   *  into it without picking the target again. Same code path the
+   *  bindable `layer.quickAdd` action fires. */
+  function quickAddToLayer(layerId: string) {
+    useTransferStore.getState().setOptions({ targetLayerId: layerId });
+    window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
+    setContextMenu(null);
+  }
+
   function handleDuplicateLayer(layerId: string) {
     const src = doc.layers[layerId];
     if (!src) return;
     // New layer inherits the source's style/visibility, then receives a
     // copy of every feature on the source layer (originals untouched).
     const newId = generateId();
-    const newLayer: Layer = { ...src, id: newId, name: `${src.name} copy`, isDefault: false };
+    // cad-ux-cleanup-pass Slice 3 — flag the new layer as a duplicate
+    // so the "move points from master" dialogs can exclude its copies
+    // from their source pool.
+    const newLayer: Layer = { ...src, id: newId, name: `${src.name} copy`, isDefault: false, duplicateOf: layerId };
     store.addLayer(newLayer);
+    // cad-ux-cleanup-pass Slice 7 — skip TRV mirror twins
+    // (`trvPointMirror`) and any derived auto-spawn (`trvDerived`)
+    // when collecting the transfer set. Those are render-only echoes
+    // of canonical features; cloning them produced the "+5 phantom
+    // points" the surveyor saw on the new layer.
     const ids = Object.values(doc.features)
-      .filter((f) => f.layerId === layerId)
+      .filter((f) =>
+        f.layerId === layerId &&
+        !f.properties.trvPointMirror &&
+        !f.properties.trvDerived,
+      )
       .map((f) => f.id);
     if (ids.length > 0) {
       transferSelectionToLayer(ids, newId, {
@@ -329,6 +455,12 @@ export default function LayerPanel() {
   }
 
   function toggleLayerExpand(layerId: string) {
+    // cad-ux-cleanup-pass Slice 1 — once the user collapses (or
+    // re-opens) a layer manually, hand control back to them: drop the
+    // id from the auto-set so the deselect-collapse pass leaves it
+    // alone and the next selection doesn't reopen what they just
+    // closed.
+    autoOpenedLayersRef.current.delete(layerId);
     setExpandedLayers((prev) => {
       const next = new Set(prev);
       if (next.has(layerId)) next.delete(layerId);
@@ -338,6 +470,7 @@ export default function LayerPanel() {
   }
 
   function toggleGroupExpand(groupId: string) {
+    autoOpenedGroupsRef.current.delete(groupId);
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) next.delete(groupId);
@@ -775,6 +908,20 @@ export default function LayerPanel() {
                   <Settings size={10} />
                 </button>
 
+                {/* cad-ux-cleanup-pass Slice 8 — quick-add points
+                    button. Opens the Layer Transfer dialog already
+                    pointed at this layer so the surveyor can move
+                    selected points in without re-picking the target. */}
+                <button
+                  data-testid={`layer-quick-add-${layer.id}`}
+                  className="flex-shrink-0 text-gray-600 hover:text-green-400 p-0.5 transition-colors duration-100"
+                  onClick={(e) => { e.stopPropagation(); quickAddToLayer(layer.id); }}
+                  title="Quick-add points to this layer"
+                  aria-label={`Quick-add points to ${layer.name}`}
+                >
+                  <Plus size={10} />
+                </button>
+
                 {/* Layer name */}
                 {renamingId === layer.id ? (
                   <input
@@ -1114,6 +1261,16 @@ export default function LayerPanel() {
             }}
           >
             Select all in layer
+          </button>
+          {/* cad-ux-cleanup-pass Slice 8 — quick-add points entry.
+              Opens the Layer Transfer dialog pre-targeted at this
+              layer so the surveyor can drop a selection in without
+              re-picking the target. */}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 flex items-center gap-1.5"
+            onClick={() => quickAddToLayer(contextMenu.layerId)}
+          >
+            <Plus size={11} /> Quick-add points…
           </button>
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"

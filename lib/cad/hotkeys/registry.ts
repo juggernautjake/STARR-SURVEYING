@@ -40,13 +40,17 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'tool.polyline',     category: 'TOOLS',      label: 'Draw Polyline',        description: 'Draw a polyline (multiple segments)',         defaultKey: 'p l',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.polygon',      category: 'TOOLS',      label: 'Draw Polygon',         description: 'Draw a closed polygon',                       defaultKey: 'p g',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.arc',          category: 'TOOLS',      label: 'Draw Arc',             description: 'Draw a circular arc',                         defaultKey: 'a',            isChord: false, context: 'CANVAS' },
-  { id: 'tool.spline',       category: 'TOOLS',      label: 'Draw Spline',          description: 'Draw a fit-point spline',                     defaultKey: 's p',          isChord: true,  context: 'CANVAS' },
+  // cad-ux-cleanup-pass Slice 5 — Spline moved off the `s` prefix to
+  // `Shift+P` so plain `s` fires Select instantly (no 1.5 s chord wait).
+  { id: 'tool.spline',       category: 'TOOLS',      label: 'Draw Spline',          description: 'Draw a fit-point spline',                     defaultKey: 'shift+p',      isChord: false, context: 'CANVAS' },
   { id: 'tool.text',         category: 'TOOLS',      label: 'Draw Text',            description: 'Place a text annotation',                     defaultKey: 't',            isChord: false, context: 'CANVAS' },
   { id: 'tool.move',         category: 'TOOLS',      label: 'Move',                 description: 'Move selected features',                      defaultKey: 'm',            isChord: false, context: 'CANVAS' },
   { id: 'tool.copyTool',     category: 'TOOLS',      label: 'Copy (Tool)',          description: 'Copy and place features',                     defaultKey: 'c o',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.rotate',       category: 'TOOLS',      label: 'Rotate',               description: 'Rotate selected features',                    defaultKey: 'r o',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.mirror',       category: 'TOOLS',      label: 'Mirror',               description: 'Mirror selected features',                    defaultKey: 'm i',          isChord: true,  context: 'CANVAS' },
-  { id: 'tool.scale',        category: 'TOOLS',      label: 'Scale',                description: 'Scale selected features',                     defaultKey: 's c',          isChord: true,  context: 'CANVAS' },
+  // cad-ux-cleanup-pass Slice 5 — Scale moved off the `s` prefix to
+  // `Shift+S` so plain `s` fires Select instantly.
+  { id: 'tool.scale',        category: 'TOOLS',      label: 'Scale',                description: 'Scale selected features',                     defaultKey: 'shift+s',      isChord: false, context: 'CANVAS' },
   { id: 'tool.offset',       category: 'TOOLS',      label: 'Offset',               description: 'Create parallel offset geometry',             defaultKey: 'o',            isChord: false, context: 'CANVAS' },
   { id: 'tool.trim',         category: 'TOOLS',      label: 'Trim',                 description: 'Trim lines to cutting edges',                 defaultKey: 't r',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.extend',       category: 'TOOLS',      label: 'Extend',               description: 'Extend lines to boundary edges',              defaultKey: 'e x',          isChord: true,  context: 'CANVAS' },
@@ -79,6 +83,10 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'view.zoomExtents',  category: 'ZOOM_PAN',   label: 'Zoom Extents',         description: 'Fit all features on screen',                  defaultKey: 'z e',          isChord: true,  context: 'CANVAS' },
   { id: 'view.zoomSelection',category: 'ZOOM_PAN',   label: 'Zoom to Selection',    description: 'Zoom to the selected features',               defaultKey: 'z s',          isChord: true,  context: 'CANVAS' },
   { id: 'view.zoomIn',       category: 'ZOOM_PAN',   label: 'Zoom In',              description: 'Zoom in',                                     defaultKey: 'ctrl+equal',   isChord: false, context: 'CANVAS' },
+  // cad-ux-cleanup-pass Slice 11 — manual canvas refresh. Flushes
+  // the LOD / feature-index caches and forces a re-render so the
+  // surveyor has an escape hatch when an edit appears stale.
+  { id: 'view.regenerate',   category: 'ZOOM_PAN',   label: 'Refresh Canvas',       description: 'Force a re-render of every feature on the canvas; clears the LOD / feature-index caches so a stale edit redraws immediately.', defaultKey: 'f5', isChord: false, context: 'CANVAS' },
   { id: 'view.zoomOut',      category: 'ZOOM_PAN',   label: 'Zoom Out',             description: 'Zoom out',                                    defaultKey: 'ctrl+minus',   isChord: false, context: 'CANVAS' },
 
   // Snap
@@ -90,6 +98,12 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'layer.panel',       category: 'LAYERS',     label: 'Toggle Layer Panel',   description: 'Show or hide the layer panel',                defaultKey: 'f2',           isChord: false, context: 'GLOBAL' },
   { id: 'layer.isolateBySelection', category: 'LAYERS', label: 'Isolate Layers by Selection', description: 'Show only layers that contain at least one currently-selected feature; hide everything else.', defaultKey: '', isChord: false, context: 'CANVAS' },
   { id: 'layer.showAll',     category: 'LAYERS',     label: 'Show All Layers',      description: 'Restore visibility on every layer in the document.', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  // cad-ux-cleanup-pass Slice 8 — quick-add points into the active
+  // layer. Opens the existing Layer Transfer dialog pre-targeted at
+  // the active layer so the surveyor doesn't have to pick the target
+  // again. Also wired to a `+` button + right-click "Quick-add
+  // points…" entry on each layer row in the LayerPanel.
+  { id: 'layer.quickAdd',    category: 'LAYERS',     label: 'Quick-add Points to Active Layer', description: 'Open the layer transfer dialog pre-targeted at the active layer so points can be moved into it in one step.', defaultKey: '', isChord: false, context: 'CANVAS' },
 
   // AI
   { id: 'ai.start',          category: 'AI',         label: 'Start AI Drawing',     description: 'Open the AI drawing wizard',                  defaultKey: 'ctrl+shift+a', isChord: false, context: 'GLOBAL' },

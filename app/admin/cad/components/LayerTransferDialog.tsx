@@ -23,6 +23,10 @@ import {
 } from '@/lib/cad/store';
 import { featureBounds } from '@/lib/cad/geometry/bounds';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '@/lib/cad/feature-fields';
+import {
+  isMasterPointFeature,
+  type MovePointsSourceMode,
+} from '@/lib/cad/points/move-points-filters';
 import { transferSelectionToLayer, copyToClipboard } from '@/lib/cad/operations';
 import {
   buildPointNoIndex,
@@ -53,6 +57,11 @@ export default function LayerTransferDialog({ onClose }: Props) {
   const [pointSearch, setPointSearch] = useState('');
   // Filter field: search by point NUMBER (prefix) or by CODE.
   const [pointSearchBy, setPointSearchBy] = useState<'NUMBER' | 'CODE'>('NUMBER');
+  // cad-domain-audit Slice A — same MASTER_ONLY / ALL_LAYERS toggle
+  // the NewLayerDialog ships (Slice 3). Default MASTER_ONLY so a
+  // surveyor moving points around doesn't accidentally pull mirror
+  // / duplicate-layer copies of canonical points.
+  const [pointPoolMode, setPointPoolMode] = useState<MovePointsSourceMode>('MASTER_ONLY');
   // Phase 8 §11.7 Slice 18 — right-click context menu on
   // source-list rows. `target` carries the feature id the
   // surveyor clicked (or null for an empty-area click), so
@@ -226,8 +235,16 @@ export default function LayerTransferDialog({ onClose }: Props) {
   // Every POINT feature with its number/name, code and description, so the
   // surveyor can find points by number prefix instead of hunting on canvas.
   const pointCatalog = useMemo(() => {
-    return Object.values(drawingStore.document.features)
-      .filter((f) => f.type === 'POINT')
+    const features = Object.values(drawingStore.document.features).filter(
+      (f) => f.type === 'POINT',
+    );
+    // cad-domain-audit Slice A — filter out duplicate-layer copies +
+    // TRV mirror twins when the pool is MASTER_ONLY (the default), so
+    // the surveyor doesn't see two rows for the same canonical point.
+    const filtered = pointPoolMode === 'MASTER_ONLY'
+      ? features.filter((f) => isMasterPointFeature(f, drawingStore.document.layers))
+      : features;
+    return filtered
       .map((f) => ({
         id: f.id,
         number: pointNumberOf(f) ?? '',
@@ -238,7 +255,7 @@ export default function LayerTransferDialog({ onClose }: Props) {
       .sort((a, b) =>
         a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: 'base' }),
       );
-  }, [drawingStore.document.features, drawingStore.document.layers]);
+  }, [drawingStore.document.features, drawingStore.document.layers, pointPoolMode]);
 
   // Live filter. By NUMBER: prefix auto-find — "8" → every point whose number
   // starts with 8 (874, 87fnd, 87set…), with code/description as a substring
@@ -549,6 +566,35 @@ export default function LayerTransferDialog({ onClose }: Props) {
                     }`}
                   >
                     Code
+                  </button>
+                </div>
+                {/* cad-domain-audit Slice A — source-pool toggle. Mirrors
+                    the NewLayerDialog control so the surveyor sees the
+                    same MASTER_ONLY / ALL_LAYERS choice everywhere
+                    points get moved. */}
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[10px] text-gray-500 mr-0.5">Pool</span>
+                  <button
+                    onClick={() => setPointPoolMode('MASTER_ONLY')}
+                    title="Master points only (excludes duplicate-layer copies + TRV mirrors)"
+                    className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+                      pointPoolMode === 'MASTER_ONLY'
+                        ? 'bg-gray-600 border-gray-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
+                    }`}
+                  >
+                    Master file
+                  </button>
+                  <button
+                    onClick={() => setPointPoolMode('ALL_LAYERS')}
+                    title="Every point, including copies on duplicate layers"
+                    className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+                      pointPoolMode === 'ALL_LAYERS'
+                        ? 'bg-gray-600 border-gray-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
+                    }`}
+                  >
+                    All layers
                   </button>
                 </div>
                 <div className="relative">

@@ -28,7 +28,10 @@ describe('fill background opacity — PropertyPanel UI', () => {
   const SRC = read('app/admin/cad/components/PropertyPanel.tsx');
   it('renders a background colour picker', () => {
     expect(SRC).toMatch(/data-testid="property-panel-fill-background-color"/);
-    expect(SRC).toMatch(/fillColor: e\.target\.value/);
+    // cad-ux-cleanup-pass Slice 4 — site now uses the shared
+    // <ColorSwatchInput>, so the onChange callback receives a hex
+    // string directly instead of an event.
+    expect(SRC).toMatch(/fillColor: c, isOverride: true/);
   });
   it('renders a background-opacity slider AND a paired value input', () => {
     expect(SRC).toMatch(/data-testid="property-panel-fill-background-opacity"/);

@@ -179,6 +179,14 @@ export interface DrawingSettings {
   // 'CROSSING_INDIVIDUAL' = any overlap selects individual elements only (no group expansion)
   // 'WINDOW_FULL_ONLY' = only elements/groups fully enclosed in the rectangle are selected
   boxSelectMode: 'CROSSING_EXPAND_GROUPS' | 'CROSSING_INDIVIDUAL' | 'WINDOW_FULL_ONLY';
+  /** cad-ux-cleanup-pass Slice 12 — color-code the box-select rectangle
+   *  by drag direction (blue = window / left-to-right, green = crossing
+   *  / right-to-left) and surface a status caption while dragging.
+   *  Default true (the historical AutoCAD-style convention). When
+   *  false, the rectangle renders in a single neutral color and the
+   *  caption is suppressed — for surveyors who find the direction
+   *  coding confusing. */
+  boxSelectColorHint?: boolean;
 
   // Paper
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
@@ -645,6 +653,15 @@ export interface Layer {
 
   /** Per-layer display preferences for attribute labels. */
   displayPreferences?: LayerDisplayPreferences;
+
+  /** cad-ux-cleanup-pass Slice 3 — set when this layer was created via
+   *  the LayerPanel "Duplicate layer" action. Carries the SOURCE
+   *  layer's id so dialogs that move points "from the master file" can
+   *  filter duplicate-layer copies out of the source pool (otherwise
+   *  the surveyor pulls the same point in twice: once from the
+   *  canonical layer + once from its duplicate). Undefined on every
+   *  layer that wasn't created by Duplicate Layer. */
+  duplicateOf?: string | null;
 }
 
 // --- SNAP ---

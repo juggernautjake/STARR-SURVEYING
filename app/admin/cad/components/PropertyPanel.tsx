@@ -18,6 +18,7 @@ import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, for
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { computeFeatureArea } from '@/lib/cad/geometry/area';
 import { segmentCount, toggleHiddenSegment } from '@/lib/cad/geometry/segment-visibility';
+import ColorSwatchInput from './ColorSwatchInput';
 import { assembleBoundaryLoop, segmentsFromFeatureLike } from '@/lib/cad/geometry/boundary-loop';
 import { sqFtToAreaUnit, areaUnitLabel } from '@/lib/cad/geometry/units';
 // Slice 229 — "📐 Place area label" trigger that drops an AreaAnnotation
@@ -668,11 +669,9 @@ export default function PropertyPanel() {
             <div className="text-gray-500 text-[10px] uppercase tracking-wider">{active.label} style</div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-400 shrink-0">Color</span>
-              <input
-                type="color"
-                className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
-                defaultValue={subset[0]?.style.color ?? '#000000'}
-                onChange={(e) => bulkApplyStyle(subset, { color: e.target.value }, `Recolor ${subset.length} ${active.label.toLowerCase()}`)}
+              <ColorSwatchInput
+                value={subset[0]?.style.color ?? '#000000'}
+                onChange={(c) => bulkApplyStyle(subset, { color: c }, `Recolor ${subset.length} ${active.label.toLowerCase()}`)}
               />
             </div>
 
@@ -899,12 +898,10 @@ export default function PropertyPanel() {
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Style</div>
           <div className="flex items-center justify-between gap-2">
             <span className="text-gray-400 shrink-0">Color</span>
-            <input
-              type="color"
-              className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
+            <ColorSwatchInput
               value={displayColor}
               onFocus={beginStyleEdit}
-              onChange={(e) => { beginStyleEdit(); setEditColor(e.target.value); applyStyleLive({ color: e.target.value }); }}
+              onChange={(c) => { beginStyleEdit(); setEditColor(c); applyStyleLive({ color: c }); }}
               onBlur={commitStyleChange}
             />
           </div>
@@ -1586,13 +1583,12 @@ export default function PropertyPanel() {
                             ),
                           )}
                         </select>
-                        <input
-                          type="color"
+                        <ColorSwatchInput
                           value={layer.color ?? '#000000'}
                           data-testid={`property-panel-fill-stack-color-${idx}`}
-                          className="w-6 h-6 rounded border border-gray-700 bg-gray-900 cursor-pointer"
+                          className="w-6 h-6"
                           title="Layer color"
-                          onChange={(e) => setLayerColor(idx, e.target.value)}
+                          onChange={(c) => setLayerColor(idx, c)}
                         />
                         <button
                           type="button"
@@ -1642,13 +1638,11 @@ export default function PropertyPanel() {
                     <div className="space-y-2 rounded border border-gray-700 bg-gray-800/50 p-2" data-testid="property-panel-fill-background">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-gray-400 text-[10px] uppercase tracking-wider">Background</span>
-                        <input
-                          type="color"
+                        <ColorSwatchInput
                           data-testid="property-panel-fill-background-color"
-                          className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
                           value={bgColor}
-                          onChange={(e) => drawingStore.updateFeature(feature.id, {
-                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillColor: e.target.value, isOverride: true },
+                          onChange={(c) => drawingStore.updateFeature(feature.id, {
+                            style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillColor: c, isOverride: true },
                           })}
                         />
                       </div>

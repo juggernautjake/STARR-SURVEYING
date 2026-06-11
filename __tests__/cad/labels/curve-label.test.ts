@@ -117,9 +117,11 @@ describe('createCurveDataAnnotation', () => {
     expect(ann.linkedFeatureId).toBe('feat-xyz');
   });
 
-  it('layerId is ANNOTATION', () => {
+  it('layerId targets the canonical ANNOTATION_LAYER_ID (cad-domain-audit Slice H)', () => {
     const ann = createCurveDataAnnotation(mk90DegCurve(), 'f1', cfg);
-    expect(ann.layerId).toBe('ANNOTATION');
+    // Resolves to the always-seeded SURVEY-INFO layer so the
+    // annotation never lands on a phantom id.
+    expect(ann.layerId).toBe('SURVEY-INFO');
   });
 
   it('textLines has 5 entries by default', () => {

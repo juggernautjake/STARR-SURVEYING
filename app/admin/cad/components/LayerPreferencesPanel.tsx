@@ -12,6 +12,7 @@ import type {
 } from '@/lib/cad/types';
 import { regenerateLayerLabels } from '@/lib/cad/labels';
 import Tooltip from './Tooltip';
+import ColorSwatchInput from './ColorSwatchInput';
 
 interface Props {
   layerId: string;
@@ -174,11 +175,10 @@ function TextStyleEditor({
                 <span className="text-[9px] text-gray-400">Layer</span>
               </label>
               {style.color !== null && (
-                <input
-                  type="color"
+                <ColorSwatchInput
                   value={style.color}
-                  className="w-5 h-5 rounded border border-gray-600 cursor-pointer"
-                  onChange={(e) => onChange({ ...style, color: e.target.value })}
+                  className="w-5 h-5"
+                  onChange={(c) => onChange({ ...style, color: c })}
                 />
               )}
             </div>
@@ -198,11 +198,10 @@ function TextStyleEditor({
                 <span className="text-[9px] text-gray-400">None</span>
               </label>
               {style.backgroundColor !== null && (
-                <input
-                  type="color"
+                <ColorSwatchInput
                   value={style.backgroundColor}
-                  className="w-5 h-5 rounded border border-gray-600 cursor-pointer"
-                  onChange={(e) => onChange({ ...style, backgroundColor: e.target.value })}
+                  className="w-5 h-5"
+                  onChange={(c) => onChange({ ...style, backgroundColor: c })}
                 />
               )}
             </div>
@@ -247,17 +246,34 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
     // Auto-regenerate the layer's labels on EVERY prefs change — not just
     // visibility — so a font-size / weight / color / offset / format edit
     // restyles existing labels live as the user types or holds an arrow.
-    const features = store.getFeaturesOnLayer(layerId);
-    const displayPrefs = store.document.settings.displayPreferences;
+    // cad-ux-cleanup-pass Slice 10 — derive mergedPrefs from the
+    // LIVE store layer instead of the closure-captured `prefs`, so a
+    // rapid double-toggle (where the second click fires before the
+    // component has re-rendered with the first click's state) still
+    // sees the latest values. Closes the user-reported "had to
+    // toggle twice for the change to take effect" desync.
+    const ds = useDrawingStore.getState();
+    const livePrefs = ds.document.layers[layerId]?.displayPreferences;
+    const basePrefs: LayerDisplayPreferences = {
+      ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+      ...(livePrefs ?? {}),
+      pointLabelOffset: {
+        ...DEFAULT_LAYER_DISPLAY_PREFERENCES.pointLabelOffset,
+        ...(livePrefs?.pointLabelOffset ?? {}),
+      },
+    };
+    const features = ds.getFeaturesOnLayer(layerId);
+    const liveLayer = ds.document.layers[layerId] ?? layer;
+    const displayPrefs = ds.document.settings.displayPreferences;
     const mergedPrefs: LayerDisplayPreferences = {
-      ...prefs,
+      ...basePrefs,
       ...partial,
       pointLabelOffset: {
-        ...prefs.pointLabelOffset,
+        ...basePrefs.pointLabelOffset,
         ...((partial.pointLabelOffset) ?? {}),
       },
     };
-    const labelMap = regenerateLayerLabels(features, { ...layer, displayPreferences: mergedPrefs }, displayPrefs);
+    const labelMap = regenerateLayerLabels(features, { ...liveLayer, displayPreferences: mergedPrefs }, displayPrefs);
     labelMap.forEach((labels, featureId) => {
       store.setFeatureTextLabels(featureId, labels);
     });
@@ -273,7 +289,23 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
   }
 
   function resetToDefaults() {
+    // cad-domain-audit Slice G — mirror the `update()` companion
+    // above: write the prefs, then regenerate every label on this
+    // layer through the new merged prefs. Previously reset wrote the
+    // prefs but never re-ran `regenerateLayerLabels`, so existing
+    // labels kept their old text/visibility until the surveyor
+    // touched any other toggle — a silent "did nothing" UX.
     store.updateLayerDisplayPreferences(layerId, { ...DEFAULT_LAYER_DISPLAY_PREFERENCES });
+    const features = store.getFeaturesOnLayer(layerId);
+    const displayPrefs = store.document.settings.displayPreferences;
+    const labelMap = regenerateLayerLabels(
+      features,
+      { ...layer, displayPreferences: { ...DEFAULT_LAYER_DISPLAY_PREFERENCES } },
+      displayPrefs,
+    );
+    labelMap.forEach((labels, featureId) => {
+      store.setFeatureTextLabels(featureId, labels);
+    });
   }
 
   if (!open) return null;

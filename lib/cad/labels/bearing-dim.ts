@@ -3,6 +3,7 @@ import type { Point2D } from '../types';
 import { generateId } from '../types';
 import type { BearingDistanceDimension } from './annotation-types';
 import { inverseBearingDistance, formatBearing } from '../geometry/bearing';
+import { ANNOTATION_LAYER_ID } from '../styles/default-layers';
 
 export interface BearingDimConfig {
   bearingPrecision: 'SECOND' | 'TENTH_SECOND';
@@ -44,7 +45,7 @@ export function createBearingDimension(
   return {
     id: generateId(),
     type: 'BEARING_DISTANCE',
-    layerId: 'ANNOTATION',
+    layerId: ANNOTATION_LAYER_ID,
     visible: true,
     locked: false,
     linkedFeatureId: linkedFeatureId ?? null,

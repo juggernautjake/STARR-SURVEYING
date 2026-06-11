@@ -36,6 +36,8 @@ import { generateId } from '../types';
 import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
 import { stampProvenance, type AIProvenance } from './provenance';
 import { ensureDraftLayerFor } from './sandbox';
+import { stampDisambiguatedPointName } from '../points/disambiguate';
+import { assignSymbolForCode } from '../styles/code-to-symbol';
 import {
   calcFourthParallelogramCorner,
   calcPointFromBearingDistance,
@@ -204,16 +206,36 @@ export const addPoint: ToolDefinition<AddPointArgs, Feature> = {
     }
     const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
     if (!layerResult.ok) return layerResult;
+    // cad-domain-audit Slice L — disambiguate a user-supplied point
+    // name against existing POINT features so silent overwrites can't
+    // happen. When `properties.pointName` (or any legacy alias) is
+    // already in use, the new point gets `${bare}:K` (K = smallest
+    // free suffix) — same rule the TRV importer applies.
+    const doc = useDrawingStore.getState().document;
+    const safeProperties = stampDisambiguatedPointName(doc, {
+      ...(args.code ? { code: args.code } : {}),
+      ...(args.properties ?? {}),
+    });
+    // cad-domain-audit Slice M — assign the symbol library's glyph
+    // when the code (or the free-form description token) matches a
+    // monument / utility symbol. Same rule the TRV importer uses, so
+    // a "309" point dropped via AI gets the iron-rod monument glyph
+    // instead of the default crosshair.
+    const style = defaultStyle();
+    const codeForSymbol =
+      (typeof safeProperties?.code === 'string' && safeProperties.code) ||
+      (typeof safeProperties?.description === 'string' && safeProperties.description) ||
+      args.code ||
+      '';
+    style.symbolId =
+      assignSymbolForCode(codeForSymbol, doc.customSymbols ?? []) ?? style.symbolId;
     const feature: Feature = {
       id: generateId(),
       type: 'POINT',
       geometry: { type: 'POINT', point: { x: args.x, y: args.y } },
       layerId: layerResult.result,
-      style: defaultStyle(),
-      properties: {
-        ...(args.code ? { code: args.code } : {}),
-        ...(args.properties ?? {}),
-      },
+      style,
+      properties: safeProperties ?? {},
     };
     return commitFeature(feature, args.provenance);
   },

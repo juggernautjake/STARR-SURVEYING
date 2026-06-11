@@ -12,6 +12,7 @@ import { formatDistance } from '@/lib/cad/geometry/units';
 import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { setImageRotationAroundCenter } from '@/lib/cad/geometry/image';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
+import ColorSwatchInput from './ColorSwatchInput';
 import { parseLength } from '@/lib/cad/units';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
@@ -477,11 +478,9 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
             <div className="space-y-1.5 mt-1 pl-1">
               <div className="flex items-center justify-between">
                 <span className="text-gray-400">Color</span>
-                <input
-                  type="color"
-                  className="w-8 h-6 rounded cursor-pointer bg-transparent border-0 outline-none"
+                <ColorSwatchInput
                   value={feature.style.color ?? '#000000'}
-                  onChange={(e) => updateStyle({ color: e.target.value })}
+                  onChange={(c) => updateStyle({ color: c })}
                 />
               </div>
               <div className="flex items-center justify-between gap-2">

@@ -9,6 +9,17 @@ import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../
 // the default starting layers + their layer groups.
 import { getDefaultLayersRecord, getDefaultLayerOrder, DEFAULT_LAYER_GROUPS } from '../styles/default-layers';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
+// cad-domain-audit Slice E — canonical predicates for layer
+// visibility / selectability. `getVisibleFeatures` and the new
+// `getSelectableFeatures` both delegate so the rules stay in lockstep
+// with `style-cascade`'s documented intent ("frozen layers are
+// completely excluded from rendering, selection, and snap").
+import { canFeatureBeRendered, canFeatureBeEdited } from '../styles/style-cascade';
+// cad-domain-audit Slice N — normalise legacy point-name keys into
+// the canonical `pointName` when a saved document loads, so callers
+// can rely on a single property instead of walking the multi-key
+// fallback chain.
+import { canonicalizePointName } from '../feature-fields';
 
 // Start with a completely blank document — no layers, no features.
 // The user must create a new drawing or import data to begin working.
@@ -139,10 +150,21 @@ interface DrawingStore {
   getLayer: (id: string) => Layer | undefined;
   getFeaturesOnLayer: (layerId: string) => Feature[];
   getVisibleFeatures: () => Feature[];
+  /** cad-domain-audit Slice E — features that are SELECTABLE: their
+   *  layer is visible AND not locked AND not frozen, AND the feature
+   *  itself isn't hidden. Use this for snap targets / hit-testing /
+   *  selection candidates; `getVisibleFeatures` is the render set
+   *  (no `locked` check), and `getAllFeatures` is everything. */
+  getSelectableFeatures: () => Feature[];
   getAllFeatures: () => Feature[];
 
   // Active layer style helper
   getActiveLayerStyle: () => { color: string; lineWeight: number; opacity: number };
+  /** cad-domain-audit Slice D — single-source-of-truth resolver for
+   *  the active Layer. Returns `null` when `activeLayerId` is empty
+   *  or points at a layer that's no longer in the document, so
+   *  callers can branch on it without re-implementing the lookup. */
+  getActiveLayer: () => Layer | null;
 }
 
 const defaultDoc = createDefaultDocument();
@@ -231,6 +253,13 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       delete layers[layerId];
       const layerOrder = state.document.layerOrder.filter((id) => id !== layerId);
       const features = { ...state.document.features };
+      // cad-domain-audit Slice F — clone featureGroups too so the
+      // deleted layer's groups can be migrated / dropped instead of
+      // pointing at a layer that no longer exists. Previously
+      // `removeLayer` only touched `layers` / `features`, so every
+      // FeatureGroup whose `layerId` matched the deleted layer turned
+      // into a silent orphan (the bug the audit flagged).
+      const featureGroups = { ...state.document.featureGroups };
 
       if (layerOrder.length === 0) {
         // Deleting the LAST layer empties the project — its features (incl.
@@ -238,8 +267,13 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         for (const [fid, feature] of Object.entries(features)) {
           if (feature.layerId === layerId) delete features[fid];
         }
+        // Drop every group on the deleted layer (no surviving layer
+        // to migrate them to).
+        for (const [gid, group] of Object.entries(featureGroups)) {
+          if (group.layerId === layerId) delete featureGroups[gid];
+        }
         return {
-          document: { ...state.document, layers, layerOrder, features, modified: new Date().toISOString() },
+          document: { ...state.document, layers, layerOrder, features, featureGroups, modified: new Date().toISOString() },
           activeLayerId: '',
           isDirty: true,
         };
@@ -254,11 +288,20 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
           features[fid] = { ...feature, layerId: safeTarget };
         }
       }
+      // Migrate every group on the deleted layer to the same safe
+      // target so the grouping intent (members move/scale/rotate
+      // together) survives the delete instead of getting silently
+      // dropped on the floor.
+      for (const [gid, group] of Object.entries(featureGroups)) {
+        if (group.layerId === layerId) {
+          featureGroups[gid] = { ...group, layerId: safeTarget };
+        }
+      }
       const activeLayerId = layerOrder.includes(state.activeLayerId)
         ? state.activeLayerId
         : layerOrder[0];
       return {
-        document: { ...state.document, layers, layerOrder, features, modified: new Date().toISOString() },
+        document: { ...state.document, layers, layerOrder, features, featureGroups, modified: new Date().toISOString() },
         activeLayerId,
         isDirty: true,
       };
@@ -278,7 +321,27 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       };
     }),
 
-  setActiveLayer: (layerId) => set({ activeLayerId: layerId }),
+  // cad-domain-audit Slice C — reject an id that isn't actually a
+  // layer in the current document. Previously every caller was free
+  // to drop in an empty string or a deleted layer's id and downstream
+  // feature creation would silently orphan its features onto a
+  // nonexistent layer. The store now no-ops unknown ids (logs a
+  // dev-time warning) and falls back to `layerOrder[0]` when the
+  // active id has been deleted out from under us.
+  setActiveLayer: (layerId) =>
+    set((state) => {
+      if (state.document.layers[layerId]) {
+        return { activeLayerId: layerId };
+      }
+      const fallback = state.document.layerOrder[0] ?? '';
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[drawing-store] setActiveLayer("${layerId}") — no such layer; falling back to "${fallback}".`,
+        );
+      }
+      return { activeLayerId: fallback };
+    }),
 
   reorderLayers: (layerOrder) =>
     set((state) => ({
@@ -308,7 +371,13 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   newDocument: () => {
     const doc = createDefaultDocument();
-    set({ document: doc, activeLayerId: '', isDirty: false });
+    // cad-domain-audit Slice D — newDocument used to leave the active
+    // layer as the empty string, so the very first geometry the
+    // surveyor placed landed on `layerId: ''` and was orphaned. Seed
+    // the first declared layer (mirrors what loadDocument already
+    // does); the Slice-C validator guarantees the id is real.
+    const activeLayerId = doc.layerOrder[0] ?? '';
+    set({ document: doc, activeLayerId, isDirty: false });
   },
 
   loadDocument: (doc) => {
@@ -320,11 +389,23 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       for (const fid of g.featureIds) groupedFeatureIds.add(fid);
     }
     // Clear stale featureGroupId references on features that aren't in any group.
+    // cad-domain-audit Slice N — and migrate any legacy point-name
+    // keys into the canonical `pointName` so the in-memory document
+    // is uniform regardless of how it was saved. No-op when the
+    // feature already has the canonical key set.
     const features = { ...doc.features };
     for (const [fid, feat] of Object.entries(features)) {
-      if (feat.featureGroupId && !groupedFeatureIds.has(fid)) {
-        features[fid] = { ...feat, featureGroupId: null };
+      let next = feat;
+      if (next.featureGroupId && !groupedFeatureIds.has(fid)) {
+        next = { ...next, featureGroupId: null };
       }
+      if (next.type === 'POINT') {
+        const migrated = canonicalizePointName(next.properties);
+        if (migrated !== next.properties) {
+          next = { ...next, properties: migrated ?? {} };
+        }
+      }
+      if (next !== feat) features[fid] = next;
     }
     const normalized: DrawingDocument = { ...doc, featureGroups, features };
     set({ document: normalized, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });
@@ -726,19 +807,42 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   getVisibleFeatures: () => {
     const { document } = get();
-    return Object.values(document.features).filter(
-      (f) => document.layers[f.layerId]?.visible !== false && f.hidden !== true,
-    );
+    return Object.values(document.features).filter((f) => {
+      if (f.hidden === true) return false;
+      const layer = document.layers[f.layerId];
+      if (!layer) return false;
+      // cad-domain-audit Slice E — honor `frozen` too. The previous
+      // predicate only checked `visible`, so snap / hit-testing /
+      // render walks (every consumer of this selector) silently
+      // included frozen layers — contradicting the documented intent
+      // of `canFeatureBeRendered`.
+      return canFeatureBeRendered(layer);
+    });
+  },
+
+  getSelectableFeatures: () => {
+    const { document } = get();
+    return Object.values(document.features).filter((f) => {
+      if (f.hidden === true) return false;
+      const layer = document.layers[f.layerId];
+      if (!layer) return false;
+      return canFeatureBeEdited(layer);
+    });
   },
 
   getAllFeatures: () => Object.values(get().document.features),
 
   getActiveLayerStyle: () => {
-    const { document, activeLayerId } = get();
-    const layer = document.layers[activeLayerId];
+    const layer = get().getActiveLayer();
     if (layer) {
       return { color: layer.color, lineWeight: layer.lineWeight, opacity: layer.opacity };
     }
     return { color: '#000000', lineWeight: 1, opacity: 1 };
+  },
+
+  getActiveLayer: () => {
+    const { document, activeLayerId } = get();
+    if (!activeLayerId) return null;
+    return document.layers[activeLayerId] ?? null;
   },
 }));

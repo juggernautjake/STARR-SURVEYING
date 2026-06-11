@@ -124,6 +124,23 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
   const [zoomInputValue, setZoomInputValue] = useState('');
   const zoomInputRef = useRef<HTMLInputElement>(null);
 
+  // cad-ux-cleanup-pass Slice 12 — live box-select direction so the
+  // user has a one-glance reminder of what the rectangle colour means
+  // (blue = window / encloses fully; green = crossing / intersects).
+  // The CanvasViewport dispatches `cad:boxSelectMode` while the drag
+  // is in flight and a null detail when it ends. Suppressed entirely
+  // when `boxSelectColorHint` is off — the surveyor has explicitly
+  // asked not to be reminded.
+  const [boxSelectMode, setBoxSelectMode] = useState<'WINDOW' | 'CROSSING' | null>(null);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ mode: 'WINDOW' | 'CROSSING' | null }>).detail;
+      setBoxSelectMode(detail?.mode ?? null);
+    };
+    window.addEventListener('cad:boxSelectMode', handler);
+    return () => window.removeEventListener('cad:boxSelectMode', handler);
+  }, []);
+
   // Quick-snap popover state — anchored to the chevron next
   // to the Snap: ON/OFF toggle.
   const [snapPopoverOpen, setSnapPopoverOpen] = useState(false);
@@ -487,6 +504,35 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
       {copyMode && (
         <>
           <span className="text-green-400 font-semibold shrink-0 animate-[fadeIn_150ms_ease-out]" title="Copy mode: operations will keep the original">COPY</span>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
+
+      {/* cad-ux-cleanup-pass Slice 12 — live box-select direction
+          caption. Surfaces the AutoCAD-style convention so the
+          surveyor doesn't have to learn "blue means window" by
+          osmosis. Disappears the moment the drag ends. */}
+      {boxSelectMode === 'WINDOW' && (
+        <>
+          <span
+            data-testid="status-box-select-mode"
+            className="text-blue-400 font-semibold shrink-0 animate-[fadeIn_120ms_ease-out]"
+            title="Drag right-to-left for crossing (intersects)"
+          >
+            WINDOW (encloses fully)
+          </span>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
+      {boxSelectMode === 'CROSSING' && (
+        <>
+          <span
+            data-testid="status-box-select-mode"
+            className="text-green-400 font-semibold shrink-0 animate-[fadeIn_120ms_ease-out]"
+            title="Drag left-to-right for window (encloses fully)"
+          >
+            CROSSING (intersects)
+          </span>
           <span className="text-gray-600">|</span>
         </>
       )}

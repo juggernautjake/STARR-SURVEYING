@@ -43,7 +43,7 @@ import { detectCurvedRuns, fitArcThroughPoints } from '../geometry/curve-fit';
 import { extractPointLabels, extractLineLabels, extractAreaLabels, extractConnectors, extractElementShapes, extractTextElements, wrapSurveyLabel } from './trv-drawing-elements';
 // cad-trv-fidelity Slice 7 — assign a monument/utility symbol to an
 // imported point when its feature code matches a symbol's assignedCodes.
-import { getSymbolsByAssignedCode } from '../styles/symbol-library';
+import { assignSymbolForCode } from '../styles/code-to-symbol';
 // cad-trv-element-coverage Slice 4 — partial decoder for the
 // per-traverse fill styling records (51 / 70 / 71).
 import { extractTrvFillSummary } from './trv-fill-styling';
@@ -148,6 +148,72 @@ function mapLayer(l: TrvLayer, sortOrder: number): Layer {
   return makeLayer(layerKey(l.id), l.name || `Layer ${l.id}`, sortOrder);
 }
 
+/** cad-ux-cleanup-pass Slice 2 — split a TRV point id into its bare
+ *  name + numeric duplicate suffix. `22fnd:3` → `{ bare: '22fnd',
+ *  suffix: 3 }`; `22fnd` (no suffix) → `{ bare: '22fnd', suffix: 0 }`.
+ *  Only a trailing `:<digits>` counts as a suffix — `1:1` matches but
+ *  arbitrary text after the colon doesn't (so internal colons in odd
+ *  point names like `MH:lid` don't get treated as a duplicate marker). */
+function splitDuplicateSuffix(id: string): { bare: string; suffix: number } {
+  const m = id.match(/^(.+):(\d+)$/);
+  if (!m) return { bare: id, suffix: 0 };
+  return { bare: m[1], suffix: parseInt(m[2], 10) };
+}
+
+/** Mirror of `mapPoint`'s skip checks. A point we'd drop on mapping
+ *  shouldn't claim its bare name during disambiguation — otherwise a
+ *  `2,22fnd,0,0,0` placeholder steals `22fnd` from the real record
+ *  that follows. */
+function isSkippablePoint(p: TrvPoint): boolean {
+  if (p.north === null || p.east === null) return true;
+  // Placeholder `2,id,0,0,0` records (Traverse PC reserves an id
+  // without supplying coords); see mapPoint() for the original guard.
+  if (p.north === 0 && p.east === 0 && (p.elevation === 0 || p.elevation === null)) return true;
+  return false;
+}
+
+/** cad-ux-cleanup-pass Slice 2 — TRV inputs can carry the same point id
+ *  more than once (re-shots, multi-pass surveys, parser quirks). The
+ *  original code silently overwrote on map collision, so all but the
+ *  last record disappeared. We now keep the FIRST occurrence's id as-is
+ *  and rename subsequent collisions to `${bare}:K` (K = 1, 2, …) — the
+ *  user-requested convention. When the source already claims a `:N`
+ *  suffix elsewhere in the file (e.g. `22fnd, 22fnd, 22fnd:1`), the
+ *  duplicate skips past it (→ `22fnd:2`) so the rename can never collide
+ *  with a later source record. */
+function disambiguatePointIds(points: ReadonlyArray<TrvPoint>): TrvPoint[] {
+  // Pass 1 — collect every suffix the source itself claims per bare
+  // name, so the rename pass can skip past them.
+  const sourceSuffixesByBare = new Map<string, Set<number>>();
+  for (const p of points) {
+    const { bare, suffix } = splitDuplicateSuffix(p.id);
+    if (!sourceSuffixesByBare.has(bare)) sourceSuffixesByBare.set(bare, new Set());
+    sourceSuffixesByBare.get(bare)!.add(suffix);
+  }
+  // Pass 2 — walk in order, keep first occurrence verbatim, rename later
+  // collisions with the smallest free `:K`.
+  const emitted = new Set<string>();
+  const out: TrvPoint[] = [];
+  for (const p of points) {
+    if (!emitted.has(p.id)) {
+      emitted.add(p.id);
+      out.push(p);
+      continue;
+    }
+    const { bare } = splitDuplicateSuffix(p.id);
+    const reserved = sourceSuffixesByBare.get(bare) ?? new Set();
+    let k = 1;
+    let candidate = `${bare}:${k}`;
+    while (emitted.has(candidate) || reserved.has(k)) {
+      k += 1;
+      candidate = `${bare}:${k}`;
+    }
+    emitted.add(candidate);
+    out.push({ ...p, id: candidate });
+  }
+  return out;
+}
+
 /** Map a TrvPoint → POINT Feature. Returns null when the point has
  *  no usable coords. */
 function mapPoint(
@@ -205,14 +271,11 @@ function mapPoint(
   // symbol's assignedCodes (e.g. "309" → its monument glyph). Exact
   // match only, so a free-form description never mis-assigns; points
   // with no matching code keep the default crosshair.
+  // cad-domain-audit Slice M — `assignSymbolForCode` is the shared
+  // helper every point-creation path now calls (AI addPoint, CSV
+  // import, etc.), so this rule fires identically everywhere.
   const style = defaultStyle();
-  if (p.description) {
-    const token = p.description.trim().split(/\s+/)[0];
-    if (token) {
-      const matches = getSymbolsByAssignedCode(token);
-      if (matches.length > 0) style.symbolId = matches[0].id;
-    }
-  }
+  style.symbolId = assignSymbolForCode(p.description) ?? style.symbolId;
   return {
     id: pointKey(p.id),
     type: 'POINT',
@@ -473,11 +536,32 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   const layerIdByTrvId = new Map<string, string>();
   for (const l of doc.layers) layerIdByTrvId.set(l.id, layerKey(l.id));
 
+  // cad-ux-cleanup-pass Slice 2 — keep the FIRST occurrence of every
+  // duplicate point id and rename later collisions (`22fnd, 22fnd`
+  // → `22fnd, 22fnd:1`). Skippable records (placeholders / missing
+  // coords) are filtered first so a `2,id,0,0,0` reservation never
+  // steals the bare name from the real record that follows; the
+  // original `mapPoint` skip-with-note path still runs as a defensive
+  // guard on the renamed list.
+  const usablePoints: TrvPoint[] = [];
+  for (const p of doc.points) {
+    if (isSkippablePoint(p)) {
+      if (p.north === null || p.east === null) {
+        notes.push(`Skipped point "${p.id}" — missing coordinates`);
+      } else {
+        notes.push(`Skipped placeholder point "${p.id}" (2,0,0,0 — reserved id without coords)`);
+      }
+      continue;
+    }
+    usablePoints.push(p);
+  }
+  const points = disambiguatePointIds(usablePoints);
+
   const pointById = new Map<string, TrvPoint>();
-  for (const p of doc.points) pointById.set(p.id, p);
+  for (const p of points) pointById.set(p.id, p);
 
   const pointFeatures: Feature[] = [];
-  for (const p of doc.points) {
+  for (const p of points) {
     const feat = mapPoint(p, layerIdByTrvId, notes);
     if (feat) pointFeatures.push(feat);
   }

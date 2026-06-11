@@ -72,7 +72,10 @@ describe('PropertyPanel — layer-list section', () => {
 
   it('renders a color input per layer wired to setLayerColor', () => {
     expect(SRC).toMatch(/data-testid=\{`property-panel-fill-stack-color-\$\{idx\}`\}/);
-    expect(SRC).toMatch(/onChange=\{\(e\) => setLayerColor\(idx, e\.target\.value\)\}/);
+    // cad-ux-cleanup-pass Slice 4 — the per-layer color cell now goes
+    // through the shared <ColorSwatchInput>, so onChange receives a hex
+    // string directly.
+    expect(SRC).toMatch(/onChange=\{\(c\) => setLayerColor\(idx, c\)\}/);
   });
 
   it('renders a delete button per layer wired to deleteLayer', () => {

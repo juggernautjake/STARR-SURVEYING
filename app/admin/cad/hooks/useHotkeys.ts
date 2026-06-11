@@ -21,6 +21,7 @@ import {
   DEFAULT_ACTIONS,
   type BindableAction,
   type HotkeyEngine,
+  type UserBinding,
 } from '@/lib/cad/hotkeys';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import { confirmAction } from '../components/ConfirmDialog';
@@ -94,6 +95,31 @@ function toolForAction(actionId: string): ToolType | null {
   }
 }
 
+/** cad-domain-audit Slice K — find the action whose RESOLVED binding
+ *  matches `key` (user override → registry default). Returns null
+ *  when nothing's bound. Mirrors the engine's `buildTree` merge
+ *  semantics so any rebind is honoured immediately. Exported for the
+ *  Slice K test fixture. */
+export function findActionForKey(
+  actions: ReadonlyArray<BindableAction>,
+  userBindings: ReadonlyArray<UserBinding>,
+  key: string,
+): BindableAction | null {
+  const overrideById = new Map<string, string | null>();
+  for (const ub of userBindings) overrideById.set(ub.actionId, ub.key);
+  // Mirror the engine's `buildTree` semantics: when two actions
+  // resolve to the same key (e.g. AutoCAD preset binds tool.select →
+  // escape while edit.deselect still defaults to escape), the later-
+  // inserted action wins. Walk the list and remember the last match.
+  let last: BindableAction | null = null;
+  for (const action of actions) {
+    const override = overrideById.get(action.id);
+    const resolved = override === undefined ? action.defaultKey : override;
+    if (resolved === key) last = action;
+  }
+  return last;
+}
+
 /** True when the event target is an editable surface that
  *  should swallow the keystroke (typed text, contenteditable
  *  document, etc.). The engine's GLOBAL hotkeys still fire
@@ -129,12 +155,16 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
       actions: DEFAULT_ACTIONS,
       userBindings,
       getContext: () => useHotkeysStore.getState().activeContext,
-      // A key like `s` is both an action (Select) and a chord prefix
-      // (`s c` Scale, `s p` Spline). The default 1s window cleared the
-      // chord HUD before the surveyor could press the second key. Give
-      // a long window so the HUD effectively stays up until they pick
-      // the next key, while `s`-then-click still eventually fires Select.
-      chordTimeoutMs: 6000,
+      // cad-ux-cleanup-pass Slice 5 — `s` no longer chord-prefixes
+      // Scale/Spline (both moved to Shift+S / Shift+P), so plain `s`
+      // is now a clean leaf that fires Select on keydown. The chord
+      // window still guards the remaining prefixes (`p l` polyline,
+      // `z e` zoom-extents, `i n v` inverse, etc.) — 1.5 s gives a
+      // comfortable type-the-second-key budget without keeping the
+      // ambiguous-single-key tools (`p` Point, etc.) feeling sluggish.
+      // Surveyors can dismiss the HUD instantly with Escape (see
+      // onKeyDown below).
+      chordTimeoutMs: 1500,
       onAction: (action) => {
         // Caller-side override gets first crack.
         if (optionsRef.current.onAction?.(action)) return;
@@ -155,6 +185,32 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (shouldIgnoreEventTarget(event)) return;
+      // cad-ux-cleanup-pass Slice 5 — Escape during a buffered chord
+      // clears the buffer WITHOUT firing the pending action. Without
+      // this, hitting Esc to "back out" of an in-progress chord (e.g.
+      // pressed `p` by mistake) would fire Point AND then Deselect.
+      // After clearing we still emit the prefix-changed event so the
+      // ChordHUD hides immediately.
+      if (event.key === 'Escape' && engine.getBufferedPrefix().length > 0) {
+        engine.resetBuffer();
+        event.preventDefault();
+        emitPrefix();
+        // cad-domain-audit Slice K — Slice 5 made Esc a "back out of
+        // a chord" verb under the DEFAULT preset (Esc → edit.deselect)
+        // and explicitly suppresses the bound action so the surveyor
+        // can abort an accidental chord without also deselecting. But
+        // the AutoCAD preset rebinds Esc to `tool.select`, and those
+        // surveyors expect Esc to STILL fire Select even when a chord
+        // was buffered. Discriminator: dispatch the bound action UNLESS
+        // it's the cancel-verb default (`edit.deselect`). Reading the
+        // live store keeps a runtime rebind in effect.
+        const liveBindings = useHotkeysStore.getState().userBindings;
+        const escAction = findActionForKey(DEFAULT_ACTIONS, liveBindings, 'escape');
+        if (escAction && escAction.id !== 'edit.deselect') {
+          dispatchDefaultAction(escAction);
+        }
+        return;
+      }
       const handled = engine.handleKeyEvent(event);
       if (handled) {
         // Hotkeys with modifiers (Ctrl+S, Ctrl+Z, etc.) and
@@ -316,6 +372,17 @@ export function dispatchDefaultAction(action: BindableAction): void {
     case 'view.zoomOut':
       window.dispatchEvent(new CustomEvent('cad:zoomOut'));
       return;
+    case 'view.regenerate':
+      // cad-ux-cleanup-pass Slice 11 — manual canvas refresh. The
+      // CanvasViewport listener clears its LOD + feature-index
+      // caches and schedules an rAF render. Same path the canvas
+      // right-click "Refresh canvas" item + the AI tool registry
+      // can fire.
+      window.dispatchEvent(new CustomEvent('cad:regenerateCanvas'));
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Canvas refresh requested.' },
+      }));
+      return;
 
     // ── Snap toggles ─────────────────────────────────
     case 'snap.toggle': {
@@ -391,6 +458,28 @@ export function dispatchDefaultAction(action: BindableAction): void {
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
         detail: { text: restored === 0 ? 'All layers already visible.' : `Restored ${restored} hidden layer${restored === 1 ? '' : 's'}.` },
       }));
+      return;
+    }
+
+    case 'layer.quickAdd': {
+      // cad-ux-cleanup-pass Slice 8 — open the existing Layer Transfer
+      // dialog pre-targeted at the active layer so the surveyor
+      // doesn't have to pick the target again. Same code path that the
+      // LayerPanel `+` button and "Quick-add points…" context-menu
+      // item fire, so the AI tool registry can target any specific
+      // layer the same way by setting `targetLayerId` on the transfer
+      // store before dispatching `cad:openLayerTransfer`.
+      const drawingStore = useDrawingStore.getState();
+      const layerId = drawingStore.activeLayerId;
+      const target = drawingStore.document.layers[layerId];
+      if (!target) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'Quick-add Points — no active layer.' },
+        }));
+        return;
+      }
+      useTransferStore.getState().setOptions({ targetLayerId: layerId });
+      window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
       return;
     }
 

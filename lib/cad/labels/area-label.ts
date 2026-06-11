@@ -3,6 +3,7 @@ import type { Feature, Point2D } from '../types';
 import { generateId } from '../types';
 import type { AreaAnnotation } from './annotation-types';
 import { computeAreaFromPoints2D, computeFeatureArea } from '../geometry/area';
+import { ANNOTATION_LAYER_ID } from '../styles/default-layers';
 
 export interface AreaLabelConfig {
   format: 'SQFT' | 'ACRES' | 'BOTH' | 'LOT_NUMBER';
@@ -65,7 +66,7 @@ export function createAreaAnnotation(
   return {
     id: generateId(),
     type: 'AREA_LABEL',
-    layerId: 'ANNOTATION',
+    layerId: ANNOTATION_LAYER_ID,
     visible: true,
     locked: false,
     linkedFeatureId,
@@ -132,7 +133,7 @@ export function createAreaLabelForFeature(
   return {
     id: generateId(),
     type: 'AREA_LABEL',
-    layerId: 'ANNOTATION',
+    layerId: ANNOTATION_LAYER_ID,
     visible: true,
     locked: false,
     linkedFeatureId: feature.id,

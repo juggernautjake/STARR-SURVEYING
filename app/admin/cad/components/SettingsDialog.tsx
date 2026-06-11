@@ -10,6 +10,7 @@ import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '@/lib/cad/styles/types';
 import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
 import { findHotkeyConflicts, findConflictForAction } from '@/lib/cad/hotkeys/conflicts';
+import ColorSwatchInput from './ColorSwatchInput';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import { normalizeKeyboardEvent } from '@/lib/cad/hotkeys/key-format';
 import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
@@ -150,11 +151,10 @@ function ColorRow({
         <div className="flex items-center gap-2">
           {preview && <span className="text-gray-500 text-[10px]">{preview}</span>}
           <div className="flex items-center gap-1.5">
-            <input
-              type="color"
-              className="w-8 h-7 rounded cursor-pointer bg-transparent border border-gray-600 outline-none"
+            <ColorSwatchInput
+              className="w-8 h-7"
               value={value}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={onChange}
             />
             <span className="text-gray-300 font-mono text-[10px] w-16">{value}</span>
           </div>
@@ -660,6 +660,17 @@ export default function SettingsDialog({ onClose }: Props) {
                     ]}
                     onChange={(v) => drawingStore.updateSettings({ boxSelectMode: v })}
                     tooltip="Crossing + Groups: Any overlap selects the feature AND expands to include all members of its polyline/polygon group. Crossing Only: Any overlap selects just the individual element without group expansion. Full Enclosure: Only features completely inside the rectangle are selected."
+                  />
+                </div>
+
+                {/* cad-ux-cleanup-pass Slice 12 — opt-out for the
+                    blue / green direction hint. */}
+                <div className="pt-2">
+                  <Toggle
+                    label="Box Select Direction Hint"
+                    tooltip="Color-code the selection rectangle by drag direction (blue = window / left-to-right, green = crossing / right-to-left) and show a matching caption in the status bar while dragging. Turn off to render the rectangle in a single neutral color."
+                    checked={settings.boxSelectColorHint !== false}
+                    onChange={(v) => drawingStore.updateSettings({ boxSelectColorHint: v })}
                   />
                 </div>
               </div>

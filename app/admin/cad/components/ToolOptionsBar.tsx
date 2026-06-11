@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
+import ColorSwatchInput from './ColorSwatchInput';
 import {
   rotateSelection,
   scaleSelection,
@@ -283,13 +284,11 @@ export default function ToolOptionsBar() {
           <Tooltip label="Line Color" description="Set the color for new line segments. Overrides the active layer color." side="bottom" delay={400}>
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0 leading-none">Color:</span>
-              <input
-                type="color"
-                className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5 block"
+              <ColorSwatchInput
                 value={drawStyle.color ?? '#000000'}
                 title="Line color"
                 aria-label="Line color"
-                onChange={(e) => toolStore.setDrawStyle({ color: e.target.value })}
+                onChange={(c) => toolStore.setDrawStyle({ color: c })}
               />
               {drawStyle.color != null && (
                 <button
@@ -1558,14 +1557,19 @@ export default function ToolOptionsBar() {
                 <span className="text-[11px] text-gray-400 shrink-0">×</span>
                 <input
                   type="number"
-                  min={0.01}
-                  step={0.05}
+                  min={SCALE_FACTOR_MIN}
+                  max={SCALE_FACTOR_MAX}
+                  step="any"
                   className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-orange-500"
                   value={ts.offsetScaleFactor}
-                  title={`Scale factor: ${ts.offsetScaleFactor}`}
+                  title={`Scale factor: ${ts.offsetScaleFactor} (range ${SCALE_FACTOR_MIN} – ${SCALE_FACTOR_MAX})`}
                   onChange={(e) => {
+                    // cad-ux-cleanup-pass Slice 13 — same widened
+                    // bounds as the QuickScaleInput above so a 1:200
+                    // downscale is finally typable from the offset
+                    // tool too.
                     const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v > 0) toolStore.setOffsetScaleFactor(v);
+                    if (isValidScaleFactor(v)) toolStore.setOffsetScaleFactor(v);
                   }}
                 />
               </div>
@@ -2013,6 +2017,19 @@ function QuickRotateInput({ copyMode }: { copyMode: boolean }) {
 // ─────────────────────────────────────────────
 // Quick scale input
 // ─────────────────────────────────────────────
+// cad-ux-cleanup-pass Slice 13 — scale-factor bounds. The old
+// QuickScaleInput hard-clamped `min={0.01}` on the native input AND
+// only guarded `> 0` in the commit path, so plat-style downscales
+// like 1:1000 were silently impossible to type and the spinner's
+// 0.1 step jumped too coarsely for finicky factors. Widen the range
+// to 1e-4 … 1e4 (covers every realistic survey transform) and let
+// the input free-type with `step="any"`.
+const SCALE_FACTOR_MIN = 0.0001;
+const SCALE_FACTOR_MAX = 10000;
+function isValidScaleFactor(v: number): boolean {
+  return Number.isFinite(v) && v >= SCALE_FACTOR_MIN && v <= SCALE_FACTOR_MAX;
+}
+
 function QuickScaleInput({ copyMode }: { copyMode: boolean }) {
   const [factor, setFactor] = useState('2');
   const presets = [0.25, 0.5, 2] as const;
@@ -2022,6 +2039,11 @@ function QuickScaleInput({ copyMode }: { copyMode: boolean }) {
       duplicateSelection(0, 0);
     }
     scaleSelection(f);
+  }
+
+  function commit() {
+    const v = parseFloat(factor);
+    if (isValidScaleFactor(v)) apply(v);
   }
 
   return (
@@ -2038,17 +2060,18 @@ function QuickScaleInput({ copyMode }: { copyMode: boolean }) {
       ))}
       <input
         type="number"
-        min={0.01}
-        step={0.1}
+        min={SCALE_FACTOR_MIN}
+        max={SCALE_FACTOR_MAX}
+        step="any"
         className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none font-mono text-center border border-gray-600 focus:border-green-500"
         value={factor}
         onChange={(e) => setFactor(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { const v = parseFloat(factor); if (!isNaN(v) && v > 0) apply(v); } }}
-        title="Custom scale factor (e.g. 2 = double size)"
+        onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
+        title={`Custom scale factor (range ${SCALE_FACTOR_MIN} – ${SCALE_FACTOR_MAX}; e.g. 2 = double size, 0.005 = 1:200)`}
       />
       <button
         className="px-2.5 h-6 rounded text-[11px] bg-green-700 border border-green-600 text-white hover:bg-green-600 transition-colors"
-        onClick={() => { const v = parseFloat(factor); if (!isNaN(v) && v > 0) apply(v); }}
+        onClick={commit}
       >
         Apply
       </button>

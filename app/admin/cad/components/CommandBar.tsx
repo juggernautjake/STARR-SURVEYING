@@ -13,6 +13,7 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import type { ParsedCommand, Feature } from '@/lib/cad/types';
+import { useHotkeyContext } from '../hooks/useHotkeyContext';
 import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
 import { parseBearing } from '@/lib/cad/geometry/bearing';
 import { parseLength } from '@/lib/cad/units/parse-length';
@@ -190,6 +191,13 @@ export default function CommandBar() {
   const viewportStore = useViewportStore();
   const undoStore = useUndoStore();
   const uiStore = useUIStore();
+
+  // cad-domain-audit Slice I — narrow hotkey context to COMMAND_BAR
+  // while this input is focused, so a single-key tool shortcut
+  // (`s` Select, `p` Point, etc.) doesn't fire when the surveyor is
+  // typing in the bar. `commandBarFocused` is already tracked in the
+  // UI store by the input's onFocus / onBlur handlers below.
+  useHotkeyContext('COMMAND_BAR', uiStore.commandBarFocused);
 
   // Listen for cad:commandOutput events from CanvasViewport (e.g. INVERSE result)
   useEffect(() => {

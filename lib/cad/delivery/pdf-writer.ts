@@ -30,7 +30,7 @@
 //   * Title-block boxed border + north arrow rendering.
 //   * Multi-page support for very large drawings.
 
-import jsPDF from 'jspdf';
+import jsPDF, { GState } from 'jspdf';
 
 import type {
   ArcGeometry,
@@ -38,10 +38,21 @@ import type {
   DrawingDocument,
   EllipseGeometry,
   Feature,
+  Layer,
   Point2D,
   SplineGeometry,
 } from '../types';
 import { PAPER_DIMENSIONS } from '../templates/types';
+import { resolveLineTypeWithFallback } from '../styles/linetype-library';
+import { findSymbol } from '../styles/symbol-library';
+import { parseSVGPathData } from '../styles/symbol-renderer';
+import type { SymbolDefinition, LineTypeDefinition } from '../styles/types';
+import { resolveVisibleFillLayers } from '../styles/fill-stack';
+import {
+  generateFillPattern,
+  patternLineWeight,
+  type FillPatternConfig,
+} from '../styles/fill-patterns';
 
 // ────────────────────────────────────────────────────────────
 // Public API
@@ -57,6 +68,27 @@ import { PAPER_DIMENSIONS } from '../templates/types';
 export type PdfPlotStyle = 'AS_DISPLAYED' | 'MONOCHROME' | 'GRAYSCALE';
 
 export type PdfScaleMode = 'FIXED' | 'FIT_TO_PAGE';
+
+/** cad-survey-print-pdf Slice 8 — surveyor certification content. Plain
+ *  data so the writer stays decoupled from the template store; the caller
+ *  (print dialog) projects the active template into this shape. `text`
+ *  may contain `{{surveyorName}}` / `{{licenseNumber}}` / `{{licenseState}}`
+ *  / `{{state}}` / `{{firmName}}` placeholders, substituted at render. */
+export interface PdfCertificationContent {
+  text: string;
+  surveyorName?: string;
+  licenseNumber?: string;
+  licenseState?: string;
+  firmName?: string;
+}
+
+/** cad-survey-print-pdf Slice 8 — general-notes block content. */
+export interface PdfNotesContent {
+  /** Block header. Default "GENERAL NOTES". */
+  title?: string;
+  /** Each entry is rendered as a numbered, wrapped note. */
+  lines: string[];
+}
 
 export interface PdfExportOptions {
   /** Margin around the drawing area, in inches. Default 0.5". */
@@ -81,6 +113,23 @@ export interface PdfExportOptions {
   /** World units per paper inch — only consulted when
    *  `scaleMode === 'FIXED'`. Defaults to 50. */
   scale?: number;
+  /** cad-survey-print-pdf Slice 7 — draw the symbol/line-type legend
+   *  key box (top-left of the drawable area). Default true; the legend
+   *  is skipped automatically when the drawing uses no symbols or
+   *  non-solid line types. */
+  showLegend?: boolean;
+  /** cad-survey-print-pdf Slice 8 — surveyor certification block, stacked
+   *  in the left data column. Omitted/null = no certification drawn. */
+  certification?: PdfCertificationContent | null;
+  /** cad-survey-print-pdf Slice 8 — general-notes block, stacked in the
+   *  left data column. Omitted/null = no notes drawn. */
+  notes?: PdfNotesContent | null;
+  /** cad-survey-print-pdf Slice 9 — per-element print toggles (from the
+   *  Print dialog). All default true; set false to omit that furniture. */
+  showBorder?: boolean;
+  showTitleBlock?: boolean;
+  showNorthArrow?: boolean;
+  showScaleBar?: boolean;
 }
 
 export interface PdfExportResult {
@@ -127,22 +176,87 @@ export function exportToPdf(
   // Reserve 1 inch at the bottom of the page for the title strip.
   const titleStripHeight = 1.0;
   const drawHeight = pageHeight - margin * 2 - titleStripHeight;
-  const xform =
-    scaleMode === 'FIXED'
-      ? fixedScalePaper(extents, drawWidth, drawHeight, margin, margin + titleStripHeight, fixedScale)
-      : fitToPaper(extents, drawWidth, drawHeight, margin, margin + titleStripHeight);
+  // cad-survey-print-pdf Slice 1 — always plot at a measured scale: the
+  // user's FIXED scale, or (FIT_TO_PAGE) the nearest ROUND engineering
+  // scale that fits, so the PDF measures to a clean 1"=N' like a real
+  // plat. Both paths center the drawing in the drawable area.
+  const effectiveScale =
+    scaleMode === 'FIXED' ? fixedScale : roundPlotScale(extents, drawWidth, drawHeight);
+  const xform = fixedScalePaper(
+    extents, drawWidth, drawHeight, margin, margin + titleStripHeight, effectiveScale,
+  );
+
+  // ── Render closed-shape fills first (under all linework) ──
+  // Slice 5 — concrete/gravel/grass/hatch infill in vector form so the
+  // plat reads like the screen. Drawn in a pre-pass so no fill ever
+  // covers an adjacent boundary stroke.
+  for (const f of features) {
+    drawFeatureFill(pdf, f, xform, samples, plotStyle);
+  }
 
   // ── Render features ──────────────────────────────────────
   pdf.setLineWidth(0.005);
   for (const f of features) {
     drawFeature(pdf, f, doc, xform, samples, plotStyle);
   }
+  // Reset to solid so the framing/title furniture below isn't dashed.
+  pdf.setLineDashPattern([], 0);
+
+  // ── TEXT features + bearing/distance/area labels (Slice 6) ──
+  // Drawn last so annotations read on top of the linework + fills.
+  for (const f of features) {
+    if (f.type === 'TEXT') drawTextFeature(pdf, f, doc, xform, plotStyle);
+    drawFeatureLabels(pdf, f, doc, xform, plotStyle);
+  }
+  // Reset to the default font + black ink so the title furniture below
+  // isn't left in a label's font family/color.
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(0, 0, 0);
 
   // ── Title strip ──────────────────────────────────────────
-  drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight);
+  if (options.showTitleBlock !== false) {
+    drawTitleStrip(pdf, doc, pageWidth, margin, titleStripHeight, effectiveScale);
+    // ── Seal block (top-left of title strip) ─────────────────
+    drawSealBlock(pdf, doc, pageWidth, margin, titleStripHeight);
+  }
 
-  // ── Seal block (top-left of title strip) ─────────────────
-  drawSealBlock(pdf, doc, pageWidth, margin, titleStripHeight);
+  // ── North arrow (top-right) + graphic scale bar (bottom-left) ─
+  // Honor BOTH the Print-dialog element toggle and the on-screen
+  // title-block visibility toggle, so a hidden element doesn't reappear.
+  const tb = doc.settings.titleBlock;
+  if (options.showNorthArrow !== false && tb?.northArrowVisible !== false) {
+    drawNorthArrow(
+      pdf,
+      pageWidth - margin - 0.55,
+      margin + 0.6,
+      Math.max(0.5, tb?.northArrowSizeIn ?? 0.9),
+      doc.settings.drawingRotationDeg ?? 0,
+    );
+  }
+  if (options.showScaleBar !== false && tb?.scaleBarVisible !== false) {
+    drawScaleBar(pdf, margin + 0.35, pageHeight - margin - titleStripHeight - 0.4, effectiveScale);
+  }
+
+  // ── Left data column (Slices 7 + 8) — legend, then general notes,
+  // then the surveyor's certification, stacked top-down on white
+  // knockouts so they read cleanly over any linework. Each block returns
+  // its bottom Y so the next sits just below it.
+  const colX = margin + 0.3;
+  let colY = margin + 0.3;
+  if (options.showLegend !== false) {
+    colY = drawLegend(pdf, collectLegendEntries(features, doc), colX, colY, plotStyle);
+  }
+  if (options.notes && options.notes.lines.length > 0) {
+    colY = drawNotesBlock(pdf, options.notes, colX, colY + 0.15);
+  }
+  if (options.certification && options.certification.text.trim().length > 0) {
+    drawCertificationBlock(pdf, options.certification, colX, colY + 0.15);
+  }
+
+  // ── Heavy frame border (drawn last so it sits on top) ────
+  if (options.showBorder !== false) {
+    drawBorder(pdf, pageWidth, pageHeight, margin);
+  }
 
   const blob = pdf.output('blob');
   const filename = `${kebabCase(doc.name) || 'drawing'}.pdf`;
@@ -169,6 +283,39 @@ export function downloadPdf(
   return result;
 }
 
+/**
+ * cad-survey-print-pdf Slice 9 — generate the vector PDF and open the
+ * browser's print dialog for it. Prints via a hidden same-origin blob
+ * iframe (works in Chromium/Firefox); falls back to opening the PDF in a
+ * new tab so the user can print manually if the iframe print is blocked.
+ */
+export function printPdf(
+  doc: DrawingDocument,
+  options: PdfExportOptions = {}
+): PdfExportResult {
+  const result = exportToPdf(doc, options);
+  const url = URL.createObjectURL(result.blob);
+  const win = globalThis.document.defaultView ?? window;
+  const iframe = globalThis.document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  iframe.src = url;
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch {
+      win.open(url, '_blank');
+    }
+    // Keep the blob alive long enough for the print dialog to read it.
+    win.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      iframe.remove();
+    }, 60_000);
+  };
+  globalThis.document.body.appendChild(iframe);
+  return result;
+}
+
 // ────────────────────────────────────────────────────────────
 // World → paper transform
 // ────────────────────────────────────────────────────────────
@@ -180,26 +327,97 @@ interface XForm {
   pageHeight: number;
 }
 
-function fitToPaper(
+// cad-survey-print-pdf Slice 1 — classic plats are plotted at a ROUND
+// engineering scale (1"=10/20/.../200'), never an odd fit ratio. Given
+// the drawable area + data extents, pick the smallest standard scale at
+// which the drawing still fits. Returns world-units (ft) per paper inch.
+const ENGINEERING_SCALES = [
+  10, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000,
+];
+export function roundPlotScale(
   extents: { min: Point2D; max: Point2D },
   drawWidth: number,
   drawHeight: number,
-  marginX: number,
-  marginYBottom: number
-): XForm {
+): number {
   const worldW = Math.max(0.001, extents.max.x - extents.min.x);
   const worldH = Math.max(0.001, extents.max.y - extents.min.y);
-  const scaleX = drawWidth / worldW;
-  const scaleY = drawHeight / worldH;
-  const scale = Math.min(scaleX, scaleY);
-  const renderedW = worldW * scale;
-  const renderedH = worldH * scale;
-  // Center within the drawable area.
-  const offsetX =
-    marginX + (drawWidth - renderedW) / 2 - extents.min.x * scale;
-  const offsetY =
-    marginYBottom + (drawHeight - renderedH) / 2 + extents.min.y * scale;
-  return { scale, offsetX, offsetY, pageHeight: 0 };
+  // paper-inches per world-unit that would exactly fit:
+  const fitScale = Math.min(drawWidth / worldW, drawHeight / worldH);
+  const needed = 1 / fitScale; // world-units per paper inch to just fit
+  for (const s of ENGINEERING_SCALES) if (s >= needed) return s;
+  return Math.ceil(needed / 1000) * 1000;
+}
+
+/** cad-survey-print-pdf Slice 1 — heavy frame border inset from the
+ *  sheet trim edge (classic plat look). */
+function drawBorder(pdf: jsPDF, pageWidth: number, pageHeight: number, inset: number): void {
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.02); // ~0.5mm heavy frame
+  pdf.rect(inset, inset, pageWidth - inset * 2, pageHeight - inset * 2);
+}
+
+/** cad-survey-print-pdf Slice 2 — a slim filled north arrow + "N",
+ *  pointing to true north (up, minus the drawing's plot rotation).
+ *  Centered at (cx, cy) in paper inches; `sizeIn` is the arrow height. */
+function drawNorthArrow(pdf: jsPDF, cx: number, cy: number, sizeIn: number, rotationDeg: number): void {
+  const h = sizeIn;
+  const w = sizeIn * 0.42;
+  const rot = (-rotationDeg * Math.PI) / 180; // CW-on-screen → CCW math, north = up
+  const rotate = (dx: number, dy: number) => ({
+    // dy negative = up; PDF y is down so we add the rotated dy.
+    x: cx + dx * Math.cos(rot) - dy * Math.sin(rot),
+    y: cy + dx * Math.sin(rot) + dy * Math.cos(rot),
+  });
+  const tip = rotate(0, -h / 2);
+  const bl = rotate(-w / 2, h / 2);
+  const br = rotate(w / 2, h / 2);
+  const mid = rotate(0, h * 0.18); // notch so the two halves read distinctly
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.008);
+  // Left half filled black, right half outline — the classic two-tone arrow.
+  pdf.setFillColor(0, 0, 0);
+  pdf.triangle(tip.x, tip.y, bl.x, bl.y, mid.x, mid.y, 'F');
+  pdf.triangle(tip.x, tip.y, br.x, br.y, mid.x, mid.y, 'S');
+  // "N" above the tip.
+  const label = rotate(0, -h / 2 - 0.14);
+  pdf.setFontSize(11);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text('N', label.x, label.y, { align: 'center' });
+}
+
+/** cad-survey-print-pdf Slice 2 — checkered graphic bar scale + tick
+ *  labels + the written scale. `plotScale` = world-ft per paper inch. */
+function drawScaleBar(pdf: jsPDF, x: number, y: number, plotScale: number): void {
+  const barLenIn = 2.0;
+  const segs = 4;
+  const segIn = barLenIn / segs;
+  const segFt = segIn * plotScale; // feet per segment
+  const barH = 0.09;
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setTextColor(0, 0, 0);
+  // Written scale above the bar.
+  pdf.setFontSize(9);
+  pdf.text(`1" = ${plotScale}'`, x, y - 0.08);
+  // Checkered segments.
+  pdf.setLineWidth(0.006);
+  for (let i = 0; i < segs; i++) {
+    const sx = x + i * segIn;
+    if (i % 2 === 0) {
+      pdf.setFillColor(0, 0, 0);
+      pdf.rect(sx, y, segIn, barH, 'F');
+    } else {
+      pdf.rect(sx, y, segIn, barH, 'S');
+    }
+  }
+  pdf.rect(x, y, barLenIn, barH, 'S'); // outer border
+  // Tick labels under each boundary.
+  pdf.setFontSize(7);
+  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(0));
+  for (let i = 0; i <= segs; i++) {
+    pdf.text(fmt(i * segFt), x + i * segIn, y + barH + 0.12, { align: 'center' });
+  }
+  pdf.setFontSize(7);
+  pdf.text('FEET', x + barLenIn + 0.1, y + barH);
 }
 
 /**
@@ -248,6 +466,191 @@ function project(p: Point2D, x: XForm): { x: number; y: number } {
 // Feature renderers
 // ────────────────────────────────────────────────────────────
 
+// cad-survey-print-pdf Slice 4 — line-weight hierarchy + line types.
+// Layer/feature `lineWeight` is authored in MILLIMETRES (classic CAD
+// convention: border ~0.70, boundary ~0.50, buildings ~0.35, interior
+// /tie ~0.18–0.25), so the PDF maps mm → paper inches and the plat reads
+// with the same emphasis the surveyor set on screen. Dash patterns are
+// authored in WORLD FEET, so they convert to paper inches through the
+// plot scale (`xform.scale` = paper-inches per world-unit).
+const MM_PER_INCH = 25.4;
+// ~0.13mm floor so the lightest tie line still prints as a crisp hairline.
+const MIN_PLOT_WEIGHT_IN = 0.005;
+
+/** Resolve a feature's plotted stroke width in paper inches from the
+ *  feature override → layer weight hierarchy (millimetres). */
+function resolvePlotWeightIn(feature: Feature, layer: Layer | undefined): number {
+  const mm = feature.style.lineWeight ?? layer?.lineWeight ?? 0.5;
+  return Math.max(MIN_PLOT_WEIGHT_IN, mm / MM_PER_INCH);
+}
+
+/** Resolve a feature's dash pattern (paper inches) from its effective
+ *  line type, or null when it plots solid. Inline-symbol line types
+ *  (fences/utilities) that carry no dash plot solid here — their glyphs
+ *  are a later slice; the legend names them. */
+function resolveDashPatternIn(
+  feature: Feature,
+  layer: Layer | undefined,
+  doc: DrawingDocument,
+  xform: XForm,
+): number[] | null {
+  const id = feature.style.lineTypeId ?? layer?.lineTypeId ?? 'SOLID';
+  if (!id || id === 'SOLID') return null;
+  const lt = resolveLineTypeWithFallback(id, doc.customLineTypes ?? []);
+  if (!lt.dashPattern || lt.dashPattern.length === 0) return null;
+  return lt.dashPattern.map((d) => Math.max(0.002, d * xform.scale));
+}
+
+// ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 5 — closed-shape infill fills.
+//
+// Renders the same procedural fill stack the canvas draws
+// (`resolveVisibleFillLayers` → `generateFillPattern`) into vector PDF
+// primitives, clipped to the polygon via jsPDF's path clip. The pattern
+// is sized to MATCH the on-screen look: the canvas keeps the pattern
+// constant in WORLD units at `ps = zoom / PATTERN_WORLD_DETAIL`, so on
+// paper one pattern-pixel ≡ (1 / PATTERN_WORLD_DETAIL) world-feet, which
+// converts to paper inches through `xform.scale`. Same density/size
+// multipliers as the canvas so a grass/gravel/hatch area reads identically.
+// ────────────────────────────────────────────────────────────
+const PDF_PATTERN_WORLD_DETAIL = 3;
+const PDF_PATTERN_DENSITY_MULT = 2;
+const PDF_PATTERN_SIZE_MULT = 0.85;
+
+/** FNV-1a — identical to the canvas `hashSeed` so the PDF stipple lands
+ *  in the same layout the surveyor sees on screen. */
+function hashSeed(id: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i += 1) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h | 0;
+}
+
+/** The closed boundary ring (projected paper points) a feature's fill is
+ *  clipped to, or null when the feature isn't a fillable closed shape. */
+function fillRingForFeature(
+  f: Feature,
+  xform: XForm,
+  samples: number,
+): Array<{ x: number; y: number }> | null {
+  const g = f.geometry;
+  if (g.circle) {
+    const c = g.circle;
+    const ring: Point2D[] = [];
+    for (let i = 0; i < samples; i += 1) {
+      const t = (i / samples) * Math.PI * 2;
+      ring.push({ x: c.center.x + c.radius * Math.cos(t), y: c.center.y + c.radius * Math.sin(t) });
+    }
+    return ring.map((p) => project(p, xform));
+  }
+  if (g.ellipse) {
+    const e = g.ellipse;
+    const cosR = Math.cos(e.rotation);
+    const sinR = Math.sin(e.rotation);
+    const ring: Point2D[] = [];
+    for (let i = 0; i < samples; i += 1) {
+      const t = (i / samples) * Math.PI * 2;
+      const px = e.radiusX * Math.cos(t);
+      const py = e.radiusY * Math.sin(t);
+      ring.push({ x: e.center.x + px * cosR - py * sinR, y: e.center.y + px * sinR + py * cosR });
+    }
+    return ring.map((p) => project(p, xform));
+  }
+  if (g.vertices && g.vertices.length >= 3) {
+    return g.vertices.map((v) => project(v, xform));
+  }
+  if (g.spline && g.spline.isClosed && g.spline.controlPoints.length >= 3) {
+    return g.spline.controlPoints.map((v) => project(v, xform));
+  }
+  return null;
+}
+
+/** Draw a feature's resolved fill stack (bottom-to-top) clipped to its
+ *  closed boundary. No-op for features with no visible fill layers. */
+function drawFeatureFill(
+  pdf: jsPDF,
+  f: Feature,
+  xform: XForm,
+  samples: number,
+  plotStyle: PdfPlotStyle,
+): void {
+  if (xform.pageHeight === 0) {
+    xform.pageHeight = pdf.internal.pageSize.getHeight();
+  }
+  const layers = resolveVisibleFillLayers(f.style);
+  if (layers.length === 0) return;
+  const ring = fillRingForFeature(f, xform, samples);
+  if (!ring || ring.length < 3) return;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of ring) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const width = maxX - minX;
+  const height = maxY - minY;
+  if (width <= 0 || height <= 0) return;
+
+  // Clip every layer's primitives to the boundary ring.
+  pdf.saveGraphicsState();
+  pdf.moveTo(ring[0].x, ring[0].y);
+  for (let i = 1; i < ring.length; i += 1) pdf.lineTo(ring[i].x, ring[i].y);
+  pdf.close();
+  pdf.clip();
+  pdf.discardPath();
+
+  // paper-inches per pattern-pixel — matches the canvas's world-constant
+  // pattern (1 pattern-px ≡ 1/PATTERN_WORLD_DETAIL world-feet).
+  const pps = xform.scale / PDF_PATTERN_WORLD_DETAIL;
+  for (const layer of layers) {
+    const colorHex = layer.color ?? '#000000';
+    const alpha = Math.max(0, Math.min(1, layer.opacity));
+    pdf.setGState(new GState({ opacity: alpha, 'stroke-opacity': alpha }));
+
+    if (layer.pattern === 'SOLID') {
+      applyFill(pdf, colorHex, plotStyle);
+      pdf.rect(minX, minY, width, height, 'F');
+      continue;
+    }
+    if (pps <= 0) continue;
+
+    const cfg: FillPatternConfig = {
+      pattern: layer.pattern,
+      density: layer.density * PDF_PATTERN_DENSITY_MULT,
+      seed: hashSeed(f.id + ':' + layer.pattern),
+      scale: layer.scale * PDF_PATTERN_SIZE_MULT,
+      angle: layer.rotation,
+      brickWidth: layer.brickWidth,
+      brickHeight: layer.brickHeight,
+      waveAmplitude: layer.waveAmplitude,
+      wavePeriod: layer.wavePeriod,
+      dashLen: layer.dashLen,
+      gapLen: layer.gapLen,
+    };
+    const { dots, lines } = generateFillPattern(width / pps, height / pps, cfg);
+    if (dots.length > 0) {
+      applyFill(pdf, colorHex, plotStyle);
+      for (const d of dots) {
+        pdf.circle(minX + d.x * pps, minY + d.y * pps, Math.max(0.0006, d.r * pps), 'F');
+      }
+    }
+    if (lines.length > 0) {
+      applyStroke(pdf, colorHex, plotStyle);
+      pdf.setLineWidth(Math.max(0.001, patternLineWeight(layer.scale * PDF_PATTERN_SIZE_MULT) * pps));
+      for (const ln of lines) {
+        pdf.line(minX + ln.x1 * pps, minY + ln.y1 * pps, minX + ln.x2 * pps, minY + ln.y2 * pps);
+      }
+    }
+  }
+  // Reset opacity so the clipped state restore leaves a clean slate.
+  pdf.setGState(new GState({ opacity: 1, 'stroke-opacity': 1 }));
+  pdf.restoreGraphicsState();
+}
+
 function drawFeature(
   pdf: jsPDF,
   f: Feature,
@@ -263,12 +666,21 @@ function drawFeature(
   const layer = doc.layers[f.layerId];
   applyStroke(pdf, layer?.color ?? '#000000', plotStyle);
 
+  // cad-survey-print-pdf Slice 4 — set the plotted weight + dash per
+  // feature so the plat reads with proper emphasis. Points draw solid
+  // (a dashed monument dot is nonsensical); everything else honors the
+  // line type's dash rhythm.
+  pdf.setLineWidth(resolvePlotWeightIn(f, layer));
+  const dash = f.type === 'POINT' ? null : resolveDashPatternIn(f, layer, doc, xform);
+  pdf.setLineDashPattern(dash ?? [], 0);
+
   const g = f.geometry;
   switch (f.type) {
-    case 'POINT':
-      if (g.point) drawPoint(pdf, project(g.point, xform));
-      else if (g.start) drawPoint(pdf, project(g.start, xform));
+    case 'POINT': {
+      const anchor = g.point ?? g.start;
+      if (anchor) drawPointFeature(pdf, f, doc, project(anchor, xform), plotStyle);
       return;
+    }
     case 'LINE':
       if (g.start && g.end) {
         drawLine(pdf, project(g.start, xform), project(g.end, xform));
@@ -311,9 +723,142 @@ function drawFeature(
   }
 }
 
-function drawPoint(pdf: jsPDF, p: { x: number; y: number }): void {
-  const r = 0.02;
-  pdf.circle(p.x, p.y, r, 'S');
+// cad-survey-print-pdf Slice 7 — monument / utility symbols.
+//
+// Symbols are authored in a ~10-unit local box; `defaultSize` is the
+// glyph's footprint in MILLIMETRES at 1:1 paper (so monuments plot a
+// constant physical size regardless of the survey scale — exactly the
+// CAD-block convention). We render the same SymbolDefinition paths the
+// Pixi canvas uses, but emit jsPDF vector primitives so they stay crisp.
+const SYMBOL_MIN_IN = 0.07;
+const SYMBOL_MAX_IN = 0.16;
+
+/** Plotted symbol footprint (paper inches) from its mm `defaultSize`. */
+function symbolPlotSizeIn(symbol: SymbolDefinition): number {
+  const mm = symbol.defaultSize > 0 ? symbol.defaultSize : 2.5;
+  return Math.max(SYMBOL_MIN_IN, Math.min(SYMBOL_MAX_IN, mm / MM_PER_INCH));
+}
+
+/** Resolve a symbol path's fill/stroke spec to a concrete hex, or null
+ *  (NONE) — INHERIT resolves to the feature's base ink. */
+function symPathHex(spec: string, baseHex: string): string | null {
+  if (spec === 'NONE') return null;
+  if (spec === 'INHERIT') return baseHex;
+  return spec;
+}
+
+/** Paint whatever path is currently open with the right operator. */
+function paintOpenPath(pdf: jsPDF, hasFill: boolean, hasStroke: boolean): void {
+  if (hasFill && hasStroke) pdf.fillStroke();
+  else if (hasFill) pdf.fill();
+  else pdf.stroke();
+}
+
+/** Render a SymbolDefinition centered at paper (x, y), sized `sizeIn`,
+ *  rotated `rotationDeg`, inheriting `baseHex`. Mirrors the Pixi
+ *  `renderSymbol` math (y-down local frame, scale = size/10). */
+function renderSymbolPdf(
+  pdf: jsPDF,
+  symbol: SymbolDefinition,
+  x: number,
+  y: number,
+  sizeIn: number,
+  rotationDeg: number,
+  baseHex: string,
+  plotStyle: PdfPlotStyle,
+): void {
+  if (!symbol || !Array.isArray(symbol.paths) || symbol.paths.length === 0) return;
+  if (!(sizeIn > 0)) return;
+  const scale = sizeIn / 10;
+  const rad = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const tx = (lx: number, ly: number) => ({
+    x: x + lx * scale * cos - ly * scale * sin,
+    y: y + lx * scale * sin + ly * scale * cos,
+  });
+
+  for (const path of symbol.paths) {
+    if (path.type === 'TEXT') continue;
+    const fillHex = symPathHex(path.fill, baseHex);
+    const strokeHex = symPathHex(path.stroke, baseHex);
+    const hasFill = fillHex !== null;
+    const hasStroke = strokeHex !== null;
+    if (!hasFill && !hasStroke) continue;
+    if (hasStroke) {
+      applyStroke(pdf, strokeHex as string, plotStyle);
+      pdf.setLineWidth(Math.max(0.002, path.strokeWidth * scale));
+    }
+    if (hasFill) applyFill(pdf, fillHex as string, plotStyle);
+    const op = hasFill && hasStroke ? 'FD' : hasFill ? 'F' : 'S';
+
+    switch (path.type) {
+      case 'CIRCLE': {
+        const c = tx(path.cx ?? 0, path.cy ?? 0);
+        const r = (path.r ?? 1) * scale;
+        if (r > 0) pdf.circle(c.x, c.y, r, op);
+        break;
+      }
+      case 'RECT': {
+        const rx = path.x ?? 0, ry = path.y ?? 0, w = path.width ?? 0, h = path.height ?? 0;
+        if (w === 0 || h === 0) break;
+        const p1 = tx(rx, ry), p2 = tx(rx + w, ry), p3 = tx(rx + w, ry + h), p4 = tx(rx, ry + h);
+        pdf.moveTo(p1.x, p1.y);
+        pdf.lineTo(p2.x, p2.y);
+        pdf.lineTo(p3.x, p3.y);
+        pdf.lineTo(p4.x, p4.y);
+        pdf.close();
+        paintOpenPath(pdf, hasFill, hasStroke);
+        break;
+      }
+      case 'PATH': {
+        if (!path.d) break;
+        const cmds = parseSVGPathData(path.d);
+        let started = false;
+        for (const cmd of cmds) {
+          if (cmd.type === 'M') { const p = tx(cmd.x, cmd.y); pdf.moveTo(p.x, p.y); started = true; }
+          else if (cmd.type === 'L') { const p = tx(cmd.x, cmd.y); pdf.lineTo(p.x, p.y); }
+          else if (cmd.type === 'C') {
+            const c1 = tx(cmd.x1!, cmd.y1!), c2 = tx(cmd.x2!, cmd.y2!), p = tx(cmd.x, cmd.y);
+            pdf.curveTo(c1.x, c1.y, c2.x, c2.y, p.x, p.y);
+          } else if (cmd.type === 'Z') {
+            pdf.close();
+          }
+        }
+        if (started) paintOpenPath(pdf, hasFill, hasStroke);
+        break;
+      }
+    }
+  }
+}
+
+/** Draw a POINT feature: its assigned monument/utility symbol when the
+ *  style carries a symbolId, else a small crosshair (matches the canvas). */
+function drawPointFeature(
+  pdf: jsPDF,
+  f: Feature,
+  doc: DrawingDocument,
+  p: { x: number; y: number },
+  plotStyle: PdfPlotStyle,
+): void {
+  const layer = doc.layers[f.layerId];
+  const baseHex = f.style.color ?? layer?.color ?? '#000000';
+  const symbol = f.style.symbolId
+    ? findSymbol(f.style.symbolId, doc.customSymbols ?? [])
+    : undefined;
+  if (symbol) {
+    renderSymbolPdf(
+      pdf, symbol, p.x, p.y, symbolPlotSizeIn(symbol),
+      f.style.symbolRotation ?? 0, baseHex, plotStyle,
+    );
+    return;
+  }
+  // Fallback crosshair.
+  const s = 0.03;
+  applyStroke(pdf, baseHex, plotStyle);
+  pdf.setLineWidth(0.006);
+  pdf.line(p.x - s, p.y, p.x + s, p.y);
+  pdf.line(p.x, p.y - s, p.x, p.y + s);
 }
 
 function drawLine(
@@ -404,6 +949,172 @@ function drawSpline(
 }
 
 // ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 6 — TEXT features + bearing/distance/area
+// labels. The on-screen sizes are authored in "points on paper" relative
+// to `drawingScale`; replotting at the round `effectiveScale` keeps text
+// the same physical proportion to the geometry. Font size in PDF points:
+//   stylePt × labelScale × drawingScale × xform.scale   (xform.scale = 1/plotScale)
+// so when plotted at drawingScale the text is exactly its authored point
+// size. Anchors mirror the canvas renderLabels math exactly.
+// ────────────────────────────────────────────────────────────
+
+/** Map an arbitrary CSS-ish font family to one of jsPDF's three core
+ *  fonts (helvetica/times/courier) — the only ones embedded without a
+ *  font file, which keeps the PDF small + portable. */
+function mapFontFamily(family: string): 'helvetica' | 'times' | 'courier' {
+  const f = (family || '').toLowerCase();
+  if (f.includes('courier') || f.includes('mono')) return 'courier';
+  if (f.includes('times') || (f.includes('serif') && !f.includes('sans'))) return 'times';
+  return 'helvetica';
+}
+
+function applyFont(
+  pdf: jsPDF,
+  family: string,
+  weight: 'normal' | 'bold',
+  style: 'normal' | 'italic',
+): void {
+  const bold = weight === 'bold';
+  const italic = style === 'italic';
+  const fs = bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal';
+  pdf.setFont(mapFontFamily(family), fs);
+}
+
+/** Normalize a world rotation (radians, CCW) to a readable plot angle in
+ *  degrees: text never renders upside-down (flipped 180° when it would). */
+function readableAngleDeg(rad: number): number {
+  let deg = (rad * 180) / Math.PI;
+  deg = ((deg % 360) + 360) % 360;
+  if (deg > 180) deg -= 360;
+  if (deg > 90) deg -= 180;
+  else if (deg < -90) deg += 180;
+  return deg;
+}
+
+/** Plotted point size for a label/text authored at `stylePt` paper-points
+ *  (clamped so it never vanishes or dominates the sheet). */
+function plotPointSize(stylePt: number, labelScale: number, drawingScale: number, xform: XForm): number {
+  const pts = stylePt * labelScale * drawingScale * xform.scale;
+  return Math.max(2.5, Math.min(72, pts));
+}
+
+/** Render a TEXT feature (site annotations, world text, titles) at its
+ *  anchor with the captured font / size / alignment / rotation. */
+function drawTextFeature(
+  pdf: jsPDF,
+  f: Feature,
+  doc: DrawingDocument,
+  xform: XForm,
+  plotStyle: PdfPlotStyle,
+): void {
+  const g = f.geometry;
+  const anchor = g.point ?? g.start;
+  if (!anchor || !g.textContent) return;
+  const layer = doc.layers[f.layerId];
+  const drawingScale = doc.settings.drawingScale ?? 50;
+  const fontPt = Number(f.properties.fontSize ?? 12);
+  const fontFamily = String(f.properties.fontFamily ?? 'Arial');
+  const fontWeight = (f.properties.fontWeight ?? 'normal') as 'normal' | 'bold';
+  const fontStyle = (f.properties.fontStyle ?? 'normal') as 'normal' | 'italic';
+  const align = (f.properties.textAlign ?? 'left') as 'left' | 'center' | 'right';
+
+  const p = project(anchor, xform);
+  applyFont(pdf, fontFamily, fontWeight, fontStyle);
+  pdf.setFontSize(plotPointSize(fontPt, 1, drawingScale, xform));
+  const [r, gc, b] = resolveInk(f.style.color ?? layer?.color ?? '#000000', plotStyle);
+  pdf.setTextColor(r, gc, b);
+  pdf.text(g.textContent, p.x, p.y, {
+    align,
+    baseline: 'middle',
+    angle: readableAngleDeg(g.textRotation ?? 0),
+  });
+}
+
+/** World-space anchor a label hangs off, by kind — mirrors the canvas
+ *  `renderLabels` anchor math. null = nothing to anchor to. */
+function labelAnchorWorld(f: Feature, label: { kind: string }): Point2D | null {
+  const g = f.geometry;
+  const k = label.kind;
+  if (k.startsWith('POINT_')) return g.point ?? g.start ?? null;
+  if (k === 'BEARING' || k === 'DISTANCE') {
+    if (g.type === 'LINE' && g.start && g.end) {
+      return { x: (g.start.x + g.end.x) / 2, y: (g.start.y + g.end.y) / 2 };
+    }
+    if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
+      const kin = (f.textLabels ?? []).filter((l) => l.kind === k);
+      const segIdx = kin.indexOf(label as never);
+      const verts = g.vertices;
+      const maxSeg = g.type === 'POLYGON' ? verts.length : verts.length - 1;
+      if (segIdx >= 0 && segIdx < maxSeg) {
+        const from = verts[segIdx];
+        const to = verts[(segIdx + 1) % verts.length];
+        return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+      }
+    }
+    return null;
+  }
+  if (k === 'AREA' || k === 'PERIMETER') {
+    if (g.vertices && g.vertices.length >= 3) {
+      const cx = g.vertices.reduce((s, v) => s + v.x, 0) / g.vertices.length;
+      const cy = g.vertices.reduce((s, v) => s + v.y, 0) / g.vertices.length;
+      return { x: cx, y: cy };
+    }
+    return null;
+  }
+  return g.point ?? null;
+}
+
+/** Render a feature's visible text labels (bearing / distance / area /
+ *  point name+code+desc) at their anchor + world-unit offset, honoring
+ *  the captured font, line-relative rotation, and per-label scale. */
+function drawFeatureLabels(
+  pdf: jsPDF,
+  f: Feature,
+  doc: DrawingDocument,
+  xform: XForm,
+  plotStyle: PdfPlotStyle,
+): void {
+  const labels = f.textLabels;
+  if (!labels || labels.length === 0) return;
+  const layer = doc.layers[f.layerId];
+  const drawingScale = doc.settings.drawingScale ?? 50;
+
+  for (const label of labels) {
+    if (label.visible === false || !label.text) continue;
+    const anchorWorld = labelAnchorWorld(f, label);
+    if (!anchorWorld) continue;
+    const a = project(anchorWorld, xform);
+
+    // Offset: line-relative (along/perp, rotated by the line angle) for
+    // auto-placed line labels; direct world-unit offset otherwise. World
+    // → paper via xform.scale; paper y is down, so +world-y → −paper-y.
+    const labelScale = label.userPositioned ? 1 : label.scale;
+    let dx: number;
+    let dy: number;
+    if (label.rotation !== null && !label.userPositioned) {
+      const θ = label.rotation;
+      const along = label.offset.x * labelScale;
+      const perp = label.offset.y * labelScale;
+      dx = (Math.cos(θ) * along - Math.sin(θ) * perp) * xform.scale;
+      dy = -(Math.sin(θ) * along + Math.cos(θ) * perp) * xform.scale;
+    } else {
+      dx = label.offset.x * labelScale * xform.scale;
+      dy = -label.offset.y * labelScale * xform.scale;
+    }
+
+    applyFont(pdf, label.style.fontFamily, label.style.fontWeight, label.style.fontStyle);
+    pdf.setFontSize(plotPointSize(label.style.fontSize, labelScale, drawingScale, xform));
+    const [r, gc, b] = resolveInk(label.style.color ?? layer?.color ?? '#000000', plotStyle);
+    pdf.setTextColor(r, gc, b);
+    pdf.text(label.text, a.x + dx, a.y + dy, {
+      align: 'center',
+      baseline: 'middle',
+      angle: label.rotation !== null ? readableAngleDeg(label.rotation) : 0,
+    });
+  }
+}
+
+// ────────────────────────────────────────────────────────────
 // Title strip + seal
 // ────────────────────────────────────────────────────────────
 
@@ -412,44 +1123,71 @@ function drawTitleStrip(
   doc: DrawingDocument,
   pageWidth: number,
   margin: number,
-  stripHeight: number
+  stripHeight: number,
+  // cad-survey-print-pdf Slice 1 — the actual plotted scale (world-ft
+  // per paper inch) so the title block shows the true "1\" = N'".
+  plotScale?: number,
 ): void {
   const tb = doc.settings.titleBlock;
   const stripTop = pdf.internal.pageSize.getHeight() - margin - stripHeight;
   pdf.setDrawColor(0, 0, 0);
-  pdf.setLineWidth(0.01);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setLineWidth(0.012);
   pdf.rect(margin, stripTop, pageWidth - margin * 2, stripHeight, 'S');
 
-  // Right-half: project / surveyor / scale / date
-  const rightX = pageWidth - margin - 4;
+  // cad-survey-print-pdf Slice 3 — classic title block in the right
+  // ~4.2in column (the seal block owns the left). Vertical divider so
+  // it reads as a tombstone block.
+  const blockW = 4.2;
+  const blockX = pageWidth - margin - blockW;
+  pdf.setLineWidth(0.006);
+  pdf.line(blockX, stripTop, blockX, stripTop + stripHeight);
+  const tx = blockX + 0.12;
+
+  // Drawing title — ALL CAPS, largest text (the classic plat header).
+  const surveyType = (tb.surveyType || 'BOUNDARY SURVEY').toUpperCase();
+  const title = tb.projectName ? `${surveyType} OF ${tb.projectName.toUpperCase()}` : surveyType;
   pdf.setFontSize(11);
-  pdf.text(
-    tb.projectName || doc.name || 'Drawing',
-    rightX,
-    stripTop + 0.25
-  );
-  pdf.setFontSize(8);
-  let y = stripTop + 0.45;
+  pdf.text(title, tx, stripTop + 0.2, { maxWidth: blockW - 0.24 });
+  // Underline under the title.
+  pdf.setLineWidth(0.006);
+  pdf.line(blockX, stripTop + 0.3, pageWidth - margin, stripTop + 0.3);
+
+  // Firm + surveyor.
+  let y = stripTop + 0.46;
   if (tb.firmName) {
-    pdf.text(tb.firmName, rightX, y);
-    y += 0.16;
+    pdf.setFontSize(9);
+    pdf.text(tb.firmName, tx, y);
+    y += 0.15;
   }
   if (tb.surveyorName) {
-    const license = tb.surveyorLicense ? ` (RPLS #${tb.surveyorLicense})` : '';
-    pdf.text(`${tb.surveyorName}${license}`, rightX, y);
-    y += 0.16;
+    const license = tb.surveyorLicense ? `, RPLS #${tb.surveyorLicense}` : '';
+    pdf.setFontSize(8);
+    pdf.text(`${tb.surveyorName}${license}`, tx, y);
+    y += 0.15;
   }
-  if (tb.scaleLabel) {
-    pdf.text(`Scale: ${tb.scaleLabel}`, rightX, y);
-    y += 0.16;
-  }
-  if (tb.surveyDate) {
-    pdf.text(`Date: ${tb.surveyDate}`, rightX, y);
-    y += 0.16;
-  }
-  if (tb.projectNumber) {
-    pdf.text(`Job #: ${tb.projectNumber}`, rightX, y);
-  }
+
+  // Bottom field grid: two label/value columns.
+  const scaleText = plotScale ? `1" = ${plotScale}'` : (tb.scaleLabel || '');
+  const sheet = tb.sheetNumber
+    ? `${tb.sheetNumber}${tb.totalSheets ? ` OF ${tb.totalSheets}` : ''}`
+    : '';
+  const fields: Array<[string, string]> = [
+    ['CLIENT', tb.clientName],
+    ['JOB NO.', tb.projectNumber],
+    ['DATE', tb.surveyDate],
+    ['SCALE', scaleText],
+    ['SHEET', sheet],
+  ].filter(([, v]) => v && String(v).trim().length > 0) as Array<[string, string]>;
+  pdf.setFontSize(6.5);
+  const colW = (blockW - 0.24) / 2;
+  fields.forEach(([label, value], i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const fx = tx + col * colW;
+    const fy = y + row * 0.14;
+    pdf.text(`${label}: ${value}`, fx, fy, { maxWidth: colW - 0.05 });
+  });
 }
 
 function drawSealBlock(
@@ -494,26 +1232,207 @@ function drawSealBlock(
 }
 
 // ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 7 — legend / key box
+// ────────────────────────────────────────────────────────────
+
+interface LegendEntry {
+  kind: 'SYMBOL' | 'LINETYPE';
+  name: string;
+  symbol?: SymbolDefinition;
+  dash?: number[];
+}
+
+/** Gather the distinct monument/utility symbols and non-solid line types
+ *  actually used by the drawing, in stable first-seen order, so the
+ *  legend only lists what's on the sheet. */
+function collectLegendEntries(features: Feature[], doc: DrawingDocument): LegendEntry[] {
+  const symbols = new Map<string, SymbolDefinition>();
+  const lineTypes = new Map<string, LineTypeDefinition>();
+  for (const f of features) {
+    if (f.type === 'POINT' && f.style.symbolId) {
+      const s = findSymbol(f.style.symbolId, doc.customSymbols ?? []);
+      if (s && !symbols.has(s.id)) symbols.set(s.id, s);
+    }
+    const ltId = f.style.lineTypeId ?? doc.layers[f.layerId]?.lineTypeId ?? 'SOLID';
+    if (ltId && ltId !== 'SOLID' && !lineTypes.has(ltId)) {
+      const lt = resolveLineTypeWithFallback(ltId, doc.customLineTypes ?? []);
+      if (lt.id !== 'SOLID') lineTypes.set(lt.id, lt);
+    }
+  }
+  const entries: LegendEntry[] = [];
+  for (const s of symbols.values()) entries.push({ kind: 'SYMBOL', name: s.name, symbol: s });
+  for (const lt of lineTypes.values()) entries.push({ kind: 'LINETYPE', name: lt.name, dash: lt.dashPattern });
+  return entries;
+}
+
+/** Draw the LEGEND key box at paper (x, y) (top-left corner). A white
+ *  knockout lets it sit cleanly over any linework. Each row pairs a
+ *  sample glyph / line with its name. No-op for an empty entry list.
+ *  Returns the box's bottom Y so the next stacked block sits below it. */
+function drawLegend(
+  pdf: jsPDF,
+  entries: LegendEntry[],
+  x: number,
+  y: number,
+  plotStyle: PdfPlotStyle,
+): number {
+  if (entries.length === 0) return y;
+  const pad = 0.1;
+  const headerH = 0.26;
+  const rowH = 0.2;
+  const sampleW = 0.5;
+  const boxW = 2.3;
+  const boxH = headerH + entries.length * rowH + pad;
+
+  // White knockout + border.
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.01);
+  pdf.rect(x, y, boxW, boxH, 'FD');
+
+  // Header.
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text('LEGEND', x + pad, y + 0.17);
+  pdf.setLineWidth(0.005);
+  pdf.line(x, y + headerH, x + boxW, y + headerH);
+
+  // Rows.
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  const sampleCx = x + pad + sampleW / 2 - 0.05;
+  let ry = y + headerH;
+  for (const e of entries) {
+    const cy = ry + rowH / 2;
+    if (e.kind === 'SYMBOL' && e.symbol) {
+      renderSymbolPdf(pdf, e.symbol, sampleCx, cy, 0.12, 0, '#000000', plotStyle);
+    } else if (e.kind === 'LINETYPE') {
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.012);
+      // dash values are world-feet → a representative on-paper sample.
+      const dash = e.dash && e.dash.length > 0
+        ? e.dash.map((d) => Math.max(0.015, d * 0.01))
+        : [];
+      pdf.setLineDashPattern(dash, 0);
+      pdf.line(x + pad, cy, x + pad + sampleW, cy);
+      pdf.setLineDashPattern([], 0);
+    }
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(e.name, x + pad + sampleW + 0.1, cy, {
+      baseline: 'middle',
+      maxWidth: boxW - sampleW - pad * 2 - 0.1,
+    });
+    ry += rowH;
+  }
+  return y + boxH;
+}
+
+// ────────────────────────────────────────────────────────────
+// cad-survey-print-pdf Slice 8 — certification + general-notes blocks
+// ────────────────────────────────────────────────────────────
+
+const DATA_COL_W = 2.6;       // left data-column width (paper inches)
+const DATA_COL_PAD = 0.1;
+const DATA_COL_HEADER_H = 0.26;
+const DATA_COL_ROW_H = 0.13;
+
+/** Shared white-knockout box + bold header for the left-column blocks.
+ *  Returns the y at which body content should start. */
+function drawColumnBoxHeader(pdf: jsPDF, title: string, x: number, y: number, boxH: number): number {
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.01);
+  pdf.rect(x, y, DATA_COL_W, boxH, 'FD');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text(title, x + DATA_COL_PAD, y + 0.17);
+  pdf.setLineWidth(0.005);
+  pdf.line(x, y + DATA_COL_HEADER_H, x + DATA_COL_W, y + DATA_COL_HEADER_H);
+  return y + DATA_COL_HEADER_H + 0.1;
+}
+
+/** Draw the general-notes block (numbered, wrapped) in the left column.
+ *  Returns the box's bottom Y. No-op for empty notes. */
+function drawNotesBlock(pdf: jsPDF, notes: PdfNotesContent, x: number, y: number): number {
+  const items = notes.lines.filter((l) => l && l.trim().length > 0);
+  if (items.length === 0) return y;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  const innerW = DATA_COL_W - DATA_COL_PAD * 2;
+  const wrapped: string[] = [];
+  items.forEach((line, i) => {
+    const lines = pdf.splitTextToSize(`${i + 1}. ${line.trim()}`, innerW) as string[];
+    wrapped.push(...lines);
+  });
+  const boxH = DATA_COL_HEADER_H + 0.1 + wrapped.length * DATA_COL_ROW_H + DATA_COL_PAD;
+  let ry = drawColumnBoxHeader(pdf, (notes.title ?? 'GENERAL NOTES').toUpperCase(), x, y, boxH);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  pdf.setTextColor(0, 0, 0);
+  for (const ln of wrapped) {
+    pdf.text(ln, x + DATA_COL_PAD, ry);
+    ry += DATA_COL_ROW_H;
+  }
+  return y + boxH;
+}
+
+/** Draw the surveyor's certification block (paragraph + signature / date
+ *  lines) in the left column. Returns the box's bottom Y. No-op for an
+ *  empty statement. */
+function drawCertificationBlock(pdf: jsPDF, cert: PdfCertificationContent, x: number, y: number): number {
+  const raw = (cert.text ?? '').trim();
+  if (!raw) return y;
+  const filled = raw
+    .replace(/\{\{surveyorName\}\}/g, cert.surveyorName ?? '')
+    .replace(/\{\{licenseNumber\}\}/g, cert.licenseNumber ?? '')
+    .replace(/\{\{licenseState\}\}/g, cert.licenseState ?? '')
+    .replace(/\{\{state\}\}/g, cert.licenseState ?? '')
+    .replace(/\{\{firmName\}\}/g, cert.firmName ?? '');
+
+  pdf.setFont('times', 'normal');
+  pdf.setFontSize(7);
+  const innerW = DATA_COL_W - DATA_COL_PAD * 2;
+  const bodyLines: string[] = [];
+  filled.split(/\n+/).forEach((para, i) => {
+    if (i > 0) bodyLines.push('');
+    bodyLines.push(...(pdf.splitTextToSize(para.trim(), innerW) as string[]));
+  });
+  const footer = [
+    '',
+    '________________________________',
+    cert.surveyorName
+      ? `${cert.surveyorName}, RPLS${cert.licenseNumber ? ` #${cert.licenseNumber}` : ''}`
+      : 'Registered Professional Land Surveyor',
+    'Date: ____________________',
+  ];
+  const allLines = [...bodyLines, ...footer];
+  const boxH = DATA_COL_HEADER_H + 0.1 + allLines.length * DATA_COL_ROW_H + DATA_COL_PAD;
+  let ry = drawColumnBoxHeader(pdf, "SURVEYOR'S CERTIFICATION", x, y, boxH);
+  pdf.setFont('times', 'normal');
+  pdf.setFontSize(7);
+  pdf.setTextColor(0, 0, 0);
+  for (const ln of allLines) {
+    if (ln) pdf.text(ln, x + DATA_COL_PAD, ry);
+    ry += DATA_COL_ROW_H;
+  }
+  return y + boxH;
+}
+
+// ────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────
 
-function applyStroke(
-  pdf: jsPDF,
-  hex: string,
-  plotStyle: PdfPlotStyle = 'AS_DISPLAYED'
-): void {
+/** Resolve a hex color to plotted RGB, honoring the plot-style mapping
+ *  (AS_DISPLAYED / MONOCHROME / GRAYSCALE). Bad input → pure black. */
+function resolveInk(hex: string, plotStyle: PdfPlotStyle): [number, number, number] {
   const cleaned = (hex ?? '').replace('#', '').trim();
-  if (cleaned.length !== 6) {
-    pdf.setDrawColor(0, 0, 0);
-    return;
-  }
+  if (cleaned.length !== 6) return [0, 0, 0];
   const r = parseInt(cleaned.slice(0, 2), 16);
   const g = parseInt(cleaned.slice(2, 4), 16);
   const b = parseInt(cleaned.slice(4, 6), 16);
-  if (![r, g, b].every((n) => Number.isFinite(n))) {
-    pdf.setDrawColor(0, 0, 0);
-    return;
-  }
+  if (![r, g, b].every((n) => Number.isFinite(n))) return [0, 0, 0];
   switch (plotStyle) {
     case 'MONOCHROME':
       // Pure black for plotters that print bitmap b/w. The
@@ -521,22 +1440,37 @@ function applyStroke(
       // just give me ink-on-paper." We hard-clamp instead of
       // luminance-mapping because a faint yellow line on screen
       // (e.g. a TBM marker) should still print solidly visible.
-      pdf.setDrawColor(0, 0, 0);
-      return;
+      return [0, 0, 0];
     case 'GRAYSCALE': {
       // ITU-R BT.601 luma coefficients — preserves the
       // perceived brightness hierarchy across hue changes so
       // major features (typically darker layer colors) stay
       // visually dominant in a black-only plot.
       const luma = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-      pdf.setDrawColor(luma, luma, luma);
-      return;
+      return [luma, luma, luma];
     }
     case 'AS_DISPLAYED':
     default:
-      pdf.setDrawColor(r, g, b);
-      return;
+      return [r, g, b];
   }
+}
+
+function applyStroke(
+  pdf: jsPDF,
+  hex: string,
+  plotStyle: PdfPlotStyle = 'AS_DISPLAYED'
+): void {
+  const [r, g, b] = resolveInk(hex, plotStyle);
+  pdf.setDrawColor(r, g, b);
+}
+
+function applyFill(
+  pdf: jsPDF,
+  hex: string,
+  plotStyle: PdfPlotStyle = 'AS_DISPLAYED'
+): void {
+  const [r, g, b] = resolveInk(hex, plotStyle);
+  pdf.setFillColor(r, g, b);
 }
 
 function computeExtents(features: Feature[]): { min: Point2D; max: Point2D } {

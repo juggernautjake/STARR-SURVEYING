@@ -168,6 +168,7 @@ import TitleBlockEditorModal from './TitleBlockEditorModal';
 import ScaleBarEditorModal from './ScaleBarEditorModal';
 import CertificationEditor from './CertificationEditor';
 import StandardNotesEditor from './StandardNotesEditor';
+import ColorSwatchInput from './ColorSwatchInput';
 import { TB_ELEM_SCALE_MIN, TB_ELEM_SCALE_MAX } from './TitleBlockEditorModal';
 import type { ProjectImage } from '@/lib/cad/types';
 
@@ -181,6 +182,13 @@ const HIT_TOLERANCE_PX = 5;
 // Traverse PC plat) without changing its zoom-independence. Higher =
 // smaller/denser. Per-feature density/scale sliders still tune on top.
 const PATTERN_WORLD_DETAIL = 3;
+// cad-trv-fidelity — global infill density × size tuning, applied on top
+// of the per-feature density/scale. DENSITY_MULT doubles how many
+// elements pack into a given area (tighter spacing); SIZE_MULT shrinks
+// each element (dot radius / line weight) slightly. Decoupled so density
+// can rise without enlarging the elements.
+const PATTERN_DENSITY_MULT = 2;
+const PATTERN_SIZE_MULT = 0.85;
 const DEFAULT_GRIP_SIZE = 8; // half-size of grip square in pixels (fallback)
 // Image rotation handle: how far (screen px) the circular grip floats
 // off the top edge, and the sentinel vertex index that marks it.
@@ -871,6 +879,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   } | null>(null);
   const clickHitFeatureRef = useRef(false);
   const hoveredIdRef = useRef<string | null>(null);
+  // cad-ux-cleanup-pass Slice 12 — tracks the live box-select drag
+  // direction (`WINDOW` | `CROSSING` | null when not dragging). The
+  // render loop pushes changes through `cad:boxSelectMode` so the
+  // StatusBar can show a "Window (encloses fully)" /
+  // "Crossing (intersects)" caption. `boxSelectLastEmittedRef`
+  // guards against per-frame thrash.
+  const boxSelectModeRef = useRef<'WINDOW' | 'CROSSING' | null>(null);
+  const boxSelectLastEmittedRef = useRef<'WINDOW' | 'CROSSING' | null>(null);
   // Hovered label key (featureId:labelId or text:featureId) for blue highlight
   const hoveredLabelKeyRef = useRef<string | null>(null);
   // Hovered title-block overlay element
@@ -3847,10 +3863,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // local space and translate by (minX, minY) to land in the polygon.
     const cfg: FillPatternConfig = {
       pattern,
-      density: feature.style.patternDensity ?? 1,
+      // cad-trv-fidelity — global density boost (tighter spacing) on top
+      // of the per-feature density.
+      density: (feature.style.patternDensity ?? 1) * PATTERN_DENSITY_MULT,
       seed: hashSeed(feature.id),
-      // cad-fills Slice 1 — thickness multiplier (dot radius + line weight).
-      scale: feature.style.patternScale ?? 1,
+      // cad-fills Slice 1 — thickness multiplier (dot radius + line
+      // weight); shrunk slightly by the global size multiplier.
+      scale: (feature.style.patternScale ?? 1) * PATTERN_SIZE_MULT,
       // cad-fill-rotation Slice 1 — pattern rotation in degrees
       // around the bounding-box center (0 = unrotated baseline).
       angle: feature.style.patternRotation ?? 0,
@@ -3898,7 +3917,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (lines.length > 0) {
       // cad-fills Slice 1 — stroke weight honors the pattern thickness;
       // also scaled by ps so line weight is constant in world units.
-      entry.tex.lineStyle(patternLineWeight(feature.style.patternScale ?? 1) * ps, colorInt, patternAlpha);
+      entry.tex.lineStyle(patternLineWeight((feature.style.patternScale ?? 1) * PATTERN_SIZE_MULT) * ps, colorInt, patternAlpha);
       for (const ln of lines) {
         entry.tex.moveTo(minX + ln.x1 * ps, minY + ln.y1 * ps);
         entry.tex.lineTo(minX + ln.x2 * ps, minY + ln.y2 * ps);
@@ -3991,9 +4010,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       const cfg: FillPatternConfig = {
         pattern: layer.pattern,
-        density: layer.density,
+        // cad-trv-fidelity — same global density boost + size shrink as
+        // the single-pattern path.
+        density: layer.density * PATTERN_DENSITY_MULT,
         seed: hashSeed(feature.id + ':' + layer.pattern),
-        scale: layer.scale,
+        scale: layer.scale * PATTERN_SIZE_MULT,
         angle: layer.rotation,
         brickWidth: layer.brickWidth,
         brickHeight: layer.brickHeight,
@@ -4011,7 +4032,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         entry.tex.endFill();
       }
       if (lines.length > 0) {
-        entry.tex.lineStyle(patternLineWeight(layer.scale) * ps, colorInt, layerAlpha);
+        entry.tex.lineStyle(patternLineWeight(layer.scale * PATTERN_SIZE_MULT) * ps, colorInt, layerAlpha);
         for (const ln of lines) {
           entry.tex.moveTo(minX + ln.x1 * ps, minY + ln.y1 * ps);
           entry.tex.lineTo(minX + ln.x2 * ps, minY + ln.y2 * ps);
@@ -4386,9 +4407,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const { boxStart, boxEnd } = toolState;
       const bsMode = docSettings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
       const isWindowDrag = boxEnd.x > boxStart.x;
-      // Color coding: blue for window/full-only selection, green for crossing selection
-      const color = (bsMode === 'WINDOW_FULL_ONLY' || isWindowDrag) ? 0x0044ff : 0x00aa00;
-      // Dashed outline for crossing modes, solid for window
+      // cad-ux-cleanup-pass Slice 12 — honour the optional
+      // `boxSelectColorHint` setting. Default (true / unset) keeps the
+      // historical AutoCAD-style direction coding (blue = window,
+      // green = crossing). When false, the rectangle renders in a
+      // single neutral selection color so the surveyor doesn't have
+      // to interpret the convention.
+      const isWindowSelect = bsMode === 'WINDOW_FULL_ONLY' || isWindowDrag;
+      const colorHint = docSettings.boxSelectColorHint !== false;
+      const color = colorHint
+        ? (isWindowSelect ? 0x0044ff : 0x00aa00)
+        : 0x0088ff;
       g.lineStyle(1.5, color, 0.8);
       g.beginFill(color, 0.08);
       g.drawRect(
@@ -4398,6 +4427,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         Math.abs(boxEnd.y - boxStart.y),
       );
       g.endFill();
+      // cad-ux-cleanup-pass Slice 12 — broadcast the live direction so
+      // the StatusBar can render a "Window (encloses fully)" /
+      // "Crossing (intersects)" caption. Skipped when the user opted
+      // out of the color hint, since they've explicitly asked not to
+      // be reminded.
+      if (colorHint) {
+        boxSelectModeRef.current = isWindowSelect ? 'WINDOW' : 'CROSSING';
+      } else if (boxSelectModeRef.current !== null) {
+        boxSelectModeRef.current = null;
+      }
+    } else if (boxSelectModeRef.current !== null) {
+      // Drag ended — clear the caption.
+      boxSelectModeRef.current = null;
+      window.dispatchEvent(new CustomEvent('cad:boxSelectMode', { detail: { mode: null } }));
+    }
+    // Emit only when the caption changes so the status bar doesn't
+    // thrash every frame.
+    if (boxSelectModeRef.current !== boxSelectLastEmittedRef.current) {
+      boxSelectLastEmittedRef.current = boxSelectModeRef.current;
+      window.dispatchEvent(new CustomEvent('cad:boxSelectMode', {
+        detail: { mode: boxSelectModeRef.current },
+      }));
     }
 
     // Draw hover glow highlight for ANY tool when hovering over an element.
@@ -9597,9 +9648,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
               if (feature && label) {
                 const { wx, wy } = screenToDrawingWorld(sx, sy);
-                // §14 — group point name/code/elevation labels so dragging
-                // one moves the stack together (unless set to INDEPENDENT).
-                const POINT_LABEL_KINDS = ['POINT_NAME', 'POINT_DESCRIPTION', 'POINT_ELEVATION'];
+                // §14 — group point name / code / description /
+                // elevation / coordinates labels so dragging one moves
+                // the whole stack together (unless set to INDEPENDENT).
+                // cad-ux-cleanup-pass Slice 9 — POINT_CODE and
+                // POINT_COORDINATES were missing from this list, so
+                // dragging the name left the code / coordinates row
+                // behind (the user-reported "code/desc doesn't move
+                // with the name"). Add them.
+                const POINT_LABEL_KINDS = [
+                  'POINT_NAME',
+                  'POINT_CODE',
+                  'POINT_DESCRIPTION',
+                  'POINT_ELEVATION',
+                  'POINT_COORDINATES',
+                ];
                 const grouping = useDrawingStore.getState().document.settings.pointLabelGrouping ?? 'GROUPED';
                 let siblings: { labelId: string; startOffset: Point2D }[] | undefined;
                 if (grouping === 'GROUPED' && POINT_LABEL_KINDS.includes(label.kind)) {
@@ -12552,6 +12615,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:zoomSelection', onZoomSelectionEv);
     window.addEventListener('cad:selectAll', onSelectAllEv);
     window.addEventListener('cad:toggleOrtho', onToggleOrthoEv);
+    // cad-ux-cleanup-pass Slice 11 — manual canvas refresh. Drops
+    // the LOD / feature-index cache + re-runs renderFeatures on the
+    // next rAF so a stale edit redraws immediately. The bindable
+    // `view.regenerate` action, the canvas right-click "Refresh
+    // canvas" item, and any AI tool that dispatches
+    // `cad:regenerateCanvas` all converge here.
+    const onRegenerateCanvas = () => {
+      featureIndexCacheRef.current = null;
+      requestAnimationFrame(() => renderFeatures());
+    };
+    window.addEventListener('cad:regenerateCanvas', onRegenerateCanvas);
     const onMovePageMode = () => {
       const next = !paperMoveModeRef.current;
       paperMoveModeRef.current = next;
@@ -12952,6 +13026,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:zoomSelection', onZoomSelectionEv);
       window.removeEventListener('cad:selectAll', onSelectAllEv);
       window.removeEventListener('cad:toggleOrtho', onToggleOrthoEv);
+      window.removeEventListener('cad:regenerateCanvas', onRegenerateCanvas);
       window.removeEventListener('cad:movePageMode', onMovePageMode);
       window.removeEventListener('cad:beginSnapToPoint', onBeginSnapToPoint);
       window.removeEventListener('cad:rotate', onRotate);
@@ -14133,13 +14208,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   <div className="grid grid-cols-2 gap-1.5 pl-5">
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-gray-500 text-[9px]">Color</span>
-                      <input
-                        type="color"
-                        className="w-6 h-5 bg-gray-700 rounded cursor-pointer border border-gray-600"
+                      <ColorSwatchInput
+                        className="w-6 h-5"
                         data-testid="label-editor-background-color"
                         value={label.style.backgroundColor ?? '#ffffff'}
-                        onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, {
-                          style: { ...label.style, backgroundColor: e.target.value },
+                        onChange={(c) => drawingStore.updateTextLabel(featureId, labelId, {
+                          style: { ...label.style, backgroundColor: c },
                         })}
                       />
                     </div>

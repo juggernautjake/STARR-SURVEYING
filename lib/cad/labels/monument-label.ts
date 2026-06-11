@@ -2,6 +2,7 @@
 import type { SurveyPoint, Point2D } from '../types';
 import { generateId } from '../types';
 import type { MonumentLabel } from './annotation-types';
+import { ANNOTATION_LAYER_ID } from '../styles/default-layers';
 
 export interface MonumentLabelConfig {
   font: string;
@@ -76,7 +77,7 @@ export function createMonumentLabel(
   return {
     id: generateId(),
     type: 'MONUMENT_LABEL',
-    layerId: 'ANNOTATION',
+    layerId: ANNOTATION_LAYER_ID,
     visible: true,
     locked: false,
     linkedFeatureId: point.featureId || null,

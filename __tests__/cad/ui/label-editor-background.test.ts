@@ -61,8 +61,11 @@ describe('Slice 234 — Color picker + padding input only show when backgroundCo
     expect(SRC).toMatch(/data-testid="label-editor-background-padding"/);
   });
 
-  it('the color input is type="color" and seeded with the current value or #ffffff', () => {
-    expect(SRC).toMatch(/type="color"[\s\S]*?data-testid="label-editor-background-color"[\s\S]*?value=\{label\.style\.backgroundColor \?\? '#ffffff'\}/);
+  it('the color input is the shared ColorSwatchInput, seeded with the current value or #ffffff', () => {
+    // cad-ux-cleanup-pass Slice 4 — site upgraded to the shared
+    // <ColorSwatchInput> wrapper that paints its label background from
+    // the current value (fixes the "dot in a box" rendering).
+    expect(SRC).toMatch(/<ColorSwatchInput[\s\S]*?data-testid="label-editor-background-color"[\s\S]*?value=\{label\.style\.backgroundColor \?\? '#ffffff'\}/);
   });
 
   it('the padding input is type="number" clamped to [0, 20] integer steps', () => {
@@ -75,8 +78,8 @@ describe('Slice 234 — Color picker + padding input only show when backgroundCo
 });
 
 describe('Slice 234 — Color + padding edits commit through drawingStore.updateTextLabel', () => {
-  it('color onChange writes { ...label.style, backgroundColor: e.target.value }', () => {
-    expect(SRC).toMatch(/drawingStore\.updateTextLabel\(featureId, labelId, \{\s*style: \{ \.\.\.label\.style, backgroundColor: e\.target\.value \},\s*\}\)/);
+  it('color onChange writes { ...label.style, backgroundColor: c } via ColorSwatchInput', () => {
+    expect(SRC).toMatch(/drawingStore\.updateTextLabel\(featureId, labelId, \{\s*style: \{ \.\.\.label\.style, backgroundColor: c \},\s*\}\)/);
   });
 
   it('padding onChange writes { ...label.style, padding: v }', () => {

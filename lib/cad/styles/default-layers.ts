@@ -54,6 +54,17 @@ export const PHASE3_DEFAULT_LAYERS: Layer[] = [
   { id: 'DEFAULT',       name: 'Layer 1',      visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.50, lineTypeId: 'SOLID', opacity: 1, groupId: 'grp-drawing',     sortOrder: 0, isDefault: true, isProtected: false, autoAssignCodes: [] },
 ];
 
+/**
+ * cad-domain-audit Slice H — canonical layer id every annotation /
+ * recon writer should target. Centralised here so future authors
+ * don't hard-code phantom strings like `'ANNOTATION'` / `'TITLE-BLOCK'`
+ * (the old seeded layers that were removed). Resolves to the
+ * always-seeded `SURVEY-INFO` layer, which is the right semantic
+ * home — it already holds title-block / scale-bar / north-arrow
+ * furniture and is guaranteed present on every drawing.
+ */
+export const ANNOTATION_LAYER_ID = 'SURVEY-INFO';
+
 /** Get all default layers as a Record<id, Layer>. */
 export function getDefaultLayersRecord(): Record<string, Layer> {
   const record: Record<string, Layer> = {};

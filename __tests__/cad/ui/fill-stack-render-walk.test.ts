@@ -48,8 +48,8 @@ describe('CanvasViewport — drawFillStackForPolygon walker', () => {
 
   it('builds a per-layer FillPatternConfig from the layer fields', () => {
     expect(SRC).toMatch(/pattern: layer\.pattern,/);
-    expect(SRC).toMatch(/density: layer\.density,/);
-    expect(SRC).toMatch(/scale: layer\.scale,/);
+    expect(SRC).toMatch(/density: layer\.density \* PATTERN_DENSITY_MULT,/);
+    expect(SRC).toMatch(/scale: layer\.scale \* PATTERN_SIZE_MULT,/);
     expect(SRC).toMatch(/angle: layer\.rotation,/);
   });
 
@@ -61,7 +61,7 @@ describe('CanvasViewport — drawFillStackForPolygon walker', () => {
     expect(SRC).toMatch(/const layerAlpha = Math\.max\(0, Math\.min\(1, layer\.opacity\)\);/);
     expect(SRC).toMatch(/entry\.tex\.beginFill\(colorInt, layerAlpha\)/);
     // cad-trv-fidelity — line weight scaled by zoom (world-constant).
-    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(layer\.scale\) \* ps, colorInt, layerAlpha\)/);
+    expect(SRC).toMatch(/entry\.tex\.lineStyle\(patternLineWeight\(layer\.scale \* PATTERN_SIZE_MULT\) \* ps, colorInt, layerAlpha\)/);
   });
 
   it('clears the texture entry when the resolved stack is empty (so removing every layer wipes the fill)', () => {
