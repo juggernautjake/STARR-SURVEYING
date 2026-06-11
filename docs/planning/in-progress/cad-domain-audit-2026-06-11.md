@@ -150,10 +150,16 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > 2747 green.
 
 ### Slice C — Validate `setActiveLayer` against `doc.layers` (L-4)
-The store ignores an id that isn't in `doc.layers` (logs a noop) and
-falls back to `layerOrder[0]` if the current active id was deleted —
-the same logic already used at L257 / L330. AI-controllable; closes
-the silent-orphan path.
+> **DONE (2026-06-11).** `drawingStore.setActiveLayer` now checks
+> `state.document.layers[layerId]`; unknown ids fall back to
+> `layerOrder[0]` (or `''` when there are zero layers) and log a
+> non-prod-only `console.warn`. Same fallback logic the
+> `addLayer` / `removeLayer` / `loadDocument` paths already use, so a
+> deleted layer can never linger as the active id and downstream
+> feature creation can't silently orphan its features. 5 unit cases
+> in `__tests__/cad/store/set-active-layer.test.ts` cover the
+> accept / unknown-id-fallback / empty-layers / warning fires /
+> idempotent-noop paths. Suite 2752 green.
 
 ### Slice D — `getActiveLayer()` selector + `newDocument` activeId (L-8 + L-10)
 Add a `getActiveLayer(): Layer | null` selector to the drawing

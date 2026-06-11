@@ -278,7 +278,27 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       };
     }),
 
-  setActiveLayer: (layerId) => set({ activeLayerId: layerId }),
+  // cad-domain-audit Slice C — reject an id that isn't actually a
+  // layer in the current document. Previously every caller was free
+  // to drop in an empty string or a deleted layer's id and downstream
+  // feature creation would silently orphan its features onto a
+  // nonexistent layer. The store now no-ops unknown ids (logs a
+  // dev-time warning) and falls back to `layerOrder[0]` when the
+  // active id has been deleted out from under us.
+  setActiveLayer: (layerId) =>
+    set((state) => {
+      if (state.document.layers[layerId]) {
+        return { activeLayerId: layerId };
+      }
+      const fallback = state.document.layerOrder[0] ?? '';
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[drawing-store] setActiveLayer("${layerId}") — no such layer; falling back to "${fallback}".`,
+        );
+      }
+      return { activeLayerId: fallback };
+    }),
 
   reorderLayers: (layerOrder) =>
     set((state) => ({
