@@ -198,10 +198,20 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > switch incrementally as snap / selection sites are touched.)
 
 ### Slice F — Feature-group cleanup on layer delete + draft promote (L-1)
-`removeLayer` + `promoteDraftLayer` both filter
-`doc.featureGroups` to drop groups whose `layerId` no longer
-exists. Add a `pruneOrphanGroups(doc)` helper next to the store so
-`loadDocument`'s existing cleanup can share it.
+> **DONE (2026-06-11).** `removeLayer` now walks `featureGroups`
+> alongside `features`: non-last-layer delete migrates groups on the
+> deleted layer to the same `safeTarget` the features migrate to (so
+> the "group moves / scales together" intent survives the delete);
+> last-layer delete drops them since there's no target. `promoteDraftLayer`
+> delegates back to `removeLayer`, so the AI sandbox draft path picks
+> up the same cleanup automatically — no group orphans across either
+> path. 4 unit cases in
+> `__tests__/cad/store/remove-layer-feature-groups.test.ts` cover the
+> migrate / other-layer-untouched / last-layer-drop / no-group paths.
+> Suite 2769 green. (The shared `pruneOrphanGroups(doc)` helper for
+> `loadDocument` is deferred — `loadDocument`'s existing cleanup
+> already prunes by feature-id membership, so the orphan-by-layerId
+> case only fires inside `removeLayer` which is now correct in-place.)
 
 ### Slice G — Reset-prefs runs label regen (L-5)
 `LayerPreferencesPanel.resetToDefaults()` calls

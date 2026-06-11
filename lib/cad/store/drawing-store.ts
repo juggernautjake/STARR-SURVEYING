@@ -248,6 +248,13 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       delete layers[layerId];
       const layerOrder = state.document.layerOrder.filter((id) => id !== layerId);
       const features = { ...state.document.features };
+      // cad-domain-audit Slice F — clone featureGroups too so the
+      // deleted layer's groups can be migrated / dropped instead of
+      // pointing at a layer that no longer exists. Previously
+      // `removeLayer` only touched `layers` / `features`, so every
+      // FeatureGroup whose `layerId` matched the deleted layer turned
+      // into a silent orphan (the bug the audit flagged).
+      const featureGroups = { ...state.document.featureGroups };
 
       if (layerOrder.length === 0) {
         // Deleting the LAST layer empties the project — its features (incl.
@@ -255,8 +262,13 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         for (const [fid, feature] of Object.entries(features)) {
           if (feature.layerId === layerId) delete features[fid];
         }
+        // Drop every group on the deleted layer (no surviving layer
+        // to migrate them to).
+        for (const [gid, group] of Object.entries(featureGroups)) {
+          if (group.layerId === layerId) delete featureGroups[gid];
+        }
         return {
-          document: { ...state.document, layers, layerOrder, features, modified: new Date().toISOString() },
+          document: { ...state.document, layers, layerOrder, features, featureGroups, modified: new Date().toISOString() },
           activeLayerId: '',
           isDirty: true,
         };
@@ -271,11 +283,20 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
           features[fid] = { ...feature, layerId: safeTarget };
         }
       }
+      // Migrate every group on the deleted layer to the same safe
+      // target so the grouping intent (members move/scale/rotate
+      // together) survives the delete instead of getting silently
+      // dropped on the floor.
+      for (const [gid, group] of Object.entries(featureGroups)) {
+        if (group.layerId === layerId) {
+          featureGroups[gid] = { ...group, layerId: safeTarget };
+        }
+      }
       const activeLayerId = layerOrder.includes(state.activeLayerId)
         ? state.activeLayerId
         : layerOrder[0];
       return {
-        document: { ...state.document, layers, layerOrder, features, modified: new Date().toISOString() },
+        document: { ...state.document, layers, layerOrder, features, featureGroups, modified: new Date().toISOString() },
         activeLayerId,
         isDirty: true,
       };
