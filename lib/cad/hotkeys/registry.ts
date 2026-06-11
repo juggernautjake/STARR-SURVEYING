@@ -94,6 +94,12 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'layer.panel',       category: 'LAYERS',     label: 'Toggle Layer Panel',   description: 'Show or hide the layer panel',                defaultKey: 'f2',           isChord: false, context: 'GLOBAL' },
   { id: 'layer.isolateBySelection', category: 'LAYERS', label: 'Isolate Layers by Selection', description: 'Show only layers that contain at least one currently-selected feature; hide everything else.', defaultKey: '', isChord: false, context: 'CANVAS' },
   { id: 'layer.showAll',     category: 'LAYERS',     label: 'Show All Layers',      description: 'Restore visibility on every layer in the document.', defaultKey: '', isChord: false, context: 'GLOBAL' },
+  // cad-ux-cleanup-pass Slice 8 — quick-add points into the active
+  // layer. Opens the existing Layer Transfer dialog pre-targeted at
+  // the active layer so the surveyor doesn't have to pick the target
+  // again. Also wired to a `+` button + right-click "Quick-add
+  // points…" entry on each layer row in the LayerPanel.
+  { id: 'layer.quickAdd',    category: 'LAYERS',     label: 'Quick-add Points to Active Layer', description: 'Open the layer transfer dialog pre-targeted at the active layer so points can be moved into it in one step.', defaultKey: '', isChord: false, context: 'CANVAS' },
 
   // AI
   { id: 'ai.start',          category: 'AI',         label: 'Start AI Drawing',     description: 'Open the AI drawing wizard',                  defaultKey: 'ctrl+shift+a', isChord: false, context: 'GLOBAL' },

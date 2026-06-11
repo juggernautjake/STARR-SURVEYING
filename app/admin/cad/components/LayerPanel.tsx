@@ -17,6 +17,7 @@ import type { Layer, TitleBlockConfig } from '@/lib/cad/types';
 import { formatFeatureVertices, isExpandableFeature } from '@/lib/cad/feature-vertices';
 import { featureRowLabel } from '@/lib/cad/feature-row-label';
 import { transferSelectionToLayer } from '@/lib/cad/operations';
+import { useTransferStore } from '@/lib/cad/store';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 import NewLayerDialog from './NewLayerDialog';
@@ -279,6 +280,16 @@ export default function LayerPanel() {
     });
     if (!ok) return;
     store.removeLayer(layerId);
+  }
+
+  /** cad-ux-cleanup-pass Slice 8 — open the existing Layer Transfer
+   *  dialog pre-targeted at `layerId` so the surveyor can move points
+   *  into it without picking the target again. Same code path the
+   *  bindable `layer.quickAdd` action fires. */
+  function quickAddToLayer(layerId: string) {
+    useTransferStore.getState().setOptions({ targetLayerId: layerId });
+    window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
+    setContextMenu(null);
   }
 
   function handleDuplicateLayer(layerId: string) {
@@ -778,6 +789,20 @@ export default function LayerPanel() {
                   <Settings size={10} />
                 </button>
 
+                {/* cad-ux-cleanup-pass Slice 8 — quick-add points
+                    button. Opens the Layer Transfer dialog already
+                    pointed at this layer so the surveyor can move
+                    selected points in without re-picking the target. */}
+                <button
+                  data-testid={`layer-quick-add-${layer.id}`}
+                  className="flex-shrink-0 text-gray-600 hover:text-green-400 p-0.5 transition-colors duration-100"
+                  onClick={(e) => { e.stopPropagation(); quickAddToLayer(layer.id); }}
+                  title="Quick-add points to this layer"
+                  aria-label={`Quick-add points to ${layer.name}`}
+                >
+                  <Plus size={10} />
+                </button>
+
                 {/* Layer name */}
                 {renamingId === layer.id ? (
                   <input
@@ -1117,6 +1142,16 @@ export default function LayerPanel() {
             }}
           >
             Select all in layer
+          </button>
+          {/* cad-ux-cleanup-pass Slice 8 — quick-add points entry.
+              Opens the Layer Transfer dialog pre-targeted at this
+              layer so the surveyor can drop a selection in without
+              re-picking the target. */}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 flex items-center gap-1.5"
+            onClick={() => quickAddToLayer(contextMenu.layerId)}
+          >
+            <Plus size={11} /> Quick-add points…
           </button>
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"

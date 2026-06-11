@@ -410,6 +410,28 @@ export function dispatchDefaultAction(action: BindableAction): void {
       return;
     }
 
+    case 'layer.quickAdd': {
+      // cad-ux-cleanup-pass Slice 8 — open the existing Layer Transfer
+      // dialog pre-targeted at the active layer so the surveyor
+      // doesn't have to pick the target again. Same code path that the
+      // LayerPanel `+` button and "Quick-add points…" context-menu
+      // item fire, so the AI tool registry can target any specific
+      // layer the same way by setting `targetLayerId` on the transfer
+      // store before dispatching `cad:openLayerTransfer`.
+      const drawingStore = useDrawingStore.getState();
+      const layerId = drawingStore.activeLayerId;
+      const target = drawingStore.document.layers[layerId];
+      if (!target) {
+        window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+          detail: { text: 'Quick-add Points — no active layer.' },
+        }));
+        return;
+      }
+      useTransferStore.getState().setOptions({ targetLayerId: layerId });
+      window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
+      return;
+    }
+
     // ── AI ───────────────────────────────────────────
     case 'ai.start':
       window.dispatchEvent(new CustomEvent('cad:openAIDrawingDialog'));

@@ -194,23 +194,23 @@ Add a layer-feature-count selector that reports both `featureCount` and
   ends up with N canonical features and zero spurious adds.
 
 ### Slice 8 — Quick-add points to an existing layer
-**Files:** `app/admin/cad/components/LayerPanel.tsx`,
-`app/admin/cad/components/LayerTransferDialog.tsx` (probably).
-
-**Add:**
-- A small `+` button on each layer row (next to the eye / lock icons)
-  that opens the existing transfer dialog pre-targeted at this layer.
-- A right-click menu item "Quick-add points…" with the same effect.
-- A new bindable action `layer.quickAdd` so the AI / command palette
-  can target a specific layer by id.
-
-**AI-controllable:** the AI tool registry already has a
-`moveFeaturesToLayer` helper — extend it so a "target layer id" plus a
-"source point name list" yields the same outcome the dialog does.
-
-**Tests:** `__tests__/cad/ui/quick-add-points-to-layer.test.ts` —
-clicking `+` opens the dialog with `targetLayerId` pre-set; the
-right-click menu fires the same event; the bindable action does too.
+> **DONE (2026-06-11).** Three entrypoints converge on the same flow:
+> pre-set `transferStore.options.targetLayerId` then dispatch
+> `cad:openLayerTransfer` (which the existing Layer Transfer dialog
+> already honors). LayerPanel.tsx now (a) exports the
+> `quickAddToLayer(layerId)` helper, (b) renders a per-row `+` (Plus)
+> button next to the Settings cog with
+> `data-testid="layer-quick-add-${id}"`, (c) renders a "Quick-add
+> points…" entry in the right-click context menu just above
+> "Duplicate layer". A new bindable `layer.quickAdd` action is
+> registered (CANVAS context, LAYERS category) and dispatched in
+> `useHotkeys.ts` for the ACTIVE layer — the command palette and the
+> AI tool registry can fire it directly, or any AI tool can target a
+> specific layer the same way by calling
+> `useTransferStore.getState().setOptions({ targetLayerId })` before
+> dispatching `cad:openLayerTransfer`. 7 fixture + source-lock cases
+> in `__tests__/cad/ui/quick-add-points-to-layer.test.ts`. Suite 2719
+> green.
 
 ### Slice 9 — Point-label drag grouping: siblings move together
 **File:** `app/admin/cad/components/CanvasViewport.tsx` (L9614–9621 and
