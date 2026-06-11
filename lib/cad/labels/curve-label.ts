@@ -3,6 +3,7 @@ import type { Point2D, CurveParameters } from '../types';
 import { generateId } from '../types';
 import type { CurveDataAnnotation } from './annotation-types';
 import { formatBearing } from '../geometry/bearing';
+import { ANNOTATION_LAYER_ID } from '../styles/default-layers';
 
 export interface CurveDataConfig {
   showRadius: boolean;
@@ -52,7 +53,7 @@ export function createCurveDataAnnotation(
   return {
     id: generateId(),
     type: 'CURVE_DATA',
-    layerId: 'ANNOTATION',
+    layerId: ANNOTATION_LAYER_ID,
     visible: true,
     locked: false,
     linkedFeatureId,

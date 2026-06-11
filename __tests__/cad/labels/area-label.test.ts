@@ -116,9 +116,11 @@ describe('createAreaAnnotation', () => {
     expect(ann.text).toContain('Acres');
   });
 
-  it('layerId is ANNOTATION', () => {
+  it('layerId targets the canonical ANNOTATION_LAYER_ID (cad-domain-audit Slice H)', () => {
     const ann = createAreaAnnotation('feat-1', square, cfg);
-    expect(ann.layerId).toBe('ANNOTATION');
+    // Resolves to the always-seeded SURVEY-INFO layer so the
+    // annotation never lands on a phantom id.
+    expect(ann.layerId).toBe('SURVEY-INFO');
   });
 
   it('stores lotNumber and blockNumber when provided', () => {

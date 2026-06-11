@@ -136,7 +136,10 @@ describe('convertReconToCAD — feature class → layer mapping', () => {
     ['fence',             'FENCE'],
     ['tree_line',         'VEGETATION'],
     ['contour',           'TOPO'],
-    ['annotation',        'ANNOTATION'],
+    // cad-domain-audit Slice H — `annotation` now routes to the
+    // canonical ANNOTATION_LAYER_ID (resolves to SURVEY-INFO) so it
+    // doesn't land on a phantom layer id.
+    ['annotation',        'SURVEY-INFO'],
     ['other',             'MISC'],
   ];
 

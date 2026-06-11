@@ -54,9 +54,11 @@ describe('createBearingDimension', () => {
     expect(dim.isManuallyPlaced).toBe(false);
   });
 
-  it('layerId defaults to ANNOTATION', () => {
+  it('layerId targets the canonical ANNOTATION_LAYER_ID (cad-domain-audit Slice H)', () => {
     const dim = createBearingDimension({ x: 0, y: 0 }, { x: 100, y: 0 }, cfg);
-    expect(dim.layerId).toBe('ANNOTATION');
+    // Resolves to the always-seeded SURVEY-INFO layer so the
+    // dimension never lands on a phantom id.
+    expect(dim.layerId).toBe('SURVEY-INFO');
   });
 
   it('extensionLineLength is 0.05 (paper inches)', () => {

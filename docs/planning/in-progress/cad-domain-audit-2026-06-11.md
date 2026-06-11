@@ -224,11 +224,20 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > 3 source-lock cases in
 > `__tests__/cad/ui/layer-prefs-reset-regen.test.ts`. Suite 2772 green.
 
-### Slice H — Hardcoded `'ANNOTATION'` / `'TITLE-BLOCK'` targets fall
-back gracefully (L-6). Label + recon writers check
-`doc.layers[targetId]`; when missing, create the layer lazily
-through `addLayer` with the canonical template OR route the
-annotation to the active layer. No silent data loss.
+### Slice H — Hardcoded `'ANNOTATION'` / `'TITLE-BLOCK'` targets fall back gracefully (L-6)
+> **DONE (2026-06-11).** Exported a canonical `ANNOTATION_LAYER_ID`
+> constant from `lib/cad/styles/default-layers.ts` that resolves to
+> the always-seeded `SURVEY-INFO` layer (the documented home for
+> title-block / scale-bar / north-arrow furniture). Every label
+> writer (`area-label`, `bearing-dim`, `monument-label`, `curve-label`)
+> and the recon-import routing map in `recon-to-cad.ts` now stamp
+> the constant instead of the phantom `'ANNOTATION'` /
+> `'TITLE-BLOCK'` literals — so annotations and recon-tagged objects
+> land on a real layer the surveyor can find in the panel, hide,
+> rename, or move from. The 3 existing label fixtures + the recon
+> mapping fixture were updated to expect the canonical id; a new
+> `__tests__/cad/labels/annotation-layer-id.test.ts` locks the
+> constant + bans regressions (12 cases). Suite 2784 green.
 
 ### Slice I — Hotkey context narrowing (H-1, H-4)
 Wire `useHotkeysStore.setActiveContext('DIALOG')` to every modal

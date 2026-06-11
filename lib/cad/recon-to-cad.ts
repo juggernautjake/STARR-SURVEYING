@@ -20,6 +20,7 @@ import {
   DEFAULT_LAYER_GROUPS,
   getDefaultLayersRecord,
   getDefaultLayerOrder,
+  ANNOTATION_LAYER_ID,
 } from './styles/default-layers';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from './styles/types';
 import type { DrawingElement, RenderedDrawing, FeatureClass, ElementGeometry } from '@/types/research';
@@ -44,8 +45,12 @@ const FEATURE_CLASS_TO_LAYER_ID: Record<FeatureClass, string> = {
   centerline:        'TRANSPORTATION',
   monument:          'BOUNDARY-MON',
   control_point:     'CONTROL',
-  annotation:        'ANNOTATION',
-  title_block:       'TITLE-BLOCK',
+  // cad-domain-audit Slice H — route to the canonical
+  // annotation-layer constant (resolves to the always-seeded
+  // SURVEY-INFO) so recon ingest of annotation / title-block tagged
+  // objects doesn't land on phantom layers.
+  annotation:        ANNOTATION_LAYER_ID,
+  title_block:       ANNOTATION_LAYER_ID,
   other:             'MISC',
 };
 
