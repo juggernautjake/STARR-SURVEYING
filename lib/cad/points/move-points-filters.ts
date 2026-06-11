@@ -24,11 +24,25 @@
 //     the same reason: they're render-only twins of the canonical
 //     points, not additional surveyable points.
 
-import type { DrawingDocument, Feature } from '../types';
+import type { DrawingDocument, Feature, Layer } from '../types';
 import type { PointRow } from './point-rows';
 
 export type MovePointsSourceMode = 'MASTER_ONLY' | 'ALL_LAYERS';
 export type SearchField = 'NAME' | 'CODE';
+
+/** Feature-level master check — reusable from any "move points"
+ *  surface that holds the `Feature` directly (e.g. LayerTransferDialog)
+ *  instead of going through `PointRow`. Excludes points on a layer
+ *  with `duplicateOf` set AND points carrying `trvPointMirror` in
+ *  their properties. */
+export function isMasterPointFeature(
+  feature: Feature,
+  layers: Record<string, Layer>,
+): boolean {
+  if (feature.properties?.trvPointMirror) return false;
+  if (layers[feature.layerId]?.duplicateOf) return false;
+  return true;
+}
 
 /** Split a raw query into a list of trimmed, non-empty search tokens.
  *  Returns an empty array for an all-whitespace / comma-only query. */
@@ -53,11 +67,11 @@ export function matchesQueryTokens(row: PointRow, field: SearchField, tokens: Re
 /** True when the point row belongs to the canonical master pool — i.e.
  *  NOT on a duplicate layer AND NOT a TRV points-layer mirror. */
 export function isMasterPointRow(row: PointRow, doc: DrawingDocument): boolean {
-  const layer = doc.layers[row.layerId];
-  if (layer?.duplicateOf) return false;
   const feature: Feature | undefined = doc.features[row.id];
-  if (feature?.properties?.trvPointMirror) return false;
-  return true;
+  if (feature) return isMasterPointFeature(feature, doc.layers);
+  // Row without a backing feature (derived/projected rows) — fall back
+  // to the layer check so the answer stays consistent.
+  return !doc.layers[row.layerId]?.duplicateOf;
 }
 
 /** Apply the search + source filters in one pass. Pure — does not

@@ -124,12 +124,18 @@ overlap): 9 (label drag grouping), 10 (display-prefs sync), 11
 Risk-ordered: pure helpers → store changes → UI wiring.
 
 ### Slice A — Master-source filter for the Layer Transfer dialog (P-1)
-Reuse the Slice-3 `filterMovePointRows` + the `MASTER_ONLY` /
-`ALL_LAYERS` toggle inside `LayerTransferDialog.tsx` so the transfer
-flow filters duplicate-layer + mirror copies exactly the same way
-the new-layer flow does. Tests: extend
-`__tests__/cad/ui/move-points-source-filter.test.ts` to cover the
-transfer-dialog wiring.
+> **DONE (2026-06-11).** Extracted a Feature-level
+> `isMasterPointFeature(feature, layers)` helper into
+> `lib/cad/points/move-points-filters.ts` and refactored
+> `isMasterPointRow` to delegate to it (single source of truth). The
+> dialog now keeps a `pointPoolMode: MovePointsSourceMode` state
+> (default `MASTER_ONLY`) and routes the pointCatalog through the new
+> helper, so duplicate-layer copies + TRV mirror twins drop out of
+> the catalog by default. A `Master file` / `All layers` toggle
+> mirrors the NewLayerDialog control so the choice is identical
+> everywhere points get moved. 7 unit + source-lock cases in
+> `__tests__/cad/ui/layer-transfer-dialog-master-pool.test.ts`. Suite
+> 2743 green.
 
 ### Slice B — Layer-name uniqueness on rename (L-3)
 `LayerPanel.commitRename()` rejects a name already in use (case-
