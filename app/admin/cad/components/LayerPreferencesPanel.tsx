@@ -246,17 +246,34 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
     // Auto-regenerate the layer's labels on EVERY prefs change — not just
     // visibility — so a font-size / weight / color / offset / format edit
     // restyles existing labels live as the user types or holds an arrow.
-    const features = store.getFeaturesOnLayer(layerId);
-    const displayPrefs = store.document.settings.displayPreferences;
+    // cad-ux-cleanup-pass Slice 10 — derive mergedPrefs from the
+    // LIVE store layer instead of the closure-captured `prefs`, so a
+    // rapid double-toggle (where the second click fires before the
+    // component has re-rendered with the first click's state) still
+    // sees the latest values. Closes the user-reported "had to
+    // toggle twice for the change to take effect" desync.
+    const ds = useDrawingStore.getState();
+    const livePrefs = ds.document.layers[layerId]?.displayPreferences;
+    const basePrefs: LayerDisplayPreferences = {
+      ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+      ...(livePrefs ?? {}),
+      pointLabelOffset: {
+        ...DEFAULT_LAYER_DISPLAY_PREFERENCES.pointLabelOffset,
+        ...(livePrefs?.pointLabelOffset ?? {}),
+      },
+    };
+    const features = ds.getFeaturesOnLayer(layerId);
+    const liveLayer = ds.document.layers[layerId] ?? layer;
+    const displayPrefs = ds.document.settings.displayPreferences;
     const mergedPrefs: LayerDisplayPreferences = {
-      ...prefs,
+      ...basePrefs,
       ...partial,
       pointLabelOffset: {
-        ...prefs.pointLabelOffset,
+        ...basePrefs.pointLabelOffset,
         ...((partial.pointLabelOffset) ?? {}),
       },
     };
-    const labelMap = regenerateLayerLabels(features, { ...layer, displayPreferences: mergedPrefs }, displayPrefs);
+    const labelMap = regenerateLayerLabels(features, { ...liveLayer, displayPreferences: mergedPrefs }, displayPrefs);
     labelMap.forEach((labels, featureId) => {
       store.setFeatureTextLabels(featureId, labels);
     });

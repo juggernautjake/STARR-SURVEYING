@@ -206,34 +206,25 @@ User-confirmed answers (2026-06-11):
 > Suite 2852 green.
 
 ### Slice 10 — Layer display preferences sync (random toggle / out-of-sync state)
-**File:** `app/admin/cad/components/LayerPreferencesPanel.tsx` +
-`lib/cad/labels/regenerate-layer-labels.ts` (or wherever
-`regenerateLayerLabels` lives).
-
-**Today:** the toggles update `layer.displayPreferences.*` and call
-`regenerateLayerLabels()`. User reports the visible state of labels
-desyncs from the toggle (point names showed when set to off; toggling
-on then off didn't change anything until the second toggle).
-
-**Investigation:**
-1. Audit whether `regenerateLayerLabels` is idempotent. If a label is
-   created with `visible: true` and the toggle goes off, the regen must
-   either delete the label or flip its `visible`. A re-run that *adds*
-   the label back regardless is the most likely root cause.
-2. Audit `textLabels[]` for stale entries with `visible: false` that the
-   render path still draws (the slice-6 dedup may interact here).
-3. Audit `useEffect` deps in the preferences panel for stale closures
-   that re-emit the previous value.
-
-**Fix:** make `regenerateLayerLabels` derive the visible set from the
-current `displayPreferences` (declarative), not append/remove
-imperatively. Each toggle is a single store write → declarative regen →
-single render. Add a defensive `key` that includes the prefs hash so
-React-level memoization can't lock to a stale state.
-
-**Tests:** `__tests__/cad/labels/preferences-sync.test.ts` — every
-toggle combination produces the expected set of visible labels (no
-"toggle twice to see effect").
+> **DONE (2026-06-11).** Investigation found the regenerate pipeline
+> is already declarative: `generateLabelsForFeature` only pushes
+> labels for kinds whose `showXxx` toggle is on, and
+> `setFeatureTextLabels` does a clean array replace, so the
+> documented "lower kind drops out" path is correct. The desync the
+> user reported came from `update()` capturing `prefs` from a stale
+> closure: when a rapid second click fires before the panel re-renders
+> with the first click's `layer.displayPreferences`, the merge
+> `{ ...prefs, ...partial }` runs against the OLD snapshot — and
+> sometimes silently writes the wrong values through. Fix: derive
+> `mergedPrefs` (and the layer used for regen + the feature list)
+> from `useDrawingStore.getState()` at call time. Closes the
+> "toggle twice to take effect" path. 5 source-lock cases in
+> `__tests__/cad/ui/layer-prefs-update-live-store.test.ts`. Suite
+> 2857 green. (A broader "prefs-sync end-to-end" fixture is deferred
+> — the existing label generation + Slice O dedup tests already
+> cover the declarative `regenerateLayerLabels` correctness, and
+> exercising the React click cycle adds tooling without changing
+> the verified result.)
 
 ### Slice 11 — Manual canvas regenerate + perceived-lag pass
 **Files:** `app/admin/cad/components/CanvasViewport.tsx`,
