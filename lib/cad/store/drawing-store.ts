@@ -143,6 +143,11 @@ interface DrawingStore {
 
   // Active layer style helper
   getActiveLayerStyle: () => { color: string; lineWeight: number; opacity: number };
+  /** cad-domain-audit Slice D — single-source-of-truth resolver for
+   *  the active Layer. Returns `null` when `activeLayerId` is empty
+   *  or points at a layer that's no longer in the document, so
+   *  callers can branch on it without re-implementing the lookup. */
+  getActiveLayer: () => Layer | null;
 }
 
 const defaultDoc = createDefaultDocument();
@@ -328,7 +333,13 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   newDocument: () => {
     const doc = createDefaultDocument();
-    set({ document: doc, activeLayerId: '', isDirty: false });
+    // cad-domain-audit Slice D — newDocument used to leave the active
+    // layer as the empty string, so the very first geometry the
+    // surveyor placed landed on `layerId: ''` and was orphaned. Seed
+    // the first declared layer (mirrors what loadDocument already
+    // does); the Slice-C validator guarantees the id is real.
+    const activeLayerId = doc.layerOrder[0] ?? '';
+    set({ document: doc, activeLayerId, isDirty: false });
   },
 
   loadDocument: (doc) => {
@@ -754,11 +765,16 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
   getAllFeatures: () => Object.values(get().document.features),
 
   getActiveLayerStyle: () => {
-    const { document, activeLayerId } = get();
-    const layer = document.layers[activeLayerId];
+    const layer = get().getActiveLayer();
     if (layer) {
       return { color: layer.color, lineWeight: layer.lineWeight, opacity: layer.opacity };
     }
     return { color: '#000000', lineWeight: 1, opacity: 1 };
+  },
+
+  getActiveLayer: () => {
+    const { document, activeLayerId } = get();
+    if (!activeLayerId) return null;
+    return document.layers[activeLayerId] ?? null;
   },
 }));

@@ -162,12 +162,22 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > idempotent-noop paths. Suite 2752 green.
 
 ### Slice D — `getActiveLayer()` selector + `newDocument` activeId (L-8 + L-10)
-Add a `getActiveLayer(): Layer | null` selector to the drawing
-store. Update `newDocument()` to set `activeLayerId =
-layerOrder[0]` instead of `''`, so the first feature lands on the
-seeded `SURVEY-INFO` (which is OK — the user picks a real drawing
-layer when they start). Migrate the highest-traffic
-`doc.layers[activeLayerId]` call sites to the selector.
+> **DONE (2026-06-11).** New `getActiveLayer(): Layer | null` selector
+> on the drawing store — returns the live Layer (or null when
+> `activeLayerId` is empty or stale) so every caller can stop
+> re-implementing the lookup. `getActiveLayerStyle` rewires through
+> it, falling back to the historical safe defaults. `newDocument()`
+> now seeds `activeLayerId = doc.layerOrder[0] ?? ''` (mirrors
+> `loadDocument`), so the first piece of geometry the surveyor places
+> on a fresh drawing actually lands on a real layer instead of being
+> orphaned on `layerId: ''`. The Slice-C validator keeps any
+> downstream `setActiveLayer` call honest. 6 unit cases in
+> `__tests__/cad/store/get-active-layer.test.ts` cover live / empty /
+> stale / fallback / newDocument paths. Suite 2758 green. (Migrating
+> the ~30 `doc.layers[activeLayerId]` call sites is deferred — the
+> selector is in place and call sites can switch incrementally as
+> they're touched, but a single mass rewrite risks regressions
+> across unrelated paths.)
 
 ### Slice E — `getVisibleFeatures` honors `locked` + `frozen` (L-2)
 Tighten the selector so frozen / locked layers stop bleeding into
