@@ -90,6 +90,14 @@ export default function ChordHUD() {
             </li>
           ))}
         </ul>
+        {/* cad-ux-cleanup-pass Slice 5 — visible dismiss hint, so a
+            mistyped chord prefix never feels stuck. */}
+        <div className="mt-1.5 pt-1.5 border-t border-gray-700/60 flex items-center gap-1.5 text-[10px] text-gray-500">
+          <kbd className="px-1 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300 font-mono">
+            Esc
+          </kbd>
+          <span>to cancel</span>
+        </div>
       </div>
     </div>
   );

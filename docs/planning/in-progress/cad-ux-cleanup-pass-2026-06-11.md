@@ -134,29 +134,22 @@ that's empty (e.g. trailing comma) is ignored.
 > 2673 green.
 
 ### Slice 5 — Hotkey: `s` = instant Select; move Scale + Spline off `s`
-**File:** `lib/cad/hotkeys/registry.ts` + `app/admin/cad/hooks/useHotkeys.ts`
-(+ engine if needed).
-
-**Today:** `s` is a chord prefix. `s c` = Scale, `s p` = Spline. Plain
-`s` waits 6 s before firing Select; the chord HUD has no visible
-dismiss.
-
-**Fix:**
-1. Rebind in the default preset:
-   - `s` → `tool.select` (no chord, fires on keydown)
-   - `SC` (shift-chord, two-key but caps-distinct from `s`) → `tool.scale`
-   - `SP` (same form) → `tool.spline`
-   - leave AutoCAD preset alone (it's opt-in).
-2. Wire Escape to call `engine.flushPending()` + clear the buffered
-   prefix so the chord HUD goes away on demand.
-3. Update the chord HUD overlay (already emitted on
-   `cad:chordPrefixChanged`) to render a small "Esc to cancel" hint when
-   a prefix is buffered.
-4. Refresh `KeyboardShortcutOverlay` so the user sees the new bindings.
-
-**Tests:** `__tests__/cad/hotkeys/select-instant.test.ts` — plain `s`
-fires `tool.select` synchronously (no chord delay); Esc clears a buffered
-prefix; new chord forms resolve.
+> **DONE (2026-06-11).** Default-preset rebinds in
+> `lib/cad/hotkeys/registry.ts`: `tool.scale` `s c` → `shift+s`,
+> `tool.spline` `s p` → `shift+p`, both `isChord: false`. With the `s`
+> chord prefix removed, plain `s` is now a clean leaf so the engine
+> fires `tool.select` instantly on keydown (no 6 s wait). The chord
+> timeout for remaining prefixes (`p l`, `z e`, etc.) drops from 6 s to
+> 1.5 s in `useHotkeys.ts`, and pressing Escape during a buffered chord
+> calls `engine.resetBuffer()` BEFORE the engine sees the key so the
+> pending action never fires (previously Esc fired both the pending
+> action AND deselect). `ChordHUD.tsx` gains a visible "Esc to cancel"
+> hint at the bottom so a mistyped prefix never feels stuck. The
+> AutoCAD preset is left alone (it's opt-in and its `s c` aliases are
+> the muscle memory those users came for). 12 fixture + source-lock
+> cases in `__tests__/cad/hotkeys/select-instant.test.ts`; suite 2691
+> green. (KeyboardShortcutOverlay re-renders the registry directly, so
+> no extra wiring needed — it picks up the new defaults automatically.)
 
 ### Slice 6 — POINT_CODE / POINT_DESCRIPTION dedup when identical
 > **DONE (2026-06-11).** `generate-labels.ts` now resolves the

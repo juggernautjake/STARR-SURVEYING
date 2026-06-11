@@ -40,13 +40,17 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'tool.polyline',     category: 'TOOLS',      label: 'Draw Polyline',        description: 'Draw a polyline (multiple segments)',         defaultKey: 'p l',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.polygon',      category: 'TOOLS',      label: 'Draw Polygon',         description: 'Draw a closed polygon',                       defaultKey: 'p g',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.arc',          category: 'TOOLS',      label: 'Draw Arc',             description: 'Draw a circular arc',                         defaultKey: 'a',            isChord: false, context: 'CANVAS' },
-  { id: 'tool.spline',       category: 'TOOLS',      label: 'Draw Spline',          description: 'Draw a fit-point spline',                     defaultKey: 's p',          isChord: true,  context: 'CANVAS' },
+  // cad-ux-cleanup-pass Slice 5 — Spline moved off the `s` prefix to
+  // `Shift+P` so plain `s` fires Select instantly (no 1.5 s chord wait).
+  { id: 'tool.spline',       category: 'TOOLS',      label: 'Draw Spline',          description: 'Draw a fit-point spline',                     defaultKey: 'shift+p',      isChord: false, context: 'CANVAS' },
   { id: 'tool.text',         category: 'TOOLS',      label: 'Draw Text',            description: 'Place a text annotation',                     defaultKey: 't',            isChord: false, context: 'CANVAS' },
   { id: 'tool.move',         category: 'TOOLS',      label: 'Move',                 description: 'Move selected features',                      defaultKey: 'm',            isChord: false, context: 'CANVAS' },
   { id: 'tool.copyTool',     category: 'TOOLS',      label: 'Copy (Tool)',          description: 'Copy and place features',                     defaultKey: 'c o',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.rotate',       category: 'TOOLS',      label: 'Rotate',               description: 'Rotate selected features',                    defaultKey: 'r o',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.mirror',       category: 'TOOLS',      label: 'Mirror',               description: 'Mirror selected features',                    defaultKey: 'm i',          isChord: true,  context: 'CANVAS' },
-  { id: 'tool.scale',        category: 'TOOLS',      label: 'Scale',                description: 'Scale selected features',                     defaultKey: 's c',          isChord: true,  context: 'CANVAS' },
+  // cad-ux-cleanup-pass Slice 5 — Scale moved off the `s` prefix to
+  // `Shift+S` so plain `s` fires Select instantly.
+  { id: 'tool.scale',        category: 'TOOLS',      label: 'Scale',                description: 'Scale selected features',                     defaultKey: 'shift+s',      isChord: false, context: 'CANVAS' },
   { id: 'tool.offset',       category: 'TOOLS',      label: 'Offset',               description: 'Create parallel offset geometry',             defaultKey: 'o',            isChord: false, context: 'CANVAS' },
   { id: 'tool.trim',         category: 'TOOLS',      label: 'Trim',                 description: 'Trim lines to cutting edges',                 defaultKey: 't r',          isChord: true,  context: 'CANVAS' },
   { id: 'tool.extend',       category: 'TOOLS',      label: 'Extend',               description: 'Extend lines to boundary edges',              defaultKey: 'e x',          isChord: true,  context: 'CANVAS' },

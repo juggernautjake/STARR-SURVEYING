@@ -129,12 +129,16 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
       actions: DEFAULT_ACTIONS,
       userBindings,
       getContext: () => useHotkeysStore.getState().activeContext,
-      // A key like `s` is both an action (Select) and a chord prefix
-      // (`s c` Scale, `s p` Spline). The default 1s window cleared the
-      // chord HUD before the surveyor could press the second key. Give
-      // a long window so the HUD effectively stays up until they pick
-      // the next key, while `s`-then-click still eventually fires Select.
-      chordTimeoutMs: 6000,
+      // cad-ux-cleanup-pass Slice 5 — `s` no longer chord-prefixes
+      // Scale/Spline (both moved to Shift+S / Shift+P), so plain `s`
+      // is now a clean leaf that fires Select on keydown. The chord
+      // window still guards the remaining prefixes (`p l` polyline,
+      // `z e` zoom-extents, `i n v` inverse, etc.) — 1.5 s gives a
+      // comfortable type-the-second-key budget without keeping the
+      // ambiguous-single-key tools (`p` Point, etc.) feeling sluggish.
+      // Surveyors can dismiss the HUD instantly with Escape (see
+      // onKeyDown below).
+      chordTimeoutMs: 1500,
       onAction: (action) => {
         // Caller-side override gets first crack.
         if (optionsRef.current.onAction?.(action)) return;
@@ -155,6 +159,18 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (shouldIgnoreEventTarget(event)) return;
+      // cad-ux-cleanup-pass Slice 5 — Escape during a buffered chord
+      // clears the buffer WITHOUT firing the pending action. Without
+      // this, hitting Esc to "back out" of an in-progress chord (e.g.
+      // pressed `p` by mistake) would fire Point AND then Deselect.
+      // After clearing we still emit the prefix-changed event so the
+      // ChordHUD hides immediately.
+      if (event.key === 'Escape' && engine.getBufferedPrefix().length > 0) {
+        engine.resetBuffer();
+        event.preventDefault();
+        emitPrefix();
+        return;
+      }
       const handled = engine.handleKeyEvent(event);
       if (handled) {
         // Hotkeys with modifiers (Ctrl+S, Ctrl+Z, etc.) and
