@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 import UnitInput from './UnitInput';
+import ColorSwatchInput from './ColorSwatchInput';
 import {
   rotateSelection,
   scaleSelection,
@@ -283,13 +284,11 @@ export default function ToolOptionsBar() {
           <Tooltip label="Line Color" description="Set the color for new line segments. Overrides the active layer color." side="bottom" delay={400}>
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0 leading-none">Color:</span>
-              <input
-                type="color"
-                className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5 block"
+              <ColorSwatchInput
                 value={drawStyle.color ?? '#000000'}
                 title="Line color"
                 aria-label="Line color"
-                onChange={(e) => toolStore.setDrawStyle({ color: e.target.value })}
+                onChange={(c) => toolStore.setDrawStyle({ color: c })}
               />
               {drawStyle.color != null && (
                 <button

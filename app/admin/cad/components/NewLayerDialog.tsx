@@ -12,6 +12,7 @@ import { X, Search } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { buildPointRows } from '@/lib/cad/points/point-rows';
 import { useExitTransition } from '../hooks/useExitTransition';
+import ColorSwatchInput from './ColorSwatchInput';
 
 export interface NewLayerResult {
   name: string;
@@ -94,11 +95,10 @@ export default function NewLayerDialog({
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2">
               <span className="text-xs text-gray-400 uppercase tracking-wide">Color</span>
-              <input
-                type="color"
+              <ColorSwatchInput
                 value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="h-7 w-10 bg-transparent border border-gray-600 rounded cursor-pointer"
+                onChange={setColor}
+                className="h-7 w-10"
                 aria-label="Layer color"
               />
             </label>

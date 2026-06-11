@@ -10,6 +10,7 @@ import { DEFAULT_DRAWING_SETTINGS } from '@/lib/cad/constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '@/lib/cad/styles/types';
 import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
 import { findHotkeyConflicts, findConflictForAction } from '@/lib/cad/hotkeys/conflicts';
+import ColorSwatchInput from './ColorSwatchInput';
 import { applyHotkeyPreset } from '@/lib/cad/hotkeys/presets';
 import { normalizeKeyboardEvent } from '@/lib/cad/hotkeys/key-format';
 import type { ActionCategory, BindableAction } from '@/lib/cad/hotkeys/types';
@@ -150,11 +151,10 @@ function ColorRow({
         <div className="flex items-center gap-2">
           {preview && <span className="text-gray-500 text-[10px]">{preview}</span>}
           <div className="flex items-center gap-1.5">
-            <input
-              type="color"
-              className="w-8 h-7 rounded cursor-pointer bg-transparent border border-gray-600 outline-none"
+            <ColorSwatchInput
+              className="w-8 h-7"
               value={value}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={onChange}
             />
             <span className="text-gray-300 font-mono text-[10px] w-16">{value}</span>
           </div>

@@ -6,7 +6,7 @@
 // PointCodeDefinition; clicking any cell opens the right picker:
 //   * Symbol cell → SymbolPicker
 //   * Line Type cell → LineTypePicker
-//   * Color cell → native <input type="color">
+//   * Color cell → ColorSwatchInput
 //   * Layer cell → <select> of every layer in the active drawing
 // Modified cells show a small accent dot; a Reset button appears
 // next to each modified row + a global "Reset all" in the footer.
@@ -24,6 +24,7 @@ import { SymbolThumbnail } from './SymbolPicker';
 import SymbolPicker from './SymbolPicker';
 import LineTypePicker, { LineTypePreview } from './LineTypePicker';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+import ColorSwatchInput from './ColorSwatchInput';
 import type { CodeStyleOverride } from '@/lib/cad/store';
 
 interface CodeStylePanelProps {
@@ -166,13 +167,10 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
                     {/* Color */}
                     <td className="px-3 py-1.5">
                       <div className="flex items-center gap-1">
-                        <input
-                          type="color"
-                          className="w-7 h-5 rounded border border-gray-600 bg-transparent p-0.5 cursor-pointer"
+                        <ColorSwatchInput
+                          className="w-7 h-5"
                           value={m.lineColor}
-                          onChange={(e) =>
-                            setOverride(m.codeAlpha, 'lineColor', e.target.value)
-                          }
+                          onChange={(c) => setOverride(m.codeAlpha, 'lineColor', c)}
                         />
                         {fieldsModified('lineColor') && (
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />

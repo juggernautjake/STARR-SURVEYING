@@ -12,6 +12,7 @@ import type {
 } from '@/lib/cad/types';
 import { regenerateLayerLabels } from '@/lib/cad/labels';
 import Tooltip from './Tooltip';
+import ColorSwatchInput from './ColorSwatchInput';
 
 interface Props {
   layerId: string;
@@ -174,11 +175,10 @@ function TextStyleEditor({
                 <span className="text-[9px] text-gray-400">Layer</span>
               </label>
               {style.color !== null && (
-                <input
-                  type="color"
+                <ColorSwatchInput
                   value={style.color}
-                  className="w-5 h-5 rounded border border-gray-600 cursor-pointer"
-                  onChange={(e) => onChange({ ...style, color: e.target.value })}
+                  className="w-5 h-5"
+                  onChange={(c) => onChange({ ...style, color: c })}
                 />
               )}
             </div>
@@ -198,11 +198,10 @@ function TextStyleEditor({
                 <span className="text-[9px] text-gray-400">None</span>
               </label>
               {style.backgroundColor !== null && (
-                <input
-                  type="color"
+                <ColorSwatchInput
                   value={style.backgroundColor}
-                  className="w-5 h-5 rounded border border-gray-600 cursor-pointer"
-                  onChange={(e) => onChange({ ...style, backgroundColor: e.target.value })}
+                  className="w-5 h-5"
+                  onChange={(c) => onChange({ ...style, backgroundColor: c })}
                 />
               )}
             </div>

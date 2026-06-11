@@ -10,6 +10,7 @@ import type { InlineSymbolConfig, LineTypeDefinition } from '@/lib/cad/styles/ty
 import { getSymbolsByCategory } from '@/lib/cad/styles/symbol-library';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
+import ColorSwatchInput from './ColorSwatchInput';
 
 interface Props {
   open: boolean;
@@ -167,11 +168,10 @@ export default function LineTypeEditor({ open, initial, onClose, onSaved }: Prop
           <div className="flex-1">
             <label className={labelCls}>Color</label>
             <div className="flex items-center gap-2">
-              <input
-                type="color"
-                className="h-7 w-10 bg-gray-800 border border-gray-600 rounded"
+              <ColorSwatchInput
+                className="h-7 w-10"
                 value={color || '#000000'}
-                onChange={(e) => setColor(e.target.value)}
+                onChange={setColor}
               />
               {color && (
                 <button

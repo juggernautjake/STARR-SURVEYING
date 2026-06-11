@@ -168,6 +168,7 @@ import TitleBlockEditorModal from './TitleBlockEditorModal';
 import ScaleBarEditorModal from './ScaleBarEditorModal';
 import CertificationEditor from './CertificationEditor';
 import StandardNotesEditor from './StandardNotesEditor';
+import ColorSwatchInput from './ColorSwatchInput';
 import { TB_ELEM_SCALE_MIN, TB_ELEM_SCALE_MAX } from './TitleBlockEditorModal';
 import type { ProjectImage } from '@/lib/cad/types';
 
@@ -14145,13 +14146,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   <div className="grid grid-cols-2 gap-1.5 pl-5">
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-gray-500 text-[9px]">Color</span>
-                      <input
-                        type="color"
-                        className="w-6 h-5 bg-gray-700 rounded cursor-pointer border border-gray-600"
+                      <ColorSwatchInput
+                        className="w-6 h-5"
                         data-testid="label-editor-background-color"
                         value={label.style.backgroundColor ?? '#ffffff'}
-                        onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, {
-                          style: { ...label.style, backgroundColor: e.target.value },
+                        onChange={(c) => drawingStore.updateTextLabel(featureId, labelId, {
+                          style: { ...label.style, backgroundColor: c },
                         })}
                       />
                     </div>

@@ -118,37 +118,20 @@ that's empty (e.g. trailing comma) is ignored.
   excludes points on duplicate layers; ALL_LAYERS includes them.
 
 ### Slice 4 — Color picker shows a real swatch
-**File:** `app/admin/cad/components/NewLayerDialog.tsx` (and any other
-swatch sites — likely `PropertyPanel.tsx` per the user note).
-
-**Today:** native `<input type="color">` with `bg-transparent` shows the
-browser's default "dot in a box" instead of the chosen color.
-
-**Fix:** wrap the native input in a label that paints its background
-from the current value, so the visible swatch IS the chosen color. The
-native picker still opens on click; only the rendering changes.
-
-```tsx
-<label
-  className="h-7 w-10 rounded border border-gray-600 cursor-pointer"
-  style={{ backgroundColor: color }}
->
-  <input
-    type="color"
-    value={color}
-    onChange={(e) => onChange(e.target.value)}
-    className="opacity-0 w-full h-full cursor-pointer"
-  />
-</label>
-```
-
-Audit `LayerPanel`, `PropertyPanel`, `LayerPreferencesPanel`,
-`CertificationEditor` for other broken swatches and apply the same
-pattern. Extract into a small `<ColorSwatchInput>` so every site is
-consistent.
-
-**Tests:** snapshot/source-lock on the swatch wrapper structure (every
-use site renders the `style={{ backgroundColor: ... }}` form).
+> **DONE (2026-06-11).** New shared `ColorSwatchInput.tsx` wraps the
+> native `<input type="color">` in a label whose background IS the
+> chosen color (with the input overlaid `absolute inset-0 opacity-0` so
+> click + tab + the native picker still work). Default footprint
+> `w-8 h-6`; callers override via a size-only `className`. Every CAD
+> color picker site swapped: `NewLayerDialog`, `PropertyPanel` (×4 —
+> single style + bulk recolor + per-fill-stack layer + fill background),
+> `LayerPreferencesPanel` (×2 — label color + label background),
+> `SettingsDialog`, `LineTypeEditor`, `CodeStylePanel`,
+> `FeaturePropertiesDialog`, `ToolOptionsBar`, `CanvasViewport`
+> (label-editor background). 22 fresh source-lock cases in
+> `color-swatch-input.test.ts`; existing fill-background + fill-stack +
+> label-editor source-locks updated for the new callback shape. Suite
+> 2673 green.
 
 ### Slice 5 — Hotkey: `s` = instant Select; move Scale + Spline off `s`
 **File:** `lib/cad/hotkeys/registry.ts` + `app/admin/cad/hooks/useHotkeys.ts`
