@@ -287,7 +287,10 @@ export default function LayerPanel() {
     // New layer inherits the source's style/visibility, then receives a
     // copy of every feature on the source layer (originals untouched).
     const newId = generateId();
-    const newLayer: Layer = { ...src, id: newId, name: `${src.name} copy`, isDefault: false };
+    // cad-ux-cleanup-pass Slice 3 — flag the new layer as a duplicate
+    // so the "move points from master" dialogs can exclude its copies
+    // from their source pool.
+    const newLayer: Layer = { ...src, id: newId, name: `${src.name} copy`, isDefault: false, duplicateOf: layerId };
     store.addLayer(newLayer);
     const ids = Object.values(doc.features)
       .filter((f) => f.layerId === layerId)

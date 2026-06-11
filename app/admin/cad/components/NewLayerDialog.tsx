@@ -11,6 +11,10 @@ import { useMemo, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { buildPointRows } from '@/lib/cad/points/point-rows';
+import {
+  filterMovePointRows,
+  type MovePointsSourceMode,
+} from '@/lib/cad/points/move-points-filters';
 import { useExitTransition } from '../hooks/useExitTransition';
 import ColorSwatchInput from './ColorSwatchInput';
 
@@ -40,21 +44,22 @@ export default function NewLayerDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [searchBy, setSearchBy] = useState<'NAME' | 'CODE'>('NAME');
+  // cad-ux-cleanup-pass Slice 3 — default to the master points file so
+  // a surveyor moving points into a brand-new layer doesn't accidentally
+  // double-pull from a duplicate layer. ALL_LAYERS is a deliberate
+  // override for the power-user case.
+  const [sourceMode, setSourceMode] = useState<MovePointsSourceMode>('MASTER_ONLY');
 
   const points = useMemo(() => buildPointRows(doc), [doc]);
 
-  // Live filter — strictly by the selected field (NAME or CODE) so the
-  // results always pertain to the chosen filter. Previously NAME mode fell
-  // through to code+description, which let a code-only match (e.g. "308" in
-  // the description) sneak into the name results.
-  const visiblePoints = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return points;
-    if (searchBy === 'CODE') {
-      return points.filter((p) => (p.code || '').toLowerCase().includes(q));
-    }
-    return points.filter((p) => (p.name || '').toLowerCase().includes(q));
-  }, [points, search, searchBy]);
+  // Filter pipeline: search tokens (comma-separated, OR semantics) +
+  // source-pool mode (MASTER_ONLY vs ALL_LAYERS). Both rules live in the
+  // pure `move-points-filters` module so they're unit-testable without
+  // standing up the dialog.
+  const visiblePoints = useMemo(
+    () => filterMovePointRows(points, doc, { query: search, field: searchBy, sourceMode }),
+    [points, doc, search, searchBy, sourceMode],
+  );
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -129,36 +134,64 @@ export default function NewLayerDialog({
             </div>
 
             {points.length > 0 && (
-              <div className="flex items-center gap-1 mb-1">
-                <div className="flex h-7 rounded border border-gray-600 overflow-hidden shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setSearchBy('NAME')}
-                    className={`h-full px-2 text-[11px] leading-none ${searchBy === 'NAME' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
-                  >
-                    Name
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSearchBy('CODE')}
-                    className={`h-full px-2 text-[11px] leading-none border-l border-gray-600 ${searchBy === 'CODE' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
-                  >
-                    Code
-                  </button>
+              <>
+                <div className="flex items-center gap-1 mb-1">
+                  <div className="flex h-7 rounded border border-gray-600 overflow-hidden shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSearchBy('NAME')}
+                      className={`h-full px-2 text-[11px] leading-none ${searchBy === 'NAME' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+                    >
+                      Name
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSearchBy('CODE')}
+                      className={`h-full px-2 text-[11px] leading-none border-l border-gray-600 ${searchBy === 'CODE' ? 'bg-gray-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+                    >
+                      Code
+                    </button>
+                  </div>
+                  <div className="relative flex-1">
+                    <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder={searchBy === 'CODE' ? 'Codes, comma-separated… (e.g. BC, IRF)' : 'Names, comma-separated… (e.g. 8, 87fnd)'}
+                      aria-label="Filter points"
+                      className="w-full h-7 pl-8 pr-7 bg-gray-900 text-gray-100 placeholder-gray-500 border border-gray-600 rounded text-[11px] outline-none focus:border-blue-500"
+                    />
+                    {search && (
+                      <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" aria-label="Clear search"><X size={11} /></button>
+                    )}
+                  </div>
                 </div>
-                <div className="relative flex-1">
-                  <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder={searchBy === 'CODE' ? 'Search by code… (e.g. BC, IRF)' : 'Search by name… (e.g. 8, 87fnd)'}
-                    className="w-full h-7 pl-8 pr-7 bg-gray-900 text-gray-100 placeholder-gray-500 border border-gray-600 rounded text-[11px] outline-none focus:border-blue-500"
-                  />
-                  {search && (
-                    <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" aria-label="Clear search"><X size={11} /></button>
-                  )}
+                {/* cad-ux-cleanup-pass Slice 3 — master vs all-layers
+                    source toggle. Master is the canonical points file
+                    (excludes duplicate-layer copies + TRV mirrors).
+                    All layers is the historical unfiltered pool. */}
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[10px] text-gray-500 uppercase tracking-wide shrink-0">Source</span>
+                  <div className="flex h-6 rounded border border-gray-700 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setSourceMode('MASTER_ONLY')}
+                      className={`h-full px-2 text-[10px] leading-none ${sourceMode === 'MASTER_ONLY' ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+                      title="Master points only (excludes duplicate-layer copies)"
+                    >
+                      Master file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSourceMode('ALL_LAYERS')}
+                      className={`h-full px-2 text-[10px] leading-none border-l border-gray-700 ${sourceMode === 'ALL_LAYERS' ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+                      title="Every point, including copies on duplicate layers"
+                    >
+                      All layers
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             <div className="max-h-40 overflow-auto border border-gray-700 rounded">

@@ -89,33 +89,23 @@ for the same id; (b) clearing selection collapses only auto-expanded ids;
 > field is needed yet.)
 
 ### Slice 3 — Move-points search: comma multi-search + master-only source
-**File:** `app/admin/cad/components/NewLayerDialog.tsx` (also wherever
-the "Move points into this layer" flow lives — likely
-`LayerTransferDialog.tsx`).
-
-**Today:** the search is a single substring match; commas are part of the
-query and never match.
-
-**Fix (search):** split the query on commas, trim each token, and match
-any token (OR). Keep substring semantics so partial names work. A token
-that's empty (e.g. trailing comma) is ignored.
-
-**Fix (source filter):** add a `sourceMode` toggle defaulting to
-`MASTER_ONLY`:
-- `MASTER_ONLY` — the source pool is the canonical master points file
-  (POINT features that originated from the imported TRV/CSV, i.e. NOT
-  on a layer the user spawned via "Duplicate Layer"). Implemented by
-  flagging duplicate-layer features at creation time (`layer.duplicateOf:
-  string | null` already exists or is added in Slice 7) and excluding
-  any feature whose layer has a non-null `duplicateOf`.
-- `ALL_LAYERS` — the legacy unfiltered pool, available for power-users
-  who explicitly want to pull from a duplicate.
-
-**Tests:**
-- `__tests__/cad/ui/move-points-search.test.ts` — comma split returns
-  the union; whitespace trimmed; empty tokens ignored.
-- `__tests__/cad/ui/move-points-source-filter.test.ts` — MASTER_ONLY
-  excludes points on duplicate layers; ALL_LAYERS includes them.
+> **DONE (2026-06-11).** New pure helper module
+> `lib/cad/points/move-points-filters.ts` exports `tokenizeSearch`
+> (comma-split, trim, drop empty + all-whitespace), `matchesQueryTokens`
+> (OR-semantics substring match against the selected NAME/CODE field),
+> `isMasterPointRow` (excludes points whose `layer.duplicateOf` is set
+> OR whose feature carries `properties.trvPointMirror`), and the
+> composed `filterMovePointRows` entrypoint. `Layer.duplicateOf?: string
+> | null` added to the type; the LayerPanel "Duplicate layer" action
+> stamps it on the new layer so duplicates land outside the master
+> pool. `NewLayerDialog` now: (a) delegates filtering to
+> `filterMovePointRows`, (b) defaults the source toggle to
+> `MASTER_ONLY` with a visible `Master file` / `All layers` switch, (c)
+> updates the placeholder to advertise comma-separated multi-search.
+> 14 helper-unit + 7 source-lock fixture cases in
+> `__tests__/cad/points/move-points-filters.test.ts` and
+> `__tests__/cad/ui/new-layer-dialog-move-points.test.ts`. Suite 2712
+> green.
 
 ### Slice 4 — Color picker shows a real swatch
 > **DONE (2026-06-11).** New shared `ColorSwatchInput.tsx` wraps the

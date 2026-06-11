@@ -645,6 +645,15 @@ export interface Layer {
 
   /** Per-layer display preferences for attribute labels. */
   displayPreferences?: LayerDisplayPreferences;
+
+  /** cad-ux-cleanup-pass Slice 3 — set when this layer was created via
+   *  the LayerPanel "Duplicate layer" action. Carries the SOURCE
+   *  layer's id so dialogs that move points "from the master file" can
+   *  filter duplicate-layer copies out of the source pool (otherwise
+   *  the surveyor pulls the same point in twice: once from the
+   *  canonical layer + once from its duplicate). Undefined on every
+   *  layer that wasn't created by Duplicate Layer. */
+  duplicateOf?: string | null;
 }
 
 // --- SNAP ---
