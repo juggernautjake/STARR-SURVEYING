@@ -18,6 +18,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_ACTIONS } from '@/lib/cad/hotkeys/registry';
+import { useHotkeysStore } from '@/lib/cad/store';
+import type { BindableAction, UserBinding } from '@/lib/cad/hotkeys';
 
 interface Completion {
   /** Second key (or remaining chord steps) to type. */
@@ -28,8 +30,46 @@ interface Completion {
   id: string;
 }
 
+/** cad-domain-audit Slice J — build the chord index from the
+ *  ENGINE-MERGED bindings (user override → default), not just
+ *  `defaultKey`. Mirrors `lib/cad/hotkeys/engine.ts buildTree` so
+ *  the HUD shows exactly the chords the engine would actually fire.
+ *  A binding shorter than 2 steps isn't a chord; an empty binding
+ *  means "no binding" and drops out entirely. */
+export function buildChordIndex(
+  actions: ReadonlyArray<BindableAction>,
+  userBindings: ReadonlyArray<UserBinding>,
+): Map<string, Completion[]> {
+  const overrideById = new Map<string, string | null>();
+  for (const ub of userBindings) overrideById.set(ub.actionId, ub.key);
+  const map = new Map<string, Completion[]>();
+  for (const action of actions) {
+    const override = overrideById.get(action.id);
+    const rawKey = override === undefined ? action.defaultKey : override;
+    if (!rawKey) continue;
+    const parts = rawKey.split(' ').filter(Boolean);
+    if (parts.length < 2) continue;
+    const head = parts[0];
+    const rest = parts.slice(1).join(' ');
+    const bucket = map.get(head) ?? [];
+    bucket.push({ id: action.id, label: action.label, rest });
+    map.set(head, bucket);
+  }
+  // Sort each bucket alphabetically by `rest` so the HUD list is
+  // predictable across rebuilds.
+  for (const bucket of map.values()) {
+    bucket.sort((a, b) => a.rest.localeCompare(b.rest));
+  }
+  return map;
+}
+
 export default function ChordHUD() {
   const [prefix, setPrefix] = useState<string>('');
+  // cad-domain-audit Slice J — subscribe to userBindings so a custom
+  // rebind (e.g. `p l` → `p x`) updates the HUD live. Previously the
+  // index was useMemo'd with empty deps, so the HUD kept showing the
+  // registry defaults even after the user customised their keys.
+  const userBindings = useHotkeysStore((s) => s.userBindings);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -40,28 +80,10 @@ export default function ChordHUD() {
     return () => window.removeEventListener('cad:chordPrefixChanged', handler);
   }, []);
 
-  // Precompute the chord index — a map from prefix (first step
-  // + trailing space) to the list of completions. The default
-  // action set is static, so a useMemo computed once is enough.
-  const chordIndex = useMemo(() => {
-    const map = new Map<string, Completion[]>();
-    for (const action of DEFAULT_ACTIONS) {
-      if (!action.isChord || !action.defaultKey) continue;
-      const parts = action.defaultKey.split(' ');
-      if (parts.length < 2) continue;
-      const head = parts[0];
-      const rest = parts.slice(1).join(' ');
-      const bucket = map.get(head) ?? [];
-      bucket.push({ id: action.id, label: action.label, rest });
-      map.set(head, bucket);
-    }
-    // Sort each bucket alphabetically by `rest` so the HUD list
-    // is predictable.
-    for (const bucket of map.values()) {
-      bucket.sort((a, b) => a.rest.localeCompare(b.rest));
-    }
-    return map;
-  }, []);
+  const chordIndex = useMemo(
+    () => buildChordIndex(DEFAULT_ACTIONS, userBindings),
+    [userBindings],
+  );
 
   if (prefix.length === 0) return null;
   const completions = chordIndex.get(prefix) ?? [];

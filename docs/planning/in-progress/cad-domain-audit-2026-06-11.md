@@ -257,9 +257,17 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > `__tests__/cad/hotkeys/context-narrowing.test.ts`. Suite 2789 green.
 
 ### Slice J — Chord HUD respects user bindings (H-3)
-Replace ChordHUD's `useMemo` index with one that reads
-`useHotkeysStore.userBindings` (subscribed). The list now reflects
-the live binding set.
+> **DONE (2026-06-11).** Extracted `buildChordIndex(actions,
+> userBindings)` (exported from ChordHUD) so the index mirrors the
+> engine's `buildTree` merge: user override → default → "no binding"
+> drops out. ChordHUD subscribes to `useHotkeysStore.userBindings`
+> and re-memoises on change, so a surveyor who rebinds `p l` to
+> `p x` sees `[X] Polyline` in the HUD live — and clearing a binding
+> removes it entirely. Demoting a chord to a single key likewise
+> drops it from the HUD (single keys fire instantly and don't need
+> the "…then" prompt). 6 unit cases in
+> `__tests__/cad/hotkeys/chord-hud-user-bindings.test.ts`. Suite
+> 2795 green.
 
 ### Slice K — Esc twice under AutoCAD preset (H-2)
 When the user is on the AutoCAD preset AND Escape is bound to
