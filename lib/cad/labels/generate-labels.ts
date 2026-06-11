@@ -194,28 +194,28 @@ export function generateLabelsForFeature(
     }
 
     // cad-point-code-description-labels 2026-06-01 — CODE and
-    // DESCRIPTION are now INDEPENDENT toggles. The code label
-    // resolves to the document's chosen code form (numeric "308"
-    // vs alpha "BC01") when the code is recognized in the library,
-    // else the raw `properties.code`. The description label shows
-    // the human `properties.description`. For TRV imports both
-    // come from the same source text, so enabling both shows it
-    // twice — that's intentional + the surveyor picks which they
-    // want.
+    // DESCRIPTION are INDEPENDENT toggles. The code label resolves to
+    // the document's chosen code form (numeric "308" vs alpha "BC01")
+    // when the code is recognized in the library, else the raw
+    // `properties.code`. The description label shows the human
+    // `properties.description`. For TRV imports both come from the
+    // same source text — cad-ux-cleanup-pass Slice 6 dedupes them so
+    // the user doesn't see the same string twice (the resolved label
+    // texts must match exactly, case-insensitive trim).
+    let pointCodeStr = '';
     if (layerPrefs.showPointCodes) {
       const alpha = feature.properties.code;
       const numeric = feature.properties.codeNumeric;
       const recognized = alpha != null && numeric != null && String(alpha) !== String(numeric);
-      let codeStr: string;
       if (recognized) {
         const resolved = String(codeDisplayMode === 'NUMERIC' ? numeric : alpha);
         const remainder = feature.properties.codeText != null ? String(feature.properties.codeText) : '';
-        codeStr = [resolved, remainder].filter((s) => s.trim()).join(' ');
+        pointCodeStr = [resolved, remainder].filter((s) => s.trim()).join(' ');
       } else {
-        codeStr = String(feature.properties.code ?? '');
+        pointCodeStr = String(feature.properties.code ?? '');
       }
-      if (codeStr) {
-        result.push(addOrKeep('POINT_CODE', codeStr, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointCodeTextStyle'));
+      if (pointCodeStr) {
+        result.push(addOrKeep('POINT_CODE', pointCodeStr, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointCodeTextStyle'));
         yStep -= lineStep('pointCodeTextStyle');
       }
     }
@@ -225,7 +225,17 @@ export function generateLabelsForFeature(
       // no description is present (legacy points that stored just a
       // code).
       const desc = String(feature.properties.description ?? feature.properties.code ?? '');
-      if (desc) {
+      // cad-ux-cleanup-pass Slice 6 — suppress the description when
+      // it would render identical text to the code label (the common
+      // TRV case where both `properties.code` + `properties.description`
+      // are seeded from the same source string). Toggles still work
+      // independently, and points whose code and description actually
+      // differ keep both labels.
+      const descDupesCode =
+        layerPrefs.showPointCodes &&
+        pointCodeStr.trim().length > 0 &&
+        desc.trim().toLowerCase() === pointCodeStr.trim().toLowerCase();
+      if (desc && !descDupesCode) {
         result.push(addOrKeep('POINT_DESCRIPTION', desc, { x: baseOffset.x, y: baseOffset.y + yStep }, null, 'pointDescriptionTextStyle'));
         yStep -= lineStep('pointDescriptionTextStyle');
       }

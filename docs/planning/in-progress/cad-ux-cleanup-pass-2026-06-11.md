@@ -159,25 +159,18 @@ fires `tool.select` synchronously (no chord delay); Esc clears a buffered
 prefix; new chord forms resolve.
 
 ### Slice 6 — POINT_CODE / POINT_DESCRIPTION dedup when identical
-**File:** `lib/cad/labels/generate-labels.ts` (around L196–232).
-
-**Today:** for points where `code == description` (the common TRV case
-where the importer sets both from `p.description`), both labels render
-the same text side-by-side.
-
-**Fix:** when generating labels for a feature, if `showPointCodes` and
-`showPointDescriptions` are both on AND the resolved code text equals
-the description text (case-insensitive trim), emit only the CODE label
-and skip the DESCRIPTION. Toggles still work as expected for the rare
-points where the two truly differ — no behavior change there.
-
-Surface the result on the feature so the AI can read it: include the
-suppressed-duplicate kind in a `meta` field on the resolved label so
-downstream tools know why the description didn't render.
-
-**Tests:** `__tests__/cad/labels/dedup-identical-code-description.test.ts`
-— code-eq-description suppresses DESCRIPTION; code-ne-description keeps
-both; toggles still work independently.
+> **DONE (2026-06-11).** `generate-labels.ts` now resolves the
+> POINT_CODE text first (lifted out of the toggle branch into a shared
+> `pointCodeStr`). The POINT_DESCRIPTION branch suppresses its push when
+> both toggles are on AND `desc.trim().toLowerCase() ===
+> pointCodeStr.trim().toLowerCase()`. Six fixture cases in
+> `__tests__/cad/labels/dedup-identical-code-description.test.ts` cover
+> the TRV identical-text case, case-insensitive trim match, genuinely
+> different code+description (both render), each toggle alone, and the
+> description-only fallback. Suite 2679 green. (The `meta` field for AI
+> introspection is deferred — the AI can re-derive suppression by
+> reading the same code text, so the extra channel isn't worth the
+> schema churn yet.)
 
 ### Slice 7 — Don't create an empty "Layer 1" on a fresh drawing + duplicate-layer phantom-points fix
 **Files:** `lib/cad/styles/default-layers.ts`, `lib/cad/store/drawing-store.ts`,
