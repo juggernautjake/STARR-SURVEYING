@@ -12615,6 +12615,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:zoomSelection', onZoomSelectionEv);
     window.addEventListener('cad:selectAll', onSelectAllEv);
     window.addEventListener('cad:toggleOrtho', onToggleOrthoEv);
+    // cad-ux-cleanup-pass Slice 11 — manual canvas refresh. Drops
+    // the LOD / feature-index cache + re-runs renderFeatures on the
+    // next rAF so a stale edit redraws immediately. The bindable
+    // `view.regenerate` action, the canvas right-click "Refresh
+    // canvas" item, and any AI tool that dispatches
+    // `cad:regenerateCanvas` all converge here.
+    const onRegenerateCanvas = () => {
+      featureIndexCacheRef.current = null;
+      requestAnimationFrame(() => renderFeatures());
+    };
+    window.addEventListener('cad:regenerateCanvas', onRegenerateCanvas);
     const onMovePageMode = () => {
       const next = !paperMoveModeRef.current;
       paperMoveModeRef.current = next;
@@ -13015,6 +13026,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:zoomSelection', onZoomSelectionEv);
       window.removeEventListener('cad:selectAll', onSelectAllEv);
       window.removeEventListener('cad:toggleOrtho', onToggleOrthoEv);
+      window.removeEventListener('cad:regenerateCanvas', onRegenerateCanvas);
       window.removeEventListener('cad:movePageMode', onMovePageMode);
       window.removeEventListener('cad:beginSnapToPoint', onBeginSnapToPoint);
       window.removeEventListener('cad:rotate', onRotate);

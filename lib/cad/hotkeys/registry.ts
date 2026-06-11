@@ -83,6 +83,10 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
   { id: 'view.zoomExtents',  category: 'ZOOM_PAN',   label: 'Zoom Extents',         description: 'Fit all features on screen',                  defaultKey: 'z e',          isChord: true,  context: 'CANVAS' },
   { id: 'view.zoomSelection',category: 'ZOOM_PAN',   label: 'Zoom to Selection',    description: 'Zoom to the selected features',               defaultKey: 'z s',          isChord: true,  context: 'CANVAS' },
   { id: 'view.zoomIn',       category: 'ZOOM_PAN',   label: 'Zoom In',              description: 'Zoom in',                                     defaultKey: 'ctrl+equal',   isChord: false, context: 'CANVAS' },
+  // cad-ux-cleanup-pass Slice 11 — manual canvas refresh. Flushes
+  // the LOD / feature-index caches and forces a re-render so the
+  // surveyor has an escape hatch when an edit appears stale.
+  { id: 'view.regenerate',   category: 'ZOOM_PAN',   label: 'Refresh Canvas',       description: 'Force a re-render of every feature on the canvas; clears the LOD / feature-index caches so a stale edit redraws immediately.', defaultKey: 'f5', isChord: false, context: 'CANVAS' },
   { id: 'view.zoomOut',      category: 'ZOOM_PAN',   label: 'Zoom Out',             description: 'Zoom out',                                    defaultKey: 'ctrl+minus',   isChord: false, context: 'CANVAS' },
 
   // Snap

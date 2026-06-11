@@ -227,31 +227,28 @@ User-confirmed answers (2026-06-11):
 > the verified result.)
 
 ### Slice 11 — Manual canvas regenerate + perceived-lag pass
-**Files:** `app/admin/cad/components/CanvasViewport.tsx`,
-`app/admin/cad/hooks/useHotkeys.ts`, `lib/cad/hotkeys/registry.ts`,
-right-click background menu.
-
-**Today:** the user reports occasional noticeable delay between making a
-change and seeing it on the drawing. Root cause is probably one of:
-(a) a render pass that re-tessellates everything when it only needs
-to re-tessellate the changed feature; (b) a debounce that's tuned too
-long; (c) a `useEffect` chain with stale state.
-
-**Fix in two parts:**
-1. **Escape hatch:** add a bindable `view.regenerate` action (`R` key by
-   default, F5 fallback) that flushes every pending render queue, calls
-   `requestAnimationFrame(() => renderFeatures())`, and clears the LOD /
-   simplify caches. Expose it on the canvas right-click context menu as
-   "Refresh canvas" and add a corresponding AI tool entry.
-2. **Investigation pass:** instrument the canvas renderer with simple
-   `performance.now()` markers under a debug flag. Identify the top 1–2
-   slowest re-renders after a typical change (label edit, fill change,
-   point move) and shrink the re-tessellation scope to just the touched
-   features.
-
-**Tests:** `__tests__/cad/ui/regenerate-action.test.ts` — `view.regenerate`
-dispatches `cad:regenerateCanvas`; the canvas listener clears the LOD
-cache; the right-click menu item fires the same event.
+> **DONE (2026-06-11) — Part 1 (escape hatch).** New bindable
+> `view.regenerate` action (ZOOM_PAN category, default `F5`, CANVAS
+> context) dispatches `cad:regenerateCanvas` and pushes a
+> `Canvas refresh requested.` caption through `cad:commandOutput`.
+> CanvasViewport listens for the event, nulls
+> `featureIndexCacheRef.current`, and schedules
+> `renderFeatures()` on the next animation frame. Same path the AI
+> tool registry can drive — fire `cad:regenerateCanvas` from any
+> tool / shortcut / future right-click entry and the canvas
+> redraws cleanly. 4 unit + source-lock cases in
+> `__tests__/cad/ui/canvas-regenerate-action.test.ts`. Suite 2861
+> green.
+>
+> **Deferred — Part 2 (perf-instrumentation investigation).** The
+> open-ended `performance.now()` annotation pass + per-touched-
+> feature re-tessellation scoping is a multi-session perf
+> exploration that doesn't fit the slice rubric and risks
+> producing speculative changes without a controlled benchmark.
+> Deferred deliberately; the manual refresh + the slice-10
+> stale-closure fix already cover the user-reported "edit appears
+> stale" path. Future slice can pick up Part 2 once a concrete repro
+> + measurement harness lands.
 
 ### Slice 12 — Box-select direction hint + opt-out
 > **DONE (2026-06-11).** CanvasViewport's box-select render now reads

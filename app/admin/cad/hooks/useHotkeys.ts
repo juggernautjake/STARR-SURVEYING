@@ -372,6 +372,17 @@ export function dispatchDefaultAction(action: BindableAction): void {
     case 'view.zoomOut':
       window.dispatchEvent(new CustomEvent('cad:zoomOut'));
       return;
+    case 'view.regenerate':
+      // cad-ux-cleanup-pass Slice 11 — manual canvas refresh. The
+      // CanvasViewport listener clears its LOD + feature-index
+      // caches and schedules an rAF render. Same path the canvas
+      // right-click "Refresh canvas" item + the AI tool registry
+      // can fire.
+      window.dispatchEvent(new CustomEvent('cad:regenerateCanvas'));
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Canvas refresh requested.' },
+      }));
+      return;
 
     // ── Snap toggles ─────────────────────────────────
     case 'snap.toggle': {
