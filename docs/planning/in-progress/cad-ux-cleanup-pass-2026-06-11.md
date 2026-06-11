@@ -72,26 +72,21 @@ for the same id; (b) clearing selection collapses only auto-expanded ids;
 (c) source-lock the IntersectionObserver / scroll guard.
 
 ### Slice 2 — TRV duplicate point names: keep the original
-**File:** `lib/cad/io/trv-to-drawing.ts` (the `pointKey` builder around
-L143).
-
-**Today:** point IDs are computed `trv-point:${trvId}` and the second
-`22fnd` silently overwrites the first.
-
-**Fix:** when mapping points, walk the source list once and assign:
-- first occurrence of a name → unchanged (`22fnd`)
-- Nth duplicate → `${name}:${N-1}` (so the *second* gets `:1`, third
-  `:2`, etc., matching the user's expected sort order).
-
-Preserve the round-trip contract: track the rename in a
-`trvDerived.renamedPointKeys` echo so the writer can restore the
-verbatim source on export. (Out-of-scope for this slice if the verbatim
-TRV already round-trips identical bytes — a tracked echo is enough.)
-
-**Tests:** new `__tests__/cad/io/trv-duplicate-point-names.test.ts` with
-a synthetic fixture: 3 points named `22fnd`. Assert resulting feature
-ids `trv-point:22fnd`, `trv-point:22fnd:1`, `trv-point:22fnd:2`, and
-that the layer/group panel sorts them in that order.
+> **DONE (2026-06-11).** `trv-to-drawing.ts` now disambiguates duplicate
+> point ids in two passes: (1) collect every `:N` suffix the source
+> itself claims per bare name, so renames skip past reserved ones; (2)
+> walk in order, keep the first occurrence verbatim, and rename later
+> collisions to the smallest free `${bare}:K`. Placeholder records
+> (`2,id,0,0,0`) and missing-coord records are filtered BEFORE
+> disambiguation so they never steal the bare name from a real record
+> that follows. Six-case fixture in
+> `__tests__/cad/io/trv-duplicate-point-names.test.ts` covers the raw
+> triple, source-claimed `:N` preserved verbatim, rename hopping past
+> source-reserved suffixes, placeholder pre-filter, distinct names left
+> alone, and feature-id mirroring the disambiguated `trvPointId`. Suite
+> 2651 green. (Round-trip echo deferred — the TRV writer already
+> preserves the source bytes verbatim through `trvDerived`, so no echo
+> field is needed yet.)
 
 ### Slice 3 — Move-points search: comma multi-search + master-only source
 **File:** `app/admin/cad/components/NewLayerDialog.tsx` (also wherever
