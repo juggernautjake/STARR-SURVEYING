@@ -9,6 +9,12 @@ import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../
 // the default starting layers + their layer groups.
 import { getDefaultLayersRecord, getDefaultLayerOrder, DEFAULT_LAYER_GROUPS } from '../styles/default-layers';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
+// cad-domain-audit Slice E — canonical predicates for layer
+// visibility / selectability. `getVisibleFeatures` and the new
+// `getSelectableFeatures` both delegate so the rules stay in lockstep
+// with `style-cascade`'s documented intent ("frozen layers are
+// completely excluded from rendering, selection, and snap").
+import { canFeatureBeRendered, canFeatureBeEdited } from '../styles/style-cascade';
 
 // Start with a completely blank document — no layers, no features.
 // The user must create a new drawing or import data to begin working.
@@ -139,6 +145,12 @@ interface DrawingStore {
   getLayer: (id: string) => Layer | undefined;
   getFeaturesOnLayer: (layerId: string) => Feature[];
   getVisibleFeatures: () => Feature[];
+  /** cad-domain-audit Slice E — features that are SELECTABLE: their
+   *  layer is visible AND not locked AND not frozen, AND the feature
+   *  itself isn't hidden. Use this for snap targets / hit-testing /
+   *  selection candidates; `getVisibleFeatures` is the render set
+   *  (no `locked` check), and `getAllFeatures` is everything. */
+  getSelectableFeatures: () => Feature[];
   getAllFeatures: () => Feature[];
 
   // Active layer style helper
@@ -757,9 +769,27 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   getVisibleFeatures: () => {
     const { document } = get();
-    return Object.values(document.features).filter(
-      (f) => document.layers[f.layerId]?.visible !== false && f.hidden !== true,
-    );
+    return Object.values(document.features).filter((f) => {
+      if (f.hidden === true) return false;
+      const layer = document.layers[f.layerId];
+      if (!layer) return false;
+      // cad-domain-audit Slice E — honor `frozen` too. The previous
+      // predicate only checked `visible`, so snap / hit-testing /
+      // render walks (every consumer of this selector) silently
+      // included frozen layers — contradicting the documented intent
+      // of `canFeatureBeRendered`.
+      return canFeatureBeRendered(layer);
+    });
+  },
+
+  getSelectableFeatures: () => {
+    const { document } = get();
+    return Object.values(document.features).filter((f) => {
+      if (f.hidden === true) return false;
+      const layer = document.layers[f.layerId];
+      if (!layer) return false;
+      return canFeatureBeEdited(layer);
+    });
   },
 
   getAllFeatures: () => Object.values(get().document.features),

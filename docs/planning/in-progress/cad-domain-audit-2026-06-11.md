@@ -180,10 +180,22 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > across unrelated paths.)
 
 ### Slice E — `getVisibleFeatures` honors `locked` + `frozen` (L-2)
-Tighten the selector so frozen / locked layers stop bleeding into
-snap + selection. Mirror the predicate in
-`canFeatureBeRendered`. Add a `getSelectableFeatures()` companion
-that snap consumers can call so the policy is single-source.
+> **DONE (2026-06-11).** `getVisibleFeatures` now delegates to
+> `canFeatureBeRendered(layer)` from `style-cascade` (the documented
+> "visible AND not frozen" predicate), so frozen layers stop leaking
+> into snap / hit-testing / render walks — the documented "frozen
+> layers are completely excluded from rendering, selection, and
+> snap" intent is finally enforced. New `getSelectableFeatures()`
+> companion delegates to `canFeatureBeEdited(layer)` (additionally
+> excludes `locked`) so hit-testing / selection candidates have a
+> single-source policy without forcing every visible-feature consumer
+> to do its own filter. Orphaned features (whose layer is missing)
+> drop out of both. 7 unit cases in
+> `__tests__/cad/store/visible-vs-selectable-features.test.ts` cover
+> the visible / frozen / locked / hidden / orphan paths. Suite 2765
+> green. (Migrating the ~14 `getVisibleFeatures()` call sites to the
+> new `getSelectableFeatures()` companion is deferred — they can
+> switch incrementally as snap / selection sites are touched.)
 
 ### Slice F — Feature-group cleanup on layer delete + draft promote (L-1)
 `removeLayer` + `promoteDraftLayer` both filter
