@@ -343,10 +343,21 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > green.
 
 ### Slice O — Label dedup expanded to NAME ↔ CODE / DESCRIPTION (P-6)
-Generalize the Slice-6 dedup so any pair of point labels that would
-render identical text is suppressed (lower kinds win:
-NAME > CODE > DESCRIPTION priority). Same case-insensitive trim
-rule.
+> **DONE (2026-06-11).** `generate-labels.ts` now pre-resolves the
+> NAME text + a `nameShown` flag before the CODE branch (instead of
+> generating NAME inside its own toggle), and the existing
+> Slice-6-style case-insensitive trim compare drops:
+> * POINT_CODE when it would render identical text to a rendered
+>   POINT_NAME (NAME > CODE).
+> * POINT_DESCRIPTION when it matches a rendered POINT_NAME OR a
+>   rendered POINT_CODE (NAME > CODE > DESCRIPTION; Slice 6's
+>   CODE-vs-DESCRIPTION rule is preserved as part of this).
+> Toggling the higher-priority kind off un-suppresses the lower
+> ones again, so the surveyor's point that has a name-only label
+> still works the same way. 7 fixture cases in
+> `__tests__/cad/labels/dedup-name-vs-code-description.test.ts`
+> cover all 3-way / 2-way collision permutations and the case-
+> insensitive trim contract. Suite 2844 green.
 
 ### Slice P — Point CODE edit regenerates labels (P-5)
 `rowEditToFeatureUpdate` returns a `regenerateLabels: boolean` flag
