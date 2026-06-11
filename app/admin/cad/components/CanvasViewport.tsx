@@ -9648,9 +9648,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
               if (feature && label) {
                 const { wx, wy } = screenToDrawingWorld(sx, sy);
-                // §14 — group point name/code/elevation labels so dragging
-                // one moves the stack together (unless set to INDEPENDENT).
-                const POINT_LABEL_KINDS = ['POINT_NAME', 'POINT_DESCRIPTION', 'POINT_ELEVATION'];
+                // §14 — group point name / code / description /
+                // elevation / coordinates labels so dragging one moves
+                // the whole stack together (unless set to INDEPENDENT).
+                // cad-ux-cleanup-pass Slice 9 — POINT_CODE and
+                // POINT_COORDINATES were missing from this list, so
+                // dragging the name left the code / coordinates row
+                // behind (the user-reported "code/desc doesn't move
+                // with the name"). Add them.
+                const POINT_LABEL_KINDS = [
+                  'POINT_NAME',
+                  'POINT_CODE',
+                  'POINT_DESCRIPTION',
+                  'POINT_ELEVATION',
+                  'POINT_COORDINATES',
+                ];
                 const grouping = useDrawingStore.getState().document.settings.pointLabelGrouping ?? 'GROUPED';
                 let siblings: { labelId: string; startOffset: Point2D }[] | undefined;
                 if (grouping === 'GROUPED' && POINT_LABEL_KINDS.includes(label.kind)) {

@@ -191,28 +191,19 @@ User-confirmed answers (2026-06-11):
 > green.
 
 ### Slice 9 — Point-label drag grouping: siblings move together
-**File:** `app/admin/cad/components/CanvasViewport.tsx` (L9614–9621 and
-the commit code at L11945–11950).
-
-**Today:** when `pointLabelGrouping === 'GROUPED'` and the surveyor
-drags a POINT_NAME / POINT_CODE / POINT_DESCRIPTION label, the handler
-*records* sibling label ids in `labelDragRef.current.siblings` but the
-move / commit logic never applies the drag delta to them. Symptom: name
-moves alone, code/description stay behind.
-
-**Fix:**
-1. During the drag-update tick, apply the same `(dx, dy)` delta the
-   primary label gets to every sibling in `siblings`, persisting it
-   through the same `label.offset` mutation path.
-2. On commit, write the updated offsets for the siblings too (one
-   `updateFeature` per affected label, batched into a single undo entry
-   keyed by `dragSession`).
-3. On Escape / drop-cancel, restore every sibling's original offset.
-
-`INDEPENDENT` mode keeps today's behavior.
-
-**Tests:** `__tests__/cad/ui/point-label-drag-grouping.test.ts` —
-source-lock the sibling-move + commit + undo paths.
+> **DONE (2026-06-11).** The sibling-move + commit pipeline was
+> actually already in place (drag tick applies `(dx, dy)` to every
+> sibling via `drawingStore.updateTextLabel`, commit just nulls the
+> ref because the live writes are already persisted). The real bug
+> was the gating list: `POINT_LABEL_KINDS` only contained
+> `POINT_NAME` / `POINT_DESCRIPTION` / `POINT_ELEVATION`, so
+> dragging the name left `POINT_CODE` + `POINT_COORDINATES` behind
+> (matches the user's "code / desc doesn't move with the name"
+> report). Added the missing kinds. Now any point label kind moves
+> the whole stack when grouping is `GROUPED`, and dragging the new
+> ones (code / coordinates) also brings the rest along. 3 source-
+> lock cases in `__tests__/cad/ui/point-label-drag-grouping.test.ts`.
+> Suite 2852 green.
 
 ### Slice 10 — Layer display preferences sync (random toggle / out-of-sync state)
 **File:** `app/admin/cad/components/LayerPreferencesPanel.tsx` +
