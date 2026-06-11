@@ -179,6 +179,14 @@ export interface DrawingSettings {
   // 'CROSSING_INDIVIDUAL' = any overlap selects individual elements only (no group expansion)
   // 'WINDOW_FULL_ONLY' = only elements/groups fully enclosed in the rectangle are selected
   boxSelectMode: 'CROSSING_EXPAND_GROUPS' | 'CROSSING_INDIVIDUAL' | 'WINDOW_FULL_ONLY';
+  /** cad-ux-cleanup-pass Slice 12 — color-code the box-select rectangle
+   *  by drag direction (blue = window / left-to-right, green = crossing
+   *  / right-to-left) and surface a status caption while dragging.
+   *  Default true (the historical AutoCAD-style convention). When
+   *  false, the rectangle renders in a single neutral color and the
+   *  caption is suppressed — for surveyors who find the direction
+   *  coding confusing. */
+  boxSelectColorHint?: boolean;
 
   // Paper
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';

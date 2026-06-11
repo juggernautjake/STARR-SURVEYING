@@ -272,26 +272,22 @@ dispatches `cad:regenerateCanvas`; the canvas listener clears the LOD
 cache; the right-click menu item fires the same event.
 
 ### Slice 12 — Box-select direction hint + opt-out
-**File:** `app/admin/cad/components/CanvasViewport.tsx` (box-select
-render at L~4402), `SettingsDialog.tsx`.
-
-**Today:** box-select is blue (window, left-to-right) vs green
-(crossing, right-to-left). Standard CAD convention but undocumented —
-the surveyor reads it as "east vs west".
-
-**Fix:**
-1. Show a tiny status-bar caption while box-selecting: "Window
-   (encloses fully)" or "Crossing (intersects)". Disappears the moment
-   the drag ends. No extra clicks, no modal, just a quick legend that
-   teaches the convention.
-2. Add a `boxSelectColorHint: boolean` doc-setting (default true).
-   Surface it in `SettingsDialog` under Interaction → Box select. When
-   off, render the box in a single neutral color (no semantic
-   distinction).
-3. AI-controllable via `updateSettings({ boxSelectColorHint: false })`.
-
-**Tests:** `__tests__/cad/ui/box-select-direction-hint.test.ts` — the
-caption text reflects the drag direction; the setting hides the hint.
+> **DONE (2026-06-11).** CanvasViewport's box-select render now reads
+> `docSettings.boxSelectColorHint !== false` (default true) and picks
+> the colour: blue (`0x0044ff`) for window, green (`0x00aa00`) for
+> crossing, OR a neutral `0x0088ff` when the surveyor turned the hint
+> off. Two refs (`boxSelectModeRef`, `boxSelectLastEmittedRef`)
+> broadcast the live direction (`WINDOW` / `CROSSING` / null) on a new
+> `cad:boxSelectMode` event without per-frame thrash. StatusBar
+> subscribes to that event and renders a coloured pill — `WINDOW
+> (encloses fully)` blue or `CROSSING (intersects)` green — that
+> disappears the moment the drag ends. SettingsDialog gains a "Box
+> Select Direction Hint" toggle under Interaction → Box select; AI can
+> flip it through `updateSettings({ boxSelectColorHint: false })`.
+> `DrawingSettings.boxSelectColorHint?: boolean` declared in
+> `lib/cad/types.ts`. 8 source-lock cases in
+> `__tests__/cad/ui/box-select-direction-hint.test.ts`. Suite 2736
+> green.
 
 ### Slice 13 — Scale tool: behavior with extreme survey sizes
 **Files:** `lib/cad/operations/scale.ts` (or whichever module owns the

@@ -879,6 +879,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   } | null>(null);
   const clickHitFeatureRef = useRef(false);
   const hoveredIdRef = useRef<string | null>(null);
+  // cad-ux-cleanup-pass Slice 12 — tracks the live box-select drag
+  // direction (`WINDOW` | `CROSSING` | null when not dragging). The
+  // render loop pushes changes through `cad:boxSelectMode` so the
+  // StatusBar can show a "Window (encloses fully)" /
+  // "Crossing (intersects)" caption. `boxSelectLastEmittedRef`
+  // guards against per-frame thrash.
+  const boxSelectModeRef = useRef<'WINDOW' | 'CROSSING' | null>(null);
+  const boxSelectLastEmittedRef = useRef<'WINDOW' | 'CROSSING' | null>(null);
   // Hovered label key (featureId:labelId or text:featureId) for blue highlight
   const hoveredLabelKeyRef = useRef<string | null>(null);
   // Hovered title-block overlay element
@@ -4399,9 +4407,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const { boxStart, boxEnd } = toolState;
       const bsMode = docSettings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
       const isWindowDrag = boxEnd.x > boxStart.x;
-      // Color coding: blue for window/full-only selection, green for crossing selection
-      const color = (bsMode === 'WINDOW_FULL_ONLY' || isWindowDrag) ? 0x0044ff : 0x00aa00;
-      // Dashed outline for crossing modes, solid for window
+      // cad-ux-cleanup-pass Slice 12 — honour the optional
+      // `boxSelectColorHint` setting. Default (true / unset) keeps the
+      // historical AutoCAD-style direction coding (blue = window,
+      // green = crossing). When false, the rectangle renders in a
+      // single neutral selection color so the surveyor doesn't have
+      // to interpret the convention.
+      const isWindowSelect = bsMode === 'WINDOW_FULL_ONLY' || isWindowDrag;
+      const colorHint = docSettings.boxSelectColorHint !== false;
+      const color = colorHint
+        ? (isWindowSelect ? 0x0044ff : 0x00aa00)
+        : 0x0088ff;
       g.lineStyle(1.5, color, 0.8);
       g.beginFill(color, 0.08);
       g.drawRect(
@@ -4411,6 +4427,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         Math.abs(boxEnd.y - boxStart.y),
       );
       g.endFill();
+      // cad-ux-cleanup-pass Slice 12 — broadcast the live direction so
+      // the StatusBar can render a "Window (encloses fully)" /
+      // "Crossing (intersects)" caption. Skipped when the user opted
+      // out of the color hint, since they've explicitly asked not to
+      // be reminded.
+      if (colorHint) {
+        boxSelectModeRef.current = isWindowSelect ? 'WINDOW' : 'CROSSING';
+      } else if (boxSelectModeRef.current !== null) {
+        boxSelectModeRef.current = null;
+      }
+    } else if (boxSelectModeRef.current !== null) {
+      // Drag ended — clear the caption.
+      boxSelectModeRef.current = null;
+      window.dispatchEvent(new CustomEvent('cad:boxSelectMode', { detail: { mode: null } }));
+    }
+    // Emit only when the caption changes so the status bar doesn't
+    // thrash every frame.
+    if (boxSelectModeRef.current !== boxSelectLastEmittedRef.current) {
+      boxSelectLastEmittedRef.current = boxSelectModeRef.current;
+      window.dispatchEvent(new CustomEvent('cad:boxSelectMode', {
+        detail: { mode: boxSelectModeRef.current },
+      }));
     }
 
     // Draw hover glow highlight for ANY tool when hovering over an element.

@@ -662,6 +662,17 @@ export default function SettingsDialog({ onClose }: Props) {
                     tooltip="Crossing + Groups: Any overlap selects the feature AND expands to include all members of its polyline/polygon group. Crossing Only: Any overlap selects just the individual element without group expansion. Full Enclosure: Only features completely inside the rectangle are selected."
                   />
                 </div>
+
+                {/* cad-ux-cleanup-pass Slice 12 — opt-out for the
+                    blue / green direction hint. */}
+                <div className="pt-2">
+                  <Toggle
+                    label="Box Select Direction Hint"
+                    tooltip="Color-code the selection rectangle by drag direction (blue = window / left-to-right, green = crossing / right-to-left) and show a matching caption in the status bar while dragging. Turn off to render the rectangle in a single neutral color."
+                    checked={settings.boxSelectColorHint !== false}
+                    onChange={(v) => drawingStore.updateSettings({ boxSelectColorHint: v })}
+                  />
+                </div>
               </div>
 
               <div className="border-t border-gray-700 pt-3">
