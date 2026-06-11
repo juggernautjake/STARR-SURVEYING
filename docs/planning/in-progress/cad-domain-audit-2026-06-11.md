@@ -288,10 +288,21 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > 2802 green.
 
 ### Slice L — Point-name collisions on creation (P-4)
-`AI addPoint` + the Draw Point tool route through a shared
-`createPointSafe()` helper that runs `nameIsTaken` and applies the
-same `:K` rename rule the TRV importer uses. Surfaces a
-`cad:commandOutput` notification on rename.
+> **DONE (2026-06-11).** New pure helper module
+> `lib/cad/points/disambiguate.ts` exports `disambiguatePointName`
+> (TRV-Slice-2-style smallest-free-suffix), `…WithRename` (returns a
+> `renamed` flag), `isPointNameTaken`, and the props-passthrough
+> `stampDisambiguatedPointName` (writes the resolved name under the
+> canonical `pointName` key, accepts the legacy aliases `pointNo` /
+> `pointNumber` / `name` for the request). AI `addPoint` runs every
+> incoming property bag through the helper against the live document
+> before building the feature, so the AI agent's "create a point
+> named IRF" call can't silently overwrite an existing `IRF` — it
+> becomes `IRF:1` (or the next free suffix). 17 unit + source-lock
+> cases in `__tests__/cad/points/disambiguate-point-name.test.ts`.
+> Suite 2819 green. (The manual Draw Point tool path already routes
+> through `nameDrawnFeature`, which auto-assigns unused names from
+> the registry — no collision hole there.)
 
 ### Slice M — Symbol lookup on every point creation path (P-3)
 Extract the TRV symbol lookup (`getSymbolsByAssignedCode(code)[0]`)

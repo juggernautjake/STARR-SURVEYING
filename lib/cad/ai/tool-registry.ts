@@ -36,6 +36,7 @@ import { generateId } from '../types';
 import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
 import { stampProvenance, type AIProvenance } from './provenance';
 import { ensureDraftLayerFor } from './sandbox';
+import { stampDisambiguatedPointName } from '../points/disambiguate';
 import {
   calcFourthParallelogramCorner,
   calcPointFromBearingDistance,
@@ -204,16 +205,23 @@ export const addPoint: ToolDefinition<AddPointArgs, Feature> = {
     }
     const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
     if (!layerResult.ok) return layerResult;
+    // cad-domain-audit Slice L — disambiguate a user-supplied point
+    // name against existing POINT features so silent overwrites can't
+    // happen. When `properties.pointName` (or any legacy alias) is
+    // already in use, the new point gets `${bare}:K` (K = smallest
+    // free suffix) — same rule the TRV importer applies.
+    const doc = useDrawingStore.getState().document;
+    const safeProperties = stampDisambiguatedPointName(doc, {
+      ...(args.code ? { code: args.code } : {}),
+      ...(args.properties ?? {}),
+    });
     const feature: Feature = {
       id: generateId(),
       type: 'POINT',
       geometry: { type: 'POINT', point: { x: args.x, y: args.y } },
       layerId: layerResult.result,
       style: defaultStyle(),
-      properties: {
-        ...(args.code ? { code: args.code } : {}),
-        ...(args.properties ?? {}),
-      },
+      properties: safeProperties ?? {},
     };
     return commitFeature(feature, args.provenance);
   },
