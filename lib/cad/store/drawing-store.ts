@@ -15,6 +15,11 @@ import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
 // with `style-cascade`'s documented intent ("frozen layers are
 // completely excluded from rendering, selection, and snap").
 import { canFeatureBeRendered, canFeatureBeEdited } from '../styles/style-cascade';
+// cad-domain-audit Slice N — normalise legacy point-name keys into
+// the canonical `pointName` when a saved document loads, so callers
+// can rely on a single property instead of walking the multi-key
+// fallback chain.
+import { canonicalizePointName } from '../feature-fields';
 
 // Start with a completely blank document — no layers, no features.
 // The user must create a new drawing or import data to begin working.
@@ -384,11 +389,23 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       for (const fid of g.featureIds) groupedFeatureIds.add(fid);
     }
     // Clear stale featureGroupId references on features that aren't in any group.
+    // cad-domain-audit Slice N — and migrate any legacy point-name
+    // keys into the canonical `pointName` so the in-memory document
+    // is uniform regardless of how it was saved. No-op when the
+    // feature already has the canonical key set.
     const features = { ...doc.features };
     for (const [fid, feat] of Object.entries(features)) {
-      if (feat.featureGroupId && !groupedFeatureIds.has(fid)) {
-        features[fid] = { ...feat, featureGroupId: null };
+      let next = feat;
+      if (next.featureGroupId && !groupedFeatureIds.has(fid)) {
+        next = { ...next, featureGroupId: null };
       }
+      if (next.type === 'POINT') {
+        const migrated = canonicalizePointName(next.properties);
+        if (migrated !== next.properties) {
+          next = { ...next, properties: migrated ?? {} };
+        }
+      }
+      if (next !== feat) features[fid] = next;
     }
     const normalized: DrawingDocument = { ...doc, featureGroups, features };
     set({ document: normalized, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });

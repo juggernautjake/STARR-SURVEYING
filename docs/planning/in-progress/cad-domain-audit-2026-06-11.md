@@ -324,10 +324,23 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > this slice carries higher risk than payoff right now.)
 
 ### Slice N — Single point-name resolver (P-2)
-Codify `pointNumberOf` semantics: read ONE key (`pointName`) with a
-final fallback chain only for legacy data, AND have every creation
-path stamp `pointName`. Migration: an import-time pass copies
-`pointNo` / `pointNumber` / `name` → `pointName` if missing.
+> **DONE (2026-06-11).** `feature-fields.ts` now exports the canonical
+> key constant (`CANONICAL_POINT_NAME_KEY = 'pointName'`) and a
+> backfill helper `canonicalizePointName(properties)` that, when
+> `pointName` is missing, copies it from the legacy alias chain
+> (`pointNo` → `pointNumber` → `name`) preserving the historical
+> priority. `drawingStore.loadDocument` runs the helper on every
+> POINT feature so saved documents normalise on open — no on-disk
+> rewrite, just an in-memory consistency pass. `pointNumberOf`'s
+> read order is intentionally LEFT alone (`pointNo > pointNumber >
+> pointName > name`) so pre-canonical writers like the renumber
+> operation (which still writes `pointNumber`) keep their
+> authoritative position until they migrate too. The previous
+> `addPoint` slice already stamps `pointName` on new AI-created
+> points, so new data is consistent and existing tests stay green.
+> 12 unit + integration cases in
+> `__tests__/cad/feature-fields-canonical-name.test.ts`. Suite 2837
+> green.
 
 ### Slice O — Label dedup expanded to NAME ↔ CODE / DESCRIPTION (P-6)
 Generalize the Slice-6 dedup so any pair of point labels that would
