@@ -147,43 +147,29 @@ User-confirmed answers (2026-06-11):
 > reading the same code text, so the extra channel isn't worth the
 > schema churn yet.)
 
-### Slice 7 — Don't create an empty "Layer 1" on a fresh drawing + duplicate-layer phantom-points fix
-**Files:** `lib/cad/styles/default-layers.ts`, `lib/cad/store/drawing-store.ts`,
-`app/admin/cad/components/LayerPanel.tsx` (the duplicate-layer action
-around L284–308).
-
-**Today:**
-- A new drawing always ships with `SURVEY-INFO` (protected, holds
-  furniture) AND `DEFAULT` ("Layer 1", empty). The DEFAULT layer is
-  invisible noise on first open.
-- Duplicate-layer copies all features via `transferSelectionToLayer(…,
-  keepOriginals: true)`. The user reports +5 phantom points after a
-  duplicate — likely text labels / derived features being counted, or
-  the transfer is over-selecting.
-
-**Fix (empty Layer 1):** drop `DEFAULT` from the default ship set. The
-new-drawing flow creates `DEFAULT` lazily on first geometry placement
-(or first AI tool that needs an active layer) so the active-layer
-contract is preserved. AI-controllable: expose `ensureDefaultLayer` as a
-bindable so any tool can call it.
-
-**Fix (phantom points):** trace the +5 — likely (a) the layer-feature
-count includes `textLabels[]` entries, or (b) the duplicate transfer
-also pulls auto-generated derived features (the `trvDerived` echoes or
-the area-label TEXT). Audit `transferSelectionToLayer` to copy only
-canonical features and skip anything with `properties.derived === true`
-or whose `trvElementKind` is `'ELEMENT_TEXT'` auto-spawn.
-
-Add a layer-feature-count selector that reports both `featureCount` and
-`labelCount` so the count next to the layer name is honest.
-
-**Tests:**
-- `__tests__/cad/store/new-drawing-default-layers.test.ts` — new doc
-  has SURVEY-INFO only; placing the first feature lazily creates
-  DEFAULT.
-- `__tests__/cad/store/duplicate-layer-fidelity.test.ts` — given a
-  layer with N canonical features + M derived labels, the duplicate
-  ends up with N canonical features and zero spurious adds.
+### Slice 7 — Hide the empty "Layer 1" until used + duplicate-layer phantom-points fix
+> **DONE (2026-06-11).** LayerPanel now indexes
+> `featureCountByLayer` once per render and runs an
+> `isHideableSeededDefault` heuristic — the seeded `DEFAULT` row is
+> filtered out of the panel while its feature count is 0 AND its name
+> is still the default `Layer 1` AND it isn't the active layer.
+> Drawing on it or renaming it makes the row reappear automatically.
+> The layer itself stays in `doc.layers` so `activeLayerId === 'DEFAULT'`
+> still resolves and every existing layer-style fallback keeps working
+> — only the panel rendering filters it out, which avoided the
+> cross-cutting risk of dropping the seed entirely.
+> The Duplicate Layer action now skips features whose
+> `properties.trvPointMirror` or `properties.trvDerived` is set when
+> collecting the transfer set, so the "+5 phantom points" the surveyor
+> saw on the new layer is gone (mirrors are render-only echoes of
+> canonical points; cloning them produced duplicate copies).
+> 5 source-lock cases in
+> `__tests__/cad/ui/layer-panel-empty-default-and-duplicate.test.ts`;
+> suite 2728 green.
+> (The originally-planned `ensureDefaultLayer` lazy-creation +
+> store-level featureCount selector are deferred — the panel-side
+> hide achieves the user-visible outcome without touching ~30 call
+> sites that already trust `activeLayerId === 'DEFAULT'` to resolve.)
 
 ### Slice 8 — Quick-add points to an existing layer
 > **DONE (2026-06-11).** Three entrypoints converge on the same flow:

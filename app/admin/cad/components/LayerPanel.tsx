@@ -97,9 +97,31 @@ export default function LayerPanel() {
   // lose context after typing a filter that excludes their
   // current selection.
   const filterTrim = filterText.trim().toLowerCase();
+  // cad-ux-cleanup-pass Slice 7 — feature counts indexed by layerId
+  // once per render, so the empty-default-layer suppression below + any
+  // future tests share the same source of truth.
+  const featureCountByLayer = new Map<string, number>();
+  for (const f of Object.values(doc.features)) {
+    featureCountByLayer.set(f.layerId, (featureCountByLayer.get(f.layerId) ?? 0) + 1);
+  }
+  // cad-ux-cleanup-pass Slice 7 — hide the SEEDED "Layer 1" from the
+  // panel while it's still empty AND carrying its default name, so a
+  // fresh drawing doesn't open with a useless empty row. The moment
+  // the surveyor draws on it OR renames it, this heuristic stops
+  // applying and the row reappears. The layer itself stays in
+  // `doc.layers` (so `activeLayerId === 'DEFAULT'` still resolves +
+  // every existing layer-style fallback keeps working) — only the
+  // panel rendering filters it out.
+  function isHideableSeededDefault(l: Layer): boolean {
+    if (l.id !== 'DEFAULT') return false;
+    if ((featureCountByLayer.get(l.id) ?? 0) > 0) return false;
+    if (l.name !== 'Layer 1') return false;
+    return true;
+  }
+  const visibleLayers = layers.filter((l) => l.id === activeLayerId || !isHideableSeededDefault(l));
   const filteredLayers = filterTrim.length === 0
-    ? layers
-    : layers.filter((l) => l.name.toLowerCase().includes(filterTrim) || l.id === activeLayerId);
+    ? visibleLayers
+    : visibleLayers.filter((l) => l.name.toLowerCase().includes(filterTrim) || l.id === activeLayerId);
 
   // Track selected and hovered feature IDs for layer highlighting
   const selectedIds    = selectionStore.selectedIds;
@@ -367,8 +389,17 @@ export default function LayerPanel() {
     // from their source pool.
     const newLayer: Layer = { ...src, id: newId, name: `${src.name} copy`, isDefault: false, duplicateOf: layerId };
     store.addLayer(newLayer);
+    // cad-ux-cleanup-pass Slice 7 — skip TRV mirror twins
+    // (`trvPointMirror`) and any derived auto-spawn (`trvDerived`)
+    // when collecting the transfer set. Those are render-only echoes
+    // of canonical features; cloning them produced the "+5 phantom
+    // points" the surveyor saw on the new layer.
     const ids = Object.values(doc.features)
-      .filter((f) => f.layerId === layerId)
+      .filter((f) =>
+        f.layerId === layerId &&
+        !f.properties.trvPointMirror &&
+        !f.properties.trvDerived,
+      )
       .map((f) => f.id);
     if (ids.length > 0) {
       transferSelectionToLayer(ids, newId, {
