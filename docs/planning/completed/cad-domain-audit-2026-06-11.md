@@ -360,9 +360,25 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > insensitive trim contract. Suite 2844 green.
 
 ### Slice P — Point CODE edit regenerates labels (P-5)
-`rowEditToFeatureUpdate` returns a `regenerateLabels: boolean` flag
-when the edit touches `code` / `description`; the caller (PointDataViewer
-+ AI tool registry) runs `regenerateLayerLabels` on true.
+> **DONE (2026-06-11).** Tighter than the original plan: a pure
+> `rowEditAffectsLabels(field)` predicate in `point-rows.ts` reports
+> when a row edit changes a value the layer's display labels render
+> from (today: code / description / elevation / northing / easting —
+> everything that affects POINT_NAME / POINT_CODE / POINT_DESC /
+> POINT_ELEVATION / POINT_COORDINATES or the label anchor).
+> `PointDataViewer` runs the predicate right after
+> `updateFeature`; on true it pulls the LIVE post-edit feature back
+> out of the store, calls `generateLabelsForFeature(feature, layer,
+> displayPrefs)` and writes the result through
+> `setFeatureTextLabels(featureId, labels)`. The canvas now reflects
+> a code/description/elevation edit instantly instead of waiting for
+> a layer-prefs toggle. The AI tool-registry side is deferred:
+> `commitFeature` already pushes the feature into the store and the
+> AI path doesn't run inline edits the way the row viewer does, so
+> wiring a dedicated regen there now would be premature. 5 unit +
+> source-lock cases in
+> `__tests__/cad/points/row-edit-affects-labels.test.ts`. Suite 2849
+> green.
 
 ## TL;DR
 Sixteen slices spanning layer / point / hotkey hygiene. The HIGH

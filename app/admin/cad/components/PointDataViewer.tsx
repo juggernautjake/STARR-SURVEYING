@@ -17,10 +17,12 @@ import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store'
 import {
   buildPointRows,
   rowEditToFeatureUpdate,
+  rowEditAffectsLabels,
   type PointRow,
   type PointRowField,
 } from '@/lib/cad/points/point-rows';
 import { findNameReferences } from '@/lib/cad/points/point-rename';
+import { generateLabelsForFeature } from '@/lib/cad/labels';
 import type { Feature } from '@/lib/cad/types';
 import { readPanelSize, writePanelSize } from '@/lib/cad/ui/panel-size';
 
@@ -336,6 +338,25 @@ export default function PointDataViewer({
     const featureRec = feature as unknown as Record<string, unknown>;
     for (const k of Object.keys(update)) before[k] = featureRec[k];
     updateFeature(row.id, update);
+    // cad-domain-audit Slice P — regenerate the touched feature's
+    // labels so a code / description / elevation / coordinate edit
+    // immediately redraws on the canvas instead of waiting for the
+    // surveyor to toggle the layer prefs. Pulls the LIVE feature
+    // back out of the store so the regen sees the post-edit state.
+    if (rowEditAffectsLabels(field as PointRowField)) {
+      const ds = useDrawingStore.getState();
+      const liveDoc = ds.document;
+      const liveFeature = liveDoc.features[row.id];
+      const liveLayer = liveDoc.layers[liveFeature?.layerId ?? ''];
+      if (liveFeature && liveLayer) {
+        const labels = generateLabelsForFeature(
+          liveFeature,
+          liveLayer,
+          liveDoc.settings.displayPreferences,
+        );
+        ds.setFeatureTextLabels(row.id, labels);
+      }
+    }
     pushUndo(
       makeBatchEntry(`Edit point ${row.name || row.id} ${field}`, [
         { type: 'MODIFY_FEATURE', data: { id: row.id, before, after: update } },
