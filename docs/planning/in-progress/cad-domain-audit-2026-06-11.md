@@ -138,10 +138,16 @@ Risk-ordered: pure helpers → store changes → UI wiring.
 > 2743 green.
 
 ### Slice B — Layer-name uniqueness on rename (L-3)
-`LayerPanel.commitRename()` rejects a name already in use (case-
-insensitive, ignoring the renamed row itself), surfacing a Starr-
-styled toast via `cad:commandOutput` and rolling the input back to
-the previous name. Mirrors the existing `createLayer` check.
+> **DONE (2026-06-11).** `LayerPanel.commitRename` now case-insensitive
+> checks every other layer's name (`l.id !== renamingId`) before
+> committing. On collision it dispatches a `cad:commandOutput` toast
+> — `Layer named '<name>' already exists (id=<id>). Rename cancelled.`
+> — and clears the rename UI without writing. A no-op rename (typing
+> the same name back) commits silently. Mirrors the exact predicate
+> the AI `createLayer` tool uses (`tool-registry.ts:374`) so the rule
+> is identical regardless of who creates the name. 4 source-lock
+> cases in `__tests__/cad/ui/layer-rename-uniqueness.test.ts`. Suite
+> 2747 green.
 
 ### Slice C — Validate `setActiveLayer` against `doc.layers` (L-4)
 The store ignores an id that isn't in `doc.layers` (logs a noop) and

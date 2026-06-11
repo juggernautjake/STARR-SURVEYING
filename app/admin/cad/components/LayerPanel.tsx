@@ -318,9 +318,26 @@ export default function LayerPanel() {
   }
 
   function commitRename() {
-    if (renamingId && renameValue.trim()) {
-      store.updateLayer(renamingId, { name: renameValue.trim() });
+    if (!renamingId) { setRenamingId(null); return; }
+    const trimmed = renameValue.trim();
+    if (!trimmed) { setRenamingId(null); return; }
+    // cad-domain-audit Slice B — reject a name that's already in use
+    // (case-insensitive), ignoring the layer being renamed itself.
+    // Mirrors the AI `createLayer` tool's collision check so the rule
+    // is identical no matter who creates the name. A Starr-styled
+    // command-bar toast tells the surveyor the rename was rejected;
+    // a no-op rename (same name) commits silently.
+    const collision = Object.values(doc.layers).find(
+      (l) => l.id !== renamingId && l.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (collision) {
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: `Layer named '${trimmed}' already exists (id=${collision.id}). Rename cancelled.` },
+      }));
+      setRenamingId(null);
+      return;
     }
+    store.updateLayer(renamingId, { name: trimmed });
     setRenamingId(null);
   }
 
