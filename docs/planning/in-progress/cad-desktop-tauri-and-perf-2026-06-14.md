@@ -775,6 +775,26 @@ the `Ctrl+Alt+P` overlay React component, the renderer-side
 small/medium/large fixture harness that drives the gating
 decision for N2.
 
+**N1b call-site wiring shipped 2026-06-14** —
+`CanvasViewport.renderAll` now wraps its body in
+`measureRender('renderAll', ...)` and instruments the four hot
+phases individually:
+`measureRender('renderFeatures', renderFeatures)`,
+`measureRender('renderImageFeatures', renderImageFeatures)`,
+`measureRender('renderLabels', renderLabels)`, and
+`measureRender('renderSelection', renderSelection)`. Cheap
+phases (paper, grid, snap indicator, tool preview, etc.) stay
+unwrapped — the goal is signal for the Phase-3 go/no-go call,
+not exhaustive per-call timing. Source-locked by
+`__tests__/cad/perf/render-markers-canvas-wiring.test.ts`. The
+Slice 229 source-lock for `renderAreaAnnotations`'s sandwich
+position was widened to accept either the raw call or the
+measured form (the renderLabels ↔ renderAreaAnnotations ↔
+renderTextFeatures order is what mattered there).
+**Remaining N1b follow-ups:** the `Ctrl+Alt+P` overlay React
+component and the small/medium/large fixture harness — track
+as `N1c`.
+
 ### N2 — (PROFILING-GATED) Rust + wgpu renderer behind Tauri IPC
 Initial scaffold: `src-tauri/src/render/` defines a
 `#[tauri::command] fn draw_features(viewport: Viewport, list:

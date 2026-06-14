@@ -49,6 +49,9 @@ import {
   getCachedCull,
   setCachedCull,
 } from '@/lib/cad/spatial/viewport-cull-cache';
+// cad-desktop-tauri-and-perf Slice N1b — per-phase frame-time
+// markers feed the Perf overlay + the Phase-3 go/no-go decision.
+import { measureRender } from '@/lib/cad/perf/render-markers';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
@@ -8346,23 +8349,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
     // Update drawing rotation container pivot/rotation before rendering
     updateDrawingRotContainer();
-    renderPaper();
-    renderGrid();
-    renderFeatures();
-    renderImageFeatures();
-    renderLabels();
-    // Slice 229 — stored AREA_LABEL annotations render here so they
-    // sit on the same labelLayer as the auto bearing/distance labels.
-    renderAreaAnnotations();
-    renderTextFeatures();
-    renderSelection();
-    renderSnapIndicator();
-    renderToolPreview();
-    renderTransferGhost();
-    renderIntersectPreview();
-    renderCopilotPreview();
-    renderTitleBlock();
-    renderPaperFurniture();
+    measureRender('renderAll', () => {
+      renderPaper();
+      renderGrid();
+      measureRender('renderFeatures', renderFeatures);
+      measureRender('renderImageFeatures', renderImageFeatures);
+      measureRender('renderLabels', renderLabels);
+      // Slice 229 — stored AREA_LABEL annotations render here so they
+      // sit on the same labelLayer as the auto bearing/distance labels.
+      renderAreaAnnotations();
+      renderTextFeatures();
+      measureRender('renderSelection', renderSelection);
+      renderSnapIndicator();
+      renderToolPreview();
+      renderTransferGhost();
+      renderIntersectPreview();
+      renderCopilotPreview();
+      renderTitleBlock();
+      renderPaperFurniture();
+    });
   }
 
   // ─────────────────────────────────────────────
