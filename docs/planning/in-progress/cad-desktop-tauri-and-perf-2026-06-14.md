@@ -341,15 +341,63 @@ slices below.
 > landed yet. A separate slice can layer it on without touching
 > the menu skeleton.
 
-### T7b — Dynamic Recent Files submenu (last 10)
-Build a Tauri-side helper that maintains a
-`<appDataDir>/recent.json` list (capped at 10, newest first).
-T4b / T5b's success paths call into a TS helper that appends
-the (path, name, savedAt) tuple. On menu rebuild — fired on
-each successful open / save — the Rust side reconstructs the
-File submenu with the live entries replacing the static
-"Recent Files…" placeholder Slice T7 shipped. Source-lock the
-helper + the menu rebuild call.
+### T7b — Recent Files store + open-by-path plumbing
+> **DONE (2026-06-14).** New `lib/cad/persistence/recent-files.ts`
+> persists at `<appDataDir>/recent.json`. Public API: `getRecentFiles()`
+> reads + tolerates (returns `[]` on web / missing file / non-array /
+> parse error), `addRecentFile(path, name)` does the prepend +
+> dedup + cap (mkdir-then-write the whole array as JSON),
+> `clearRecentFiles()`, plus the path resolver. Pure
+> `applyRecentFileAdd(current, entry)` extracted for the unit tests
+> + future call sites that already hold the list in memory. Caps
+> at `RECENT_FILES_LIMIT = 10` (macOS convention). The lister
+> caps OUTPUT at 10 too so a corrupted recent.json with >10
+> entries doesn't bloat the menu.
+>
+> MenuBar wires the store at every native success point: the
+> Tauri open-dialog branch (after `processOpenedCadFile`), the
+> drag-drop listener body (per-file), and the Tauri save branch
+> (after `setLocalTarget` + `clearAutosave`). The web build is
+> untouched because `addRecentFile` short-circuits on
+> `isTauri() === false`. A new `cad:openRecentFile` window event
+> handler reads the path via the fs plugin's
+> `plugin:fs|read_text_file`, runs it through `processOpenedCadFile`
+> just like the open dialog, and bumps the entry to the top of
+> the Recent Files list — so future surfaces (the T7c menu
+> rebuild OR a Recent Files dialog) only need to dispatch the
+> event with `{ path }` to fire the open flow.
+>
+> 21 unit + source-lock cases in
+> `__tests__/desktop/recent-files.test.ts` cover the limit
+> constant, path resolution, all `applyRecentFileAdd` invariants
+> (prepend / move-to-top / cap-at-10 / case-sensitive compare),
+> `getRecentFiles` (web fallback, missing file, malformed JSON,
+> non-array, individual-entry validation, cap), `addRecentFile`
+> (web no-op, full mkdir+write sequence with the correct call
+> order), `clearRecentFiles`, and the MenuBar wiring shape (open
+> + drop + save call sites plus the `cad:openRecentFile` handler).
+> Full suite: 7904 green.
+>
+> (The native menu rebuild — dynamic Recent Files submenu items
+> in the File menu, with each click emitting an id the bridge
+> maps to `cad:openRecentFile { path }` — is deferred to T7c.
+> The store + the open-by-path event are both ready; T7c just
+> needs to call back into Rust to re-render the menu after each
+> add and route clicks to the right path.)
+
+### T7c — Native menu: dynamic Recent Files submenu
+With the recent-files store + open-by-path event already in
+place (Slice T7b), this slice rebuilds the Rust menu on every
+add/clear so the File submenu shows the live entries instead
+of the static "Recent Files…" placeholder. Implementation
+sketch: a `#[tauri::command] rebuild_app_menu()` reads
+`<appDataDir>/recent.json` and constructs File items with
+ids `recent.0`, `recent.1`, …; on click, the `on_menu_event`
+handler looks up the path in app state and emits an event the
+TS bridge maps to `cad:openRecentFile { path }` (the Slice T7b
+handler does the rest). TS-side calls into the command from
+`addRecentFile` / `clearRecentFiles` after each successful
+write. Source-lock the menu rebuild + the bridge object payload.
 
 ### T8 — CI matrix: Windows / macOS / Linux signed artifacts
 `.github/workflows/release.yml` triggered on tags (`v*`). Uses

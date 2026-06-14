@@ -61,6 +61,7 @@ import { openCadFileViaPlatform } from '@/lib/cad/persistence/native-file';
 import { registerNativeDropListener } from '@/lib/cad/persistence/native-drop';
 import { saveCadFileViaPlatform, saveCadFileToPath } from '@/lib/cad/persistence/native-save';
 import { registerMenuBridge } from '@/lib/cad/platform/menu-bridge';
+import { addRecentFile } from '@/lib/cad/persistence/recent-files';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
@@ -168,6 +169,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         const baseName = result.name.replace(/\.starr$/i, '');
         useSaveTargetStore.getState().setLocalTarget(doc.id, baseName, result.path);
         void clearAutosave(doc.id);
+        // cad-desktop-tauri-and-perf Slice T7b — saves go on the
+        // Recent Files list too so "Open Recent" can re-open the
+        // freshly-saved file later.
+        void addRecentFile(result.path, result.name);
         cadLog.info('FileIO', `Saved drawing locally: ${result.path}`);
       } catch (err) {
         cadLog.error('FileIO', 'Failed to save document', err);
@@ -245,14 +250,49 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   // `cad:saveDocumentAs` (File → Save As…). MenuBar owns those
   // closures, so the listeners live here. Web behavior is
   // untouched; the bridge no-ops on `isTauri() === false`.
+  //
+  // cad-desktop-tauri-and-perf Slice T7b — also listens for
+  // `cad:openRecentFile` carrying `{ path }`. The future menu
+  // rebuild (T7c) and any other Recent-Files surface will
+  // dispatch this event with an absolute path; we read it via
+  // the fs plugin and feed it through the same processOpenedCadFile
+  // helper the open dialog uses.
   useEffect(() => {
     const onOpen = () => openFileDialog();
     const onSaveAs = () => { void saveLocalCopy(); };
+    const onOpenRecent = (e: Event) => {
+      const detail = (e as CustomEvent<{ path?: string }>).detail;
+      const recentPath = detail?.path;
+      if (!recentPath || typeof recentPath !== 'string') return;
+      void (async () => {
+        if (typeof window === 'undefined') return;
+        const w = window as unknown as {
+          __TAURI_INTERNALS__?: { invoke?: <T = unknown>(c: string, a?: Record<string, unknown>) => Promise<T> };
+        };
+        const invoke = w.__TAURI_INTERNALS__?.invoke;
+        if (!invoke) return;
+        let contents: string;
+        try {
+          contents = await invoke<string>('plugin:fs|read_text_file', { path: recentPath });
+        } catch (err) {
+          const diag = buildFileLoadDiagnostic(recentPath, '', err, 'sniff');
+          cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+          reportFileLoadError(diag);
+          return;
+        }
+        const name = recentPath.split(/[\\/]/).pop() ?? recentPath;
+        setFileLoading(true);
+        await processOpenedCadFile(name, contents);
+        void addRecentFile(recentPath, name);
+      })();
+    };
     window.addEventListener('cad:openFileDialog', onOpen);
     window.addEventListener('cad:saveDocumentAs', onSaveAs);
+    window.addEventListener('cad:openRecentFile', onOpenRecent);
     return () => {
       window.removeEventListener('cad:openFileDialog', onOpen);
       window.removeEventListener('cad:saveDocumentAs', onSaveAs);
+      window.removeEventListener('cad:openRecentFile', onOpenRecent);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -314,6 +354,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         for (const file of files) {
           setFileLoading(true);
           await processOpenedCadFile(file.name, file.contents);
+          // cad-desktop-tauri-and-perf Slice T7b — record each
+          // successfully-processed drop.
+          void addRecentFile(file.path, file.name);
         }
       });
       if (disposed && stop) {
@@ -511,6 +554,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         if (!result) return; // user cancelled the dialog
         setFileLoading(true);
         await processOpenedCadFile(result.name, result.contents);
+        // cad-desktop-tauri-and-perf Slice T7b — record the file in
+        // Recent Files. We use result.path (not file.name) so future
+        // menu rebuilds can re-open by absolute path.
+        void addRecentFile(result.path, result.name);
       })();
       return;
     }
