@@ -1,0 +1,285 @@
+# Starr CAD desktop — Tauri wrap + perf pass — 2026-06-14
+
+*User request (verbatim):*
+> "I want to make it so that the STARR CAD portion of the software can
+> be a stand alone application on windows and mac. I want to optimize
+> it so that everything runs smoothly and quickly. It will be a program
+> that can be downloaded, installed and executed. It should run very
+> fast and smoothly, even with large point files and many dense layers.
+> If there is a way to do this to really optimize the cad software,
+> let's do it. Even if we need to rebuild the software using a
+> different engine/coding language."
+
+## Direction (the short version)
+
+Wrap the **existing** Next.js 14 + React 18 + Pixi.js + Zustand
+codebase with **Tauri 2** so the same TypeScript app ships as a tiny
+native binary on Windows + macOS + Linux. THEN do a focused perf pass
+on the existing renderer — spatial index, dirty-region tessellation,
+label-gen off the main thread, LOD, React-boundary audit — to take it
+from "smooth at 10k points" to "smooth at 100k+." Only after a
+profiling harness proves we've actually hit the V8 / WebGL ceiling do
+we touch a native renderer (Rust + wgpu via Tauri IPC). Full rewrite
+in Qt / C++ / pure Rust is explicitly rejected: the moat is the
+surveying domain logic in `lib/cad/` (213 modules, 241 test files,
+2866 passing cases), not the renderer; throwing that away to chase a
+hypothetical 2× runtime is the move that's killed every survey-CAD
+startup that's tried it.
+
+## Constraints baked into every slice
+- Stay on branch `claude/gifted-ramanujan-lQaEI`.
+- Slice = typecheck + lint + test + commit + push. Tests source-lock
+  the wiring; pure logic gets unit fixtures.
+- **Every new command, IPC handler, and tuning knob is AI-controllable**:
+  Tauri commands register through the existing `BindableAction`
+  registry, all flags live in `doc.settings`, dispatchers fire
+  `cad:*` events so the AI tool registry can drive them.
+- **Don't bifurcate** the rendering pipeline. One renderer, gated
+  paths inside it. A "second engine for big files" is rejected.
+- **Hold the line on web parity** — Tauri wrap must NOT break the
+  current Vercel build. The same codebase ships to web AND desktop;
+  platform-specific code routes through `lib/cad/platform/runtime.ts`.
+
+## Phase 1 — Tauri wrap (ship the binary)
+
+Goal: a downloadable, installable Windows + macOS desktop binary that
+runs the exact app you have today, with native file dialogs and
+filesystem-backed autosave. Two weeks of wall-clock effort across the
+slices below.
+
+### T1 — Next.js static-export config
+Configure `next.config.mjs` with `output: 'export'`, audit
+`app/**` for any handlers / routes that need a Node runtime, and
+guard or move them. Verify `next build` produces a working
+`out/` directory that Tauri can serve as `dist`. Failure mode:
+dynamic routes that need a server. Mitigation: those routes stay
+on the web build; the desktop bundle ships without them.
+Smoke: launch the static `out/` in a plain http-server and walk
+through Open TRV → render → save.
+
+### T2 — `tauri init` + dev shell
+Add `src-tauri/` (Cargo.toml, `tauri.conf.json`, `main.rs`) and
+the `@tauri-apps/api` JS bindings. Wire `tauri dev` to
+`next dev` for hot reload and `tauri build` to the Slice T1
+static export. The Rust entrypoint stays minimal (Tauri default).
+First boot: `npm run tauri dev` opens a window hosting the
+existing app with zero code changes.
+
+### T3 — Platform-runtime helper
+New `lib/cad/platform/runtime.ts` exports `isTauri()`,
+`isWeb()`, `getPlatform(): 'darwin' | 'win32' | 'linux' | 'web'`,
+and the helper hook `usePlatform()`. Detection: `!!window.__TAURI__`
++ `@tauri-apps/api/os.platform()` (lazily imported so the web
+build never pulls Tauri code). Every desktop-only path gates on
+this. Unit tests with jsdom shims for both branches.
+
+### T4 — Native file-open for TRV / STARR / CSV
+New `lib/cad/persistence/native-file.ts` wraps Tauri's
+`@tauri-apps/api/dialog` + `fs` with the same async API the
+existing web `readFile(file)` flow uses, so callers don't branch
+on platform. `openFileDialog({ filters })` returns
+`{ path, contents, name }`. MenuBar's File → Open and the drop
+zone in `CADLayout` both route through a new
+`openFileViaPlatform()` shim that picks the implementation via
+Slice T3. Source-lock + helper unit tests.
+
+### T5 — Native file-save (Save / Save As)
+Symmetric: `saveFileDialog(defaultPath, contents)` and `saveToPath(path, contents)`.
+Track the active file path in a new `documentStore.filePath`
+field (persisted in IndexedDB on web, recomputed on desktop from
+the last opened path). Save uses the stored path; Save As
+prompts. The current `lib/cad/persistence/save.ts` flow keeps
+working — only the "where do bytes go" step swaps out. Source-
+lock MenuBar's File → Save / Save As paths.
+
+### T6 — Autosave migration to filesystem
+New `lib/cad/persistence/native-autosave.ts` writes to
+`appDataDir() + '/autosaves/<docId>-<timestamp>.starr'` with
+the same retention rules the IndexedDB autosaver already uses
+(15 entries / 7 days). `lib/cad/persistence/autosave.ts` becomes
+a thin selector that picks the impl via Slice T3. Recovery flow
+(`RecentRecoveriesDialog`) lists entries from BOTH stores when
+running on desktop so users coming from the web build don't lose
+prior autosaves. Pure path-resolution helper + retention-pruning
+helper get unit tests.
+
+### T7 — Native app menu + Recent Files
+Use Tauri's `Menu` API to install a real menu bar (top of screen
+on macOS, top of window on Windows). File → Open / Save / Save As /
+Recent Files (last 10) / Quit. Edit → Undo / Redo / Cut / Copy /
+Paste / Select All. View → Zoom Extents / Refresh Canvas (fires
+the Slice-11 `cad:regenerateCanvas` we just shipped). Help →
+Keyboard Shortcuts (fires the existing overlay). The menu's
+shortcuts route through the existing hotkey engine via the
+`dispatchDefaultAction` path — single source of truth for what
+each action does. Recent Files persists in
+`appDataDir() + '/recent.json'`. Source-lock the menu wiring.
+
+### T8 — CI matrix: Windows / macOS / Linux signed artifacts
+`.github/workflows/release.yml` triggered on tags (`v*`). Uses
+`tauri-apps/tauri-action` to produce `.dmg` + `.app` (macOS),
+`.msi` + portable `.exe` (Windows), and `.AppImage` + `.deb`
+(Linux). Code-signing certs live in repo secrets:
+`APPLE_CERTIFICATE` + `APPLE_PASSWORD` + `APPLE_TEAM_ID` for
+macOS notarization; `WIN_CERT` + `WIN_CERT_PASSWORD` for
+Windows. Auto-update channel via Tauri's signed update manifest
+served from the repo's GitHub Pages. No automated test on this
+slice — CI is its own validation; the deliverable is a green
+matrix run on a `v0.x.0-tauri-preview` tag.
+
+## Phase 2 — Renderer perf pass on the existing TS/Pixi pipeline
+
+Goal: take the **existing** Pixi renderer from "smooth at 10k
+points" to "smooth at 100k+ points with dense linework," without
+touching the rendering engine. Five-to-six weeks of effort. This is
+where most of the felt improvement lives — the runtime ceiling is
+much higher than the current code path reaches.
+
+### P1 — Spatial index for feature bounds (rbush R-tree)
+New `lib/cad/spatial/feature-index.ts` wraps `rbush` (4 KB,
+battle-tested). Keys: feature id → AABB from `featureBounds(f)`.
+The drawing store gets `withSpatialIndex` middleware that
+incrementally inserts on `addFeature`, removes on
+`removeFeature`, and re-inserts on `updateFeature` /
+`updateFeatureGeometry`. Public helpers:
+`spatialIndex.queryRect(min, max): featureId[]` for viewport +
+hit-testing, `spatialIndex.queryPoint(x, y, tolPx, zoom)` for
+the click-pick path. The biggest win in this whole plan —
+hit-tests + culling go O(n) → O(log n). Unit tests against the
+existing `__tests__/cad/geometry/bounds.test.ts` fixtures plus a
+new 10k-feature synthetic stress.
+
+### P2 — Viewport culling in the render loop
+`CanvasViewport.renderFeatures()` queries the Slice-P1 index
+for features intersecting the camera AABB instead of iterating
+`Object.values(document.features)`. The query runs once per
+render; results cached per camera-AABB hash so a no-move re-
+render is essentially free. Document the before/after frame
+times on the existing Garland TRV fixture (~5k points) and a
+new 50k-point synthetic. Test the AABB query helper directly.
+
+### P3 — Dirty-region tessellation
+Drawing store gains `dirtyFeatureIds: Set<string>` populated by
+every `addFeature` / `removeFeature` / `updateFeature` /
+`updateFeatureGeometry` / `setFeatureTextLabels`. The renderer
+maintains a Pixi `Graphics` cache keyed by feature id, rebuilds
+Graphics only for dirty ids, and reuses cached Graphics for
+clean ids on the next frame. `cad:regenerateCanvas` (the Slice
+11 escape hatch we shipped) becomes "mark every id dirty + run"
+so the user-facing semantics stay identical. Test the dirty-id
+tracking + cache reuse.
+
+### P4 — Label generation off the main thread
+New `lib/cad/labels/worker/` module: a Web Worker that owns
+`generateLabelsForFeature` and `regenerateLayerLabels`. The store
+posts `{ featureId, layer, displayPrefs }` and gets
+`TextLabel[]` back via a transferable `MessagePort`. The render
+loop never blocks on label work, so dragging a feature with
+heavy label regeneration finally feels smooth. On Tauri the
+worker uses the same Web Worker API (WebView2 + WKWebView both
+support workers). Adapter layer makes the worker testable from
+Vitest via a thin `runInWorker(message)` shim.
+
+### P5 — LOD threshold tuning + lazy label render
+At zoom below `doc.settings.lodPixelThreshold` (default 0.5),
+skip label render entirely and draw points as 2-pixel dots
+instead of the symbol library glyph. Polyline simplification
+epsilon ramps from 0 ft at full zoom to `simplifyEpsilon` ft at
+the threshold. Surfaced as three settings:
+`lodPixelThreshold`, `lodLabelThreshold`, `lodSimplifyEpsilon`
+— all AI-controllable. Pure helper + selector tests; visual
+fidelity tested at boundaries via existing render-fixture
+infrastructure.
+
+### P6 — React boundary audit
+`CanvasViewport.tsx` is 14,431 lines — almost certainly
+re-renders the world on every store tick. Audit with React
+Profiler, identify the top 3 reconcile-on-every-keystroke
+culprits, and split via `useSyncExternalStore` selectors with
+shallow equality. Specifically: lift `cursorWorld` + `zoom` +
+`isBoxSelecting` into their own selectors so cursor moves don't
+reconcile the entire canvas component. Also: memoize the
+`MenuBar` / `LayerPanel` / `PropertyPanel` subtrees keyed by
+the selection-id set rather than reading raw `selectedIds`.
+Source-lock the selector hooks; document the profiler delta on
+the Garland fixture before/after.
+
+## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
+
+Goal: if and only if Slice P-perf shows we're still bottlenecked at
+the largest realistic surveys (200k+ features, dense linework), swap
+JUST the renderer for a Rust + wgpu module reached via Tauri IPC. The
+TypeScript business logic (importers, AI tool registry, layer model,
+code library — every line in `lib/cad/`) stays exactly where it is.
+
+### N1 — Profiling harness
+Builds on the deferred Slice 11 part 2 of the cleanup plan. Adds
+`lib/cad/perf/render-markers.ts`: `markRender(label, durationMs)`
+aggregates frame-time histograms; `getRenderProfile()` returns
+the rolled-up p50 / p95 / p99 + per-phase breakdown. A hidden
+hotkey (`Ctrl+Alt+P`) toggles a "Perf overlay" dev panel that
+graphs the histograms live. The harness records on three
+fixtures: small (Garland), medium (synthetic 50k), large
+(synthetic 200k). **This is the gate for Phase 3** — only
+ship N2 if the overlay confirms the V8 / WebGL stack IS the
+bottleneck after every Phase-2 slice landed. Test the histogram
+helper.
+
+### N2 — (PROFILING-GATED) Rust + wgpu renderer behind Tauri IPC
+Initial scaffold: `src-tauri/src/render/` defines a
+`#[tauri::command] fn draw_features(viewport: Viewport, list:
+DrawList) -> Result<()>`. The TS side serializes a compact
+draw-list (id, type, vertices, style id) per frame from the
+spatial-index query. Rust + wgpu renders to a window-shared
+surface. **Only land this slice if Slice N1's profile says we
+need it; otherwise mark deferred with a one-line rationale per
+the planning rubric.**
+
+## Risk register
+
+- **Tauri webview parity across OSes** (WebView2 vs. WKWebView):
+  Slice T2 should include a smoke checklist on both. Mitigation:
+  guard any feature-detection paths in the existing code that
+  read browser-specific quirks (none currently flagged).
+- **Static export + Next.js dynamic routes:** Slice T1 surfaces
+  these early. If a route can't go static, it's web-only.
+- **macOS notarization:** can take 5–15 minutes per build; CI
+  matrix needs the right secrets. Slice T8 documents.
+- **Worker overhead vs. main-thread cost** for very small drawings:
+  Slice P4 should fall back to main-thread label gen when the
+  feature count is below a threshold (~100). Auto-tuned, not a
+  user setting.
+- **Spatial index churn under rapid edits** (drag a polyline →
+  every vertex move re-inserts): Slice P1 includes a 16 ms
+  debounce that batches incremental updates per render frame.
+
+## Slice order (recommended)
+
+Risk-ordered. T1–T2 ship a working dev binary in days; everything
+after that is incremental improvement that can land independently.
+
+1. **T1** — Static-export config
+2. **T2** — `tauri init` + dev shell
+3. **T3** — Platform-runtime helper
+4. **T4** — Native file-open
+5. **T5** — Native file-save
+6. **T6** — Autosave migration
+7. **T7** — Native app menu + Recent Files
+8. **T8** — CI matrix (signed artifacts)
+9. **P1** — Spatial index (rbush)
+10. **P2** — Viewport culling
+11. **P3** — Dirty-region tessellation
+12. **P4** — Label generation off main thread
+13. **P5** — LOD threshold tuning
+14. **P6** — React boundary audit
+15. **N1** — Profiling harness
+16. **N2** — Rust + wgpu renderer (PROFILING-GATED)
+
+## TL;DR
+Tauri-wrap the existing app for Win/Mac/Linux binaries (Slices T1–T8),
+then make the existing Pixi renderer smooth at 100k+ points by adding
+a spatial index, dirty-region tessellation, off-thread labels, LOD,
+and a React-boundary audit (Slices P1–P6). Hold a profiling-gated
+optional Rust + wgpu renderer (Slices N1–N2) for the case where the
+web runtime really IS the ceiling. No full rewrite — the surveying
+domain logic is the moat.
