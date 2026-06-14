@@ -881,6 +881,37 @@ whole-store subs at the same top-of-CanvasViewport spot need
 the same treatment, and the MenuBar still has its remaining
 four whole-store subs from P6c — track as `P6g`.
 
+**P6g CanvasViewport selection + undo subs shipped 2026-06-14**
+— the two PURE-callback whole-store subs land first because
+they have ZERO render-time reads: `useSelectionStore()` is used
+only inside event handlers (selection mutations, grip hit
+testing, group select) and the rAF loop, and `useUndoStore()`
+is used only for `pushUndo(...)` inside event handlers.
+Both whole-store subs dropped; ~100 callback usages SED-
+converted to `useSelectionStore.getState().X` /
+`useUndoStore.getState().X`. The `const { selectedIds } =
+selectionStore;` destructure inside `hitTestGrip` was updated
+in the same pass to read off `useSelectionStore.getState()`,
+and the four `useCallback` dep arrays that listed
+`selectionStore` / `undoStore` were trimmed (the eslint disable
+comments above each one cover the new shape). Source-locked by
+`__tests__/cad/ui/canvas-viewport-store-selectors.test.ts` (6
+assertions covering the dropped subs, the new `getState()`
+call form, the dep-array cleanup, and an explicit
+"drawingStore + toolStore intentionally left for P6h" guard).
+Full suite: 8134 green.
+**Remaining P6g follow-ups:**
+1. `useDrawingStore()` whole-store sub on CanvasViewport — has
+   render-time reads (`document.settings.displayPreferences`,
+   `document.settings.codeDisplayMode`,
+   `document.layerOrder.length`, `document.settings.drawingRotationDeg`)
+   so the conversion needs per-field selectors.
+2. `useToolStore()` whole-store sub on CanvasViewport — has
+   render-time reads (`state.activeTool`, `state.perpStartPoint`,
+   `state.offsetSourceId`) so same treatment.
+3. MenuBar's remaining four whole-store subs from P6c.
+Track as `P6h`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at

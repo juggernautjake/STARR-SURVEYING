@@ -799,16 +799,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   } | null>(null);
 
   const drawingStore = useDrawingStore();
-  const selectionStore = useSelectionStore();
   const toolStore = useToolStore();
   // cad-desktop-tauri-and-perf Slice P6f — the only render-time
   // viewport read (`cursorWorld`) moved to the extracted
-  // `CanvasCoordsPill`. The remaining 16 `useViewportStore.getState().X` call
+  // `CanvasCoordsPill`. The remaining 16 viewport-store call
   // sites are inside event handlers and the rAF render loop, so
   // they read the latest snapshot via `useViewportStore.getState()`
   // instead of holding a whole-store subscription that woke React
   // on every mousemove.
-  const undoStore = useUndoStore();
+  //
+  // cad-desktop-tauri-and-perf Slice P6g — same treatment for the
+  // selection + undo stores. CanvasViewport never renders selection
+  // or undo state directly (selection chrome is painted by the rAF
+  // loop off `useSelectionStore.getState()` and undo is consumed
+  // by the menu bar / keyboard hooks), so the whole-store subs
+  // were pure wake-up cost — ~100 callback usages SED-converted to
+  // `useXStore.getState().X`.
 
   // Interaction state (not store state)
   const isPanningRef = useRef(false);
@@ -8847,7 +8853,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       },
     };
     drawingStore.addFeature(feature);
-    undoStore.pushUndo(makeAddFeatureEntry(feature));
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
   }
 
   // ─────────────────────────────────────────────
@@ -8934,7 +8940,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       };
       const labelledFeature = withAutoLabels(feature);
       drawingStore.addFeature(labelledFeature);
-      undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
+      useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
       toolStore.clearDrawingPoints();
       return;
     }
@@ -8943,7 +8949,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (!feature) return;
     const labelledFeature = withAutoLabels(feature);
     drawingStore.addFeature(labelledFeature);
-    undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
     toolStore.clearDrawingPoints();
   }
 
@@ -8980,7 +8986,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
     const labelledFeature = withAutoLabels(feature);
     drawingStore.addFeature(labelledFeature);
-    undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
     toolStore.clearDrawingPoints();
   }
 
@@ -9083,7 +9089,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function endpointSnapDelta(dx: number, dy: number): { dx: number; dy: number } {
     const settings = drawingStore.document.settings;
     if (!settings.snapEnabled) return { dx, dy };
-    const selectedIds = selectionStore.selectedIds;
+    const selectedIds = useSelectionStore.getState().selectedIds;
     if (selectedIds.size === 0) return { dx, dy };
 
     const endpointsOf = (f: Feature): Point2D[] => {
@@ -9123,7 +9129,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Grip hit testing
   // ─────────────────────────────────────────────
   function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number; gripType?: 'SPLINE_FIT' | 'SPLINE_HANDLE' | 'ROTATE' } | null {
-    const { selectedIds } = selectionStore;
+    const { selectedIds } = useSelectionStore.getState();
     const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
     for (const featureId of selectedIds) {
       const feature = drawingStore.getFeature(featureId);
@@ -9365,7 +9371,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 if (a) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: b, after: a } });
               }
               if (ops.length > 0) {
-                undoStore.pushUndo(makeBatchEntry(`Snap ${ops.length} elements to point`, ops));
+                useUndoStore.getState().pushUndo(makeBatchEntry(`Snap ${ops.length} elements to point`, ops));
               }
               snapPickRef.current = null;
               setSnapPickMode(false);
@@ -9393,7 +9399,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }
             const after = drawingStore.getFeature(f.id);
             if (after) {
-              undoStore.pushUndo(makeBatchEntry(
+              useUndoStore.getState().pushUndo(makeBatchEntry(
                 pick.moveWhole ? 'Snap feature to point' : 'Snap point',
                 [{ type: 'MODIFY_FEATURE', data: { id: f.id, before, after } }],
               ));
@@ -9461,7 +9467,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const { wx, wy } = screenToDrawingWorld(sx, sy);
           const startAngle = Math.atan2(wy - h.pivot.y, wx - h.pivot.x);
           const originals = new Map<string, Feature>();
-          for (const id of selectionStore.selectedIds) {
+          for (const id of useSelectionStore.getState().selectedIds) {
             const f = drawingStore.getFeature(id);
             if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
           }
@@ -9492,7 +9498,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }
           if (ops.length > 0) {
             const deg = ((deltaAngle * 180) / Math.PI).toFixed(1);
-            undoStore.pushUndo(makeBatchEntry(`Rotate ${deg}°`, ops));
+            useUndoStore.getState().pushUndo(makeBatchEntry(`Rotate ${deg}°`, ops));
           }
         } else {
           const curDist = Math.hypot(cursorVec.x, cursorVec.y);
@@ -9502,7 +9508,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
           }
           if (ops.length > 0) {
-            undoStore.pushUndo(makeBatchEntry(`Scale ×${factor.toFixed(3)}`, ops));
+            useUndoStore.getState().pushUndo(makeBatchEntry(`Scale ×${factor.toFixed(3)}`, ops));
           }
         }
         interactiveOpRef.current = null;
@@ -9653,16 +9659,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             origPosX, origPosY, livePosX: origPosX, livePosY: origPosY,
           };
           // Mark this TB element as "selected" so LayerPanel keeps SURVEY-INFO highlighted
-          selectionStore.setSelectedTBElem(tbHit);
+          useSelectionStore.getState().setSelectedTBElem(tbHit);
           setCursorStyle('grabbing');
           return;
         }
       }
       // Clicking outside all TB elements clears TB selection
-      selectionStore.setSelectedTBElem(null);
+      useSelectionStore.getState().setSelectedTBElem(null);
 
       // Check grip first (when SELECT tool active and something selected)
-      if (activeTool === 'SELECT' && selectionStore.selectedIds.size > 0) {
+      if (activeTool === 'SELECT' && useSelectionStore.getState().selectedIds.size > 0) {
         const grip = hitTestGrip(sx, sy);
         if (grip) {
           const gType = grip.gripType === 'SPLINE_FIT' ? 'SPLINE_FIT'
@@ -9738,7 +9744,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       switch (activeTool) {
         case 'SELECT': {
           // We've confirmed no TB element was hit (those return early above), so clear TB selection
-          selectionStore.setSelectedTBElem(null);
+          useSelectionStore.getState().setSelectedTBElem(null);
           // Ctrl/Cmd (or Shift) make a click additive: toggle the hit
           // feature into/out of the current multi-selection instead of
           // replacing it. Ctrl is the common surveyor habit for picking
@@ -9769,7 +9775,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // TEXT feature — select it and start drag-to-move
               const textFeature = drawingStore.getFeature(labelHit.featureId);
               if (textFeature) {
-                selectionStore.select(labelHit.featureId, additive ? 'TOGGLE' : 'REPLACE');
+                useSelectionStore.getState().select(labelHit.featureId, additive ? 'TOGGLE' : 'REPLACE');
                 const startWorld = screenToDrawingWorld(sx, sy);
                 const originals = new Map<string, Feature>();
                 originals.set(labelHit.featureId, JSON.parse(JSON.stringify(textFeature)));
@@ -9837,21 +9843,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 // If the group is already selected, clicking a specific segment
                 // narrows selection to just that segment (drill-down behavior).
                 const groupIds = getPolylineGroupIds(polylineGid);
-                const allGroupSelected = groupIds.every((id) => selectionStore.selectedIds.has(id));
+                const allGroupSelected = groupIds.every((id) => useSelectionStore.getState().selectedIds.has(id));
                 if (allGroupSelected) {
                   // Already selected whole group — drill down to individual segment
-                  selectionStore.select(hit, 'REPLACE');
+                  useSelectionStore.getState().select(hit, 'REPLACE');
                   featureIds = [hit];
                 } else {
                   // Select entire group
                   featureIds = groupIds;
-                  selectionStore.selectMultiple(featureIds, 'REPLACE');
+                  useSelectionStore.getState().selectMultiple(featureIds, 'REPLACE');
                 }
               } else {
                 // ELEMENT_FIRST: first click selects individual segment only.
                 // User can right-click > "Select Group" to get the whole group.
                 const mode = additive ? 'TOGGLE' : 'REPLACE';
-                selectionStore.select(hit, mode);
+                useSelectionStore.getState().select(hit, mode);
                 featureIds = [hit];
               }
             } else if (featureGid && !additive && groupMode === 'GROUP_FIRST') {
@@ -9859,17 +9865,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const group = drawingStore.getFeatureGroup(featureGid);
               const groupMemberIds = group?.featureIds ?? [];
               const allGroupSelected = groupMemberIds.length > 0 &&
-                groupMemberIds.every((id) => selectionStore.selectedIds.has(id));
+                groupMemberIds.every((id) => useSelectionStore.getState().selectedIds.has(id));
               if (allGroupSelected) {
-                selectionStore.select(hit, 'REPLACE');
+                useSelectionStore.getState().select(hit, 'REPLACE');
                 featureIds = [hit];
               } else {
                 featureIds = groupMemberIds.filter((id) => !!drawingStore.getFeature(id));
-                selectionStore.selectMultiple(featureIds, 'REPLACE');
+                useSelectionStore.getState().selectMultiple(featureIds, 'REPLACE');
               }
             } else {
               const mode = additive ? 'TOGGLE' : 'REPLACE';
-              selectionStore.select(hit, mode);
+              useSelectionStore.getState().select(hit, mode);
               featureIds = [hit];
             }
 
@@ -9896,7 +9902,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (feature) {
             const labelledFeature = withAutoLabels(feature);
             drawingStore.addFeature(labelledFeature);
-            undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
           }
           break;
         }
@@ -9927,7 +9933,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (dist > MIN_SEGMENT_LENGTH_BASE / useViewportStore.getState().zoom) {
               const segment = createPolylineSegment(lastPt, worldPt, polylineGroupIdRef.current!);
               drawingStore.addFeature(withAutoLabels(segment));
-              undoStore.pushUndo(makeAddFeatureEntry(segment));
+              useUndoStore.getState().pushUndo(makeAddFeatureEntry(segment));
               lastPolylineSegmentIdRef.current = segment.id;
               toolStore.addDrawingPoint(worldPt);
             }
@@ -9967,7 +9973,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               properties: { shapeType: 'RECTANGLE' },
             };
             drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
           break;
@@ -9995,7 +10001,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               properties: { shapeType: 'REGULAR_POLYGON', sides: sides.toString() },
             };
             drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
           break;
@@ -10021,7 +10027,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               properties: { shapeType: 'CIRCLE' },
             };
             drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
           break;
@@ -10051,7 +10057,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               properties: { shapeType: 'CIRCLE' },
             };
             drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
           break;
@@ -10081,7 +10087,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               properties: { shapeType: 'ELLIPSE' },
             };
             drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
           break;
@@ -10113,7 +10119,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               properties: { shapeType: 'ELLIPSE' },
             };
             drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
           break;
@@ -10181,7 +10187,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 properties: {},
               };
               drawingStore.addFeature(withAutoLabels(feature));
-              undoStore.pushUndo(makeAddFeatureEntry(feature));
+              useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             }
             toolStore.clearDrawingPoints();
           }
@@ -10194,8 +10200,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const feature = drawingStore.getFeature(hit);
             if (feature) {
               drawingStore.removeFeature(hit);
-              selectionStore.deselectAll();
-              undoStore.pushUndo(makeRemoveFeatureEntry(feature));
+              useSelectionStore.getState().deselectAll();
+              useUndoStore.getState().pushUndo(makeRemoveFeatureEntry(feature));
             }
           }
           break;
@@ -10203,9 +10209,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'MOVE': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (!toolState.basePoint) {
@@ -10215,7 +10221,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const rawDy = worldPt.y - toolState.basePoint.y;
             // Snap the selection's nearest endpoint onto a point/line-end.
             const { dx, dy } = endpointSnapDelta(rawDx, rawDy);
-            const selectedIds = Array.from(selectionStore.selectedIds);
+            const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
             if (selectedIds.length === 0) break;
             const ops = selectedIds.flatMap((id) => {
               const f = drawingStore.getFeature(id);
@@ -10227,7 +10233,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               drawingStore.updateFeature(id, { geometry: newF.geometry });
               return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
             });
-            if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Move', ops));
+            if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Move', ops));
             toolStore.resetToolState();
           }
           break;
@@ -10235,9 +10241,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'COPY': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (!toolState.basePoint) {
@@ -10245,7 +10251,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             const dx = worldPt.x - toolState.basePoint.x;
             const dy = worldPt.y - toolState.basePoint.y;
-            const selectedIds = Array.from(selectionStore.selectedIds);
+            const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
             if (selectedIds.length === 0) break;
             const newFeatures: Feature[] = [];
             for (const id of selectedIds) {
@@ -10261,7 +10267,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (newFeatures.length > 0) {
               drawingStore.addFeatures(newFeatures);
               const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
-              undoStore.pushUndo(makeBatchEntry('Copy', ops));
+              useUndoStore.getState().pushUndo(makeBatchEntry('Copy', ops));
             }
             toolStore.setBasePoint(worldPt); // Allow multiple copies
           }
@@ -10270,9 +10276,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'ROTATE': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           // Single image → live "follow the cursor" rotation around the
@@ -10280,7 +10286,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // (Shift snaps to 15°). The image rotates for real as you move
           // so you see the result before finalizing.
           {
-            const selIds = Array.from(selectionStore.selectedIds);
+            const selIds = Array.from(useSelectionStore.getState().selectedIds);
             const only = selIds.length === 1 ? drawingStore.getFeature(selIds[0]) : null;
             if (!toolState.copyMode && only?.geometry.type === 'IMAGE' && only.geometry.image) {
               const session = imageRotateRef.current;
@@ -10288,7 +10294,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 // Click 2 — finalize with a single undo entry.
                 const after = drawingStore.getFeature(session.featureId);
                 if (after) {
-                  undoStore.pushUndo({
+                  useUndoStore.getState().pushUndo({
                     id: generateId(),
                     description: 'Rotate image',
                     timestamp: Date.now(),
@@ -10330,7 +10336,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               break;
             }
             const angleDeg = (angleRad * 180) / Math.PI;
-            const ids = Array.from(selectionStore.selectedIds);
+            const ids = Array.from(useSelectionStore.getState().selectedIds);
             if (ids.length === 0) break;
             if (toolState.copyMode) {
               // Duplicate then rotate the duplicates so
@@ -10353,9 +10359,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'SCALE': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (!toolState.basePoint) {
@@ -10372,7 +10378,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (!Number.isFinite(factor) || factor <= 0 || Math.abs(factor - 1) < 1e-9) {
               break;
             }
-            const ids = Array.from(selectionStore.selectedIds);
+            const ids = Array.from(useSelectionStore.getState().selectedIds);
             if (ids.length === 0) break;
             if (toolState.copyMode) {
               duplicateSelection(0, 0);
@@ -10389,9 +10395,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'MIRROR': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
 
@@ -10445,7 +10451,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (!lineA || !lineB) break;
             const a = lineA;
             const b = lineB;
-            const selectedIds = Array.from(selectionStore.selectedIds);
+            const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
             if (selectedIds.length === 0) break;
             const reflect = (p: Point2D): Point2D => mirror(p, a, b);
 
@@ -10469,8 +10475,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               if (newFeatures.length > 0) {
                 drawingStore.addFeatures(newFeatures);
                 const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
-                undoStore.pushUndo(makeBatchEntry('Mirror Copy', ops));
-                selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+                useUndoStore.getState().pushUndo(makeBatchEntry('Mirror Copy', ops));
+                useSelectionStore.getState().selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
               }
             } else {
               // Default: mirror in place
@@ -10484,7 +10490,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 drawingStore.updateFeature(id, { geometry: newF.geometry });
                 return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
               });
-              if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Mirror', ops));
+              if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Mirror', ops));
             }
             toolStore.clearDrawingPoints();
           }
@@ -10496,9 +10502,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // active direction. Auto-selects the clicked feature
           // when nothing is selected so the user can do
           // single-click flips.
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           flipSelectionByDirection(toolState.flipDirection, toolState.copyMode);
@@ -10509,9 +10515,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // INVERT uses the clicked point as the inversion
           // center (= 180° rotation pivot). Auto-selects
           // when empty selection so single-click works.
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           invertSelection(worldPt, toolState.copyMode);
@@ -10522,9 +10528,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // ARRAY: click commits using the current mode +
           // parameters from the toolbar. Auto-selects the
           // clicked feature when the selection is empty.
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (toolState.arrayMode === 'POLAR') {
@@ -10873,7 +10879,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (!hit) break;
           if (!toolState.matchPropertiesSourceId) {
             toolStore.setMatchPropertiesSourceId(hit);
-            selectionStore.select(hit, 'REPLACE');
+            useSelectionStore.getState().select(hit, 'REPLACE');
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'MATCH PROPERTIES — source locked. Click any feature to apply the source style. Esc to finish.' },
             }));
@@ -10974,7 +10980,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }
           if (!toolState.filletPickedLineId) {
             toolStore.setFilletPickedLine(hit, worldPt);
-            selectionStore.select(hit, 'REPLACE');
+            useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (toolState.filletPickedLineId === hit) {
@@ -11043,7 +11049,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }
           if (!toolState.chamferPickedLineId) {
             toolStore.setChamferPickedLine(hit, worldPt);
-            selectionStore.select(hit, 'REPLACE');
+            useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (toolState.chamferPickedLineId === hit) {
@@ -11077,11 +11083,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             // Add to selection (toggle if already selected).
-            selectionStore.select(hit, 'TOGGLE');
+            useSelectionStore.getState().select(hit, 'TOGGLE');
             break;
           }
           // Empty click — try to commit the join.
-          if (selectionStore.selectedIds.size >= 2) {
+          if (useSelectionStore.getState().selectedIds.size >= 2) {
             const result = joinSelection();
             if (!result.ok) {
               cadLog.info('CanvasViewport', `JOIN: ${result.reason ?? 'failed'}`);
@@ -11120,7 +11126,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 } else {
                   toolStore.setOffsetSourceSegmentIndex(null);
                 }
-                selectionStore.select(hit, 'REPLACE');
+                useSelectionStore.getState().select(hit, 'REPLACE');
               }
             }
           } else {
@@ -11153,7 +11159,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               );
               toolStore.setOffsetSourceId(null);
               toolStore.setOffsetSourceSegmentIndex(null);
-              selectionStore.deselectAll();
+              useSelectionStore.getState().deselectAll();
               break;
             }
 
@@ -11177,7 +11183,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               );
               toolStore.setOffsetSourceId(null);
               toolStore.setOffsetSourceSegmentIndex(null);
-              selectionStore.deselectAll();
+              useSelectionStore.getState().deselectAll();
               break;
             }
 
@@ -11241,7 +11247,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Reset source selection so user can pick the next feature
             toolStore.setOffsetSourceId(null);
             toolStore.setOffsetSourceSegmentIndex(null);
-            selectionStore.deselectAll();
+            useSelectionStore.getState().deselectAll();
           }
           break;
         }
@@ -11359,7 +11365,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             },
           };
           drawingStore.addFeature(dimFeature);
-          undoStore.pushUndo(makeAddFeatureEntry(dimFeature));
+          useUndoStore.getState().pushUndo(makeAddFeatureEntry(dimFeature));
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
             detail: { text: `DIM — placed annotation: ${bearingStr}  ${distStr}'` },
           }));
@@ -11412,7 +11418,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const feat = hit ? drawingStore.getFeature(hit) : null;
             if (feat && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
               toolStore.addDrawingPoint(worldPt);
-              selectionStore.select(feat.id, 'REPLACE');
+              useSelectionStore.getState().select(feat.id, 'REPLACE');
               window.dispatchEvent(new CustomEvent('cad:commandOutput', {
                 detail: { text: 'First line selected — click second line' },
               }));
@@ -11421,11 +11427,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Second click: hit-test for a different line/polyline
             const hit = hitTest(sx, sy);
             const feat = hit ? drawingStore.getFeature(hit) : null;
-            const selIds = Array.from(selectionStore.selectedIds);
+            const selIds = Array.from(useSelectionStore.getState().selectedIds);
             const firstId = selIds[0] ?? null;
             if (feat && feat.id !== firstId && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
               toolStore.addDrawingPoint(worldPt);
-              selectionStore.selectMultiple([firstId, feat.id].filter(Boolean) as string[], 'REPLACE');
+              useSelectionStore.getState().selectMultiple([firstId, feat.id].filter(Boolean) as string[], 'REPLACE');
               window.dispatchEvent(new CustomEvent('cad:commandOutput', {
                 detail: { text: 'Second line selected — type radius in command bar and press Enter' },
               }));
@@ -11437,7 +11443,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore, selectionStore, toolStore, undoStore],
+    [drawingStore, toolStore],
   );
 
   const handleMouseMove = useCallback(
@@ -11878,7 +11884,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (tbHover !== hoveredTBElemRef.current) {
           hoveredTBElemRef.current = tbHover;
           // Sync to selection store so LayerPanel can highlight SURVEY-INFO layer
-          selectionStore.setHoveredTBElem(tbHover);
+          useSelectionStore.getState().setHoveredTBElem(tbHover);
         }
         if (tbHover) {
           // Show 'text' cursor when hovering over an editable field, 'grab' for drag-only elements
@@ -11904,7 +11910,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           hoveredIdRef.current = hoverFeatureId;
           hoveredLabelKeyRef.current = newLabelKey;
           // Drives LayerPanel per-layer + per-item highlighting too.
-          selectionStore.setHovered(hoverFeatureId);
+          useSelectionStore.getState().setHovered(hoverFeatureId);
           // Re-render immediately so label colors track the marker glow.
           if (featureChanged && pixiRef.current?.app) {
             renderLabels();
@@ -11917,7 +11923,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Test grips/handles whenever something is selected — the
             // image rotation handle floats off the box, so it can be hot
             // even when the cursor isn't over the feature body.
-            const onGrip = selectionStore.selectedIds.size > 0 ? hitTestGrip(sx, sy) : null;
+            const onGrip = useSelectionStore.getState().selectedIds.size > 0 ? hitTestGrip(sx, sy) : null;
             if (onGrip) {
               // Image grips get a directional resize cursor so the
               // surveyor knows the corner/edge is draggable to resize.
@@ -11969,11 +11975,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         if (hoveredIdRef.current !== null) {
           hoveredIdRef.current = null;
-          selectionStore.setHovered(null);
+          useSelectionStore.getState().setHovered(null);
         }
         if (hoveredTBElemRef.current !== null) {
           hoveredTBElemRef.current = null;
-          selectionStore.setHoveredTBElem(null);
+          useSelectionStore.getState().setHoveredTBElem(null);
         }
       }
 
@@ -12099,7 +12105,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const after = drawingStore.getFeature(id);
           if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
         }
-        if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Rotate', ops));
+        if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Rotate', ops));
         setHud(null);
         setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
         return;
@@ -12119,8 +12125,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         setCursorStyle('grab');
         const down = mouseDownPosRef.current;
         const moved = down ? Math.hypot(sx - down.x, sy - down.y) : 0;
-        if (moved < 4 && !hitTest(sx, sy) && selectionStore.selectedIds.size > 0) {
-          selectionStore.deselectAll();
+        if (moved < 4 && !hitTest(sx, sy) && useSelectionStore.getState().selectedIds.size > 0) {
+          useSelectionStore.getState().deselectAll();
         }
         return;
       }
@@ -12220,7 +12226,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         tbDragRef.current = null;
         hoveredTBElemRef.current = null;
-        selectionStore.setHoveredTBElem(null);
+        useSelectionStore.getState().setHoveredTBElem(null);
         setCursorStyle('default');
         return;
       }
@@ -12244,7 +12250,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }
           }
           if (operations.length > 0) {
-            undoStore.pushUndo({
+            useUndoStore.getState().pushUndo({
               id: generateId(),
               description: `Move ${featureIds.length} element(s)`,
               timestamp: Date.now(),
@@ -12265,7 +12271,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const before = gripStartRef.current;
         const after = drawingStore.getFeature(featureId);
         if (after) {
-          undoStore.pushUndo({
+          useUndoStore.getState().pushUndo({
             id: generateId(),
             description: isRotate ? 'Rotate image' : 'Grip edit',
             timestamp: Date.now(),
@@ -12319,9 +12325,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const threshold = drawingStore.document.settings.dragThreshold ?? 5;
         if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
-          selectionStore.selectMultiple(ids, (e.shiftKey || e.ctrlKey || e.metaKey) ? 'ADD' : 'REPLACE');
+          useSelectionStore.getState().selectMultiple(ids, (e.shiftKey || e.ctrlKey || e.metaKey) ? 'ADD' : 'REPLACE');
         } else if (!clickHitFeatureRef.current && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          selectionStore.deselectAll();
+          useSelectionStore.getState().deselectAll();
         }
         toolStore.setBoxSelect(null, null, false);
       }
@@ -12330,7 +12336,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, selectionStore, drawingStore, undoStore],
+    [toolStore, drawingStore],
   );
 
   const handleDoubleClick = useCallback(
@@ -12380,7 +12386,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           return;
         } else {
           // TEXT feature — select it and open properties
-          selectionStore.select(labelHit.featureId, 'REPLACE');
+          useSelectionStore.getState().select(labelHit.featureId, 'REPLACE');
           return;
         }
       }
@@ -12393,11 +12399,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         );
       } else if (activeTool === 'SELECT') {
         // Double-click on empty canvas in SELECT mode → deselect all
-        selectionStore.deselectAll();
+        useSelectionStore.getState().deselectAll();
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, drawingStore, selectionStore],
+    [toolStore, drawingStore],
   );
 
   // ─────────────────────────────────────────────
@@ -12419,10 +12425,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         .getVisibleFeatures()
         .filter((f) => f.layerId === feature.layerId)
         .map((f) => f.id);
-      selectionStore.selectMultiple(sameLayerIds, 'REPLACE');
+      useSelectionStore.getState().selectMultiple(sameLayerIds, 'REPLACE');
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, drawingStore, selectionStore],
+    [toolStore, drawingStore],
   );
 
   // ─────────────────────────────────────────────
@@ -13383,7 +13389,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const label = op.type === 'ROTATE'
         ? `Rotate ${value.toFixed(1)}°`
         : `Scale ×${value.toFixed(3)}`;
-      undoStore.pushUndo(makeBatchEntry(label, ops));
+      useUndoStore.getState().pushUndo(makeBatchEntry(label, ops));
     }
     interactiveOpRef.current = null;
     setInteractivePanel(null);
@@ -13536,13 +13542,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       const hit = hitTest(sx, sy);
       // If hit a feature not yet selected, select it first
-      if (hit && !selectionStore.selectedIds.has(hit)) {
-        selectionStore.select(hit, 'REPLACE');
+      if (hit && !useSelectionStore.getState().selectedIds.has(hit)) {
+        useSelectionStore.getState().select(hit, 'REPLACE');
       }
       setContextMenu({ x: e.clientX, y: e.clientY, worldX: wx, worldY: wy, featureId: hit });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, selectionStore, drawingStore, undoStore],
+    [toolStore, drawingStore],
   );
 
   // ─────────────────────────────────────────────
@@ -13595,7 +13601,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Clear hover state when cursor exits the canvas
           if (hoveredIdRef.current !== null) {
             hoveredIdRef.current = null;
-            selectionStore.setHovered(null);
+            useSelectionStore.getState().setHovered(null);
           }
           // Phase 8 §6 — drop the feature-hover tooltip too.
           if (lastHoverFeatureRef.current !== null) {
@@ -13605,7 +13611,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           tooltipApiRef.current?.hideTooltip();
           if (hoveredTBElemRef.current !== null) {
             hoveredTBElemRef.current = null;
-            selectionStore.setHoveredTBElem(null);
+            useSelectionStore.getState().setHoveredTBElem(null);
           }
           hoveredLabelKeyRef.current = null;
           setSnapLabel(null);
@@ -13650,9 +13656,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             properties: { imageName: projImg.name },
           };
           drawingStore.addFeature(feature);
-          undoStore.pushUndo(makeAddFeatureEntry(feature));
+          useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
           toolStore.setTool('SELECT');
-          selectionStore.select(featureId, 'REPLACE');
+          useSelectionStore.getState().select(featureId, 'REPLACE');
         }}
       />
       {snapLabel && (
@@ -14548,13 +14554,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               properties: { imageName: image.name },
             };
             drawingStore.addFeature(feature);
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             setImageInsertState(null);
             onPlaceImageConsumed?.();
             // Switch to SELECT + select the new image so its grips +
             // properties are immediately available for scale/rotate.
             toolStore.setTool('SELECT');
-            selectionStore.select(featureId, 'REPLACE');
+            useSelectionStore.getState().select(featureId, 'REPLACE');
           }}
         />
       )}
