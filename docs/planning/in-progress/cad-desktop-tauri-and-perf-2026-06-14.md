@@ -754,6 +754,27 @@ ship N2 if the overlay confirms the V8 / WebGL stack IS the
 bottleneck after every Phase-2 slice landed. Test the histogram
 helper.
 
+**Shipped 2026-06-14 (histogram helper only)** —
+`lib/cad/perf/render-markers.ts` exports `markRender`,
+`measureRender`, `getRenderProfile`, `resetRenderProfile`, and
+`RENDER_MARKER_RING_CAPACITY` (600 samples per label, i.e. ten
+seconds of 60-FPS frames). Each label gets its own
+`Float64Array` ring buffer with O(1) ingest; `getRenderProfile`
+copies the live slice, sorts, and returns nearest-rank
+p50/p95/p99 + max + mean alongside an overall pooled histogram.
+Non-finite / negative durations are silently dropped so callers
+can `markRender(label, t1 - t0)` without guarding. The
+`measureRender(label, fn)` convenience wrapper records even
+when `fn` throws (finally clause), so we don't miss the outlier
+frames where a phase blew up. Source-locked by
+`__tests__/cad/perf/render-markers.test.ts` (12 assertions
+including ring-wrap math and reset semantics).
+**Follow-ups remaining in N1, tracked as `N1b`:**
+the `Ctrl+Alt+P` overlay React component, the renderer-side
+`measureRender` call sites in `CanvasViewport`, and the
+small/medium/large fixture harness that drives the gating
+decision for N2.
+
 ### N2 — (PROFILING-GATED) Rust + wgpu renderer behind Tauri IPC
 Initial scaffold: `src-tauri/src/render/` defines a
 `#[tauri::command] fn draw_features(viewport: Viewport, list:
