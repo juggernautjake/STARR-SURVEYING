@@ -47,11 +47,17 @@ interface ContextMenu {
 }
 
 export default function LayerPanel() {
-  const store = useDrawingStore();
-  const selectionStore = useSelectionStore();
+  // cad-desktop-tauri-and-perf Slice P6d — drop the whole-store
+  // `useDrawingStore()` + `useSelectionStore()` subscriptions and
+  // replace with per-field selectors for the render-time reads.
+  // Every other access is in an event handler (~25 store mutations
+  // + 3 selection callbacks) so they read the latest state via
+  // `useXStore.getState()` at call time — no subscription, no
+  // re-render churn.
+  const doc = useDrawingStore((s) => s.document);
+  const activeLayerId = useDrawingStore((s) => s.activeLayerId);
   const restrictToActive = useUIStore((s) => s.restrictEditingToActiveLayer);
   const setRestrictToActive = useUIStore((s) => s.setRestrictEditingToActiveLayer);
-  const { document: doc, activeLayerId } = store;
   const mediaByOwner = useMediaStore((s) => s.byOwner);
   const mediaHydrate = useMediaStore((s) => s.hydrate);
   useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
@@ -124,11 +130,11 @@ export default function LayerPanel() {
     : visibleLayers.filter((l) => l.name.toLowerCase().includes(filterTrim) || l.id === activeLayerId);
 
   // Track selected and hovered feature IDs for layer highlighting
-  const selectedIds    = selectionStore.selectedIds;
-  const hoveredId      = selectionStore.hoveredId;
+  const selectedIds    = useSelectionStore((s) => s.selectedIds);
+  const hoveredId      = useSelectionStore((s) => s.hoveredId);
   // Title-block element hover / selection — drives SURVEY-INFO layer highlight
-  const hoveredTBElem  = selectionStore.hoveredTBElem;
-  const selectedTBElem = selectionStore.selectedTBElem;
+  const hoveredTBElem  = useSelectionStore((s) => s.hoveredTBElem);
+  const selectedTBElem = useSelectionStore((s) => s.selectedTBElem);
 
   // cad-trv-fidelity — when a feature is selected (e.g. clicked on the
   // canvas), reveal it in the panel: auto-expand its layer + the full
@@ -231,15 +237,15 @@ export default function LayerPanel() {
   }, [selectionKey]);
 
   function handleToggleVisibility(layer: Layer) {
-    store.updateLayer(layer.id, { visible: !layer.visible });
+    useDrawingStore.getState().updateLayer(layer.id, { visible: !layer.visible });
   }
 
   function handleToggleLock(layer: Layer) {
-    store.updateLayer(layer.id, { locked: !layer.locked });
+    useDrawingStore.getState().updateLayer(layer.id, { locked: !layer.locked });
   }
 
   function handleSetActive(layerId: string) {
-    store.setActiveLayer(layerId);
+    useDrawingStore.getState().setActiveLayer(layerId);
   }
 
   // Opening the New Layer modal (§11). The actual layer is created in
@@ -252,7 +258,7 @@ export default function LayerPanel() {
   function createLayerFromDialog(result: { name: string; color: string; description: string; pointIds: string[] }) {
     const id = generateId();
     const existingCount = doc.layerOrder.length;
-    store.addLayer({
+    useDrawingStore.getState().addLayer({
       id,
       name: result.name,
       visible: true,
@@ -270,8 +276,8 @@ export default function LayerPanel() {
       description: result.description || undefined,
     });
     // Move the chosen points onto the new layer.
-    for (const pid of result.pointIds) store.updateFeature(pid, { layerId: id });
-    store.setActiveLayer(id);
+    for (const pid of result.pointIds) useDrawingStore.getState().updateFeature(pid, { layerId: id });
+    useDrawingStore.getState().setActiveLayer(id);
     setNewLayerDefaults(null);
   }
 
@@ -295,7 +301,7 @@ export default function LayerPanel() {
   }
 
   function setAllLayers(patch: { visible?: boolean; locked?: boolean }) {
-    for (const id of doc.layerOrder) store.updateLayer(id, patch);
+    for (const id of doc.layerOrder) useDrawingStore.getState().updateLayer(id, patch);
     setPanelMenu(null);
   }
 
@@ -303,7 +309,7 @@ export default function LayerPanel() {
     const src = doc.layers[activeLayerId];
     if (src) {
       const newLayer = { ...src, id: generateId(), name: `${src.name} copy` };
-      store.addLayer(newLayer);
+      useDrawingStore.getState().addLayer(newLayer);
     }
     setPanelMenu(null);
   }
@@ -337,7 +343,7 @@ export default function LayerPanel() {
       setRenamingId(null);
       return;
     }
-    store.updateLayer(renamingId, { name: trimmed });
+    useDrawingStore.getState().updateLayer(renamingId, { name: trimmed });
     setRenamingId(null);
   }
 
@@ -382,7 +388,7 @@ export default function LayerPanel() {
       danger: true,
     });
     if (!ok) return;
-    store.removeLayer(layerId);
+    useDrawingStore.getState().removeLayer(layerId);
   }
 
   /** cad-ux-cleanup-pass Slice 8 — open the existing Layer Transfer
@@ -405,7 +411,7 @@ export default function LayerPanel() {
     // so the "move points from master" dialogs can exclude its copies
     // from their source pool.
     const newLayer: Layer = { ...src, id: newId, name: `${src.name} copy`, isDefault: false, duplicateOf: layerId };
-    store.addLayer(newLayer);
+    useDrawingStore.getState().addLayer(newLayer);
     // cad-ux-cleanup-pass Slice 7 — skip TRV mirror twins
     // (`trvPointMirror`) and any derived auto-spawn (`trvDerived`)
     // when collecting the transfer set. Those are render-only echoes
@@ -440,7 +446,7 @@ export default function LayerPanel() {
     input.type = 'color';
     input.value = doc.layers[layerId]?.color ?? '#000000';
     input.onchange = () => {
-      store.updateLayer(layerId, { color: input.value });
+      useDrawingStore.getState().updateLayer(layerId, { color: input.value });
     };
     input.click();
   }
@@ -483,7 +489,7 @@ export default function LayerPanel() {
   function handleFeatureClick(featureId: string, e: React.MouseEvent) {
     e.stopPropagation();
     const mode = e.ctrlKey || e.metaKey ? 'TOGGLE' : 'REPLACE';
-    selectionStore.select(featureId, mode);
+    useSelectionStore.getState().select(featureId, mode);
   }
 
   /** Click on a group row to select all group members. */
@@ -492,7 +498,7 @@ export default function LayerPanel() {
     const group = doc.featureGroups?.[groupId];
     if (!group) return;
     const mode = e.ctrlKey || e.metaKey ? 'ADD' : 'REPLACE';
-    selectionStore.selectMultiple(group.featureIds, mode);
+    useSelectionStore.getState().selectMultiple(group.featureIds, mode);
   }
 
   function startRenameGroup(groupId: string) {
@@ -505,7 +511,7 @@ export default function LayerPanel() {
 
   function commitRenameGroup() {
     if (renamingGroupId && renameGroupValue.trim()) {
-      store.renameFeatureGroup(renamingGroupId, renameGroupValue.trim());
+      useDrawingStore.getState().renameFeatureGroup(renamingGroupId, renameGroupValue.trim());
     }
     setRenamingGroupId(null);
   }
@@ -648,7 +654,7 @@ export default function LayerPanel() {
                   </span>
                   <button
                     className="text-gray-600 hover:text-red-400 shrink-0 p-0.5"
-                    onClick={(e) => { e.stopPropagation(); store.ungroupFeatures(group.id); }}
+                    onClick={(e) => { e.stopPropagation(); useDrawingStore.getState().ungroupFeatures(group.id); }}
                     title="Ungroup"
                   >
                     <X size={9} />
@@ -711,8 +717,8 @@ export default function LayerPanel() {
                               }`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (isHidden) store.unhideFeature(feat.id);
-                                else store.hideFeature(feat.id);
+                                if (isHidden) useDrawingStore.getState().unhideFeature(feat.id);
+                                else useDrawingStore.getState().hideFeature(feat.id);
                               }}
                             >
                               {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
@@ -834,7 +840,7 @@ export default function LayerPanel() {
                   if (fromIdx === -1 || toIdx === -1) return;
                   order.splice(fromIdx, 1);
                   order.splice(toIdx, 0, fromId);
-                  store.reorderLayers(order);
+                  useDrawingStore.getState().reorderLayers(order);
                 }}
                 className={`flex items-center gap-1 px-1 py-1 cursor-pointer transition-colors duration-100 hover:bg-gray-700 ${
                   activeLayerId === layer.id ? 'bg-gray-700' : ''
@@ -867,7 +873,7 @@ export default function LayerPanel() {
                       // Matches the "Isolate Layer" context-menu action below — surveyors
                       // expect both gestures.
                       for (const id of doc.layerOrder) {
-                        store.updateLayer(id, { visible: id === layer.id });
+                        useDrawingStore.getState().updateLayer(id, { visible: id === layer.id });
                       }
                     } else {
                       handleToggleVisibility(layer);
@@ -1054,7 +1060,7 @@ export default function LayerPanel() {
                                 }`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  store.updateTitleBlock({ [el.key]: !el.visible } as Partial<TitleBlockConfig>);
+                                  useDrawingStore.getState().updateTitleBlock({ [el.key]: !el.visible } as Partial<TitleBlockConfig>);
                                 }}
                               >
                                 {el.visible ? <Eye size={10} /> : <EyeOff size={10} />}
@@ -1135,8 +1141,8 @@ export default function LayerPanel() {
                             }`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (isHidden) store.unhideFeature(feat.id);
-                              else store.hideFeature(feat.id);
+                              if (isHidden) useDrawingStore.getState().unhideFeature(feat.id);
+                              else useDrawingStore.getState().hideFeature(feat.id);
                             }}
                           >
                             {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
@@ -1256,7 +1262,7 @@ export default function LayerPanel() {
               const ids = Object.values(doc.features)
                 .filter((f) => f.layerId === contextMenu.layerId && !f.hidden)
                 .map((f) => f.id);
-              if (ids.length > 0) selectionStore.selectMultiple(ids, 'REPLACE');
+              if (ids.length > 0) useSelectionStore.getState().selectMultiple(ids, 'REPLACE');
               setContextMenu(null);
             }}
           >
@@ -1339,7 +1345,7 @@ export default function LayerPanel() {
             onClick={() => {
               const target = contextMenu.layerId;
               for (const id of doc.layerOrder) {
-                store.updateLayer(id, { visible: id === target });
+                useDrawingStore.getState().updateLayer(id, { visible: id === target });
               }
               setContextMenu(null);
             }}
@@ -1350,7 +1356,7 @@ export default function LayerPanel() {
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => {
               for (const id of doc.layerOrder) {
-                if (!doc.layers[id]?.visible) store.updateLayer(id, { visible: true });
+                if (!doc.layers[id]?.visible) useDrawingStore.getState().updateLayer(id, { visible: true });
               }
               setContextMenu(null);
             }}
@@ -1370,7 +1376,7 @@ export default function LayerPanel() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const deg = parseFloat(rotationInputVal) || 0;
-                    store.updateLayer(contextMenu.layerId, { rotationDeg: deg === 0 ? null : deg });
+                    useDrawingStore.getState().updateLayer(contextMenu.layerId, { rotationDeg: deg === 0 ? null : deg });
                     setRotatingLayerId(null);
                     setContextMenu(null);
                   }
@@ -1384,7 +1390,7 @@ export default function LayerPanel() {
                 className="text-[10px] text-blue-400 hover:text-blue-300"
                 onClick={() => {
                   const deg = parseFloat(rotationInputVal) || 0;
-                  store.updateLayer(contextMenu.layerId, { rotationDeg: deg === 0 ? null : deg });
+                  useDrawingStore.getState().updateLayer(contextMenu.layerId, { rotationDeg: deg === 0 ? null : deg });
                   setRotatingLayerId(null);
                   setContextMenu(null);
                 }}

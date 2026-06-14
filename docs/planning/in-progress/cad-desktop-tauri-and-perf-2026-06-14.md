@@ -785,6 +785,34 @@ for the render-time read + `useXStore.getState()` inside the
 callbacks — plus the LayerPanel / PropertyPanel passes and
 the `CanvasViewport` cursor-tick paths. Track as `P6d`.
 
+**P6d LayerPanel subscription audit shipped 2026-06-14** —
+the LayerPanel was the next-biggest offender: whole-store
+`useDrawingStore()` + `useSelectionStore()` subs that paid the
+re-reconciliation tax on every layer mutation, every feature
+add, every selection change, and every hover tick (the panel
+renders hundreds of layer/feature/group rows on a real
+drawing). Per-field selectors replace the render-time reads:
+`useDrawingStore((s) => s.document / activeLayerId)`,
+`useSelectionStore((s) => s.selectedIds / hoveredId /
+hoveredTBElem / selectedTBElem)`. The ~25 callback action
+calls (`store.updateLayer`, `store.addLayer`,
+`store.hideFeature`, `selectionStore.select`, ...) route
+through `useDrawingStore.getState().X` /
+`useSelectionStore.getState().X` so the panel reads the
+latest snapshot at click time without subscribing. Source-
+locked by `__tests__/cad/ui/layer-panel-store-selectors.test.ts`
+(5 assertions covering the dropped subs, the per-field
+selectors, the getState-callback pattern, and the absence of
+every bare `store.` / `selectionStore.` leftover). Four
+pre-existing source-lock tests
+(`layer-panel-feature-eyes`, `layer-panel-selection-sync`,
+`layer-rename-uniqueness`, `survey-info-element-hide`) were
+widened in the same commit to accept either the old
+`store.X(...)` call form or the new
+`useDrawingStore.getState().X(...)` form.
+**Remaining P6d follow-up:** the PropertyPanel pass + the
+`CanvasViewport` cursor-tick paths — track as `P6e`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at

@@ -41,8 +41,16 @@ describe('LayerPanel — per-feature eye toggle', () => {
     expect(SRC).toMatch(/isHidden \? <EyeOff size=\{10\} \/> : <Eye size=\{10\} \/>/);
   });
 
-  it('eye click toggles store.hideFeature / store.unhideFeature and stops propagation', () => {
-    expect(SRC).toMatch(/e\.stopPropagation\(\);\s*if \(isHidden\) store\.unhideFeature\(feat\.id\);\s*else store\.hideFeature\(feat\.id\);/);
+  it('eye click toggles hideFeature / unhideFeature and stops propagation', () => {
+    // P6d dropped the `const store = useDrawingStore()` whole-store
+    // subscription, so callbacks now read the store via
+    // `useDrawingStore.getState().X`. The regex accepts either form.
+    const store = '(store|useDrawingStore\\.getState\\(\\))';
+    expect(SRC).toMatch(
+      new RegExp(
+        `e\\.stopPropagation\\(\\);\\s*if \\(isHidden\\) ${store}\\.unhideFeature\\(feat\\.id\\);\\s*else ${store}\\.hideFeature\\(feat\\.id\\);`,
+      ),
+    );
   });
 
   it('row carries data-hidden so a future regression test can read state without rendering', () => {
