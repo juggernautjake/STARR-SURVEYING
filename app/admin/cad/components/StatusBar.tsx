@@ -3,7 +3,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore, useAIStore, AI_MODE_CYCLE } from '@/lib/cad/store';
-import { formatDistance, formatCoordinates, formatAngle } from '@/lib/cad/geometry/units';
+// cad-desktop-tauri-and-perf Slice P6 — extracted cursor pill so
+// mousemove ticks don't reconcile the whole StatusBar subtree.
+import StatusBarCursorPill from './StatusBarCursorPill';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { listAutosaves } from '@/lib/cad/persistence/autosave';
 import type { SnapType } from '@/lib/cad/types';
@@ -74,7 +76,10 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
   const aiMode = useAIStore((s) => s.mode);
   const aiSandbox = useAIStore((s) => s.sandbox);
   const cycleAIMode = useAIStore((s) => s.cycleMode);
-  const cursor = viewportStore.cursorWorld;
+  // cad-desktop-tauri-and-perf Slice P6 — cursor world position
+  // lives on the extracted `StatusBarCursorPill`, so the parent no
+  // longer reconciles on mousemove ticks. Zoom stays here because
+  // the zoom-percent input + the +/- buttons render off it.
   const zoom = viewportStore.zoom;
 
   const { document: doc, activeLayerId } = drawingStore;
@@ -114,7 +119,10 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
     };
   }, [doc.id]);
 
-  const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
+  // cad-desktop-tauri-and-perf Slice P6 — `drawingPoints`,
+  // `basePoint`, and `rotateCenter` are read by the extracted cursor
+  // pill; the parent no longer needs them.
+  const { activeTool, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
   const zoomPct = Math.round(zoom * 100);
@@ -212,23 +220,9 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
     }
   }
 
-  // Live distance/angle when drawing — formatted per display preferences
-  let distanceInfo: { dist: string; bearing: string } | null = null;
-  const lastPt = drawingPoints[drawingPoints.length - 1] ?? basePoint ?? rotateCenter;
-  if (lastPt && (activeTool.startsWith('DRAW_') || activeTool === 'MOVE' || activeTool === 'COPY' || activeTool === 'MIRROR')) {
-    const dx = cursor.x - lastPt.x;
-    const dy = cursor.y - lastPt.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    // Math angle (counter-clockwise from east) → survey bearing
-    const mathAngleRad = Math.atan2(dy, dx);
-    distanceInfo = {
-      dist: formatDistance(dist, prefs),
-      bearing: formatAngle(mathAngleRad, prefs, 'BEARING'),
-    };
-  }
-
-  // Formatted cursor coordinates
-  const coords = formatCoordinates(cursor.x, cursor.y, prefs);
+  // cad-desktop-tauri-and-perf Slice P6 — the live distance/bearing
+  // + formatted coordinates moved to `StatusBarCursorPill`. The
+  // parent function no longer touches the cursor at all.
 
   function toggleSnap() {
     drawingStore.updateSettings({ snapEnabled: !snapEnabled });
@@ -240,20 +234,10 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
 
   return (
     <div className="flex items-center bg-gray-900 border-t border-gray-700 px-3 py-0.5 text-xs text-gray-400 gap-4 overflow-hidden">
-      {/* Coordinates */}
-      <span className="font-mono shrink-0 text-cyan-300">
-        {coords.label1}: {coords.value1} &nbsp; {coords.label2}: {coords.value2}
-      </span>
-
-      {/* Live dist/bearing when drawing */}
-      {distanceInfo && (
-        <>
-          <span className="text-gray-600">|</span>
-          <span className="font-mono shrink-0 text-cyan-400">
-            d={distanceInfo.dist} &nbsp; {distanceInfo.bearing}
-          </span>
-        </>
-      )}
+      {/* cad-desktop-tauri-and-perf Slice P6 — memoized sub-component
+          owns the live coordinate + distance display so mousemove
+          ticks don't reconcile the rest of the status bar. */}
+      <StatusBarCursorPill prefs={prefs} />
 
       <span className="text-gray-600">|</span>
 

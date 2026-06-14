@@ -710,6 +710,29 @@ the selection-id set rather than reading raw `selectedIds`.
 Source-lock the selector hooks; document the profiler delta on
 the Garland fixture before/after.
 
+**Shipped 2026-06-14** — First boundary cut: the Status Bar's
+cursor/coord pill now lives in
+`app/admin/cad/components/StatusBarCursorPill.tsx`, a memoized
+sub-component (`memo(StatusBarCursorPillInner)`) that subscribes
+to its own slices via per-field selectors
+(`useViewportStore((s) => s.cursorWorld)`,
+`useToolStore((s) => s.state.activeTool / drawingPoints /
+basePoint / rotateCenter)`). `StatusBar.tsx` drops the
+`cursor` / `drawingPoints` / `basePoint` / `rotateCenter`
+destructures and the inline coords + dist/bearing JSX, and now
+renders `<StatusBarCursorPill prefs={prefs} />` — the surrounding
+status bar (selection count, AI mode, snap chips, layer chips,
+zoom controls) no longer reconciles on every mousemove tick,
+and zustand's per-selector equality lets the pill itself skip
+re-renders unless the cursor world position or the active-tool
+gating fields actually change. The `formatDistance` /
+`formatAngle` / `formatCoordinates` imports moved to the pill
+with the call sites. Source-locked by
+`__tests__/cad/ui/status-bar-cursor-pill.test.ts` (10 assertions).
+**Follow-ups still in scope for P6:** the same treatment for the
+MenuBar / LayerPanel / PropertyPanel subtrees, plus the
+`CanvasViewport` cursor-tick paths — track as `P6b`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
