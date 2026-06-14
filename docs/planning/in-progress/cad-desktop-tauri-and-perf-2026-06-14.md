@@ -662,15 +662,40 @@ fallback for the small-layer / no-Worker path even after
 the Worker lands.
 
 ### P5 — LOD threshold tuning + lazy label render
-At zoom below `doc.settings.lodPixelThreshold` (default 0.5),
-skip label render entirely and draw points as 2-pixel dots
-instead of the symbol library glyph. Polyline simplification
-epsilon ramps from 0 ft at full zoom to `simplifyEpsilon` ft at
-the threshold. Surfaced as three settings:
-`lodPixelThreshold`, `lodLabelThreshold`, `lodSimplifyEpsilon`
-— all AI-controllable. Pure helper + selector tests; visual
-fidelity tested at boundaries via existing render-fixture
-infrastructure.
+> **DONE (2026-06-14).** `lib/cad/geometry/lod.ts` gains a
+> `LodConfig` interface (`pixelThreshold?`,
+> `labelThreshold?`, `simplifyMultiplier?`) + three exported
+> defaults (`DEFAULT_LOD_PIXEL_THRESHOLD = 0.5`,
+> `DEFAULT_LOD_LABEL_THRESHOLD = 2.0`,
+> `DEFAULT_LOD_SIMPLIFY_MULTIPLIER = 0.5`). `shouldUseLOD` and
+> `lodSimplificationThreshold` take an optional config arg
+> with full back-compat (undefined → historical defaults).
+> New `shouldRenderLabels(viewportScale, config)` returns
+> false when world-per-pixel exceeds the label threshold —
+> intentionally HIGHER than the pixel threshold because labels
+> become illegible long before geometry dots take over.
+>
+> `DrawingSettings` gains an optional
+> `lod?: { pixelThreshold?, labelThreshold?, simplifyMultiplier? }`
+> field. AI-controllable: `updateSettings({ lod: { ... } })`
+> already works via the existing flat-update API.
+>
+> CanvasViewport now reads `doc.settings.lod` once per render
+> and threads the config through every threshold call.
+> `renderLabels` bails at the top when `shouldRenderLabels`
+> is false, tearing down the cached `pixi.labelTexts` so a
+> fast zoom-out doesn't leave stale Text objects on screen
+> — pure waste removed from the zoomed-out frame.
+>
+> 19 unit + source-lock cases in
+> `__tests__/cad/geometry/lod-config.test.ts` cover the
+> default constants (historical values preserved), default
+> behaviour parity for `shouldUseLOD`, the new
+> `shouldRenderLabels` boundary, custom-multiplier scaling +
+> 0-multiplier disable, non-finite defense, the
+> `DrawingSettings.lod` type extension, and the
+> CanvasViewport renderer wiring (both `renderFeatures` and
+> the `renderLabels` early-out). Full suite: 8035 green.
 
 ### P6 — React boundary audit
 `CanvasViewport.tsx` is 14,431 lines — almost certainly

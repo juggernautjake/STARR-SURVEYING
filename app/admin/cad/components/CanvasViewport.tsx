@@ -36,6 +36,7 @@ import {
   cullFeaturesWithIndex,
   expandBBox,
   lodSimplificationThreshold,
+  shouldRenderLabels,
   shouldUseLOD,
   simplifyPolyline,
   type BoundingBox as LodBoundingBox,
@@ -1860,9 +1861,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const culledIds = new Set(culledFeatures.map((f) => f.id));
     const { zoom } = useViewportStore.getState();
     const worldPerPixel = zoom > 0 ? 1 / zoom : 0;
-    const lodActive = shouldUseLOD(worldPerPixel);
+    // cad-desktop-tauri-and-perf Slice P5 — thread the
+    // doc-settings LOD config into every threshold call so a
+    // surveyor (or the AI) can tune the dot / simplify behavior
+    // per drawing. Undefined config falls back to the original
+    // DEFAULT_LOD_* constants.
+    const lodConfig = doc.settings.lod;
+    const lodActive = shouldUseLOD(worldPerPixel, lodConfig);
     const simplifyEpsilon = lodActive
-      ? lodSimplificationThreshold(worldPerPixel)
+      ? lodSimplificationThreshold(worldPerPixel, lodConfig)
       : 0;
 
     // Lazily-maintained per-layer sub-containers (for per-layer rotation)
@@ -4143,6 +4150,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function renderLabels() {
     const pixi = pixiRef.current;
     if (!pixi) return;
+
+    // cad-desktop-tauri-and-perf Slice P5 — bail entirely when the
+    // current zoom puts world units above `lod.labelThreshold` (or
+    // its DEFAULT_LOD_LABEL_THRESHOLD fallback). Labels become
+    // illegible long before the geometry LOD trips; running their
+    // generation + Pixi.Text creation cost when nothing's readable
+    // is pure waste. We also wipe whatever the previous frame
+    // rendered so a fast zoom-out doesn't leave stale labels on
+    // screen.
+    const { zoom: lblZoom } = useViewportStore.getState();
+    const lblWorldPerPixel = lblZoom > 0 ? 1 / lblZoom : 0;
+    const docSettings = useDrawingStore.getState().document.settings;
+    if (!shouldRenderLabels(lblWorldPerPixel, docSettings.lod)) {
+      for (const [, txt] of pixi.labelTexts) {
+        txt.parent?.removeChild(txt);
+        txt.destroy();
+      }
+      pixi.labelTexts.clear();
+      return;
+    }
 
     const layerVisibleFeatures = drawingStore.getVisibleFeatures();
     // Phase 7 §19 — skip out-of-viewport features so we don't

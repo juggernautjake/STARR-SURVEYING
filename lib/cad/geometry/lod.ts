@@ -341,28 +341,82 @@ function bboxFromPoints(points: Point2D[]): BoundingBox {
 // LOD thresholds + polyline simplification
 // ────────────────────────────────────────────────────────────
 
+// cad-desktop-tauri-and-perf Slice P5 — LOD thresholds become
+// document-settings-driven. The historical defaults are kept (so
+// existing surveys + tests stay identical), but a caller passing
+// a `LodConfig` from `doc.settings.lod` can tune any of the three
+// knobs. AI-controllable via `updateSettings({ lod: { ... } })`.
+
+export interface LodConfig {
+  /** World-units-per-pixel above which `shouldUseLOD` returns true.
+   *  Default 0.5 — at one pixel-per-half-foot the eye stops resolving
+   *  individual point symbols on a typical 14" display. */
+  pixelThreshold?: number;
+  /** World-units-per-pixel above which the renderer skips label
+   *  generation entirely (the "Slice P5 lazy label render" knob).
+   *  Default 2.0 — labels become illegible long before the LOD
+   *  threshold itself trips. */
+  labelThreshold?: number;
+  /** Multiplier the `lodSimplificationThreshold` formula uses
+   *  (`viewportScale * multiplier`). Default 0.5 (a half-pixel
+   *  epsilon — Douglas-Peucker simplification stays invisible to
+   *  the eye). */
+  simplifyMultiplier?: number;
+}
+
+export const DEFAULT_LOD_PIXEL_THRESHOLD = 0.5;
+export const DEFAULT_LOD_LABEL_THRESHOLD = 2.0;
+export const DEFAULT_LOD_SIMPLIFY_MULTIPLIER = 0.5;
+
+function resolvePixelThreshold(config?: LodConfig): number {
+  const v = config?.pixelThreshold;
+  return Number.isFinite(v) && (v as number) > 0 ? (v as number) : DEFAULT_LOD_PIXEL_THRESHOLD;
+}
+
+function resolveLabelThreshold(config?: LodConfig): number {
+  const v = config?.labelThreshold;
+  return Number.isFinite(v) && (v as number) > 0 ? (v as number) : DEFAULT_LOD_LABEL_THRESHOLD;
+}
+
+function resolveSimplifyMultiplier(config?: LodConfig): number {
+  const v = config?.simplifyMultiplier;
+  return Number.isFinite(v) && (v as number) >= 0 ? (v as number) : DEFAULT_LOD_SIMPLIFY_MULTIPLIER;
+}
+
 /**
  * `viewportScale` is world-units-per-pixel. When the camera
  * is zoomed out far enough that one pixel covers more than
- * ~0.5 world units, we drop into LOD mode (point symbols
- * collapse to dots, ultra-fine geometry is decimated).
+ * `config.pixelThreshold` world units (default 0.5), we drop
+ * into LOD mode (point symbols collapse to dots, ultra-fine
+ * geometry is decimated).
  */
-export function shouldUseLOD(viewportScale: number): boolean {
+export function shouldUseLOD(viewportScale: number, config?: LodConfig): boolean {
   if (!Number.isFinite(viewportScale) || viewportScale <= 0) return false;
-  return viewportScale > 0.5;
+  return viewportScale > resolvePixelThreshold(config);
 }
 
 /**
  * Threshold (in world units) below which Douglas-Peucker
- * collapses two consecutive vertices. The renderer should
- * scale this with viewportScale: the formula
- *   threshold = viewportScale * 0.5
- * gives a half-pixel epsilon so simplification is invisible
- * to the eye.
+ * collapses two consecutive vertices. Formula:
+ *   threshold = viewportScale * config.simplifyMultiplier
+ * Default 0.5 multiplier gives a half-pixel epsilon so
+ * simplification is invisible to the eye.
  */
-export function lodSimplificationThreshold(viewportScale: number): number {
+export function lodSimplificationThreshold(viewportScale: number, config?: LodConfig): number {
   if (!Number.isFinite(viewportScale) || viewportScale <= 0) return 0;
-  return Math.max(0, viewportScale * 0.5);
+  return Math.max(0, viewportScale * resolveSimplifyMultiplier(config));
+}
+
+/**
+ * Slice P5 — should the renderer pay for label generation at the
+ * current zoom level? Returns false when the per-pixel world width
+ * exceeds `config.labelThreshold`; the LOD label cutoff sits
+ * intentionally HIGHER than the geometry LOD threshold because
+ * labels become illegible long before the dots take over.
+ */
+export function shouldRenderLabels(viewportScale: number, config?: LodConfig): boolean {
+  if (!Number.isFinite(viewportScale) || viewportScale <= 0) return false;
+  return viewportScale <= resolveLabelThreshold(config);
 }
 
 /**
