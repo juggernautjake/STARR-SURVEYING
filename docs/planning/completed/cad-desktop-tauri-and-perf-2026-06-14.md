@@ -1003,6 +1003,47 @@ sub — `useDrawingStore()`. Has render-time reads
 + drawing-rotation; `document.layerOrder.length` for the
 "no layers yet" overlay). Track as `P6k`.
 
+**P6k drawing sub shipped 2026-06-14** — the largest blast-
+radius sub in the entire system. Every feature add / update
+fires through `drawingStore`, and AI runs + bulk imports drive
+many ticks per second; before this slice the entire 14k-line
+CanvasViewport reconciled on each one even though the canvas
+paint goes through rAF independently. Four narrow render-time
+fields move to per-field selectors:
+`useDrawingStore((s) => s.document.settings.codeDisplayMode)`
+(useEffect dep for label regen),
+`useDrawingStore((s) => s.document.settings.displayPreferences)`
+(SelectionDragChip prop),
+`useDrawingStore((s) => s.document.settings.drawingRotationDeg ?? 0)`
+(rotation-indicator IIFE), and
+`useDrawingStore((s) => s.document.layerOrder.length)`
+("no layers yet" overlay gate). The ~172 callback + rAF call
+sites SED-converted to `useDrawingStore.getState().X`; the
+multi-line `drawingStore\n  .getVisibleFeatures()` /
+`.getAllFeatures()` patterns and the destructure
+`const { activeLayerId, getActiveLayerStyle } = drawingStore`
+(11 instances) were updated by hand to `useDrawingStore.getState()`.
+Source-locked by
+`__tests__/cad/ui/canvas-viewport-drawing-selectors.test.ts`
+(5 assertions covering the dropped sub, the four per-field
+selectors, the JSX rewrites, no bare `drawingStore.X`
+leftovers, and four sample `getState()` callbacks). Four
+pre-existing source-lock tests (`area-label-context-menu`,
+`cert-notes-drag-to-move`, `label-editor-background`,
+`point-label-drag-grouping`) widened to accept either form.
+Full suite: 8155 green.
+
+**P6 is now fully complete.** Every UI component that ever
+held a whole-store zustand subscription in the CAD app —
+`StatusBar`, `StatusBarCursorPill` (extracted),
+`MenuBar`, `LayerPanel`, `PropertyPanel`, `OffsetSourceSection`,
+`CanvasViewport`, and `CanvasCoordsPill` (extracted) — now
+uses per-field selectors for render-time reads and
+`useXStore.getState()` for callbacks. The cursor-tick path
+specifically (the highest-frequency wake-up in the system,
+~60 Hz mousemoves) walks through ZERO whole-store
+subscriptions end-to-end.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
@@ -1157,6 +1198,22 @@ spatial-index query. Rust + wgpu renders to a window-shared
 surface. **Only land this slice if Slice N1's profile says we
 need it; otherwise mark deferred with a one-line rationale per
 the planning rubric.**
+
+**Deferred 2026-06-14** — per the original plan's explicit
+gating contract: the N1 profiling harness (helper +
+CanvasViewport call sites + Ctrl+Alt+P overlay + fixture
+loader/capture) shipped in N1–N1f, and the Phase-2 React
+boundary audit (P6–P6k) eliminated every whole-store wake-up in
+the UI. The Rust + wgpu rewrite is an order of magnitude more
+expensive than every other slice in this plan, and the plan
+itself says to defer until an empirical profile on the
+small/medium/large fixtures shows the V8/WebGL stack is still
+the bottleneck after the Phase-2 work landed. No such profile
+exists yet on this branch — running it requires a real machine
++ a windowed Tauri session, not a CI green. Defer N2 until that
+profile data exists; track the actual go/no-go decision (and
+the resulting commit landing N2 or finalizing the deferral) in
+a follow-up planning doc dated when the profile is run.
 
 ## Risk register
 

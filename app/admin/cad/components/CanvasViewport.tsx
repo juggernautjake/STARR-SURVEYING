@@ -798,7 +798,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     _layerContainers: Map<string, import('pixi.js').Container>;
   } | null>(null);
 
-  const drawingStore = useDrawingStore();
+  // cad-desktop-tauri-and-perf Slice P6k — last whole-store sub
+  // on CanvasViewport. Subscribe to ONLY the narrow render-time
+  // doc fields so the component stops reconciling on every
+  // feature add / mutation (which fires constantly during AI
+  // runs, bulk imports, and interactive draws). Reads that need
+  // the latest snapshot at click / rAF time go through
+  // `useDrawingStore.getState().X`.
+  const codeDisplayMode = useDrawingStore((s) => s.document.settings.codeDisplayMode);
+  const displayPreferences = useDrawingStore((s) => s.document.settings.displayPreferences);
+  const drawingRotationDeg = useDrawingStore((s) => s.document.settings.drawingRotationDeg ?? 0);
+  const layerOrderLen = useDrawingStore((s) => s.document.layerOrder.length);
   // cad-desktop-tauri-and-perf Slice P6j — last whole-store sub.
   // The render-time tool reads (`activeTool` / `perpStartPoint`
   // / `offsetSourceId` — drive the per-tool floating panels +
@@ -1203,8 +1213,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
   // Switch the on-canvas point code between numeric ("308") and alpha
   // ("BC01") when the document's codeDisplayMode changes — regenerate the
-  // affected POINT labels so the change shows immediately.
-  const codeDisplayMode = drawingStore.document.settings.codeDisplayMode;
+  // affected POINT labels so the change shows immediately. `codeDisplayMode`
+  // is bound at the top of the component via a per-field selector.
   useEffect(() => {
     const dStore = useDrawingStore.getState();
     const doc = dStore.document;
@@ -1327,7 +1337,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const height = canvas.offsetHeight || 600;
 
         const bgColor = parseInt(
-          (drawingStore.document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
+          (useDrawingStore.getState().document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
           16,
         );
 
@@ -1482,7 +1492,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // ── Zoom-to-fit: center the drawing paper in the viewport ──
         // Calculate the paper bounds from settings and zoom to show the entire page
         {
-          const docSettings = drawingStore.document.settings;
+          const docSettings = useDrawingStore.getState().document.settings;
           const { paperSize: ps, paperOrientation: po, drawingScale: ds } = docSettings;
           let [pw, ph] = PAPER_SIZE_MAP[ps ?? 'TABLOID'] ?? [11, 17];
           if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
@@ -1847,7 +1857,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (!pixi) return;
 
     const doc = useDrawingStore.getState().document;
-    const visibleFeatures = drawingStore.getVisibleFeatures();
+    const visibleFeatures = useDrawingStore.getState().getVisibleFeatures();
     const visibleIds = new Set(visibleFeatures.map((f) => f.id));
 
     // Phase 7 §19 — frustum culling. Compute the world-space
@@ -2370,7 +2380,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       imageCacheDocIdRef.current = doc.id;
     }
 
-    const visibleFeatures = drawingStore.getVisibleFeatures().filter(
+    const visibleFeatures = useDrawingStore.getState().getVisibleFeatures().filter(
       (f) => f.geometry.type === 'IMAGE' && f.geometry.image,
     );
     const activeIds = new Set(visibleFeatures.map((f) => f.id));
@@ -2751,7 +2761,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // cad-survey-info-hide Slice 1 — read the LIVE document via
     // getState() (not the stale `drawingStore` hook closure). This
     // function runs from a requestAnimationFrame loop, so the
-    // captured `drawingStore.document` could hold the SURVEY-INFO
+    // captured `useDrawingStore.getState().document` could hold the SURVEY-INFO
     // visibility as of the last React render — making the eye
     // toggle appear dead. `renderPaperFurniture` already reads
     // getState(); match it.
@@ -4200,7 +4210,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       return;
     }
 
-    const layerVisibleFeatures = drawingStore.getVisibleFeatures();
+    const layerVisibleFeatures = useDrawingStore.getState().getVisibleFeatures();
     // Phase 7 §19 — skip out-of-viewport features so we don't
     // tessellate labels the surveyor can't see. Keep the
     // unculled set in `keepLabelIds` so labels only get
@@ -4446,7 +4456,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;
     const drawingScale = doc.settings.drawingScale ?? 50;
-    const layerVisible = drawingStore.getVisibleFeatures().filter(f => f.type === 'TEXT');
+    const layerVisible = useDrawingStore.getState().getVisibleFeatures().filter(f => f.type === 'TEXT');
     // Phase 7 §19 — viewport cull TEXT features the same way
     // we cull geometry. Keep the layer-visible set so off-
     // viewport text objects survive across pans without
@@ -4612,7 +4622,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const glowEnabled = docSettings.hoverGlowEnabled ?? true;
     const glowIntensity = docSettings.hoverGlowIntensity ?? 1.0;
     if (hoveredId && !selectedIds.has(hoveredId) && glowEnabled) {
-      const feature = drawingStore.getFeature(hoveredId);
+      const feature = useDrawingStore.getState().getFeature(hoveredId);
       if (feature) {
         const geom = feature.geometry;
         // Helper: draw geometry outline for glow layers
@@ -4687,7 +4697,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     // Draw selection highlights
     for (const featureId of selectedIds) {
-      const feature = drawingStore.getFeature(featureId);
+      const feature = useDrawingStore.getState().getFeature(featureId);
       if (!feature) continue;
 
       // Highlight: selection color outline — width from settings.
@@ -4843,7 +4853,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     rotateHandleRef.current = null;
     if (toolState.activeTool === 'ROTATE' && selectedIds.size > 0) {
       const selFeatures = Array.from(selectedIds)
-        .map((id) => drawingStore.getFeature(id))
+        .map((id) => useDrawingStore.getState().getFeature(id))
         .filter((f): f is Feature => !!f);
       const loneImage =
         selFeatures.length === 1 && selFeatures[0].geometry.type === 'IMAGE';
@@ -4891,7 +4901,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (transferState.isOpen && transferState.pickedIds.size > 0) {
       const PICK_COLOR = 0x3b82f6; // blue-500
       for (const fid of transferState.pickedIds) {
-        const feat = drawingStore.getFeature(fid);
+        const feat = useDrawingStore.getState().getFeature(fid);
         if (!feat) continue;
         const bb = featureBounds(feat);
         if (!Number.isFinite(bb.minX)) continue;
@@ -4913,7 +4923,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (transferState.isOpen && transferState.pickModeActive) {
       const hoveredId = hoveredIdRef.current;
       if (hoveredId && !transferState.pickedIds.has(hoveredId)) {
-        const feat = drawingStore.getFeature(hoveredId);
+        const feat = useDrawingStore.getState().getFeature(hoveredId);
         if (feat) {
           const bb = featureBounds(feat);
           if (Number.isFinite(bb.minX)) {
@@ -4951,7 +4961,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const ringAlpha = 0.85 * fade;
         const PULSE_GREEN = 0x22c55e; // green-500
         for (const fid of transferState.recentlyTransferred.ids) {
-          const feat = drawingStore.getFeature(fid);
+          const feat = useDrawingStore.getState().getFeature(fid);
           if (!feat) continue;
           const bb = featureBounds(feat);
           if (!Number.isFinite(bb.minX)) continue;
@@ -8406,11 +8416,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
    * on — it must be the active layer.
    */
   function canEditLayer(layerId: string): boolean {
-    const layer = drawingStore.getLayer(layerId);
+    const layer = useDrawingStore.getState().getLayer(layerId);
     if (!layer || layer.locked || layer.visible === false) return false;
     if (
       useUIStore.getState().restrictEditingToActiveLayer &&
-      layerId !== drawingStore.activeLayerId
+      layerId !== useDrawingStore.getState().activeLayerId
     ) {
       return false;
     }
@@ -8422,7 +8432,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const worldTol = HIT_TOLERANCE_PX / useViewportStore.getState().zoom;
     // Exclude features on locked/hidden/non-active layers from selection.
-    const layerVisible = drawingStore.getVisibleFeatures().filter((f) =>
+    const layerVisible = useDrawingStore.getState().getVisibleFeatures().filter((f) =>
       canEditLayer(f.layerId),
     );
 
@@ -8434,8 +8444,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // an O(n) → O(cell footprint) speedup.
     const indexCache = ensureFeatureIndex(
       layerVisible,
-      drawingStore.document.features,
-      drawingStore.document.layers
+      useDrawingStore.getState().document.features,
+      useDrawingStore.getState().document.layers
     );
     const queryBox: LodBoundingBox = {
       minX: wx - worldTol,
@@ -8581,12 +8591,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           sy >= bounds.y && sy <= bounds.y + bounds.height) {
         if (key.startsWith('text:')) {
           const featureId = key.slice(5); // strip 'text:' prefix
-          const tf = drawingStore.getFeature(featureId);
+          const tf = useDrawingStore.getState().getFeature(featureId);
           if (tf && !canEditLayer(tf.layerId)) continue;
           return { featureId, labelId: featureId, isTextFeature: true, key };
         }
         const [featureId, labelId] = key.split(':');
-        const lf = drawingStore.getFeature(featureId);
+        const lf = useDrawingStore.getState().getFeature(featureId);
         if (lf && !canEditLayer(lf.layerId)) continue;
         return { featureId, labelId, isTextFeature: false, key };
       }
@@ -8650,12 +8660,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { wx: maxX, wy: maxY } = s2w(Math.max(start.x, end.x), Math.min(start.y, end.y));
     const selBox: BoundingBox = { minX, minY, maxX, maxY };
 
-    const mode = drawingStore.document.settings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
+    const mode = useDrawingStore.getState().document.settings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
 
     // Determine containment test based on mode
     const useFullContainment = mode === 'WINDOW_FULL_ONLY' || isWindowDrag;
 
-    const matchedIds: string[] = drawingStore
+    const matchedIds: string[] = useDrawingStore.getState()
       .getVisibleFeatures()
       .filter((f) => {
         if (!canEditLayer(f.layerId)) return false;
@@ -8676,14 +8686,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const polylineGroupIds = new Set<string>();
       const featureGroupIds  = new Set<string>();
       for (const id of matchedIds) {
-        const f = drawingStore.getFeature(id);
+        const f = useDrawingStore.getState().getFeature(id);
         const pgid = f?.properties?.polylineGroupId as string | undefined;
         if (pgid) polylineGroupIds.add(pgid);
         if (f?.featureGroupId) featureGroupIds.add(f.featureGroupId);
       }
       if (polylineGroupIds.size > 0 || featureGroupIds.size > 0) {
         const expanded = new Set(matchedIds);
-        for (const f of drawingStore.getVisibleFeatures()) {
+        for (const f of useDrawingStore.getState().getVisibleFeatures()) {
           const pgid = f.properties?.polylineGroupId as string | undefined;
           if (pgid && polylineGroupIds.has(pgid) && canEditLayer(f.layerId)) {
             expanded.add(f.id);
@@ -8702,7 +8712,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const polylineGroupIds = new Set<string>();
       const featureGroupIds  = new Set<string>();
       for (const id of matchedIds) {
-        const f = drawingStore.getFeature(id);
+        const f = useDrawingStore.getState().getFeature(id);
         const pgid = f?.properties?.polylineGroupId as string | undefined;
         if (pgid) polylineGroupIds.add(pgid);
         if (f?.featureGroupId) featureGroupIds.add(f.featureGroupId);
@@ -8710,7 +8720,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // For each polyline group, check if ALL members are in the box
       if (polylineGroupIds.size > 0) {
         for (const gid of polylineGroupIds) {
-          const groupMembers = drawingStore.getVisibleFeatures().filter(
+          const groupMembers = useDrawingStore.getState().getVisibleFeatures().filter(
             (f) => f.properties?.polylineGroupId === gid
           );
           const allInBox = groupMembers.every((f) => matchedSet.has(f.id));
@@ -8722,8 +8732,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // For each feature group, check if ALL members are in the box
       if (featureGroupIds.size > 0) {
         for (const gid of featureGroupIds) {
-          const group = drawingStore.getFeatureGroup(gid);
-          const groupMembers = (group?.featureIds ?? []).map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
+          const group = useDrawingStore.getState().getFeatureGroup(gid);
+          const groupMembers = (group?.featureIds ?? []).map((id) => useDrawingStore.getState().getFeature(id)).filter(Boolean) as Feature[];
           const allInBox = groupMembers.every((f) => matchedSet.has(f.id));
           if (!allInBox) {
             for (const f of groupMembers) matchedSet.delete(f.id);
@@ -8740,7 +8750,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Create feature helper
   // ─────────────────────────────────────────────
   function createFeature(type: FeatureType, points: Point2D[]): Feature | null {
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const mergedStyle = { ...DEFAULT_FEATURE_STYLE, ...layerStyle };
     const id = generateId();
@@ -8836,7 +8846,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   function commitTextFeature(text: string, wx: number, wy: number) {
     if (!text.trim()) return;
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const feature: Feature = {
       id: generateId(),
@@ -8860,7 +8870,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         textAlign: 'left',
       },
     };
-    drawingStore.addFeature(feature);
+    useDrawingStore.getState().addFeature(feature);
     useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
   }
 
@@ -8868,7 +8878,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Helper: get all segment IDs that share a polylineGroupId
   // ─────────────────────────────────────────────
   function getPolylineGroupIds(groupId: string): string[] {
-    return drawingStore
+    return useDrawingStore.getState()
       .getAllFeatures()
       .filter((f) => f.properties.polylineGroupId === groupId)
       .map((f) => f.id);
@@ -8878,7 +8888,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Create a single LINE segment as part of a polyline group
   // ─────────────────────────────────────────────
   function createPolylineSegment(start: Point2D, end: Point2D, groupId: string): Feature {
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const ds = useToolStore.getState().state.drawStyle;
     const { azimuth: segAzimuth, distance: segDist } = inverseBearingDistance(start, end);
@@ -8925,7 +8935,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
       const controlPoints = fitPointsToBezier(drawingPoints, false);
-      const { activeLayerId, getActiveLayerStyle } = drawingStore;
+      const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
       const layerStyle = getActiveLayerStyle();
       const ds = useToolStore.getState().state.drawStyle;
       const feature: Feature = {
@@ -8947,7 +8957,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         properties: {},
       };
       const labelledFeature = withAutoLabels(feature);
-      drawingStore.addFeature(labelledFeature);
+      useDrawingStore.getState().addFeature(labelledFeature);
       useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
       useToolStore.getState().clearDrawingPoints();
       return;
@@ -8956,7 +8966,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
     const labelledFeature = withAutoLabels(feature);
-    drawingStore.addFeature(labelledFeature);
+    useDrawingStore.getState().addFeature(labelledFeature);
     useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
     useToolStore.getState().clearDrawingPoints();
   }
@@ -8971,7 +8981,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // Pad to a multiple of 3 + 1 if needed (trim extra points)
     const usable = Math.floor((drawingPoints.length - 1) / 3) * 3 + 1;
     const controlPoints = drawingPoints.slice(0, usable);
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const ds = useToolStore.getState().state.drawStyle;
     const feature: Feature = {
@@ -8993,7 +9003,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       properties: {},
     };
     const labelledFeature = withAutoLabels(feature);
-    drawingStore.addFeature(labelledFeature);
+    useDrawingStore.getState().addFeature(labelledFeature);
     useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
     useToolStore.getState().clearDrawingPoints();
   }
@@ -9044,7 +9054,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // Use rotation-aware coordinate conversion
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const cursor = { x: wx, y: wy };
-    const { settings } = drawingStore.document;
+    const { settings } = useDrawingStore.getState().document;
 
     if (settings.snapEnabled) {
       // §19.1 — narrow the feature list with the spatial
@@ -9054,11 +9064,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // (snap targets endpoints and midpoints lying inside
       // the radius, which can be on a feature whose bbox
       // overlaps the cursor by less than the radius).
-      const layerVisible = drawingStore.getVisibleFeatures();
+      const layerVisible = useDrawingStore.getState().getVisibleFeatures();
       const indexCache = ensureFeatureIndex(
         layerVisible,
-        drawingStore.document.features,
-        drawingStore.document.layers
+        useDrawingStore.getState().document.features,
+        useDrawingStore.getState().document.layers
       );
       const worldRadius = settings.snapRadius / Math.max(0.0001, useViewportStore.getState().zoom);
       const queryBox: LodBoundingBox = {
@@ -9095,7 +9105,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // unselected feature. The whole selection shifts by the same delta, so
   // bearings, lengths, and angles are untouched — it just snaps the end.
   function endpointSnapDelta(dx: number, dy: number): { dx: number; dy: number } {
-    const settings = drawingStore.document.settings;
+    const settings = useDrawingStore.getState().document.settings;
     if (!settings.snapEnabled) return { dx, dy };
     const selectedIds = useSelectionStore.getState().selectedIds;
     if (selectedIds.size === 0) return { dx, dy };
@@ -9110,12 +9120,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const moving: Point2D[] = [];
     for (const id of selectedIds) {
-      const f = drawingStore.getFeature(id);
+      const f = useDrawingStore.getState().getFeature(id);
       if (f) for (const p of endpointsOf(f)) moving.push({ x: p.x + dx, y: p.y + dy });
     }
     if (moving.length === 0) return { dx, dy };
 
-    const targets = drawingStore.getVisibleFeatures().filter((f) => !selectedIds.has(f.id));
+    const targets = useDrawingStore.getState().getVisibleFeatures().filter((f) => !selectedIds.has(f.id));
     if (targets.length === 0) return { dx, dy };
     const zoom = Math.max(0.0001, useViewportStore.getState().zoom);
     const worldRadius = settings.snapRadius / zoom;
@@ -9138,9 +9148,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number; gripType?: 'SPLINE_FIT' | 'SPLINE_HANDLE' | 'ROTATE' } | null {
     const { selectedIds } = useSelectionStore.getState();
-    const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
+    const gripHitSize = (useDrawingStore.getState().document.settings.gripSize ?? 6) + 2;
     for (const featureId of selectedIds) {
-      const feature = drawingStore.getFeature(featureId);
+      const feature = useDrawingStore.getState().getFeature(featureId);
       if (!feature) continue;
 
       // IMAGE rotation handle takes priority over the resize grips.
@@ -9332,14 +9342,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // "Snap point to another point" pick: the click picks the target.
       if (snapPickRef.current) {
         const pick = snapPickRef.current;
-        const f = drawingStore.getFeature(pick.featureId);
+        const f = useDrawingStore.getState().getFeature(pick.featureId);
         if (f) {
           // Resolve the target point: snap to a nearby point / endpoint of
           // ANOTHER feature, else use the raw clicked location.
-          const settings = drawingStore.document.settings;
+          const settings = useDrawingStore.getState().document.settings;
           const zoom = Math.max(0.0001, useViewportStore.getState().zoom);
           const raw = screenToDrawingWorld(sx, sy);
-          const targets = drawingStore.getVisibleFeatures().filter((t) => t.id !== pick.featureId);
+          const targets = useDrawingStore.getState().getVisibleFeatures().filter((t) => t.id !== pick.featureId);
           const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
           const snap = findSnapPoint(
             { x: raw.wx, y: raw.wy }, targets,
@@ -9359,7 +9369,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Features to move: the whole multi-selection when more than one
             // element is selected (rigid translate keeps their relative
             // positions), otherwise just the right-clicked feature.
-            const groupIds = (pick.selectionIds ?? []).filter((id) => drawingStore.getFeature(id));
+            const groupIds = (pick.selectionIds ?? []).filter((id) => useDrawingStore.getState().getFeature(id));
             const multi = groupIds.length > 1;
             const dx = target.x - cur.x;
             const dy = target.y - cur.y;
@@ -9370,12 +9380,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // proportions/relationships are preserved.
               const ops: Parameters<typeof makeBatchEntry>[1] = [];
               for (const id of groupIds) {
-                const ff = drawingStore.getFeature(id);
+                const ff = useDrawingStore.getState().getFeature(id);
                 if (!ff) continue;
                 const b = JSON.parse(JSON.stringify(ff));
                 const moved = transformFeature(ff, (p) => translate(p, dx, dy));
-                drawingStore.updateFeature(id, { geometry: moved.geometry });
-                const a = drawingStore.getFeature(id);
+                useDrawingStore.getState().updateFeature(id, { geometry: moved.geometry });
+                const a = useDrawingStore.getState().getFeature(id);
                 if (a) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: b, after: a } });
               }
               if (ops.length > 0) {
@@ -9390,7 +9400,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (pick.moveWhole) {
               // Translate the whole feature so the vertex lands on target.
               const moved = transformFeature(f, (p) => translate(p, dx, dy));
-              drawingStore.updateFeature(f.id, { geometry: moved.geometry });
+              useDrawingStore.getState().updateFeature(f.id, { geometry: moved.geometry });
             } else {
               // Move just this vertex onto the target.
               const ng = { ...g };
@@ -9403,9 +9413,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 verts[pick.vertexIndex] = { ...target };
                 ng.vertices = verts;
               }
-              drawingStore.updateFeatureGeometry(f.id, ng);
+              useDrawingStore.getState().updateFeatureGeometry(f.id, ng);
             }
-            const after = drawingStore.getFeature(f.id);
+            const after = useDrawingStore.getState().getFeature(f.id);
             if (after) {
               useUndoStore.getState().pushUndo(makeBatchEntry(
                 pick.moveWhole ? 'Snap feature to point' : 'Snap point',
@@ -9476,7 +9486,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const startAngle = Math.atan2(wy - h.pivot.y, wx - h.pivot.x);
           const originals = new Map<string, Feature>();
           for (const id of useSelectionStore.getState().selectedIds) {
-            const f = drawingStore.getFeature(id);
+            const f = useDrawingStore.getState().getFeature(id);
             if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
           }
           if (originals.size > 0) {
@@ -9501,7 +9511,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const currentAngle = Math.atan2(cursorVec.y, cursorVec.x);
           const deltaAngle = currentAngle - op.baseAngle;
           for (const [id, orig] of op.originals) {
-            const after = drawingStore.getFeature(id);
+            const after = useDrawingStore.getState().getFeature(id);
             if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
           }
           if (ops.length > 0) {
@@ -9512,7 +9522,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const curDist = Math.hypot(cursorVec.x, cursorVec.y);
           const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
           for (const [id, orig] of op.originals) {
-            const after = drawingStore.getFeature(id);
+            const after = useDrawingStore.getState().getFeature(id);
             if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
           }
           if (ops.length > 0) {
@@ -9684,7 +9694,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             : grip.gripType === 'ROTATE' ? 'ROTATE'
             : 'VERTEX';
           gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: gType };
-          const startFeat = drawingStore.getFeature(grip.featureId) ?? null;
+          const startFeat = useDrawingStore.getState().getFeature(grip.featureId) ?? null;
           gripStartRef.current = startFeat;
           // Begin an image-rotation session so the handle follows the cursor.
           if (gType === 'ROTATE' && startFeat?.geometry.image) {
@@ -9781,7 +9791,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (labelHit) {
             if (labelHit.isTextFeature) {
               // TEXT feature — select it and start drag-to-move
-              const textFeature = drawingStore.getFeature(labelHit.featureId);
+              const textFeature = useDrawingStore.getState().getFeature(labelHit.featureId);
               if (textFeature) {
                 useSelectionStore.getState().select(labelHit.featureId, additive ? 'TOGGLE' : 'REPLACE');
                 const startWorld = screenToDrawingWorld(sx, sy);
@@ -9797,7 +9807,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               }
             } else {
               // Regular feature text label — drag offset
-              const feature = drawingStore.getFeature(labelHit.featureId);
+              const feature = useDrawingStore.getState().getFeature(labelHit.featureId);
               const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
               if (feature && label) {
                 const { wx, wy } = screenToDrawingWorld(sx, sy);
@@ -9839,10 +9849,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
-            const hitFeature = drawingStore.getFeature(hit);
+            const hitFeature = useDrawingStore.getState().getFeature(hit);
             const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
             const featureGid  = hitFeature?.featureGroupId ?? undefined;
-            const groupMode = drawingStore.document.settings.groupSelectMode ?? 'GROUP_FIRST';
+            const groupMode = useDrawingStore.getState().document.settings.groupSelectMode ?? 'GROUP_FIRST';
             let featureIds: string[];
 
             if (polylineGid && !additive) {
@@ -9870,7 +9880,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               }
             } else if (featureGid && !additive && groupMode === 'GROUP_FIRST') {
               // Feature group (named group): same GROUP_FIRST drill-down behavior.
-              const group = drawingStore.getFeatureGroup(featureGid);
+              const group = useDrawingStore.getState().getFeatureGroup(featureGid);
               const groupMemberIds = group?.featureIds ?? [];
               const allGroupSelected = groupMemberIds.length > 0 &&
                 groupMemberIds.every((id) => useSelectionStore.getState().selectedIds.has(id));
@@ -9878,7 +9888,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 useSelectionStore.getState().select(hit, 'REPLACE');
                 featureIds = [hit];
               } else {
-                featureIds = groupMemberIds.filter((id) => !!drawingStore.getFeature(id));
+                featureIds = groupMemberIds.filter((id) => !!useDrawingStore.getState().getFeature(id));
                 useSelectionStore.getState().selectMultiple(featureIds, 'REPLACE');
               }
             } else {
@@ -9909,7 +9919,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const feature = createFeature('POINT', [worldPt]);
           if (feature) {
             const labelledFeature = withAutoLabels(feature);
-            drawingStore.addFeature(labelledFeature);
+            useDrawingStore.getState().addFeature(labelledFeature);
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
           }
           break;
@@ -9940,7 +9950,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Only create a segment if the new point is meaningfully different
             if (dist > MIN_SEGMENT_LENGTH_BASE / useViewportStore.getState().zoom) {
               const segment = createPolylineSegment(lastPt, worldPt, polylineGroupIdRef.current!);
-              drawingStore.addFeature(withAutoLabels(segment));
+              useDrawingStore.getState().addFeature(withAutoLabels(segment));
               useUndoStore.getState().pushUndo(makeAddFeatureEntry(segment));
               lastPolylineSegmentIdRef.current = segment.id;
               useToolStore.getState().addDrawingPoint(worldPt);
@@ -9976,11 +9986,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               id: generateId(),
               type: 'POLYGON',
               geometry: { type: 'POLYGON', vertices },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'RECTANGLE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             useToolStore.getState().clearDrawingPoints();
           }
@@ -10004,11 +10014,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               id: generateId(),
               type: 'POLYGON',
               geometry: { type: 'POLYGON', vertices },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'REGULAR_POLYGON', sides: sides.toString() },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             useToolStore.getState().clearDrawingPoints();
           }
@@ -10030,11 +10040,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'CIRCLE',
                 circle: { center: { ...center }, radius },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'CIRCLE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             useToolStore.getState().clearDrawingPoints();
           }
@@ -10060,11 +10070,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'CIRCLE',
                 circle: { center, radius },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'CIRCLE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             useToolStore.getState().clearDrawingPoints();
           }
@@ -10090,11 +10100,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'ELLIPSE',
                 ellipse: { center: { ...center }, radiusX, radiusY, rotation: 0 },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'ELLIPSE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             useToolStore.getState().clearDrawingPoints();
           }
@@ -10122,11 +10132,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'ELLIPSE',
                 ellipse: { center, radiusX, radiusY, rotation: 0 },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'ELLIPSE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             useToolStore.getState().clearDrawingPoints();
           }
@@ -10184,7 +10194,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const p3 = worldPt;
             const arcGeom = arcFrom3Points(p1, p2, p3);
             if (arcGeom && arcGeom.radius > MIN_SEGMENT_LENGTH_BASE) {
-              const { activeLayerId, getActiveLayerStyle } = drawingStore;
+              const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
               const layerStyle = getActiveLayerStyle();
               const feature: Feature = {
                 id: generateId(),
@@ -10194,7 +10204,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
                 properties: {},
               };
-              drawingStore.addFeature(withAutoLabels(feature));
+              useDrawingStore.getState().addFeature(withAutoLabels(feature));
               useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             }
             useToolStore.getState().clearDrawingPoints();
@@ -10205,9 +10215,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         case 'ERASE': {
           const hit = hitTest(sx, sy);
           if (hit) {
-            const feature = drawingStore.getFeature(hit);
+            const feature = useDrawingStore.getState().getFeature(hit);
             if (feature) {
-              drawingStore.removeFeature(hit);
+              useDrawingStore.getState().removeFeature(hit);
               useSelectionStore.getState().deselectAll();
               useUndoStore.getState().pushUndo(makeRemoveFeatureEntry(feature));
             }
@@ -10232,13 +10242,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
             if (selectedIds.length === 0) break;
             const ops = selectedIds.flatMap((id) => {
-              const f = drawingStore.getFeature(id);
+              const f = useDrawingStore.getState().getFeature(id);
               if (!f) {
                 cadLog.warn('CanvasViewport', `MOVE: feature "${id}" not found — skipped`);
                 return [];
               }
               const newF = transformFeature(f, (p) => translate(p, dx, dy));
-              drawingStore.updateFeature(id, { geometry: newF.geometry });
+              useDrawingStore.getState().updateFeature(id, { geometry: newF.geometry });
               return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
             });
             if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Move', ops));
@@ -10263,7 +10273,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (selectedIds.length === 0) break;
             const newFeatures: Feature[] = [];
             for (const id of selectedIds) {
-              const f = drawingStore.getFeature(id);
+              const f = useDrawingStore.getState().getFeature(id);
               if (!f) {
                 cadLog.warn('CanvasViewport', `COPY: feature "${id}" not found — skipped`);
                 continue;
@@ -10273,7 +10283,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               newFeatures.push(newF);
             }
             if (newFeatures.length > 0) {
-              drawingStore.addFeatures(newFeatures);
+              useDrawingStore.getState().addFeatures(newFeatures);
               const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
               useUndoStore.getState().pushUndo(makeBatchEntry('Copy', ops));
             }
@@ -10295,12 +10305,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // so you see the result before finalizing.
           {
             const selIds = Array.from(useSelectionStore.getState().selectedIds);
-            const only = selIds.length === 1 ? drawingStore.getFeature(selIds[0]) : null;
+            const only = selIds.length === 1 ? useDrawingStore.getState().getFeature(selIds[0]) : null;
             if (!toolState.copyMode && only?.geometry.type === 'IMAGE' && only.geometry.image) {
               const session = imageRotateRef.current;
               if (session?.viaTool && session.featureId === only.id) {
                 // Click 2 — finalize with a single undo entry.
-                const after = drawingStore.getFeature(session.featureId);
+                const after = useDrawingStore.getState().getFeature(session.featureId);
                 if (after) {
                   useUndoStore.getState().pushUndo({
                     id: generateId(),
@@ -10425,7 +10435,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (mirrorAxisMode === 'PICK_LINE') {
             const hit = hitTest(sx, sy);
             if (hit) {
-              const lineFeat = drawingStore.getFeature(hit);
+              const lineFeat = useDrawingStore.getState().getFeature(hit);
               if (lineFeat) {
                 const ep = pickAxisFromFeature(lineFeat, worldPt);
                 if (ep) {
@@ -10470,7 +10480,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // selected so the user can chain more ops.
               const newFeatures: Feature[] = [];
               for (const id of selectedIds) {
-                const f = drawingStore.getFeature(id);
+                const f = useDrawingStore.getState().getFeature(id);
                 if (!f) {
                   cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
                   continue;
@@ -10481,7 +10491,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 newFeatures.push({ ...cloned, geometry: mirrored.geometry });
               }
               if (newFeatures.length > 0) {
-                drawingStore.addFeatures(newFeatures);
+                useDrawingStore.getState().addFeatures(newFeatures);
                 const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
                 useUndoStore.getState().pushUndo(makeBatchEntry('Mirror Copy', ops));
                 useSelectionStore.getState().selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
@@ -10489,13 +10499,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             } else {
               // Default: mirror in place
               const ops = selectedIds.flatMap((id) => {
-                const f = drawingStore.getFeature(id);
+                const f = useDrawingStore.getState().getFeature(id);
                 if (!f) {
                   cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
                   return [];
                 }
                 const newF = transformFeature(f, reflect);
-                drawingStore.updateFeature(id, { geometry: newF.geometry });
+                useDrawingStore.getState().updateFeature(id, { geometry: newF.geometry });
                 return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
               });
               if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Mirror', ops));
@@ -10673,9 +10683,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }));
             break;
           }
-          const f = drawingStore.getFeature(hit);
+          const f = useDrawingStore.getState().getFeature(hit);
           if (!f) break;
-          const layer = drawingStore.document.layers[f.layerId];
+          const layer = useDrawingStore.getState().document.layers[f.layerId];
           const layerName = layer?.name ?? f.layerId;
           const fg = f.geometry;
           const parts: string[] = [];
@@ -10776,14 +10786,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // trace, or any other noisy import.
           const hit = hitTest(sx, sy);
           if (!hit) break;
-          const beforeF = drawingStore.getFeature(hit);
+          const beforeF = useDrawingStore.getState().getFeature(hit);
           const ok = simplifyPolylineFeature(hit, toolState.simplifyTolerance);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'SIMPLIFY — pick a POLYLINE / POLYGON; tolerance may be too small to drop any vertices.' },
             }));
           } else {
-            const afterF = drawingStore.getFeature(hit);
+            const afterF = useDrawingStore.getState().getFeature(hit);
             const beforeN = (beforeF?.geometry.vertices?.length ?? 0);
             const afterN = (afterF?.geometry.vertices?.length ?? 0);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
@@ -10947,7 +10957,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           //      Click 2 picks the second line and commits.
           const hit = hitTest(sx, sy);
           if (!hit) break;
-          const f = drawingStore.getFeature(hit);
+          const f = useDrawingStore.getState().getFeature(hit);
           if (!f) break;
           // Polyline-vertex branch.
           if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
@@ -11013,7 +11023,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // straight LINE bevel instead of an ARC.
           const hit = hitTest(sx, sy);
           if (!hit) break;
-          const f = drawingStore.getFeature(hit);
+          const f = useDrawingStore.getState().getFeature(hit);
           if (!f) break;
           if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
             const verts = f.geometry.vertices;
@@ -11122,7 +11132,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Phase 1: Select the feature to offset
             const hit = hitTest(sx, sy);
             if (hit) {
-              const f = drawingStore.getFeature(hit);
+              const f = useDrawingStore.getState().getFeature(hit);
               if (f && isOffsetableFeature(f)) {
                 useToolStore.getState().setOffsetSourceId(hit);
                 // Capture which segment the cursor is closest
@@ -11139,7 +11149,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }
           } else {
             // Phase 2: Commit the offset at the current cursor position
-            const sourceFeat = drawingStore.getFeature(offsetSourceId);
+            const sourceFeat = useDrawingStore.getState().getFeature(offsetSourceId);
             if (!sourceFeat) {
               useToolStore.getState().setOffsetSourceId(null);
               useToolStore.getState().setOffsetSourceSegmentIndex(null);
@@ -11347,7 +11357,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // reads parallel to the geometry (math convention,
           // CCW positive).
           const rotation = len > 1e-9 ? Math.atan2(dy, dx) : 0;
-          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
           const layerStyle = getActiveLayerStyle();
           const dimFeature: Feature = {
             id: generateId(),
@@ -11372,7 +11382,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               dimensionToY: to.y,
             },
           };
-          drawingStore.addFeature(dimFeature);
+          useDrawingStore.getState().addFeature(dimFeature);
           useUndoStore.getState().pushUndo(makeAddFeatureEntry(dimFeature));
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
             detail: { text: `DIM — placed annotation: ${bearingStr}  ${distStr}'` },
@@ -11423,7 +11433,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (dpts.length === 0) {
             // First click: hit-test for a line/polyline
             const hit = hitTest(sx, sy);
-            const feat = hit ? drawingStore.getFeature(hit) : null;
+            const feat = hit ? useDrawingStore.getState().getFeature(hit) : null;
             if (feat && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
               useToolStore.getState().addDrawingPoint(worldPt);
               useSelectionStore.getState().select(feat.id, 'REPLACE');
@@ -11434,7 +11444,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else if (dpts.length === 1) {
             // Second click: hit-test for a different line/polyline
             const hit = hitTest(sx, sy);
-            const feat = hit ? drawingStore.getFeature(hit) : null;
+            const feat = hit ? useDrawingStore.getState().getFeature(hit) : null;
             const selIds = Array.from(useSelectionStore.getState().selectedIds);
             const firstId = selIds[0] ?? null;
             if (feat && feat.id !== firstId && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
@@ -11451,7 +11461,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore],
+    [],
   );
 
   const handleMouseMove = useCallback(
@@ -11461,7 +11471,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const sy = e.clientY - rect.top;
 
       if (isPanningRef.current) {
-        const panMult = drawingStore.document.settings.panSpeed ?? 1.0;
+        const panMult = useDrawingStore.getState().document.settings.panSpeed ?? 1.0;
         const dx = (sx - lastMouseRef.current.x) * panMult;
         const dy = (sy - lastMouseRef.current.y) * panMult;
         useViewportStore.getState().pan(dx, dy);
@@ -11473,7 +11483,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (paperDragRef.current) {
         const { wx, wy } = s2w(sx, sy);
         const pd = paperDragRef.current;
-        drawingStore.updateSettings({
+        useDrawingStore.getState().updateSettings({
           paperOrigin: { x: pd.originX + (wx - pd.startWx), y: pd.originY + (wy - pd.startWy) },
         });
         return;
@@ -11519,14 +11529,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const { wx, wy } = screenToDrawingWorld(sx, sy);
         const dx = wx - startWorld.x;
         const dy = wy - startWorld.y;
-        drawingStore.updateTextLabel(featureId, labelId, {
+        useDrawingStore.getState().updateTextLabel(featureId, labelId, {
           offset: { x: startOffset.x + dx, y: startOffset.y + dy },
           userPositioned: true,
         });
         // §14 — move grouped sibling labels by the same delta.
         if (siblings) {
           for (const sib of siblings) {
-            drawingStore.updateTextLabel(featureId, sib.labelId, {
+            useDrawingStore.getState().updateTextLabel(featureId, sib.labelId, {
               offset: { x: sib.startOffset.x + dx, y: sib.startOffset.y + dy },
               userPositioned: true,
             });
@@ -11585,7 +11595,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         for (const [id, orig] of grab.originals) {
           const newF = transformFeature(orig, (p) => rotate(p, grab.pivot, delta));
-          drawingStore.updateFeatureGeometry(id, newF.geometry);
+          useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
         }
         const deg = normalizeDeg((delta * 180) / Math.PI);
         setHud({
@@ -11608,7 +11618,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const deltaAngle = currentAngle - op.baseAngle;
           for (const [id, orig] of op.originals) {
             const newF = transformFeature(orig, (p) => rotate(p, op.pivot, deltaAngle));
-            drawingStore.updateFeatureGeometry(id, newF.geometry);
+            useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
           }
           const deg = (deltaAngle * 180) / Math.PI;
           setInteractivePanel((prev) =>
@@ -11619,7 +11629,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
           for (const [id, orig] of op.originals) {
             const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
-            drawingStore.updateFeatureGeometry(id, newF.geometry);
+            useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
           }
           setInteractivePanel((prev) =>
             prev ? { ...prev, currentFactor: factor } : { type: 'SCALE', currentAngleDeg: 0, currentFactor: factor }
@@ -11632,7 +11642,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Grip drag update
       if (gripDragRef.current) {
         const { featureId, vertexIndex } = gripDragRef.current;
-        const feature = drawingStore.getFeature(featureId);
+        const feature = useDrawingStore.getState().getFeature(featureId);
         if (feature) {
           // Interactive image rotation (rotate-handle drag): spin around
           // the image center so the grabbed handle follows the cursor.
@@ -11648,7 +11658,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 newRot = Math.round(newRot / step) * step;
               }
               const rotated = setImageRotationAroundCenter(startImg, newRot);
-              drawingStore.updateFeatureGeometry(featureId, { ...feature.geometry, image: rotated });
+              useDrawingStore.getState().updateFeatureGeometry(featureId, { ...feature.geometry, image: rotated });
               const deg = normalizeDeg((newRot * 180) / Math.PI);
               setHud({
                 sx: sx + 18,
@@ -11824,7 +11834,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               break;
             }
           }
-          drawingStore.updateFeatureGeometry(featureId, geom);
+          useDrawingStore.getState().updateFeatureGeometry(featureId, geom);
 
           // While resizing an image, float a hint at the cursor with
           // the live size and the Ctrl=keep-aspect tip (corner grips).
@@ -11842,7 +11852,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // spins to track the cursor around its center until the next click.
       if (useToolStore.getState().state.activeTool === 'ROTATE' && imageRotateRef.current?.viaTool) {
         const session = imageRotateRef.current;
-        const feature = drawingStore.getFeature(session.featureId);
+        const feature = useDrawingStore.getState().getFeature(session.featureId);
         const startImg = session.before.geometry.image;
         if (feature && startImg) {
           const world = screenToDrawingWorld(sx, sy);
@@ -11853,7 +11863,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             newRot = Math.round(newRot / step) * step;
           }
           const rotated = setImageRotationAroundCenter(startImg, newRot);
-          drawingStore.updateFeatureGeometry(session.featureId, { ...feature.geometry, image: rotated });
+          useDrawingStore.getState().updateFeatureGeometry(session.featureId, { ...feature.geometry, image: rotated });
           useToolStore.getState().setPreviewPoint({ x: world.wx, y: world.wy });
           const deg = normalizeDeg((newRot * 180) / Math.PI);
           setHud({
@@ -11877,7 +11887,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const orig = originals.get(id);
             if (!orig) continue;
             const translated = transformFeature(orig, (pt) => translate(pt, dx, dy));
-            drawingStore.updateFeatureGeometry(id, translated.geometry);
+            useDrawingStore.getState().updateFeatureGeometry(id, translated.geometry);
           }
         }
       }
@@ -11935,7 +11945,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (onGrip) {
               // Image grips get a directional resize cursor so the
               // surveyor knows the corner/edge is draggable to resize.
-              const gripFeat = drawingStore.getFeature(onGrip.featureId);
+              const gripFeat = useDrawingStore.getState().getFeature(onGrip.featureId);
               setCursorStyle(
                 gripFeat?.geometry.type === 'IMAGE'
                   ? imageGripCursor(onGrip.vertexIndex)
@@ -12083,7 +12093,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore],
+    [],
   );
 
   const handleMouseUp = useCallback(
@@ -12110,7 +12120,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         rotateGrabRef.current = null;
         const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[] = [];
         for (const [id, before] of grab.originals) {
-          const after = drawingStore.getFeature(id);
+          const after = useDrawingStore.getState().getFeature(id);
           if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
         }
         if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Rotate', ops));
@@ -12179,11 +12189,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const moved = Math.abs(livePosX - origPosX) > 0.01 || Math.abs(livePosY - origPosY) > 0.01;
         if (moved) {
           const pos = { x: livePosX, y: livePosY };
-          if (element === 'northArrow')       drawingStore.updateTitleBlock({ northArrowPos: pos });
-          if (element === 'titleBlock')       drawingStore.updateTitleBlock({ titleBlockPos: pos });
-          if (element === 'scaleBar')         drawingStore.updateTitleBlock({ scaleBarPos: pos });
-          if (element === 'signatureBlock')   drawingStore.updateTitleBlock({ signatureBlockPos: pos });
-          if (element === 'officialSealLabel')drawingStore.updateTitleBlock({ officialSealLabelPos: pos });
+          if (element === 'northArrow')       useDrawingStore.getState().updateTitleBlock({ northArrowPos: pos });
+          if (element === 'titleBlock')       useDrawingStore.getState().updateTitleBlock({ titleBlockPos: pos });
+          if (element === 'scaleBar')         useDrawingStore.getState().updateTitleBlock({ scaleBarPos: pos });
+          if (element === 'signatureBlock')   useDrawingStore.getState().updateTitleBlock({ signatureBlockPos: pos });
+          if (element === 'officialSealLabel')useDrawingStore.getState().updateTitleBlock({ officialSealLabelPos: pos });
           // Slice 227 — cert + notes persist into the active template
           // (not the drawing's titleBlock settings) since they're owned
           // by the template store.
@@ -12252,7 +12262,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const operations: any[] = [];
           for (const id of featureIds) {
             const before = originals.get(id);
-            const after = drawingStore.getFeature(id);
+            const after = useDrawingStore.getState().getFeature(id);
             if (before && after) {
               operations.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
             }
@@ -12277,7 +12287,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const isRotate = gripDragRef.current.type === 'ROTATE';
         const { featureId } = gripDragRef.current;
         const before = gripStartRef.current;
-        const after = drawingStore.getFeature(featureId);
+        const after = useDrawingStore.getState().getFeature(featureId);
         if (after) {
           useUndoStore.getState().pushUndo({
             id: generateId(),
@@ -12310,7 +12320,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
-        const threshold = drawingStore.document.settings.dragThreshold ?? 5;
+        const threshold = useDrawingStore.getState().document.settings.dragThreshold ?? 5;
         if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
           if (ids.length > 0) {
@@ -12330,7 +12340,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
-        const threshold = drawingStore.document.settings.dragThreshold ?? 5;
+        const threshold = useDrawingStore.getState().document.settings.dragThreshold ?? 5;
         if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
           useSelectionStore.getState().selectMultiple(ids, (e.shiftKey || e.ctrlKey || e.metaKey) ? 'ADD' : 'REPLACE');
@@ -12344,7 +12354,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default'));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore],
+    [],
   );
 
   const handleDoubleClick = useCallback(
@@ -12411,7 +12421,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore],
+    [],
   );
 
   // ─────────────────────────────────────────────
@@ -12427,16 +12437,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const sy = e.clientY - rect.top;
       const hit = hitTest(sx, sy);
       if (!hit) return;
-      const feature = drawingStore.getFeature(hit);
+      const feature = useDrawingStore.getState().getFeature(hit);
       if (!feature) return;
-      const sameLayerIds = drawingStore
+      const sameLayerIds = useDrawingStore.getState()
         .getVisibleFeatures()
         .filter((f) => f.layerId === feature.layerId)
         .map((f) => f.id);
       useSelectionStore.getState().selectMultiple(sameLayerIds, 'REPLACE');
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore],
+    [],
   );
 
   // ─────────────────────────────────────────────
@@ -13362,7 +13372,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const op = interactiveOpRef.current;
     if (!op) return;
     for (const [id, orig] of op.originals) {
-      drawingStore.updateFeatureGeometry(id, orig.geometry);
+      useDrawingStore.getState().updateFeatureGeometry(id, orig.geometry);
     }
     interactiveOpRef.current = null;
     setInteractivePanel(null);
@@ -13377,19 +13387,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const angleRad = (value * Math.PI) / 180;
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     } else {
       const factor = Math.max(0.0001, value);
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     }
     // Collect undo ops
     const ops = [...op.originals.entries()]
       .map(([id, orig]) => {
-        const after = drawingStore.getFeature(id);
+        const after = useDrawingStore.getState().getFeature(id);
         return after ? { type: 'MODIFY_FEATURE' as const, data: { id, before: orig, after } } : null;
       })
       .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
@@ -13411,13 +13421,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const angleRad = (value * Math.PI) / 180;
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     } else {
       const factor = Math.max(0.0001, value);
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     }
   }
@@ -13556,14 +13566,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       setContextMenu({ x: e.clientX, y: e.clientY, worldX: wx, worldY: wy, featureId: hit });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore],
+    [],
   );
 
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
 
-  const hasNoLayers = drawingStore.document.layerOrder.length === 0;
+  const hasNoLayers = layerOrderLen === 0;
   const isDrawingTool = activeTool.startsWith('DRAW_');
 
   return (
@@ -13634,14 +13644,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const sx = e.clientX - rect.left;
           const sy = e.clientY - rect.top;
           const worldPt = screenToDrawingWorld(sx, sy);
-          const projImg = drawingStore.getProjectImage(imageId);
+          const projImg = useDrawingStore.getState().getProjectImage(imageId);
           if (!projImg) return;
-          const drawingScale = drawingStore.document.settings.drawingScale ?? 50;
+          const drawingScale = useDrawingStore.getState().document.settings.drawingScale ?? 50;
           const defaultWidthIn = 4;
           const worldW = defaultWidthIn * drawingScale;
           const worldH = worldW * (projImg.originalHeight / projImg.originalWidth);
           const featureId = generateId();
-          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
           const layerStyle = getActiveLayerStyle();
           const feature: Feature = {
             id: featureId,
@@ -13663,7 +13673,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
             properties: { imageName: projImg.name },
           };
-          drawingStore.addFeature(feature);
+          useDrawingStore.getState().addFeature(feature);
           useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
           useToolStore.getState().setTool('SELECT');
           useSelectionStore.getState().select(featureId, 'REPLACE');
@@ -13738,7 +13748,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           currentAngleDeg={interactivePanel.currentAngleDeg}
           currentFactor={interactivePanel.currentFactor}
           originals={interactiveOpRef.current.originals}
-          displayPrefs={drawingStore.document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES}
+          displayPrefs={displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES}
           onCommit={commitInteractiveOp}
           onCancel={cancelInteractiveOp}
           onPreview={previewInteractiveOp}
@@ -13893,7 +13903,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             <button
               className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
               onClick={() => {
-                drawingStore.updateTitleBlock({
+                useDrawingStore.getState().updateTitleBlock({
                   titleBlockPos: null, scaleBarPos: null, signatureBlockPos: null,
                   northArrowPos: null, officialSealLabelPos: null,
                 });
@@ -13905,7 +13915,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             <button
               className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
               onClick={() => {
-                drawingStore.updateTitleBlock({
+                useDrawingStore.getState().updateTitleBlock({
                   titleBlockScale: 1.0, signatureBlockScale: 1.0, scaleBarScale: 1.0, northArrowScale: 1.0,
                   titleBlockRotationDeg: 0, signatureBlockRotationDeg: 0, scaleBarRotationDeg: 0,
                   northArrowRotationOffsetDeg: 0,
@@ -13966,7 +13976,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               data-testid="area-label-ctx-recenter"
               className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
               onClick={() => {
-                const linked = drawingStore.getFeature(ann.linkedFeatureId);
+                const linked = useDrawingStore.getState().getFeature(ann.linkedFeatureId);
                 if (linked) {
                   const c = pickFeatureCentroid(linked);
                   annStore.updateAnnotation(ann.id, { position: c } as Partial<AreaAnnotation>);
@@ -14159,7 +14169,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               {tbFieldEditState.label}
             </div>
             {tbFieldEditState.key === 'scaleLabel' ? (() => {
-              const currentDs = drawingStore.document.settings.drawingScale ?? 50;
+              const currentDs = useDrawingStore.getState().document.settings.drawingScale ?? 50;
               const scaleOptions = Array.from({ length: 17 }, (_, i) => 20 + i * 5);
               const currentValue = tbFieldEditState.value || `1" = ${currentDs}'`;
               return (
@@ -14175,10 +14185,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       // the SCALE field always in agreement.
                       const m = e.currentTarget.value.match(/=\s*(\d+(?:\.\d+)?)/);
                       if (m) {
-                        drawingStore.updateSettings({ drawingScale: parseFloat(m[1]) });
-                        drawingStore.updateTitleBlock({ scaleLabel: '' });
+                        useDrawingStore.getState().updateSettings({ drawingScale: parseFloat(m[1]) });
+                        useDrawingStore.getState().updateTitleBlock({ scaleLabel: '' });
                       } else {
-                        drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                        useDrawingStore.getState().updateTitleBlock({ scaleLabel: e.currentTarget.value });
                       }
                       setTbFieldEditState(null);
                     }}
@@ -14202,14 +14212,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   placeholder={`Enter ${tbFieldEditState.label.toLowerCase()}…`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                      useDrawingStore.getState().updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
                       setTbFieldEditState(null);
                     } else if (e.key === 'Escape') {
                       setTbFieldEditState(null);
                     }
                   }}
                   onBlur={(e) => {
-                    drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                    useDrawingStore.getState().updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
                     setTbFieldEditState(null);
                   }}
                 />
@@ -14223,7 +14233,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       {/* Label attribute editor (double-click on bearing/distance label) */}
       {labelEditState && (() => {
         const { featureId, labelId } = labelEditState;
-        const feature = drawingStore.getFeature(featureId);
+        const feature = useDrawingStore.getState().getFeature(featureId);
         const label = feature?.textLabels?.find((l) => l.id === labelId);
         if (!feature || !label) { setLabelEditState(null); return null; }
         return (
@@ -14260,14 +14270,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     // regeneration) and update the on-canvas label text in
                     // place — keeping the label id stable so this editor
                     // stays open while typing.
-                    const f = drawingStore.getFeature(featureId);
+                    const f = useDrawingStore.getState().getFeature(featureId);
                     if (f) {
                       const propKey = label.kind === 'POINT_NAME' ? 'name' : 'description';
-                      drawingStore.updateFeature(featureId, {
+                      useDrawingStore.getState().updateFeature(featureId, {
                         properties: { ...f.properties, [propKey]: v },
                       });
                     }
-                    drawingStore.updateTextLabel(featureId, labelId, { text: v });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { text: v });
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === 'Escape') setLabelEditState(null);
@@ -14287,7 +14297,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   value={label.style.fontSize}
                   onChange={(e) => {
                     const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 10));
-                    drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontSize: v } });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontSize: v } });
                   }}
                 />
               </div>
@@ -14299,7 +14309,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   value={Number(label.scale.toFixed(2))}
                   onChange={(e) => {
                     const v = Math.max(0.1, Math.min(10, parseFloat(e.target.value) || 1));
-                    drawingStore.updateTextLabel(featureId, labelId, { scale: v });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { scale: v });
                   }}
                 />
               </div>
@@ -14313,7 +14323,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   onChange={(e) => {
                     const raw = e.target.value.trim();
                     const rotation = raw === '' ? null : (parseFloat(raw) * Math.PI) / 180;
-                    drawingStore.updateTextLabel(featureId, labelId, { rotation });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { rotation });
                   }}
                 />
               </div>
@@ -14322,7 +14332,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 <select
                   className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
                   value={label.style.fontFamily}
-                  onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontFamily: e.target.value } })}
+                  onChange={(e) => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontFamily: e.target.value } })}
                 >
                   <option value="Arial">Arial</option>
                   <option value="Times New Roman">Times New Roman</option>
@@ -14334,11 +14344,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               <div className="flex items-center gap-2">
                 <button
                   className={`px-2 py-0.5 text-[10px] rounded border ${label.style.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
-                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontWeight: label.style.fontWeight === 'bold' ? 'normal' : 'bold' } })}
+                  onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontWeight: label.style.fontWeight === 'bold' ? 'normal' : 'bold' } })}
                 >B</button>
                 <button
                   className={`px-2 py-0.5 text-[10px] rounded border italic ${label.style.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
-                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
+                  onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
                 >I</button>
               </div>
               {/* Slice 234 — Opt-in label background highlight. Default
@@ -14355,7 +14365,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     checked={label.style.backgroundColor !== null}
                     onChange={(e) => {
                       const nextBg = e.target.checked ? (label.style.backgroundColor ?? '#ffffff') : null;
-                      drawingStore.updateTextLabel(featureId, labelId, {
+                      useDrawingStore.getState().updateTextLabel(featureId, labelId, {
                         style: { ...label.style, backgroundColor: nextBg },
                       });
                     }}
@@ -14370,7 +14380,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                         className="w-6 h-5"
                         data-testid="label-editor-background-color"
                         value={label.style.backgroundColor ?? '#ffffff'}
-                        onChange={(c) => drawingStore.updateTextLabel(featureId, labelId, {
+                        onChange={(c) => useDrawingStore.getState().updateTextLabel(featureId, labelId, {
                           style: { ...label.style, backgroundColor: c },
                         })}
                       />
@@ -14384,7 +14394,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                         value={label.style.padding}
                         onChange={(e) => {
                           const v = Math.max(0, Math.min(20, parseInt(e.target.value) || 0));
-                          drawingStore.updateTextLabel(featureId, labelId, {
+                          useDrawingStore.getState().updateTextLabel(featureId, labelId, {
                             style: { ...label.style, padding: v },
                           });
                         }}
@@ -14402,14 +14412,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-yellow-900/40 hover:bg-yellow-800/60 text-yellow-400 text-[9px] rounded border border-yellow-700/40 transition-colors"
                         onClick={() => {
-                          drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false });
+                          useDrawingStore.getState().updateTextLabel(featureId, labelId, { userPositioned: false });
                           // Regenerate to restore default offset/position
-                          const f = drawingStore.getFeature(featureId);
+                          const f = useDrawingStore.getState().getFeature(featureId);
                           if (f) {
-                            const layerDoc = drawingStore.document.layers[f.layerId];
+                            const layerDoc = useDrawingStore.getState().document.layers[f.layerId];
                             if (layerDoc) {
-                              const newLabels = generateLabelsForFeature(f, layerDoc, drawingStore.document.settings.displayPreferences);
-                              drawingStore.setFeatureTextLabels(featureId, newLabels);
+                              const newLabels = generateLabelsForFeature(f, layerDoc, useDrawingStore.getState().document.settings.displayPreferences);
+                              useDrawingStore.getState().setFeatureTextLabels(featureId, newLabels);
                             }
                           }
                         }}
@@ -14418,13 +14428,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     {label.rotation !== null && (
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-900/40 hover:bg-purple-800/60 text-purple-400 text-[9px] rounded border border-purple-700/40 transition-colors"
-                        onClick={() => drawingStore.updateTextLabel(featureId, labelId, { rotation: null })}
+                        onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { rotation: null })}
                       >↩ Rotation</button>
                     )}
                     {label.scale !== 1 && (
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-sky-900/40 hover:bg-sky-800/60 text-sky-400 text-[9px] rounded border border-sky-700/40 transition-colors"
-                        onClick={() => drawingStore.updateTextLabel(featureId, labelId, { scale: 1 })}
+                        onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { scale: 1 })}
                       >↩ Scale</button>
                     )}
                     {/* "Reset All" only when more than one property is overridden */}
@@ -14432,13 +14442,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[9px] rounded border border-gray-600 transition-colors"
                         onClick={() => {
-                          drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false, rotation: null, scale: 1 });
-                          const f = drawingStore.getFeature(featureId);
+                          useDrawingStore.getState().updateTextLabel(featureId, labelId, { userPositioned: false, rotation: null, scale: 1 });
+                          const f = useDrawingStore.getState().getFeature(featureId);
                           if (f) {
-                            const layerDoc = drawingStore.document.layers[f.layerId];
+                            const layerDoc = useDrawingStore.getState().document.layers[f.layerId];
                             if (layerDoc) {
-                              const newLabels = generateLabelsForFeature(f, layerDoc, drawingStore.document.settings.displayPreferences);
-                              drawingStore.setFeatureTextLabels(featureId, newLabels);
+                              const newLabels = generateLabelsForFeature(f, layerDoc, useDrawingStore.getState().document.settings.displayPreferences);
+                              useDrawingStore.getState().setFeatureTextLabels(featureId, newLabels);
                             }
                           }
                         }}
@@ -14505,7 +14515,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       {/* Drawing rotation indicator — shown when rotation is non-zero */}
       {(() => {
-        const rotDeg = drawingStore.document.settings.drawingRotationDeg ?? 0;
+        const rotDeg = drawingRotationDeg;
         if (Math.abs(rotDeg) < 0.01) return null;
         return (
           <div
@@ -14537,7 +14547,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }}
           onInsert={(image, worldW, worldH) => {
             const featureId = generateId();
-            const { activeLayerId, getActiveLayerStyle } = drawingStore;
+            const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
             const layerStyle = getActiveLayerStyle();
             const feature: Feature = {
               id: featureId,
@@ -14561,7 +14571,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
               properties: { imageName: image.name },
             };
-            drawingStore.addFeature(feature);
+            useDrawingStore.getState().addFeature(feature);
             useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             setImageInsertState(null);
             onPlaceImageConsumed?.();

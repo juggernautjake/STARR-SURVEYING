@@ -82,6 +82,8 @@ describe('Slice 227 — pointer-up commit writes the new position to useTemplate
     // Locks ordering so a future refactor can't separate them — they
     // share the same `moved` threshold + ref-clear with the other TB
     // elements.
-    expect(SRC).toMatch(/if \(element === 'officialSealLabel'\)drawingStore\.updateTitleBlock[\s\S]*?if \(element === 'certification'\) \{[\s\S]*?\}[\s\S]*?if \(element === 'notes'\) \{[\s\S]*?\}\s*\} else if \(element === 'titleBlock' \|\| element === 'signatureBlock'\) \{/);
+    // P6k widened — `drawingStore.X(...)` callbacks route through
+    // `useDrawingStore.getState().X(...)`.
+    expect(SRC).toMatch(/if \(element === 'officialSealLabel'\)(drawingStore|useDrawingStore\.getState\(\))\.updateTitleBlock[\s\S]*?if \(element === 'certification'\) \{[\s\S]*?\}[\s\S]*?if \(element === 'notes'\) \{[\s\S]*?\}\s*\} else if \(element === 'titleBlock' \|\| element === 'signatureBlock'\) \{/);
   });
 });

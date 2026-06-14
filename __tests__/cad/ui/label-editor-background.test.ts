@@ -44,7 +44,7 @@ describe('Slice 234 — Add background toggle', () => {
   });
 
   it('commits through drawingStore.updateTextLabel with the next style', () => {
-    expect(SRC).toMatch(/drawingStore\.updateTextLabel\(featureId, labelId, \{[\s\S]*?style: \{ \.\.\.label\.style, backgroundColor: nextBg \},[\s\S]*?\}\);/);
+    expect(SRC).toMatch(/(drawingStore|useDrawingStore\.getState\(\))\.updateTextLabel\(featureId, labelId, \{[\s\S]*?style: \{ \.\.\.label\.style, backgroundColor: nextBg \},[\s\S]*?\}\);/);
   });
 });
 
@@ -79,10 +79,10 @@ describe('Slice 234 — Color picker + padding input only show when backgroundCo
 
 describe('Slice 234 — Color + padding edits commit through drawingStore.updateTextLabel', () => {
   it('color onChange writes { ...label.style, backgroundColor: c } via ColorSwatchInput', () => {
-    expect(SRC).toMatch(/drawingStore\.updateTextLabel\(featureId, labelId, \{\s*style: \{ \.\.\.label\.style, backgroundColor: c \},\s*\}\)/);
+    expect(SRC).toMatch(/(drawingStore|useDrawingStore\.getState\(\))\.updateTextLabel\(featureId, labelId, \{\s*style: \{ \.\.\.label\.style, backgroundColor: c \},\s*\}\)/);
   });
 
   it('padding onChange writes { ...label.style, padding: v }', () => {
-    expect(SRC).toMatch(/drawingStore\.updateTextLabel\(featureId, labelId, \{\s*style: \{ \.\.\.label\.style, padding: v \},\s*\}\)/);
+    expect(SRC).toMatch(/(drawingStore|useDrawingStore\.getState\(\))\.updateTextLabel\(featureId, labelId, \{\s*style: \{ \.\.\.label\.style, padding: v \},\s*\}\)/);
   });
 });
