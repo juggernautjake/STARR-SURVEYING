@@ -129,11 +129,15 @@ function LineDimField({
 // Enter on distance, change on unit) runs the live recompute through
 // the Slice-5 helper and pushes one undo entry per edit session.
 function OffsetSourceSection({ feature }: { feature: Feature }) {
-  const drawingStore = useDrawingStore();
-  const selectionStore = useSelectionStore();
+  // cad-desktop-tauri-and-perf Slice P6e — drop the two whole-store
+  // subscriptions for per-field selectors. The only render-time read
+  // is the `getFeature` action ref (stable identity); every other
+  // store access lives inside an event handler and reads the latest
+  // snapshot via `useXStore.getState()`.
+  const getFeature = useDrawingStore((s) => s.getFeature);
   const undoStore = useUndoStore();
 
-  const desc = describeOffsetSection(feature, drawingStore.getFeature);
+  const desc = describeOffsetSection(feature, getFeature);
 
   const [localDistance, setLocalDistance] = useState<string>(
     desc ? String(desc.metadata.distance) : '',
@@ -163,7 +167,7 @@ function OffsetSourceSection({ feature }: { feature: Feature }) {
     // Skip when nothing actually changed.
     if (distance === desc.metadata.distance && unit === desc.metadata.unit) return;
 
-    const source = drawingStore.getFeature(desc.metadata.sourceId);
+    const source = getFeature(desc.metadata.sourceId);
     if (!source) return;
     const recomputed = recomputeOffsetGeometry({
       sourceFeature: source,
@@ -174,13 +178,13 @@ function OffsetSourceSection({ feature }: { feature: Feature }) {
     });
     if (!recomputed) return;
 
-    const before = drawingStore.getFeature(feature.id);
+    const before = getFeature(feature.id);
     if (!before) return;
     const after = stampOffsetMetadata(
       { ...before, geometry: recomputed.geometry },
       recomputed.metadata,
     );
-    drawingStore.updateFeature(feature.id, {
+    useDrawingStore.getState().updateFeature(feature.id, {
       geometry: after.geometry,
       properties: after.properties,
     });
@@ -218,7 +222,7 @@ function OffsetSourceSection({ feature }: { feature: Feature }) {
           disabled={desc.sourceMissing}
           onClick={() => {
             if (desc.sourceMissing) return;
-            selectionStore.select(desc.metadata.sourceId, 'REPLACE');
+            useSelectionStore.getState().select(desc.metadata.sourceId, 'REPLACE');
           }}
           className={`flex-1 text-left px-1.5 py-0.5 rounded border text-[10px] font-mono truncate transition-colors ${
             desc.sourceMissing
@@ -277,13 +281,22 @@ function OffsetSourceSection({ feature }: { feature: Feature }) {
 }
 
 export default function PropertyPanel() {
-  const drawingStore = useDrawingStore();
-  const selectionStore = useSelectionStore();
+  // cad-desktop-tauri-and-perf Slice P6e — drop the whole-store
+  // `useDrawingStore()` + `useSelectionStore()` subs for per-field
+  // selectors so PropertyPanel only reconciles when the data it
+  // actually renders changes. `doc` drives the only render-time
+  // doc-shape read (`customLineTypes`); `getFeature` is a stable
+  // action ref; `selectedIdsSet` covers the selection-driven feature
+  // list. Every other store mutation is a click-time callback —
+  // those route through `useXStore.getState()`.
+  const doc = useDrawingStore((s) => s.document);
+  const getFeature = useDrawingStore((s) => s.getFeature);
+  const selectedIdsSet = useSelectionStore((s) => s.selectedIds);
   const undoStore = useUndoStore();
 
-  const selectedIds = Array.from(selectionStore.selectedIds);
+  const selectedIds = Array.from(selectedIdsSet);
   const features = selectedIds
-    .map((id) => drawingStore.getFeature(id))
+    .map((id) => getFeature(id))
     .filter(Boolean) as Feature[];
 
   // Local edit state for single-feature editing
@@ -318,7 +331,7 @@ export default function PropertyPanel() {
   // Capture the pre-edit feature once, when a style edit starts (input focus).
   function beginStyleEdit() {
     if (single && !styleBeforeRef.current) {
-      styleBeforeRef.current = drawingStore.getFeature(single.id) ?? null;
+      styleBeforeRef.current = getFeature(single.id) ?? null;
     }
   }
 
@@ -327,12 +340,12 @@ export default function PropertyPanel() {
   // input pass its just-changed raw value without waiting for React state.
   function applyStyleLive(next: { color?: string; weight?: string; opacity?: string }) {
     if (!single) return;
-    const cur = drawingStore.getFeature(single.id);
+    const cur = getFeature(single.id);
     if (!cur) return;
     const color = toHex(next.color ?? displayColor);
     const lineWeight = Math.max(0.1, Math.min(20, parseFloat(next.weight ?? displayWeight) || 1));
     const opacity = Math.max(0, Math.min(1, (parseFloat(next.opacity ?? displayOpacity) || 100) / 100));
-    drawingStore.updateFeature(single.id, {
+    useDrawingStore.getState().updateFeature(single.id, {
       style: { ...DEFAULT_FEATURE_STYLE, ...cur.style, color, lineWeight, opacity, isOverride: true },
     });
   }
@@ -341,9 +354,9 @@ export default function PropertyPanel() {
   // entry from the pre-edit snapshot to the final state (only if it changed).
   function commitStyleChange() {
     if (!single) return;
-    const before = styleBeforeRef.current ?? drawingStore.getFeature(single.id)!;
+    const before = styleBeforeRef.current ?? getFeature(single.id)!;
     applyStyleLive({});
-    const after = drawingStore.getFeature(single.id)!;
+    const after = getFeature(single.id)!;
     if (JSON.stringify(before.style) !== JSON.stringify(after.style)) {
       undoStore.pushUndo({
         id: generateId(),
@@ -361,8 +374,8 @@ export default function PropertyPanel() {
   function handleLayerChange(layerId: string) {
     if (!single) return;
     const before = { ...single };
-    drawingStore.updateFeature(single.id, { layerId });
-    const after = drawingStore.getFeature(single.id)!;
+    useDrawingStore.getState().updateFeature(single.id, { layerId });
+    const after = getFeature(single.id)!;
     undoStore.pushUndo({
       id: generateId(),
       description: 'Change layer',
@@ -375,8 +388,8 @@ export default function PropertyPanel() {
     if (features.length === 0) return;
     const operations = features.map((f) => {
       const before = { ...f };
-      drawingStore.updateFeature(f.id, { layerId });
-      const after = drawingStore.getFeature(f.id)!;
+      useDrawingStore.getState().updateFeature(f.id, { layerId });
+      const after = getFeature(f.id)!;
       return { type: 'MODIFY_FEATURE' as const, data: { id: f.id, before, after } };
     });
     undoStore.pushUndo({
@@ -397,11 +410,11 @@ export default function PropertyPanel() {
   ) {
     if (subset.length === 0) return;
     const operations = subset.map((f) => {
-      const before = drawingStore.getFeature(f.id)!;
-      drawingStore.updateFeature(f.id, {
+      const before = getFeature(f.id)!;
+      useDrawingStore.getState().updateFeature(f.id, {
         style: { ...DEFAULT_FEATURE_STYLE, ...f.style, ...patch, isOverride: true },
       });
-      const after = drawingStore.getFeature(f.id)!;
+      const after = getFeature(f.id)!;
       return { type: 'MODIFY_FEATURE' as const, data: { id: f.id, before, after } };
     });
     undoStore.pushUndo({ id: generateId(), timestamp: Date.now(), description, operations });
@@ -424,7 +437,7 @@ export default function PropertyPanel() {
 
   function updateCoord(index: number, axis: 'x' | 'y', value: number) {
     if (!single) return;
-    const before = drawingStore.getFeature(single.id)!;
+    const before = getFeature(single.id)!;
     if (!coordEditSnapshotRef.current || coordEditSnapshotRef.current.id !== single.id) {
       // Snapshot the feature at the start of this edit session
       // so commitCoordEdit can build the right MODIFY_FEATURE
@@ -451,13 +464,13 @@ export default function PropertyPanel() {
         break;
       }
     }
-    drawingStore.updateFeatureGeometry(single.id, geom);
+    useDrawingStore.getState().updateFeatureGeometry(single.id, geom);
   }
 
   function commitCoordEdit() {
     const snap = coordEditSnapshotRef.current;
     if (!snap) return;
-    const after = drawingStore.getFeature(snap.id);
+    const after = getFeature(snap.id);
     coordEditSnapshotRef.current = null;
     if (!after) return;
     // Skip when nothing actually changed (e.g. user focused
@@ -489,9 +502,9 @@ export default function PropertyPanel() {
     description: string,
   ) {
     if (!single) return;
-    const before = JSON.parse(JSON.stringify(drawingStore.getFeature(single.id)!));
-    drawingStore.updateFeatureGeometry(single.id, newGeom);
-    const after = drawingStore.getFeature(single.id);
+    const before = JSON.parse(JSON.stringify(getFeature(single.id)!));
+    useDrawingStore.getState().updateFeatureGeometry(single.id, newGeom);
+    const after = getFeature(single.id);
     if (!after) return;
     if (JSON.stringify(before.geometry) === JSON.stringify(after.geometry)) return;
     undoStore.pushUndo({
@@ -524,7 +537,6 @@ export default function PropertyPanel() {
     return [{ ...v0 }, nv1, nv2, nv3];
   }
 
-  const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
   const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
   const originN = displayPrefs.originNorthing ?? 0;
@@ -653,10 +665,10 @@ export default function PropertyPanel() {
                       isOverride: true,
                     },
                   };
-                  drawingStore.addFeature(polygon);
+                  useDrawingStore.getState().addFeature(polygon);
                   // Select the new area so the fill-pattern panel (gravel,
                   // hatch, etc.) is immediately available to refine it.
-                  selectionStore.select(polygon.id, 'REPLACE');
+                  useSelectionStore.getState().select(polygon.id, 'REPLACE');
                 }}
               >
                 ▦ Fill enclosed area
@@ -772,7 +784,7 @@ export default function PropertyPanel() {
         <LineTypePicker
           open={bulkPicker === 'lineType'}
           selectedLineTypeId={subset[0]?.style.lineTypeId ?? null}
-          customLineTypes={drawingStore.document.customLineTypes}
+          customLineTypes={doc.customLineTypes}
           onSelect={(lineTypeId) => bulkApplyStyle(subset, { lineTypeId }, `Set line type on ${subset.length} objects`)}
           onClose={() => setBulkPicker(null)}
         />
@@ -1298,7 +1310,7 @@ export default function PropertyPanel() {
                         }`}
                         onClick={() => {
                           const next = toggleHiddenSegment(feature.geometry.hiddenSegments, i, segCount);
-                          drawingStore.updateFeatureGeometry(feature.id, {
+                          useDrawingStore.getState().updateFeatureGeometry(feature.id, {
                             ...feature.geometry,
                             hiddenSegments: next,
                           });
@@ -1315,7 +1327,7 @@ export default function PropertyPanel() {
                     data-testid="property-panel-segment-show-all"
                     className="text-[10px] text-blue-400 hover:text-blue-300"
                     onClick={() => {
-                      drawingStore.updateFeatureGeometry(feature.id, {
+                      useDrawingStore.getState().updateFeatureGeometry(feature.id, {
                         ...feature.geometry,
                         hiddenSegments: undefined,
                       });
@@ -1442,7 +1454,7 @@ export default function PropertyPanel() {
                 stack = projected ? [projected] : [];
               }
               const next = [...stack, normalizeFillLayer({ pattern: 'NONE', color: '#000000' })];
-              drawingStore.updateFeature(feature.id, {
+              useDrawingStore.getState().updateFeature(feature.id, {
                 style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: next, isOverride: true },
               });
             };
@@ -1460,7 +1472,7 @@ export default function PropertyPanel() {
               return projected ? [projected] : [];
             };
             const writeStack = (next: FillLayer[]) => {
-              drawingStore.updateFeature(feature.id, {
+              useDrawingStore.getState().updateFeature(feature.id, {
                 style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: next, isOverride: true },
               });
             };
@@ -1489,7 +1501,7 @@ export default function PropertyPanel() {
                 // Last layer removed — drop fillStack entirely AND
                 // reset legacy fillPattern to NONE so we stop
                 // rendering anything.
-                drawingStore.updateFeature(feature.id, {
+                useDrawingStore.getState().updateFeature(feature.id, {
                   style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillStack: undefined, fillPattern: 'NONE', isOverride: true },
                 });
                 return;
@@ -1500,7 +1512,7 @@ export default function PropertyPanel() {
                 // the full params card returns, and clear fillStack
                 // so the renderer takes the legacy fast path.
                 const sole = next[0];
-                drawingStore.updateFeature(feature.id, {
+                useDrawingStore.getState().updateFeature(feature.id, {
                   style: {
                     ...DEFAULT_FEATURE_STYLE,
                     ...feature.style,
@@ -1631,7 +1643,7 @@ export default function PropertyPanel() {
                   const bgOpacity = Number.isFinite(feature.style.fillBackgroundOpacity)
                     ? (feature.style.fillBackgroundOpacity as number)
                     : (Number.isFinite(feature.style.fillOpacity) ? (feature.style.fillOpacity as number) : 1);
-                  const setBgOpacity = (v: number) => drawingStore.updateFeature(feature.id, {
+                  const setBgOpacity = (v: number) => useDrawingStore.getState().updateFeature(feature.id, {
                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillBackgroundOpacity: clamp(v, 0, 1, 1), isOverride: true },
                   });
                   return (
@@ -1641,7 +1653,7 @@ export default function PropertyPanel() {
                         <ColorSwatchInput
                           data-testid="property-panel-fill-background-color"
                           value={bgColor}
-                          onChange={(c) => drawingStore.updateFeature(feature.id, {
+                          onChange={(c) => useDrawingStore.getState().updateFeature(feature.id, {
                             style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillColor: c, isOverride: true },
                           })}
                         />
@@ -1690,7 +1702,7 @@ export default function PropertyPanel() {
                       const seededOpacity = Number.isFinite(feature.style.fillOpacity)
                         ? feature.style.fillOpacity
                         : (isFirstPick ? 1 : feature.style.fillOpacity);
-                      drawingStore.updateFeature(feature.id, {
+                      useDrawingStore.getState().updateFeature(feature.id, {
                         style: {
                           ...DEFAULT_FEATURE_STYLE,
                           ...feature.style,
@@ -1779,7 +1791,7 @@ export default function PropertyPanel() {
                               data-testid="property-panel-fill-pattern-opacity"
                               className="flex-1 accent-blue-500"
                               onChange={(e) => {
-                                drawingStore.updateFeature(feature.id, {
+                                useDrawingStore.getState().updateFeature(feature.id, {
                                   style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillOpacity: clamp(parseFloat(e.target.value), 0, 1, 1), isOverride: true },
                                 });
                               }}
@@ -1793,7 +1805,7 @@ export default function PropertyPanel() {
                               data-testid="property-panel-fill-pattern-opacity-input"
                               className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                               onChange={(e) => {
-                                drawingStore.updateFeature(feature.id, {
+                                useDrawingStore.getState().updateFeature(feature.id, {
                                   style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillOpacity: clamp(parseFloat(e.target.value), 0, 1, 1), isOverride: true },
                                 });
                               }}
@@ -1819,7 +1831,7 @@ export default function PropertyPanel() {
                           data-testid="property-panel-fill-pattern-density"
                           className="flex-1 accent-blue-500"
                           onChange={(e) => {
-                            drawingStore.updateFeature(feature.id, {
+                            useDrawingStore.getState().updateFeature(feature.id, {
                               style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
                             });
                           }}
@@ -1833,7 +1845,7 @@ export default function PropertyPanel() {
                           data-testid="property-panel-fill-pattern-density-input"
                           className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                           onChange={(e) => {
-                            drawingStore.updateFeature(feature.id, {
+                            useDrawingStore.getState().updateFeature(feature.id, {
                               style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDensity: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
                             });
                           }}
@@ -1857,7 +1869,7 @@ export default function PropertyPanel() {
                           data-testid="property-panel-fill-pattern-thickness"
                           className="flex-1 accent-blue-500"
                           onChange={(e) => {
-                            drawingStore.updateFeature(feature.id, {
+                            useDrawingStore.getState().updateFeature(feature.id, {
                               style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
                             });
                           }}
@@ -1871,7 +1883,7 @@ export default function PropertyPanel() {
                           data-testid="property-panel-fill-pattern-thickness-input"
                           className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                           onChange={(e) => {
-                            drawingStore.updateFeature(feature.id, {
+                            useDrawingStore.getState().updateFeature(feature.id, {
                               style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternScale: clamp(parseFloat(e.target.value), 0.25, 4, 1), isOverride: true },
                             });
                           }}
@@ -1902,7 +1914,7 @@ export default function PropertyPanel() {
                             // the effective rotation directly (no
                             // inherent baked angle to add).
                             const nextFillPattern: FillPattern = legacyHatchAngle !== null ? 'LINES' : (rawPattern as FillPattern);
-                            drawingStore.updateFeature(feature.id, {
+                            useDrawingStore.getState().updateFeature(feature.id, {
                               style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: nextFillPattern, patternRotation: newAngle, isOverride: true },
                             });
                           }}
@@ -1922,7 +1934,7 @@ export default function PropertyPanel() {
                             const wrapped = !Number.isFinite(raw) ? 0 : ((Math.round(raw) % 360) + 360) % 360;
                             // Same legacy-hatch migration as the slider.
                             const nextFillPattern: FillPattern = legacyHatchAngle !== null ? 'LINES' : (rawPattern as FillPattern);
-                            drawingStore.updateFeature(feature.id, {
+                            useDrawingStore.getState().updateFeature(feature.id, {
                               style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, fillPattern: nextFillPattern, patternRotation: wrapped, isOverride: true },
                             });
                           }}
@@ -1957,7 +1969,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-brick-width"
                                 className="flex-1 accent-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickWidth: clamp(parseFloat(e.target.value), 4, 120, 24), isOverride: true },
                                   });
                                 }}
@@ -1971,7 +1983,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-brick-width-input"
                                 className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickWidth: clamp(parseFloat(e.target.value), 4, 120, 24), isOverride: true },
                                   });
                                 }}
@@ -1993,7 +2005,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-brick-height"
                                 className="flex-1 accent-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickHeight: clamp(parseFloat(e.target.value), 4, 120, 12), isOverride: true },
                                   });
                                 }}
@@ -2007,7 +2019,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-brick-height-input"
                                 className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, brickHeight: clamp(parseFloat(e.target.value), 4, 120, 12), isOverride: true },
                                   });
                                 }}
@@ -2051,7 +2063,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-dash-len"
                                 className="flex-1 accent-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDashLen: clamp(parseFloat(e.target.value), 1, 60, 8), isOverride: true },
                                   });
                                 }}
@@ -2065,7 +2077,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-dash-len-input"
                                 className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternDashLen: clamp(parseFloat(e.target.value), 1, 60, 8), isOverride: true },
                                   });
                                 }}
@@ -2087,7 +2099,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-gap-len"
                                 className="flex-1 accent-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternGapLen: clamp(parseFloat(e.target.value), 1, 60, 4), isOverride: true },
                                   });
                                 }}
@@ -2101,7 +2113,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-gap-len-input"
                                 className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, patternGapLen: clamp(parseFloat(e.target.value), 1, 60, 4), isOverride: true },
                                   });
                                 }}
@@ -2132,7 +2144,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-wave-amplitude"
                                 className="flex-1 accent-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, waveAmplitude: clamp(parseFloat(e.target.value), 0, 60, 6), isOverride: true },
                                   });
                                 }}
@@ -2146,7 +2158,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-wave-amplitude-input"
                                 className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, waveAmplitude: clamp(parseFloat(e.target.value), 0, 60, 6), isOverride: true },
                                   });
                                 }}
@@ -2168,7 +2180,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-wave-period"
                                 className="flex-1 accent-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, wavePeriod: clamp(parseFloat(e.target.value), 8, 240, 60), isOverride: true },
                                   });
                                 }}
@@ -2182,7 +2194,7 @@ export default function PropertyPanel() {
                                 data-testid="property-panel-fill-pattern-wave-period-input"
                                 className="w-14 text-[11px] tabular-nums bg-gray-900 border border-gray-700 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
                                 onChange={(e) => {
-                                  drawingStore.updateFeature(feature.id, {
+                                  useDrawingStore.getState().updateFeature(feature.id, {
                                     style: { ...DEFAULT_FEATURE_STYLE, ...feature.style, wavePeriod: clamp(parseFloat(e.target.value), 8, 240, 60), isOverride: true },
                                   });
                                 }}
@@ -2236,11 +2248,11 @@ export default function PropertyPanel() {
                 className="w-full bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
                 value={String(feature.geometry.textContent ?? '')}
                 onChange={(e) => {
-                  const before = drawingStore.getFeature(feature.id)!;
-                  drawingStore.updateFeature(feature.id, {
+                  const before = getFeature(feature.id)!;
+                  useDrawingStore.getState().updateFeature(feature.id, {
                     geometry: { ...feature.geometry, textContent: e.target.value },
                   });
-                  const after = drawingStore.getFeature(feature.id)!;
+                  const after = getFeature(feature.id)!;
                   undoStore.pushUndo({
                     id: generateId(),
                     description: 'Edit text',
@@ -2261,7 +2273,7 @@ export default function PropertyPanel() {
                 value={Number(feature.properties.fontSize ?? 12)}
                 onChange={(e) => {
                   const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 12));
-                  drawingStore.updateFeature(feature.id, {
+                  useDrawingStore.getState().updateFeature(feature.id, {
                     properties: { ...feature.properties, fontSize: v },
                   });
                 }}
@@ -2278,7 +2290,7 @@ export default function PropertyPanel() {
                 value={Math.round(((feature.geometry.textRotation ?? 0) * 180) / Math.PI)}
                 onChange={(e) => {
                   const deg = parseFloat(e.target.value) || 0;
-                  drawingStore.updateFeature(feature.id, {
+                  useDrawingStore.getState().updateFeature(feature.id, {
                     geometry: { ...feature.geometry, textRotation: (deg * Math.PI) / 180 },
                   });
                 }}
@@ -2290,7 +2302,7 @@ export default function PropertyPanel() {
                 className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
                 value={String(feature.properties.fontFamily ?? 'Arial')}
                 onChange={(e) => {
-                  drawingStore.updateFeature(feature.id, {
+                  useDrawingStore.getState().updateFeature(feature.id, {
                     properties: { ...feature.properties, fontFamily: e.target.value },
                   });
                 }}
@@ -2305,13 +2317,13 @@ export default function PropertyPanel() {
             <div className="flex items-center gap-2">
               <button
                 className={`px-2 py-0.5 text-[10px] rounded border ${feature.properties.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
-                onClick={() => drawingStore.updateFeature(feature.id, {
+                onClick={() => useDrawingStore.getState().updateFeature(feature.id, {
                   properties: { ...feature.properties, fontWeight: feature.properties.fontWeight === 'bold' ? 'normal' : 'bold' },
                 })}
               >B</button>
               <button
                 className={`px-2 py-0.5 text-[10px] rounded border italic ${feature.properties.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
-                onClick={() => drawingStore.updateFeature(feature.id, {
+                onClick={() => useDrawingStore.getState().updateFeature(feature.id, {
                   properties: { ...feature.properties, fontStyle: feature.properties.fontStyle === 'italic' ? 'normal' : 'italic' },
                 })}
               >I</button>
@@ -2320,7 +2332,7 @@ export default function PropertyPanel() {
                   <button
                     key={align}
                     className={`px-1.5 py-0.5 text-[9px] rounded border ${feature.properties.textAlign === align ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
-                    onClick={() => drawingStore.updateFeature(feature.id, {
+                    onClick={() => useDrawingStore.getState().updateFeature(feature.id, {
                       properties: { ...feature.properties, textAlign: align },
                     })}
                   >
@@ -2366,7 +2378,7 @@ export default function PropertyPanel() {
                     value={label.style.fontSize}
                     onChange={(e) => {
                       const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 10));
-                      drawingStore.updateTextLabel(feature.id, label.id, { style: { ...label.style, fontSize: v } });
+                      useDrawingStore.getState().updateTextLabel(feature.id, label.id, { style: { ...label.style, fontSize: v } });
                     }}
                   />
                 </div>
@@ -2378,7 +2390,7 @@ export default function PropertyPanel() {
                     value={Number(label.scale.toFixed(2))}
                     onChange={(e) => {
                       const v = Math.max(0.1, Math.min(10, parseFloat(e.target.value) || 1));
-                      drawingStore.updateTextLabel(feature.id, label.id, { scale: v });
+                      useDrawingStore.getState().updateTextLabel(feature.id, label.id, { scale: v });
                     }}
                   />
                 </div>
@@ -2392,7 +2404,7 @@ export default function PropertyPanel() {
                     onChange={(e) => {
                       const raw = e.target.value.trim();
                       const rotation = raw === '' ? null : (parseFloat(raw) * Math.PI) / 180;
-                      drawingStore.updateTextLabel(feature.id, label.id, { rotation });
+                      useDrawingStore.getState().updateTextLabel(feature.id, label.id, { rotation });
                     }}
                   />
                 </div>
@@ -2410,11 +2422,11 @@ export default function PropertyPanel() {
         selectedSymbolId={single?.style.symbolId ?? null}
         onSelect={(symbolId) => {
           if (!single) return;
-          const before = drawingStore.getFeature(single.id)!;
-          drawingStore.updateFeature(single.id, {
+          const before = getFeature(single.id)!;
+          useDrawingStore.getState().updateFeature(single.id, {
             style: { ...DEFAULT_FEATURE_STYLE, ...single.style, symbolId, isOverride: true },
           });
-          const after = drawingStore.getFeature(single.id)!;
+          const after = getFeature(single.id)!;
           undoStore.pushUndo({
             id: generateId(),
             timestamp: Date.now(),
@@ -2433,14 +2445,14 @@ export default function PropertyPanel() {
           (single.type === 'LINE' || single.type === 'POLYLINE' || single.type === 'POLYGON')
         }
         selectedLineTypeId={single?.style.lineTypeId ?? null}
-        customLineTypes={drawingStore.document.customLineTypes}
+        customLineTypes={doc.customLineTypes}
         onSelect={(lineTypeId) => {
           if (!single) return;
-          const before = drawingStore.getFeature(single.id)!;
-          drawingStore.updateFeature(single.id, {
+          const before = getFeature(single.id)!;
+          useDrawingStore.getState().updateFeature(single.id, {
             style: { ...DEFAULT_FEATURE_STYLE, ...single.style, lineTypeId, isOverride: true },
           });
-          const after = drawingStore.getFeature(single.id)!;
+          const after = getFeature(single.id)!;
           undoStore.pushUndo({
             id: generateId(),
             timestamp: Date.now(),

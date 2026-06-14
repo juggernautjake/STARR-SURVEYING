@@ -88,7 +88,10 @@ describe('Slice 237 — pattern selection commits via updateFeature', () => {
     // also seeds patternColor (black) + fillOpacity (1) on a first
     // pick so the pattern renders immediately. Lock the multi-line
     // shape.
-    expect(SRC).toMatch(/drawingStore\.updateFeature\(feature\.id, \{\s*style: \{[\s\S]*?\.\.\.DEFAULT_FEATURE_STYLE,[\s\S]*?\.\.\.feature\.style,[\s\S]*?fillPattern: next,[\s\S]*?patternColor: seededColor,[\s\S]*?fillOpacity: seededOpacity,[\s\S]*?isOverride: true,[\s\S]*?\},\s*\}\);/);
+    // P6e dropped the `const drawingStore = useDrawingStore()`
+    // whole-store sub, so the call now goes through
+    // `useDrawingStore.getState().updateFeature(...)`. Accept either.
+    expect(SRC).toMatch(/(drawingStore|useDrawingStore\.getState\(\))\.updateFeature\(feature\.id, \{\s*style: \{[\s\S]*?\.\.\.DEFAULT_FEATURE_STYLE,[\s\S]*?\.\.\.feature\.style,[\s\S]*?fillPattern: next,[\s\S]*?patternColor: seededColor,[\s\S]*?fillOpacity: seededOpacity,[\s\S]*?isOverride: true,[\s\S]*?\},\s*\}\);/);
   });
 
   it('seeds patternColor + fillOpacity on first pick so the fill renders immediately (no need to also pick a color)', () => {

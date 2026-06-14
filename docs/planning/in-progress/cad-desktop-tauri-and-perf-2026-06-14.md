@@ -813,6 +813,39 @@ widened in the same commit to accept either the old
 **Remaining P6d follow-up:** the PropertyPanel pass + the
 `CanvasViewport` cursor-tick paths — track as `P6e`.
 
+**P6e PropertyPanel subscription audit shipped 2026-06-14** —
+the PropertyPanel had TWO whole-store subscription bodies that
+needed the LayerPanel treatment: the main `PropertyPanel`
+function plus the `OffsetSourceSection` subcomponent. Both
+called `useDrawingStore()` + `useSelectionStore()` with no
+selector, so every doc / selection mutation reconciled the
+entire 2,400-line component (which paints the multi-tab style
+editor + every-feature property panel — heavy reconcile cost
+on real drawings).
+The main panel now reads `useDrawingStore((s) => s.document)`
+(for `customLineTypes` + layer order at render time),
+`useDrawingStore((s) => s.getFeature)` (stable action ref
+that re-derives off the current doc), and
+`useSelectionStore((s) => s.selectedIds)`. The
+`OffsetSourceSection` subscribes only to `getFeature` — its
+data comes from the `feature` prop the parent threads in.
+The 76 callback action calls (`drawingStore.updateFeature`,
+`drawingStore.updateFeatureGeometry`, `drawingStore.addFeature`,
+`selectionStore.select`, ...) route through
+`useDrawingStore.getState().X` /
+`useSelectionStore.getState().X`. A stale
+`const { document: doc } = drawingStore` destructure mid-
+component was dropped (the per-field `doc` selector covers it).
+Source-locked by
+`__tests__/cad/ui/property-panel-store-selectors.test.ts` (6
+assertions) and a pre-existing
+`fill-pattern-picker` source-lock widened to accept either the
+old `drawingStore.X(...)` form or the new
+`useDrawingStore.getState().X(...)` form.
+**Remaining P6e follow-up:** the `CanvasViewport` cursor-tick
+paths (whole-store-sub audits in the renderer hooks) — track as
+`P6f`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
