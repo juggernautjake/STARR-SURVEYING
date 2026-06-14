@@ -603,16 +603,63 @@ much higher than the current code path reaches.
 > hand-back, and the regenerate-canvas wiring. Full suite:
 > 8004 green.
 
-### P4 — Label generation off the main thread
-New `lib/cad/labels/worker/` module: a Web Worker that owns
-`generateLabelsForFeature` and `regenerateLayerLabels`. The store
-posts `{ featureId, layer, displayPrefs }` and gets
-`TextLabel[]` back via a transferable `MessagePort`. The render
-loop never blocks on label work, so dragging a feature with
-heavy label regeneration finally feels smooth. On Tauri the
-worker uses the same Web Worker API (WebView2 + WKWebView both
-support workers). Adapter layer makes the worker testable from
-Vitest via a thin `runInWorker(message)` shim.
+### P4 — Non-blocking label regen (chunked yield)
+> **DONE (2026-06-14).** Audit found a true Web Worker rewrite
+> would force a refactor of `generateLabelsForFeature` first —
+> the function reads `useDrawingStore.getState().document.settings`
+> for `codeDisplayMode` + `drawingScale`, and zustand state
+> doesn't cross the worker boundary. The user-facing payoff
+> (non-blocking label regen) is achievable without that
+> upheaval by yielding to the event loop between chunks.
+>
+> New `lib/cad/labels/regenerate-layer-labels-chunked.ts`
+> exports `LABEL_REGEN_CHUNK_SIZE = 200` (tuned for < 1
+> frame of work per chunk on the median 2020 laptop),
+> `LABEL_REGEN_CHUNK_THRESHOLD` (same — sync is cheaper for
+> small layers), `regenerateLayerLabelsChunked(features,
+> layer, displayPrefs, { chunkSize, signal })`, and the
+> auto-dispatching `regenerateLayerLabelsAuto(...)` that
+> picks sync vs chunked based on feature count. Yields via
+> `setTimeout(0)` so the browser can paint + process input
+> between chunks; honors `AbortSignal` by returning the
+> partial map collected so far.
+>
+> LayerPreferencesPanel's `update()` runs the regen through
+> `regenerateLayerLabelsAuto` inside a fire-and-forget async
+> IIFE — small layers still hit the sync path (no scheduling
+> overhead), large ones get chunked. Slider holds stay
+> responsive even with ~5k point layers + heavy label prefs.
+> The Slice 10 source-lock that froze the exact
+> `regenerateLayerLabels` call shape was loosened to accept
+> either entry point.
+>
+> 12 unit + source-lock cases in
+> `__tests__/cad/labels/regenerate-layer-labels-chunked.test.ts`
+> cover the chunk constants, single-layer + cross-layer
+> filtering, multi-chunk output parity with the sync version,
+> custom chunk sizes, AbortSignal handling, sync-vs-chunked
+> auto-dispatch, and the LayerPreferencesPanel wiring. Also
+> fixed a flaky `EnvironmentTeardownError` from the Slice T7
+> menu-bridge undo/redo test by awaiting the dynamic
+> `@/lib/cad/store` import explicitly. Full suite: 8016
+> green, zero unhandled errors.
+>
+> (True Worker version logged as P4b — needs the
+> `generateLabelsForFeature` store-read refactor as a
+> prerequisite.)
+
+### P4b — Web Worker label generation
+With the Slice P4 chunked yield in place, the main-thread
+ceiling is high enough for any realistic survey. P4b is
+deferred until/unless profiling under the
+T1+T2 desktop build shows the ceiling is still the
+bottleneck. Prerequisite: refactor
+`generateLabelsForFeature` to take its `codeDisplayMode` +
+`drawingScale` as explicit arguments instead of reading the
+singleton store — only then can the function execute in a
+Worker context. The chunked entry point in P4 is the
+fallback for the small-layer / no-Worker path even after
+the Worker lands.
 
 ### P5 — LOD threshold tuning + lazy label render
 At zoom below `doc.settings.lodPixelThreshold` (default 0.5),

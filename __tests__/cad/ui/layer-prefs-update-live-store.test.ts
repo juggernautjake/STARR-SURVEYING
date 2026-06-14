@@ -46,8 +46,13 @@ describe('LayerPreferencesPanel.update — reads live store state', () => {
   });
 
   it('uses the LIVE layer record when regenerating labels', () => {
+    // cad-desktop-tauri-and-perf Slice P4 moved the call to the
+    // chunked `regenerateLayerLabelsAuto` so the heavy regen
+    // yields to the event loop. The (features, layer,
+    // displayPrefs) triple still feeds the same generator; the
+    // source-lock now matches either entry point.
     expect(SRC).toMatch(
-      /regenerateLayerLabels\(features, \{ \.\.\.liveLayer, displayPreferences: mergedPrefs \}, displayPrefs\)/,
+      /regenerateLayerLabels(?:Auto)?\(\s*\n?\s*features,\s*\n?\s*\{ \.\.\.liveLayer, displayPreferences: mergedPrefs \},\s*\n?\s*displayPrefs[\s\S]*?\)/,
     );
   });
 });

@@ -97,10 +97,14 @@ describe('dispatchMenuAction — routes ids to cad:* window events', () => {
     (window as Window).addEventListener('cad:redo', listener);
     dispatchMenuAction('edit.undo');
     dispatchMenuAction('edit.redo');
-    // dispatchMenuAction for undo/redo lazy-imports the undo store —
-    // wait for the import to settle so the teardown doesn't catch
-    // it mid-load and surface an EnvironmentTeardownError.
-    await new Promise((r) => setTimeout(r, 0));
+    // dispatchMenuAction for undo/redo lazy-imports the undo store
+    // (`await import('../store')`). Resolve the imports explicitly
+    // so the teardown phase doesn't catch them mid-load and surface
+    // EnvironmentTeardownError. Awaiting the same module ref tracks
+    // the dynamic import's promise chain rather than guessing at
+    // event-loop timing.
+    await import('@/lib/cad/store');
+    await new Promise((r) => setTimeout(r, 10));
     expect(listener).not.toHaveBeenCalled();
     (window as Window).removeEventListener('cad:undo', listener);
     (window as Window).removeEventListener('cad:redo', listener);
