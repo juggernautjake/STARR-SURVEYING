@@ -59,6 +59,7 @@ import { clearAutosave } from '@/lib/cad/persistence/autosave';
 import { isTauri } from '@/lib/cad/platform/runtime';
 import { openCadFileViaPlatform } from '@/lib/cad/persistence/native-file';
 import { registerNativeDropListener } from '@/lib/cad/persistence/native-drop';
+import { saveCadFileViaPlatform, saveCadFileToPath } from '@/lib/cad/persistence/native-save';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
@@ -143,12 +144,38 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   // when given, re-saves under the remembered name (the browser writes to
   // the download folder without a picker when "ask where to save" is off)
   // and records a local save target so the next Ctrl+S repeats it.
-  function saveLocalCopy(silentName?: string) {
+  async function saveLocalCopy(silentName?: string) {
+    const doc = drawingStore.document;
+    const name = (silentName ?? doc.name).trim() || 'drawing';
+    const payload = { version: '1.0', application: 'starr-cad', document: doc };
+    const contents = JSON.stringify(payload, null, 2);
+    // cad-desktop-tauri-and-perf Slice T5b — Tauri shell uses the
+    // native save dialog + filesystem write instead of the URL-blob
+    // download. `silentName` paired with a remembered path means
+    // "Save" (write straight back); everything else is "Save As"
+    // (prompt for a destination).
+    if (isTauri()) {
+      try {
+        const target = useSaveTargetStore.getState().targetFor(doc.id);
+        const rememberedPath =
+          target && target.kind === 'local' ? target.path ?? null : null;
+        const result = silentName && rememberedPath
+          ? await saveCadFileToPath(rememberedPath, contents)
+          : await saveCadFileViaPlatform({ defaultPath: `${name}.starr` }, contents);
+        if (!result) return; // user cancelled the dialog
+        drawingStore.markClean();
+        const baseName = result.name.replace(/\.starr$/i, '');
+        useSaveTargetStore.getState().setLocalTarget(doc.id, baseName, result.path);
+        void clearAutosave(doc.id);
+        cadLog.info('FileIO', `Saved drawing locally: ${result.path}`);
+      } catch (err) {
+        cadLog.error('FileIO', 'Failed to save document', err);
+        void alertAction({ title: 'Starr CAD', message: 'Failed to save the drawing. Try again, or contact support if it keeps failing.' });
+      }
+      return;
+    }
     try {
-      const doc = drawingStore.document;
-      const name = (silentName ?? doc.name).trim() || 'drawing';
-      const payload = { version: '1.0', application: 'starr-cad', document: doc };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const blob = new Blob([contents], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = Object.assign(document.createElement('a'), { href: url, download: `${name}.starr` });
       a.click();

@@ -232,17 +232,31 @@ slices below.
 > download flow at risk.)
 
 ### T5b — Wire native save into MenuBar (Save / Save As)
-Mirror Slice T4b: in `MenuBar.tsx`, extract the existing
-`saveLocalCopy` body into a shared helper that takes
-`{ name, contents }` plus a destination strategy. Add a new
-`documentStore` field `localFilePath: string | null` populated
-on a successful Save-As + native open path. Save uses
-`saveCadFileToPath(localFilePath, contents)` when populated and
-`isTauri()`; Save As always calls `saveCadFileViaPlatform({
-defaultPath: doc.name + '.starr' }, contents)`. Web behavior is
-untouched — `isTauri()` returns false there, so the existing
-URL-blob + anchor-click download keeps running. Source-lock the
-branch points.
+> **DONE (2026-06-14).** Extended the SaveTarget store's `local`
+> variant with an optional `path?: string | null` field so the
+> Tauri save flow can remember the absolute filesystem path the
+> surveyor picked. `setLocalTarget(docId, name, path?)` is
+> backward-compatible — web callers keep using the two-arg form
+> and the field stays `null`. MenuBar's `saveLocalCopy` is now
+> `async` and branches at the top on `isTauri()`: under Tauri it
+> resolves contents once, looks up the remembered path on the
+> SaveTarget store, and dispatches — `silentName + rememberedPath`
+> writes straight back through `saveCadFileToPath`; everything
+> else prompts via `saveCadFileViaPlatform({ defaultPath:
+> name + '.starr' })`. On a successful save the new
+> `setLocalTarget(doc.id, baseName, result.path)` call persists
+> the path so the next Ctrl+S is silent. The base name strips
+> `.starr` so the display name doesn't double-extension on the
+> menu. The web branch is preserved byte-for-byte in behavior —
+> same URL-blob, same anchor click, same setLocalTarget
+> two-arg call — so `isTauri() === false` users keep the existing
+> download. 11 source-lock cases in
+> `__tests__/desktop/menubar-save-routing.test.ts` cover the
+> store extension, the import wiring, the isTauri branch
+> structure (contents-first, dialog after), both Save / Save-As
+> dispatch paths, path-persistence, .starr extension strip, the
+> cancel short-circuit, and the verbatim-preserved web branch.
+> Full suite: 7845 green.
 
 ### T6 — Autosave migration to filesystem
 New `lib/cad/persistence/native-autosave.ts` writes to
