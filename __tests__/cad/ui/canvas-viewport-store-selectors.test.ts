@@ -41,8 +41,12 @@ describe('CanvasViewport — P6g selection + undo subs gone', () => {
     expect(SRC).not.toMatch(/\[[^\]]*\bundoStore\b[^\]]*\]/);
   });
 
-  it('keeps the drawingStore + toolStore subs (they have render-time reads — handled in P6h)', () => {
+  it('keeps the drawingStore sub for now (render-time reads — handled in P6j-drawing)', () => {
+    // P6j dropped `useToolStore()` and replaced it with per-field
+    // selectors; the drawingStore sub still lives at the top of
+    // the component until the per-field conversion of its
+    // render-time reads lands in a later slice.
     expect(SRC).toMatch(/const drawingStore = useDrawingStore\(\);/);
-    expect(SRC).toMatch(/const toolStore = useToolStore\(\);/);
+    expect(SRC).not.toMatch(/const toolStore = useToolStore\(\);/);
   });
 });

@@ -974,6 +974,35 @@ display preferences + code-display + drawing-rotation, plus
 `state.offsetSourceId` for the JSX conditionals). Track as
 `P6j`.
 
+**P6j tool sub shipped 2026-06-14** — drops the `useToolStore()`
+whole-store sub on CanvasViewport, the second-biggest
+remaining offender (drawing-tool mutations fire many ticks per
+second during interactive draw + snap loops). The three
+render-time tool reads
+(`activeTool` for the cursor-swap useEffect dep + the floating-
+panel JSX conditionals; `perpStartPoint` for the PERPENDICULAR
+tool's panel mount gate; `offsetSourceId` for the OFFSET tool's
+panel mount gate) move to per-field selectors. The remaining
+~140 callback + rAF call sites SED-converted in two passes:
+first `toolStore.state.X` → `useToolStore.getState().state.X`,
+then `toolStore.X` → `useToolStore.getState().X`. Six
+`useCallback` / `useEffect` dep arrays that listed `toolStore`
+were trimmed in the same pass (the per-field `activeTool`
+selector covers the cursor-swap effect's dep contract on its
+own). The P6g source-lock for `const toolStore = useToolStore();`
+was inverted to assert the sub is gone — the assertion that
+intentionally kept toolStore until P6j now flips to its
+negation. Source-locked by
+`__tests__/cad/ui/canvas-viewport-tool-selectors.test.ts` (5
+assertions covering the dropped sub, the three per-field
+selectors, the floating-panel JSX rewrites, and four sample
+`useToolStore.getState().X` call sites).
+**Remaining P6 follow-up:** CanvasViewport's last whole-store
+sub — `useDrawingStore()`. Has render-time reads
+(`document.settings.X` for display preferences + code-display
++ drawing-rotation; `document.layerOrder.length` for the
+"no layers yet" overlay). Track as `P6k`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
