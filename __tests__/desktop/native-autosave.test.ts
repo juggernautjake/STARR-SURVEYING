@@ -70,15 +70,42 @@ describe('writeNativeAutosave — ensure dir + write payload JSON', () => {
     expect(fakeInvoke).not.toHaveBeenCalled();
   });
 
-  it('ensures the autosaves dir then writes the payload as JSON', async () => {
+  it('ensures the autosaves dir then writes the payload as JSON (atomic via temp + rename)', async () => {
+    // QA hardening — the write is now two-step: write to `<path>.tmp`
+    // then `rename` to the real path so a crash mid-write can't leave
+    // a torn autosave on disk. The test follows the new mock sequence.
     setupTauri();
     fakeInvoke
       .mockResolvedValueOnce('/appdata')             // ensure: appDataDir
       .mockResolvedValueOnce(undefined)              // ensure: mkdir
       .mockResolvedValueOnce('/appdata')             // resolveNativeAutosavePath: appDataDir
-      .mockResolvedValueOnce(undefined);             // write_text_file
+      .mockResolvedValueOnce(undefined)              // write_text_file (tmp)
+      .mockResolvedValueOnce(undefined);             // rename tmp → path
     await writeNativeAutosave('doc-1', SAMPLE);
-    expect(fakeInvoke).toHaveBeenLastCalledWith('plugin:fs|write_text_file', {
+    expect(fakeInvoke).toHaveBeenNthCalledWith(4, 'plugin:fs|write_text_file', {
+      path: '/appdata/autosaves/doc-1.starr.tmp',
+      contents: JSON.stringify(SAMPLE),
+    });
+    expect(fakeInvoke).toHaveBeenLastCalledWith('plugin:fs|rename', {
+      oldPath: '/appdata/autosaves/doc-1.starr.tmp',
+      newPath: '/appdata/autosaves/doc-1.starr',
+    });
+  });
+
+  it('falls back to a direct write when the rename plugin is missing', async () => {
+    setupTauri();
+    fakeInvoke
+      .mockResolvedValueOnce('/appdata')               // ensure: appDataDir
+      .mockResolvedValueOnce(undefined)                // ensure: mkdir
+      .mockResolvedValueOnce('/appdata')               // resolveNativeAutosavePath: appDataDir
+      .mockResolvedValueOnce(undefined)                // write tmp succeeds
+      .mockRejectedValueOnce(new Error('rename not registered'))  // rename plugin missing
+      .mockResolvedValueOnce(undefined)                // fallback direct write
+      .mockResolvedValueOnce(undefined);               // best-effort tmp remove
+    await writeNativeAutosave('doc-1', SAMPLE);
+    // Fallback DID land — the canonical path got the payload written
+    // directly even though the rename plugin was absent.
+    expect(fakeInvoke).toHaveBeenCalledWith('plugin:fs|write_text_file', {
       path: '/appdata/autosaves/doc-1.starr',
       contents: JSON.stringify(SAMPLE),
     });

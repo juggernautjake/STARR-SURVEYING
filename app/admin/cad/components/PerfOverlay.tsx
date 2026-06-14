@@ -23,7 +23,7 @@
 // the hotkey hasn't been pressed it returns `null` and costs
 // nothing beyond the keydown listener.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getRenderProfile,
   resetRenderProfile,
@@ -43,6 +43,11 @@ import { useDrawingStore } from '@/lib/cad/store';
 
 const POLL_INTERVAL_MS = 500;
 const CAPTURE_DURATION_MS = 5_000;
+// Fixtures at or above this count freeze the main thread for
+// noticeable seconds while `addFeatures` lands. The confirm
+// dialog spells out the cost so a hasty click can't blow a
+// minute of the surveyor's time on a UI-thread stall.
+const HEAVY_FIXTURE_THRESHOLD = 50_000;
 
 const FIXTURE_BUTTONS: ReadonlyArray<{ size: FixtureSize; label: string }> = [
   { size: 'small', label: 'Small' },
@@ -75,6 +80,28 @@ export default function PerfOverlay() {
   const [profile, setProfile] = useState<RenderProfile>(() => getRenderProfile());
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // QA hardening — the 5 s capture and the deferred fixture load
+  // both resolve AFTER React may have torn the component down (the
+  // user navigates away mid-capture, or hot-reload swaps the tree).
+  // Track mount state in a ref and bail out of setState in those
+  // late-arriving callbacks so we don't emit React warnings or
+  // mutate detached state.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  const safeSetProfile = useCallback((next: RenderProfile) => {
+    if (mountedRef.current) setProfile(next);
+  }, []);
+  const safeSetStatus = useCallback((next: string | null) => {
+    if (mountedRef.current) setStatus(next);
+  }, []);
+  const safeSetBusy = useCallback((next: string | null) => {
+    if (mountedRef.current) setBusy(next);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -102,29 +129,43 @@ export default function PerfOverlay() {
     setProfile(getRenderProfile());
   }, []);
 
-  const onLoadFixture = useCallback((size: FixtureSize) => {
-    const count = FIXTURE_SIZES[size];
-    const ok = window.confirm(
-      `Replace the current drawing with a ${count.toLocaleString()}-feature synthetic fixture? This wipes the current document.`,
-    );
-    if (!ok) return;
-    setBusy(`load:${size}`);
-    setStatus(null);
-    // Defer one tick so React can paint the busy state before the
-    // big addFeatures call lands.
-    setTimeout(() => {
-      try {
-        const features = generateNamedFixture(size);
-        const sink = useDrawingStore.getState();
-        const result = loadProfileFixture(features, sink);
-        setStatus(
-          `Loaded ${result.loaded.toLocaleString()} features in ${fmt(result.loadMs)}ms`,
-        );
-      } finally {
-        setBusy(null);
-      }
-    }, 0);
-  }, []);
+  const onLoadFixture = useCallback(
+    (size: FixtureSize) => {
+      const count = FIXTURE_SIZES[size];
+      const isHeavy = count >= HEAVY_FIXTURE_THRESHOLD;
+      // Heavy fixtures stall the main thread for several seconds while
+      // `addFeatures` lands — spell out the cost so the surveyor isn't
+      // ambushed by an unresponsive UI after a single click.
+      const stallWarning = isHeavy
+        ? '\n\nThe UI will freeze for several seconds during the load. Proceed?'
+        : '';
+      const ok = window.confirm(
+        `Replace the current drawing with a ${count.toLocaleString()}-feature synthetic fixture? This wipes the current document.${stallWarning}`,
+      );
+      if (!ok) return;
+      setBusy(`load:${size}`);
+      setStatus(null);
+      // Defer one tick so React can paint the busy state before the
+      // big addFeatures call lands.
+      setTimeout(() => {
+        try {
+          const features = generateNamedFixture(size);
+          const sink = useDrawingStore.getState();
+          const result = loadProfileFixture(features, sink);
+          safeSetStatus(
+            `Loaded ${result.loaded.toLocaleString()} features in ${fmt(result.loadMs)}ms`,
+          );
+        } catch (err) {
+          safeSetStatus(
+            `Load failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        } finally {
+          safeSetBusy(null);
+        }
+      }, 0);
+    },
+    [safeSetBusy, safeSetStatus],
+  );
 
   const onCapture = useCallback(async () => {
     setBusy('capture');
@@ -133,12 +174,16 @@ export default function PerfOverlay() {
       const { profile: captured, elapsedMs } = await captureProfileWindow(
         CAPTURE_DURATION_MS,
       );
-      setProfile(captured);
-      setStatus(`Captured ${fmt(elapsedMs)}ms window`);
+      safeSetProfile(captured);
+      safeSetStatus(`Captured ${fmt(elapsedMs)}ms window`);
+    } catch (err) {
+      safeSetStatus(
+        `Capture failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
-      setBusy(null);
+      safeSetBusy(null);
     }
-  }, []);
+  }, [safeSetProfile, safeSetStatus, safeSetBusy]);
 
   if (!visible) return null;
 

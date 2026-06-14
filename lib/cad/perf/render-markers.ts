@@ -169,6 +169,14 @@ export function markRender(label: string, durationMs: number): void {
  * Convenience wrapper: time `fn`, record under `label`, return
  * its result. The duration is recorded even if `fn` throws so
  * we don't miss outlier frames where a phase blew up.
+ *
+ * NOTE — `fn` MUST be synchronous. The duration is measured from
+ * call to return; an async `fn` returns a Promise immediately
+ * (sync ~ 0 ms) and the recorded sample reflects the Promise
+ * construction, NOT the awaited work. Use a dedicated
+ * `measureRenderAsync` (call sites are responsible for awaiting
+ * the inner work) if you need to time a Promise. Today every
+ * render-loop call site is sync, so no async wrapper exists yet.
  */
 export function measureRender<T>(label: string, fn: () => T): T {
   const start = performance.now();

@@ -61,6 +61,13 @@ export const DEFAULT_CAD_FILTERS: ReadonlyArray<OpenFileFilter> = [
   { name: 'All files', extensions: ['*'] },
 ];
 
+/** Soft cap (bytes) on file size we'll load via the native dialog.
+ *  Above this, the WebView starts to OOM on a 200 MB CSV. The
+ *  largest surveys we've seen ship well under this limit; if a
+ *  surveyor hits it, the right answer is to import via a streaming
+ *  reader rather than the synchronous text load this helper does. */
+export const NATIVE_FILE_MAX_BYTES = 200 * 1024 * 1024;
+
 /** Shape of the global Tauri injects at runtime. We re-declare here
  *  rather than importing from `runtime.ts` so this module compiles
  *  without circular dependencies. */
@@ -100,6 +107,28 @@ export async function openFileViaTauri(
     },
   });
   if (!path || typeof path !== 'string') return null;
+  // QA hardening — sniff the file size before reading so a hasty
+  // pick of a 1 GB CSV doesn't OOM the WebView with no diagnostics.
+  // We surface a real Error the caller's command-bar reporter can
+  // render; the dialog flow already swallows null (user cancelled),
+  // so a thrown Error is the right channel for "tried to open but
+  // couldn't".
+  try {
+    const stat = await invoke<{ size?: number } | null>('plugin:fs|stat', { path });
+    const size = typeof stat?.size === 'number' ? stat.size : -1;
+    if (size > NATIVE_FILE_MAX_BYTES) {
+      const mb = Math.round(size / (1024 * 1024));
+      throw new Error(
+        `native-file: "${path.split(/[\\/]/).pop()}" is ${mb} MB; the native opener tops out at ${NATIVE_FILE_MAX_BYTES / (1024 * 1024)} MB. Use a streaming import instead.`,
+      );
+    }
+  } catch (err) {
+    // `plugin:fs|stat` may not be exposed by every Tauri build —
+    // a missing plugin throws synchronously and we treat it as
+    // "couldn't measure, proceed anyway". Real "file too big"
+    // errors land via the explicit `throw new Error` above.
+    if (err instanceof Error && err.message.startsWith('native-file:')) throw err;
+  }
   // Read the file as UTF-8 text. The fs plugin's `read_text_file`
   // command is path-scoped per capability; the default capability
   // we ship in Slice T4 grants read access to the user-picked path

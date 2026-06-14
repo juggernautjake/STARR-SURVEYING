@@ -73,8 +73,13 @@ describe('openCadFileViaPlatform — boundary', () => {
   });
 
   it('round-trips dialog → fs through __TAURI_INTERNALS__.invoke', async () => {
+    // QA hardening — the helper now sniffs the file size via
+    // `plugin:fs|stat` between the dialog reply and the text read so
+    // a hasty pick of a 200 MB+ file errors loudly instead of OOMing
+    // the WebView. The size-sniff slot lands at call #2.
     fakeInvoke
       .mockResolvedValueOnce('/tmp/survey/garland.trv')   // dialog returns the path
+      .mockResolvedValueOnce({ size: 32 })                // fs stat (sniff size)
       .mockResolvedValueOnce('999,begin\n#,POINTS\n');    // fs returns the contents
     __unsafeSetTauriInternalsForTests({ invoke: fakeInvoke });
     const result = await openCadFileViaPlatform();
@@ -84,9 +89,32 @@ describe('openCadFileViaPlatform — boundary', () => {
       contents: '999,begin\n#,POINTS\n',
     });
     expect(fakeInvoke).toHaveBeenNthCalledWith(1, 'plugin:dialog|open', expect.any(Object));
-    expect(fakeInvoke).toHaveBeenNthCalledWith(2, 'plugin:fs|read_text_file', {
+    expect(fakeInvoke).toHaveBeenLastCalledWith('plugin:fs|read_text_file', {
       path: '/tmp/survey/garland.trv',
     });
+  });
+
+  it('throws when the picked file exceeds NATIVE_FILE_MAX_BYTES', async () => {
+    fakeInvoke
+      .mockResolvedValueOnce('/tmp/huge.csv')
+      .mockResolvedValueOnce({ size: 250 * 1024 * 1024 });   // 250 MB > cap
+    __unsafeSetTauriInternalsForTests({ invoke: fakeInvoke });
+    await expect(openCadFileViaPlatform()).rejects.toThrow(
+      /tops out at .* MB/,
+    );
+    // The text read MUST NOT fire when the size sniff already failed.
+    const calls = fakeInvoke.mock.calls.map((c) => c[0]);
+    expect(calls).not.toContain('plugin:fs|read_text_file');
+  });
+
+  it('proceeds when the stat plugin is missing (graceful degradation)', async () => {
+    fakeInvoke
+      .mockResolvedValueOnce('/tmp/survey/garland.trv')
+      .mockRejectedValueOnce(new Error('stat plugin not registered'))
+      .mockResolvedValueOnce('999,begin\n');
+    __unsafeSetTauriInternalsForTests({ invoke: fakeInvoke });
+    const result = await openCadFileViaPlatform();
+    expect(result?.contents).toBe('999,begin\n');
   });
 
   it('returns null when the user cancels the dialog', async () => {

@@ -130,12 +130,28 @@ export async function registerNativeDropListener(
     // The Tauri 2 payload shape: `{ payload: { type: 'drop' | 'over'
     // | 'enter' | 'leave', paths?: string[], position?: {x, y} } }`.
     // We only care about the `'drop'` action.
+    //
+    // QA hardening — defensive runtime validation of every payload
+    // field. The TS type `paths?: string[]` is a hint, not a
+    // guarantee, since the event crosses an IPC boundary. A
+    // malformed or future-Tauri payload with `paths === undefined`
+    // would crash on `.length`; one with non-string entries would
+    // throw inside `plugin:fs|read_text_file`. We filter both up
+    // front so a single bad event can't kill the whole listener.
     const payload = event.payload;
     if (!payload || payload.type !== 'drop') return;
-    const paths = payload.paths ?? [];
+    if (!Array.isArray(payload.paths)) return;
+    const paths = payload.paths.filter(
+      (p): p is string => typeof p === 'string' && p.length > 0,
+    );
     if (paths.length === 0) return;
-    const files = await readPathsAsCadFiles(paths, invoke);
-    if (files.length > 0) await onFiles(files);
+    try {
+      const files = await readPathsAsCadFiles(paths, invoke);
+      if (files.length > 0) await onFiles(files);
+    } catch {
+      // A failure inside the user-supplied `onFiles` shouldn't
+      // detach the listener — the next drop should still work.
+    }
   });
   return unlisten;
 }

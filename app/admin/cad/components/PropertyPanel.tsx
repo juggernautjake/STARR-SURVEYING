@@ -129,13 +129,17 @@ function LineDimField({
 // Enter on distance, change on unit) runs the live recompute through
 // the Slice-5 helper and pushes one undo entry per edit session.
 function OffsetSourceSection({ feature }: { feature: Feature }) {
-  // cad-desktop-tauri-and-perf Slice P6e — drop the two whole-store
-  // subscriptions for per-field selectors. The only render-time read
-  // is the `getFeature` action ref (stable identity); every other
-  // store access lives inside an event handler and reads the latest
-  // snapshot via `useXStore.getState()`.
+  // cad-desktop-tauri-and-perf Slice P6e + QA hardening — drop the
+  // two whole-store subscriptions for per-field selectors. The only
+  // render-time read is the `getFeature` action ref (stable
+  // identity); every other store access lives inside an event
+  // handler and reads the latest snapshot via `useXStore.getState()`.
+  // The original Slice P6e left `useUndoStore()` as a whole-store
+  // sub even though `pushUndo(...)` is the only usage and runs only
+  // from the distance-input commit callback — converted to the
+  // `getState()` form so undo-stack churn no longer reconciles the
+  // offset section.
   const getFeature = useDrawingStore((s) => s.getFeature);
-  const undoStore = useUndoStore();
 
   const desc = describeOffsetSection(feature, getFeature);
 
@@ -188,7 +192,7 @@ function OffsetSourceSection({ feature }: { feature: Feature }) {
       geometry: after.geometry,
       properties: after.properties,
     });
-    undoStore.pushUndo({
+    useUndoStore.getState().pushUndo({
       id: generateId(),
       description: `Edit offset distance (${distance} ${unit.toLowerCase()})`,
       timestamp: Date.now(),

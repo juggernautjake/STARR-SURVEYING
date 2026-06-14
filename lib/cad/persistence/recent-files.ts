@@ -86,30 +86,51 @@ export function applyRecentFileAdd(
   return next.slice(0, RECENT_FILES_LIMIT);
 }
 
+// QA hardening — `addRecentFile` is now called from at least three
+// surfaces (Tauri Open dialog, OS drag-drop, save success). The
+// drag-drop path can fire many `addRecentFile` calls in quick
+// succession when the user drops multiple files at once. Without
+// serialization, two concurrent read-modify-write cycles can clobber
+// each other and silently lose recent entries. A single Promise
+// chain queues writes so each one observes the previous result.
+let recentWriteQueue: Promise<void> = Promise.resolve();
+function queueRecentWrite(work: () => Promise<void>): Promise<void> {
+  const next = recentWriteQueue.catch(() => {}).then(work);
+  recentWriteQueue = next;
+  return next;
+}
+
 /** Add (or move-to-top) a file in the Recent Files list. The
  *  filesystem write is idempotent: if the entry is already at the
  *  top with the same path, we still overwrite recent.json so the
  *  savedAt timestamp refreshes (harmless on the web build because
- *  the function short-circuits). */
+ *  the function short-circuits). Writes are serialized so two
+ *  concurrent adds (e.g. a multi-file drop) can't clobber each
+ *  other's read-modify-write. */
 export async function addRecentFile(path: string, name: string): Promise<void> {
   const invoke = getInvoke();
   if (!invoke || !isTauri()) return;
-  const current = await getRecentFiles();
-  const entry: RecentFile = {
-    path,
-    name,
-    savedAt: new Date().toISOString(),
-  };
-  const next = applyRecentFileAdd(current, entry);
-  await writeRecentFiles(invoke, next);
+  return queueRecentWrite(async () => {
+    const current = await getRecentFiles();
+    const entry: RecentFile = {
+      path,
+      name,
+      savedAt: new Date().toISOString(),
+    };
+    const next = applyRecentFileAdd(current, entry);
+    await writeRecentFiles(invoke, next);
+  });
 }
 
 /** Empty the Recent Files list. Surfaces a small "Clear Recent
- *  Files" affordance future T7c work can expose on the menu. */
+ *  Files" affordance future T7c work can expose on the menu.
+ *  Queued so it can't race with an in-flight `addRecentFile`. */
 export async function clearRecentFiles(): Promise<void> {
   const invoke = getInvoke();
   if (!invoke || !isTauri()) return;
-  await writeRecentFiles(invoke, []);
+  return queueRecentWrite(async () => {
+    await writeRecentFiles(invoke, []);
+  });
 }
 
 async function writeRecentFiles(invoke: Invoke, files: ReadonlyArray<RecentFile>): Promise<void> {

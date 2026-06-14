@@ -89,7 +89,10 @@ describe('PerfOverlay — N1f fixture-load + capture wiring', () => {
   it('Capture button drives captureProfileWindow + writes the result back into the table', () => {
     expect(SRC).toMatch(/const CAPTURE_DURATION_MS = 5_?000;/);
     expect(SRC).toMatch(/await captureProfileWindow\(\s*\n?\s*CAPTURE_DURATION_MS,?\s*\n?\s*\)/);
-    expect(SRC).toMatch(/setProfile\(captured\);/);
+    // QA hardening — `setProfile` is now wrapped in `safeSetProfile`
+    // which short-circuits when the component has unmounted before
+    // the 5 s capture resolves. Accept either form.
+    expect(SRC).toMatch(/(setProfile|safeSetProfile)\(captured\);/);
   });
 
   it('disables every action button while a load or capture is in flight', () => {

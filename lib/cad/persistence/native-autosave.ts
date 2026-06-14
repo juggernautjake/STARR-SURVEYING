@@ -71,10 +71,35 @@ export async function writeNativeAutosave(docId: string, payload: AutosavePayloa
   if (!invoke || !isTauri()) return;
   await ensureNativeAutosaveDir(invoke);
   const path = await resolveNativeAutosavePath(docId, invoke);
+  // QA hardening — autosave runs on a 5 s debounce + a 2 min
+  // periodic timer; if the process crashes / loses power mid-write
+  // the JSON file on disk is torn and the next read returns null
+  // (silent autosave loss). A two-step write + rename gives us
+  // crash-atomic semantics on every supported OS: the `.tmp` file
+  // is the only one ever in a half-written state, and the rename
+  // is an atomic syscall that either resolves to the new contents
+  // or leaves the prior good snapshot in place.
+  const tmp = `${path}.tmp`;
   await invoke('plugin:fs|write_text_file', {
-    path,
+    path: tmp,
     contents: JSON.stringify(payload),
   });
+  try {
+    await invoke('plugin:fs|rename', { oldPath: tmp, newPath: path });
+  } catch {
+    // Some Tauri fs plugin builds don't expose `rename`. Fall back
+    // to a direct write so the autosave still lands — the crash-
+    // atomic guarantee is reduced, but the user's data is not lost.
+    await invoke('plugin:fs|write_text_file', {
+      path,
+      contents: JSON.stringify(payload),
+    });
+    try {
+      await invoke('plugin:fs|remove', { path: tmp });
+    } catch {
+      // Best-effort tmp cleanup; not fatal.
+    }
+  }
 }
 
 export async function readNativeAutosave(docId: string): Promise<AutosavePayload | null> {
