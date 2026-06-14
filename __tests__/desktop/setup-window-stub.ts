@@ -10,7 +10,12 @@
 // runtime is invoked.
 
 if (typeof globalThis.window === 'undefined') {
-  (globalThis as { window?: unknown }).window = {} as Window;
+  // Use a real EventTarget so addEventListener / removeEventListener
+  // / dispatchEvent all work the way the platform code expects. The
+  // Slice T7 menu-bridge test relies on this — it wires real
+  // listeners and checks they fire.
+  const target = new EventTarget() as unknown as Window;
+  (globalThis as { window?: unknown }).window = target;
 }
 if (typeof globalThis.navigator === 'undefined') {
   (globalThis as { navigator?: unknown }).navigator = { userAgent: '' } as Navigator;

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability set granted to the main window. Slice T2 shipped the core baseline. Slice T4 added dialog:allow-open + fs:allow-read-text-file for native file open. Slice T5 added dialog:allow-save + fs:allow-write-text-file for native file save. Slice T6 layers path:allow-app-data-dir + fs:allow-mkdir / fs:allow-remove / fs:allow-read-dir so the filesystem autosave can manage <appDataDir>/autosaves/. Slice T7 will add menu/window permissions for the native menu wiring.",
+  "description": "Capability set granted to the main window. Slice T2 shipped the core baseline. Slice T4 added dialog:allow-open + fs:allow-read-text-file for native file open. Slice T5 added dialog:allow-save + fs:allow-write-text-file for native file save. Slice T6 added path:default + fs:allow-mkdir / fs:allow-remove / fs:allow-read-dir so the filesystem autosave can manage <appDataDir>/autosaves/. Slice T7 added event:allow-listen so the TS-side menu bridge can subscribe to the Rust menu emit (the menu itself doesn't need a per-window capability — the native menu is granted at app boot via tauri::Builder::set_menu).",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -12,6 +12,7 @@
     "fs:allow-mkdir",
     "fs:allow-remove",
     "fs:allow-read-dir",
-    "path:default"
+    "path:default",
+    "event:allow-listen"
   ]
 }

@@ -1,3 +1,5 @@
+mod menu;
+
 // cad-desktop-tauri-and-perf Slice T2 — Tauri 2 application bootstrap.
 //
 // Phase-1 deliberately minimal: one builder, default runtime, no
@@ -20,7 +22,8 @@ pub fn run() {
         // `capabilities/default.json`.
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        // Slice T7 will register a native menu here.
+        .setup(menu::install_app_menu)
+        .on_menu_event(menu::on_menu_event)
         .invoke_handler(tauri::generate_handler![ping])
         .run(tauri::generate_context!())
         .expect("error while running Starr CAD desktop shell");

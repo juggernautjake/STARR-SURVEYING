@@ -60,6 +60,7 @@ import { isTauri } from '@/lib/cad/platform/runtime';
 import { openCadFileViaPlatform } from '@/lib/cad/persistence/native-file';
 import { registerNativeDropListener } from '@/lib/cad/persistence/native-drop';
 import { saveCadFileViaPlatform, saveCadFileToPath } from '@/lib/cad/persistence/native-save';
+import { registerMenuBridge } from '@/lib/cad/platform/menu-bridge';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
@@ -237,6 +238,44 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     window.addEventListener('cad:saveDocument', handler);
     return () => window.removeEventListener('cad:saveDocument', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // cad-desktop-tauri-and-perf Slice T7 — the native menu bridge
+  // dispatches `cad:openFileDialog` (File → Open…) and
+  // `cad:saveDocumentAs` (File → Save As…). MenuBar owns those
+  // closures, so the listeners live here. Web behavior is
+  // untouched; the bridge no-ops on `isTauri() === false`.
+  useEffect(() => {
+    const onOpen = () => openFileDialog();
+    const onSaveAs = () => { void saveLocalCopy(); };
+    window.addEventListener('cad:openFileDialog', onOpen);
+    window.addEventListener('cad:saveDocumentAs', onSaveAs);
+    return () => {
+      window.removeEventListener('cad:openFileDialog', onOpen);
+      window.removeEventListener('cad:saveDocumentAs', onSaveAs);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // cad-desktop-tauri-and-perf Slice T7 — subscribe to the Rust
+  // menu's `cad:menu` event so each native menu click reaches the
+  // matching `cad:*` window event the existing CAD app already
+  // handles. The bridge swallows itself on the web build.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let disposed = false;
+    void (async () => {
+      const stop = await registerMenuBridge();
+      if (disposed && stop) {
+        stop();
+      } else {
+        unlisten = stop;
+      }
+    })();
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
   }, []);
 
   // Let other surfaces (e.g. the startup New Drawing dialog) open the

@@ -297,16 +297,59 @@ slices below.
 > green.
 
 ### T7 — Native app menu + Recent Files
-Use Tauri's `Menu` API to install a real menu bar (top of screen
-on macOS, top of window on Windows). File → Open / Save / Save As /
-Recent Files (last 10) / Quit. Edit → Undo / Redo / Cut / Copy /
-Paste / Select All. View → Zoom Extents / Refresh Canvas (fires
-the Slice-11 `cad:regenerateCanvas` we just shipped). Help →
-Keyboard Shortcuts (fires the existing overlay). The menu's
-shortcuts route through the existing hotkey engine via the
-`dispatchDefaultAction` path — single source of truth for what
-each action does. Recent Files persists in
-`appDataDir() + '/recent.json'`. Source-lock the menu wiring.
+> **DONE (2026-06-14).** New `src-tauri/src/menu.rs` builds the
+> File / Edit / View / Help submenu tree with stable string IDs
+> (`ID_FILE_OPEN = "file.open"`, etc.) and exports
+> `install_app_menu` (called from `setup`) +  `on_menu_event`
+> (called from the builder chain). Each menu item emits a
+> `cad:menu` event with its id as the payload. Predefined Quit /
+> Cut / Copy / Paste come from `PredefinedMenuItem::*` so the OS
+> handles those natively (Cmd+C inside an `<input>` works the way
+> every user expects).
+>
+> New `lib/cad/platform/menu-bridge.ts` exposes `MENU_EVENT_MAP`
+> (frozen record mapping each menu id to the existing `cad:*`
+> window event the app already listens for), `dispatchMenuAction(id)`
+> (the pure dispatcher — undo / redo bypass the event bus and go
+> through the undo store directly), and `registerMenuBridge()`
+> (subscribes to the Tauri `cad:menu` event via a lazy import
+> trampoline that keeps `@tauri-apps/api/event` out of the web
+> bundle). MenuBar mounts the bridge in a useEffect with the same
+> disposed / unlisten guard the Slice T4c drop listener uses, plus
+> two extra listeners for `cad:openFileDialog` (File → Open…) and
+> `cad:saveDocumentAs` (File → Save As…) so the existing
+> openFileDialog + saveLocalCopy closures fire from the menu.
+> Capabilities widened with `event:allow-listen` so the TS bridge
+> can subscribe.
+>
+> `setup-window-stub.ts` upgraded from `{}` to a real `EventTarget`
+> so the bridge dispatch tests can wire listeners and verify they
+> fire — earlier desktop tests didn't need that. 16 unit +
+> source-lock cases in `__tests__/desktop/menu-bridge.test.ts`
+> cover the canonical id-to-event mapping, every map entry's
+> round-trip through `window.dispatchEvent`, the unknown-id
+> no-op, the undo/redo bypass, the boundary returns
+> (web → null, missing event module → null), the MenuBar
+> wiring, the Rust menu construction, and the capability grant.
+> Full suite: 7883 green.
+>
+> Recent Files as a DYNAMIC submenu (last 10 files reachable via
+> `appDataDir/recent.json`) is deferred to a T7b follow-up — the
+> menu currently exposes a single static "Recent Files…" item
+> that routes to the existing `cad:openFileManager` event so the
+> capability isn't blocking but the dynamic rebuild work hasn't
+> landed yet. A separate slice can layer it on without touching
+> the menu skeleton.
+
+### T7b — Dynamic Recent Files submenu (last 10)
+Build a Tauri-side helper that maintains a
+`<appDataDir>/recent.json` list (capped at 10, newest first).
+T4b / T5b's success paths call into a TS helper that appends
+the (path, name, savedAt) tuple. On menu rebuild — fired on
+each successful open / save — the Rust side reconstructs the
+File submenu with the live entries replacing the static
+"Recent Files…" placeholder Slice T7 shipped. Source-lock the
+helper + the menu rebuild call.
 
 ### T8 — CI matrix: Windows / macOS / Linux signed artifacts
 `.github/workflows/release.yml` triggered on tags (`v*`). Uses
