@@ -259,15 +259,42 @@ slices below.
 > Full suite: 7845 green.
 
 ### T6 — Autosave migration to filesystem
-New `lib/cad/persistence/native-autosave.ts` writes to
-`appDataDir() + '/autosaves/<docId>-<timestamp>.starr'` with
-the same retention rules the IndexedDB autosaver already uses
-(15 entries / 7 days). `lib/cad/persistence/autosave.ts` becomes
-a thin selector that picks the impl via Slice T3. Recovery flow
-(`RecentRecoveriesDialog`) lists entries from BOTH stores when
-running on desktop so users coming from the web build don't lose
-prior autosaves. Pure path-resolution helper + retention-pruning
-helper get unit tests.
+> **DONE (2026-06-14).** New `lib/cad/persistence/native-autosave.ts`
+> mirrors the IndexedDB autosave's public API
+> (`writeNativeAutosave` / `readNativeAutosave` /
+> `listNativeAutosaves` / `clearNativeAutosave`) + an exported
+> `resolveNativeAutosavePath` + `ensureNativeAutosaveDir` for the
+> filesystem helpers. On-disk layout:
+> `<appDataDir>/autosaves/<docId>.starr` — one JSON file per
+> document, matching the IndexedDB row shape byte-for-byte so a
+> future "import old web autosave into desktop" migration is a
+> copy not a transform. The native lister filters out non-`.starr`
+> entries (a user dropping a PDF into the autosaves folder doesn't
+> break recovery) and tolerates per-file parse failures so one
+> malformed entry can't hide the rest.
+>
+> `lib/cad/persistence/autosave.ts` branches every public function
+> on `isTauri()` at the top: web stays on the existing IndexedDB
+> impl, Tauri dynamic-imports the native module and forwards. The
+> dynamic import behind the `isTauri()` guard keeps the native
+> module out of the web bundle. `listAutosaves` under Tauri merges
+> native + web in parallel — native takes precedence for any
+> docId that exists in both stores, then web entries fill in the
+> remainder so a user who switched from the browser build doesn't
+> lose prior autosaves on first desktop launch. The `web` lister
+> was split into a private `listWebAutosaves()` helper so the
+> merge can reuse it without recursing into the isTauri branch.
+>
+> Capabilities widened in `src-tauri/capabilities/default.json`:
+> `fs:allow-mkdir`, `fs:allow-remove`, `fs:allow-read-dir`,
+> `path:default`. The plan's proposed
+> "15 entries / 7 days retention" rule turned out to be wishful —
+> the current IndexedDB lister is one-slot-per-docId, so the
+> native variant intentionally matches that behavior. (A separate
+> follow-up can layer retention pruning across both stores.)
+> 22 unit + source-lock cases in
+> `__tests__/desktop/native-autosave.test.ts`. Full suite: 7867
+> green.
 
 ### T7 — Native app menu + Recent Files
 Use Tauri's `Menu` API to install a real menu bar (top of screen

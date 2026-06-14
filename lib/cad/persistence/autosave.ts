@@ -23,6 +23,15 @@
 //
 // All async / Promise-based; the caller is expected to be
 // browser-side.
+//
+// cad-desktop-tauri-and-perf Slice T6 — on the Tauri shell, each
+// public function dynamic-imports the native filesystem
+// implementation and forwards to it. The web bundle never pulls in
+// `native-autosave.ts` (or the Tauri IPC code paths it uses)
+// because the dynamic import lives behind an `isTauri()` guard the
+// tree-shaker can prove false-only for the static-web build.
+
+import { isTauri } from '../platform/runtime';
 
 export interface AutosavePayload {
   version:     string;
@@ -70,6 +79,12 @@ export async function writeAutosave(
   docId: string,
   payload: AutosavePayload
 ): Promise<void> {
+  // cad-desktop-tauri-and-perf Slice T6 — Tauri shell uses the
+  // filesystem; the IndexedDB path is the web fallback.
+  if (isTauri()) {
+    const { writeNativeAutosave } = await import('./native-autosave');
+    return writeNativeAutosave(docId, payload);
+  }
   const db = await openDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
@@ -83,6 +98,10 @@ export async function writeAutosave(
 export async function readAutosave(
   docId: string
 ): Promise<AutosavePayload | null> {
+  if (isTauri()) {
+    const { readNativeAutosave } = await import('./native-autosave');
+    return readNativeAutosave(docId);
+  }
   const db = await openDB();
   // Read the keyed slot first.
   const keyed = await new Promise<AutosavePayload | null>((resolve) => {
@@ -118,6 +137,30 @@ export async function readAutosave(
 }
 
 export async function listAutosaves(): Promise<AutosaveListEntry[]> {
+  // cad-desktop-tauri-and-perf Slice T6 — Tauri shell lists from the
+  // filesystem AND any leftover IndexedDB entries (so a user who
+  // ran the web build first doesn't lose their prior autosaves on
+  // the first desktop launch). Native entries take precedence when
+  // both stores hold the same docId — the filesystem write is
+  // authoritative on the desktop.
+  if (isTauri()) {
+    const { listNativeAutosaves } = await import('./native-autosave');
+    const [native, web] = await Promise.all([
+      listNativeAutosaves(),
+      listWebAutosaves(),
+    ]);
+    const seenDocIds = new Set(native.map((e) => e.docId));
+    const merged = [...native, ...web.filter((e) => !seenDocIds.has(e.docId))];
+    merged.sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt));
+    return merged;
+  }
+  return listWebAutosaves();
+}
+
+/** Web-only listing — split out so the Slice T6 cross-store merge
+ *  in `listAutosaves` can reuse it without recursing into the
+ *  isTauri branch. */
+async function listWebAutosaves(): Promise<AutosaveListEntry[]> {
   const db = await openDB();
   const out: AutosaveListEntry[] = [];
   await new Promise<void>((resolve) => {
@@ -158,6 +201,10 @@ export async function listAutosaves(): Promise<AutosaveListEntry[]> {
 }
 
 export async function clearAutosave(docId: string): Promise<void> {
+  if (isTauri()) {
+    const { clearNativeAutosave } = await import('./native-autosave');
+    return clearNativeAutosave(docId);
+  }
   const db = await openDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
