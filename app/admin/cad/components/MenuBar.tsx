@@ -131,8 +131,19 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   const selectedIds = useSelectionStore((s) => s.selectedIds);
   const setTool = useToolStore((s) => s.setTool);
   const zoomToExtents = useViewportStore((s) => s.zoomToExtents);
-  const undoStore = useUndoStore();
-  const uiStore = useUIStore();
+  // cad-desktop-tauri-and-perf Slice P6i — last two MenuBar
+  // whole-store subs. Undo + UI both have small render-time
+  // surfaces (undo/redo description + can/canRedo for the Edit
+  // menu disabled gates; showLayerPanel / showPropertyPanel
+  // labels for the View menu). Subscribe to the underlying
+  // primitives (stack lengths drive can/canRedo + desc reads;
+  // the two UI flags are read directly) so the menu reconciles
+  // only when those values actually change. The remaining
+  // callbacks read through `useXStore.getState().X(...)`.
+  const undoStackLen = useUndoStore((s) => s.undoStack.length);
+  const redoStackLen = useUndoStore((s) => s.redoStack.length);
+  const showLayerPanel = useUIStore((s) => s.showLayerPanel);
+  const showPropertyPanel = useUIStore((s) => s.showPropertyPanel);
   const aiQueuePanelOpen = useAIStore((s) => s.isQueuePanelOpen);
   const toggleAIQueuePanel = useAIStore((s) => s.toggleQueuePanel);
   const aiResultLoaded = useAIStore((s) => s.result !== null);
@@ -536,7 +547,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       }
       useDrawingStore.getState().loadDocument(loadedDoc);
       useSelectionStore.getState().deselectAll();
-      undoStore.clear();
+      useUndoStore.getState().clear();
       useSaveTargetStore.getState().setLocalTarget(loadedDoc.id, loadedDoc.name);
       cadLog.info('FileIO', `Loaded drawing: ${loadedDoc.name}`);
       setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
@@ -983,8 +994,13 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     }
   }
 
-  const undoDesc = undoStore.undoDescription();
-  const redoDesc = undoStore.redoDescription();
+  // P6i — `undoStackLen` / `redoStackLen` selectors above force a
+  // re-render whenever a stack push/pop changes the head; the
+  // descriptions then come from the current snapshot.
+  const undoDesc = useUndoStore.getState().undoDescription();
+  const redoDesc = useUndoStore.getState().redoDescription();
+  const canUndo = undoStackLen > 0;
+  const canRedo = redoStackLen > 0;
 
   const menus: MenuDef[] = [
     {
@@ -1058,14 +1074,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         {
           label: undoDesc ? `Undo ${undoDesc}` : 'Undo',
           shortcut: 'Ctrl+Z',
-          action: () => undoStore.undo(),
-          disabled: !undoStore.canUndo(),
+          action: () => useUndoStore.getState().undo(),
+          disabled: !canUndo,
         },
         {
           label: redoDesc ? `Redo ${redoDesc}` : 'Redo',
           shortcut: 'Ctrl+Y',
-          action: () => undoStore.redo(),
-          disabled: !undoStore.canRedo(),
+          action: () => useUndoStore.getState().redo(),
+          disabled: !canRedo,
         },
         { separator: true },
         { label: 'Delete Selection', shortcut: 'Del', action: () => {
@@ -1154,12 +1170,12 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         },
         { separator: true },
         {
-          label: uiStore.showLayerPanel ? 'Hide Layer Panel' : 'Show Layer Panel',
-          action: () => uiStore.toggleLayerPanel(),
+          label: showLayerPanel ? 'Hide Layer Panel' : 'Show Layer Panel',
+          action: () => useUIStore.getState().toggleLayerPanel(),
         },
         {
-          label: uiStore.showPropertyPanel ? 'Hide Properties' : 'Show Properties',
-          action: () => uiStore.togglePropertyPanel(),
+          label: showPropertyPanel ? 'Hide Properties' : 'Show Properties',
+          action: () => useUIStore.getState().togglePropertyPanel(),
         },
         { separator: true },
         {

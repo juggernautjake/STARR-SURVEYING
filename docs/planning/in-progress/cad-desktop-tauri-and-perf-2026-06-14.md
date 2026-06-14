@@ -944,6 +944,36 @@ gates) and `useUIStore()` (render-time `showLayerPanel` +
 side, plus CanvasViewport's `useDrawingStore()` +
 `useToolStore()` per-field conversions. Track as `P6i`.
 
+**P6i MenuBar undo + UI subs shipped 2026-06-14** — MenuBar's
+last two whole-store subs. Undo had four render-time reads
+(`undoDescription`, `redoDescription`, `canUndo`, `canRedo`)
+plus three callback actions (`undo`, `redo`, `clear`); UI had
+two render-time reads (`showLayerPanel`, `showPropertyPanel`)
+plus two callback actions (`toggleLayerPanel`,
+`togglePropertyPanel`). Convert the can/canRedo derived values
+to length-based selectors so a stack push/pop triggers a
+re-render:
+`useUndoStore((s) => s.undoStack.length)` +
+`useUndoStore((s) => s.redoStack.length)`,
+with `canUndo = undoStackLen > 0` and the descriptions read
+from `useUndoStore.getState().X()` after the length-driven
+re-render lands. The two UI flags go through direct per-field
+selectors. Every action call routes through
+`useUndoStore.getState().X` / `useUIStore.getState().X`. Source-
+locked by `__tests__/cad/ui/menu-bar-undo-ui-selectors.test.ts`
+(9 assertions). With this slice landed, **MenuBar is fully
+P6-clean** — every store the MenuBar reads is now subscribed
+via per-field or per-action selectors, so AI runs, undo/redo
+churn, file loads, and selection changes no longer reconcile
+the whole bar.
+**Remaining P6 follow-ups:** CanvasViewport's
+`useDrawingStore()` + `useToolStore()` per-field conversions
+(both have render-time reads — `document.settings.X` for the
+display preferences + code-display + drawing-rotation, plus
+`state.activeTool` / `state.perpStartPoint` /
+`state.offsetSourceId` for the JSX conditionals). Track as
+`P6j`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
