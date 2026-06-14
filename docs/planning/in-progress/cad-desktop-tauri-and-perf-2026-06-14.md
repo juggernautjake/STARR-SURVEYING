@@ -71,12 +71,27 @@ slices below.
 > suite: 7742 green (no regressions from the config branch).
 
 ### T2 — `tauri init` + dev shell
-Add `src-tauri/` (Cargo.toml, `tauri.conf.json`, `main.rs`) and
-the `@tauri-apps/api` JS bindings. Wire `tauri dev` to
-`next dev` for hot reload and `tauri build` to the Slice T1
-static export. The Rust entrypoint stays minimal (Tauri default).
-First boot: `npm run tauri dev` opens a window hosting the
-existing app with zero code changes.
+> **DONE (2026-06-14).** Hand-scaffolded a Tauri 2 dev shell rather
+> than running `tauri init` (no network in the sandbox), matching
+> what the CLI would produce: `src-tauri/Cargo.toml` (Tauri 2,
+> staticlib+cdylib+rlib library crate, `custom-protocol` feature
+> for `tauri dev`), `src-tauri/build.rs` (`tauri_build::build()`),
+> `src-tauri/src/main.rs` (Windows-subsystem guard +
+> `starr_cad_lib::run()`), `src-tauri/src/lib.rs` (default builder
+> + a `#[tauri::command] ping()` smoke IPC that Slice T3 will wrap
+> in a typed helper), and `src-tauri/tauri.conf.json` wired so
+> `beforeDevCommand` runs `npm run dev` and `beforeBuildCommand`
+> runs `npm run build:desktop` (from Slice T1). The main window
+> lands directly on `/admin/cad/` so the standalone binary opens
+> straight into the survey workspace. `src-tauri/capabilities/default.json`
+> grants only `core:default` — Slice T4 / T6 / T7 layer dialog /
+> fs / menu permissions on top. New JS deps: `@tauri-apps/api`
+> (runtime), `@tauri-apps/cli` (dev). New npm scripts: `tauri`,
+> `tauri:dev`, `tauri:build`. `.gitignore` adds `src-tauri/target/`
+> + `src-tauri/gen/`; `src-tauri/Cargo.lock` IS committed per the
+> Tauri-app convention. 23 source-lock cases in
+> `__tests__/desktop/tauri-shell-scaffold.test.ts`. Full suite:
+> 7765 green.
 
 ### T3 — Platform-runtime helper
 New `lib/cad/platform/runtime.ts` exports `isTauri()`,

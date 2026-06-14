@@ -1,0 +1,35 @@
+# cad-desktop-tauri-and-perf Slice T2 — Tauri 2 dev shell for Starr CAD.
+#
+# This crate is the native shell that hosts the static-exported Next.js
+# app under `out-desktop/`. It stays intentionally minimal: a window,
+# a menu hook, and the default Tauri runtime. Phase 2 perf work lives
+# in TypeScript; the Rust side only ever touches platform plumbing
+# (file dialogs, autosave paths, signed updates) and — Phase 3, only
+# if profiling demands it — a wgpu render module reached via IPC.
+[package]
+name = "starr-cad"
+version = "0.1.0"
+description = "Starr CAD — desktop shell"
+authors = ["Starr Surveying"]
+edition = "2021"
+rust-version = "1.77"
+
+# The library target is what Tauri loads at runtime; `main` is the
+# stub binary entry point that boots it.
+[lib]
+name = "starr_cad_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# This feature is used by `tauri dev` and disables custom protocol
+# handlers so the dev server's hot-reload works.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

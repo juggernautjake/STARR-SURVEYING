@@ -18,6 +18,15 @@ node_modules/
 /out-desktop/
 /.desktop-stash/
 
+# cad-desktop-tauri-and-perf Slice T2 — Tauri shell build artifacts.
+# `src-tauri/target/` is Cargo's incremental build cache; `gen/` is
+# the schema directory `tauri-build` writes on first build. Both can
+# get large (~hundreds of MB) and don't belong in version control.
+# `Cargo.lock` IS committed (Tauri convention for app crates — needed
+# for reproducible builds) so it stays out of the ignore list.
+/src-tauri/target/
+/src-tauri/gen/
+
 # TypeScript
 tsconfig.tsbuildinfo
 
