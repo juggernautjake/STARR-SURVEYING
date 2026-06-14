@@ -6,6 +6,9 @@ import { useDynamicCursor } from '../hooks/useDynamicCursor';
 import { useTooltipApi } from './TooltipProvider';
 import { buildFeatureTooltip } from './featureTooltip';
 import SelectionDragChip from './SelectionDragChip';
+// cad-desktop-tauri-and-perf Slice P6f — extracted N/E coordinate
+// tracker. Keeps cursor moves from reconciling the 14k-line parent.
+import CanvasCoordsPill from './CanvasCoordsPill';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -798,7 +801,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const toolStore = useToolStore();
-  const viewportStore = useViewportStore();
+  // cad-desktop-tauri-and-perf Slice P6f — the only render-time
+  // viewport read (`cursorWorld`) moved to the extracted
+  // `CanvasCoordsPill`. The remaining 16 `useViewportStore.getState().X` call
+  // sites are inside event handlers and the rAF render loop, so
+  // they read the latest snapshot via `useViewportStore.getState()`
+  // instead of holding a whole-store subscription that woke React
+  // on every mousemove.
   const undoStore = useUndoStore();
 
   // Interaction state (not store state)
@@ -1454,7 +1463,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           _layerContainers: new Map(),
         };
 
-        viewportStore.setScreenSize(width, height);
+        useViewportStore.getState().setScreenSize(width, height);
 
         // ── Zoom-to-fit: center the drawing paper in the viewport ──
         // Calculate the paper bounds from settings and zoom to show the entire page
@@ -1475,7 +1484,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             maxX: ox + paperW,
             maxY: oy + paperH,
           };
-          viewportStore.zoomToExtents(paperBounds, 0.05);
+          useViewportStore.getState().zoomToExtents(paperBounds, 0.05);
         }
 
         cadLog.info('CanvasViewport', 'PixiJS canvas initialised successfully');
@@ -1554,7 +1563,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           (pixiRef.current.app.renderer as { resolution: number }).resolution = newResolution;
         }
         pixiRef.current.app.renderer.resize(width, height);
-        viewportStore.setScreenSize(width, height);
+        useViewportStore.getState().setScreenSize(width, height);
       });
     });
     ro.observe(containerRef.current);
@@ -1563,16 +1572,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('error', suppressResizeObserverError);
     };
-  }, [viewportStore]);
+    // P6f — actions read off `useViewportStore.getState()` inside
+    // the effect body, so the effect needs no store dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─────────────────────────────────────────────
   // W→S coordinate transforms (called per frame)
   // ─────────────────────────────────────────────
   function w2s(wx: number, wy: number) {
-    return viewportStore.worldToScreen(wx, wy);
+    return useViewportStore.getState().worldToScreen(wx, wy);
   }
   function s2w(sx: number, sy: number) {
-    return viewportStore.screenToWorld(sx, sy);
+    return useViewportStore.getState().screenToWorld(sx, sy);
   }
 
   // ─────────────────────────────────────────────
@@ -1708,7 +1720,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (!doc.settings.gridVisible) return;
 
     const { zoom, screenWidth, screenHeight } = useViewportStore.getState();
-    const wb = viewportStore.getWorldBounds();
+    const wb = useViewportStore.getState().getWorldBounds();
     const baseMajor = doc.settings.gridMajorSpacing;
     const baseMinor = baseMajor / doc.settings.gridMinorDivisions;
     const gridStyle = doc.settings.gridStyle;
@@ -8394,7 +8406,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function hitTest(sx: number, sy: number): string | null {
     // Use drawing-rotation-aware coordinate conversion
     const { wx, wy } = screenToDrawingWorld(sx, sy);
-    const worldTol = HIT_TOLERANCE_PX / viewportStore.zoom;
+    const worldTol = HIT_TOLERANCE_PX / useViewportStore.getState().zoom;
     // Exclude features on locked/hidden/non-active layers from selection.
     const layerVisible = drawingStore.getVisibleFeatures().filter((f) =>
       canEditLayer(f.layerId),
@@ -9034,7 +9046,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         drawingStore.document.features,
         drawingStore.document.layers
       );
-      const worldRadius = settings.snapRadius / Math.max(0.0001, viewportStore.zoom);
+      const worldRadius = settings.snapRadius / Math.max(0.0001, useViewportStore.getState().zoom);
       const queryBox: LodBoundingBox = {
         minX: cursor.x - worldRadius,
         minY: cursor.y - worldRadius,
@@ -9050,7 +9062,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         cursor,
         candidates,
         settings.snapRadius,
-        viewportStore.zoom,
+        useViewportStore.getState().zoom,
         settings.snapTypes,
         settings.gridMajorSpacing / settings.gridMinorDivisions,
       );
@@ -9091,7 +9103,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const targets = drawingStore.getVisibleFeatures().filter((f) => !selectedIds.has(f.id));
     if (targets.length === 0) return { dx, dy };
-    const zoom = Math.max(0.0001, viewportStore.zoom);
+    const zoom = Math.max(0.0001, useViewportStore.getState().zoom);
     const worldRadius = settings.snapRadius / zoom;
     const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
 
@@ -9311,7 +9323,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Resolve the target point: snap to a nearby point / endpoint of
           // ANOTHER feature, else use the raw clicked location.
           const settings = drawingStore.document.settings;
-          const zoom = Math.max(0.0001, viewportStore.zoom);
+          const zoom = Math.max(0.0001, useViewportStore.getState().zoom);
           const raw = screenToDrawingWorld(sx, sy);
           const targets = drawingStore.getVisibleFeatures().filter((t) => t.id !== pick.featureId);
           const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
@@ -9912,7 +9924,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const lastPt = prevPoints[prevPoints.length - 1];
             const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
             // Only create a segment if the new point is meaningfully different
-            if (dist > MIN_SEGMENT_LENGTH_BASE / viewportStore.zoom) {
+            if (dist > MIN_SEGMENT_LENGTH_BASE / useViewportStore.getState().zoom) {
               const segment = createPolylineSegment(lastPt, worldPt, polylineGroupIdRef.current!);
               drawingStore.addFeature(withAutoLabels(segment));
               undoStore.pushUndo(makeAddFeatureEntry(segment));
@@ -11425,7 +11437,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore, selectionStore, toolStore, viewportStore, undoStore],
+    [drawingStore, selectionStore, toolStore, undoStore],
   );
 
   const handleMouseMove = useCallback(
@@ -11438,7 +11450,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const panMult = drawingStore.document.settings.panSpeed ?? 1.0;
         const dx = (sx - lastMouseRef.current.x) * panMult;
         const dy = (sy - lastMouseRef.current.y) * panMult;
-        viewportStore.pan(dx, dy);
+        useViewportStore.getState().pan(dx, dy);
       }
 
       lastMouseRef.current = { x: sx, y: sy };
@@ -11857,7 +11869,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       toolStore.setPreviewPoint(worldPt);
-      viewportStore.setCursorWorld(worldPt);
+      useViewportStore.getState().setCursorWorld(worldPt);
 
       // Update hover state for ALL tools — shows highlighted element under cursor
       if (!isPanningRef.current && !dragFeatureRef.current && !tbDragRef.current) {
@@ -11974,7 +11986,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Update snap label
       const snap = snapResultRef.current;
       if (snap) {
-        const { sx: lx, sy: ly } = viewportStore.worldToScreen(snap.point.x, snap.point.y);
+        const { sx: lx, sy: ly } = useViewportStore.getState().worldToScreen(snap.point.x, snap.point.y);
         setSnapLabel({ sx: lx, sy: ly, text: SNAP_LABEL[snap.type] ?? snap.type });
       } else {
         setSnapLabel(null);
@@ -12057,7 +12069,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [viewportStore, toolStore, drawingStore],
+    [toolStore, drawingStore],
   );
 
   const handleMouseUp = useCallback(
@@ -13539,7 +13551,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
   const hasNoLayers = drawingStore.document.layerOrder.length === 0;
   const isDrawingTool = activeTool.startsWith('DRAW_');
-  const cursorWorld = viewportStore.cursorWorld;
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-gray-400">
@@ -14472,23 +14483,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         </>
       )}
 
-      {/* Permanent N/E coordinate tracker in the bottom-left of the canvas */}
-      <div
-        className="absolute bottom-1 left-1 pointer-events-none z-20 flex items-center gap-2 px-2 py-0.5 rounded text-[10px] font-mono"
-        style={{ background: 'rgba(0,0,0,0.55)', color: '#c8d8ff', border: '1px solid rgba(120,150,220,0.35)' }}
-      >
-        {(() => {
-          const dispPrefs = useDrawingStore.getState().document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
-          const c = formatCoordinates(cursorWorld.x, cursorWorld.y, dispPrefs);
-          return (
-            <>
-              <span>{c.label1}: {c.value1}</span>
-              <span className="text-gray-500">|</span>
-              <span>{c.label2}: {c.value2}</span>
-            </>
-          );
-        })()}
-      </div>
+      {/* cad-desktop-tauri-and-perf Slice P6f — the permanent N/E
+         coordinate tracker lives in its own memoized sub-component
+         (`CanvasCoordsPill`) so cursor moves don't reconcile the
+         14k-line CanvasViewport. */}
+      <CanvasCoordsPill />
 
       {/* Drawing rotation indicator — shown when rotation is non-zero */}
       {(() => {

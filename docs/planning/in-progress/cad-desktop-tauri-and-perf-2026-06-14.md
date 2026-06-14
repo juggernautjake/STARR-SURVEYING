@@ -846,6 +846,41 @@ old `drawingStore.X(...)` form or the new
 paths (whole-store-sub audits in the renderer hooks) — track as
 `P6f`.
 
+**P6f CanvasViewport cursor-tick extraction shipped 2026-06-14**
+— the worst offender by far. `CanvasViewport` is 14,431 lines
+and held a whole-store `useViewportStore()` subscription, plus
+a single render-time read (`const cursorWorld =
+viewportStore.cursorWorld;`) that fed a permanent N/E
+coordinate tracker pinned to the bottom-left of the canvas.
+Together they forced the entire React tree to reconcile on
+every ~60 Hz mousemove tick, even though the actual canvas
+paint runs on rAF off `useViewportStore.getState()`.
+The N/E tracker moved to
+`app/admin/cad/components/CanvasCoordsPill.tsx` —
+a memoized sub-component (`memo(CanvasCoordsPillInner)`) that
+subscribes via per-field selectors
+(`useViewportStore((s) => s.cursorWorld)` +
+`useDrawingStore((s) => s.document.settings.displayPreferences)`
+with the `DEFAULT_DISPLAY_PREFERENCES` fallback). The 16
+former `viewportStore.X(...)` callback + rAF call sites SED-
+converted to `useViewportStore.getState().X(...)` so they
+read the latest snapshot at call time without subscribing; the
+two `useCallback` / `useEffect` dependency arrays that
+referenced the old local were trimmed in the same pass. The
+inline N/E IIFE JSX block was replaced with `<CanvasCoordsPill
+/>`, so the surrounding 14k-line component now reconciles on
+zero cursor moves. Source-locked by
+`__tests__/cad/ui/canvas-coords-pill.test.ts` (9 assertions —
+memo shape, per-field selectors, prefs fallback, pill mount,
+dropped sub + render-time read, and three sample
+`useViewportStore.getState().X` call-site spot checks). Full
+suite: 8119 green.
+**Remaining P6f follow-up:** the parallel
+`useSelectionStore()` / `useToolStore()` / `useUndoStore()`
+whole-store subs at the same top-of-CanvasViewport spot need
+the same treatment, and the MenuBar still has its remaining
+four whole-store subs from P6c — track as `P6g`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
