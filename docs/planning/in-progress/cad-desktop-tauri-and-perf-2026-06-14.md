@@ -569,16 +569,39 @@ much higher than the current code path reaches.
 > the store-only foundation lands clean here.)
 
 ### P3b — Renderer-side dirty-region rebuild
-With the store-side dirty tracking from P3 in place, this slice
-wires the CanvasViewport renderer to maintain a Pixi `Graphics`
-cache keyed by feature id and only rebuild Graphics for ids in
-`dirtyFeatureIds` (clean ids reuse the cached Graphics on the
-next frame). After each render pass the renderer calls
-`clearFeatureDirty(processedIds)`. The Slice-11
-`cad:regenerateCanvas` event handler routes through
-`markAllFeaturesDirty()` so its semantics stay identical
-(every feature rebuilds). Source-lock the cache + the
-dirty-set read at the top of the render loop.
+> **DONE (2026-06-14).** CanvasViewport gains
+> `drawStateRef = useRef<Map<id, { feature, epsilon, layerColor }>>`
+> next to the existing featureIndex + cull caches. The render
+> loop reads the store's `dirtyFeatureIds` once via `getState()`
+> at the top of the pass, accumulates a `processedDirty[]` list
+> as it tessellates, and at the end calls `clearFeatureDirty()`
+> with that list. `drawFeature(g, ...)` only fires when
+> `needsRedraw` is true — true on a fresh Graphics, when the id
+> is in dirty, when no `prev` entry exists, when the zustand
+> feature reference identity changed, when the LOD epsilon
+> rolled over, or when the layer color shifted (which goes
+> through `updateLayer` without stamping the feature dirty).
+> Otherwise the Graphics is reused as-is. drawState entries
+> whose backing Graphics was destroyed get garbage-collected at
+> the bottom of the loop. Off-screen dirty ids stay dirty so
+> they redraw when they next enter the viewport.
+>
+> `cad:regenerateCanvas` (from cad-ux-cleanup-pass Slice 11)
+> still nulls `featureIndexCacheRef`, AND now also calls
+> `useDrawingStore.getState().markAllFeaturesDirty()` so the
+> per-feature cache busts on Refresh Canvas — user-facing
+> semantics stay identical. The existing source-lock froze the
+> exact handler body; loosened to assert presence of the
+> invariant calls so future slices can extend the handler
+> without breaking the fixture.
+>
+> 10 source-lock cases in
+> `__tests__/cad/ui/renderer-dirty-region.test.ts` cover the
+> ref shape, the dirty-set read pattern, processedDirty
+> accumulation, the full `needsRedraw` OR chain, the gated
+> `drawFeature` call, drawState GC, the clearFeatureDirty
+> hand-back, and the regenerate-canvas wiring. Full suite:
+> 8004 green.
 
 ### P4 — Label generation off the main thread
 New `lib/cad/labels/worker/` module: a Web Worker that owns

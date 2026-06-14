@@ -871,6 +871,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // that on a no-move re-render (the typical animation-frame
   // pattern when the user's just hovering).
   const cullCacheRef = useRef(createViewportCullCache<Feature[]>());
+  // cad-desktop-tauri-and-perf Slice P3b — per-feature draw-state
+  // cache. Records the feature reference, simplification epsilon,
+  // and layer color last used to tessellate each Graphics. On the
+  // next render, a feature is redrawn ONLY when any of those
+  // changed OR its id is in the store's `dirtyFeatureIds`.
+  const drawStateRef = useRef<
+    Map<
+      string,
+      {
+        feature: Feature;
+        epsilon: number;
+        layerColor: string;
+      }
+    >
+  >(new Map());
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
@@ -1895,9 +1910,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
+    // cad-desktop-tauri-and-perf Slice P3b — read the dirty set ONCE
+    // per render. We accumulate the ids we actually re-tessellate so
+    // they can be cleared after the loop; ids in the dirty set whose
+    // features didn't make the cull are intentionally left so they
+    // get redrawn next time they enter the viewport.
+    const drawnState = drawStateRef.current;
+    const dirtyIds = useDrawingStore.getState().dirtyFeatureIds;
+    const processedDirty: string[] = [];
+
     for (const feature of culledFeatures) {
       const layer = doc.layers[feature.layerId];
       const layerRotDeg = layer?.rotationDeg ?? 0;
+      const layerColor = layer?.color ?? '';
 
       // Determine parent container
       let parentContainer: import('pixi.js').Container = pixi.featureLayer;
@@ -1911,6 +1936,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       let g = pixi.featureGraphics.get(feature.id);
+      const freshlyCreated = !g;
       if (!g) {
         g = new pixi.GraphicsClass();
         pixi.featureGraphics.set(feature.id, g);
@@ -1921,7 +1947,47 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       g.visible = true;
 
-      drawFeature(g, feature, simplifyEpsilon);
+      // cad-desktop-tauri-and-perf Slice P3b — skip drawFeature when
+      // nothing affecting the tessellation has changed. We compare
+      // feature reference identity (zustand returns a fresh object
+      // on every mutation), the LOD epsilon, and the layer's
+      // current color (a layer-color change goes through
+      // updateLayer, which doesn't stamp the feature dirty
+      // directly). Any miss → full retessellate, then refresh the
+      // cached draw-state.
+      const prev = drawnState.get(feature.id);
+      const isDirty = dirtyIds.has(feature.id);
+      const needsRedraw =
+        freshlyCreated ||
+        isDirty ||
+        !prev ||
+        prev.feature !== feature ||
+        prev.epsilon !== simplifyEpsilon ||
+        prev.layerColor !== layerColor;
+      if (needsRedraw) {
+        drawFeature(g, feature, simplifyEpsilon);
+        drawStateRef.current.set(feature.id, {
+          feature,
+          epsilon: simplifyEpsilon,
+          layerColor,
+        });
+        if (isDirty) processedDirty.push(feature.id);
+      }
+    }
+
+    // Drop drawStateRef entries for features that no longer have a
+    // backing Graphics object (visibility-toggled out or removed).
+    if (drawnState.size > pixi.featureGraphics.size) {
+      for (const id of drawnState.keys()) {
+        if (!pixi.featureGraphics.has(id)) drawnState.delete(id);
+      }
+    }
+
+    // Hand back the dirty stamps we processed. Ids we skipped
+    // (off-screen culls etc.) stay dirty so they redraw when they
+    // re-enter the viewport.
+    if (processedDirty.length > 0) {
+      useDrawingStore.getState().clearFeatureDirty(processedDirty);
     }
   }
 
@@ -12652,6 +12718,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // `cad:regenerateCanvas` all converge here.
     const onRegenerateCanvas = () => {
       featureIndexCacheRef.current = null;
+      // cad-desktop-tauri-and-perf Slice P3b — bust the per-feature
+      // draw-state cache too so the next render rebuilds every
+      // Graphics from scratch. Preserves the user-facing
+      // "Refresh canvas" semantics shipped in cad-ux-cleanup-pass
+      // Slice 11 even after the dirty-region optimization.
+      useDrawingStore.getState().markAllFeaturesDirty();
       requestAnimationFrame(() => renderFeatures());
     };
     window.addEventListener('cad:regenerateCanvas', onRegenerateCanvas);
