@@ -811,6 +811,28 @@ the module shape + the CADLayout mount). **Remaining N1c
 follow-up:** the small/medium/large fixture harness that
 drives the Phase-3 gating decision — track as `N1d`.
 
+**N1d synthetic generator shipped 2026-06-14** —
+`lib/cad/perf/fixtures.ts` exports `FIXTURE_SIZES`
+(`small: 1_000`, `medium: 50_000`, `large: 200_000`),
+`generateSyntheticFeatures(count, options?)`, and
+`generateNamedFixture(size, options?)`. The generator runs a
+seeded mulberry32 PRNG (default seed `0xc0ffee`) so two runs
+with the same seed produce byte-identical `Feature[]` — lets
+us snapshot specific seeds as the canonical "synthetic 50k" /
+"synthetic 200k" baselines for the Phase-3 go/no-go call. The
+geometry mix is 40/40/20 POINT/LINE/POLYLINE so the fixtures
+exercise the three biggest hot paths in `renderFeatures`, and
+the world extent grows with √count so density stays roughly
+constant rather than degenerating to a single spatial-index
+cell on the large fixture. Everything lands on `'L1'` with
+`DEFAULT_FEATURE_STYLE` by default so downstream perf code
+doesn't have to know about a synthetic layer registry.
+Source-locked by `__tests__/cad/perf/fixtures.test.ts` (13
+assertions including determinism on seed + invariants on
+emitted geometry). **Remaining N1d follow-up:** the actual
+driver that loads each named fixture into the document store
+and runs the render loop for a fixed duration — track as `N1e`.
+
 ### N2 — (PROFILING-GATED) Rust + wgpu renderer behind Tauri IPC
 Initial scaffold: `src-tauri/src/render/` defines a
 `#[tauri::command] fn draw_features(viewport: Viewport, list:
