@@ -833,6 +833,29 @@ emitted geometry). **Remaining N1d follow-up:** the actual
 driver that loads each named fixture into the document store
 and runs the render loop for a fixed duration — track as `N1e`.
 
+**N1e harness driver shipped 2026-06-14** —
+`lib/cad/perf/harness.ts` exports
+`loadProfileFixture(features, sink, options?)` and
+`captureProfileWindow(durationMs, options?)`. The driver is
+decoupled from the real drawing store via a
+`ProfileFixtureSink` interface (`addFeatures` required;
+`addLayer`, `newDocument`, `getLayer` optional) so the real
+`useDrawingStore` plugs in unchanged and unit tests can use a
+plain mock. `loadProfileFixture` wipes the doc (when
+`reset: true`, the default), ensures the synthetic layer
+exists, pushes every feature through `addFeatures`, and
+returns `{ loaded, layerCreated, reset, loadMs }` so the
+overlay (N1f) can flag fixture-load regressions independent of
+render perf. `captureProfileWindow` is the pure orchestration
+primitive — `resetRenderProfile() → await delay(ms) →
+getRenderProfile()` — with an injectable `delay` so tests
+never block on real time. Source-locked by
+`__tests__/cad/perf/harness.test.ts` (9 assertions across both
+helpers). **Remaining N1e follow-up:** the dev-overlay button
+that calls `loadProfileFixture(generateNamedFixture(size),
+useDrawingStore.getState())` and surfaces the resulting
+profile in the panel — track as `N1f`.
+
 ### N2 — (PROFILING-GATED) Rust + wgpu renderer behind Tauri IPC
 Initial scaffold: `src-tauri/src/render/` defines a
 `#[tauri::command] fn draw_features(viewport: Viewport, list:
