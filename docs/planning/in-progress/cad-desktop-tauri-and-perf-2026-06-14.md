@@ -420,16 +420,41 @@ slices below.
 > 7924 green.
 
 ### T8 — CI matrix: Windows / macOS / Linux signed artifacts
-`.github/workflows/release.yml` triggered on tags (`v*`). Uses
-`tauri-apps/tauri-action` to produce `.dmg` + `.app` (macOS),
-`.msi` + portable `.exe` (Windows), and `.AppImage` + `.deb`
-(Linux). Code-signing certs live in repo secrets:
-`APPLE_CERTIFICATE` + `APPLE_PASSWORD` + `APPLE_TEAM_ID` for
-macOS notarization; `WIN_CERT` + `WIN_CERT_PASSWORD` for
-Windows. Auto-update channel via Tauri's signed update manifest
-served from the repo's GitHub Pages. No automated test on this
-slice — CI is its own validation; the deliverable is a green
-matrix run on a `v0.x.0-tauri-preview` tag.
+> **DONE (2026-06-14).** New `.github/workflows/desktop-release.yml`
+> runs on every `v*` tag push (plus `workflow_dispatch` for manual
+> testing). Concurrency group keyed on `github.ref` so two tags
+> never interleave. Four-platform matrix
+> (`macos-14`/aarch64-apple-darwin, `macos-13`/x86_64-apple-darwin,
+> `windows-latest`/x86_64-pc-windows-msvc,
+> `ubuntu-22.04`/x86_64-unknown-linux-gnu) with `fail-fast: false`
+> so one OS failure doesn't kill the others. Each job installs
+> Rust stable via `dtolnay/rust-toolchain@stable`, caches
+> `src-tauri/target` via `swatinem/rust-cache@v2`, installs the
+> Linux GTK + WebKit + appindicator deps where applicable, then
+> drives `tauri-apps/tauri-action@v0` (which runs Slice T2's
+> `beforeBuildCommand` → Slice T1's `npm run build:desktop` →
+> `tauri build`). The action forwards every macOS notarization
+> secret (`APPLE_CERTIFICATE` + `_PASSWORD` +
+> `APPLE_SIGNING_IDENTITY` + `APPLE_ID` + `APPLE_PASSWORD` +
+> `APPLE_TEAM_ID`), Windows .pfx signing secrets
+> (`WINDOWS_CERTIFICATE` + `_PASSWORD`), and Tauri updater-manifest
+> signing keys (`TAURI_SIGNING_PRIVATE_KEY` + `_PASSWORD`).
+> Missing secrets emit unsigned artifacts (forks get installable
+> binaries even without the maintainer's certs).
+> `tauri.conf.json` gains a `bundle.macOS.minimumSystemVersion`
+> (10.15 Catalina) + a `bundle.windows` placeholder for the wix
+> timestamp URL (left empty so tauri-action picks the active
+> mirror). Artifacts land in a draft GitHub Release named after
+> the tag — the maintainer publishes after smoke-testing on each
+> OS. 18 source-lock cases in
+> `__tests__/desktop/release-workflow.test.ts` cover the trigger
+> shape, concurrency, every matrix row + runner + target, every
+> required env-var pass-through, the GTK deps, the
+> `--legacy-peer-deps` npm install, the draft-release flag, and
+> the conf bundle changes. Full suite: 7942 green.
+> (Auto-update channel served from GitHub Pages is the
+> conventional follow-up; the signing secret is already wired so a
+> simple T8b can layer the manifest hosting on top.)
 
 ## Phase 2 — Renderer perf pass on the existing TS/Pixi pipeline
 

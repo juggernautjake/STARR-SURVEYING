@@ -44,7 +44,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "// macOS / Windows / Linux specifics will land in Slice T8":
-      "Notarization, code-signing, MSI/DMG/AppImage knobs are added once the CI matrix lands; defaults are fine for local dev builds."
+    "// cad-desktop-tauri-and-perf Slice T8":
+      "Code-signing + notarization knobs live in the CI workflow (env vars passed to tauri-action). The bundler still produces installable artifacts when those env vars are empty — the OS will show the usual unsigned-binary warning, but the binary still launches. Once the signing certs land in repo secrets the CI emits signed artifacts automatically.",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "entitlements": null,
+      "exceptionDomain": ""
+    },
+    "windows": {
+      "// Slice T8":
+        "wix toolset is bundled with tauri-action. Leaving timestampUrl empty lets the action pick the appropriate sectigo time-stamping mirror at build time."
+    }
   }
 }
