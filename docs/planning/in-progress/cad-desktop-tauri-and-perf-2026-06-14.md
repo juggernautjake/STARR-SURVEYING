@@ -856,6 +856,28 @@ that calls `loadProfileFixture(generateNamedFixture(size),
 useDrawingStore.getState())` and surfaces the resulting
 profile in the panel — track as `N1f`.
 
+**N1f overlay wiring shipped 2026-06-14** — `PerfOverlay`
+gains a fixture row with Small / Medium / Large buttons +
+an amber "Capture 5s" button. Each fixture button fires a
+`window.confirm("Replace the current drawing…")` (destructive,
+so guarded), then calls
+`loadProfileFixture(generateNamedFixture(size), useDrawingStore.getState())`
+and shows `Loaded N features in Xms` in the status line. The
+Capture button calls `captureProfileWindow(5_000)`, freezes the
+500 ms live poll for the window's duration (so the histogram
+seen on screen is exactly the captured profile, not a stale
+poll snapshot), and writes the result back into the table.
+Every action button is disabled while a load or capture is in
+flight. Source-locked by an extended
+`__tests__/cad/perf/perf-overlay.test.ts` (17 assertions
+covering the imports, the confirm guard, the FIXTURE_BUTTONS
+shape, the capture wiring, the disabled gate, and the
+busy-pauses-poll rule). With this slice landed, **N1 is
+COMPLETE**: harness module (`render-markers` + `fixtures` +
+`harness`), renderer call sites (`CanvasViewport`), dev overlay
+(`PerfOverlay`), and the user-driven small/medium/large
+fixture flow that produces the gating profile for Phase 3.
+
 ### N2 — (PROFILING-GATED) Rust + wgpu renderer behind Tauri IPC
 Initial scaffold: `src-tauri/src/render/` defines a
 `#[tauri::command] fn draw_features(viewport: Viewport, list:

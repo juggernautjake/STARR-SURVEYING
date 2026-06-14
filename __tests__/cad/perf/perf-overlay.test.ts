@@ -58,6 +58,50 @@ describe('PerfOverlay — module shape', () => {
   });
 });
 
+describe('PerfOverlay — N1f fixture-load + capture wiring', () => {
+  const SRC = read('app/admin/cad/components/PerfOverlay.tsx');
+
+  it("imports the fixture generator + harness from the perf module", () => {
+    expect(SRC).toMatch(/generateNamedFixture,/);
+    expect(SRC).toMatch(/FIXTURE_SIZES,/);
+    expect(SRC).toMatch(/from '@\/lib\/cad\/perf\/fixtures'/);
+    expect(SRC).toMatch(/captureProfileWindow,\s*\n\s*loadProfileFixture,/);
+    expect(SRC).toMatch(/from '@\/lib\/cad\/perf\/harness'/);
+  });
+
+  it('reads the drawing store at click time (lazy — no top-level subscription)', () => {
+    expect(SRC).toMatch(/import \{ useDrawingStore \} from '@\/lib\/cad\/store'/);
+    expect(SRC).toMatch(/const sink = useDrawingStore\.getState\(\);/);
+  });
+
+  it('guards fixture loads behind window.confirm so a stray click cannot wipe the doc', () => {
+    expect(SRC).toMatch(/window\.confirm\(/);
+    expect(SRC).toMatch(/Replace the current drawing/);
+  });
+
+  it('exposes one button per FIXTURE_SIZES key — Small / Medium / Large', () => {
+    expect(SRC).toMatch(/size: 'small',\s*label: 'Small'/);
+    expect(SRC).toMatch(/size: 'medium',\s*label: 'Medium'/);
+    expect(SRC).toMatch(/size: 'large',\s*label: 'Large'/);
+    expect(SRC).toMatch(/FIXTURE_BUTTONS\.map/);
+  });
+
+  it('Capture button drives captureProfileWindow + writes the result back into the table', () => {
+    expect(SRC).toMatch(/const CAPTURE_DURATION_MS = 5_?000;/);
+    expect(SRC).toMatch(/await captureProfileWindow\(\s*\n?\s*CAPTURE_DURATION_MS,?\s*\n?\s*\)/);
+    expect(SRC).toMatch(/setProfile\(captured\);/);
+  });
+
+  it('disables every action button while a load or capture is in flight', () => {
+    expect(SRC).toMatch(/const disabled = busy !== null;/);
+    expect(SRC).toMatch(/disabled=\{disabled\}/);
+  });
+
+  it('pauses the 500ms poll while busy so the capture window owns the histogram', () => {
+    expect(SRC).toMatch(/if \(busy\) return;\s*\n\s*setProfile\(getRenderProfile\(\)\);/);
+  });
+});
+
 describe('CADLayout — N1c overlay mount', () => {
   const SRC = read('app/admin/cad/CADLayout.tsx');
 
