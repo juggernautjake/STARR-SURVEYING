@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:desktop": "node scripts/prepare-desktop-build.mjs run -- next build",
+    "build:desktop:stash": "node scripts/prepare-desktop-build.mjs stash",
+    "build:desktop:restore": "node scripts/prepare-desktop-build.mjs restore",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",

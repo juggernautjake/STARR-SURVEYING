@@ -48,14 +48,27 @@ filesystem-backed autosave. Two weeks of wall-clock effort across the
 slices below.
 
 ### T1 — Next.js static-export config
-Configure `next.config.mjs` with `output: 'export'`, audit
-`app/**` for any handlers / routes that need a Node runtime, and
-guard or move them. Verify `next build` produces a working
-`out/` directory that Tauri can serve as `dist`. Failure mode:
-dynamic routes that need a server. Mitigation: those routes stay
-on the web build; the desktop bundle ships without them.
-Smoke: launch the static `out/` in a plain http-server and walk
-through Open TRV → render → save.
+> **DONE (2026-06-14).** `next.config.js` now branches on
+> `STARR_BUILD_TARGET=desktop`: when set, the build flips to
+> `output: 'export'`, `distDir: 'out-desktop'`, `assetPrefix: ''`,
+> `trailingSlash: true`, and `images.unoptimized: true` (Vercel's
+> image optimization needs a server). Default (web) build is
+> byte-for-byte unchanged — same routes, same server actions, same
+> `serverComponentsExternalPackages`. New
+> `scripts/prepare-desktop-build.mjs` stashes every non-CAD
+> directory (admin job UI, /api/* handlers, marketing pages, dev
+> route group — 70 dirs in this repo) into a `.desktop-stash/`
+> sibling via instant `renameSync` calls, runs the inner build with
+> `STARR_BUILD_TARGET=desktop`, then restores via `try/finally` so
+> a failed build doesn't leave the tree mangled. Three new npm
+> scripts: `build:desktop` (atomic stash → build → restore),
+> `build:desktop:stash`, `build:desktop:restore`. `.gitignore` adds
+> `out-desktop/` + `.desktop-stash/` so the artifacts never get
+> committed. Smoke-tested: 70-dir stash + restore round-trips
+> cleanly against the live repo (only the intended new files +
+> edits in `git status`). 13 unit + source-lock cases in
+> `__tests__/desktop/next-config-desktop-branch.test.ts`. Full
+> suite: 7742 green (no regressions from the config branch).
 
 ### T2 — `tauri init` + dev shell
 Add `src-tauri/` (Cargo.toml, `tauri.conf.json`, `main.rs`) and

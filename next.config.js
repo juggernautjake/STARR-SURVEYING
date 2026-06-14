@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const isDev = process.env.NODE_ENV !== 'production';
+// cad-desktop-tauri-and-perf Slice T1 — `STARR_BUILD_TARGET=desktop`
+// flips Next.js into static-export mode so the Tauri shell can host
+// the app from a flat `out-desktop/` directory. The default (web) build
+// is unchanged: same routes, same server actions, same Vercel deploy.
+// Desktop builds output to a distinct `distDir` so the two builds can
+// coexist locally without stomping each other's artifacts.
+const isDesktopBuild = process.env.STARR_BUILD_TARGET === 'desktop';
 
 const nextConfig = {
   reactStrictMode: true,
@@ -9,8 +16,23 @@ const nextConfig = {
   pageExtensions: isDev
     ? ['tsx', 'ts', 'jsx', 'js', 'dev.tsx', 'dev.ts']
     : ['tsx', 'ts', 'jsx', 'js'],
+  // cad-desktop-tauri-and-perf Slice T1 — static export for Tauri. Set
+  // only when STARR_BUILD_TARGET=desktop so the web build stays
+  // server-rendered. Tauri serves these files directly from the
+  // packaged binary; `assetPrefix: ''` keeps every asset URL relative
+  // so it loads regardless of the path Tauri mounts the bundle at.
+  // `trailingSlash: true` matches Tauri's expectation that directory
+  // requests resolve to `index.html`.
+  ...(isDesktopBuild ? {
+    output: 'export',
+    distDir: 'out-desktop',
+    assetPrefix: '',
+    trailingSlash: true,
+  } : {}),
   images: {
-    unoptimized: false,
+    // Next.js image-optimization needs a server. The desktop build is
+    // static so we route through the raw `<img>` path.
+    unoptimized: isDesktopBuild,
     formats: ['image/avif', 'image/webp'],
   },
   typescript: {
