@@ -176,15 +176,33 @@ slices below.
 > it deserves its own focused pass. Full suite: 7803 green.
 
 ### T4c — Wire native open into the CADLayout drop zone
-The drop zone currently consumes browser `File` objects from
-`dragover` / `drop` events; under Tauri the OS-level drag-and-drop
-delivers a list of absolute file paths through Tauri's
-`drag-drop` event instead. Wire a listener on
-`getCurrentWebview().onDragDropEvent` (gated on `isTauri()`); on
-each path, read via `plugin:fs|read_text_file` and feed the
-result through the same `processOpenedCadFile` helper Slice T4b
-extracted from MenuBar. Web behavior is untouched. Source-lock
-the listener wiring + the shared-helper call.
+> **DONE (2026-06-14).** Note: investigation found CADLayout has no
+> pre-existing drop zone — the only canvas-level `onDrop` handler
+> targets the project-image `application/starr-image-id` MIME
+> type. So this slice ADDS the OS-drag-drop affordance rather than
+> retrofitting an existing one. New module
+> `lib/cad/persistence/native-drop.ts` exposes pure helpers
+> (`basenameOf`, `isCadFilePath`, `readPathsAsCadFiles`,
+> `NATIVE_DROP_EXTENSIONS`) plus the high-level
+> `registerNativeDropListener(onFiles)` that returns an `unlisten`
+> handle. The Tauri webview module is dynamic-imported through a
+> `new Function('p', 'return import(p)')` trampoline so TS doesn't
+> complain about the absent `@tauri-apps/api/webview` type
+> definitions at typecheck time AND so the web bundle never pulls
+> the Rust-side package. The listener filters drop payloads to
+> `.starr / .trv / .csv` (case-insensitive) before issuing any
+> `plugin:fs|read_text_file` IPC, and a per-file try/catch means a
+> single locked file doesn't kill a multi-drop batch. MenuBar
+> mounts a `useEffect` that subscribes on mount + cleanly
+> unsubscribes on unmount; each dropped file feeds through the
+> same `processOpenedCadFile(name, contents)` helper Slice T4b
+> extracted, with `setFileLoading(true)` per file (matches the
+> open-dialog ordering). 18 unit + source-lock cases in
+> `__tests__/desktop/native-drop.test.ts` cover the extension
+> filter, both path styles, per-file failure tolerance, the
+> Tauri-boundary returns (web build → null, broken bootstrap →
+> null, missing webview module → null), and the MenuBar wiring
+> shape. Full suite: 7821 green.
 
 ### T5 — Native file-save (Save / Save As)
 Symmetric: `saveFileDialog(defaultPath, contents)` and `saveToPath(path, contents)`.

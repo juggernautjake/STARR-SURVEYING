@@ -58,6 +58,7 @@ import { clearAutosave } from '@/lib/cad/persistence/autosave';
 // <input type="file"> flow continues to fire.
 import { isTauri } from '@/lib/cad/platform/runtime';
 import { openCadFileViaPlatform } from '@/lib/cad/persistence/native-file';
+import { registerNativeDropListener } from '@/lib/cad/persistence/native-drop';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
@@ -228,6 +229,38 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     const handler = () => setExportLayersOpen(true);
     window.addEventListener('cad:openExportLayers', handler);
     return () => window.removeEventListener('cad:openExportLayers', handler);
+  }, []);
+
+  // cad-desktop-tauri-and-perf Slice T4c — Tauri-only OS drag-drop
+  // of survey files onto the canvas. The web build skips this
+  // entirely because `isTauri()` inside `registerNativeDropListener`
+  // returns false there; the existing browser drop affordances are
+  // untouched. On Tauri, each recognised file (.starr / .trv / .csv
+  // — see `NATIVE_DROP_EXTENSIONS`) feeds through the same
+  // `processOpenedCadFile` helper Slice T4b extracted from
+  // `openFileDialog`, so the format-sniff + loader chain stays
+  // single-source.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let disposed = false;
+    void (async () => {
+      const stop = await registerNativeDropListener(async (files) => {
+        for (const file of files) {
+          setFileLoading(true);
+          await processOpenedCadFile(file.name, file.contents);
+        }
+      });
+      if (disposed && stop) {
+        stop();
+      } else {
+        unlisten = stop;
+      }
+    })();
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // cad-trv-import-display Slice 3 — auto-size the paper sheet
