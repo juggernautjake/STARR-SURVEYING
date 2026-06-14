@@ -94,12 +94,26 @@ slices below.
 > 7765 green.
 
 ### T3 — Platform-runtime helper
-New `lib/cad/platform/runtime.ts` exports `isTauri()`,
-`isWeb()`, `getPlatform(): 'darwin' | 'win32' | 'linux' | 'web'`,
-and the helper hook `usePlatform()`. Detection: `!!window.__TAURI__`
-+ `@tauri-apps/api/os.platform()` (lazily imported so the web
-build never pulls Tauri code). Every desktop-only path gates on
-this. Unit tests with jsdom shims for both branches.
+> **DONE (2026-06-14).** New `lib/cad/platform/` module with three
+> files: `runtime.ts` (pure, exports `isTauri()`, `isWeb()`,
+> `getPlatform()`, and the typed `ping()` smoke IPC),
+> `usePlatform.ts` (SSR-safe React hook returning
+> `{ platform, isTauri, ready }`), and `index.ts` (public surface
+> that deliberately does NOT re-export the internal
+> `__unsafeSetTauriInternalsForTests` seam). Detection avoids
+> importing `@tauri-apps/api` entirely — Tauri 2 injects a
+> `window.__TAURI_INTERNALS__` global before the front-end mounts,
+> so the web bundle never pulls in Rust-side code paths. OS
+> resolution sniffs the webview UA inside Tauri (faster than the
+> async `plugin:os` IPC roundtrip and reliable across WebView2 /
+> WKWebView). 14 unit cases in
+> `__tests__/desktop/platform-runtime.test.ts` cover web/Tauri
+> boundary, all four `Platform` values + the unknown-UA fallback,
+> ping happy + sad paths, SSR safety (no `window`), and the public
+> surface ban on the test seam. New `setup-window-stub.ts`
+> side-effect helper polyfills `window` + `navigator` for the
+> node test environment (vitest defaults to `environment: 'node'`
+> and the repo doesn't pull in jsdom). Full suite: 7779 green.
 
 ### T4 — Native file-open for TRV / STARR / CSV
 New `lib/cad/persistence/native-file.ts` wraps Tauri's
