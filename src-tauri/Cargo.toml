@@ -28,6 +28,14 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# cad-desktop-tauri-and-perf Slice T4 — file-system + dialog plugins
+# for native Open / Save. The TS-side helper
+# (`lib/cad/persistence/native-file.ts`) calls these via
+# `plugin:dialog|open` and `plugin:fs|read_text_file`. Capabilities
+# are granted to the main window in `capabilities/default.json`.
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
 [features]
 # This feature is used by `tauri dev` and disables custom protocol
 # handlers so the dev server's hot-reload works.

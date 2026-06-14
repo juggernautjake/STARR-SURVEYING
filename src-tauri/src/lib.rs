@@ -12,7 +12,14 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        // Slice T4 will register an opener / dialog plugin here.
+        // cad-desktop-tauri-and-perf Slice T4 — native file dialog
+        // and file-system reads. The TS helper at
+        // `lib/cad/persistence/native-file.ts` calls these via
+        // `plugin:dialog|open` + `plugin:fs|read_text_file`.
+        // Capabilities are granted per-window in
+        // `capabilities/default.json`.
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         // Slice T7 will register a native menu here.
         .invoke_handler(tauri::generate_handler![ping])
         .run(tauri::generate_context!())

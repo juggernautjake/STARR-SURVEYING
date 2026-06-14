@@ -83,11 +83,15 @@ describe('tauri.conf.json — dev shell configuration', () => {
   });
 });
 
-describe('default capability — minimum surface for Slice T2', () => {
+describe('default capability — Slice T2 baseline', () => {
   const CAP = JSON.parse(read('src-tauri/capabilities/default.json'));
 
-  it('grants only `core:default` (additional perms land in later slices)', () => {
-    expect(CAP.permissions).toEqual(['core:default']);
+  it('grants the core baseline + targets the main window only', () => {
+    // T2 stamped `core:default` as the floor; subsequent slices
+    // (T4 dialog+fs, T6 fs path scope, T7 menu) extend the list.
+    // Assert presence — NOT exact equality — so this fixture stays
+    // green across the layering.
+    expect(CAP.permissions).toContain('core:default');
     expect(CAP.windows).toEqual(['main']);
   });
 });

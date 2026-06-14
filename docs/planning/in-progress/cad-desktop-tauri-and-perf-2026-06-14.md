@@ -116,14 +116,43 @@ slices below.
 > and the repo doesn't pull in jsdom). Full suite: 7779 green.
 
 ### T4 — Native file-open for TRV / STARR / CSV
-New `lib/cad/persistence/native-file.ts` wraps Tauri's
-`@tauri-apps/api/dialog` + `fs` with the same async API the
-existing web `readFile(file)` flow uses, so callers don't branch
-on platform. `openFileDialog({ filters })` returns
-`{ path, contents, name }`. MenuBar's File → Open and the drop
-zone in `CADLayout` both route through a new
-`openFileViaPlatform()` shim that picks the implementation via
-Slice T3. Source-lock + helper unit tests.
+> **DONE (2026-06-14).** New `lib/cad/persistence/native-file.ts`
+> exposes `openCadFileViaPlatform(opts)` → `{ path, name, contents }
+> | null`. The helper avoids `@tauri-apps/api/dialog` entirely —
+> instead it calls `plugin:dialog|open` + `plugin:fs|read_text_file`
+> through the runtime-injected `__TAURI_INTERNALS__.invoke`, so the
+> web bundle still doesn't pull Rust code. `DEFAULT_CAD_FILTERS`
+> leads with a `.starr / .trv / .csv` catch-all and ends in
+> `All files`. Base-name extraction works on both POSIX and Windows
+> paths. The lower-level `openFileViaTauri(opts, invoke)` is exported
+> for tests + future callers that already hold a typed invoke. Rust
+> side: `Cargo.toml` adds `tauri-plugin-dialog` + `tauri-plugin-fs`
+> at v2, `lib.rs` registers them on the builder chain, and the
+> default capability now grants `dialog:allow-open` +
+> `fs:allow-read-text-file` (broader fs scopes land in T6). 15 unit
+> + source-lock cases in `__tests__/desktop/native-file-open.test.ts`.
+> The Slice T2 source-lock that froze the capability list to a
+> single entry was loosened to assert PRESENCE of `core:default`
+> instead, so subsequent slices can extend the permission surface
+> without breaking the fixture. Full suite: 7794 green.
+> (MenuBar's `openFileDialog` + the CADLayout drop zone wiring is
+> deferred to a follow-up — the helper is callable today, but
+> routing through it requires extracting the 70-line web flow into
+> a shared "given (name, contents) load it" body. Doing that as a
+> separate small slice avoids putting the web import path at risk
+> in T4.)
+
+### T4b — Wire native open into MenuBar + CADLayout drop zone
+Extract the existing `openFileDialog` body in
+`app/admin/cad/components/MenuBar.tsx` so the format-sniff +
+loader chain takes `{ name, contents }` instead of reading from
+a DOM `File`. Top of the function branches on `isTauri()`; on
+true, call the Slice T4 `openCadFileViaPlatform({ filters:
+DEFAULT_CAD_FILTERS })` and feed the result into the extracted
+helper; on false, fall through to the existing
+`<input type="file">` flow unchanged. Same shape for the
+`CADLayout` drop-zone path. Source-lock the branch + extracted
+helper.
 
 ### T5 — Native file-save (Save / Save As)
 Symmetric: `saveFileDialog(defaultPath, contents)` and `saveToPath(path, contents)`.
