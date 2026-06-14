@@ -108,7 +108,11 @@ describe('lib.rs — bootstrap + ping IPC', () => {
   });
 
   it('registers the ping handler in the invoke_handler chain', () => {
-    expect(SRC).toMatch(/invoke_handler\(tauri::generate_handler!\[ping\]\)/);
+    // cad-desktop-tauri-and-perf Slice T7c added rebuild_menu to
+    // the chain; the source-lock asserts presence of `ping` rather
+    // than the exact handler list so subsequent slices can extend
+    // without breaking the fixture.
+    expect(SRC).toMatch(/invoke_handler\(tauri::generate_handler!\[[^\]]*\bping\b/);
   });
 });
 

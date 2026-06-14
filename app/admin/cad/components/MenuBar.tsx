@@ -61,7 +61,7 @@ import { openCadFileViaPlatform } from '@/lib/cad/persistence/native-file';
 import { registerNativeDropListener } from '@/lib/cad/persistence/native-drop';
 import { saveCadFileViaPlatform, saveCadFileToPath } from '@/lib/cad/persistence/native-save';
 import { registerMenuBridge } from '@/lib/cad/platform/menu-bridge';
-import { addRecentFile } from '@/lib/cad/persistence/recent-files';
+import { addRecentFile, clearRecentFiles } from '@/lib/cad/persistence/recent-files';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
@@ -286,13 +286,16 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         void addRecentFile(recentPath, name);
       })();
     };
+    const onClearRecent = () => { void clearRecentFiles(); };
     window.addEventListener('cad:openFileDialog', onOpen);
     window.addEventListener('cad:saveDocumentAs', onSaveAs);
     window.addEventListener('cad:openRecentFile', onOpenRecent);
+    window.addEventListener('cad:clearRecentFiles', onClearRecent);
     return () => {
       window.removeEventListener('cad:openFileDialog', onOpen);
       window.removeEventListener('cad:saveDocumentAs', onSaveAs);
       window.removeEventListener('cad:openRecentFile', onOpenRecent);
+      window.removeEventListener('cad:clearRecentFiles', onClearRecent);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

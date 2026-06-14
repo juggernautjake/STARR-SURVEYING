@@ -22,9 +22,16 @@ pub fn run() {
         // `capabilities/default.json`.
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        // cad-desktop-tauri-and-perf Slice T7c — Recent Files
+        // submenu state. `rebuild_menu` (registered in
+        // invoke_handler below) takes the TS-side recent files
+        // list, rebuilds the File submenu, and updates this
+        // managed state so subsequent `on_menu_event` clicks on
+        // `recent.<N>` can look the path up directly.
+        .manage(menu::RecentFilesState::default())
         .setup(menu::install_app_menu)
         .on_menu_event(menu::on_menu_event)
-        .invoke_handler(tauri::generate_handler![ping])
+        .invoke_handler(tauri::generate_handler![ping, menu::rebuild_menu])
         .run(tauri::generate_context!())
         .expect("error while running Starr CAD desktop shell");
 }

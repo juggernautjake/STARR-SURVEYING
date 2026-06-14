@@ -123,6 +123,19 @@ async function writeRecentFiles(invoke: Invoke, files: ReadonlyArray<RecentFile>
     path,
     contents: JSON.stringify(files),
   });
+  // cad-desktop-tauri-and-perf Slice T7c — tell the Rust side to
+  // rebuild the File submenu so the Recent Files entries match
+  // disk. We pass `{ path, name }` only (the savedAt isn't rendered
+  // on the menu), and the Rust side updates its `RecentFilesState`
+  // so subsequent clicks resolve to the right path.
+  try {
+    await invoke('rebuild_menu', {
+      recent: files.map((f) => ({ path: f.path, name: f.name })),
+    });
+  } catch {
+    // The first call after app install can race with the setup
+    // phase. We swallow — a follow-up add will rebuild correctly.
+  }
 }
 
 function isValidRecentFile(raw: unknown): raw is RecentFile {

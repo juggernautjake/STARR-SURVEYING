@@ -32,8 +32,15 @@ describe('MENU_EVENT_MAP — keys mirror src-tauri/src/menu.rs ID_* constants', 
   // Map each constant declaration to its string id literal.
   const rustIds = idLines.map((line) => /= "([^"]+)";/.exec(line)![1]);
 
-  it('every menu id declared in Rust shows up in MENU_EVENT_MAP (except undo / redo which bypass)', () => {
-    const tsIds = Object.keys(MENU_EVENT_MAP).concat(['edit.undo', 'edit.redo']);
+  it('every menu id declared in Rust shows up in MENU_EVENT_MAP (except undo / redo / clearRecent which bypass)', () => {
+    // edit.undo / edit.redo bypass to the undo store directly.
+    // file.clearRecent fires `cad:clearRecentFiles` (Slice T7c) and
+    // also doesn't sit on the map.
+    const tsIds = Object.keys(MENU_EVENT_MAP).concat([
+      'edit.undo',
+      'edit.redo',
+      'file.clearRecent',
+    ]);
     for (const rustId of rustIds) {
       expect(tsIds).toContain(rustId);
     }
@@ -157,8 +164,10 @@ describe('Rust shell — menu module + on_menu_event wiring', () => {
   });
 
   it('on_menu_event forwards the click via app.emit("cad:menu", …)', () => {
+    // cad-desktop-tauri-and-perf Slice T7c — payload is now a
+    // struct (MenuEventPayload) so the recentPath can ride along.
     const MENU = read('src-tauri/src/menu.rs');
-    expect(MENU).toMatch(/app\.emit\("cad:menu", id\)/);
+    expect(MENU).toMatch(/app\.emit\(\s*"cad:menu",\s*MenuEventPayload/);
   });
 
   it('default capability grants event:allow-listen so the TS bridge can subscribe', () => {

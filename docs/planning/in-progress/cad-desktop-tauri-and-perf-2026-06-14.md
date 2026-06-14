@@ -386,18 +386,38 @@ slices below.
 > add and route clicks to the right path.)
 
 ### T7c — Native menu: dynamic Recent Files submenu
-With the recent-files store + open-by-path event already in
-place (Slice T7b), this slice rebuilds the Rust menu on every
-add/clear so the File submenu shows the live entries instead
-of the static "Recent Files…" placeholder. Implementation
-sketch: a `#[tauri::command] rebuild_app_menu()` reads
-`<appDataDir>/recent.json` and constructs File items with
-ids `recent.0`, `recent.1`, …; on click, the `on_menu_event`
-handler looks up the path in app state and emits an event the
-TS bridge maps to `cad:openRecentFile { path }` (the Slice T7b
-handler does the rest). TS-side calls into the command from
-`addRecentFile` / `clearRecentFiles` after each successful
-write. Source-lock the menu rebuild + the bridge object payload.
+> **DONE (2026-06-14).** Rust side gains `RecentFilesState` (a
+> `Mutex<Vec<RecentFileEntry>>` managed via `app.manage(...)`) and a
+> `#[tauri::command] rebuild_menu(app, recent)` that accepts the
+> TS-side list, rebuilds the entire menu via the existing
+> `build_menu(app, recent)`, calls `app.set_menu(...)`, and updates
+> the managed state so subsequent `on_menu_event` clicks on
+> `recent.<N>` can look the path up directly. `build_recent_submenu`
+> handles the empty case (single disabled "No recent files" entry)
+> and the populated case (each entry's label strips a trailing
+> `.starr`, plus a "Clear Recent Files" item at the bottom).
+> `on_menu_event` switches to a typed `MenuEventPayload { id,
+> recentPath? }` so the click carries the path resolved from state.
+>
+> TS bridge upgraded: `normalizeMenuPayload` accepts either the
+> Slice T7 bare-string shape or the Slice T7c object shape;
+> `dispatchMenuAction` takes an optional `recentPath` and routes
+> `recent.<N>` clicks to a `cad:openRecentFile { path }` window
+> event (Slice T7b's MenuBar listener does the rest), while
+> `file.clearRecent` fires `cad:clearRecentFiles` for MenuBar's
+> new clear-listener. `recent-files.ts` ends every successful
+> write with `invoke('rebuild_menu', { recent: ... })` wrapped in
+> a try/catch (first-boot race tolerance).
+>
+> Six existing fixtures from Slices T2, T7, and T7b needed
+> minor updates as the surface grew — `invoke_handler` source-
+> lock loosened to assert presence of `ping` rather than the
+> exact handler list, the recent-files write tests grew an extra
+> mocked invoke for the rebuild call, and the MENU_EVENT_MAP
+> bypass exception list added `file.clearRecent`. 20 fresh source-
+> lock + unit cases in
+> `__tests__/desktop/recent-menu-rebuild.test.ts`. Full suite:
+> 7924 green.
 
 ### T8 — CI matrix: Windows / macOS / Linux signed artifacts
 `.github/workflows/release.yml` triggered on tags (`v*`). Uses

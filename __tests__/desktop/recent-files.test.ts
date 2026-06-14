@@ -142,21 +142,30 @@ describe('addRecentFile — mkdir + write through invoke', () => {
       .mockResolvedValueOnce('/appdata')
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined);
+    // writeRecentFiles also fires rebuild_menu at the end so the
+    // native Rust menu reflects the new list (Slice T7c).
+    fakeInvoke.mockResolvedValueOnce(undefined); // rebuild_menu
     await addRecentFile('/tmp/a.starr', 'a.starr');
     // Call sequence: getRecentFiles fires app_data_dir + read_text_file
     // (rejects); writeRecentFiles fires app_data_dir + mkdir +
-    // write_text_file. Mkdir is therefore the 4th invoke.
+    // write_text_file + rebuild_menu. Mkdir is therefore the 4th
+    // invoke.
     expect(fakeInvoke).toHaveBeenNthCalledWith(4, 'plugin:fs|mkdir', {
       path: '/appdata',
       options: { recursive: true },
     });
-    // The final call writes the JSON.
-    const lastCall = fakeInvoke.mock.calls[fakeInvoke.mock.calls.length - 1];
-    expect(lastCall[0]).toBe('plugin:fs|write_text_file');
-    const written = JSON.parse((lastCall[1] as { contents: string }).contents);
+    // The 5th call writes the JSON…
+    expect(fakeInvoke.mock.calls[4][0]).toBe('plugin:fs|write_text_file');
+    const written = JSON.parse((fakeInvoke.mock.calls[4][1] as { contents: string }).contents);
     expect(written).toHaveLength(1);
     expect(written[0].path).toBe('/tmp/a.starr');
     expect(written[0].name).toBe('a.starr');
+    // …and the final call rebuilds the menu with the same list.
+    const last = fakeInvoke.mock.calls[fakeInvoke.mock.calls.length - 1];
+    expect(last[0]).toBe('rebuild_menu');
+    expect((last[1] as { recent: Array<{ path: string }> }).recent).toEqual([
+      { path: '/tmp/a.starr', name: 'a.starr' },
+    ]);
   });
 });
 
@@ -171,11 +180,16 @@ describe('clearRecentFiles — write an empty array', () => {
     fakeInvoke
       .mockResolvedValueOnce('/appdata')   // appDataDir for mkdir
       .mockResolvedValueOnce(undefined)    // mkdir
-      .mockResolvedValueOnce(undefined);   // write_text_file
+      .mockResolvedValueOnce(undefined)    // write_text_file
+      .mockResolvedValueOnce(undefined);   // rebuild_menu
     await clearRecentFiles();
+    // The write happens at position 3 (0-indexed: 2).
+    expect(fakeInvoke.mock.calls[2][0]).toBe('plugin:fs|write_text_file');
+    expect((fakeInvoke.mock.calls[2][1] as { contents: string }).contents).toBe('[]');
+    // …and the menu rebuild fires with an empty list.
     const last = fakeInvoke.mock.calls[fakeInvoke.mock.calls.length - 1];
-    expect(last[0]).toBe('plugin:fs|write_text_file');
-    expect((last[1] as { contents: string }).contents).toBe('[]');
+    expect(last[0]).toBe('rebuild_menu');
+    expect((last[1] as { recent: unknown[] }).recent).toEqual([]);
   });
 });
 
@@ -185,9 +199,9 @@ describe('MenuBar — Slice T7b wiring', () => {
     'utf8',
   );
 
-  it('imports addRecentFile from the recent-files store', () => {
+  it('imports addRecentFile + clearRecentFiles from the recent-files store', () => {
     expect(SRC).toMatch(
-      /import \{ addRecentFile \} from '@\/lib\/cad\/persistence\/recent-files'/,
+      /import \{ addRecentFile, clearRecentFiles \} from '@\/lib\/cad\/persistence\/recent-files'/,
     );
   });
 

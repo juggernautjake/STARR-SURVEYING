@@ -50,10 +50,17 @@ export const MENU_EVENT_MAP: Readonly<Record<string, string>> = Object.freeze({
   'help.shortcuts': 'cad:openShortcutHelp',
 });
 
+/** cad-desktop-tauri-and-perf Slice T7c — extended payload shape.
+ *  Non-recent clicks still emit a bare string id (matches the
+ *  Slice T7 contract); recent.<N> clicks carry the resolved path
+ *  in `recentPath` so the bridge doesn't have to re-read
+ *  recent.json. The bridge accepts EITHER shape. */
+type MenuEventPayload = string | { id: string; recentPath?: string };
+
 /** Dispatch a menu action by id. Exported so tests + future
  *  call sites can drive the bridge without the Tauri event
  *  subscription path. */
-export function dispatchMenuAction(id: string): void {
+export function dispatchMenuAction(id: string, recentPath?: string): void {
   // Undo / Redo bypass the event bus because the existing hotkey
   // wiring calls the undo store directly. Going through a
   // `cad:undo` event would be a parallel surface to maintain.
@@ -71,10 +78,42 @@ export function dispatchMenuAction(id: string): void {
     })();
     return;
   }
+  // cad-desktop-tauri-and-perf Slice T7c — Recent Files items emit
+  // `recent.<N>` ids; the bridge routes them through the existing
+  // `cad:openRecentFile` listener MenuBar set up in Slice T7b.
+  if (id.startsWith('recent.')) {
+    if (typeof window === 'undefined') return;
+    if (!recentPath) return;
+    window.dispatchEvent(new CustomEvent('cad:openRecentFile', { detail: { path: recentPath } }));
+    return;
+  }
+  // Slice T7c — "Clear Recent Files" routes to the
+  // `cad:clearRecentFiles` event so the recent-files store can
+  // wipe its list (and then trigger a menu rebuild).
+  if (id === 'file.clearRecent') {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('cad:clearRecentFiles'));
+    return;
+  }
   const eventName = MENU_EVENT_MAP[id];
   if (!eventName) return;
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(eventName));
+}
+
+/** Normalize the Tauri payload to the `(id, recentPath?)` argument
+ *  shape `dispatchMenuAction` consumes. Exported for tests. */
+export function normalizeMenuPayload(payload: unknown): { id: string; recentPath?: string } | null {
+  if (typeof payload === 'string') return { id: payload };
+  if (payload && typeof payload === 'object') {
+    const obj = payload as { id?: unknown; recentPath?: unknown };
+    if (typeof obj.id !== 'string') return null;
+    return {
+      id: obj.id,
+      recentPath: typeof obj.recentPath === 'string' ? obj.recentPath : undefined,
+    };
+  }
+  return null;
 }
 
 /** Subscribe to the Tauri `cad:menu` event and route each emitted
@@ -86,8 +125,9 @@ export async function registerMenuBridge(): Promise<(() => void) | null> {
   const events = await loadEventModule();
   if (!events) return null;
   const unlisten = await events.listen('cad:menu', (event) => {
-    const payload = event.payload;
-    if (typeof payload === 'string') dispatchMenuAction(payload);
+    const normalized = normalizeMenuPayload(event.payload as MenuEventPayload);
+    if (!normalized) return;
+    dispatchMenuAction(normalized.id, normalized.recentPath);
   });
   return unlisten;
 }
