@@ -40,6 +40,14 @@ import {
   simplifyPolyline,
   type BoundingBox as LodBoundingBox,
 } from '@/lib/cad/geometry/lod';
+// cad-desktop-tauri-and-perf Slice P2 — viewport-cull result cache
+// memoizes `cullFeaturesWithIndex` on (camera AABB + index identity).
+// A no-move re-render skips the spatial query entirely.
+import {
+  createViewportCullCache,
+  getCachedCull,
+  setCachedCull,
+} from '@/lib/cad/spatial/viewport-cull-cache';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
@@ -857,6 +865,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       })
     | null
   >(null);
+  // cad-desktop-tauri-and-perf Slice P2 — memoize the cull RESULT
+  // keyed by (camera AABB hash + featureIndex identity). The index
+  // already does the O(log) spatial query, but this skips even
+  // that on a no-move re-render (the typical animation-frame
+  // pattern when the user's just hovering).
+  const cullCacheRef = useRef(createViewportCullCache<Feature[]>());
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
@@ -1805,14 +1819,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // on each render.
     const indexCache = ensureFeatureIndex(visibleFeatures, doc.features, doc.layers);
     const viewportBBox = computeViewportWorldBBox();
-    const culledFeatures = viewportBBox
-      ? cullFeaturesWithIndex(
+    // cad-desktop-tauri-and-perf Slice P2 — try the cull cache
+    // first. A hit means the camera AABB AND the feature-index
+    // identity matched the last render, so the previous result
+    // array is still authoritative. The cache key includes the
+    // index identity so any add/remove/visibility change
+    // invalidates immediately.
+    let culledFeatures: Feature[];
+    if (!viewportBBox) {
+      culledFeatures = visibleFeatures;
+    } else {
+      const cached = getCachedCull(cullCacheRef.current, viewportBBox, indexCache);
+      if (cached) {
+        culledFeatures = cached;
+      } else {
+        culledFeatures = cullFeaturesWithIndex(
           visibleFeatures,
           indexCache.index,
           indexCache.bboxByFeatureId,
-          viewportBBox
-        )
-      : visibleFeatures;
+          viewportBBox,
+        );
+        setCachedCull(cullCacheRef.current, viewportBBox, indexCache, culledFeatures);
+      }
+    }
     const culledIds = new Set(culledFeatures.map((f) => f.id));
     const { zoom } = useViewportStore.getState();
     const worldPerPixel = zoom > 0 ? 1 / zoom : 0;

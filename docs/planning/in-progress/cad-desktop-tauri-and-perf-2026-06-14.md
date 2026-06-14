@@ -502,13 +502,34 @@ much higher than the current code path reaches.
 > original plan called for is part of P3 dirty-region work.)
 
 ### P2 — Viewport culling in the render loop
-`CanvasViewport.renderFeatures()` queries the Slice-P1 index
-for features intersecting the camera AABB instead of iterating
-`Object.values(document.features)`. The query runs once per
-render; results cached per camera-AABB hash so a no-move re-
-render is essentially free. Document the before/after frame
-times on the existing Garland TRV fixture (~5k points) and a
-new 50k-point synthetic. Test the AABB query helper directly.
+> **DONE (2026-06-14).** Audit found the spatial-index-driven cull
+> was already in `CanvasViewport.renderFeatures()` (Phase 7 §19
+> shipped that earlier). What was MISSING was the per-camera
+> result cache. New `lib/cad/spatial/viewport-cull-cache.ts` exposes
+> `createViewportCullCache<T>()` + `getCachedCull` / `setCachedCull`
+> / `invalidateCullCache` / `viewportBBoxKey`. The key quantizes
+> the camera AABB to 0.5 ft so sub-pixel jitter doesn't bust the
+> cache; pairs with an opaque `version` stamp (the
+> `featureIndexCacheRef.current` identity) so feature add / remove
+> / layer toggle invalidates immediately — the
+> `ensureFeatureIndex` rebuild already returns a fresh object
+> identity on every mutation, so the version field rides for free.
+>
+> `CanvasViewport` adds a `cullCacheRef` next to the existing
+> `featureIndexCacheRef`. The render path now checks the cache
+> first — a hit returns the previous `Feature[]` array unchanged
+> (zero spatial query, zero allocations); a miss falls through to
+> `cullFeaturesWithIndex` and stores the result. The typical
+> animation-frame pattern (user hovers, camera doesn't move,
+> renderer ticks for hover-highlight repaints) now skips even
+> the O(log) index query.
+>
+> 15 unit + source-lock cases in
+> `__tests__/cad/spatial/viewport-cull-cache.test.ts` cover hash
+> stability, jitter tolerance, null / malformed AABB defense,
+> hit / camera-move-miss / version-change-miss / null-viewport-miss
+> / explicit invalidate, and the CanvasViewport wiring shape.
+> Full suite: 7976 green.
 
 ### P3 — Dirty-region tessellation
 Drawing store gains `dirtyFeatureIds: Set<string>` populated by
