@@ -795,6 +795,22 @@ renderTextFeatures order is what mattered there).
 component and the small/medium/large fixture harness — track
 as `N1c`.
 
+**N1c overlay shipped 2026-06-14** —
+`app/admin/cad/components/PerfOverlay.tsx` is a dev-only
+React component that the user toggles with `Ctrl+Alt+P`. While
+hidden it returns `null`, so the mount in `CADLayout` (right
+next to `<StatusBar />`) costs nothing beyond the keydown
+listener. When visible it polls `getRenderProfile()` every
+500 ms and renders a compact table with the overall pooled
+histogram plus a row per tracked phase — sample count, p50,
+p95, p99, and max, color-coded amber/rose for the tail
+percentiles. A Reset button calls `resetRenderProfile()` so
+fixture runs start clean. Source-locked by
+`__tests__/cad/perf/perf-overlay.test.ts` (10 assertions across
+the module shape + the CADLayout mount). **Remaining N1c
+follow-up:** the small/medium/large fixture harness that
+drives the Phase-3 gating decision — track as `N1d`.
+
 ### N2 — (PROFILING-GATED) Rust + wgpu renderer behind Tauri IPC
 Initial scaffold: `src-tauri/src/render/` defines a
 `#[tauri::command] fn draw_features(viewport: Viewport, list:

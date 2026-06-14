@@ -9,6 +9,10 @@ import LayerPanel from './components/LayerPanel';
 import PropertyPanel from './components/PropertyPanel';
 import CommandBar from './components/CommandBar';
 import StatusBar from './components/StatusBar';
+// cad-desktop-tauri-and-perf Slice N1c — dev-only Perf overlay
+// (Ctrl+Alt+P toggle). Returns null when hidden, so the mount
+// is free.
+import PerfOverlay from './components/PerfOverlay';
 import ToolOptionsBar from './components/ToolOptionsBar';
 import UndoRedoButtons from './components/UndoRedoButtons';
 import CommandPalette from './components/CommandPalette';
@@ -1282,6 +1286,7 @@ export default function CADLayout() {
         </>
       )}
       <StatusBar onOpenRecentRecoveries={() => setShowRecentRecoveries(true)} />
+      <PerfOverlay />
 
       {/* Feature properties dialog (opened by double-clicking a feature) */}
       {featureDialog && drawingStore.getFeature(featureDialog.featureId) && (
