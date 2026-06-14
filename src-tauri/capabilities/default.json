@@ -1,11 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability set granted to the main window. Slice T2 shipped the core baseline. Slice T4 adds dialog:allow-open + fs:allow-read-text-file for native file open. Later slices: Slice T6 adds a path scope for the autosave directory; Slice T7 adds menu/window permissions for the native menu wiring.",
+  "description": "Capability set granted to the main window. Slice T2 shipped the core baseline. Slice T4 added dialog:allow-open + fs:allow-read-text-file for native file open. Slice T5 adds dialog:allow-save + fs:allow-write-text-file for native file save. Later slices: Slice T6 adds a path scope for the autosave directory; Slice T7 adds menu/window permissions for the native menu wiring.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "dialog:allow-open",
-    "fs:allow-read-text-file"
+    "dialog:allow-save",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file"
   ]
 }

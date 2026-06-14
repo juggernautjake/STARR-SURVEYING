@@ -185,8 +185,10 @@ describe('Rust shell — plugin registration', () => {
     const CAP = JSON.parse(read('src-tauri/capabilities/default.json'));
     expect(CAP.permissions).toContain('dialog:allow-open');
     expect(CAP.permissions).toContain('fs:allow-read-text-file');
-    // Slice T4 must NOT widen fs further — broader scopes land in T6.
+    // The unbounded `fs:default` permission must NOT appear — that
+    // would scope every plugin command to the entire filesystem.
+    // Specific allow-* / scope grants land slice-by-slice (T5 adds
+    // write, T6 adds the autosave path scope).
     expect(CAP.permissions).not.toContain('fs:default');
-    expect(CAP.permissions).not.toContain('fs:allow-write-text-file');
   });
 });

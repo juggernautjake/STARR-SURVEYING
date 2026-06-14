@@ -205,13 +205,44 @@ slices below.
 > shape. Full suite: 7821 green.
 
 ### T5 — Native file-save (Save / Save As)
-Symmetric: `saveFileDialog(defaultPath, contents)` and `saveToPath(path, contents)`.
-Track the active file path in a new `documentStore.filePath`
-field (persisted in IndexedDB on web, recomputed on desktop from
-the last opened path). Save uses the stored path; Save As
-prompts. The current `lib/cad/persistence/save.ts` flow keeps
-working — only the "where do bytes go" step swaps out. Source-
-lock MenuBar's File → Save / Save As paths.
+> **DONE (2026-06-14).** New `lib/cad/persistence/native-save.ts`
+> exposes the Save-As entry point `saveCadFileViaPlatform(options,
+> contents)` and the plain-Save companion
+> `saveCadFileToPath(path, contents)`. Both route through
+> `__TAURI_INTERNALS__.invoke` against `plugin:dialog|save` and
+> `plugin:fs|write_text_file`, mirroring the T4 open pattern — no
+> `@tauri-apps/api` import, so the web bundle stays Rust-free. The
+> path-only companion is the "Save" path: skip the dialog and write
+> straight to the path the active document remembers from the
+> previous Save-As. Capabilities widened in
+> `src-tauri/capabilities/default.json` to grant `dialog:allow-save`
+> + `fs:allow-write-text-file` on top of T4's read perms — the
+> existing T2 + T4 source-locks were loosened to assert presence
+> (not exact set) of `core:default` / fs reads, so T5 can extend
+> the list without breaking earlier fixtures. The `tauri-plugin-dialog`
+> + `tauri-plugin-fs` deps already cover save; no Rust-side
+> registration changes. 13 unit + source-lock cases in
+> `__tests__/desktop/native-file-save.test.ts` cover both happy paths,
+> user cancellation, defensive non-string dialog replies, base-name
+> extraction on both path styles, the path-only companion's behavior
+> off + on Tauri, and the capability extension. Full suite: 7834
+> green. (MenuBar wiring deferred to a T5b follow-up — same pattern
+> as T4 / T4b: the helper is callable today and the wiring is its
+> own focused slice so it doesn't put the current `saveLocalCopy`
+> download flow at risk.)
+
+### T5b — Wire native save into MenuBar (Save / Save As)
+Mirror Slice T4b: in `MenuBar.tsx`, extract the existing
+`saveLocalCopy` body into a shared helper that takes
+`{ name, contents }` plus a destination strategy. Add a new
+`documentStore` field `localFilePath: string | null` populated
+on a successful Save-As + native open path. Save uses
+`saveCadFileToPath(localFilePath, contents)` when populated and
+`isTauri()`; Save As always calls `saveCadFileViaPlatform({
+defaultPath: doc.name + '.starr' }, contents)`. Web behavior is
+untouched — `isTauri()` returns false there, so the existing
+URL-blob + anchor-click download keeps running. Source-lock the
+branch points.
 
 ### T6 — Autosave migration to filesystem
 New `lib/cad/persistence/native-autosave.ts` writes to
