@@ -531,16 +531,54 @@ much higher than the current code path reaches.
 > / explicit invalidate, and the CanvasViewport wiring shape.
 > Full suite: 7976 green.
 
-### P3 — Dirty-region tessellation
-Drawing store gains `dirtyFeatureIds: Set<string>` populated by
-every `addFeature` / `removeFeature` / `updateFeature` /
-`updateFeatureGeometry` / `setFeatureTextLabels`. The renderer
-maintains a Pixi `Graphics` cache keyed by feature id, rebuilds
-Graphics only for dirty ids, and reuses cached Graphics for
-clean ids on the next frame. `cad:regenerateCanvas` (the Slice
-11 escape hatch we shipped) becomes "mark every id dirty + run"
-so the user-facing semantics stay identical. Test the dirty-id
-tracking + cache reuse.
+### P3 — Dirty-region tessellation (store side)
+> **DONE (2026-06-14).** Drawing store gains `dirtyFeatureIds:
+> Set<string>` plus the helper triplet
+> `markFeatureDirty(id|ids[])`, `clearFeatureDirty(id|ids[])`,
+> `clearAllFeatureDirty()`, and `markAllFeaturesDirty()` (the
+> last is what `cad:regenerateCanvas` will call in P3b to evict
+> the entire Graphics cache, matching today's user-facing
+> "Refresh canvas" semantics). The Set is intentionally a SHARED
+> MUTABLE collection — every read returns the same reference and
+> no zustand selector exposes it, so component re-renders never
+> fire on mutation. The renderer (to be wired in P3b) reads via
+> `getState()` at the top of each frame and clears per id as it
+> processes.
+>
+> Every existing feature mutation API stamps the touched id(s):
+> `addFeature`, `removeFeature`, `updateFeature`,
+> `updateFeatureGeometry`, `setFeatureTextLabels`, `addFeatures`,
+> `removeFeatures`. `removeFeature` / `removeFeatures` stamp
+> BEFORE the mutation so the renderer can evict cached Graphics
+> for ids that are about to disappear. `loadDocument` and
+> `newDocument` wipe the dirty set — the new document's feature
+> ids supersede whatever was queued, so stale stamps would
+> confuse the renderer.
+>
+> 18 unit cases in
+> `__tests__/cad/store/dirty-feature-ids.test.ts` cover initial
+> state, Set referential stability, every mutation API stamp,
+> mark/clear with single + array args, `markAllFeaturesDirty`
+> for full-rebuild signals, and `loadDocument` / `newDocument`
+> wipe semantics. Full suite: 7994 green.
+>
+> (Renderer wiring — Pixi `Graphics` cache + dirty-id-driven
+> rebuild + the `cad:regenerateCanvas` reroute — is its own
+> focused slice P3b. Doing the store + the canvas integration in
+> one commit puts the existing render path at unnecessary risk;
+> the store-only foundation lands clean here.)
+
+### P3b — Renderer-side dirty-region rebuild
+With the store-side dirty tracking from P3 in place, this slice
+wires the CanvasViewport renderer to maintain a Pixi `Graphics`
+cache keyed by feature id and only rebuild Graphics for ids in
+`dirtyFeatureIds` (clean ids reuse the cached Graphics on the
+next frame). After each render pass the renderer calls
+`clearFeatureDirty(processedIds)`. The Slice-11
+`cad:regenerateCanvas` event handler routes through
+`markAllFeaturesDirty()` so its semantics stay identical
+(every feature rebuilds). Source-lock the cache + the
+dirty-set read at the top of the render loop.
 
 ### P4 — Label generation off the main thread
 New `lib/cad/labels/worker/` module: a Web Worker that owns

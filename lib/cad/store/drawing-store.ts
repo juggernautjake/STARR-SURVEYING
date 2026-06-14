@@ -62,6 +62,21 @@ interface DrawingStore {
   updateFeature: (featureId: string, updates: Partial<Feature>) => void;
   updateFeatureGeometry: (featureId: string, geometry: Feature['geometry']) => void;
 
+  /** cad-desktop-tauri-and-perf Slice P3 — dirty-region tessellation.
+   *  `dirtyFeatureIds` is a shared mutable Set the renderer reads
+   *  (via `getState()`) at the top of every render frame to decide
+   *  which Pixi Graphics to rebuild. Every feature mutation API
+   *  inserts the touched id; the renderer calls `clearDirty(id)`
+   *  per id it processed (or `clearAllDirty()` after a full pass).
+   *  The Set is referentially stable across mutations — it's never
+   *  exposed in a React selector, so callers don't re-render on
+   *  changes. */
+  dirtyFeatureIds: Set<string>;
+  markFeatureDirty: (id: string | ReadonlyArray<string>) => void;
+  clearFeatureDirty: (id: string | ReadonlyArray<string>) => void;
+  clearAllFeatureDirty: () => void;
+  markAllFeaturesDirty: () => void;
+
   // Layer actions
   addLayer: (layer: Layer) => void;
   removeLayer: (layerId: string) => void;
@@ -174,7 +189,37 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
   activeLayerId: '',
   isDirty: false,
 
-  addFeature: (feature) =>
+  // cad-desktop-tauri-and-perf Slice P3 — shared mutable Set the
+  // renderer queries each frame. Lives outside React's selector
+  // surface (no `get()` selector exposes it) so mutation doesn't
+  // trigger component re-renders.
+  dirtyFeatureIds: new Set<string>(),
+  markFeatureDirty: (id) => {
+    const set = get().dirtyFeatureIds;
+    if (typeof id === 'string') {
+      set.add(id);
+    } else {
+      for (const x of id) set.add(x);
+    }
+  },
+  clearFeatureDirty: (id) => {
+    const set = get().dirtyFeatureIds;
+    if (typeof id === 'string') {
+      set.delete(id);
+    } else {
+      for (const x of id) set.delete(x);
+    }
+  },
+  clearAllFeatureDirty: () => {
+    get().dirtyFeatureIds.clear();
+  },
+  markAllFeaturesDirty: () => {
+    const { document, dirtyFeatureIds } = get();
+    for (const id of Object.keys(document.features)) dirtyFeatureIds.add(id);
+  },
+
+  addFeature: (feature) => {
+    get().dirtyFeatureIds.add(feature.id);
     set((state) => ({
       document: {
         ...state.document,
@@ -182,9 +227,14 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         modified: new Date().toISOString(),
       },
       isDirty: true,
-    })),
+    }));
+  },
 
-  removeFeature: (featureId) =>
+  removeFeature: (featureId) => {
+    // Slice P3 — the renderer needs to know the id was REMOVED so it
+    // can drop its cached Graphics, hence the dirty stamp before
+    // mutation rather than after.
+    get().dirtyFeatureIds.add(featureId);
     set((state) => {
       const features = { ...state.document.features };
       delete features[featureId];
@@ -192,9 +242,11 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         document: { ...state.document, features, modified: new Date().toISOString() },
         isDirty: true,
       };
-    }),
+    });
+  },
 
-  updateFeature: (featureId, updates) =>
+  updateFeature: (featureId, updates) => {
+    get().dirtyFeatureIds.add(featureId);
     set((state) => {
       const existing = state.document.features[featureId];
       if (!existing) return state;
@@ -209,9 +261,11 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         },
         isDirty: true,
       };
-    }),
+    });
+  },
 
-  updateFeatureGeometry: (featureId, geometry) =>
+  updateFeatureGeometry: (featureId, geometry) => {
+    get().dirtyFeatureIds.add(featureId);
     set((state) => {
       const existing = state.document.features[featureId];
       if (!existing) return state;
@@ -226,7 +280,8 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         },
         isDirty: true,
       };
-    }),
+    });
+  },
 
   addLayer: (layer) =>
     set((state) => {
@@ -349,7 +404,9 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       isDirty: true,
     })),
 
-  addFeatures: (features) =>
+  addFeatures: (features) => {
+    const dirty = get().dirtyFeatureIds;
+    for (const f of features) dirty.add(f.id);
     set((state) => {
       const newFeatures = { ...state.document.features };
       for (const f of features) newFeatures[f.id] = f;
@@ -357,9 +414,12 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         document: { ...state.document, features: newFeatures, modified: new Date().toISOString() },
         isDirty: true,
       };
-    }),
+    });
+  },
 
-  removeFeatures: (featureIds) =>
+  removeFeatures: (featureIds) => {
+    const dirty = get().dirtyFeatureIds;
+    for (const id of featureIds) dirty.add(id);
     set((state) => {
       const features = { ...state.document.features };
       for (const id of featureIds) delete features[id];
@@ -367,7 +427,8 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         document: { ...state.document, features, modified: new Date().toISOString() },
         isDirty: true,
       };
-    }),
+    });
+  },
 
   newDocument: () => {
     const doc = createDefaultDocument();
@@ -377,6 +438,10 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     // the first declared layer (mirrors what loadDocument already
     // does); the Slice-C validator guarantees the id is real.
     const activeLayerId = doc.layerOrder[0] ?? '';
+    // cad-desktop-tauri-and-perf Slice P3 — wipe the dirty set; the
+    // old feature ids no longer exist, and the new doc starts with
+    // no pending render work.
+    get().dirtyFeatureIds.clear();
     set({ document: doc, activeLayerId, isDirty: false });
   },
 
@@ -408,6 +473,11 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       if (next !== feat) features[fid] = next;
     }
     const normalized: DrawingDocument = { ...doc, featureGroups, features };
+    // cad-desktop-tauri-and-perf Slice P3 — the loaded doc has its
+    // own brand-new feature ids; clear any stale dirty stamps from
+    // the previous doc so the renderer doesn't try to refresh
+    // Graphics for ids that no longer exist.
+    get().dirtyFeatureIds.clear();
     set({ document: normalized, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });
   },
 
@@ -522,7 +592,8 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       };
     }),
 
-  setFeatureTextLabels: (featureId, labels) =>
+  setFeatureTextLabels: (featureId, labels) => {
+    get().dirtyFeatureIds.add(featureId);
     set((state) => {
       const feature = state.document.features[featureId];
       if (!feature) return state;
@@ -537,7 +608,8 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         },
         isDirty: true,
       };
-    }),
+    });
+  },
 
   hideFeature: (featureId) =>
     set((state) => {
