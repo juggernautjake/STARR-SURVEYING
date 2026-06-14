@@ -117,14 +117,18 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   const [exportLayersOpen, setExportLayersOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const drawingStore = useDrawingStore();
-  const selectionStore = useSelectionStore();
-  // cad-desktop-tauri-and-perf Slice P6c — MenuBar only ever called
-  // `zoomToExtents(...)` and `setTool(...)`
-  // from event handlers, so the whole-store subscriptions were waking
-  // the bar on every cursor / drawing-points tick for no render-time
-  // dividend. Per-action selectors return stable identities; the menu
-  // now reconciles on zero viewport or tool-state mutations.
+  // cad-desktop-tauri-and-perf Slice P6c + P6h — every store the
+  // MenuBar reads is now subscribed via per-field selectors so AI
+  // runs (which mutate `doc` many times per
+  // second) and selection changes don't reconcile the whole menu.
+  // Render-time reads: `isDirty` + `document` (for `.name`) on
+  // drawingStore, `selectedIds` (for `.size` on the three Export
+  // Selection disabled gates) on the selection store. Every other store
+  // access is a callback — those read the latest snapshot via
+  // `useXStore.getState().X` at click time, no subscription cost.
+  const isDirty = useDrawingStore((s) => s.isDirty);
+  const doc = useDrawingStore((s) => s.document);
+  const selectedIds = useSelectionStore((s) => s.selectedIds);
   const setTool = useToolStore((s) => s.setTool);
   const zoomToExtents = useViewportStore((s) => s.zoomToExtents);
   const undoStore = useUndoStore();
@@ -153,7 +157,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   // the download folder without a picker when "ask where to save" is off)
   // and records a local save target so the next Ctrl+S repeats it.
   async function saveLocalCopy(silentName?: string) {
-    const doc = drawingStore.document;
+    const doc = useDrawingStore.getState().document;
     const name = (silentName ?? doc.name).trim() || 'drawing';
     const payload = { version: '1.0', application: 'starr-cad', document: doc };
     const contents = JSON.stringify(payload, null, 2);
@@ -171,7 +175,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           ? await saveCadFileToPath(rememberedPath, contents)
           : await saveCadFileViaPlatform({ defaultPath: `${name}.starr` }, contents);
         if (!result) return; // user cancelled the dialog
-        drawingStore.markClean();
+        useDrawingStore.getState().markClean();
         const baseName = result.name.replace(/\.starr$/i, '');
         useSaveTargetStore.getState().setLocalTarget(doc.id, baseName, result.path);
         void clearAutosave(doc.id);
@@ -192,7 +196,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       const a = Object.assign(document.createElement('a'), { href: url, download: `${name}.starr` });
       a.click();
       URL.revokeObjectURL(url);
-      drawingStore.markClean();
+      useDrawingStore.getState().markClean();
       useSaveTargetStore.getState().setLocalTarget(doc.id, name);
       void clearAutosave(doc.id);
       cadLog.info('FileIO', `Saved drawing locally: ${name}`);
@@ -207,7 +211,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   // If the drawing has never been saved, alert and open the save dialog
   // so the surveyor picks a destination once.
   async function saveDocument() {
-    const doc = drawingStore.document;
+    const doc = useDrawingStore.getState().document;
     const target = useSaveTargetStore.getState().targetFor(doc.id);
 
     if (!target) {
@@ -230,7 +234,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         description: target.description,
       });
       useSaveTargetStore.getState().setCloudTarget(doc.id, id, name, target.description);
-      drawingStore.markClean();
+      useDrawingStore.getState().markClean();
       void clearAutosave(doc.id);
       cadLog.info('FileIO', `Saved drawing to cloud: ${name}`);
       window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text: `Saved “${name}” to the cloud.` } }));
@@ -398,7 +402,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         cadLog.warn('FileIO', `TRV import bbox doesn't fit even ARCH_E at 10000 ft/in scale — leaving paper settings alone.`);
         return;
       }
-      drawingStore.updateSettings({
+      useDrawingStore.getState().updateSettings({
         paperSize: fit.paperSize,
         paperOrientation: fit.paperOrientation,
         drawingScale: fit.drawingScale,
@@ -408,9 +412,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       // (matching the non-destructive policy of the metadata
       // apply step). The surveyor can override afterward via
       // the Title Block panel.
-      const tb = drawingStore.document.settings?.titleBlock;
+      const tb = doc.settings?.titleBlock;
       if (tb && (!tb.scaleLabel || tb.scaleLabel.trim().length === 0)) {
-        drawingStore.updateSettings({ titleBlock: { ...tb, scaleLabel: fit.scaleLabel } });
+        useDrawingStore.getState().updateSettings({ titleBlock: { ...tb, scaleLabel: fit.scaleLabel } });
       }
       cadLog.info('FileIO', `Fitted paper to imported survey: ${fit.paperSize} ${fit.paperOrientation} @ ${fit.scaleLabel}`);
     } catch (err) {
@@ -458,18 +462,18 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           setFileLoading(false);
           return;
         }
-        for (const l of report.mapped.layers) drawingStore.addLayer(l);
+        for (const l of report.mapped.layers) useDrawingStore.getState().addLayer(l);
         // cad-duplicate-point-handling Slice 4 — rename any
         // imported POINT whose trvPointId already exists in
         // the current drawing using the `:N` convention.
         const dedupedOpen = dedupeTrvFeaturesAgainstDrawing(
           report.mapped.features,
-          Object.values(drawingStore.document.features),
+          Object.values(doc.features),
         );
-        drawingStore.addFeatures(dedupedOpen.features);
+        useDrawingStore.getState().addFeatures(dedupedOpen.features);
         // cad-trv-fidelity Slice 2 — add the per-traverse feature
         // groups so each traverse shows as a sublayer in the panel.
-        drawingStore.addFeatureGroups(report.mapped.featureGroups);
+        useDrawingStore.getState().addFeatureGroups(report.mapped.featureGroups);
         if (dedupedOpen.renames.length > 0) {
           cadLog.info('FileIO', `Auto-renamed ${dedupedOpen.renames.length} colliding TRV point id(s) on import`);
         }
@@ -491,8 +495,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             cancelLabel: 'Skip',
           });
           if (applyMeta) {
-            const current = drawingStore.document.settings?.titleBlock;
-            if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints) });
+            const current = doc.settings?.titleBlock;
+            if (current) useDrawingStore.getState().updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints) });
           }
         }
         maybeFitPaperToImportedFeatures(report.mapped.features);
@@ -518,9 +522,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         setFileLoading(false);
         return;
       }
-      let doc;
+      // P6h — the outer `doc` is the live drawing-store doc selector;
+      // this is the just-parsed candidate, so use a distinct name.
+      let loadedDoc;
       try {
-        doc = validateAndMigrateDocument(payload?.document ?? payload);
+        loadedDoc = validateAndMigrateDocument(payload?.document ?? payload);
       } catch (err) {
         const diag = buildFileLoadDiagnostic(name, text, err, 'map');
         cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
@@ -528,11 +534,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         setFileLoading(false);
         return;
       }
-      drawingStore.loadDocument(doc);
-      selectionStore.deselectAll();
+      useDrawingStore.getState().loadDocument(loadedDoc);
+      useSelectionStore.getState().deselectAll();
       undoStore.clear();
-      useSaveTargetStore.getState().setLocalTarget(doc.id, doc.name);
-      cadLog.info('FileIO', `Loaded drawing: ${doc.name}`);
+      useSaveTargetStore.getState().setLocalTarget(loadedDoc.id, loadedDoc.name);
+      cadLog.info('FileIO', `Loaded drawing: ${loadedDoc.name}`);
       setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
     } catch (err) {
       const diag = buildFileLoadDiagnostic(name, text, err, 'apply');
@@ -597,7 +603,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   }
 
   function handleZoomExtents() {
-    const features = drawingStore.getAllFeatures();
+    const features = useDrawingStore.getState().getAllFeatures();
     if (features.length === 0) {
       zoomToExtents({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
       return;
@@ -613,7 +619,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   }
 
   function startEditName() {
-    setNameValue(drawingStore.document.name);
+    setNameValue(doc.name);
     setEditingName(true);
     setTimeout(() => nameInputRef.current?.select(), 0);
   }
@@ -621,14 +627,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   function commitEditName() {
     const trimmed = nameValue.trim();
     if (trimmed) {
-      drawingStore.updateDocumentName(trimmed);
+      useDrawingStore.getState().updateDocumentName(trimmed);
     }
     setEditingName(false);
   }
 
   function exportCsv(flavor: 'simplified' | 'full' = 'simplified') {
     try {
-      const { rowCount, filename } = downloadCsv(drawingStore.document, { flavor });
+      const { rowCount, filename } = downloadCsv(doc, { flavor });
       cadLog.info('FileIO', `Exported ${rowCount} points as ${flavor} CSV → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'CSV export failed', err);
@@ -638,7 +644,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
 
   function exportTraversePc() {
     try {
-      const { rowCount, filename } = downloadPnezd(drawingStore.document);
+      const { rowCount, filename } = downloadPnezd(doc);
       cadLog.info('FileIO', `Exported ${rowCount} points as Traverse PC PNEZD → ${filename}`);
     } catch (err) {
       cadLog.error('FileIO', 'Traverse PC export failed', err);
@@ -653,7 +659,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   // into the drawing store.
   function exportTrv() {
     try {
-      const { byteSize, filename } = downloadTrv(drawingStore.document);
+      const { byteSize, filename } = downloadTrv(doc);
       cadLog.info('FileIO', `Exported drawing as TRV: ${filename} (${byteSize} bytes)`);
     } catch (err) {
       cadLog.error('FileIO', 'TRV export failed', err);
@@ -702,17 +708,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         cancelLabel: 'Cancel',
       });
       if (!ok) return;
-      for (const l of report.mapped.layers) drawingStore.addLayer(l);
+      for (const l of report.mapped.layers) useDrawingStore.getState().addLayer(l);
       // cad-duplicate-point-handling Slice 4 — rename any
       // imported POINT whose trvPointId already exists in the
       // current drawing using the `:N` convention.
       const dedupedImport = dedupeTrvFeaturesAgainstDrawing(
         report.mapped.features,
-        Object.values(drawingStore.document.features),
+        Object.values(doc.features),
       );
-      drawingStore.addFeatures(dedupedImport.features);
+      useDrawingStore.getState().addFeatures(dedupedImport.features);
       // cad-trv-fidelity Slice 2 — per-traverse feature groups (sublayers).
-      drawingStore.addFeatureGroups(report.mapped.featureGroups);
+      useDrawingStore.getState().addFeatureGroups(report.mapped.featureGroups);
       if (dedupedImport.renames.length > 0) {
         cadLog.info('FileIO', `Auto-renamed ${dedupedImport.renames.length} colliding TRV point id(s) on import`);
       }
@@ -738,10 +744,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           cancelLabel: 'Skip',
         });
         if (applyMeta) {
-          const current = drawingStore.document.settings?.titleBlock;
+          const current = doc.settings?.titleBlock;
           if (current) {
             const nextTitleBlock = applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints);
-            drawingStore.updateSettings({ titleBlock: nextTitleBlock });
+            useDrawingStore.getState().updateSettings({ titleBlock: nextTitleBlock });
             cadLog.info('FileIO', 'Applied TRV metadata to title block');
           }
         }
@@ -763,7 +769,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   function exportDxf() {
     try {
       const annotations = useAnnotationStore.getState().annotations;
-      const { byteSize, filename } = downloadDxf(drawingStore.document, {
+      const { byteSize, filename } = downloadDxf(doc, {
         annotations,
       });
       cadLog.info(
@@ -778,7 +784,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
 
   function exportLandXml() {
     try {
-      const { byteSize, filename } = downloadLandXML(drawingStore.document);
+      const { byteSize, filename } = downloadLandXML(doc);
       cadLog.info('FileIO', `Exported drawing as LandXML: ${filename} (${byteSize} bytes)`);
     } catch (err) {
       cadLog.error('FileIO', 'LandXML export failed', err);
@@ -791,13 +797,13 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   // returns a doc clone narrowed to the selection (layers/settings
   // preserved) so the existing writers work unchanged.
   function exportSelection(format: 'CSV' | 'DXF' | 'LANDXML') {
-    const ids = Array.from(selectionStore.selectedIds);
+    const ids = Array.from(selectedIds);
     if (ids.length === 0) {
       void alertAction({ title: 'Starr CAD', message: 'Select one or more features first, then choose Export selection.' });
       return;
     }
     try {
-      const scoped = scopeDocument(drawingStore.document, { kind: 'SELECTION', featureIds: ids });
+      const scoped = scopeDocument(doc, { kind: 'SELECTION', featureIds: ids });
       if (format === 'CSV') {
         const { rowCount, filename } = downloadCsv(scoped, { flavor: 'full' });
         cadLog.info('FileIO', `Exported ${rowCount} selected points as CSV → ${filename}`);
@@ -819,7 +825,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     try {
       const annotations = useAnnotationStore.getState().annotations;
       const { filename, pointCount } = await downloadTraversePcBundle({
-        doc: drawingStore.document,
+        doc: doc,
         annotations,
       });
       cadLog.info('FileIO', `Exported Traverse PC bundle (${pointCount} points) → ${filename}`);
@@ -840,7 +846,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         const text = await file.text();
         const result = importFromGeoJSON(text);
         result.document.name = file.name.replace(/\.(geojson|json)$/i, '');
-        drawingStore.loadDocument(result.document);
+        useDrawingStore.getState().loadDocument(result.document);
         const warnSuffix =
           result.warnings.length > 0
             ? ` with ${result.warnings.length} warning(s); see console`
@@ -872,7 +878,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         const text = await file.text();
         const result = importFromDxf(text);
         result.document.name = file.name.replace(/\.dxf$/i, '');
-        drawingStore.loadDocument(result.document);
+        useDrawingStore.getState().loadDocument(result.document);
         const warnSuffix =
           result.warnings.length > 0
             ? ` with ${result.warnings.length} warning(s); see console`
@@ -903,7 +909,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       // settings change rarely and the menu doesn't need to
       // re-render when they do.
       const { plotStyle, scaleMode, scale } = useTemplateStore.getState().printConfig;
-      const { byteSize, filename } = downloadPdf(drawingStore.document, {
+      const { byteSize, filename } = downloadPdf(doc, {
         plotStyle,
         scaleMode,
         scale,
@@ -921,7 +927,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   function exportFieldCards() {
     try {
       const result = downloadSleeveCards(
-        drawingStore.document,
+        doc,
         MASTER_CODE_LIBRARY
       );
       cadLog.info(
@@ -941,7 +947,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
 
   function exportGeoJSON() {
     try {
-      const { byteSize, filename } = downloadGeoJSON(drawingStore.document);
+      const { byteSize, filename } = downloadGeoJSON(doc);
       cadLog.info(
         'FileIO',
         `Exported drawing as GeoJSON: ${filename} (${byteSize} bytes)`
@@ -958,7 +964,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       const description = useDeliveryStore.getState().description;
       const reviewRecord = useReviewWorkflowStore.getState().record;
       const { filename, byteSize, manifest } = await downloadDeliverableBundle({
-        doc: drawingStore.document,
+        doc: doc,
         annotations,
         description,
         reviewRecord,
@@ -1017,9 +1023,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             { label: '🪪 Field reference cards…', action: () => { exportFieldCards(); setOpenMenu(null); } },
             { label: '📦 Download deliverable bundle…', action: () => { void exportDeliverable(); setOpenMenu(null); } },
             { separator: true },
-            { label: 'Export selection as CSV…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('CSV'); setOpenMenu(null); } },
-            { label: 'Export selection as DXF…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('DXF'); setOpenMenu(null); } },
-            { label: 'Export selection as LandXML…', disabled: selectionStore.selectedIds.size === 0, action: () => { exportSelection('LANDXML'); setOpenMenu(null); } },
+            { label: 'Export selection as CSV…', disabled: selectedIds.size === 0, action: () => { exportSelection('CSV'); setOpenMenu(null); } },
+            { label: 'Export selection as DXF…', disabled: selectedIds.size === 0, action: () => { exportSelection('DXF'); setOpenMenu(null); } },
+            { label: 'Export selection as LandXML…', disabled: selectedIds.size === 0, action: () => { exportSelection('LANDXML'); setOpenMenu(null); } },
             { label: 'Export layers…', action: () => { setExportLayersOpen(true); setOpenMenu(null); } },
           ],
         },
@@ -1063,15 +1069,15 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         },
         { separator: true },
         { label: 'Delete Selection', shortcut: 'Del', action: () => {
-          const ids = Array.from(selectionStore.selectedIds);
-          for (const id of ids) drawingStore.removeFeature(id);
-          selectionStore.deselectAll();
+          const ids = Array.from(selectedIds);
+          for (const id of ids) useDrawingStore.getState().removeFeature(id);
+          useSelectionStore.getState().deselectAll();
         }},
         { label: 'Select All', shortcut: 'Ctrl+A', action: () => {
-          const ids = drawingStore.getAllFeatures().map((f) => f.id);
-          selectionStore.selectMultiple(ids, 'REPLACE');
+          const ids = useDrawingStore.getState().getAllFeatures().map((f) => f.id);
+          useSelectionStore.getState().selectMultiple(ids, 'REPLACE');
         }},
-        { label: 'Deselect All', shortcut: 'Esc', action: () => selectionStore.deselectAll() },
+        { label: 'Deselect All', shortcut: 'Esc', action: () => useSelectionStore.getState().deselectAll() },
         { separator: true },
         { label: 'Send to Layer…', shortcut: 'Ctrl+Shift+L', action: () => {
           window.dispatchEvent(new CustomEvent('cad:openLayerTransfer'));
@@ -1088,8 +1094,8 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         // Surveyors who navigate via menu rather than the
         // toolbar SPLIT flyout still see these operations here.
         ...(() => {
-          const selIds = Array.from(selectionStore.selectedIds);
-          const single = selIds.length === 1 ? drawingStore.getFeature(selIds[0]) : null;
+          const selIds = Array.from(selectedIds);
+          const single = selIds.length === 1 ? useDrawingStore.getState().getFeature(selIds[0]) : null;
           const isLine = single?.geometry.type === 'LINE';
           const isPolyline = single?.geometry.type === 'POLYLINE';
           const isPolygon = single?.geometry.type === 'POLYGON';
@@ -1137,14 +1143,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         },
         { separator: true },
         {
-          label: drawingStore.document.settings.gridVisible ? 'Hide Grid' : 'Show Grid',
+          label: doc.settings.gridVisible ? 'Hide Grid' : 'Show Grid',
           shortcut: 'F7',
-          action: () => drawingStore.updateSettings({ gridVisible: !drawingStore.document.settings.gridVisible }),
+          action: () => useDrawingStore.getState().updateSettings({ gridVisible: !doc.settings.gridVisible }),
         },
         {
-          label: drawingStore.document.settings.snapEnabled ? 'Disable Snap' : 'Enable Snap',
+          label: doc.settings.snapEnabled ? 'Disable Snap' : 'Enable Snap',
           shortcut: 'F3',
-          action: () => drawingStore.updateSettings({ snapEnabled: !drawingStore.document.settings.snapEnabled }),
+          action: () => useDrawingStore.getState().updateSettings({ snapEnabled: !doc.settings.snapEnabled }),
         },
         { separator: true },
         {
@@ -1172,9 +1178,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         },
         { separator: true },
         {
-          label: drawingStore.document.settings.titleBlock?.visible ? 'Hide Title Block' : 'Show Title Block',
+          label: doc.settings.titleBlock?.visible ? 'Hide Title Block' : 'Show Title Block',
           action: () => {
-            drawingStore.updateTitleBlock({ visible: !drawingStore.document.settings.titleBlock?.visible });
+            useDrawingStore.getState().updateTitleBlock({ visible: !doc.settings.titleBlock?.visible });
             setOpenMenu(null);
           },
         },
@@ -1442,7 +1448,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       ))}
 
       {/* Dirty indicator */}
-      {drawingStore.isDirty && (
+      {isDirty && (
         <span className="ml-2 text-yellow-400 text-[10px] animate-[fadeIn_300ms_ease-out]">● unsaved</span>
       )}
 
@@ -1453,7 +1459,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         onClick={() => { void saveDocument(); }}
         title="Save (Ctrl+S) — saves to this drawing's last file; prompts the first time"
         className={`ml-2 px-2 py-0.5 text-[11px] rounded transition-colors flex items-center gap-1 ${
-          drawingStore.isDirty
+          isDirty
             ? 'bg-blue-600 hover:bg-blue-500 text-white'
             : 'text-gray-400 hover:text-white hover:bg-gray-700'
         }`}
@@ -1482,7 +1488,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             title="Double-click to rename"
             onDoubleClick={startEditName}
           >
-            {drawingStore.document.name}
+            {doc.name}
           </span>
         )}
       </div>
@@ -1499,7 +1505,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             // to /admin/research-cad when nothing is on file (direct
             // URL hit / browser refresh inside CAD / cleared session).
             const returnTo = getCadReturnPath('/admin/research-cad');
-            if (drawingStore.isDirty) {
+            if (isDirty) {
               // cad-trv-fidelity Slice 13 — Starr-styled confirm instead
               // of the native window.confirm.
               const ok = await confirmAction({

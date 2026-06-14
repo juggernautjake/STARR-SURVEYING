@@ -187,6 +187,8 @@ describe('MenuBar — Pass 6 title-block apply prompt', () => {
     // cad-trv-drawing-element-rendering Slice 4 — the paper-space
     // title-block hints are passed as the 3rd arg.
     expect(SRC).toMatch(/applyTrvMetadataToTitleBlock\(m, current, report\.titleBlockHints\)/);
-    expect(SRC).toMatch(/drawingStore\.updateSettings\(\{ titleBlock: nextTitleBlock \}\)/);
+    // P6h widened — `drawingStore.X(...)` callbacks route through
+    // `useDrawingStore.getState().X(...)`.
+    expect(SRC).toMatch(/(drawingStore|useDrawingStore\.getState\(\))\.updateSettings\(\{ titleBlock: nextTitleBlock \}\)/);
   });
 });

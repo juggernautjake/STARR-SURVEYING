@@ -79,7 +79,9 @@ describe('MenuBar — saveLocalCopy branches on isTauri()', () => {
   });
 
   it('returns silently when the user cancels the Save dialog (no clean / target writes)', () => {
-    expect(SRC).toMatch(/if \(!result\) return;[\s\S]*?drawingStore\.markClean\(\);/);
+    // P6h widened — the MenuBar's `drawingStore.X(...)` callbacks now
+    // route through `useDrawingStore.getState().X(...)`. Accept either.
+    expect(SRC).toMatch(/if \(!result\) return;[\s\S]*?(drawingStore|useDrawingStore\.getState\(\))\.markClean\(\);/);
   });
 
   it('the web branch is preserved verbatim — URL-blob + anchor click + markClean + setLocalTarget(name)', () => {

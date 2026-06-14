@@ -912,6 +912,38 @@ Full suite: 8134 green.
 3. MenuBar's remaining four whole-store subs from P6c.
 Track as `P6h`.
 
+**P6h MenuBar drawing + selection subs shipped 2026-06-14** —
+the two highest-frequency offenders in the MenuBar fall first:
+`useDrawingStore()` was waking on every feature mutation (which
+fires many ticks per second during AI runs and bulk imports)
+and `useSelectionStore()` was waking on every selection change.
+Both had tiny render-time read surfaces: `isDirty` +
+`document.name` for the title chip, `selectedIds.size` for the
+three Export Selection disabled gates. Per-field selectors take
+those, and the ~50 callback action calls (`drawingStore.addFeatures`,
+`drawingStore.addLayer`, `drawingStore.updateSettings`,
+`drawingStore.markClean`, `drawingStore.loadDocument`,
+`drawingStore.getAllFeatures`, `drawingStore.updateDocumentName`,
+`drawingStore.addFeatureGroups`, `selectionStore.deselectAll`,
+`selectionStore.selectedIds`, ...) SED-converted to
+`useDrawingStore.getState().X` / `useSelectionStore.getState().X`.
+A `let doc;` local inside `processOpenedCadFile` shadowed the
+new top-level `doc` selector, so it was renamed to `loadedDoc`
+for the just-parsed candidate path. Source-locked by
+`__tests__/cad/ui/menu-bar-drawing-selection-selectors.test.ts`
+(7 assertions); five pre-existing source-locks
+(`menubar-save-routing`, `dedupe-trv-features`, `trv-io`,
+`trv-titleblock`, `new-drawing-clean`) were widened to accept
+either the old `drawingStore.X(...)` / `drawingStore.document`
+/ `drawingStore.isDirty` forms or their new equivalents.
+Full suite: 8134 green.
+**Remaining P6h follow-ups:** `useUndoStore()` (render-time
+`canUndo` + `canRedo` + descriptions for the Edit menu disabled
+gates) and `useUIStore()` (render-time `showLayerPanel` +
+`showPropertyPanel` for the View menu labels) on the MenuBar
+side, plus CanvasViewport's `useDrawingStore()` +
+`useToolStore()` per-field conversions. Track as `P6i`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
