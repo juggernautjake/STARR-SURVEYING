@@ -143,11 +143,16 @@ describe('MenuBar — Pass 8 open-dialog routing + diagnostics', () => {
   });
 
   it('sniffs the file format + routes TRV through importTrvFromText', () => {
-    expect(SRC).toMatch(/const format = detectFileFormat\(file\.name, text\);/);
+    // cad-desktop-tauri-and-perf Slice T4b extracted the dispatch
+    // chain into `processOpenedCadFile(name, text)`, so the sniff +
+    // TRV routing references the parameter `name` instead of the
+    // closure-bound `file.name`. Both shapes are acceptable here —
+    // the test guards the structural calls, not the exact symbol.
+    expect(SRC).toMatch(/const format = detectFileFormat\(name, text\);/);
     expect(SRC).toMatch(/if \(format === 'TRV'\)/);
     // cad-trv-dual-layer-filename Slice 1 — the file name is threaded
     // through so the imported layers are named after the FILE.
-    expect(SRC).toMatch(/importTrvFromText\(text, \{ fileName: file\.name \}\)/);
+    expect(SRC).toMatch(/importTrvFromText\(text, \{ fileName: name \}\)/);
   });
 
   it('every failure path goes through buildFileLoadDiagnostic + formatFileLoadDiagnostic', () => {

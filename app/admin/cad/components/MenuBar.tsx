@@ -52,6 +52,12 @@ import { detectFileFormat, buildFileLoadDiagnostic, formatFileLoadDiagnostic } f
 // rendered by CADLayout. Replaces the single-error inline modal.
 import { reportFileLoadError } from '@/lib/cad/io/error-report';
 import { clearAutosave } from '@/lib/cad/persistence/autosave';
+// cad-desktop-tauri-and-perf Slice T4b — native open routing.
+// `openCadFileViaPlatform` is a no-op (returns null) on the web build
+// because `isTauri()` is false there, so the existing
+// <input type="file"> flow continues to fire.
+import { isTauri } from '@/lib/cad/platform/runtime';
+import { openCadFileViaPlatform } from '@/lib/cad/persistence/native-file';
 import { downloadDxf, downloadLandXML, downloadTraversePcBundle, downloadGeoJSON, downloadPdf, downloadDeliverableBundle, downloadSleeveCards, importFromDxf, importFromGeoJSON, scopeDocument } from '@/lib/cad/delivery';
 import { MASTER_CODE_LIBRARY } from '@/lib/cad/codes/code-library';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
@@ -261,7 +267,154 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     }
   }
 
+  // cad-desktop-tauri-and-perf Slice T4b — given a loaded file's
+  // `{ name, contents }`, run the existing sniff + loader chain. The
+  // Tauri branch and the web `<input type="file">` branch both feed
+  // into this so the format-detection + dispatch + diagnostic
+  // pipelines stay single-source. Caller is responsible for calling
+  // setFileLoading(true) before invoking; this function owns the
+  // setFileLoading(false) in its finally + the catch-and-report on
+  // dispatch errors. Behavior is byte-for-byte identical to the
+  // pre-extraction inline body for any (name, text) input.
+  async function processOpenedCadFile(name: string, text: string) {
+    const format = detectFileFormat(name, text);
+    try {
+      if (format === 'TRV') {
+        // Route TRV files through the same import flow as
+        // File → Import → "Import Traverse PC (.TRV)…" with
+        // the count preview + non-destructive title-block apply.
+        const report: TrvImportReport = importTrvFromText(text, { fileName: name });
+        const noteSummary = report.notes.length > 0
+          ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
+          : '';
+        const drawingSummary = formatRenderedElements(report.renderedElements);
+        // cad-trv-fidelity Slice 13 — Starr-styled import modal in
+        // place of the native window.confirm popup.
+        const ok = await confirmAction({
+          title: 'Open Traverse PC (.TRV)',
+          message:
+            `Open ${name} as a Traverse PC TRV?\n\n` +
+            `  ${report.layerCount} layer(s)\n` +
+            `  ${report.pointCount} point(s)\n` +
+            `  ${report.traverseCount} traverse(s)` +
+            (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
+            noteSummary +
+            `\n\nThis will ADD the records to the current drawing.`,
+          confirmLabel: 'Open',
+          cancelLabel: 'Cancel',
+        });
+        if (!ok) {
+          setFileLoading(false);
+          return;
+        }
+        for (const l of report.mapped.layers) drawingStore.addLayer(l);
+        // cad-duplicate-point-handling Slice 4 — rename any
+        // imported POINT whose trvPointId already exists in
+        // the current drawing using the `:N` convention.
+        const dedupedOpen = dedupeTrvFeaturesAgainstDrawing(
+          report.mapped.features,
+          Object.values(drawingStore.document.features),
+        );
+        drawingStore.addFeatures(dedupedOpen.features);
+        // cad-trv-fidelity Slice 2 — add the per-traverse feature
+        // groups so each traverse shows as a sublayer in the panel.
+        drawingStore.addFeatureGroups(report.mapped.featureGroups);
+        if (dedupedOpen.renames.length > 0) {
+          cadLog.info('FileIO', `Auto-renamed ${dedupedOpen.renames.length} colliding TRV point id(s) on import`);
+        }
+        cadLog.info('FileIO', `Loaded TRV via Open dialog: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
+        // Offer the title-block metadata apply (same as importTrv).
+        const m = report.metadata;
+        const hasMetadata = !!(m.projectName || m.surveyDate || m.scale || m.sourcePath);
+        if (hasMetadata) {
+          const applyMeta = await confirmAction({
+            title: 'Apply title-block metadata?',
+            message:
+              'Apply TRV project metadata to the survey title block?\n\n' +
+              (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
+              (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
+              (m.scale       ? `  Scale: ${m.scale}\n` : '') +
+              (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
+              '\nOnly fields you haven\'t set will be filled (non-destructive).',
+            confirmLabel: 'Apply',
+            cancelLabel: 'Skip',
+          });
+          if (applyMeta) {
+            const current = drawingStore.document.settings?.titleBlock;
+            if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints) });
+          }
+        }
+        maybeFitPaperToImportedFeatures(report.mapped.features);
+        // cad-trv-element-coverage Slice 1 — zoom to the PAPER
+        // sheet (sized to the robust bbox by paper-fit above)
+        // not the strict feature bbox, so outlier GPS shots
+        // don't drag the camera out + the lot is immediately
+        // viewable.
+        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomToPaper')), 200);
+        setFileLoading(false);
+        return;
+      }
+      // STARR or UNKNOWN: try the JSON path. UNKNOWN attempts the
+      // STARR path optimistically — the structured diagnostic
+      // below will hint the right loader if it fails.
+      let payload: { document: unknown };
+      try {
+        payload = JSON.parse(text) as { document: unknown };
+      } catch (err) {
+        const diag = buildFileLoadDiagnostic(name, text, err, 'parse');
+        cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+        reportFileLoadError(diag);
+        setFileLoading(false);
+        return;
+      }
+      let doc;
+      try {
+        doc = validateAndMigrateDocument(payload?.document ?? payload);
+      } catch (err) {
+        const diag = buildFileLoadDiagnostic(name, text, err, 'map');
+        cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+        reportFileLoadError(diag);
+        setFileLoading(false);
+        return;
+      }
+      drawingStore.loadDocument(doc);
+      selectionStore.deselectAll();
+      undoStore.clear();
+      useSaveTargetStore.getState().setLocalTarget(doc.id, doc.name);
+      cadLog.info('FileIO', `Loaded drawing: ${doc.name}`);
+      setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+    } catch (err) {
+      const diag = buildFileLoadDiagnostic(name, text, err, 'apply');
+      cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+      reportFileLoadError(diag);
+    } finally {
+      setFileLoading(false);
+    }
+  }
+
   function openFileDialog() {
+    // cad-desktop-tauri-and-perf Slice T4b — inside the Tauri shell,
+    // route Open through the native dialog plugin instead of a
+    // browser-synthesized <input type="file">. The web build stays
+    // on the original path; isTauri() returns false there, so this
+    // branch is a no-op.
+    if (isTauri()) {
+      void (async () => {
+        let result;
+        try {
+          result = await openCadFileViaPlatform();
+        } catch (err) {
+          const diag = buildFileLoadDiagnostic('', '', err, 'sniff');
+          cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
+          reportFileLoadError(diag);
+          return;
+        }
+        if (!result) return; // user cancelled the dialog
+        setFileLoading(true);
+        await processOpenedCadFile(result.name, result.contents);
+      })();
+      return;
+    }
     const input = Object.assign(document.createElement('input'), {
       type: 'file',
       // cad-trv-import-export-deep-semantic Pass 8 — accept TRV
@@ -283,120 +436,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         setFileLoading(false);
         return;
       }
-      // Pass 8 — sniff first so the right loader runs.
-      const format = detectFileFormat(file.name, text);
-      try {
-        if (format === 'TRV') {
-          // Route TRV files through the same import flow as
-          // File → Import → "Import Traverse PC (.TRV)…" with
-          // the count preview + non-destructive title-block apply.
-          const report: TrvImportReport = importTrvFromText(text, { fileName: file.name });
-          const noteSummary = report.notes.length > 0
-            ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
-            : '';
-          const drawingSummary = formatRenderedElements(report.renderedElements);
-          // cad-trv-fidelity Slice 13 — Starr-styled import modal in
-          // place of the native window.confirm popup.
-          const ok = await confirmAction({
-            title: 'Open Traverse PC (.TRV)',
-            message:
-              `Open ${file.name} as a Traverse PC TRV?\n\n` +
-              `  ${report.layerCount} layer(s)\n` +
-              `  ${report.pointCount} point(s)\n` +
-              `  ${report.traverseCount} traverse(s)` +
-              (drawingSummary ? `\n  drawing: ${drawingSummary}` : '') +
-              noteSummary +
-              `\n\nThis will ADD the records to the current drawing.`,
-            confirmLabel: 'Open',
-            cancelLabel: 'Cancel',
-          });
-          if (!ok) {
-            setFileLoading(false);
-            return;
-          }
-          for (const l of report.mapped.layers) drawingStore.addLayer(l);
-          // cad-duplicate-point-handling Slice 4 — rename any
-          // imported POINT whose trvPointId already exists in
-          // the current drawing using the `:N` convention.
-          const dedupedOpen = dedupeTrvFeaturesAgainstDrawing(
-            report.mapped.features,
-            Object.values(drawingStore.document.features),
-          );
-          drawingStore.addFeatures(dedupedOpen.features);
-          // cad-trv-fidelity Slice 2 — add the per-traverse feature
-          // groups so each traverse shows as a sublayer in the panel.
-          drawingStore.addFeatureGroups(report.mapped.featureGroups);
-          if (dedupedOpen.renames.length > 0) {
-            cadLog.info('FileIO', `Auto-renamed ${dedupedOpen.renames.length} colliding TRV point id(s) on import`);
-          }
-          cadLog.info('FileIO', `Loaded TRV via Open dialog: ${report.layerCount} layers, ${report.pointCount} points, ${report.traverseCount} traverses`);
-          // Offer the title-block metadata apply (same as importTrv).
-          const m = report.metadata;
-          const hasMetadata = !!(m.projectName || m.surveyDate || m.scale || m.sourcePath);
-          if (hasMetadata) {
-            const applyMeta = await confirmAction({
-              title: 'Apply title-block metadata?',
-              message:
-                'Apply TRV project metadata to the survey title block?\n\n' +
-                (m.projectName ? `  Project name: ${m.projectName}\n` : '') +
-                (m.surveyDate  ? `  Survey date: ${m.surveyDate}\n` : '') +
-                (m.scale       ? `  Scale: ${m.scale}\n` : '') +
-                (m.sourcePath  ? `  Source: ${m.sourcePath}\n` : '') +
-                '\nOnly fields you haven\'t set will be filled (non-destructive).',
-              confirmLabel: 'Apply',
-              cancelLabel: 'Skip',
-            });
-            if (applyMeta) {
-              const current = drawingStore.document.settings?.titleBlock;
-              if (current) drawingStore.updateSettings({ titleBlock: applyTrvMetadataToTitleBlock(m, current, report.titleBlockHints) });
-            }
-          }
-          maybeFitPaperToImportedFeatures(report.mapped.features);
-          // cad-trv-element-coverage Slice 1 — zoom to the PAPER
-          // sheet (sized to the robust bbox by paper-fit above)
-          // not the strict feature bbox, so outlier GPS shots
-          // don't drag the camera out + the lot is immediately
-          // viewable.
-          setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomToPaper')), 200);
-          setFileLoading(false);
-          return;
-        }
-        // STARR or UNKNOWN: try the JSON path. UNKNOWN attempts the
-        // STARR path optimistically — the structured diagnostic
-        // below will hint the right loader if it fails.
-        let payload: { document: unknown };
-        try {
-          payload = JSON.parse(text) as { document: unknown };
-        } catch (err) {
-          const diag = buildFileLoadDiagnostic(file.name, text, err, 'parse');
-          cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
-          reportFileLoadError(diag);
-          setFileLoading(false);
-          return;
-        }
-        let doc;
-        try {
-          doc = validateAndMigrateDocument(payload?.document ?? payload);
-        } catch (err) {
-          const diag = buildFileLoadDiagnostic(file.name, text, err, 'map');
-          cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
-          reportFileLoadError(diag);
-          setFileLoading(false);
-          return;
-        }
-        drawingStore.loadDocument(doc);
-        selectionStore.deselectAll();
-        undoStore.clear();
-        useSaveTargetStore.getState().setLocalTarget(doc.id, doc.name);
-        cadLog.info('FileIO', `Loaded drawing: ${doc.name}`);
-        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
-      } catch (err) {
-        const diag = buildFileLoadDiagnostic(file.name, text, err, 'apply');
-        cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
-        reportFileLoadError(diag);
-      } finally {
-        setFileLoading(false);
-      }
+      await processOpenedCadFile(file.name, text);
     };
     input.click();
   }

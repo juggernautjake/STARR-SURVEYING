@@ -143,16 +143,48 @@ slices below.
 > in T4.)
 
 ### T4b — Wire native open into MenuBar + CADLayout drop zone
-Extract the existing `openFileDialog` body in
-`app/admin/cad/components/MenuBar.tsx` so the format-sniff +
-loader chain takes `{ name, contents }` instead of reading from
-a DOM `File`. Top of the function branches on `isTauri()`; on
-true, call the Slice T4 `openCadFileViaPlatform({ filters:
-DEFAULT_CAD_FILTERS })` and feed the result into the extracted
-helper; on false, fall through to the existing
-`<input type="file">` flow unchanged. Same shape for the
-`CADLayout` drop-zone path. Source-lock the branch + extracted
-helper.
+> **DONE (2026-06-14).** Extracted the existing `openFileDialog`
+> dispatch body in `app/admin/cad/components/MenuBar.tsx` into a
+> shared `async function processOpenedCadFile(name: string, text:
+> string)` that owns the sniff → TRV / STARR-JSON branch → loader
+> chain + setFileLoading false in its outer finally + the
+> dispatch-error diagnostic. `openFileDialog` now branches at the
+> top on `isTauri()`: in the Tauri shell it awaits
+> `openCadFileViaPlatform()`, calls `setFileLoading(true)` only
+> after the dialog returns (so the overlay doesn't block the
+> picker), then feeds `(result.name, result.contents)` into the
+> shared helper; the dialog-error path surfaces through the same
+> `buildFileLoadDiagnostic('sniff')` pipeline the web read-error
+> already uses. The web branch is byte-for-byte unchanged in
+> behavior — same `<input type="file">`, same `accept`, same
+> setFileLoading(true) ordering before `file.text()`, same
+> diagnostic on read failure — and now also routes its loaded
+> text through the shared helper instead of inlining the
+> dispatch. 9 source-lock cases in
+> `__tests__/desktop/menubar-open-routing.test.ts` lock the
+> dispatch-body extraction (no residual `file.name` /
+> `file.text()` references inside `processOpenedCadFile`), the
+> isTauri branch ordering, the Tauri error path, and the web
+> fallback's structural elements. The pre-existing
+> `__tests__/cad/io/file-detect.test.ts` source-lock that froze
+> `detectFileFormat(file.name, text)` was updated to expect the
+> parameter form `detectFileFormat(name, text)`. CADLayout
+> drop-zone wiring is deferred to a follow-up T4c slice — the
+> drop zone consumes a real DOM `File` from the `dragover` /
+> `drop` events, and Tauri's drag-and-drop story is different
+> enough (file-protocol paths vs. browser `File` objects) that
+> it deserves its own focused pass. Full suite: 7803 green.
+
+### T4c — Wire native open into the CADLayout drop zone
+The drop zone currently consumes browser `File` objects from
+`dragover` / `drop` events; under Tauri the OS-level drag-and-drop
+delivers a list of absolute file paths through Tauri's
+`drag-drop` event instead. Wire a listener on
+`getCurrentWebview().onDragDropEvent` (gated on `isTauri()`); on
+each path, read via `plugin:fs|read_text_file` and feed the
+result through the same `processOpenedCadFile` helper Slice T4b
+extracted from MenuBar. Web behavior is untouched. Source-lock
+the listener wiring + the shared-helper call.
 
 ### T5 — Native file-save (Save / Save As)
 Symmetric: `saveFileDialog(defaultPath, contents)` and `saveToPath(path, contents)`.
