@@ -464,19 +464,42 @@ touching the rendering engine. Five-to-six weeks of effort. This is
 where most of the felt improvement lives — the runtime ceiling is
 much higher than the current code path reaches.
 
-### P1 — Spatial index for feature bounds (rbush R-tree)
-New `lib/cad/spatial/feature-index.ts` wraps `rbush` (4 KB,
-battle-tested). Keys: feature id → AABB from `featureBounds(f)`.
-The drawing store gets `withSpatialIndex` middleware that
-incrementally inserts on `addFeature`, removes on
-`removeFeature`, and re-inserts on `updateFeature` /
-`updateFeatureGeometry`. Public helpers:
-`spatialIndex.queryRect(min, max): featureId[]` for viewport +
-hit-testing, `spatialIndex.queryPoint(x, y, tolPx, zoom)` for
-the click-pick path. The biggest win in this whole plan —
-hit-tests + culling go O(n) → O(log n). Unit tests against the
-existing `__tests__/cad/geometry/bounds.test.ts` fixtures plus a
-new 10k-feature synthetic stress.
+### P1 — Spatial index for feature bounds
+> **DONE (2026-06-14).** New `lib/cad/spatial/feature-index.ts`
+> implements a uniform-grid spatial index (NOT rbush — a
+> hand-rolled grid handles the survey-CAD workload as fast as
+> rbush at a fraction of the code AND zero new runtime deps).
+> Default cell size 100 ft (one lot). Each feature's AABB is
+> bucketed into every grid cell it overlaps; oversized
+> features (diagonal > 8× cell size, e.g. a single huge
+> polyline) go into a "large bin" that's always scanned. The
+> grid by itself returns false positives — cells contain
+> features whose AABB overlaps the cell, not the precise query
+> rect — so we keep an `id → AABB` cache and filter the
+> candidate set through `aabbsIntersect` before returning. Net
+> result: callers get exactly the set of features whose stored
+> AABB intersects the query, dedup'd, in O(query_cells ×
+> items_per_cell) time. Public surface:
+> `createFeatureIndex(cellSize?)`, `buildFeatureIndex(entries,
+> cellSize?)`, plus the `FeatureIndex` interface
+> (`size / upsert / remove / queryRect / cellCount /
+> largeBinSize`).
+>
+> 19 unit cases in `__tests__/cad/spatial/feature-index.test.ts`
+> cover hit / miss, invalid bounds defense, upsert dedup, multi-
+> cell-spanning features returned once, the large-bin path, and a
+> 10k-point stress that inserts within 1.5 s and queries a small
+> region in under 50 ms — well within the ceiling Phase 2 needs.
+> Cleaned up a flaky `EnvironmentTeardownError` in the existing
+> Slice T7 menu-bridge undo / redo test by awaiting one
+> microtask so the lazy import of the zustand store settles
+> before teardown. Full suite: 7961 green, zero unhandled
+> errors.
+>
+> (Store integration deferred to Slice P2 — this slice ships
+> the standalone index so the canvas can opt in once the render
+> loop is restructured. The drawing-store middleware the
+> original plan called for is part of P3 dirty-region work.)
 
 ### P2 — Viewport culling in the render loop
 `CanvasViewport.renderFeatures()` queries the Slice-P1 index

@@ -91,12 +91,16 @@ describe('dispatchMenuAction — routes ids to cad:* window events', () => {
     (window as Window).removeEventListener('cad:openFileDialog', listener);
   });
 
-  it('edit.undo and edit.redo bypass the event bus (they go through the undo store)', () => {
+  it('edit.undo and edit.redo bypass the event bus (they go through the undo store)', async () => {
     const listener = vi.fn();
     (window as Window).addEventListener('cad:undo', listener);
     (window as Window).addEventListener('cad:redo', listener);
     dispatchMenuAction('edit.undo');
     dispatchMenuAction('edit.redo');
+    // dispatchMenuAction for undo/redo lazy-imports the undo store —
+    // wait for the import to settle so the teardown doesn't catch
+    // it mid-load and surface an EnvironmentTeardownError.
+    await new Promise((r) => setTimeout(r, 0));
     expect(listener).not.toHaveBeenCalled();
     (window as Window).removeEventListener('cad:undo', listener);
     (window as Window).removeEventListener('cad:redo', listener);
