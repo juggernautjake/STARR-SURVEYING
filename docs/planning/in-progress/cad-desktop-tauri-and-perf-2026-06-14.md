@@ -733,6 +733,30 @@ with the call sites. Source-locked by
 MenuBar / LayerPanel / PropertyPanel subtrees, plus the
 `CanvasViewport` cursor-tick paths — track as `P6b`.
 
+**P6b StatusBar subscription audit shipped 2026-06-14** —
+the P6 extraction pulled the cursor-pill JSX out, but the
+parent `StatusBar` was still calling `useDrawingStore()`,
+`useViewportStore()`, `useSelectionStore()`, and
+`useToolStore()` with no selector — four whole-store
+subscriptions that fired on every cursor-position / drawing-
+points / selection / tool-state mutation, undoing most of the
+P6 win the moment any other store ticked. P6b converts every
+read to per-field selectors:
+`useDrawingStore((s) => s.document / activeLayerId /
+updateSettings / setActiveLayer)`,
+`useViewportStore((s) => s.zoom / setZoom)`,
+`useSelectionStore((s) => s.selectedIds.size)`,
+and per-field `useToolStore((s) => s.state.activeTool /
+orthoEnabled / polarEnabled / polarAngle / copyMode)`. The
+zustand bailout now skips the bar entirely on cursor moves
+and on tool-state ticks the bar doesn't render. Source-locked
+by an extended `__tests__/cad/ui/status-bar-cursor-pill.test.ts`
+(15 assertions; the original `viewportStore.zoom` lock was
+widened to the per-field form since the access path moved).
+**Remaining P6b follow-ups:** the same treatment for
+MenuBar / LayerPanel / PropertyPanel and the
+`CanvasViewport` cursor-tick paths — track as `P6c`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at

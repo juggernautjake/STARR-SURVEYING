@@ -68,8 +68,11 @@ describe('StatusBar — parent stops reading cursor/dist state', () => {
     expect(SRC).toMatch(/import StatusBarCursorPill from '\.\/StatusBarCursorPill'/);
   });
 
-  it('keeps the zoom destructure (the +/- buttons still need it)', () => {
-    expect(SRC).toMatch(/const zoom = viewportStore\.zoom;/);
+  it('keeps the zoom read (the +/- buttons still need it)', () => {
+    // P6b swapped the whole-store subscribe for a per-field
+    // selector so cursor moves no longer wake the parent. The
+    // value still feeds the +/- buttons; the access path moved.
+    expect(SRC).toMatch(/const zoom = useViewportStore\(\(s\) => s\.zoom\);/);
   });
 
   it('drops the now-unused format helper imports', () => {
@@ -78,5 +81,43 @@ describe('StatusBar — parent stops reading cursor/dist state', () => {
     expect(SRC).not.toMatch(/import \{[^}]*formatDistance[^}]*\}/);
     expect(SRC).not.toMatch(/import \{[^}]*formatAngle[^}]*\}/);
     expect(SRC).not.toMatch(/import \{[^}]*formatCoordinates[^}]*\}/);
+  });
+});
+
+describe('StatusBar — P6b per-field selectors (no whole-store subscriptions)', () => {
+  const SRC = fs.readFileSync(
+    path.join(repoRoot, 'app/admin/cad/components/StatusBar.tsx'),
+    'utf8',
+  );
+
+  it('drops the four whole-store subscriptions that fired on every cursor / tool tick', () => {
+    expect(SRC).not.toMatch(/const drawingStore = useDrawingStore\(\);/);
+    expect(SRC).not.toMatch(/const viewportStore = useViewportStore\(\);/);
+    expect(SRC).not.toMatch(/const selectionStore = useSelectionStore\(\);/);
+    expect(SRC).not.toMatch(/const toolStore = useToolStore\(\);/);
+  });
+
+  it('reads drawing-store fields + actions via per-field selectors', () => {
+    expect(SRC).toMatch(/const doc = useDrawingStore\(\(s\) => s\.document\);/);
+    expect(SRC).toMatch(/const activeLayerId = useDrawingStore\(\(s\) => s\.activeLayerId\);/);
+    expect(SRC).toMatch(/const updateSettings = useDrawingStore\(\(s\) => s\.updateSettings\);/);
+    expect(SRC).toMatch(/const setActiveLayer = useDrawingStore\(\(s\) => s\.setActiveLayer\);/);
+  });
+
+  it('reads selection count off the size primitive (stable Object.is bailout)', () => {
+    expect(SRC).toMatch(/const selCount = useSelectionStore\(\(s\) => s\.selectedIds\.size\);/);
+    expect(SRC).not.toMatch(/selectionStore\.selectionCount\(\)/);
+  });
+
+  it('reads tool-state fields via per-field selectors so cursor-tick drawingPoints updates do not wake the bar', () => {
+    expect(SRC).toMatch(/const activeTool = useToolStore\(\(s\) => s\.state\.activeTool\);/);
+    expect(SRC).toMatch(/const orthoEnabled = useToolStore\(\(s\) => s\.state\.orthoEnabled\);/);
+    expect(SRC).toMatch(/const polarEnabled = useToolStore\(\(s\) => s\.state\.polarEnabled\);/);
+    expect(SRC).toMatch(/const polarAngle = useToolStore\(\(s\) => s\.state\.polarAngle\);/);
+    expect(SRC).toMatch(/const copyMode = useToolStore\(\(s\) => s\.state\.copyMode\);/);
+  });
+
+  it('reads setZoom via a per-field selector (the +/- buttons + zoom input)', () => {
+    expect(SRC).toMatch(/const setZoom = useViewportStore\(\(s\) => s\.setZoom\);/);
   });
 });

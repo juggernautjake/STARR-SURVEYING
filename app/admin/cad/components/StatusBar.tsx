@@ -69,25 +69,32 @@ interface StatusBarProps {
 }
 
 export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {}) {
-  const drawingStore = useDrawingStore();
-  const viewportStore = useViewportStore();
-  const selectionStore = useSelectionStore();
-  const toolStore = useToolStore();
+  // cad-desktop-tauri-and-perf Slice P6b — every store is now read
+  // via per-field selectors so cursor moves (viewport.cursorWorld)
+  // and drawing ticks (tool.state.drawingPoints) don't reconcile
+  // the entire status bar. The P6 extraction pulled the pill out;
+  // P6b makes sure the parent itself stops listening to fields it
+  // doesn't render.
+  const doc = useDrawingStore((s) => s.document);
+  const activeLayerId = useDrawingStore((s) => s.activeLayerId);
+  const updateSettings = useDrawingStore((s) => s.updateSettings);
+  const setActiveLayer = useDrawingStore((s) => s.setActiveLayer);
+  const zoom = useViewportStore((s) => s.zoom);
+  const setZoom = useViewportStore((s) => s.setZoom);
+  const selCount = useSelectionStore((s) => s.selectedIds.size);
+  const activeTool = useToolStore((s) => s.state.activeTool);
+  const orthoEnabled = useToolStore((s) => s.state.orthoEnabled);
+  const polarEnabled = useToolStore((s) => s.state.polarEnabled);
+  const polarAngle = useToolStore((s) => s.state.polarAngle);
+  const copyMode = useToolStore((s) => s.state.copyMode);
   const aiMode = useAIStore((s) => s.mode);
   const aiSandbox = useAIStore((s) => s.sandbox);
   const cycleAIMode = useAIStore((s) => s.cycleMode);
-  // cad-desktop-tauri-and-perf Slice P6 — cursor world position
-  // lives on the extracted `StatusBarCursorPill`, so the parent no
-  // longer reconciles on mousemove ticks. Zoom stays here because
-  // the zoom-percent input + the +/- buttons render off it.
-  const zoom = viewportStore.zoom;
 
-  const { document: doc, activeLayerId } = drawingStore;
   const activeLayer = doc.layers[activeLayerId];
   const { snapEnabled, gridVisible, drawingScale } = doc.settings;
   const enabledSnapTypes = doc.settings.snapTypes ?? [];
   const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
-  const selCount = selectionStore.selectionCount();
   // §UX U18 — surface the otherwise-buried "hidden features"
   // state. The Layer panel's "Hidden Items" button is easy to
   // miss; this pill in the status bar makes the count visible
@@ -118,11 +125,6 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
       cancelled = true;
     };
   }, [doc.id]);
-
-  // cad-desktop-tauri-and-perf Slice P6 — `drawingPoints`,
-  // `basePoint`, and `rotateCenter` are read by the extracted cursor
-  // pill; the parent no longer needs them.
-  const { activeTool, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
   const zoomPct = Math.round(zoom * 100);
@@ -176,7 +178,7 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
     const next = current.includes(type)
       ? current.filter((t) => t !== type)
       : [...current, type];
-    drawingStore.updateSettings({ snapTypes: next });
+    updateSettings({ snapTypes: next });
   }
 
   // Sync input value whenever the external zoom changes (not while editing)
@@ -188,7 +190,7 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
 
   function applyZoomPct(pct: number) {
     const clamped = Math.max(MIN_ZOOM_PCT, Math.min(MAX_ZOOM_PCT, pct));
-    viewportStore.setZoom(clamped / 100);
+    setZoom(clamped / 100);
   }
 
   function incrementZoom() {
@@ -225,11 +227,11 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
   // parent function no longer touches the cursor at all.
 
   function toggleSnap() {
-    drawingStore.updateSettings({ snapEnabled: !snapEnabled });
+    updateSettings({ snapEnabled: !snapEnabled });
   }
 
   function toggleGrid() {
-    drawingStore.updateSettings({ gridVisible: !gridVisible });
+    updateSettings({ gridVisible: !gridVisible });
   }
 
   return (
@@ -332,7 +334,7 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
       <button
         className="hover:text-white transition-colors shrink-0"
         title="Active layer"
-        onClick={() => drawingStore.setActiveLayer(activeLayerId)}
+        onClick={() => setActiveLayer(activeLayerId)}
       >
         Layer: <span className={activeLayer?.locked ? 'text-yellow-400' : 'text-white'}>{activeLayer?.name ?? '—'}{activeLayer?.locked ? ' 🔒' : ''}</span>
       </button>
@@ -439,14 +441,14 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
               <button
                 type="button"
                 className="flex-1 text-[10px] py-0.5 px-1.5 rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
-                onClick={() => drawingStore.updateSettings({ snapTypes: SNAP_TYPE_INFO.map((s) => s.type) })}
+                onClick={() => updateSettings({ snapTypes: SNAP_TYPE_INFO.map((s) => s.type) })}
               >
                 Enable all
               </button>
               <button
                 type="button"
                 className="flex-1 text-[10px] py-0.5 px-1.5 rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
-                onClick={() => drawingStore.updateSettings({ snapTypes: [] })}
+                onClick={() => updateSettings({ snapTypes: [] })}
               >
                 Disable all
               </button>
