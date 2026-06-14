@@ -119,8 +119,14 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
   const router = useRouter();
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
-  const toolStore = useToolStore();
-  const viewportStore = useViewportStore();
+  // cad-desktop-tauri-and-perf Slice P6c — MenuBar only ever called
+  // `zoomToExtents(...)` and `setTool(...)`
+  // from event handlers, so the whole-store subscriptions were waking
+  // the bar on every cursor / drawing-points tick for no render-time
+  // dividend. Per-action selectors return stable identities; the menu
+  // now reconciles on zero viewport or tool-state mutations.
+  const setTool = useToolStore((s) => s.setTool);
+  const zoomToExtents = useViewportStore((s) => s.zoomToExtents);
   const undoStore = useUndoStore();
   const uiStore = useUIStore();
   const aiQueuePanelOpen = useAIStore((s) => s.isQueuePanelOpen);
@@ -590,10 +596,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     input.click();
   }
 
-  function zoomToExtents() {
+  function handleZoomExtents() {
     const features = drawingStore.getAllFeatures();
     if (features.length === 0) {
-      viewportStore.zoomToExtents({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
+      zoomToExtents({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
       return;
     }
     const allPoints = features.flatMap((f) => {
@@ -603,7 +609,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       return g.vertices ?? [];
     });
     if (allPoints.length === 0) return;
-    viewportStore.zoomToExtents(computeBounds(allPoints));
+    zoomToExtents(computeBounds(allPoints));
   }
 
   function startEditName() {
@@ -1120,7 +1126,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     {
       label: 'View',
       items: [
-        { label: 'Zoom Extents', shortcut: 'Z E', action: zoomToExtents },
+        { label: 'Zoom Extents', shortcut: 'Z E', action: handleZoomExtents },
         {
           label: 'Fit Drawing to Page',
           action: () => { window.dispatchEvent(new CustomEvent('cad:fitDrawingToPage')); setOpenMenu(null); },
@@ -1215,34 +1221,34 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           action: () => { onOpenCalculator?.(); setOpenMenu(null); },
         },
         { separator: true },
-        { label: 'Arc', shortcut: 'A', action: () => { toolStore.setTool('DRAW_ARC'); setOpenMenu(null); } },
-        { label: 'Spline (Fit-Point)', shortcut: 'SF', action: () => { toolStore.setTool('DRAW_SPLINE_FIT'); setOpenMenu(null); } },
-        { label: 'Spline (NURBS)', shortcut: 'SN', action: () => { toolStore.setTool('DRAW_SPLINE_CONTROL'); setOpenMenu(null); } },
+        { label: 'Arc', shortcut: 'A', action: () => { setTool('DRAW_ARC'); setOpenMenu(null); } },
+        { label: 'Spline (Fit-Point)', shortcut: 'SF', action: () => { setTool('DRAW_SPLINE_FIT'); setOpenMenu(null); } },
+        { label: 'Spline (NURBS)', shortcut: 'SN', action: () => { setTool('DRAW_SPLINE_CONTROL'); setOpenMenu(null); } },
         { separator: true },
-        { label: 'Curb Return / Fillet', shortcut: 'CR', action: () => { toolStore.setTool('CURB_RETURN'); setOpenMenu(null); } },
-        { label: 'Offset', shortcut: 'OF', action: () => { toolStore.setTool('OFFSET'); setOpenMenu(null); } },
+        { label: 'Curb Return / Fillet', shortcut: 'CR', action: () => { setTool('CURB_RETURN'); setOpenMenu(null); } },
+        { label: 'Offset', shortcut: 'OF', action: () => { setTool('OFFSET'); setOpenMenu(null); } },
         { separator: true },
-        { label: 'Inverse (Bearing & Distance)', shortcut: 'INV', action: () => { toolStore.setTool('INVERSE'); setOpenMenu(null); } },
-        { label: 'Forward Point', shortcut: 'FP', action: () => { toolStore.setTool('FORWARD_POINT'); setOpenMenu(null); } },
+        { label: 'Inverse (Bearing & Distance)', shortcut: 'INV', action: () => { setTool('INVERSE'); setOpenMenu(null); } },
+        { label: 'Forward Point', shortcut: 'FP', action: () => { setTool('FORWARD_POINT'); setOpenMenu(null); } },
       ],
     },
     {
       label: 'Draw',
       items: [
-        { label: 'Point', shortcut: 'P', action: () => toolStore.setTool('DRAW_POINT') },
-        { label: 'Line', shortcut: 'L', action: () => toolStore.setTool('DRAW_LINE') },
-        { label: 'Polyline', shortcut: 'PL', action: () => toolStore.setTool('DRAW_POLYLINE') },
-        { label: 'Polygon', shortcut: 'PG', action: () => toolStore.setTool('DRAW_POLYGON') },
-        { label: 'Rectangle', shortcut: 'RE', action: () => toolStore.setTool('DRAW_RECTANGLE') },
-        { label: 'Circle', shortcut: 'CI', action: () => toolStore.setTool('DRAW_CIRCLE') },
-        { label: 'Regular Polygon', shortcut: 'RP', action: () => toolStore.setTool('DRAW_REGULAR_POLYGON') },
+        { label: 'Point', shortcut: 'P', action: () => setTool('DRAW_POINT') },
+        { label: 'Line', shortcut: 'L', action: () => setTool('DRAW_LINE') },
+        { label: 'Polyline', shortcut: 'PL', action: () => setTool('DRAW_POLYLINE') },
+        { label: 'Polygon', shortcut: 'PG', action: () => setTool('DRAW_POLYGON') },
+        { label: 'Rectangle', shortcut: 'RE', action: () => setTool('DRAW_RECTANGLE') },
+        { label: 'Circle', shortcut: 'CI', action: () => setTool('DRAW_CIRCLE') },
+        { label: 'Regular Polygon', shortcut: 'RP', action: () => setTool('DRAW_REGULAR_POLYGON') },
         { separator: true },
-        { label: 'Move', shortcut: 'M', action: () => toolStore.setTool('MOVE') },
-        { label: 'Copy', shortcut: 'CO', action: () => toolStore.setTool('COPY') },
-        { label: 'Rotate', shortcut: 'RO', action: () => toolStore.setTool('ROTATE') },
-        { label: 'Mirror', shortcut: 'MI', action: () => toolStore.setTool('MIRROR') },
-        { label: 'Scale', shortcut: 'SC', action: () => toolStore.setTool('SCALE') },
-        { label: 'Erase', shortcut: 'E', action: () => toolStore.setTool('ERASE') },
+        { label: 'Move', shortcut: 'M', action: () => setTool('MOVE') },
+        { label: 'Copy', shortcut: 'CO', action: () => setTool('COPY') },
+        { label: 'Rotate', shortcut: 'RO', action: () => setTool('ROTATE') },
+        { label: 'Mirror', shortcut: 'MI', action: () => setTool('MIRROR') },
+        { label: 'Scale', shortcut: 'SC', action: () => setTool('SCALE') },
+        { label: 'Erase', shortcut: 'E', action: () => setTool('ERASE') },
       ],
     },
     {

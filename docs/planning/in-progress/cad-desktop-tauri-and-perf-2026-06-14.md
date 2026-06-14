@@ -757,6 +757,34 @@ widened to the per-field form since the access path moved).
 MenuBar / LayerPanel / PropertyPanel and the
 `CanvasViewport` cursor-tick paths — track as `P6c`.
 
+**P6c MenuBar tool/viewport subscriptions shipped 2026-06-14** —
+the MenuBar called `useToolStore()` and `useViewportStore()`
+with no selector, even though it never reads a single
+render-time field off either store — both were only used for
+action calls inside event handlers (`toolStore.setTool(...)` in
+~25 places + `viewportStore.zoomToExtents(...)` in 2 callbacks
+of a local `zoomToExtents` wrapper). Per-action selectors
+(`useToolStore((s) => s.setTool)`,
+`useViewportStore((s) => s.zoomToExtents)`) return stable
+identities, so the menu now reconciles on zero cursor-position
+or drawing-points-tick mutations. The local `zoomToExtents()`
+wrapper renamed to `handleZoomExtents()` so it doesn't shadow
+the selector. Source-locked by
+`__tests__/cad/ui/menu-bar-store-selectors.test.ts` (4
+assertions covering the dropped subscriptions, the per-action
+selectors, the renamed handler, and the absence of every
+`toolStore.` / `viewportStore.` call site).
+**Remaining P6c follow-ups:** MenuBar still subscribes to
+`useDrawingStore()` (render-time `isDirty` + `document.name`,
+plus ~25 callback reads), `useSelectionStore()` (render-time
+`selectedIds.size` for the Export Selection disabled gates),
+`useUndoStore()` (render-time can/undo descriptions), and
+`useUIStore()` (render-time `showLayerPanel/showPropertyPanel`).
+Those each need the StatusBar treatment — per-field selector
+for the render-time read + `useXStore.getState()` inside the
+callbacks — plus the LayerPanel / PropertyPanel passes and
+the `CanvasViewport` cursor-tick paths. Track as `P6d`.
+
 ## Phase 3 — Native renderer module (PROFILING-GATED, defer by default)
 
 Goal: if and only if Slice P-perf shows we're still bottlenecked at
