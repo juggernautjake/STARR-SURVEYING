@@ -543,6 +543,50 @@ flow touches: leads, jobs, contacts, receipts. Catalogue:
 Result: a `docs/admin-styling-contract.md` plus targeted fixes on the
 surfaces this plan touches. No rewrites of unrelated surfaces.
 
+**S3 shipped 2026-06-14** — mobile styles + formatting audit doc +
+the smallest-meaningful concrete polish fix (`warningCallout`
+palette extension across two receipt screens).
+- `mobile/STYLES_AUDIT.md` — the audit. Catalogues what already
+  works (three-scheme theme incl. the sun-readable scheme, the
+  `useResolvedScheme()` + `colors[scheme]` pattern, the
+  `controls` token, EAS / app.json / safe-area handling) and
+  what drifts. Explicit follow-up tracker (`S3b` brand-color
+  constants for pre-provider screens; `S3c` text-scale hook;
+  `S3d` tablet two-pane layout; `S3e` state-component
+  normalization; `S3f` status-pill color parity with the web).
+- `mobile/lib/theme.ts` — `Palette` interface grows
+  `warningCallout: { background; border; title }`. Three values
+  declared per scheme: light retains the original amber palette,
+  dark deepens the background so it sits on dark surfaces, sun
+  pushes the title + border to maximum contrast.
+- `mobile/lib/WarningCallout.tsx` — shared React Native
+  component. Reads the active scheme via `useResolvedScheme`
+  and renders title + body text through `palette.warningCallout`
+  + `palette.text`. Single import / single source of truth for
+  the "amber heads-up" callout role going forward.
+- `mobile/app/(tabs)/money/capture.tsx` — the "🧾 Forget a
+  receipt?" callout migrated from inline `#FEF3C7` / `#D97706`
+  / `#92400E` literals to `<WarningCallout title body testID />`.
+- `mobile/app/(tabs)/money/index.tsx` — both "needs review"
+  filter chips migrated to `palette.warningCallout.*` direct
+  reads. The shared `WarningCallout` shape doesn't fit a tappable
+  chip, so the chips use the palette role directly. Static
+  `filterChipText.color` literal removed so the active scheme's
+  title color always wins.
+- Source-locked by
+  `__tests__/mobile-runbook/s3-warning-callout.test.ts` (15
+  assertions across the audit doc structure, the theme role
+  declarations across all three schemes, the shared component
+  shape, the two screen migrations, and the absence of every
+  drift literal at the call sites).
+
+Larger follow-ups (text-scale hook, tablet two-pane, status-pill
+parity) are explicitly logged in `mobile/STYLES_AUDIT.md` so the
+audit isn't a one-shot artifact — every gap has a slice id and
+can be picked up later.
+
+Full suite after S3: 8294 green (+15).
+
 ### S3 — Mobile app styles + formatting audit
 Full audit of `mobile/` for iOS and Android visual parity:
 - Tab bar + headers consistent with the brand red/blue from
