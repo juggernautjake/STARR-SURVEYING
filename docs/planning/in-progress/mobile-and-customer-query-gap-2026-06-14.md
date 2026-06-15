@@ -226,6 +226,40 @@ Deferring keeps focus tight. When you need it:
 
 ## Phase D — Mobile photos auto-attach on TRV import
 
+**D1 (schema + reconcile helper) shipped 2026-06-14** —
+Mobile already writes `field_media` rows with `data_point_id` set when
+the point exists at capture time (strategy 1). When the point does NOT
+yet exist on the office side (mobile offline / pre-import capture),
+the surveyor still typed the point name on the rover screen, so we
+just needed a column to remember it.
+
+`seeds/293_field_media_point_name.sql` adds `point_name TEXT NULL` to
+`field_media` plus a partial index on `(job_id, point_name) WHERE
+data_point_id IS NULL` so the reconcile query stays cheap.
+
+`lib/field-data/reconcile.ts` exports `reconcileOrphanFieldMedia(client,
+{ jobId, points })` — for each new `field_data_points` row, UPDATEs
+the matching orphan media rows by `(job_id, point_name, data_point_id
+IS NULL)` and returns counts (total + per-point + remaining orphans).
+Never throws; partial-success contract so a single bad row can't sink
+the surrounding TRV import. Source-locked by
+`__tests__/field-data/reconcile.test.ts` (7 assertions covering both
+binding paths, empty inputs, defensive empty-name skip, per-point
+error continuation, and the schema seed shape).
+
+**Remaining D1 follow-ups (D1b):**
+- Mobile-side `fieldMedia.ts` to set `point_name` on capture when no
+  FK is known. Until that lands the only orphan rows that bind are
+  ones manually edited; the office wins nothing until the mobile
+  build catches up.
+- Wire `reconcileOrphanFieldMedia(...)` into the office's TRV import
+  handler (no such handler exists yet — the current TRV-to-points
+  flow runs entirely on the CAD canvas and never lands in Supabase).
+  That handler is a separate slice (D1c) since the CAD canvas needs a
+  "publish points to Supabase" button first.
+
+Full suite after D1 (schema+helper): 8197 green (+7 from this slice).
+
 ### D1 — Photos appear on the point row after import
 Mobile already writes `field_media` rows with `data_point_id` set when the
 photo was captured at a known point. The TRV import path on web creates
