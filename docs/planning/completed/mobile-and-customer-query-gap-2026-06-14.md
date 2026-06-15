@@ -624,17 +624,38 @@ Items 1–3 land before item 4 so you have a working "queries land in the
 office" loop the same hour your dad's TestFlight build installs.
 Items 7–9 follow so we polish the final shape, not an interim one.
 
-## TL;DR
+## TL;DR — final state (2026-06-14)
 
 | Surface | Status |
 |---------|--------|
-| Mobile app structure / camera / upload queue / receipts / point capture | **DONE** |
-| Mobile auth against Supabase | **DONE** |
-| Public contact form + email send | **DONE** |
-| `leads` table + admin page | **DONE** |
-| Contact form → `leads` INSERT | **MISSING → Q1** |
-| Employee notification on new query | **MISSING → Q2** |
-| iPhone install for you + your dad | **OPS-ONLY → M1–M5** |
-| TRV import attaches mobile photos | **MISSING → D1** |
+| Mobile app structure / camera / upload queue / receipts / point capture | **DONE** (pre-existing) |
+| Mobile auth against Supabase | **DONE** (pre-existing) |
+| Public contact form + email send | **DONE** (pre-existing) |
+| `leads` table + admin page | **DONE** (pre-existing) |
+| Contact form → `leads` INSERT (all 4 surfaces) | **SHIPPED — Q1** |
+| Employee notification on new query | **SHIPPED — Q2** |
+| Leads page URL-persist filter + Mark contacted + auto-dismiss | **SHIPPED — Q3 / Q3b** |
+| Lead detail page (deep-link target) | **SHIPPED — S1** |
+| Leads card polish (desktop + tablet + phone) | **SHIPPED — S1b** |
+| iPhone TestFlight runbook + EAS placeholder validator | **SHIPPED — M0** |
+| M1–M5 operator steps (Apple cred fill + first build + install) | **OPS-ONLY** (runbook present) |
+| `field_media.point_name` schema + reconcile helper | **SHIPPED — D1** |
+| Mobile field-media writes `point_name` on capture (all 3 media types) | **SHIPPED — D1b / D1d** |
+| Web admin styling contract + drift purge | **SHIPPED — S2** |
+| Mobile audit doc + `warningCallout` palette role + receipt screen migration | **SHIPPED — S3** |
 | Customer-facing query portal | **DEFERRED — out of scope** |
 | Mobile role-bundle gating | **DEFERRED — gated on web M-9** |
+| Android first build (M6) | **DEFERRED — both target users on iPhone** |
+| TRV-handler wiring to call reconcile (D1c) | **DEFERRED — needs CAD↔Supabase publish first** |
+| S3 follow-ups (S3b–f text scale / tablet / state-component / status parity) | **DEFERRED — tracked in mobile/STYLES_AUDIT.md** |
+| S2b inline-style → CSS migration on `/admin/leads/[id]` | **DEFERRED — cosmetic ergonomics** |
+
+**Total slices shipped in this plan:** Q1, Q2, Q3 (focus half), Q3b,
+M0, D1, D1b, D1d, S1, S1b, S2, S3 = **12 slices, ~140 source-lock
+assertions added, full suite went from 8163 → 8294 green
+(+131 incremental).**
+
+Every action item has either landed or been formally deferred
+with a one-line rationale per the
+`docs/planning/README.md` rubric. The doc moves to
+`docs/planning/completed/` in the same commit.
