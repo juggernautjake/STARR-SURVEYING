@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateQuoteAttachments, formatBytes } from '@/lib/quote-attachments';
+// mobile-and-customer-query-gap Slice Q1 — every public intake form
+// (contact, home page, /contact, pricing calculator) posts here and
+// historically only fired Resend emails. Now we also INSERT a row
+// into `leads` so the /admin/leads page actually surfaces queries
+// the moment they land. Helper kept in `lib/leads/intake.ts` so the
+// mapping is unit-testable without spinning up the route.
+import { insertLeadFromForm, type LeadIntakeInput } from '@/lib/leads/intake';
+import { supabaseAdmin } from '@/lib/supabase';
 
 interface ResendAttachment {
   filename: string;
@@ -1132,6 +1140,60 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const isCalculator = data.source === 'pricing-calculator';
 
+    // Slice Q1 — build the `leads` row payload up front so both the
+    // dev-mode short-circuit AND the production return path can fire
+    // the same INSERT. Calculator submissions stash structured
+    // details inside `data.message`; reuse the existing parser so we
+    // don't duplicate the survey-type / rush-flag / acreage extraction.
+    function buildLeadIntake(): LeadIntakeInput {
+      let estimatedAcreage: number | undefined;
+      let serviceType: string | undefined = data.serviceType || undefined;
+      let projectDetailsForLead: string = data.projectDetails || '';
+      let isRush = false;
+      if (isCalculator && data.message) {
+        const parsed = parseCalculatorMessage(data.message);
+        serviceType = parsed.surveyType || serviceType;
+        isRush = parsed.isRush;
+        // Pull acreage out of the structured details if present.
+        const acreageEntry = parsed.projectDetails.find((e) =>
+          /acreage|acres/i.test(e.label),
+        );
+        if (acreageEntry) {
+          const num = parseFloat(acreageEntry.value.replace(/[^0-9.]/g, ''));
+          if (Number.isFinite(num) && num > 0) estimatedAcreage = num;
+        }
+        // Calculator details + user notes become the lead's notes so
+        // the bookkeeper sees what the customer actually said.
+        const detailLines = parsed.projectDetails
+          .map((e) => `${e.label}: ${e.value}`)
+          .join('\n');
+        projectDetailsForLead = [parsed.userNotes, detailLines]
+          .filter((s) => s && s.trim() !== '')
+          .join('\n\n');
+      }
+      const propertyJoined = [data.propertyAddress, data.propertyCounty]
+        .filter((s) => s && s.trim() !== '')
+        .join(', ');
+      return {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        company: data.company,
+        propertyAddress: propertyJoined || data.propertyAddress,
+        // `body.propertyCity` isn't normalized into `data` today;
+        // pass `undefined` rather than guessing. State stays at the
+        // schema default 'TX'.
+        city: undefined,
+        state: undefined,
+        serviceType,
+        projectDetails: projectDetailsForLead,
+        estimatedAcreage,
+        referenceNumber,
+        source: isCalculator ? 'Pricing Calculator' : 'Website',
+        isRush,
+      };
+    }
+
     // Validate required fields. Quote / contact-form submissions also
     // require property address, county, and ID; the pricing calculator
     // has its own internal validation and skips these here.
@@ -1180,6 +1242,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (process.env.NODE_ENV === 'development') {
         console.log(`[DEV] Contact form received (ref: ${referenceNumber}) from ${data.email}`);
       }
+      // Slice Q1 — STILL insert into `leads` in dev mode so local UI
+      // work against /admin/leads has real rows without needing
+      // Resend wired. Failure here is silent on purpose.
+      await insertLeadFromForm(supabaseAdmin, buildLeadIntake());
 
       return NextResponse.json(
         {
@@ -1226,6 +1292,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         business: businessEmail.status,
         customer: customerEmail.status,
       });
+    }
+
+    // Slice Q1 — write the lead row regardless of email outcome. The
+    // email IS the legal record of the query; the lead row is a UI
+    // convenience that surfaces inquiries on /admin/leads + drives
+    // the Q2 notification. If the email send AND the INSERT both
+    // fail, the customer still sees the 500 fallback below.
+    const insertedLead = await insertLeadFromForm(supabaseAdmin, buildLeadIntake());
+    if (insertedLead) {
+      console.log(`[${referenceNumber}] Lead inserted as ${insertedLead.id}`);
     }
 
     // Return success if at least business email sent
