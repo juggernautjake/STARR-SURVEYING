@@ -204,7 +204,8 @@ describe('notifyIntakeRecipients — Q2 fan-out', () => {
     const [users, payload] = vi.mocked(notifyMany).mock.calls[0];
     expect(users).toEqual(['a@s.com', 'b@s.com']);
     expect(payload.type).toBe('lead.new');
-    expect(payload.link).toBe('/admin/leads?focus=LEAD-1');
+    // Slice S1 — link points at the focused detail page now.
+    expect(payload.link).toBe('/admin/leads/LEAD-1');
     expect(payload.source_type).toBe('leads');
     expect(payload.source_id).toBe('LEAD-1');
     expect(payload.escalation_level).toBe('high'); // rush flag

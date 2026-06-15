@@ -186,7 +186,11 @@ export async function notifyIntakeRecipients(
       title: `New customer query: ${input.name}`,
       body: bodyParts.join(' · '),
       icon: 'mail',
-      link: `/admin/leads?focus=${leadId}`,
+      // Slice S1 — point the bell-icon deep link at the focused detail
+      // page (responsive single-screen view) rather than the list-with-
+      // outlined-card. The list page still respects `?focus=<id>` if
+      // a user reuses old links from their email archive.
+      link: `/admin/leads/${leadId}`,
       source_type: 'leads',
       source_id: leadId,
       escalation_level: input.isRush ? 'high' : 'normal',

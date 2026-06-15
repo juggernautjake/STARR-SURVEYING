@@ -398,6 +398,47 @@ new query surfaces (desktop AND mobile), plus a full mobile app styles
 audit for iOS and Android. Sequenced AFTER the wiring slices so we
 polish the final surface, not an interim one.
 
+**S1 (detail page half) shipped 2026-06-14** — `/admin/leads/[id]`
+is the new deep-link target the Q2 bell-icon notification points
+at. The list page at `/admin/leads` still works (Q3's `?focus=`
+deep link is preserved for old notification rows in user
+inboxes); the new page is what every fresh notification lands on
+because it reads well on phone, tablet, AND desktop in one
+codepath.
+- `app/api/admin/leads/[id]/route.ts` — admin-gated GET that
+  fetches via `.eq('id').maybeSingle()` with 400/404/500 branches.
+  Returns the same `SELECT_COLS` shape the list endpoint uses so
+  the page renders every column the schema carries.
+- `app/admin/leads/[id]/page.tsx` — responsive single-screen view
+  with five `data-section` blocks (contact, property, pipeline,
+  notes, audit). Grid uses
+  `repeat(auto-fit, minmax(280px, 1fr))` so the layout collapses
+  to one column on a 320-wide iPhone SE, two on an iPad, three or
+  four on desktop. Email + phone render as `mailto:` / `tel:`
+  links so the field crew can one-tap a customer. Customer notes
+  render in a `<pre>` with `whiteSpace: 'pre-wrap'` so newlines
+  survive. Explicit loading / not-found / found states (no blank
+  screens). Status pill + select + Mark contacted CTA all live in
+  the header so the office doesn't have to scroll on a phone.
+- `lib/leads/intake.ts` — the Q2 notification's deep link moves
+  from `/admin/leads?focus=<id>` to `/admin/leads/<id>` so the
+  bell click lands on the focused single-screen view. Old
+  notifications in inboxes still work because the list page
+  honors the `?focus=` param.
+- Source-locked by `__tests__/leads/s1-detail-page.test.ts` (17
+  assertions covering the GET endpoint contract, the page
+  `use client` directive position, useParams + admin gating, the
+  responsive-grid contract, every data-section, the back-to-list
+  affordance, conditional Mark-contacted, mailto:/tel: links, the
+  `<pre>` notes contract, and the updated Q2 link target).
+
+Remaining S1 work — list-page card design upgrade (dense table →
+card+detail-pane layout, status pill polish, one-tap actions on
+mobile) — tracked as **S1b**.
+
+Full suite after S1 (detail page half): 8251 green (+17 from this
+slice).
+
 ### S1 — New-query surface design build
 - `/admin/leads` page: dense table → card+detail-pane layout that reads
   on a tablet, full-screen on phone (the user reviews queries from the
