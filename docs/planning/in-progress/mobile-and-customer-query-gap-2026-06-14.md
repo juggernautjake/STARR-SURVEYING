@@ -188,6 +188,29 @@ Two small polish items so the page is genuinely useful as a query inbox:
 > **No new code in this phase — operator runbook only.** The mobile app
 > ships everything you need; the gap is Apple Developer credentials.
 
+**M0 shipped 2026-06-14** — Runbook + pre-flight validator. The
+operator-facing TestFlight steps (M1–M5) are still ops-only, but
+now they have BOTH a written runbook AND a script-level guardrail
+that refuses to dispatch `eas build` / `eas submit` while
+`mobile/eas.json` still has any `REPLACE_WITH_*` placeholder.
+- `mobile/README_TESTFLIGHT.md` — full step-by-step from "before
+  you touch a keyboard" through "smoke test the field flow",
+  including the App Store Connect record fields, the EAS commands
+  to run, both phones' install paths, and a troubleshooting table.
+- `mobile/scripts/check-eas-config.mjs` — pure walker that flags
+  every `REPLACE_WITH_*` leaf with its dotted path. Run via
+  `npm run check-eas`; new build/submit scripts
+  (`build:ios` / `build:android` / `submit:ios` / `submit:android`)
+  all gate behind it via `npm run check-eas && eas …`.
+- Source-locked by
+  `__tests__/mobile-runbook/check-eas-config.test.ts` (11
+  assertions across the placeholder walker, the still-placeholder
+  state of the committed `eas.json` (no credentials in git!), the
+  package.json script wiring, and the runbook contents).
+
+With M0 in place, M1–M5 become a 45-minute operator run:
+fill in three values, follow the runbook, app is on both phones.
+
 ### M1 — EAS credentials filled in
 Replace placeholders in `mobile/eas.json`:
 - `appleId`: your Apple ID email (the one with developer access)
