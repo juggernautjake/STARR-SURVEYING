@@ -90,6 +90,34 @@ the calculator's rush flag was set, `'normal'` otherwise). Wired into
 both the production return path and the dev-mode short-circuit so the
 bell icon lights up locally too.
 
+**Q3b shipped 2026-06-14** — Leads page polish completes Phase Q.
+- **URL-persisted status filter.** `useRouter` + `useSearchParams`
+  seed initial filter state from `?status=<key>`, and a new
+  `setStatusFilterAndUrl` callback mirrors every pill click to the
+  URL via `router.replace` (no history pollution). A "show me new
+  only" view is now shareable + the back button restores the right
+  pill instead of resetting to All.
+- **Mark contacted quick action.** A single-tap button beside the
+  status select on every still-`new` lead card. Carries
+  `data-action="mark-contacted"` for future styling hooks; advances
+  the lead via the existing PATCH path so the same UI feedback
+  applies.
+- **Notification auto-dismissal.** `/api/admin/leads` PATCH side-
+  effects the moment `status` moves off `new`: an
+  `UPDATE notifications SET is_dismissed = true` keyed by
+  `source_type='leads' AND source_id=<leadId> AND type='lead.new'
+  AND is_dismissed = false` clears the bell-icon entry the second
+  the office claims the lead, so the unread count reflects work-
+  in-progress rather than work-already-claimed. Best-effort: a
+  dismissal failure logs but never breaks the status change.
+- Source-locked by `__tests__/leads/q3b-page-polish.test.ts` (10
+  assertions: URL-persist initial seed, replace-not-push behavior,
+  click handlers rewired, button gating to `new`-only,
+  data-action, PATCH dismiss query shape, and the swallowed-error
+  contract).
+
+Full suite after Q3b: 8224 green (+10 from this slice).
+
 **Q3 (focus param half) shipped 2026-06-14** — `/admin/leads`
 reads `?focus=<leadId>` via `useSearchParams`, attaches a ref to the
 matching card, `scrollIntoView({ behavior: 'smooth' })` on mount,

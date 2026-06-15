@@ -118,6 +118,30 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+
+  // mobile-and-customer-query-gap Slice Q3b — once the lead leaves
+  // `'new'`, the "new query" bell-icon notification no longer reflects
+  // truth. Dismiss every outstanding `lead.new` notification keyed to
+  // this lead so the office's unread count reflects work-in-progress
+  // rather than work-already-claimed. Best-effort: a dismissal
+  // failure logs but never breaks the status change.
+  if (
+    typeof patch.status === 'string' &&
+    patch.status !== 'new' &&
+    typeof body.id === 'string'
+  ) {
+    try {
+      await supabaseAdmin
+        .from('notifications')
+        .update({ is_dismissed: true })
+        .eq('source_type', 'leads')
+        .eq('source_id', body.id)
+        .eq('type', 'lead.new')
+        .eq('is_dismissed', false);
+    } catch (err) {
+      console.error('[admin/leads] notification dismiss failed:', err);
+    }
+  }
   return NextResponse.json({ lead: data });
 }, { routeName: 'admin/leads' });
 

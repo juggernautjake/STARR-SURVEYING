@@ -3,7 +3,7 @@
 import '../styles/AdminJobs.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 
 interface Lead {
@@ -38,7 +38,29 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  // Slice Q3b — status filter persists in the URL so a "show me new
+  // only" view is shareable + the back button restores the right
+  // pill. The Q1 ?focus param is preserved across filter changes.
+  const router = useRouter();
+  const initialStatusFilter = (() => {
+    // Reading once at mount is fine — the effect below keeps URL → state in sync.
+    if (typeof window === 'undefined') return 'all';
+    return new URL(window.location.href).searchParams.get('status') ?? 'all';
+  })();
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
+  const setStatusFilterAndUrl = useCallback(
+    (next: string) => {
+      setStatusFilter(next);
+      if (typeof window === 'undefined') return;
+      const url = new URL(window.location.href);
+      if (next === 'all') url.searchParams.delete('status');
+      else url.searchParams.set('status', next);
+      // Replace (not push) — the surveyor's back button stays usable
+      // for the page they came from, not every filter click.
+      router.replace(`${url.pathname}${url.search}`, { scroll: false });
+    },
+    [router],
+  );
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', phone: '', company: '', source: 'Phone',
@@ -138,7 +160,7 @@ export default function LeadsPage() {
       <div className="jobs-page__pipeline">
         <button
           className={`jobs-page__pipeline-stage ${statusFilter === 'all' ? 'jobs-page__pipeline-stage--active' : ''}`}
-          onClick={() => setStatusFilter('all')}
+          onClick={() => setStatusFilterAndUrl('all')}
           style={{ '--stage-color': '#374151' } as React.CSSProperties}
         >
           <span className="jobs-page__pipeline-label">All</span>
@@ -148,7 +170,7 @@ export default function LeadsPage() {
           <button
             key={s.key}
             className={`jobs-page__pipeline-stage ${statusFilter === s.key ? 'jobs-page__pipeline-stage--active' : ''}`}
-            onClick={() => setStatusFilter(statusFilter === s.key ? 'all' : s.key)}
+            onClick={() => setStatusFilterAndUrl(statusFilter === s.key ? 'all' : s.key)}
             style={{ '--stage-color': s.color } as React.CSSProperties}
           >
             <span className="jobs-page__pipeline-label">{s.label}</span>
@@ -247,6 +269,21 @@ export default function LeadsPage() {
                 >
                   {STATUS_OPTIONS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </select>
+                {/* Slice Q3b — one-tap "I've reached out" for the
+                    common-case workflow. Only shows for the still-
+                    "new" leads since contacted+ already cleared the
+                    notification on the server side. */}
+                {lead.status === 'new' && (
+                  <button
+                    className="jobs-page__btn"
+                    data-action="mark-contacted"
+                    style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+                    onClick={() => void changeStatus(lead, 'contacted')}
+                    title="Mark as contacted + dismiss the new-query notification"
+                  >
+                    Mark contacted
+                  </button>
+                )}
                 <button
                   className="jobs-page__btn"
                   style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: 'var(--color-error)' }}
