@@ -66,6 +66,18 @@ const WIFI_ONLY_BYTES_THRESHOLD = 10 * 1024 * 1024;
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Slice D1b — pure normalization of the user-typed point name. Trims
+ *  whitespace, upper-cases so `bm-01` and `BM-01` reconcile against
+ *  the same imported point, collapses empty / whitespace-only inputs
+ *  to null. Exported so the office-side reconcile helper (whose
+ *  source-lock tests live in `__tests__/field-data/reconcile.test.ts`)
+ *  can lock the contract without importing the whole React-native
+ *  surface. */
+export function normalizePointName(raw: string | null | undefined): string | null {
+  const v = raw?.trim();
+  return v && v.length > 0 ? v.toUpperCase() : null;
+}
+
 export interface AttachPhotoInput {
   /** Required — job the photo belongs to. */
   jobId: string;
@@ -78,6 +90,15 @@ export interface AttachPhotoInput {
    *  so the admin timeline can group them. F3 polish flips this on
    *  for "burst mode"; F3 #3 leaves it null (one shot per call). */
   burstGroupId?: string | null;
+  /** mobile-and-customer-query-gap Slice D1b — 179-code point name
+   *  the surveyor typed at capture. Stored even when `dataPointId`
+   *  is already known (cheap, helps offline audit) but the BIG win
+   *  is when `dataPointId` is null: the TRV-import reconcile helper
+   *  on the office side late-binds the photo to the matching point
+   *  by matching on `(job_id, point_name)`. Trimmed + uppercased
+   *  before write so 'bm-01' and 'BM-01' reconcile against the same
+   *  imported point. */
+  pointName?: string | null;
 }
 
 export interface AttachedPhoto {
@@ -105,7 +126,11 @@ export function useAttachPhoto(): (
   const { session } = useAuth();
 
   return useCallback(
-    async ({ jobId, dataPointId, source, burstGroupId }) => {
+    async ({ jobId, dataPointId, source, burstGroupId, pointName }) => {
+      // Slice D1b — normalize the point name once at the boundary so
+      // every downstream comparison (mobile-side dedupe, office-side
+      // reconcile) sees the same shape.
+      const normalizedPointName = normalizePointName(pointName);
       const userId = session?.user.id;
       if (!userId) {
         const err = new Error('Not signed in.');
@@ -195,18 +220,20 @@ export function useAttachPhoto(): (
 
           await tx.execute(
             `INSERT INTO field_media (
-               id, job_id, data_point_id, media_type,
+               id, job_id, data_point_id, point_name, media_type,
                storage_url, thumbnail_url, original_url, annotated_url,
                upload_state, burst_group_id, position,
                file_size_bytes,
                device_lat, device_lon, device_compass_heading,
                captured_at, uploaded_at,
                created_by, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               mediaId,
               jobId,
               dataPointId,
+              // Slice D1b — point_name for late-bind reconcile.
+              normalizedPointName,
               'photo',
               storagePath,
               // Use the same path for thumbnail until F3 polish

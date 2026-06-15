@@ -247,16 +247,37 @@ the surrounding TRV import. Source-locked by
 binding paths, empty inputs, defensive empty-name skip, per-point
 error continuation, and the schema seed shape).
 
-**Remaining D1 follow-ups (D1b):**
-- Mobile-side `fieldMedia.ts` to set `point_name` on capture when no
-  FK is known. Until that lands the only orphan rows that bind are
-  ones manually edited; the office wins nothing until the mobile
-  build catches up.
-- Wire `reconcileOrphanFieldMedia(...)` into the office's TRV import
-  handler (no such handler exists yet — the current TRV-to-points
-  flow runs entirely on the CAD canvas and never lands in Supabase).
-  That handler is a separate slice (D1c) since the CAD canvas needs a
-  "publish points to Supabase" button first.
+**D1b shipped 2026-06-14** — mobile capture writes `point_name`.
+- `mobile/lib/db/schema.ts` adds `point_name: column.text` to the
+  local `field_media` table, positioned right after `data_point_id`
+  so column order matches the seed.
+- `mobile/lib/fieldMedia.ts` exports a pure `normalizePointName`
+  helper (trim → upper-case → empty-to-null) and the
+  `useAttachPhoto()` hook now takes an optional `pointName` on
+  `AttachPhotoInput`. The destructure pulls it; the normalized value
+  is written as the 4th column of the INSERT. Empty/whitespace
+  inputs land as NULL, mixed case is forced to upper so `bm-01` and
+  `BM-01` collide on the office-side reconcile join.
+- Source-locked by
+  `__tests__/field-data/mobile-point-name-capture.test.ts` (9
+  assertions on the schema, the type surface, the destructure, the
+  normalize call, the INSERT column list, and the casing/trim
+  contract). Locked by source-string so the office test tree
+  doesn't pull in React-native.
+- Callers (`mobile/app/(tabs)/capture/[pointId]/photos.tsx`,
+  `mobile/app/(tabs)/jobs/[id]/points/[pointId].tsx`) still pass
+  the same args today; adopting `pointName` from the point-detail
+  screen's currently-typed value is a UI tweak (D1d, ~10 LOC) so
+  not folded here.
+
+**Remaining D1 follow-up (D1c):** wire `reconcileOrphanFieldMedia(...)`
+into the office's TRV import handler (no such handler exists yet —
+the current TRV-to-points flow runs entirely on the CAD canvas and
+never lands in Supabase). That handler is a separate slice since the
+CAD canvas needs a "publish points to Supabase" button first.
+**D1d:** the 10-LOC adoption — pass `pointName` from the mobile
+point-detail screen's currently-typed value through to
+`useAttachPhoto({ pointName })`.
 
 Full suite after D1 (schema+helper): 8197 green (+7 from this slice).
 

@@ -119,6 +119,14 @@ const field_data_points = new Table({
 const field_media = new Table({
   job_id: column.text,
   data_point_id: column.text,
+  /** mobile-and-customer-query-gap Slice D1b — 179-code point name the
+   *  surveyor typed at capture. Used by the office TRV-import
+   *  reconcile helper (`lib/field-data/reconcile.ts`) to late-bind
+   *  `data_point_id` once the matching `field_data_points` row
+   *  exists. NULL when the point was already known at capture time
+   *  (`data_point_id` already set) or when the surveyor didn't
+   *  enter a name (job-level capture). */
+  point_name: column.text,
   media_type: column.text, // 'photo' | 'video' | 'voice'
   // Three storage tiers + an optional rendered-overlay layer (plan §5.4
   // photo annotation). Original is ALWAYS preserved unmodified;
