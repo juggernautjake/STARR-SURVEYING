@@ -176,6 +176,8 @@ export default function PointVoiceScreen() {
           uri: result.uri,
           durationMs: result.durationMs,
           fileSize: result.fileSize,
+          // Slice D1d — same point_name late-bind contract.
+          pointName: point.name ?? null,
         });
         if (auto) {
           Alert.alert(

@@ -318,6 +318,8 @@ export interface AttachVoiceInput {
   durationMs: number;
   /** File size in bytes (may be null if FS info wasn't available). */
   fileSize: number | null;
+  /** Slice D1d — same point_name late-bind contract as photos. */
+  pointName?: string | null;
 }
 
 export interface AttachedVoice {
@@ -348,8 +350,10 @@ export function useAttachVoice(): (
   const { session } = useAuth();
 
   return useCallback(
-    async ({ jobId, dataPointId, uri, durationMs, fileSize }) => {
+    async ({ jobId, dataPointId, uri, durationMs, fileSize, pointName }) => {
       const userId = session?.user.id;
+      // Slice D1d — same normalization as photo capture.
+      const normalizedPointName = normalizePointName(pointName);
       if (!userId) {
         const err = new Error('Not signed in.');
         logError('fieldMedia.attachVoice', 'no session', err);
@@ -399,7 +403,7 @@ export function useAttachVoice(): (
 
           await tx.execute(
             `INSERT INTO field_media (
-               id, job_id, data_point_id, media_type,
+               id, job_id, data_point_id, point_name, media_type,
                storage_url, thumbnail_url, original_url, annotated_url,
                upload_state, burst_group_id, position,
                duration_seconds, file_size_bytes,
@@ -407,11 +411,12 @@ export function useAttachVoice(): (
                captured_at, uploaded_at,
                created_by, created_at,
                transcription_status
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               mediaId,
               jobId,
               dataPointId,
+              normalizedPointName,
               'voice',
               storagePath,
               null, // no thumbnail tier for audio
@@ -487,6 +492,8 @@ export interface AttachVideoInput {
   dataPointId: string | null;
   /** Source — 'camera' opens the OS recorder; 'library' opens the picker. */
   source: ImageSource;
+  /** Slice D1d — same point_name late-bind contract as photos. */
+  pointName?: string | null;
 }
 
 export interface AttachedVideo {
@@ -522,8 +529,10 @@ export function useAttachVideo(): (
   const { session } = useAuth();
 
   return useCallback(
-    async ({ jobId, dataPointId, source }) => {
+    async ({ jobId, dataPointId, source, pointName }) => {
       const userId = session?.user.id;
+      // Slice D1d — same normalization as photo capture.
+      const normalizedPointName = normalizePointName(pointName);
       if (!userId) {
         const err = new Error('Not signed in.');
         logError('fieldMedia.attachVideo', 'no session', err);
@@ -589,7 +598,7 @@ export function useAttachVideo(): (
 
           await tx.execute(
             `INSERT INTO field_media (
-               id, job_id, data_point_id, media_type,
+               id, job_id, data_point_id, point_name, media_type,
                storage_url, thumbnail_url, original_url, annotated_url,
                upload_state, burst_group_id, position,
                duration_seconds, file_size_bytes,
@@ -597,11 +606,12 @@ export function useAttachVideo(): (
                captured_at, uploaded_at,
                created_by, created_at,
                thumbnail_extraction_status
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               mediaId,
               jobId,
               dataPointId,
+              normalizedPointName,
               'video',
               storagePath,
               // thumbnail_url stays null until the worker extracts a

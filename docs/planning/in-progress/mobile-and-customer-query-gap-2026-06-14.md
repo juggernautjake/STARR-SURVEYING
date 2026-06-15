@@ -270,14 +270,33 @@ error continuation, and the schema seed shape).
   screen's currently-typed value is a UI tweak (D1d, ~10 LOC) so
   not folded here.
 
+**D1d shipped 2026-06-14** — every per-point capture screen now
+passes `point.name` through to the matching attach hook.
+- `mobile/lib/fieldMedia.ts` — `AttachVoiceInput` and
+  `AttachVideoInput` grow the same optional `pointName?: string |
+  null` D1b added to `AttachPhotoInput`. Both hooks destructure
+  the prop, run it through the shared `normalizePointName`
+  helper, and write it as the 4th column of the corresponding
+  `INSERT INTO field_media (id, job_id, data_point_id, point_name,
+  …)`. All three media surfaces now populate the same column.
+- `mobile/app/(tabs)/capture/[pointId]/photos.tsx` — passes
+  `pointName: point.name ?? null` to both `attachPhoto({...})` and
+  `attachVideo({...})`.
+- `mobile/app/(tabs)/capture/[pointId]/voice.tsx` — passes the
+  same prop to `attachVoice({...})`.
+- Source-locked by
+  `__tests__/field-data/mobile-screens-pass-point-name.test.ts` (8
+  assertions covering both type-surface additions, both INSERT
+  column-list updates, the normalizer-call-count invariant, and
+  the three screen pass-throughs).
+
 **Remaining D1 follow-up (D1c):** wire `reconcileOrphanFieldMedia(...)`
-into the office's TRV import handler (no such handler exists yet —
-the current TRV-to-points flow runs entirely on the CAD canvas and
-never lands in Supabase). That handler is a separate slice since the
-CAD canvas needs a "publish points to Supabase" button first.
-**D1d:** the 10-LOC adoption — pass `pointName` from the mobile
-point-detail screen's currently-typed value through to
-`useAttachPhoto({ pointName })`.
+into the office's TRV import handler. The current TRV-to-points flow
+runs entirely on the CAD canvas and never lands in Supabase, so the
+slice needs the CAD canvas to grow a "publish points to Supabase"
+button first. That's a larger surface than this plan covers — kept
+deferred until a separate planning doc opens for the CAD↔Supabase
+publish surface.
 
 Full suite after D1 (schema+helper): 8197 green (+7 from this slice).
 
