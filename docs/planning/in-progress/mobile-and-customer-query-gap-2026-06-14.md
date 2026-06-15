@@ -67,6 +67,40 @@ Three deferred items, with explicit rationale (NOT shipped here):
 
 ## Phase Q — Customer query intake reaches the office
 
+**Q1 shipped 2026-06-14** — `lib/leads/intake.ts` exports
+`INTAKE_ROUTING_ROLES`, `buildLeadRowFromForm` (pure mapper) and
+`insertLeadFromForm` (safe-insert; logs + returns null on failure).
+`/app/api/contact/route.ts` builds the intake payload once via
+`buildLeadIntake()` and runs the INSERT after the email send on BOTH
+the production and dev-mode return paths so local UI work on
+`/admin/leads` has real rows without Resend configured. Calculator vs
+contact-form intent preserved in `source` ('Pricing Calculator' /
+'Website'). Source-locked by `__tests__/leads/intake.test.ts` (16
+assertions on the pure mapper + safe-insert behavior + route
+integration).
+
+**Q2 shipped 2026-06-14** — `lib/leads/intake.ts` adds
+`findIntakeRecipients` (queries `registered_users.roles` for an
+`.overlaps(INTAKE_ROUTING_ROLES)` match, drops banned and unapproved
+users, never throws) and `notifyIntakeRecipients` (fires
+`notifyMany` with type `'lead.new'`, body
+`<serviceType> · <propertyAddress> · Ref: <ref> · 🔥 RUSH?`, deep
+link `/admin/leads?focus=<leadId>`, `escalation_level: 'high'` when
+the calculator's rush flag was set, `'normal'` otherwise). Wired into
+both the production return path and the dev-mode short-circuit so the
+bell icon lights up locally too.
+
+**Q3 (focus param half) shipped 2026-06-14** — `/admin/leads`
+reads `?focus=<leadId>` via `useSearchParams`, attaches a ref to the
+matching card, `scrollIntoView({ behavior: 'smooth' })` on mount,
+and outlines the focused card with `var(--color-primary)` so the
+linked-from-notification card is obvious. Card carries
+`data-focused="true"` for future styling hooks. The status-filter
+URL persistence + a `Mark contacted` quick-action remain in scope
+for Q3b once the new design surface from S1 lands.
+
+Full suite after Q1+Q2+Q3: 8190 green (+11 from this slice).
+
 ### Q1 — Contact-form writes a `leads` row
 After the existing email send in `/app/api/contact/route.ts`, INSERT a
 `leads` row using `supabaseAdmin`. Field mapping:
@@ -232,6 +266,56 @@ one unmatched), asserts the right two attach + the third stays orphaned.
   agreement not signed for the year. Workflow surfaces a clear URL; the
   fix is two clicks on developer.apple.com.
 
+## Phase S — Styling pass (post-wiring)
+
+User asked (2026-06-14) for a full styling audit + full build on the
+new query surfaces (desktop AND mobile), plus a full mobile app styles
+audit for iOS and Android. Sequenced AFTER the wiring slices so we
+polish the final surface, not an interim one.
+
+### S1 — New-query surface design build
+- `/admin/leads` page: dense table → card+detail-pane layout that reads
+  on a tablet, full-screen on phone (the user reviews queries from the
+  truck), shows status pill, customer + property + survey type, and a
+  one-tap "Mark contacted" + "Open in jobs" affordance.
+- New `/admin/leads/[id]` detail page (deep-linkable via the Q2
+  notification `link` field) with the full submission body, attachment
+  thumbnails, the reference number, and quick conversion to a Job.
+- Source-lock the layout structure + the accessible-color contrasts
+  that drive the status pills.
+
+### S2 — Web admin design-system audit
+Document, then enforce, the surfaces under `/admin/` that the new query
+flow touches: leads, jobs, contacts, receipts. Catalogue:
+- shared CSS files in `app/admin/styles/` (use the existing pattern, do
+  NOT introduce a new system),
+- a contract for empty/loading/error states (today, half the pages
+  blank-screen on no rows),
+- responsive breakpoints (the user reviews on both desktop + iPad),
+- dark-mode parity (some admin pages have light-only color tokens).
+
+Result: a `docs/admin-styling-contract.md` plus targeted fixes on the
+surfaces this plan touches. No rewrites of unrelated surfaces.
+
+### S3 — Mobile app styles + formatting audit
+Full audit of `mobile/` for iOS and Android visual parity:
+- Tab bar + headers consistent with the brand red/blue from
+  `mobile/lib/theme.ts`.
+- Text scale handles Dynamic Type on iOS + font scale on Android.
+- Safe-area insets respected on notch / Dynamic Island devices.
+- Tablet layouts (iPad + 10"+ Android) use a two-pane list+detail view
+  instead of stacking.
+- Status pills + the StageChip / StatusChip components in `mobile/lib/`
+  match the web's color tokens (a query "new" pill should look the same
+  in the office and in the field).
+- Every screen has a real empty state, a real loading state, and a
+  real error state (today some are blank).
+- Light + dark mode parity confirmed by inspection on the four target
+  fixtures: iPhone 15 / iPad 11" / Pixel 8 / Android tablet.
+
+Source-lock the components touched. Don't try to ship a perfect dark
+mode in one slice; ship the audit doc + the top-3 issues first.
+
 ## Slice order (recommended)
 
 Risk-ordered, smallest-meaningful-first:
@@ -242,9 +326,13 @@ Risk-ordered, smallest-meaningful-first:
 4. **M1** — EAS credentials (no PR; ops-only)
 5. **M2–M5** — Apple/TestFlight runbook + first phone install
 6. **D1** — TRV import auto-attach (1 PR with a fixture)
+7. **S1** — New-query surface design build (desktop + mobile-web responsive)
+8. **S2** — Web admin design-system audit doc + targeted fixes
+9. **S3** — Mobile app styles + formatting audit (iOS + Android)
 
 Items 1–3 land before item 4 so you have a working "queries land in the
 office" loop the same hour your dad's TestFlight build installs.
+Items 7–9 follow so we polish the final shape, not an interim one.
 
 ## TL;DR
 

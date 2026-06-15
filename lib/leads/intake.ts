@@ -22,6 +22,7 @@
 // Source-locked at `__tests__/leads/intake.test.ts`.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { notifyMany } from '@/lib/notifications';
 
 /** Roles that get an in-app notification when a public query arrives.
  *  Centralized so future role additions stay in lockstep. */
@@ -122,6 +123,78 @@ export function buildLeadRowFromForm(input: LeadIntakeInput): LeadRow {
         : null,
     created_by: 'website-form',
   };
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Q2 — notify intake-role employees
+// ────────────────────────────────────────────────────────────────────
+
+/** Returns every distinct email address in `registered_users` whose
+ *  `roles` array intersects `INTAKE_ROUTING_ROLES`. Excludes banned
+ *  and unapproved users so a new query doesn't ping someone whose
+ *  access was revoked. */
+export async function findIntakeRecipients(
+  client: Pick<SupabaseClient, 'from'>,
+): Promise<string[]> {
+  try {
+    const { data, error } = await client
+      .from('registered_users')
+      .select('email, roles, is_approved, is_banned')
+      .overlaps('roles', INTAKE_ROUTING_ROLES as unknown as string[]);
+    if (error || !data) {
+      console.error('[leads.intake] findIntakeRecipients failed:', error);
+      return [];
+    }
+    const out = new Set<string>();
+    for (const row of data) {
+      const r = row as { email: string; is_approved: boolean; is_banned: boolean };
+      if (r.is_banned) continue;
+      if (r.is_approved === false) continue;
+      if (typeof r.email === 'string' && r.email.length > 0) out.add(r.email.toLowerCase());
+    }
+    return Array.from(out);
+  } catch (err) {
+    console.error('[leads.intake] findIntakeRecipients threw:', err);
+    return [];
+  }
+}
+
+/** Fire the "new lead" in-app notification to every intake-role
+ *  employee. Same safe-insert contract as `insertLeadFromForm` —
+ *  errors are swallowed so a notification glitch can't 500 the
+ *  customer's form submission. */
+export async function notifyIntakeRecipients(
+  client: Pick<SupabaseClient, 'from'>,
+  args: {
+    leadId: string;
+    input: LeadIntakeInput;
+  },
+): Promise<{ recipientCount: number }> {
+  const recipients = await findIntakeRecipients(client);
+  if (recipients.length === 0) return { recipientCount: 0 };
+
+  const { input, leadId } = args;
+  const bodyParts: string[] = [];
+  if (input.serviceType) bodyParts.push(input.serviceType);
+  if (input.propertyAddress) bodyParts.push(input.propertyAddress);
+  bodyParts.push(`Ref: ${input.referenceNumber}`);
+  if (input.isRush) bodyParts.push('🔥 RUSH');
+
+  try {
+    await notifyMany(recipients, {
+      type: 'lead.new',
+      title: `New customer query: ${input.name}`,
+      body: bodyParts.join(' · '),
+      icon: 'mail',
+      link: `/admin/leads?focus=${leadId}`,
+      source_type: 'leads',
+      source_id: leadId,
+      escalation_level: input.isRush ? 'high' : 'normal',
+    });
+  } catch (err) {
+    console.error('[leads.intake] notifyMany threw:', err);
+  }
+  return { recipientCount: recipients.length };
 }
 
 /** Insert a lead row. Returns the new lead's `id` on success, or `null`

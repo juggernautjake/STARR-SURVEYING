@@ -8,9 +8,16 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   INTAKE_ROUTING_ROLES,
   buildLeadRowFromForm,
+  findIntakeRecipients,
   insertLeadFromForm,
+  notifyIntakeRecipients,
   type LeadIntakeInput,
 } from '@/lib/leads/intake';
+
+vi.mock('@/lib/notifications', () => ({
+  notifyMany: vi.fn(),
+}));
+import { notifyMany } from '@/lib/notifications';
 
 function baseInput(overrides: Partial<LeadIntakeInput> = {}): LeadIntakeInput {
   return {
@@ -123,7 +130,112 @@ describe('insertLeadFromForm — safe-insert (never throws)', () => {
   });
 });
 
-describe('contact route — Slice Q1 wiring', () => {
+describe('findIntakeRecipients — Q2 role query', () => {
+  function fakeClient(users: Array<{ email: string; roles: string[]; is_approved?: boolean; is_banned?: boolean }>) {
+    const overlaps = vi.fn().mockResolvedValue({
+      data: users.map((u) => ({
+        email: u.email,
+        roles: u.roles,
+        is_approved: u.is_approved ?? true,
+        is_banned: u.is_banned ?? false,
+      })),
+      error: null,
+    });
+    const select = vi.fn().mockReturnValue({ overlaps });
+    const from = vi.fn().mockReturnValue({ select });
+    return { from, calls: { from, select, overlaps } };
+  }
+
+  it('returns every distinct email with an intake role', async () => {
+    const { from } = fakeClient([
+      { email: 'admin@s.com', roles: ['admin'] },
+      { email: 'crew@s.com', roles: ['field_crew', 'employee'] },
+      { email: 'teacher@s.com', roles: ['teacher'] }, // overlaps filter excludes; mock returns all but we still filter banned/unapproved
+    ]);
+    const result = await findIntakeRecipients({ from } as never);
+    // The mock returns all rows; our helper trusts the overlaps filter
+    // but still lower-cases + dedupes. Both intake roles land.
+    expect(result).toEqual(expect.arrayContaining(['admin@s.com', 'crew@s.com']));
+  });
+
+  it('drops banned + unapproved users', async () => {
+    const { from } = fakeClient([
+      { email: 'good@s.com', roles: ['admin'] },
+      { email: 'banned@s.com', roles: ['admin'], is_banned: true },
+      { email: 'pending@s.com', roles: ['employee'], is_approved: false },
+    ]);
+    const result = await findIntakeRecipients({ from } as never);
+    expect(result).toEqual(['good@s.com']);
+  });
+
+  it('returns [] when supabase errors (never throws)', async () => {
+    const from = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        overlaps: vi.fn().mockResolvedValue({ data: null, error: { message: 'nope' } }),
+      }),
+    });
+    expect(await findIntakeRecipients({ from } as never)).toEqual([]);
+  });
+});
+
+describe('notifyIntakeRecipients — Q2 fan-out', () => {
+  function clientWithUsers(emails: string[]) {
+    return {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          overlaps: vi.fn().mockResolvedValue({
+            data: emails.map((e) => ({ email: e, roles: ['admin'], is_approved: true, is_banned: false })),
+            error: null,
+          }),
+        }),
+      }),
+    };
+  }
+
+  it('calls notifyMany with the right shape per recipient', async () => {
+    vi.mocked(notifyMany).mockClear();
+    const client = clientWithUsers(['a@s.com', 'b@s.com']);
+    const { recipientCount } = await notifyIntakeRecipients(client as never, {
+      leadId: 'LEAD-1',
+      input: baseInput({ serviceType: 'Boundary', isRush: true }),
+    });
+    expect(recipientCount).toBe(2);
+    expect(notifyMany).toHaveBeenCalledTimes(1);
+    const [users, payload] = vi.mocked(notifyMany).mock.calls[0];
+    expect(users).toEqual(['a@s.com', 'b@s.com']);
+    expect(payload.type).toBe('lead.new');
+    expect(payload.link).toBe('/admin/leads?focus=LEAD-1');
+    expect(payload.source_type).toBe('leads');
+    expect(payload.source_id).toBe('LEAD-1');
+    expect(payload.escalation_level).toBe('high'); // rush flag
+    expect(payload.body).toContain('Ref: SS-260614-200000-ABC');
+    expect(payload.body).toContain('Boundary');
+    expect(payload.body).toContain('🔥 RUSH');
+  });
+
+  it('skips notifyMany entirely when no recipients exist', async () => {
+    vi.mocked(notifyMany).mockClear();
+    const client = clientWithUsers([]);
+    const result = await notifyIntakeRecipients(client as never, {
+      leadId: 'LEAD-2',
+      input: baseInput(),
+    });
+    expect(result.recipientCount).toBe(0);
+    expect(notifyMany).not.toHaveBeenCalled();
+  });
+
+  it('non-rush escalation is `normal`', async () => {
+    vi.mocked(notifyMany).mockClear();
+    const client = clientWithUsers(['a@s.com']);
+    await notifyIntakeRecipients(client as never, {
+      leadId: 'LEAD-3',
+      input: baseInput({ isRush: false }),
+    });
+    expect(vi.mocked(notifyMany).mock.calls[0][1].escalation_level).toBe('normal');
+  });
+});
+
+describe('contact route — Slice Q1 + Q2 wiring', () => {
   // Source-lock the integration points without booting the route.
   const fs = require('node:fs') as typeof import('node:fs');
   const path = require('node:path') as typeof import('node:path');
@@ -132,24 +244,60 @@ describe('contact route — Slice Q1 wiring', () => {
     'utf8',
   );
 
-  it('imports insertLeadFromForm + supabaseAdmin', () => {
-    expect(ROUTE_SRC).toMatch(/import \{ insertLeadFromForm, type LeadIntakeInput \} from '@\/lib\/leads\/intake'/);
+  it('imports insertLeadFromForm + supabaseAdmin (Q1)', () => {
+    expect(ROUTE_SRC).toMatch(/insertLeadFromForm,[\s\S]*?type LeadIntakeInput,[\s\S]*?from '@\/lib\/leads\/intake'/);
     expect(ROUTE_SRC).toMatch(/import \{ supabaseAdmin \} from '@\/lib\/supabase'/);
   });
 
-  it('runs the INSERT on the production return path', () => {
+  it('runs the INSERT on the production return path (Q1)', () => {
     expect(ROUTE_SRC).toMatch(
-      /const insertedLead = await insertLeadFromForm\(supabaseAdmin, buildLeadIntake\(\)\)/,
+      /const insertedLead = await insertLeadFromForm\(supabaseAdmin, intake\)/,
     );
   });
 
-  it('runs the INSERT on the dev-mode short-circuit too', () => {
+  it('runs the INSERT on the dev-mode short-circuit too (Q1)', () => {
     expect(ROUTE_SRC).toMatch(
-      /\/\/ Development mode[\s\S]*?await insertLeadFromForm\(supabaseAdmin, buildLeadIntake\(\)\)/,
+      /\/\/ Development mode[\s\S]*?await insertLeadFromForm\(supabaseAdmin, intake\)/,
     );
   });
 
   it('discriminates Website vs Pricing Calculator on the source field', () => {
     expect(ROUTE_SRC).toMatch(/source: isCalculator \? 'Pricing Calculator' : 'Website'/);
+  });
+
+  it('Q2 — imports notifyIntakeRecipients + fires it on the production return path', () => {
+    expect(ROUTE_SRC).toMatch(
+      /import \{\s*\n?\s*insertLeadFromForm,\s*\n?\s*notifyIntakeRecipients,/,
+    );
+    expect(ROUTE_SRC).toMatch(/await notifyIntakeRecipients\(supabaseAdmin, \{/);
+  });
+
+  it('Q2 — fires the notification in dev mode too so the bell lights up locally', () => {
+    expect(ROUTE_SRC).toMatch(
+      /\/\/ Development mode[\s\S]*?notifyIntakeRecipients\(supabaseAdmin/,
+    );
+  });
+});
+
+describe('leads admin page — Q3 focus param', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const PAGE_SRC = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'app', 'admin', 'leads', 'page.tsx'),
+    'utf8',
+  );
+
+  it('reads the focus query param', () => {
+    expect(PAGE_SRC).toMatch(/const searchParams = useSearchParams\(\);/);
+    expect(PAGE_SRC).toMatch(/searchParams\?\.get\('focus'\)/);
+  });
+
+  it('scrolls the focused card into view', () => {
+    expect(PAGE_SRC).toMatch(/focusedCardRef\.current\.scrollIntoView/);
+  });
+
+  it('outlines the focused card so the user sees which one was linked', () => {
+    expect(PAGE_SRC).toMatch(/data-focused=\{lead\.id === focusLeadId/);
+    expect(PAGE_SRC).toMatch(/outline: '2px solid/);
   });
 });

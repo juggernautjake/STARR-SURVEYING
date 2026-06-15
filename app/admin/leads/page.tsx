@@ -1,8 +1,9 @@
 // app/admin/leads/page.tsx — Leads management (admin only)
 'use client';
 import '../styles/AdminJobs.css';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 
 interface Lead {
@@ -46,6 +47,19 @@ export default function LeadsPage() {
   });
 
   const isAdminUser = session?.user?.roles?.includes('admin') ?? false;
+
+  // mobile-and-customer-query-gap Slice Q2/Q3 — the new-lead bell-icon
+  // notification deep-links to `/admin/leads?focus=<leadId>`. Read the
+  // param so we can outline + scroll-into-view the matching card the
+  // moment the page hydrates.
+  const searchParams = useSearchParams();
+  const focusLeadId = searchParams?.get('focus') ?? null;
+  const focusedCardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!focusLeadId) return;
+    if (!focusedCardRef.current) return;
+    focusedCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusLeadId, leads]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,7 +219,17 @@ export default function LeadsPage() {
       ) : (
         <div className="jobs-page__grid">
           {filtered.map(lead => (
-            <div key={lead.id} className="job-card">
+            <div
+              key={lead.id}
+              ref={lead.id === focusLeadId ? focusedCardRef : undefined}
+              className="job-card"
+              data-focused={lead.id === focusLeadId ? 'true' : undefined}
+              style={
+                lead.id === focusLeadId
+                  ? { outline: '2px solid var(--color-primary, #1D3095)', outlineOffset: '4px' }
+                  : undefined
+              }
+            >
               <div className="job-card__header">
                 <span className="job-card__stage" style={{ background: STATUS_OPTIONS.find(s => s.key === lead.status)?.color }}>
                   {STATUS_OPTIONS.find(s => s.key === lead.status)?.label}

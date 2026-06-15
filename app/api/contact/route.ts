@@ -6,7 +6,11 @@ import { validateQuoteAttachments, formatBytes } from '@/lib/quote-attachments';
 // into `leads` so the /admin/leads page actually surfaces queries
 // the moment they land. Helper kept in `lib/leads/intake.ts` so the
 // mapping is unit-testable without spinning up the route.
-import { insertLeadFromForm, type LeadIntakeInput } from '@/lib/leads/intake';
+import {
+  insertLeadFromForm,
+  notifyIntakeRecipients,
+  type LeadIntakeInput,
+} from '@/lib/leads/intake';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface ResendAttachment {
@@ -1245,7 +1249,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Slice Q1 — STILL insert into `leads` in dev mode so local UI
       // work against /admin/leads has real rows without needing
       // Resend wired. Failure here is silent on purpose.
-      await insertLeadFromForm(supabaseAdmin, buildLeadIntake());
+      // Slice Q2 — also notify the intake-role employees so the bell
+      // icon lights up in dev exactly like it will in production.
+      {
+        const intake = buildLeadIntake();
+        const dev = await insertLeadFromForm(supabaseAdmin, intake);
+        if (dev) {
+          await notifyIntakeRecipients(supabaseAdmin, {
+            leadId: dev.id,
+            input: intake,
+          });
+        }
+      }
 
       return NextResponse.json(
         {
@@ -1299,9 +1314,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // convenience that surfaces inquiries on /admin/leads + drives
     // the Q2 notification. If the email send AND the INSERT both
     // fail, the customer still sees the 500 fallback below.
-    const insertedLead = await insertLeadFromForm(supabaseAdmin, buildLeadIntake());
-    if (insertedLead) {
-      console.log(`[${referenceNumber}] Lead inserted as ${insertedLead.id}`);
+    // Slice Q2 — fan out the "new query" in-app notification to every
+    // employee whose role is in INTAKE_ROUTING_ROLES so the bell-icon
+    // count goes up the moment the customer hits Submit.
+    {
+      const intake = buildLeadIntake();
+      const insertedLead = await insertLeadFromForm(supabaseAdmin, intake);
+      if (insertedLead) {
+        console.log(`[${referenceNumber}] Lead inserted as ${insertedLead.id}`);
+        const { recipientCount } = await notifyIntakeRecipients(supabaseAdmin, {
+          leadId: insertedLead.id,
+          input: intake,
+        });
+        console.log(`[${referenceNumber}] Notified ${recipientCount} intake recipient(s)`);
+      }
     }
 
     // Return success if at least business email sent
