@@ -298,7 +298,7 @@ export default function LeadDetailPage() {
                 whiteSpace: 'pre-wrap',
                 margin: 0,
                 padding: '0.75rem',
-                background: 'var(--color-surface-2, #f8f9fa)',
+                background: 'var(--color-bg-subtle)',
                 borderRadius: '0.4rem',
                 fontFamily: 'inherit',
                 fontSize: '0.9rem',
@@ -344,7 +344,7 @@ function DetailRow({
         justifyContent: 'space-between',
         alignItems: 'baseline',
         padding: '0.4rem 0',
-        borderBottom: '1px solid var(--color-border, #e5e7eb)',
+        borderBottom: '1px solid #E5E7EB',
         gap: '0.75rem',
         flexWrap: 'wrap',
       }}

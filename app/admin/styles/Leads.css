@@ -23,18 +23,18 @@
   gap: 0.6rem;
   padding: 1rem;
   padding-left: calc(1rem + 4px); /* leave room for the accent bar */
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
   border-radius: 0.5rem;
   transition: border-color 120ms ease, box-shadow 120ms ease;
   min-height: 9rem;
 }
 .lead-card:hover {
-  border-color: var(--color-primary, #1d3095);
+  border-color: var(--color-brand-navy);
   box-shadow: 0 4px 10px -2px rgba(29, 48, 149, 0.08);
 }
 .lead-card[data-focused='true'] {
-  outline: 2px solid var(--color-primary, #1d3095);
+  outline: 2px solid var(--color-brand-navy);
   outline-offset: 4px;
 }
 
@@ -68,7 +68,7 @@
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--color-on-status, #ffffff);
+  color: var(--color-text-on-brand);
   background: var(--lead-status-color, #6b7280);
   white-space: nowrap;
 }
@@ -98,7 +98,7 @@
   text-decoration: none;
 }
 .lead-card__contact a:hover {
-  color: var(--color-primary, #1d3095);
+  color: var(--color-brand-navy);
   text-decoration: underline;
 }
 .lead-card__address {
@@ -123,8 +123,8 @@
 .lead-card__btn {
   padding: 0.35rem 0.7rem;
   border-radius: 0.35rem;
-  border: 1px solid var(--color-border, #e5e7eb);
-  background: var(--color-surface, #ffffff);
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
   color: var(--color-text-primary, #111827);
   font-size: 0.75rem;
   font-weight: 500;
@@ -134,12 +134,12 @@
   min-height: 32px;
 }
 .lead-card__btn:hover {
-  border-color: var(--color-primary, #1d3095);
-  color: var(--color-primary, #1d3095);
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
 }
 .lead-card__btn--primary {
-  background: var(--color-primary, #1d3095);
-  border-color: var(--color-primary, #1d3095);
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
   color: #ffffff;
 }
 .lead-card__btn--primary:hover {
@@ -161,8 +161,8 @@
   font-size: 0.75rem;
   padding: 0.3rem 0.45rem;
   border-radius: 0.35rem;
-  border: 1px solid var(--color-border, #e5e7eb);
-  background: var(--color-surface, #ffffff);
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
   color: var(--color-text-primary, #111827);
   min-height: 32px;
 }

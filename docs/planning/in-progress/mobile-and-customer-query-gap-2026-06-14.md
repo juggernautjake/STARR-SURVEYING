@@ -488,6 +488,48 @@ slice).
 - Source-lock the layout structure + the accessible-color contrasts
   that drive the status pills.
 
+**S2 shipped 2026-06-14** — admin design-system contract + the
+targeted token migration on every surface this plan touched.
+- `docs/admin-styling-contract.md` — the contract. Names the
+  canonical token set declared in `app/styles/tokens.css`
+  (`--color-brand-navy`, `--color-brand-red`, `--color-bg-card`,
+  `--color-bg-subtle`, `--color-text-primary/secondary/tertiary`,
+  the spacing scale, the radii, the type scale). Names the FOUR
+  drift names the audit identified (`--color-primary`,
+  `--color-surface`, `--color-surface-2`, `--color-border`,
+  `--color-on-status`) and the canonical replacement for each.
+  Documents the responsive breakpoint contract (≤480, 481–768,
+  769–1023, ≥1024 px) + the empty / loading / filtered-empty /
+  not-found / error state convention. Quick-reference CSS card
+  at the bottom so the next feature author has a copy-paste
+  starting point.
+- `app/admin/styles/Leads.css` — every drift name purged.
+  `--color-primary` → `--color-brand-navy`, `--color-surface` →
+  `--color-bg-card`, `--color-on-status` → `--color-text-on-brand`,
+  the `--color-border` fallback inlines the literal `#E5E7EB`
+  (the canonical name is `--border-light` for the shorthand or
+  raw literal for a partial border declaration).
+- `app/admin/leads/[id]/page.tsx` — the same migration in the
+  inline styles. `--color-surface-2` → `--color-bg-subtle` for
+  the customer-notes background, `--color-border` → `#E5E7EB`
+  for the DetailRow divider.
+- Other surfaces (jobs, contacts, receipts) explicitly left in
+  place: no drift to fix, and a sweep of those pages was out of
+  scope for this plan. The doc is the rule going forward — a
+  future styling audit of those pages is a separate slice.
+- Source-locked by `__tests__/admin-styling/s2-contract.test.ts`
+  (11 assertions across the doc structure, the four drift-name
+  purges in `Leads.css`, and the inline-style purge in the
+  detail page).
+
+S2 ergonomic follow-up tracked as **S2b**: lift the
+`/admin/leads/[id]` inline `style={{}}` grid + DetailRow blocks
+into `Leads.css` so the DetailRow component can be reused
+elsewhere without copying the inline shape. Cosmetic — not a
+system drift, just an ergonomics issue.
+
+Full suite after S2: 8279 green (+11).
+
 ### S2 — Web admin design-system audit
 Document, then enforce, the surfaces under `/admin/` that the new query
 flow touches: leads, jobs, contacts, receipts. Catalogue:
