@@ -298,7 +298,10 @@ describe('leads admin page — Q3 focus param', () => {
   });
 
   it('outlines the focused card so the user sees which one was linked', () => {
+    // Slice S1b moved the outline from an inline-style on the card to
+    // a [data-focused='true'] CSS selector in Leads.css. The data-
+    // attribute on the React side is the contract; the CSS is locked
+    // in the S1b source-lock test.
     expect(PAGE_SRC).toMatch(/data-focused=\{lead\.id === focusLeadId/);
-    expect(PAGE_SRC).toMatch(/outline: '2px solid/);
   });
 });

@@ -432,9 +432,47 @@ codepath.
   affordance, conditional Mark-contacted, mailto:/tel: links, the
   `<pre>` notes contract, and the updated Q2 link target).
 
-Remaining S1 work — list-page card design upgrade (dense table →
-card+detail-pane layout, status pill polish, one-tap actions on
-mobile) — tracked as **S1b**.
+**S1b shipped 2026-06-14** — list-page card design upgrade. The
+`/admin/leads` inbox now reads on a 320-wide iPhone SE all the
+way up to a wide desktop without the surveyor squinting or
+mis-tapping.
+- `app/admin/styles/Leads.css` — dedicated stylesheet (loaded on
+  the leads list page only). Declares the `.lead-card` surface +
+  a per-card status-accent bar via a `--lead-status-color` CSS
+  variable (set inline from the React side so the JSX stays the
+  single source of truth for status colors). Tablet breakpoint
+  (769–1199 px) widens the grid `minmax` floor to 320 px so an
+  iPad portrait shows two columns + the cards don't get cramped.
+  Phone breakpoint (≤768 px) collapses to one column, stacks the
+  action buttons vertically, and bumps every CTA to 44 pt
+  min-height per the Apple HIG glove-friendly touch contract.
+- `app/admin/leads/page.tsx` — card markup replaced. Status pill +
+  relative-age timestamp in the card header. Email + phone render
+  as `mailto:` / `tel:` links so a single tap on a phone opens
+  Mail / dial the customer. Address gets a 📍 prefix. Every card
+  carries an `Open →` link to the S1 detail page so the bell-icon
+  flow + the inbox browse flow share one path forward. Old
+  data-action hooks (`mark-contacted`, `delete-lead`,
+  `view-detail`) are stable for e2e / styling.
+- `formatRelativeAge` pure helper inline on the page covers
+  `just now` / `Nm ago` / `Nh ago` / `Nd ago` / `Nmo ago` /
+  `Ny ago` so the office can scan an inbox by staleness without
+  reading dates.
+- Source-locked by `__tests__/leads/s1b-list-card-polish.test.ts`
+  (17 assertions across the markup, the relative-age helper, the
+  responsive-grid contract, the focused-card data-attribute
+  outline (replaces the inline-style outline from Q3), the
+  44-pt phone-touch contract, and the dedicated CSS imports).
+  The Q3 source-lock that asserted the inline `outline:` style
+  was widened to the data-attribute-only contract since the
+  outline now lives in CSS.
+- Full suite after S1b: 8269 green (+18).
+
+**Phase S still ahead:** S2 (web admin design-system audit doc +
+targeted fixes) and S3 (mobile app styles + formatting audit for
+iOS + Android). Those are larger surfaces — each will take its
+own slice once the M0 → M5 phone install actually lands so we're
+polishing what the user touches every day.
 
 Full suite after S1 (detail page half): 8251 green (+17 from this
 slice).
