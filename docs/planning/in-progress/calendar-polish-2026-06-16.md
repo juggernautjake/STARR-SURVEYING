@@ -92,6 +92,36 @@ Full suite after P1: 8479 green (+14).
   respected. Tests lock the presence of the media query so a future
   PR can't reintroduce always-on motion.
 
+**P2 shipped 2026-06-16** — skeleton loader during fetch.
+- `app/admin/calendar/page.tsx`:
+  - Page root carries `data-fetching={loading ? 'true' :
+    undefined}` so the CSS chip + sweep both key off one
+    attribute on one element.
+  - Loading chip rendered next to the title with
+    `role="status"` + `aria-live="polite"` so screen readers
+    hear "Loading" without interruption. Text mirrors the
+    `loading` state so it goes blank when fetch completes.
+- `app/admin/styles/Calendar.css`:
+  - `@keyframes calendar-shimmer-sweep` — a translucent navy
+    gradient that slides left-to-right across each grid
+    container (month / week / day) while `data-loading='true'`.
+    Pointer-events: none so users can still tap events
+    behind the overlay.
+  - `@keyframes calendar-shimmer-pulse` — the chip's leading
+    8px dot pulses at brand navy 35→100% opacity.
+  - Phone breakpoint hides the sweep overlay (chip alone
+    carries the signal — the stacked day list doesn't have a
+    clean shape for a sweep).
+  - Reduced-motion fallback pauses both sweep + pulse;
+    overlay collapses to a static 4% tint, chip dot stays
+    visible at 100% opacity.
+- Source-locked by `__tests__/calendar/p2-skeleton-loader.test.ts`
+  (13 assertions: page wiring (data-fetching, chip a11y),
+  sweep keyframes + targets + pointer-events guard, chip
+  opacity ramp + pulse, phone hide, reduced-motion pause).
+
+Full suite after P2: 8492 green (+13).
+
 ### P2 — Skeleton loader
 - When `data-loading='true'`, the month/week/day grid renders a
   semi-translucent shimmer over each cell instead of staying empty.

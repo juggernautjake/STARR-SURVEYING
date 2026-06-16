@@ -253,12 +253,26 @@ export default function CalendarPage() {
       className="calendar-page"
       data-testid="calendar-page"
       data-view={view}
+      data-fetching={loading ? 'true' : undefined}
       data-display-mode={isFullscreen ? 'big-screen' : undefined}
     >
       <div className="calendar-page__header">
-        <h2 className="calendar-page__title" data-testid="calendar-title">
-          {viewHeaderLabel(focus, view)}
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <h2 className="calendar-page__title" data-testid="calendar-title">
+            {viewHeaderLabel(focus, view)}
+          </h2>
+          {/* Slice P2 — loading chip. opacity flips via the page
+              root's data-fetching attribute; aria-live='polite' so
+              screen readers hear "Loading" without interrupting. */}
+          <span
+            className="calendar-page__loading-chip"
+            data-testid="calendar-loading-chip"
+            role="status"
+            aria-live="polite"
+          >
+            {loading ? 'Loading…' : ''}
+          </span>
+        </div>
         <div className="calendar-page__nav">
           <div
             className="calendar-page__view-switcher"

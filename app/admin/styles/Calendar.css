@@ -254,6 +254,112 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P2 — skeleton loader. While the page is
+ * fetching a new month/week/day window, paint a soft shimmer ACROSS
+ * the existing grid (rather than wipe events to blank) so the user
+ * sees something is happening without losing visual context. Two
+ * pieces:
+ *   - `[data-loading='true']::after` overlay on each grid container —
+ *     a translucent gradient that sweeps left-to-right.
+ *   - Tiny "Loading…" chip on the calendar header that fades in.
+ * ─────────────────────────────────────────────────────────────────── */
+
+@keyframes calendar-shimmer-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+.calendar-month__grid[data-loading='true'],
+.calendar-week[data-loading='true'],
+.calendar-day[data-loading='true'] {
+  position: relative;
+  overflow: hidden;
+}
+.calendar-month__grid[data-loading='true']::after,
+.calendar-week[data-loading='true']::after,
+.calendar-day[data-loading='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Translucent navy-tinted gradient — visible enough to read as
+   * "something is happening" but light enough that the user still
+   * sees the events behind it. */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(29, 48, 149, 0.04) 30%,
+    rgba(29, 48, 149, 0.10) 50%,
+    rgba(29, 48, 149, 0.04) 70%,
+    transparent 100%
+  );
+  animation: calendar-shimmer-sweep 1.4s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* Small chip in the header that fades in while loading. The page's
+ * data-loading attribute lives on the grid; the chip keys on the page
+ * root's data-fetching attribute instead so it stays decoupled from
+ * grid-only rules. */
+.calendar-page__loading-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.calendar-page[data-fetching='true'] .calendar-page__loading-chip {
+  opacity: 1;
+}
+.calendar-page__loading-chip::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-brand-navy);
+  animation: calendar-shimmer-pulse 1s ease-in-out infinite;
+}
+@keyframes calendar-shimmer-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1); }
+}
+
+/* Phone breakpoint — the grid is collapsed to a stacked day-list, so
+ * the sweep overlay doesn't have a clean shape to sit on. Hide the
+ * overlay; the header chip carries the loading signal alone. */
+@media (max-width: 768px) {
+  .calendar-month__grid[data-loading='true']::after,
+  .calendar-week[data-loading='true']::after,
+  .calendar-day[data-loading='true']::after {
+    display: none;
+  }
+}
+
+/* Vestibular-safe — pause both sweep + pulse when the OS requests
+ * reduced motion. Loading chip stays visible (it's the alternate
+ * signal) but doesn't pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .calendar-month__grid[data-loading='true']::after,
+  .calendar-week[data-loading='true']::after,
+  .calendar-day[data-loading='true']::after {
+    animation: none;
+    background: rgba(29, 48, 149, 0.04);
+  }
+  .calendar-page__loading-chip::before {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-polish Slice P1 — motion + transitions. Every effect here
  * is additive on top of the structure shipped by the job-calendar
  * plan; honor `prefers-reduced-motion` so vestibular sensitivities
