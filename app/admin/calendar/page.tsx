@@ -92,6 +92,11 @@ export default function CalendarPage() {
   // `?` button in the nav row OR the `?` key. Closes on Esc, click
   // outside, or `?` again.
   const [showCheatSheet, setShowCheatSheet] = useState<boolean>(false);
+  // Slice P6 — distinct flag for the wall-TV refresh pulse. Only
+  // flips true around an AUTO-refresh fetch (not the initial mount
+  // or a view-change refetch). Drives a small corner dot that
+  // glows for ~1s so a viewer can see the calendar is alive.
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   // Slice C3 — fullscreen / big-screen mode. The page calls
   // requestFullscreen() on its root; the browser hides everything
@@ -241,7 +246,14 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!isFullscreen) return;
     const id = setInterval(() => {
-      if (isAdminUser) void load();
+      if (!isAdminUser) return;
+      // Slice P6 — flip the refresh flag so the corner dot pulses,
+      // then drop it after a beat so the CSS animation has time to
+      // run. Wall-TV trust signal: the calendar is alive.
+      setRefreshing(true);
+      void load().finally(() => {
+        setTimeout(() => setRefreshing(false), 1200);
+      });
     }, AUTO_REFRESH_MS);
     return () => clearInterval(id);
   }, [isFullscreen, isAdminUser, load]);
@@ -285,8 +297,19 @@ export default function CalendarPage() {
       data-testid="calendar-page"
       data-view={view}
       data-fetching={loading ? 'true' : undefined}
+      data-refreshing={refreshing ? 'true' : undefined}
       data-display-mode={isFullscreen ? 'big-screen' : undefined}
     >
+      {/* Slice P6 — wall-TV refresh indicator. Hidden by default;
+          CSS keys it to data-display-mode='big-screen' AND
+          data-refreshing='true' so it only appears in fullscreen
+          and only around an auto-refresh fetch. */}
+      <span
+        className="calendar-page__refresh-dot"
+        data-testid="calendar-refresh-dot"
+        aria-hidden
+      />
+
       <div className="calendar-page__header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
           <h2 className="calendar-page__title" data-testid="calendar-title">

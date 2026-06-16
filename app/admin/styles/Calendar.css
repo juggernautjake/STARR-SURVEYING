@@ -254,6 +254,70 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P6 — wall-TV refresh indicator. The big-
+ * screen mode auto-refreshes every 5 min; without a visible signal,
+ * a viewer can't tell if the calendar is live or frozen on stale
+ * data. P6 adds a small corner dot that glows briefly around each
+ * auto-refresh, then fades. Only visible when BOTH
+ *   data-display-mode='big-screen'  AND  data-refreshing='true'
+ * so it stays out of the way of regular use.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-page__refresh-dot {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-success, #10B981);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 200;
+  transition: opacity 200ms ease;
+}
+
+/* Show the dot only when both attributes are set on the root. The
+ * combinator key — same component scope, two predicates — keeps
+ * the dot invisible in normal admin use. */
+.calendar-page[data-display-mode='big-screen'][data-refreshing='true'] .calendar-page__refresh-dot {
+  opacity: 1;
+  animation: calendar-refresh-glow 1200ms ease-out;
+}
+
+@keyframes calendar-refresh-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    transform: scale(1);
+  }
+  60% {
+    box-shadow: 0 0 0 18px rgba(16, 185, 129, 0);
+    transform: scale(1.4);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    transform: scale(1);
+  }
+}
+
+/* Reduced-motion: still show the dot (it's a meaningful status
+ * signal), but skip the expanding ring. The opacity flip alone is
+ * still a clear "we just refreshed" tell. */
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page[data-display-mode='big-screen'][data-refreshing='true'] .calendar-page__refresh-dot {
+    animation: none;
+  }
+}
+
+/* Print — the dot is wall-TV-only, never on paper. */
+@media print {
+  .calendar-page__refresh-dot {
+    display: none !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-polish Slice P5 — print stylesheet. Daddy hits the 🖨
  * button → window.print() → the browser's print dialog. The rules
  * below strip everything that's only useful on-screen (nav, legend,

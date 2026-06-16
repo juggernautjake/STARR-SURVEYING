@@ -265,6 +265,46 @@ Full suite after P5: 8537 green (+12).
 - A "Print" button next to fullscreen calls `window.print()`. Open
   the calendar in print-preview and a clean month view comes out.
 
+**P6 shipped 2026-06-16** — wall-TV refresh indicator. A small
+brand-green dot in the top-right corner glows once around each
+5-min auto-refresh fetch, then fades. Lets a viewer at 8 ft
+confirm the calendar is alive, not frozen on stale data.
+- `app/admin/calendar/page.tsx`:
+  - Distinct `refreshing` state (separate from `loading`) so the
+    indicator only fires around an AUTO-refresh, not the
+    initial mount or a view-change refetch.
+  - Auto-refresh interval flips
+    `setRefreshing(true) → load().finally(() => setTimeout(() =>
+    setRefreshing(false), 1200))` so the CSS glow has room to
+    play out before the flag clears.
+  - Page root carries
+    `data-refreshing={refreshing ? 'true' : undefined}`.
+  - Decorative dot element rendered with `aria-hidden` (it's a
+    visual heartbeat; the existing loading chip handles
+    screen-reader signaling).
+- `app/admin/styles/Calendar.css`:
+  - Dot is `position: fixed` top-right, `opacity: 0` by default,
+    success-token green so it reads as a healthy heartbeat.
+  - Visibility gated on the COMPOUND selector
+    `.calendar-page[data-display-mode='big-screen'][data-refreshing='true']`
+    so the dot stays invisible in normal admin use and only
+    surfaces on the wall TV.
+  - `@keyframes calendar-refresh-glow` — 1.2s expanding green
+    ring (`box-shadow: 0 0 0 18px rgba(...,0)` at 60%) +
+    `transform: scale(1.4)` peak.
+  - Reduced-motion fallback keeps the dot visible (the status
+    signal matters) but skips the expanding ring.
+  - Print stylesheet hides the dot — wall-TV-only signal.
+- Source-locked by
+  `__tests__/calendar/p6-refresh-indicator.test.ts` (12
+  assertions: distinct refreshing state, flag flip only inside
+  auto-refresh, mount path unchanged, root data attribute, dot
+  ARIA + testID, CSS position + default invisibility, success
+  color, compound visibility gate, keyframes, reduced-motion
+  preservation, print hide, no-drift check).
+
+Full suite after P6: 8549 green (+12).
+
 ### P6 — Auto-refresh indicator
 - In fullscreen mode only: a small pulsing dot in the corner that
   flashes briefly when the 5-min auto-refresh fires, then fades. So
@@ -281,14 +321,21 @@ Full suite after P5: 8537 green (+12).
 5. **P5** — print stylesheet (office utility)
 6. **P6** — fullscreen refresh indicator (wall-TV trust)
 
-## TL;DR
+## TL;DR — final state (2026-06-16)
 
 | Surface | Status |
 |---|---|
 | Calendar wiring | **DONE** (previous plan) |
-| Hover lift + view fade-in + today pulse | **MISSING → P1** |
-| Skeleton loader | **MISSING → P2** |
-| Empty states | **MISSING → P3** |
-| Keyboard cheat sheet | **MISSING → P4** |
-| Print stylesheet | **MISSING → P5** |
-| Refresh indicator | **MISSING → P6** |
+| Hover lift + view fade-in + today pulse + reduced-motion | **SHIPPED — P1** |
+| Skeleton loader sweep + loading chip | **SHIPPED — P2** |
+| Per-view empty states (no-events / all-hidden) | **SHIPPED — P3** |
+| Keyboard cheat sheet modal (? to open) | **SHIPPED — P4** |
+| Print stylesheet + 🖨 button | **SHIPPED — P5** |
+| Wall-TV refresh indicator dot | **SHIPPED — P6** |
+
+**Total slices shipped:** P1, P2, P3, P4, P5, P6 = **6 slices, 85
+source-lock assertions added, full suite went from 8465 → 8549
+green (+84 from this plan).**
+
+Every action item shipped — no deferrals needed. The doc moves to
+`docs/planning/completed/` in the same commit.
