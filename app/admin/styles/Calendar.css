@@ -254,6 +254,113 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P1 — motion + transitions. Every effect here
+ * is additive on top of the structure shipped by the job-calendar
+ * plan; honor `prefers-reduced-motion` so vestibular sensitivities
+ * always get the static version.
+ * ─────────────────────────────────────────────────────────────────── */
+
+/* Hover lift on event pills + the timed-event variant. Subtle (1px)
+ * so a dense grid doesn't get visually noisy. */
+.calendar-event {
+  transform: translateY(0);
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.calendar-event--has-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px -1px rgba(29, 48, 149, 0.12);
+}
+
+/* The 2-color band the day cells already have (`.calendar-month__cell`)
+ * gets a soft lift on hover too — telegraphs that the cell is
+ * "tappable" via its events. */
+.calendar-month__cell {
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+.calendar-month__cell:hover {
+  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.05);
+}
+
+/* View-switch fade-in. Re-trigger on data-view change so the new
+ * view's grid animates in. Pure CSS; no JS for the transition. */
+@keyframes calendar-view-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.calendar-month__grid,
+.calendar-week,
+.calendar-day {
+  animation: calendar-view-fade-in 180ms ease both;
+}
+
+/* Today cell — soft ring pulse. Long cycle (4s) + low amplitude so it
+ * draws the eye without competing with the actual events. */
+@keyframes calendar-today-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(29, 48, 149, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(29, 48, 149, 0.12); }
+}
+.calendar-month__cell[data-today='true'] {
+  animation: calendar-today-pulse 4s ease-in-out infinite;
+}
+.calendar-week__day-col[data-today='true'] {
+  animation: calendar-today-pulse 4s ease-in-out infinite;
+}
+
+/* Legend chip — smooth opacity + line-through cross-fade when toggled. */
+.calendar-page__legend-chip {
+  transition:
+    opacity 160ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    text-decoration-color 200ms ease,
+    background-color 120ms ease;
+}
+
+/* Nav button focus ring — tighter + brand-navy outline so keyboard
+ * navigation reads. Same rule for the view switcher + legend +
+ * pickers + nav buttons + fullscreen toggle. */
+.calendar-page__nav button:focus-visible,
+.calendar-page__nav select:focus-visible,
+.calendar-page__view-switcher button:focus-visible,
+.calendar-page__legend-chip:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+
+/* Big-screen mode — animation looks great on the wall TV; just keep
+ * the today pulse but slow it to 6s so it's quieter at distance. */
+.calendar-page[data-display-mode='big-screen'] .calendar-month__cell[data-today='true'],
+.calendar-page[data-display-mode='big-screen'] .calendar-week__day-col[data-today='true'] {
+  animation-duration: 6s;
+}
+
+/* Vestibular-safe — every animation collapses to instantaneous when
+ * the user has set the OS to reduce motion. The hover lift becomes a
+ * static state; the view fade-in + today pulse + chip transition
+ * become 1ms (effectively off). Keeps semantic transitions
+ * discoverable through `transition-duration: 0.01ms` rather than
+ * removing the rules so DevTools-level introspection still works. */
+@media (prefers-reduced-motion: reduce) {
+  .calendar-event,
+  .calendar-month__cell,
+  .calendar-month__grid,
+  .calendar-week,
+  .calendar-day,
+  .calendar-page__legend-chip {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .calendar-event--has-link:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * job-calendar Slice C2 — week + day views. Both share the same
  * hour-row grid; week is 7 day columns, day is 1.
  * ─────────────────────────────────────────────────────────────────── */
