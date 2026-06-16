@@ -377,6 +377,17 @@ export default function CalendarPage() {
           </button>
           <button
             type="button"
+            data-action="print-calendar"
+            onClick={() => {
+              if (typeof window !== 'undefined') window.print();
+            }}
+            aria-label="Print calendar"
+            title="Print this view"
+          >
+            🖨
+          </button>
+          <button
+            type="button"
             data-action="toggle-cheat-sheet"
             data-current={showCheatSheet ? 'true' : undefined}
             onClick={() => setShowCheatSheet((v) => !v)}

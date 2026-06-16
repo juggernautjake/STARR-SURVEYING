@@ -221,6 +221,43 @@ Full suite after P4: 8525 green (+18).
   on Esc / click outside / `?`.
 - Source-locked: button presence, key handler, modal contents.
 
+**P5 shipped 2026-06-16** — print stylesheet + Print button.
+- `app/admin/calendar/page.tsx`:
+  - 🖨 Print button in the nav row (`data-action="print-calendar"`,
+    `aria-label="Print calendar"`). Calls `window.print()` guarded
+    against SSR (`typeof window !== 'undefined'`).
+- `app/admin/styles/Calendar.css`:
+  - `@media print` block hides every on-screen-only surface
+    (`.calendar-page__nav`, `.calendar-page__legend`,
+    `.calendar-page__loading-chip`,
+    `.calendar-page__cheat-sheet-backdrop`,
+    `.calendar-page__empty`) + the admin chrome
+    (`.admin-sidebar`, `.admin-topbar`).
+  - Page reset: white background, black text, 11pt body type,
+    0.5cm padding, header underlined, title at 18pt.
+  - Month grid: 2.4cm minimum row height, page-break-inside:
+    avoid on each cell so a week never splits across pages.
+  - Surrounding-month days fade to #999 so the focus month
+    reads on paper.
+  - Event pills keep their `--phase-color` left border so color
+    survives the printout; greyscale prints just see a darker
+    left edge but still parse by phase.
+  - Timed-event pills get a 1px black border for legibility.
+  - `@page { margin: 1cm }` so the grid breathes on letter/A4.
+  - Big-screen mode rules reset to printable white-on-black
+    (no host-page gradient artefacts).
+  - Every animation + transition paused with
+    `*, *::before, *::after { animation-duration: 0s !important
+    }` so the printer snapshots stable layout.
+- Source-locked by `__tests__/calendar/p5-print-stylesheet.test.ts`
+  (12 assertions: button ARIA + SSR-guarded handler, @media
+  print declaration, full hide list for on-screen surfaces,
+  admin chrome hide, page reset, page-break contract, phase-
+  color border preservation, animation pause, @page margins,
+  big-screen reset, surrounding-month fade).
+
+Full suite after P5: 8537 green (+12).
+
 ### P5 — Print stylesheet
 - `@media print` block: hide the nav row, hide the legend, expand
   cells to full grid height, force black-on-white text, keep phase

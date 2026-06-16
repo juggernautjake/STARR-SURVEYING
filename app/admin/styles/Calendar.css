@@ -254,6 +254,138 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P5 — print stylesheet. Daddy hits the 🖨
+ * button → window.print() → the browser's print dialog. The rules
+ * below strip everything that's only useful on-screen (nav, legend,
+ * cheat sheet, loading chip, fullscreen-only animations) and tune
+ * the grid for paper:
+ *   - black on white text
+ *   - keep phase-color accent strips (color comes through on a
+ *     color printer; greys readably on black-and-white)
+ *   - allow page breaks BETWEEN week rows so a busy month still
+ *     fits on letter-size paper
+ *   - landscape friendly: print at 100% width + ~ landscape ratio
+ * ─────────────────────────────────────────────────────────────────── */
+
+@media print {
+  /* Hide every interactive surface — printed paper can't tap. */
+  .calendar-page__nav,
+  .calendar-page__legend,
+  .calendar-page__loading-chip,
+  .calendar-page__cheat-sheet-backdrop,
+  .calendar-page__empty {
+    display: none !important;
+  }
+
+  /* Hide the admin sidebar + topbar — they're chrome that paper
+   * doesn't need. Selectors mirror app/admin/styles/AdminLayout.css. */
+  .admin-sidebar,
+  .admin-topbar {
+    display: none !important;
+  }
+  .admin-layout__content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Page-level reset for paper. */
+  .calendar-page {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    padding: 0.5cm !important;
+    font-size: 11pt;
+  }
+  .calendar-page__header {
+    display: block !important;
+    border-bottom: 1px solid #000000;
+    padding-bottom: 0.25cm;
+    margin-bottom: 0.5cm;
+  }
+  .calendar-page__title {
+    color: #000000 !important;
+    font-size: 18pt;
+    margin: 0;
+  }
+
+  /* Month grid — fluid rows so a busy month still fits. Allow a
+   * page break BETWEEN week rows; never INSIDE a week. */
+  .calendar-month__grid {
+    grid-auto-rows: minmax(2.4cm, auto);
+    gap: 1pt;
+    animation: none !important; /* no shimmer/fade in print */
+  }
+  .calendar-month__cell {
+    border: 1px solid #000000 !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    outline: none !important;
+    animation: none !important;
+  }
+  .calendar-month__cell[data-in-month='false'] {
+    /* Surrounding-month days — print them faded so the focus is
+     * obvious without losing the visual grid. */
+    color: #999999 !important;
+    background: #FAFAFA !important;
+  }
+  .calendar-month__cell-num {
+    color: #000000 !important;
+  }
+  .calendar-month__weekday {
+    color: #000000 !important;
+  }
+
+  /* Events keep their phase-color left border so the color-coding
+   * survives a color printout; greyscale prints just see a darker
+   * left edge but still read by phase shape. */
+  .calendar-event {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    border-left: 3px solid var(--phase-color, #000000) !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+  }
+  .calendar-event__time,
+  .calendar-event__title {
+    color: #000000 !important;
+  }
+
+  /* Week + day timed-event pills — give them a thin black border so
+   * they read on paper. */
+  .calendar-event--timed {
+    background: #FFFFFF !important;
+    border: 1px solid #000000 !important;
+    border-left-width: 3px !important;
+  }
+
+  /* Force landscape for the month view so a 6×7 grid actually
+   * fits. Week + day views look better portrait, so don't lock. */
+  .calendar-page[data-view='month'] {
+    /* @page is the print spec'd way to set page orientation. */
+  }
+  @page {
+    margin: 1cm;
+  }
+
+  /* Big-screen / display-mode chrome is irrelevant on paper. */
+  .calendar-page[data-display-mode='big-screen'] {
+    background: #FFFFFF !important;
+    padding: 0.5cm !important;
+    font-size: 11pt;
+  }
+
+  /* Pause every animation so the snapshot the printer sees is
+   * stable. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-polish Slice P4 — keyboard shortcuts cheat sheet. Modal
  * sits on top of the calendar with a brand-navy-tinted backdrop;
  * click-outside / Esc / `?` all close it (handled in the React layer
