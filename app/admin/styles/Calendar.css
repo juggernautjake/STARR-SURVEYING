@@ -176,6 +176,120 @@
   text-overflow: ellipsis;
 }
 
+/* ───────────────────────────────────────────────────────────────────
+ * job-calendar Slice C4 — per-job phase scheduler panel inside
+ * /admin/jobs/[id]. Lives alongside the calendar styles because the
+ * scheduler and the calendar share the phase-color contract.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.job-phase-scheduler {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.job-phase-scheduler__intro h3 {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  color: var(--color-text-primary);
+}
+.job-phase-scheduler__intro p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+.job-phase-scheduler__error {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+.job-phase-scheduler__section {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid #6B7280;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+.job-phase-scheduler__section[data-phase='research']             { border-left-color: #0D9488; }
+.job-phase-scheduler__section[data-phase='field_work']           { border-left-color: #D97706; }
+.job-phase-scheduler__section[data-phase='drawing_deliverables'] { border-left-color: #7C3AED; }
+
+.job-phase-scheduler__section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-2);
+}
+.job-phase-scheduler__section-header h4 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+.job-phase-scheduler__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+.job-phase-scheduler__scheduled ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.job-phase-scheduler__scheduled li {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+.job-phase-scheduler__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.job-phase-scheduler__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+.job-phase-scheduler__form input {
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  min-height: 36px;
+}
+.job-phase-scheduler__form input:focus {
+  outline: var(--border-focus);
+  outline-offset: 2px;
+  border-color: var(--color-brand-navy);
+}
+.job-phase-scheduler__form button {
+  align-self: flex-start;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  border: 1px solid var(--color-brand-navy);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  min-height: 40px;
+  cursor: pointer;
+}
+.job-phase-scheduler__form button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* Phone — month grid is too dense on a small screen. Use a stacked
  * day-list instead. Cells become full-width rows. */
 @media (max-width: 768px) {

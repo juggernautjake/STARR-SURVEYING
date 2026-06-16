@@ -166,6 +166,36 @@ Third slice.
 - Year + month picker dropdowns for fast jumps from any view (esp. useful
   on the touchscreen wall TV)
 
+**C4 shipped 2026-06-16** — per-job phase scheduler.
+- `lib/calendar/phase-event.ts` — pure helpers: `PHASES`,
+  `PHASE_TITLE_PREFIX`, `buildPhaseEventRow` (single day),
+  `buildPhaseEventRowsForDays` (multi-day fan-out),
+  `validatePhaseDraft` (input guard returning a clear message
+  string or null).
+- `app/admin/jobs/[id]/JobPhaseScheduler.tsx` — the panel. Three
+  sections (Research / Field Work / Drawing & Deliverables) each
+  with: already-scheduled list (deletable), day-input
+  (comma/space separated), assignee email, Schedule button.
+  POSTs sequentially through the existing `/api/admin/schedule`
+  endpoint and skips `schedule_conflict` 409s gracefully so a
+  single overlap doesn't lose the rest of the work. Links the
+  intro text at "the org calendar" to `/admin/calendar`.
+- `app/admin/jobs/[id]/page.tsx` — `Schedule` tab added between
+  Overview + Research (icon 🗓️). Active-tab block renders
+  `<JobPhaseScheduler jobId jobName jobAddress selfEmail />`.
+- `app/admin/styles/Calendar.css` — scheduler styling appended.
+  Per-phase left-border accent (`research` teal, `field_work`
+  amber, `drawing_deliverables` violet) keyed off `data-phase`.
+  Inputs honor the brand-navy focus ring + canonical tokens.
+- Source-locked by
+  `__tests__/calendar/c4-phase-scheduler.test.ts` (30 assertions:
+  PHASES contract, mapper invariants per phase, all-day default,
+  override paths, multi-day fan-out, validator branches, panel
+  wiring (data-action / testIDs / loading-empty-error states),
+  job page tab insertion).
+
+Full suite after C4: 8358 green (+30).
+
 ### C4 — Per-job 3-phase scheduler
 Fourth slice. The piece daddy actually drives.
 

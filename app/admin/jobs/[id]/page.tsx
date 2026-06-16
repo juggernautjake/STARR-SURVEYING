@@ -15,6 +15,7 @@ import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
 import InlineEditField from '../../components/jobs/InlineEditField';
 import JobActivityFeed from '../../components/jobs/JobActivityFeed';
 import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
+import JobPhaseScheduler from './JobPhaseScheduler';
 // contacts plan Slice 6 (2026-05-30) — job ↔ contact linking.
 import LinkContactDialog from '../../components/jobs/LinkContactDialog';
 import { JOB_CONTACT_ROLES } from '@/lib/contacts/labels';
@@ -72,6 +73,7 @@ interface Job {
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📋', tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
+  { key: 'schedule', label: 'Schedule', icon: '🗓️', tip: 'Pick day(s) for the three job phases — Research, Field Work, Drawing & Deliverables. Each pick lands on the org-wide calendar at /admin/calendar and fires day-before + day-of reminders to the assignee.' },
   { key: 'research', label: 'Research', icon: '🔍', tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
   { key: 'cad', label: 'CAD', icon: '📐', tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
   { key: 'fieldwork', label: 'Field Work', icon: '🏗️', tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
@@ -747,6 +749,15 @@ export default function JobDetailPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'schedule' && (
+          <JobPhaseScheduler
+            jobId={jobId}
+            jobName={job.name}
+            jobAddress={job.address ?? null}
+            selfEmail={session?.user?.email ?? ''}
+          />
         )}
 
         {activeTab === 'research' && (
