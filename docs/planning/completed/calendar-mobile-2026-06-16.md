@@ -229,6 +229,33 @@ Full suite after M4: 8589 green (+14).
 - All-day strip becomes a horizontally scrollable chip list when it
   overflows.
 
+**M5 shipped 2026-06-16** — cheat sheet mobile sizing.
+- `app/admin/styles/Calendar.css` `@media (max-width: 768px)`:
+  - `.calendar-page__cheat-sheet-backdrop`: `padding: 0` +
+    `align-items: stretch` so the modal can fill the screen
+    edge-to-edge.
+  - `.calendar-page__cheat-sheet`: `width: 100%`,
+    `max-height: none`, `min-height: 100%`, `border-radius: 0`.
+    Modal becomes a full-screen sheet on phone.
+  - `padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px))`
+    so iOS home-bar phones don't tuck content behind the home
+    indicator.
+  - `padding-top: calc(var(--space-5) + env(safe-area-inset-top, 0px))`
+    so the iOS Dynamic Island / notch is honored in landscape.
+  - `.calendar-page__cheat-sheet-header button` bumped to 44×44
+    pt (Apple HIG, up from desktop 32 px).
+  - List row gap widens to `var(--space-3) var(--space-4)` for
+    thumb breathing room.
+  - `<kbd>` chips get `min-width: 32px` + `font-size: var(--text-sm)`
+    so keycaps stay legible at arm's length.
+- Source-locked by
+  `__tests__/calendar/m5-cheat-sheet-phone.test.ts` (7
+  assertions: backdrop padding drop + stretch, full-screen
+  modal sizing, safe-area-inset-bottom + safe-area-inset-top,
+  44×44 close button, list row gap, kbd chip readability bump).
+
+Full suite after M5: 8608 green (+7).
+
 ### M5 — Cheat sheet mobile sizing
 - Modal goes full-screen on phone (no backdrop padding).
 - Close button is 44pt × 44pt.
@@ -244,13 +271,22 @@ Full suite after M4: 8589 green (+14).
    rendering)
 5. **M5** — cheat sheet polish (small cleanup, low priority)
 
-## TL;DR
+## TL;DR — final state (2026-06-16)
 
 | Surface | Status |
 |---|---|
 | Calendar wiring + polish | **DONE** (prior plans) |
-| Mobile toolbar + 44pt targets | **MISSING → M1** |
-| Swipe gestures | **MISSING → M2** |
-| Week view phone optimization | **MISSING → M3** |
-| Day view phone polish | **MISSING → M4** |
-| Cheat sheet mobile sizing | **MISSING → M5** |
+| Mobile toolbar + 44pt targets | **SHIPPED — M1** |
+| Touch swipe gestures (prev / next) | **SHIPPED — M2** |
+| Week view phone (horizontal scroll-snap) | **SHIPPED — M3** |
+| Day view phone polish (sticky header, fat hours) | **SHIPPED — M4** |
+| Cheat sheet phone full-screen + safe-area | **SHIPPED — M5** |
+
+**Total slices shipped:** M1, M2, M4, M3, M5 = **5 slices, ~59
+source-lock assertions added, full suite went from 8549 → 8608
+green (+59 from this plan).**
+
+Every action item shipped — no deferrals. Desktop layout stays
+byte-identical (every change is gated behind
+`@media (max-width: 768px)` or the touch-only swipe handler).
+The doc moves to `docs/planning/completed/` in the same commit.

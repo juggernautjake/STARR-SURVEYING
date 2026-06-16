@@ -799,6 +799,51 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M5 — cheat sheet mobile sizing. The
+ * desktop modal is `min(440px, 100%)` wide + 80vh max-height. On
+ * a phone, fill the screen instead — backdrop padding drops to 0,
+ * inner panel goes full-width + full-height. Close button bumps to
+ * 44 × 44 pt (Apple HIG). Bottom inset respects the home indicator
+ * via env(safe-area-inset-bottom) so the panel doesn't tuck behind
+ * the iOS / Android system bar.
+ * ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .calendar-page__cheat-sheet-backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+  .calendar-page__cheat-sheet {
+    width: 100%;
+    max-height: none;
+    min-height: 100%;
+    border-radius: 0;
+    /* Respect the iOS home-bar inset so the panel content sits
+     * above the home indicator, not under it. */
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    /* Top inset too — covers the iOS Dynamic Island / notch on
+     * landscape orientations. */
+    padding-top: calc(var(--space-5) + env(safe-area-inset-top, 0px));
+  }
+  .calendar-page__cheat-sheet-header button {
+    /* Apple HIG 44pt minimum; up from desktop 32px. */
+    width: 44px;
+    height: 44px;
+    font-size: 1.2rem;
+  }
+  /* Bigger gap between the kbd column and the description column —
+   * a thumb's pixel target on the close button needs breathing room
+   * around the list rows too. */
+  .calendar-page__cheat-sheet-list {
+    gap: var(--space-3) var(--space-4);
+  }
+  .calendar-page__cheat-sheet-list kbd {
+    /* Slight bump so keycaps are legible at arm's length. */
+    min-width: 32px;
+    font-size: var(--text-sm);
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-polish Slice P3 — per-view empty states. Renders ABOVE
  * the grid as a friendly banner so the grid itself keeps its nav
  * affordance (date squares are still readable). Two flavours:
