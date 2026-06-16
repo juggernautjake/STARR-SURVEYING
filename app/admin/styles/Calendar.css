@@ -1149,9 +1149,19 @@
   font-size: var(--text-sm);
 }
 
-/* Phone — month grid is too dense on a small screen. Use a stacked
- * day-list instead. Cells become full-width rows. */
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M1 — phone toolbar + 44pt touch targets.
+ *
+ * Goal: reorganize the desktop toolbar (3-button view switcher + 2
+ * pickers + 3 nav buttons + 3 action buttons = 11 elements) into a
+ * layout that reads on a 320–390 px phone. Two stacked rows:
+ *   Row 1: title + view switcher
+ *   Row 2: prev / today / next + action buttons
+ * Plus the obligatory 44pt minimum on every interactive — Apple HIG
+ * + gloved hands in the field.
+ * ─────────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Month grid — stacked day-list. */
   .calendar-month__weekdays { display: none; }
   .calendar-month__grid {
     grid-template-columns: 1fr;
@@ -1167,5 +1177,69 @@
   }
   .calendar-month__events {
     overflow-y: visible;
+  }
+
+  /* Toolbar layout — title on row 1, nav on row 2. The header
+   * already wraps via `flex-wrap: wrap` on its parent; here we just
+   * force it to stack. */
+  .calendar-page__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .calendar-page__title {
+    font-size: var(--text-xl);
+  }
+  /* The title's inline wrapper (title + loading chip) goes left. */
+  .calendar-page__header > div:first-child {
+    align-items: baseline;
+  }
+  /* The nav row goes full-width with edge-anchored prev/next so the
+   * thumb naturally finds them. */
+  .calendar-page__nav {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    justify-content: space-between;
+  }
+  /* View switcher takes its own line above the nav buttons so they
+   * don't compete for thumb real estate. */
+  .calendar-page__view-switcher {
+    flex: 1 1 100%;
+    margin-right: 0;
+    margin-bottom: var(--space-1);
+    justify-content: stretch;
+  }
+  .calendar-page__view-switcher button {
+    flex: 1;
+    min-height: 44px;
+  }
+  /* Drop the month + year pickers on phone — prev/next is the
+   * better gesture on small screens; pickers stay on desktop. */
+  .calendar-page__nav select {
+    display: none;
+  }
+  /* Every other nav button hits 44pt min so a gloved finger works. */
+  .calendar-page__nav button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+  }
+  /* Prev / today / next anchor at the edges so a thumb on either
+   * side hits them without aiming. */
+  .calendar-page__nav button[data-action$='-month'],
+  .calendar-page__nav button[data-action$='-week'],
+  .calendar-page__nav button[data-action$='-day'],
+  .calendar-page__nav button[data-action='today'] {
+    flex: 1 1 auto;
+  }
+  /* The trailing action triplet (fullscreen + print + ?) collapses
+   * into icon-only square buttons — emoji icons stay readable. */
+  .calendar-page__nav button[data-action='toggle-fullscreen'],
+  .calendar-page__nav button[data-action='print-calendar'],
+  .calendar-page__nav button[data-action='toggle-cheat-sheet'] {
+    flex: 0 0 44px;
+    padding: 0;
   }
 }
