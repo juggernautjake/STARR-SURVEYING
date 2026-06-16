@@ -95,6 +95,18 @@
   --color-info:       #3B82F6;
   --color-info-bg:    #EFF6FF;
 
+  /* ── Job-phase colors (job-calendar Slice G1) ───────────────────────
+   * The org calendar at /admin/calendar paints each scheduled phase
+   * with an accent color so daddy can sort an at-a-glance week by
+   * phase without reading labels. KEEP IN SYNC with PHASE_COLORS in
+   * lib/calendar/month-grid.ts; that map is the React-side source of
+   * truth (it has to be a JS object so React inline style works), the
+   * CSS vars here exist so stylesheets can reach for the same values
+   * without re-typing the hex. Source-locked in the G1 test. */
+  --color-phase-research:              #0D9488;  /* teal — analytical */
+  --color-phase-field-work:            #D97706;  /* amber — outdoors */
+  --color-phase-drawing-deliverables:  #7C3AED;  /* violet — drafting */
+
   /* ── Form element heights (KEEP IN SYNC across input/button/select) ─ */
   --input-height:        40px;
   --button-height:       40px;

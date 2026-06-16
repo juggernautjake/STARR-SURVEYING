@@ -83,6 +83,11 @@ export default function CalendarPage() {
   const [focus, setFocus] = useState<Date>(() => new Date());
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  // Slice G1 — per-phase visibility filter. Stored as a Set of
+  // event_type values that are currently HIDDEN; click a legend chip
+  // to toggle. Local state on purpose; the wall-TV use case doesn't
+  // need URL persistence (and a hidden phase is the rare path).
+  const [hiddenPhases, setHiddenPhases] = useState<Set<string>>(() => new Set());
 
   // Slice C3 — fullscreen / big-screen mode. The page calls
   // requestFullscreen() on its root; the browser hides everything
@@ -102,7 +107,19 @@ export default function CalendarPage() {
   );
   const weekCells = useMemo(() => buildWeekCells(focus), [focus]);
   const dayCell = useMemo(() => buildDayCell(focus), [focus]);
-  const eventsByDay = useMemo(() => groupEventsByDay(events), [events]);
+  const visibleEvents = useMemo(
+    () => (hiddenPhases.size === 0 ? events : events.filter((e) => !hiddenPhases.has(e.event_type))),
+    [events, hiddenPhases],
+  );
+  const eventsByDay = useMemo(() => groupEventsByDay(visibleEvents), [visibleEvents]);
+  const togglePhase = useCallback((phase: string) => {
+    setHiddenPhases((prev) => {
+      const next = new Set(prev);
+      if (next.has(phase)) next.delete(phase);
+      else next.add(phase);
+      return next;
+    });
+  }, []);
 
   const setView = useCallback(
     (next: CalendarView) => {
@@ -314,6 +331,36 @@ export default function CalendarPage() {
             {isFullscreen ? '⤡' : '⛶'}
           </button>
         </div>
+      </div>
+
+      <div
+        className="calendar-page__legend"
+        role="group"
+        aria-label="Phase visibility"
+        data-testid="calendar-legend"
+      >
+        {(['research', 'field_work', 'drawing_deliverables'] as const).map((phase) => {
+          const hidden = hiddenPhases.has(phase);
+          return (
+            <button
+              key={phase}
+              type="button"
+              className="calendar-page__legend-chip"
+              data-phase={phase}
+              data-action={`toggle-phase-${phase}`}
+              data-hidden={hidden ? 'true' : undefined}
+              onClick={() => togglePhase(phase)}
+              title={hidden ? `Show ${PHASE_LABELS[phase]}` : `Hide ${PHASE_LABELS[phase]}`}
+            >
+              <span
+                className="calendar-page__legend-swatch"
+                style={{ background: PHASE_COLORS[phase] }}
+                aria-hidden
+              />
+              <span>{PHASE_LABELS[phase]}</span>
+            </button>
+          );
+        })}
       </div>
 
       {view === 'month' && renderMonth()}

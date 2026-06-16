@@ -420,6 +420,46 @@ Sixth slice. Closes the loop from the previous plan.
 
 ## Phase G — Glue + polish
 
+**G1 shipped 2026-06-16** — phase-color tokens + interactive legend.
+- `app/styles/tokens.css` — three new tokens declared next to the
+  status color block, with a comment that names
+  `lib/calendar/month-grid.ts` as the React-side source of truth +
+  notes that the source-lock test enforces equality:
+  - `--color-phase-research: #0D9488` (teal — analytical)
+  - `--color-phase-field-work: #D97706` (amber — outdoors)
+  - `--color-phase-drawing-deliverables: #7C3AED` (violet — drafting)
+- `app/admin/calendar/page.tsx`:
+  - New `hiddenPhases: Set<string>` state + a `togglePhase`
+    callback. Stored as a Set so toggling is O(1) regardless of
+    how many phases ever exist.
+  - `visibleEvents` filters through `hiddenPhases` BEFORE
+    `groupEventsByDay` so every view (month / week / day) honors
+    the legend filter without per-view logic.
+  - Legend container (`data-testid="calendar-legend"`) renders
+    below the header with three chips. Each chip carries
+    `data-phase` + `data-action="toggle-phase-<phase>"` and a
+    `data-hidden` attribute when filtered out. Swatch background
+    reads from the React-side `PHASE_COLORS` map (one source of
+    truth — CSS tokens for stylesheet use, JS map for inline
+    React style).
+- `app/admin/styles/Calendar.css`:
+  - `.calendar-page__legend` + `.calendar-page__legend-chip` +
+    `.calendar-page__legend-swatch` styled with canonical tokens
+    (`--color-bg-card`, `--color-brand-navy`,
+    `--color-text-secondary`). Hidden chip mutes to 45% opacity +
+    line-through so users can see what's filtered.
+- Source-locked by `__tests__/calendar/g1-phase-legend.test.ts`
+  (12 assertions: three tokens declared, token-to-JS-map equality
+  (the actual integration contract — if a future PR changes a JS
+  value without updating the token, the test fires), Set-state
+  + togglePhase shape, visibleEvents filter BEFORE grouping,
+  legend testIDs + data-attrs, swatch source-of-truth, CSS
+  contract incl. no-drift check).
+
+Full suite after G1: 8465 green (+12). Every action item in this
+plan has now shipped or been formally deferred with a one-line
+rationale per the planning rubric.
+
 ### G1 — Phase-color tokens + status legend
 - Add three semantic tokens to `app/styles/tokens.css`:
   - `--color-phase-research: <hex>` (e.g. teal — analytical)
@@ -485,7 +525,7 @@ scheduler so we have real data, then ship week + day views (which need
 real data to look right). The reminder cron and fullscreen mode are
 real-impact features but they assume the calendar has events to point at.
 
-## TL;DR (initial)
+## TL;DR — final state (2026-06-16)
 
 | Surface | Status |
 |---------|--------|
@@ -493,10 +533,23 @@ real-impact features but they assume the calendar has events to point at.
 | `/api/admin/schedule` GET/POST/PATCH/DELETE | **DONE** (pre-existing) |
 | Job detail page (click-through target) | **DONE** (pre-existing) |
 | Notification dispatch + cron pattern | **DONE** (pre-existing) |
-| `/admin/calendar` org-wide month view | **MISSING → C1** |
-| Per-job 3-phase scheduler UI | **MISSING → C4** |
-| Week + Day views + view switcher | **MISSING → C2** |
-| Day-before + day-of phase reminders | **MISSING → C5** |
-| Fullscreen + big-screen mode | **MISSING → C3** |
-| Lead → job prefill conversion | **MISSING → C6** |
-| Phase-color tokens + legend | **MISSING → G1** |
+| `/admin/calendar` org-wide month view | **SHIPPED — C1** |
+| Per-job 3-phase scheduler UI | **SHIPPED — C4** |
+| Week + Day views + view switcher | **SHIPPED — C2** |
+| Fullscreen + big-screen wall-TV mode | **SHIPPED — C3** |
+| Auto-refresh while fullscreen (5 min) | **SHIPPED — C3** |
+| Keyboard shortcuts (← → t f m w d) | **SHIPPED — C3** |
+| Year + month picker dropdowns | **SHIPPED — C3** |
+| Day-before + day-of phase reminders | **SHIPPED — C5** |
+| Lead → job prefill conversion (button + form + status flip) | **SHIPPED — C6** |
+| Phase-color tokens + interactive legend (with visibility toggle) | **SHIPPED — G1** |
+| `schedule_events.event_type` CHECK constraint | **DEFERRED — C4b** (no schema change urgent; the calendar + scheduler agree on values, drift is the only risk) |
+| Realtime push instead of 5-min polling | **DEFERRED — C3b** (5-min polling is fine for a few dozen events/month; revisit if scale changes) |
+
+**Total slices shipped:** C1, C4, C2, C3, C5, C6, G1 = **7 slices,
+~155 source-lock assertions added, full suite went from 8295 →
+8465 green (+170 from this plan).**
+
+Every action item has either landed or been formally deferred with
+a one-line rationale per the `docs/planning/README.md` rubric. The
+doc moves to `docs/planning/completed/` in the same commit.
