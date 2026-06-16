@@ -254,6 +254,53 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M2 — swipe gesture edge-ghost indicators.
+ * The React side flips opacity via inline style as the user drags;
+ * the CSS provides position, size, and the visual treatment. Only
+ * visible on phone-width screens; desktop never shows them because
+ * the swipe handler skips mouse pointer types.
+ * ─────────────────────────────────────────────────────────────────── */
+.calendar-page__swipe-ghost {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 56px;
+  display: none; /* desktop: hidden */
+  align-items: center;
+  justify-content: center;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  border-radius: 999px;
+  font-size: 1.6rem;
+  z-index: 90;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+  box-shadow: 0 6px 18px -4px rgba(15, 20, 25, 0.25);
+}
+.calendar-page__swipe-ghost--left  { left: 16px; }
+.calendar-page__swipe-ghost--right { right: 16px; }
+
+@media (max-width: 768px) {
+  .calendar-page__swipe-ghost {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page__swipe-ghost {
+    transition: none;
+  }
+}
+
+/* Print never shows the gesture ghosts. */
+@media print {
+  .calendar-page__swipe-ghost {
+    display: none !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-polish Slice P6 — wall-TV refresh indicator. The big-
  * screen mode auto-refreshes every 5 min; without a visible signal,
  * a viewer can't tell if the calendar is live or frozen on stale

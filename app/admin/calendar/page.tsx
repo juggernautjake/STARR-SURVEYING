@@ -97,6 +97,11 @@ export default function CalendarPage() {
   // or a view-change refetch). Drives a small corner dot that
   // glows for ~1s so a viewer can see the calendar is alive.
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  // Slice M2 — touch swipe gesture. swipeDx tracks the current
+  // horizontal drag delta (in px). Positive = dragging right
+  // (toward "back in time"); negative = left (forward). Drives the
+  // edge ghost indicators that fade in when the user is mid-drag.
+  const [swipeDx, setSwipeDx] = useState<number>(0);
 
   // Slice C3 — fullscreen / big-screen mode. The page calls
   // requestFullscreen() on its root; the browser hides everything
@@ -258,6 +263,77 @@ export default function CalendarPage() {
     return () => clearInterval(id);
   }, [isFullscreen, isAdminUser, load]);
 
+  // Slice M2 — touch swipe gesture. Pointer-event based so it works
+  // for touch + pen but explicitly skips mouse so the desktop
+  // experience is unchanged. Threshold: ≥50 px horizontal, <300 ms
+  // duration, |dy| < |dx| so vertical scrolling isn't hijacked.
+  // Right swipe → goPrev; left swipe → goNext.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    let start: { x: number; y: number; t: number } | null = null;
+    const SWIPE_THRESHOLD_PX = 50;
+    const SWIPE_MAX_MS = 300;
+    const GHOST_REVEAL_PX = 20;
+
+    const isInteractive = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element)) return false;
+      return !!target.closest('button, a, input, select, textarea, [role="dialog"]');
+    };
+
+    const onDown = (e: PointerEvent) => {
+      // Mouse stays out — text selection + the existing drag UX
+      // already work on desktop.
+      if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+      // Don't kick off a swipe when the user is tapping an event
+      // pill or a button — those already handle their own clicks.
+      if (isInteractive(e.target)) return;
+      start = { x: e.clientX, y: e.clientY, t: Date.now() };
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      // Only render the ghost preview once the motion is clearly
+      // horizontal — protects the vertical scroll from feeling
+      // sticky.
+      if (Math.abs(dx) > GHOST_REVEAL_PX && Math.abs(dx) > Math.abs(dy)) {
+        setSwipeDx(dx);
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      const dt = Date.now() - start.t;
+      start = null;
+      setSwipeDx(0);
+      if (
+        Math.abs(dx) >= SWIPE_THRESHOLD_PX &&
+        Math.abs(dx) > Math.abs(dy) &&
+        dt < SWIPE_MAX_MS
+      ) {
+        if (dx < 0) goNext();
+        else goPrev();
+      }
+    };
+    const onCancel = () => {
+      start = null;
+      setSwipeDx(0);
+    };
+
+    root.addEventListener('pointerdown', onDown);
+    root.addEventListener('pointermove', onMove);
+    root.addEventListener('pointerup', onUp);
+    root.addEventListener('pointercancel', onCancel);
+    return () => {
+      root.removeEventListener('pointerdown', onDown);
+      root.removeEventListener('pointermove', onMove);
+      root.removeEventListener('pointerup', onUp);
+      root.removeEventListener('pointercancel', onCancel);
+    };
+  }, [goPrev, goNext]);
+
   // Year picker — ±5 years around focus, expanded if the focus is
   // outside that window. Declared above the early returns so every
   // render path calls the same hook count (rules-of-hooks).
@@ -309,6 +385,28 @@ export default function CalendarPage() {
         data-testid="calendar-refresh-dot"
         aria-hidden
       />
+
+      {/* Slice M2 — edge ghost indicators for the swipe gesture.
+          Opacity ramps with the drag delta so the user gets visual
+          confirmation that the gesture is registering before they
+          commit. Position: fixed so they ride above the grid; the
+          CSS keeps them invisible on desktop. */}
+      <span
+        className="calendar-page__swipe-ghost calendar-page__swipe-ghost--left"
+        data-testid="calendar-swipe-ghost-left"
+        style={{ opacity: swipeDx > 20 ? Math.min(1, swipeDx / 100) : 0 }}
+        aria-hidden
+      >
+        ◀
+      </span>
+      <span
+        className="calendar-page__swipe-ghost calendar-page__swipe-ghost--right"
+        data-testid="calendar-swipe-ghost-right"
+        style={{ opacity: swipeDx < -20 ? Math.min(1, -swipeDx / 100) : 0 }}
+        aria-hidden
+      >
+        ▶
+      </span>
 
       <div className="calendar-page__header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>

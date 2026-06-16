@@ -87,6 +87,47 @@ Full suite after M1: 8557 green (+8).
   hand naturally reaches prev/next at the edges.
 - Title gets `font-size: var(--text-xl)` to fit comfortably.
 
+**M2 shipped 2026-06-16** — touch swipe gestures + edge ghost
+indicators.
+- `app/admin/calendar/page.tsx`:
+  - `swipeDx` state tracks horizontal drag delta in px.
+  - Pointer-event-based effect on the calendar root: pointerdown
+    records start (x, y, time); pointermove updates `swipeDx`
+    once motion clearly horizontal (>20 px AND |dx| > |dy|);
+    pointerup checks the threshold contract and fires
+    `goPrev()` (right swipe) or `goNext()` (left swipe).
+  - Constants: `SWIPE_THRESHOLD_PX = 50`, `SWIPE_MAX_MS = 300`,
+    `GHOST_REVEAL_PX = 20`.
+  - Skips mouse pointer types so desktop UX is unchanged.
+  - Skips gestures that start on a button / link / input /
+    select / textarea / dialog so nested interactives keep
+    their own click handling.
+  - Effect depends on `goPrev, goNext` so it rebinds when the
+    view changes (those callbacks close over `view`).
+  - Two edge-ghost spans (◀ / ▶) with stable testIDs +
+    `aria-hidden`. Opacity ramps via inline style based on
+    `swipeDx` direction + magnitude; ghost reveals once
+    `|swipeDx| > 20` and grows to full opacity at 100 px.
+- `app/admin/styles/Calendar.css`:
+  - `.calendar-page__swipe-ghost` is a 56 px brand-navy
+    circle, `position: fixed`, `pointer-events: none`.
+  - Desktop: `display: none` so the gesture stays invisible.
+  - Phone (`max-width: 768px`): `display: flex`.
+  - Reduced-motion: opacity transition disabled (still works,
+    just no fade).
+  - Print stylesheet hides the ghosts.
+- Source-locked by
+  `__tests__/calendar/m2-swipe-gestures.test.ts` (18
+  assertions: state declaration, all four pointer listeners,
+  mouse skip, interactive-target skip, threshold constants,
+  horizontal dominance contract, direction → goPrev/goNext
+  mapping, effect deps, ghost testIDs + aria-hidden, opacity
+  ramps in both directions, CSS position + brand fill +
+  desktop hide + phone show + pointer-events guard +
+  reduced-motion + print hide).
+
+Full suite after M2: 8575 green (+18).
+
 ### M2 — Swipe gestures
 - Pointer-event based swipe handler on the calendar root.
 - Threshold: 50 px horizontal travel + <300 ms duration + |dy| < dx.
