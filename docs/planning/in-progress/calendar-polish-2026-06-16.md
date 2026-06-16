@@ -130,6 +130,46 @@ Full suite after P2: 8492 green (+13).
 - Source-locked: `data-state='loading'` block with the shimmer
   classes.
 
+**P3 shipped 2026-06-16** — per-view empty states.
+- `app/admin/calendar/page.tsx`:
+  - Derives `noFetchedEvents` (window genuinely empty) +
+    `allEventsHidden` (legend filters hid everything) as
+    distinct conditions so the copy can match the cause.
+  - `emptyKind` discriminates between the two; `emptyMessage`
+    swaps the view word (month / week / day) in the no-events
+    case.
+  - Renders an empty-state banner ABOVE the grid (not in
+    place of it) so the grid keeps its navigation context;
+    a blank square otherwise reads as "broken".
+  - Banner is `role="status"` + `aria-live="polite"` for
+    screen readers + carries
+    `data-empty-kind={'no-events' | 'all-hidden'}` for the
+    CSS hook + `data-testid="calendar-empty-state"` for
+    source-locking.
+  - "Open a job → Schedule →" CTA renders only on the
+    no-events case (the all-hidden case is fixed by the
+    legend, not the jobs page) and carries
+    `data-action="open-jobs-from-empty"`.
+- `app/admin/styles/Calendar.css`:
+  - Banner uses canonical bg-subtle + brand-navy left
+    border. `[data-empty-kind='all-hidden']` flips the
+    border to amber/warning so the cause is visually
+    distinct from "no events".
+  - CTA inverts to brand-navy bg + on-brand text on hover.
+  - `@keyframes calendar-empty-fade-in` (200ms ease) so the
+    banner doesn't pop after a fetch completes.
+  - Phone breakpoint stacks the CTA below the message so
+    neither truncates.
+  - Reduced-motion fallback disables the fade.
+- Source-locked by `__tests__/calendar/p3-empty-states.test.ts`
+  (15 assertions: derivation logic, view-word swap, both copy
+  variants, banner placement above grid, accessibility,
+  conditional CTA, data-attrs, banner styling, kind-based
+  border flip, hover invert, keyframes, phone stack, reduced-
+  motion, no-drift token check).
+
+Full suite after P3: 8507 green (+15).
+
 ### P3 — Per-view empty states
 - Month view, no events: a friendly "📅 No scheduled phases this
   month. Open a job's Schedule tab to add some." with a link to the

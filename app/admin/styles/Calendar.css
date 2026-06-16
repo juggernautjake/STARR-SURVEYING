@@ -254,6 +254,82 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P3 — per-view empty states. Renders ABOVE
+ * the grid as a friendly banner so the grid itself keeps its nav
+ * affordance (date squares are still readable). Two flavours:
+ *   data-empty-kind='no-events'    — the fetch returned []
+ *   data-empty-kind='all-hidden'   — legend filters hid everything
+ * Different icon + copy + CTA per kind.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-page__empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid var(--color-brand-navy);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  /* Fade in so the banner doesn't pop after a fetch completes. */
+  animation: calendar-empty-fade-in 200ms ease both;
+}
+.calendar-page__empty[data-empty-kind='all-hidden'] {
+  border-left-color: var(--color-warning, #F59E0B);
+}
+.calendar-page__empty-icon {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+.calendar-page__empty-message {
+  flex: 1;
+  color: var(--color-text-primary);
+}
+.calendar-page__empty-cta {
+  color: var(--color-brand-navy);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-brand-navy);
+  background: var(--color-bg-card);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.calendar-page__empty-cta:hover {
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.calendar-page__empty-cta:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+
+@keyframes calendar-empty-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Phone — stack the CTA below the message so neither truncates. */
+@media (max-width: 768px) {
+  .calendar-page__empty {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .calendar-page__empty-cta {
+    align-self: stretch;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page__empty {
+    animation: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-polish Slice P2 — skeleton loader. While the page is
  * fetching a new month/week/day window, paint a soft shimmer ACROSS
  * the existing grid (rather than wipe events to blank) so the user

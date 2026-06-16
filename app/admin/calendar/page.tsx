@@ -112,6 +112,29 @@ export default function CalendarPage() {
     [events, hiddenPhases],
   );
   const eventsByDay = useMemo(() => groupEventsByDay(visibleEvents), [visibleEvents]);
+  // Slice P3 — derived empty states. Two distinct conditions need
+  // distinct copy: (1) the fetched window genuinely has no events,
+  // (2) the window had events but the legend hid all of them. A
+  // blank grid square reads as "broken" otherwise; the banner makes
+  // the empty intentional.
+  const noFetchedEvents = !loading && events.length === 0;
+  const allEventsHidden = !loading && events.length > 0 && visibleEvents.length === 0;
+  const emptyKind: 'no-events' | 'all-hidden' | null = noFetchedEvents
+    ? 'no-events'
+    : allEventsHidden
+    ? 'all-hidden'
+    : null;
+  const emptyMessage = useMemo(() => {
+    if (emptyKind === 'all-hidden') {
+      return 'All phases hidden by the legend filters. Tap a chip above to show events.';
+    }
+    if (emptyKind === 'no-events') {
+      const viewWord = view === 'month' ? 'month' : view === 'week' ? 'week' : 'day';
+      return `No scheduled phases this ${viewWord}.`;
+    }
+    return '';
+  }, [emptyKind, view]);
+
   const togglePhase = useCallback((phase: string) => {
     setHiddenPhases((prev) => {
       const next = new Set(prev);
@@ -376,6 +399,30 @@ export default function CalendarPage() {
           );
         })}
       </div>
+
+      {emptyKind && (
+        <div
+          className="calendar-page__empty"
+          data-testid="calendar-empty-state"
+          data-empty-kind={emptyKind}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="calendar-page__empty-icon" aria-hidden>
+            {emptyKind === 'all-hidden' ? '🙈' : '📅'}
+          </span>
+          <span className="calendar-page__empty-message">{emptyMessage}</span>
+          {emptyKind === 'no-events' && (
+            <Link
+              href="/admin/jobs"
+              className="calendar-page__empty-cta"
+              data-action="open-jobs-from-empty"
+            >
+              Open a job → Schedule →
+            </Link>
+          )}
+        </div>
+      )}
 
       {view === 'month' && renderMonth()}
       {view === 'week' && renderWeek()}
