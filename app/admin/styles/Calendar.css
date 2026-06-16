@@ -254,6 +254,111 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M4 — day view phone polish. Adds a sticky
+ * day header so the user keeps their orientation while scrolling the
+ * hour grid. The same header renders on desktop for visual parity
+ * but is only sticky on phone (sticky on desktop would compete with
+ * the page-level header).
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-day__day-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
+}
+.calendar-day__day-header-weekday {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.calendar-day__day-header-date {
+  font-size: var(--text-xl);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+}
+.calendar-day__day-header[data-today='true'] {
+  border-left: 4px solid var(--color-brand-navy);
+}
+.calendar-day__day-header[data-today='true'] .calendar-day__day-header-date {
+  color: var(--color-brand-navy);
+}
+.calendar-day__day-header-today-tag {
+  margin-left: auto;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+/* Phone tweaks for the day view — sticky header, fat hour rows,
+ * horizontally scrolling all-day strip when many chips. */
+@media (max-width: 768px) {
+  .calendar-day__day-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    /* Background needs to be opaque so events behind don't bleed
+     * through during scroll. */
+    background: var(--color-bg-card);
+    box-shadow: 0 1px 3px rgba(15, 20, 25, 0.06);
+    /* Wider date numeral on phone — clear hit / read at a glance. */
+  }
+  .calendar-day__day-header-date {
+    font-size: var(--text-2xl);
+  }
+
+  /* All-day strip — when there are several chips, allow horizontal
+   * scroll so a long list doesn't break the layout. */
+  .calendar-day__all-day .calendar-week__all-day-cell {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: var(--space-1);
+    padding: 4px;
+  }
+  .calendar-day__all-day .calendar-week__all-day-cell > * {
+    flex-shrink: 0;
+  }
+
+  /* Fat hour rows so a thumb can hit any 30-min event. The desktop
+   * grid uses `grid-auto-rows: 1fr` inside `.calendar-week__day-col`;
+   * on phone we set a fixed minimum so the column gets at least
+   * 3.5rem per hour even when the viewport is short. */
+  .calendar-day .calendar-week__day-col {
+    grid-auto-rows: minmax(3.5rem, 1fr);
+  }
+  .calendar-day .calendar-week__hour-gutter {
+    grid-auto-rows: minmax(3.5rem, 1fr);
+  }
+
+  /* The body grid on phone keeps its hour gutter + 1 day col
+   * structure but the hour-gutter shrinks to leave more room for
+   * the events. */
+  .calendar-day__body {
+    grid-template-columns: 3rem 1fr;
+  }
+}
+
+@media print {
+  .calendar-day__day-header {
+    position: static;
+    box-shadow: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-mobile Slice M2 — swipe gesture edge-ghost indicators.
  * The React side flips opacity via inline style as the user drags;
  * the CSS provides position, size, and the visual treatment. Only

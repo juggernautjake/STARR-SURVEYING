@@ -779,6 +779,23 @@ export default function CalendarPage() {
         data-testid="calendar-day-grid"
         data-loading={loading ? 'true' : undefined}
       >
+        {/* Slice M4 — sticky day header for phone scrolling. The page
+            header has the full label, but as soon as the user scrolls
+            down through the hour grid, they lose that context. The
+            sticky weekday + date keeps them oriented. */}
+        <div
+          className="calendar-day__day-header"
+          data-testid="calendar-day-header"
+          data-today={dayCell.isToday ? 'true' : undefined}
+        >
+          <span className="calendar-day__day-header-weekday">{dayCell.weekday}</span>
+          <strong className="calendar-day__day-header-date">{dayCell.day}</strong>
+          {dayCell.isToday && (
+            <span className="calendar-day__day-header-today-tag" aria-label="Today">
+              Today
+            </span>
+          )}
+        </div>
         <div className="calendar-day__all-day">
           <div className="calendar-week__hour-gutter" aria-hidden>All day</div>
           <div className="calendar-week__all-day-cell">

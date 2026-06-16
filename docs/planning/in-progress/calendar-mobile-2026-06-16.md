@@ -145,6 +145,41 @@ Full suite after M2: 8575 green (+18).
   3-day window to show.
 - Hour rows get bigger height (3rem each) so timed events have room.
 
+**M4 shipped 2026-06-16** — day view phone polish.
+- `app/admin/calendar/page.tsx` `renderDay()`:
+  - New `.calendar-day__day-header` block above the all-day
+    strip. Shows weekday (uppercased label), date numeral, and
+    a `Today` pill when `dayCell.isToday`. Stable testID
+    (`calendar-day-header`) + `data-today` attribute mirror
+    isToday for the styling hook.
+- `app/admin/styles/Calendar.css`:
+  - Header surface: card background, brand-navy left border +
+    brand-navy date when today, right-aligned brand-navy
+    "Today" pill.
+  - **Phone**:
+    - `position: sticky; top: 0` so the date stays visible
+      while the user scrolls the hour grid (the page title
+      scrolls out of view on a phone; this keeps orientation).
+    - Date numeral scales to `--text-2xl`.
+    - All-day cell flips to `flex-direction: row` with
+      `overflow-x: auto` + iOS momentum scroll so multiple
+      chips don't break the layout.
+    - Hour rows fatten to `minmax(3.5rem, 1fr)` on both the
+      day column AND the gutter — a thumb can reach a 30-min
+      event without zooming.
+    - Day body grid: hour gutter shrinks from 4 rem to 3 rem
+      so events get more horizontal room.
+  - Print: header reverts to `position: static` (no floating
+    on paper).
+- Source-locked by `__tests__/calendar/m4-day-view-phone.test.ts`
+  (14 assertions: header markup + testID, data-today + weekday
+  + date + Today pill, header CSS surface, today brand-navy
+  styling, pill on-brand colors, phone sticky position, phone
+  date scaling, phone fat hour rows, gutter shrink, all-day
+  row scroll, print reset, no-drift token check).
+
+Full suite after M4: 8589 green (+14).
+
 ### M4 — Day view phone polish
 - Sticky day header (weekday + date) at the top while scrolling.
 - 3.5rem hour rows on phone.
