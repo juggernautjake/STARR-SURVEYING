@@ -254,6 +254,90 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M3 — week view phone optimization.
+ *
+ * Desktop week view: 7 columns × hour rows, ~140 px per column.
+ * Phone (≤768 px): same 7 columns but each column takes 30vw so
+ * three days fill the viewport; the parent .calendar-week becomes
+ * a horizontal scroll-snap container so the user swipes between
+ * 3-day windows. Hour gutter sticks to the left so labels stay
+ * visible across the scroll. Hour rows fatten to 3 rem each so a
+ * timed event is thumb-tappable.
+ *
+ * Coupled with M2: the .calendar-week wrapper carries
+ * data-swipe-skip="true" so the page-level swipe gesture (which
+ * advances the focus by a full week) doesn't double-fire from
+ * inside the horizontal scroll.
+ * ─────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .calendar-week {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+  }
+  /* Each of the three inner sections — header, all-day strip, body
+   * — uses the same column template so they scroll together as the
+   * user pans. */
+  .calendar-week__header,
+  .calendar-week__all-day,
+  .calendar-week__body {
+    grid-template-columns: 4rem repeat(7, 30vw);
+    width: max-content;
+  }
+  /* Hour gutter is sticky-left so labels stay anchored across the
+   * scroll. Background opaque so day columns don't bleed through. */
+  .calendar-week__hour-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--color-bg-card);
+  }
+  /* Day columns snap to the start so the scroll naturally lands on
+   * day boundaries — no half-day windows. */
+  .calendar-week__day-header,
+  .calendar-week__day-col,
+  .calendar-week__all-day-cell {
+    scroll-snap-align: start;
+  }
+  /* Fat hour rows so a timed event renders thumb-tappable. */
+  .calendar-week__body {
+    grid-auto-rows: minmax(3rem, 1fr);
+  }
+  .calendar-week__day-col {
+    grid-auto-rows: minmax(3rem, 1fr);
+  }
+  .calendar-week__hour-gutter {
+    grid-auto-rows: minmax(3rem, 1fr);
+  }
+  /* Today's day column gets a brand-navy outline that survives the
+   * horizontal scroll (already declared on desktop; just ensure
+   * it's still visible inside the scrolling parent). */
+  .calendar-week__day-col[data-today='true'] {
+    outline-offset: -3px;
+  }
+}
+
+/* Print resets the horizontal scroll so the printout shows all 7
+ * days side-by-side as designed for paper. */
+@media print {
+  .calendar-week {
+    overflow-x: visible !important;
+  }
+  .calendar-week__header,
+  .calendar-week__all-day,
+  .calendar-week__body {
+    grid-template-columns: 4rem repeat(7, 1fr) !important;
+    width: auto !important;
+  }
+  .calendar-week__hour-gutter {
+    position: static !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
  * calendar-mobile Slice M4 — day view phone polish. Adds a sticky
  * day header so the user keeps their orientation while scrolling the
  * hour grid. The same header renders on desktop for visual parity

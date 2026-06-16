@@ -278,7 +278,11 @@ export default function CalendarPage() {
 
     const isInteractive = (target: EventTarget | null): boolean => {
       if (!(target instanceof Element)) return false;
-      return !!target.closest('button, a, input, select, textarea, [role="dialog"]');
+      // [data-swipe-skip] = the week view's horizontally scrolling
+      // body (Slice M3). Other entries are nested interactives.
+      return !!target.closest(
+        'button, a, input, select, textarea, [role="dialog"], [data-swipe-skip="true"]',
+      );
     };
 
     const onDown = (e: PointerEvent) => {
@@ -710,6 +714,12 @@ export default function CalendarPage() {
         className="calendar-week"
         data-testid="calendar-week-grid"
         data-loading={loading ? 'true' : undefined}
+        // Slice M3 — on phone this container scrolls horizontally
+        // between days; the M2 swipe gesture must NOT also fire from
+        // inside it, or every horizontal scroll would also advance
+        // the week. data-swipe-skip="true" tells the M2 handler to
+        // ignore touches that begin here.
+        data-swipe-skip="true"
       >
         <div className="calendar-week__header">
           <div className="calendar-week__hour-gutter" aria-hidden />

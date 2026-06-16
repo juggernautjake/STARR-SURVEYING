@@ -138,6 +138,49 @@ Full suite after M2: 8575 green (+18).
 - Respects `prefers-reduced-motion` (no edge-ghost animation; swipe
   still works).
 
+**M3 shipped 2026-06-16** — week view phone optimization via
+horizontal scroll-snap (replaced the planned "3-day window + day-
+pill nav" since horizontal scroll feels more native and reuses
+the existing 7-day data model).
+- `app/admin/calendar/page.tsx`:
+  - Week wrapper carries `data-swipe-skip="true"` so the M2
+    page-level swipe gesture doesn't double-fire when the user
+    scrolls horizontally inside the week body.
+  - M2's `isInteractive` skip list extended to include
+    `[data-swipe-skip="true"]` so any future surface can opt out
+    of the page-level swipe by adopting the same attribute.
+- `app/admin/styles/Calendar.css` `@media (max-width: 768px)`:
+  - `.calendar-week` becomes the horizontal scroll container:
+    `overflow-x: auto`, `scroll-snap-type: x mandatory`,
+    iOS momentum scroll.
+  - All three inner sections (`__header`, `__all-day`, `__body`)
+    share `grid-template-columns: 4rem repeat(7, 30vw)` so 3.3
+    days fit in the viewport at a time + the grid actually
+    overflows for scrolling (`width: max-content`). Sections
+    scroll together as siblings of the scroll parent.
+  - Hour gutter is `position: sticky; left: 0` with opaque
+    `--color-bg-card` background so labels stay anchored as
+    the user pans through days.
+  - Day headers + day columns + all-day cells get
+    `scroll-snap-align: start` so the scroll lands on day
+    boundaries (no half-day windows).
+  - Hour rows fatten to `minmax(3rem, 1fr)` on body, day col,
+    and gutter so a timed event is thumb-tappable.
+  - Today's day-col outline gets `outline-offset: -3px` so it
+    stays visible inside the scrolling parent.
+  - Print stylesheet resets the scroll: `overflow-x: visible`
+    on the wrapper, `grid-template-columns: 4rem repeat(7, 1fr)`
+    on the sections, and `position: static` on the hour
+    gutter so all 7 days print side-by-side as designed.
+- Source-locked by `__tests__/calendar/m3-week-view-phone.test.ts`
+  (12 assertions: data-swipe-skip on the wrapper, M2 selector
+  update, scroll-snap on .calendar-week, shared column template
+  with width: max-content, sticky hour gutter, scroll-snap-align
+  on day siblings, fat hour rows on body/day-col/gutter,
+  today-outline visibility fix, all three print resets).
+
+Full suite after M3: 8601 green (+12).
+
 ### M3 — Week view phone optimization
 - On phone, week view drops to a 3-day window centered on today (or
   on the focused day if not today).

@@ -32,9 +32,11 @@ describe('/admin/calendar/page.tsx — M2 swipe wiring', () => {
     );
   });
 
-  it('skips gestures that begin on a button / a / input / select / textarea / dialog', () => {
+  it('skips gestures that begin on a button / link / input / select / textarea / dialog / swipe-skip surface', () => {
+    // Slice M3 added [data-swipe-skip="true"] so the week view's
+    // horizontal scroll doesn't double-fire the prev/next swipe.
     expect(SRC).toMatch(
-      /target\.closest\('button, a, input, select, textarea, \[role="dialog"\]'\)/,
+      /target\.closest\(\s*\n\s*'button, a, input, select, textarea, \[role="dialog"\], \[data-swipe-skip="true"\]',\s*\n\s*\);/,
     );
   });
 
