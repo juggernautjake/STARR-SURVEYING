@@ -13,7 +13,7 @@
 
 import '../styles/AdminLayout.css';
 import '../styles/Calendar.css';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -38,6 +38,10 @@ import {
   weekWindow,
   type CalendarView,
 } from '@/lib/calendar/week-grid';
+
+// Slice C3 — module-scope so the effect's dependency array stays
+// honest. 5 minutes is a tradeoff between freshness and request load.
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 interface ScheduleEvent {
   id: string;
@@ -79,6 +83,15 @@ export default function CalendarPage() {
   const [focus, setFocus] = useState<Date>(() => new Date());
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Slice C3 — fullscreen / big-screen mode. The page calls
+  // requestFullscreen() on its root; the browser hides everything
+  // outside that root, including the admin sidebar + topbar. State is
+  // driven by the browser's `fullscreenchange` event so an Esc keypress
+  // out of fullscreen flips the React state back without us polling.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
 
   const year = focus.getFullYear();
   const monthZeroIdx = focus.getMonth();
@@ -122,9 +135,80 @@ export default function CalendarPage() {
     if (isAdminUser) void load();
   }, [isAdminUser, load]);
 
-  const goPrev = () => setFocus((f) => stepFocus(f, view, -1));
-  const goNext = () => setFocus((f) => stepFocus(f, view, 1));
-  const goToday = () => setFocus(new Date());
+  const goPrev = useCallback(() => setFocus((f) => stepFocus(f, view, -1)), [view]);
+  const goNext = useCallback(() => setFocus((f) => stepFocus(f, view, 1)), [view]);
+  const goToday = useCallback(() => setFocus(new Date()), []);
+
+  // Slice C3 — track browser fullscreen state. The browser fires
+  // `fullscreenchange` on enter / exit (incl. Esc); we just mirror it
+  // into React so the data-display-mode attribute + auto-refresh stay
+  // in lockstep with reality.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const handler = () => setIsFullscreen(document.fullscreenElement === rootRef.current);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (typeof document === 'undefined') return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {});
+    } else if (rootRef.current?.requestFullscreen) {
+      await rootRef.current.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  // Slice C3 — keyboard shortcuts. Active any time the calendar is
+  // mounted (not just when fullscreen) so a desktop power user gets
+  // the same bindings.
+  //   ← / →   prev / next
+  //   t       today
+  //   f       toggle fullscreen
+  //   m/w/d   month / week / day view
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      // Don't hijack typing inside an input / select.
+      if (target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      switch (e.key) {
+        case 'ArrowLeft':  goPrev(); e.preventDefault(); break;
+        case 'ArrowRight': goNext(); e.preventDefault(); break;
+        case 't': case 'T': goToday(); e.preventDefault(); break;
+        case 'f': case 'F': void toggleFullscreen(); e.preventDefault(); break;
+        case 'm': case 'M': setView('month'); e.preventDefault(); break;
+        case 'w': case 'W': setView('week'); e.preventDefault(); break;
+        case 'd': case 'D': setView('day'); e.preventDefault(); break;
+        default: break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [goPrev, goNext, goToday, toggleFullscreen, setView]);
+
+  // Slice C3 — auto-refresh while fullscreen. Reuses the `load`
+  // callback that already exists; it picks up the active focus + view.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const id = setInterval(() => {
+      if (isAdminUser) void load();
+    }, AUTO_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [isFullscreen, isAdminUser, load]);
+
+  // Year picker — ±5 years around focus, expanded if the focus is
+  // outside that window. Declared above the early returns so every
+  // render path calls the same hook count (rules-of-hooks).
+  const focusYear = focus.getFullYear();
+  const yearOptions = useMemo(() => {
+    const out: number[] = [];
+    const min = Math.min(focusYear - 5, focusYear);
+    const max = Math.max(focusYear + 5, focusYear);
+    for (let y = min; y <= max; y++) out.push(y);
+    return out;
+  }, [focusYear]);
 
   if (!session?.user) return null;
   if (!isAdminUser) {
@@ -137,11 +221,22 @@ export default function CalendarPage() {
 
   const navLabel = view === 'month' ? 'month' : view === 'week' ? 'week' : 'day';
 
+  const handleMonthPick = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const m = Number(e.target.value);
+    setFocus(new Date(focus.getFullYear(), m, Math.min(focus.getDate(), 28)));
+  };
+  const handleYearPick = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const y = Number(e.target.value);
+    setFocus(new Date(y, focus.getMonth(), Math.min(focus.getDate(), 28)));
+  };
+
   return (
     <div
+      ref={rootRef}
       className="calendar-page"
       data-testid="calendar-page"
       data-view={view}
+      data-display-mode={isFullscreen ? 'big-screen' : undefined}
     >
       <div className="calendar-page__header">
         <h2 className="calendar-page__title" data-testid="calendar-title">
@@ -165,6 +260,26 @@ export default function CalendarPage() {
               </button>
             ))}
           </div>
+          <select
+            data-testid="month-picker"
+            aria-label="Jump to month"
+            value={focus.getMonth()}
+            onChange={handleMonthPick}
+          >
+            {MONTH_NAMES.map((name, idx) => (
+              <option key={name} value={idx}>{name}</option>
+            ))}
+          </select>
+          <select
+            data-testid="year-picker"
+            aria-label="Jump to year"
+            value={focusYear}
+            onChange={handleYearPick}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
           <button
             type="button"
             data-action={`prev-${navLabel}`}
@@ -187,6 +302,16 @@ export default function CalendarPage() {
             aria-label={`Next ${navLabel}`}
           >
             →
+          </button>
+          <button
+            type="button"
+            data-action="toggle-fullscreen"
+            data-current={isFullscreen ? 'true' : undefined}
+            onClick={() => void toggleFullscreen()}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title="Fullscreen (F)"
+          >
+            {isFullscreen ? '⤡' : '⛶'}
           </button>
         </div>
       </div>

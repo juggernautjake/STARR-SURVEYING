@@ -445,6 +445,66 @@
   cursor: progress;
 }
 
+/* Year + month picker selects in the header. Same shape as the nav
+ * buttons so the toolbar visually rhymes. */
+.calendar-page__nav select {
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  min-height: 36px;
+  cursor: pointer;
+}
+.calendar-page__nav select:focus {
+  outline: var(--border-focus);
+  outline-offset: 2px;
+  border-color: var(--color-brand-navy);
+}
+.calendar-page__nav button[data-action='toggle-fullscreen'] {
+  font-size: 1.1rem;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * job-calendar Slice C3 — fullscreen / big-screen mode. The page calls
+ * requestFullscreen() on the calendar root; the browser already hides
+ * everything outside that root. The rules below scale the inner
+ * content for an 8-foot viewing distance:
+ *   - bump base font sizes via the page-level data-display-mode key
+ *   - expand padding on cells + event pills
+ *   - paint a solid background so a TV doesn't show the host page's
+ *     gradient through any z-fighting transparency
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-page[data-display-mode='big-screen'] {
+  background: var(--color-bg-app, #F9FAFB);
+  padding: var(--space-5);
+  font-size: 1.05rem;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-page__title {
+  font-size: 2.25rem;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-month__weekday {
+  font-size: var(--text-sm);
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-month__cell {
+  padding: var(--space-3);
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-month__cell-num {
+  font-size: var(--text-lg);
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-event {
+  font-size: var(--text-sm);
+  padding: 4px 8px;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-week__day-header strong {
+  font-size: 1.6rem;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-week__hour-label {
+  font-size: var(--text-sm);
+}
+
 /* Phone — month grid is too dense on a small screen. Use a stacked
  * day-list instead. Cells become full-width rows. */
 @media (max-width: 768px) {

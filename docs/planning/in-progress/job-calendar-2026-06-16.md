@@ -193,6 +193,46 @@ Second slice.
 - View-aware prev/next nav (month nav stays a month at a time; week nav
   jumps a week; day nav jumps a day)
 
+**C3 shipped 2026-06-16** — fullscreen + big-screen wall-TV mode.
+- `app/admin/calendar/page.tsx`:
+  - `rootRef` on the calendar root + `toggleFullscreen` calls
+    `requestFullscreen()` / `document.exitFullscreen()` on it.
+  - React state mirrors browser fullscreen via the
+    `fullscreenchange` event so an Esc-out flips state back without
+    polling.
+  - `data-display-mode="big-screen"` painted on the root only when
+    fullscreen (CSS keys on the attribute, never the React state).
+  - Auto-refresh: `setInterval` every 5 min (`AUTO_REFRESH_MS = 5
+    * 60 * 1000`, module-scope), STARTS only when fullscreen is
+    true, clears on unmount.
+  - Keyboard shortcuts globally registered on window: ←/→ prev/next,
+    `t` today, `f` fullscreen, `m`/`w`/`d` view switch. Shortcut
+    handler ignores keys while typing in INPUT / SELECT / TEXTAREA
+    so the month/year pickers + the future intake form stay
+    usable.
+  - Year picker (±5 years around focus, declared via useMemo above
+    the early returns to honor rules-of-hooks) + month picker
+    select dropdowns in the header for fast jumps. Stable testIDs
+    (`month-picker` / `year-picker`).
+  - Fullscreen toggle button (`data-action="toggle-fullscreen"`)
+    next to the nav buttons; flips icon ⛶ → ⤡ when active.
+- `app/admin/styles/Calendar.css`:
+  - Year/month picker select styling matches the nav buttons.
+  - `data-display-mode='big-screen'` rules scale the title to
+    2.25rem, bump cell padding to `--space-3`, increase event-pill
+    font + padding, and paint a solid `--color-bg-app` background
+    so a TV doesn't show host-page gradient artefacts. All other
+    chrome (sidebar, topbar) is already hidden by the browser's
+    own fullscreen API.
+- Source-locked by `__tests__/calendar/c3-fullscreen.test.ts` (21
+  assertions: ref + event listener + toggle, data-display-mode
+  contract, 5-min auto-refresh constant + interval guard, every
+  keyboard shortcut + input-target ignore, year/month picker
+  testIDs + window math + focus rebuild, CSS picker style + big-
+  screen scaling + canonical bg-app token).
+
+Full suite after C3: 8412 green (+21).
+
 ### C3 — Fullscreen + big-screen mode
 Third slice.
 
