@@ -1,0 +1,309 @@
+# Job calendar view — 2026-06-16
+
+> **Goal.** A first-class organisation calendar at `/admin/calendar` that
+> shows every scheduled-phase event for every job, in Month / Week / Day
+> view, with a fullscreen "big screen" mode the office can leave running
+> on a wall TV. Each scheduled item is a click-through link to the
+> corresponding `/admin/jobs/[id]` job-flow page.
+>
+> **Three phases get scheduled per job:**
+> - **Research** — daddy picks the day(s) when he'll do the research
+> - **Field Work** — daddy picks the day(s) when the crew will be on site
+> - **Drawing & Deliverables** — daddy picks the day(s) for drafting +
+>   legal review + delivery
+>
+> Each phase fires a day-before reminder + a day-of reminder to the
+> assignee. The lead → job conversion gets a polish pass so the new-job
+> form pre-fills from the lead row that the previous plan
+> (`mobile-and-customer-query-gap-2026-06-14`) wired up.
+
+## What already exists (don't rebuild)
+
+From the codebase survey (2026-06-16):
+
+- **Job detail page** at `/admin/jobs/[id]/page.tsx` — the click-through
+  target. 9 tabs, stage timeline. Already exists; calendar just deep-links
+  to it.
+- **`schedule_events` table** at `seeds/293_schedule_events.sql` — has
+  `id`, `title`, `event_type`, `start_time`, `end_time`, `all_day`,
+  `location`, `notes`, `job_id` (FK to jobs), `assigned_to`, `assigned_by`,
+  `color`. Already the right shape for per-phase scheduling — each
+  scheduled phase is one row with `job_id` set + an `event_type` of
+  `research` / `field_work` / `drawing_deliverables`.
+- **Schedule API** at `app/api/admin/schedule/route.ts` — already supports
+  GET (window-bounded) / POST / PATCH / DELETE on `schedule_events`. Calendar
+  reads from it.
+- **`SchedulePanel.tsx`** at `app/admin/schedule/SchedulePanel.tsx` —
+  embedded in `/admin/me?tab=schedule`, shows month + week of the active
+  user's events. We DON'T rebuild this. The new calendar lives at
+  `/admin/calendar` and shows EVERYONE's events for the office big-screen
+  use case.
+- **Cron pattern** — `app/api/cron/schedule-event-reminders/route.ts` +
+  `app/api/cron/drawing-due-reminder/route.ts` are working examples of
+  scheduled-notification fan-out via `notify()` / `notifyMany()`. The new
+  reminder cron reuses the pattern.
+- **Job stages** — quote → research → fieldwork → drawing → legal →
+  delivery → completed, already enforced. Each scheduled phase corresponds
+  to a stage; advancing through phases doesn't require new stages.
+- **Notifications** — `lib/notifications.ts` + the dispatch system the
+  previous plan wired for leads. The day-before/day-of reminders use the
+  same path.
+- **Leads infrastructure** — `lib/leads/intake.ts` + `/admin/leads` from
+  the previous plan. Calendar plan adds a "Convert to job" button on the
+  lead detail page that pre-fills the existing new-job form.
+
+## What needs to be built
+
+| Piece | Status | Slice |
+|---|---|---|
+| `/admin/calendar` route + page shell | MISSING | **C1** |
+| Month-view grid (year + month + day squares) | MISSING | **C1** |
+| Week-view grid (7 columns, hour rows) | MISSING | **C2** |
+| Day-view (single column, hour rows) | MISSING | **C2** |
+| View switcher (month / week / day) | MISSING | **C2** |
+| Per-day square: scrollable list of events when there are many | MISSING | **C1** |
+| Each event renders as a click-through link to `/admin/jobs/[id]` | MISSING | **C1** |
+| Fullscreen toggle + "TV-friendly" layout | MISSING | **C3** |
+| Navigation: prev/next month/week/day + "today" button | MISSING | **C1** |
+| Year picker + month picker (for fast jump) | MISSING | **C3** |
+| **Per-job 3-phase scheduler UI** on `/admin/jobs/[id]` | MISSING | **C4** |
+| **Phase-reminder cron** (day-before + day-of for each phase) | MISSING | **C5** |
+| **Lead → Job prefill conversion** (button on `/admin/leads/[id]`) | MISSING | **C6** |
+| Job-creation form prefill from leads (via `?fromLead=<id>` query) | MISSING | **C6** |
+
+## Constraints
+
+- **Don't duplicate the existing `SchedulePanel`.** The new `/admin/calendar`
+  is org-wide all-jobs; the existing panel stays as the "my events"
+  surface. Both read from the same `schedule_events` table — the new one
+  just doesn't filter by `assigned_to`.
+- **Reuse the design system contract** from
+  `docs/admin-styling-contract.md`. Calendar grid uses the canonical
+  `--color-brand-navy` / `--color-brand-red` / `--color-bg-card` tokens.
+  Phase-color mapping (research / field-work / drawing) gets three new
+  semantic tokens in `tokens.css`.
+- **Big-screen mode is fullscreen + auto-refresh.** A wall TV will be
+  open on this page all day; the page must:
+  - Re-fetch every 5 minutes silently
+  - Hide nav chrome
+  - Scale text + cell padding up so an 8-ft viewing distance still reads
+  - Honor `requestFullscreen()` so a single keystroke is enough
+- **Mobile responsiveness** stays — same breakpoints as
+  `docs/admin-styling-contract.md` (480 / 768 / 1023 / 1024+). The
+  big-screen mode is its own top-level layer; the regular page still
+  reads on a phone.
+
+## Phase C — Calendar surfaces
+
+**C1 shipped 2026-06-16** — month view + page shell at
+`/admin/calendar`.
+- `lib/calendar/month-grid.ts` — pure helpers: `buildMonthGrid`
+  (42-cell stable layout), `groupEventsByDay` (multi-day fan-out
+  capped at 42 days), `monthGridWindow` (API request bounds),
+  `stepMonth` (prev/next nav math), `isoOfDate` / `eventDayIso`
+  (local-tz keys), `MONTH_NAMES` / `DAY_HEADERS` / `PHASE_COLORS` /
+  `PHASE_LABELS`.
+- `app/admin/calendar/page.tsx` — admin-gated, reads
+  `/api/admin/schedule?from=&to=` over the 42-day window, renders a
+  6×7 grid with prev/today/next nav. Each event with `job_id` is a
+  `<Link href="/admin/jobs/<id>">`; non-job events render as a plain
+  span. Today's square gets a `--color-brand-navy` outline.
+- `app/admin/styles/Calendar.css` — fluid 6-row × 7-col grid using
+  canonical tokens (`--color-brand-navy`, `--color-bg-card`,
+  `--color-bg-subtle`, `--color-text-on-brand`). Per-event left-
+  border accent driven by `--phase-color` set inline. Per-day
+  scrollable inner list (the user's explicit ask). Phone breakpoint
+  collapses to a stacked day-list so the grid doesn't go illegible.
+- Source-locked by `__tests__/calendar/c1-month-grid.test.ts` (33
+  assertions across grid invariants, multi-day fan-out, nav math,
+  phase color + label tables, page wiring, CSS contract, and
+  drift-name absence per the admin styling contract).
+
+Full suite after C1: 8328 green (+33).
+
+### C1 — Month view + page shell
+First slice. Ships the route + month grid + clickable events.
+
+- `/admin/calendar` page at `app/admin/calendar/page.tsx`
+- Month-view component reads `schedule_events` over a 6-row × 7-col
+  window (42 days, covers any month) via the existing
+  `/api/admin/schedule` GET endpoint
+- Each day square has a scrollable inner list when events overflow
+  (overflow-y: auto; max-height per cell, tuned per breakpoint)
+- Each event renders as `<Link href={`/admin/jobs/${event.job_id}`}>`
+  when `job_id` is set; non-job events stay as plain spans
+- Today's square gets a distinct outline
+- Prev/next/today nav arrows + a month/year label header
+- Source-locked via React-testing-library shape tests (no Playwright
+  needed)
+
+### C2 — Week + Day views + view switcher
+Second slice.
+
+- Three-button view switcher: `[Month][Week][Day]` — defaults to month;
+  selection persists in `?view=` URL param so deep-links from the wall TV
+  remember the right view
+- Week view: 7 columns × 24 rows (or 7 columns × 8am–6pm rows
+  with an "all day" strip on top). Same `<Link>` shape per event.
+- Day view: single column, same hour rows; an "all day" strip on top
+- All three views read from one shared `useScheduleWindow(start, end)`
+  hook so refresh + nav math lives in one place
+- View-aware prev/next nav (month nav stays a month at a time; week nav
+  jumps a week; day nav jumps a day)
+
+### C3 — Fullscreen + big-screen mode
+Third slice.
+
+- A "Fullscreen" button on the header calls `requestFullscreen()` on
+  the calendar root
+- When fullscreen, hide the admin sidebar/topbar + scale the day-square
+  text + bump cell padding via a `data-display-mode="big-screen"`
+  attribute the new stylesheet keys on
+- Auto-refresh: a `useEffect` polls the schedule endpoint every 5 minutes
+  while fullscreen so a wall-TV view stays current without manual reload
+- Keyboard shortcuts: `f` enters fullscreen; `Esc` exits (browser
+  built-in); arrow keys nav prev/next; `t` jumps to today
+- Year + month picker dropdowns for fast jumps from any view (esp. useful
+  on the touchscreen wall TV)
+
+### C4 — Per-job 3-phase scheduler
+Fourth slice. The piece daddy actually drives.
+
+- A "Schedule" tab (or "Schedule" panel under the existing Overview tab)
+  on `/admin/jobs/[id]`
+- Three sub-sections: Research / Field Work / Drawing & Deliverables
+- Each section: date picker(s) for the day(s), assignee dropdown,
+  optional location + notes, a Save button. Save creates / updates a
+  `schedule_events` row with `event_type` set to one of the three new
+  enum values, `job_id` set, `all_day` defaulting true
+- Multiple days per phase supported (e.g. a 3-day field-work stint is 3
+  separate rows OR one row with start_time on day 1 + end_time on day 3
+  + `all_day=true` — slice decides which based on what reads cleaner on
+  the calendar)
+- Each saved phase shows up immediately on `/admin/calendar` for everyone
+- Source-locked: the slice ships a tiny pure helper
+  `buildPhaseEventRow({ jobId, phase, dates, assignee })` that the
+  calendar test can lock without spinning up the React form
+
+### C5 — Day-before + day-of reminder cron
+Fifth slice.
+
+- New cron route at `app/api/cron/phase-reminders/route.ts` — runs daily
+  at 6am Central (configured in `vercel.json`)
+- Two windows: "events that start tomorrow" + "events that start today"
+- For each match, build a notification per assignee via the existing
+  `notify()` helper:
+  - `type: 'phase.reminder'`
+  - title: "🔔 Tomorrow: Field work — Johnson Boundary" (day-before) or
+    "📍 Today: Field work — Johnson Boundary" (day-of)
+  - body: location + notes if present
+  - link: `/admin/jobs/${job_id}`
+  - escalation: `'high'` on day-of, `'normal'` on day-before
+- Source-locked at the pure-helper boundary
+  (`buildPhaseReminderRows(events, now)`) so the test can fake the cron
+  clock without invoking the route
+
+### C6 — Lead → Job prefill
+Sixth slice. Closes the loop from the previous plan.
+
+- A "Convert to job" button on `/admin/leads/[id]` — already-shipped
+  detail page from the previous plan
+- Clicking redirects to `/admin/jobs/new?fromLead=<leadId>` with the
+  lead id in the query
+- `app/admin/jobs/new/page.tsx` reads `?fromLead=`, fetches the lead via
+  `/api/admin/leads/[id]`, and prefills:
+  - `client_name` ← `lead.name`
+  - `email` / `phone` ← `lead.email` / `lead.phone`
+  - `survey_type` ← `lead.survey_type`
+  - `estimated_acreage` ← `lead.estimated_acreage`
+  - `property_address` / `city` / `state` ← lead's property fields
+  - `quote_amount` ← `lead.quote_amount` if set
+  - `notes` ← lead's notes + a "Converted from lead <referenceNumber>"
+    line
+- On save, the lead's `converted_job_id` gets set + the lead's status
+  flips to `'accepted'` (auto-dismissing the bell notification per the
+  Q3b auto-dismiss path)
+- Source-locked at the prefill mapper (`buildJobDraftFromLead(lead)`)
+
+## Phase G — Glue + polish
+
+### G1 — Phase-color tokens + status legend
+- Add three semantic tokens to `app/styles/tokens.css`:
+  - `--color-phase-research: <hex>` (e.g. teal — analytical)
+  - `--color-phase-field-work: <hex>` (e.g. amber — outdoors)
+  - `--color-phase-drawing-deliverables: <hex>` (e.g. violet — drafting)
+- Each event on the calendar carries one of these as a left-border
+  accent, matching the leads card pattern from the previous plan
+- A small legend at the bottom of the calendar header shows
+  what colour means what
+- The legend doubles as a per-phase visibility toggle (click research
+  → hide all research events) — implementation in C7 if budget allows,
+  otherwise deferred to G1b
+
+### G2 — Tests + source-locks
+Every slice carries source-lock tests at the office boundary using the
+same source-string pattern the previous plan established. No new test
+framework. Specific assertions per slice:
+
+- C1: month grid renders 42 days, today gets a distinct outline,
+  events link to `/admin/jobs/<id>`
+- C2: view switcher persists to `?view=`, prev/next math respects view
+- C3: fullscreen API gated by feature detection, auto-refresh interval
+  starts only when fullscreen
+- C4: `buildPhaseEventRow` mapper invariants per phase
+- C5: `buildPhaseReminderRows` invariants — day-before vs day-of
+  classification, escalation level, link shape
+- C6: `buildJobDraftFromLead` mapper invariants
+
+## Risk register
+
+- **`schedule_events.event_type` accepts free strings today.** Adding
+  `'research' | 'field_work' | 'drawing_deliverables'` requires no schema
+  change; we just teach the calendar + scheduler UIs to use those values.
+  A future cleanup could add a CHECK constraint enumerating allowed
+  types — tracked as C4b.
+- **Big-screen auto-refresh polling every 5 minutes.** With a few dozen
+  events per month + a small team, the load is negligible. If we ever
+  scale to 100+ events/month the wall-TV could move to Supabase Realtime
+  for push-driven updates — tracked as C3b.
+- **Time-zone correctness.** All times stored as `TIMESTAMPTZ` in UTC.
+  Display always normalised to America/Chicago (Starr Surveying's HQ).
+  The `formatRelativeAge` helper from the previous plan + a new
+  `formatScheduleTime` helper enforce this; never use raw `toLocaleString`
+  without a `timeZone` option.
+- **Long phase names overflowing day squares.** Mitigated by the
+  scrollable inner list per C1 + a per-event `title="…full text…"`
+  tooltip + a `text-overflow: ellipsis` truncate.
+
+## Slice order (recommended)
+
+1. **C1** — `/admin/calendar` + month view (the visible win)
+2. **C4** — per-job phase scheduler (so daddy can ACTUALLY add events)
+3. **C2** — week + day views + view switcher
+4. **C5** — day-before + day-of reminder cron
+5. **C3** — fullscreen + big-screen mode
+6. **C6** — lead → job prefill conversion
+7. **G1** — phase-color tokens + legend
+8. **G2** — any source-lock gaps the slices left behind
+
+**Why C4 before C2:** without the scheduler, the calendar shows nothing.
+Ship month-view first so the wiring exists, then immediately ship the
+scheduler so we have real data, then ship week + day views (which need
+real data to look right). The reminder cron and fullscreen mode are
+real-impact features but they assume the calendar has events to point at.
+
+## TL;DR (initial)
+
+| Surface | Status |
+|---------|--------|
+| `schedule_events` table | **DONE** (pre-existing) |
+| `/api/admin/schedule` GET/POST/PATCH/DELETE | **DONE** (pre-existing) |
+| Job detail page (click-through target) | **DONE** (pre-existing) |
+| Notification dispatch + cron pattern | **DONE** (pre-existing) |
+| `/admin/calendar` org-wide month view | **MISSING → C1** |
+| Per-job 3-phase scheduler UI | **MISSING → C4** |
+| Week + Day views + view switcher | **MISSING → C2** |
+| Day-before + day-of phase reminders | **MISSING → C5** |
+| Fullscreen + big-screen mode | **MISSING → C3** |
+| Lead → job prefill conversion | **MISSING → C6** |
+| Phase-color tokens + legend | **MISSING → G1** |
