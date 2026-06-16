@@ -168,8 +168,10 @@ describe('/admin/calendar/page.tsx — Slice C1 wiring', () => {
     expect(SRC).toMatch(/\/api\/admin\/schedule\?\$\{params\}/);
   });
 
-  it('renders a 42-cell month grid via cells.map', () => {
-    expect(SRC).toMatch(/cells\.map\(\(cell\)/);
+  it('renders a 42-cell month grid via monthCells.map', () => {
+    // Slice C2 renamed `cells` → `monthCells` since week + day views
+    // now share the page. Lock the new name; the grid testID stays.
+    expect(SRC).toMatch(/monthCells\.map\(\(cell\)/);
     expect(SRC).toMatch(/data-testid="calendar-month-grid"/);
   });
 
@@ -181,18 +183,24 @@ describe('/admin/calendar/page.tsx — Slice C1 wiring', () => {
     expect(SRC).toMatch(/<span[\s\S]*?className="calendar-event"/);
   });
 
-  it('exposes prev / today / next nav buttons', () => {
-    expect(SRC).toMatch(/data-action="prev-month"/);
+  it('exposes view-aware prev / today / next nav buttons', () => {
+    // Slice C2 made nav view-aware — the action carries the active
+    // view name (prev-month / prev-week / prev-day). Lock the
+    // dynamic data-action pattern; today stays a static literal.
+    expect(SRC).toMatch(/data-action=\{`prev-\$\{navLabel\}`\}/);
     expect(SRC).toMatch(/data-action="today"/);
-    expect(SRC).toMatch(/data-action="next-month"/);
+    expect(SRC).toMatch(/data-action=\{`next-\$\{navLabel\}`\}/);
   });
 
   it('admin-gates the page', () => {
     expect(SRC).toMatch(/const isAdminUser = session\?\.user\?\.roles\?\.includes\('admin'\) \?\? false;/);
   });
 
-  it('exposes a `data-view="month"` attribute so C2 view switcher can extend it', () => {
-    expect(SRC).toMatch(/data-view="month"/);
+  it('exposes a data-view attribute (now dynamic — month / week / day)', () => {
+    // Slice C2 made this dynamic via `data-view={view}`. The C2
+    // test asserts the dynamic form; here we lock the attribute's
+    // presence so the C1 test surface stays meaningful.
+    expect(SRC).toMatch(/data-view=\{view\}/);
   });
 
   it('imports the Calendar.css stylesheet', () => {

@@ -63,6 +63,37 @@
   border-color: var(--color-brand-navy);
 }
 
+/* View switcher — Month / Week / Day. */
+.calendar-page__view-switcher {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  padding: 2px;
+  margin-right: var(--space-2);
+}
+.calendar-page__view-switcher button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 32px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.calendar-page__view-switcher button:hover {
+  color: var(--color-brand-navy);
+}
+.calendar-page__view-switcher button[data-current='true'] {
+  background: var(--color-bg-card);
+  color: var(--color-brand-navy);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
 /* Day-of-week header row. */
 .calendar-month__weekdays {
   display: grid;
@@ -174,6 +205,130 @@
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * job-calendar Slice C2 — week + day views. Both share the same
+ * hour-row grid; week is 7 day columns, day is 1.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-week,
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.calendar-week__header,
+.calendar-day__all-day,
+.calendar-week__all-day {
+  display: grid;
+  grid-template-columns: 4rem repeat(7, 1fr);
+  gap: var(--space-1);
+  align-items: stretch;
+}
+.calendar-day__all-day {
+  grid-template-columns: 4rem 1fr;
+}
+.calendar-week__header > * {
+  padding: var(--space-1) var(--space-2);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+.calendar-week__day-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-text-secondary);
+}
+.calendar-week__day-header[data-today='true'] {
+  color: var(--color-brand-navy);
+  font-weight: var(--weight-semibold);
+}
+.calendar-week__day-header strong {
+  font-size: var(--text-lg);
+  color: inherit;
+}
+
+.calendar-week__hour-gutter {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  padding: 4px;
+  text-align: right;
+}
+.calendar-week__all-day .calendar-week__hour-gutter,
+.calendar-day__all-day .calendar-week__hour-gutter {
+  align-self: center;
+}
+.calendar-week__all-day-cell {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  min-height: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calendar-week__body,
+.calendar-day__body {
+  display: grid;
+  grid-template-columns: 4rem repeat(7, 1fr);
+  gap: var(--space-1);
+  flex: 1;
+  min-height: 24rem;
+  margin-top: var(--space-2);
+}
+.calendar-day__body {
+  grid-template-columns: 4rem 1fr;
+}
+
+.calendar-week__hour-gutter,
+.calendar-week__day-col {
+  display: grid;
+  grid-auto-rows: 1fr;
+}
+.calendar-week__day-col {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+}
+.calendar-week__day-col[data-today='true'] {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: -2px;
+}
+.calendar-week__hour-cell {
+  border-top: 1px solid #F3F4F6;
+}
+.calendar-week__hour-cell:first-child {
+  border-top: 0;
+}
+.calendar-week__hour-label {
+  border-top: 1px solid transparent; /* keep height parity with hour cells */
+}
+
+.calendar-event--timed {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  border-left-width: 3px;
+  border-left-style: solid;
+  border-left-color: var(--phase-color, #6B7280);
+  background: rgba(29, 48, 149, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  overflow: hidden;
+}
+.calendar-event--timed:hover {
+  background: rgba(29, 48, 149, 0.16);
 }
 
 /* ───────────────────────────────────────────────────────────────────

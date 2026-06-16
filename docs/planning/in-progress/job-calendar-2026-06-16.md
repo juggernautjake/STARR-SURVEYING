@@ -137,6 +137,48 @@ First slice. Ships the route + month grid + clickable events.
 - Source-locked via React-testing-library shape tests (no Playwright
   needed)
 
+**C2 shipped 2026-06-16** — week + day views + view switcher.
+- `lib/calendar/week-grid.ts` — pure helpers:
+  - `parseView(raw)` coerces a URL param to `'month' | 'week' | 'day'`
+    (defaults to month)
+  - `buildWeekCells(focus)` — 7 cells starting on the Sunday on-or-before
+    focus
+  - `buildDayCell(focus)` — single-cell projection for day view
+  - `stepFocus(focus, view, delta)` — view-aware prev/next: month
+    jumps a calendar month, week jumps 7 days, day jumps 1
+  - `weekWindow(focus, view)` — API request bounds with ±1 day pad
+  - `HOUR_ROWS` (6am→9pm) + `FIRST_HOUR` / `LAST_HOUR` constants
+  - `eventGridPosition(startIso, endIso)` — top% + height% of the
+    hour grid; clamps to visible edges; floors height at 2% so a
+    5-minute event is still tap-sized
+  - `viewHeaderLabel(focus, view)` — "June 2026" / "Jun 14 – Jun 20,
+    2026" / "Wednesday, June 17, 2026" per view
+- `app/admin/calendar/page.tsx` — view state via `useSearchParams` +
+  `parseView`; persists to URL via `router.replace`. New
+  `setView`/`goPrev`/`goNext`/`goToday` all view-aware. Three render
+  helpers (`renderMonth`, `renderWeek`, `renderDay`) share two event
+  renderers (`renderEventPill` for the all-day strip + month cells,
+  `renderTimedEvent` for hour-grid pills). Week + day views split
+  events into all-day strip + timed body. Both views expose stable
+  testIDs (`calendar-week-grid` / `calendar-day-grid`).
+- `app/admin/styles/Calendar.css` — adds `.calendar-page__view-switcher`
+  (segmented control on the header), `.calendar-week__*` / `.calendar-
+  day__*` grid styles (4rem hour gutter + 7 fluid day columns / 1
+  fluid day column), timed-event absolute positioning with
+  `--phase-color` left border, today's day column outlined in brand
+  navy.
+- The C1 source-locks that pinned `cells.map`, `data-action="prev-month"`,
+  and `data-view="month"` were widened to the dynamic shapes
+  (`monthCells.map`, `data-action={\`prev-${navLabel}\`}`,
+  `data-view={view}`) — same contracts, just view-aware now.
+- Source-locked by `__tests__/calendar/c2-week-day-views.test.ts` (33
+  assertions: parseView coercion, week/day cell math, stepFocus per
+  view, weekWindow bounds, eventGridPosition clamping + floor,
+  HOUR_ROWS contract, viewHeaderLabel per view, page wiring
+  (URL persist, switcher, view-aware nav, testIDs, CSS contract).
+
+Full suite after C2: 8391 green (+33).
+
 ### C2 — Week + Day views + view switcher
 Second slice.
 

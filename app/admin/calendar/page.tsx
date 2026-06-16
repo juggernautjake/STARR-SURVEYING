@@ -15,6 +15,7 @@ import '../styles/AdminLayout.css';
 import '../styles/Calendar.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import {
@@ -25,8 +26,18 @@ import {
   PHASE_COLORS,
   PHASE_LABELS,
   monthGridWindow,
-  stepMonth,
 } from '@/lib/calendar/month-grid';
+import {
+  buildDayCell,
+  buildWeekCells,
+  eventGridPosition,
+  HOUR_ROWS,
+  parseView,
+  stepFocus,
+  viewHeaderLabel,
+  weekWindow,
+  type CalendarView,
+} from '@/lib/calendar/week-grid';
 
 interface ScheduleEvent {
   id: string;
@@ -59,20 +70,44 @@ export default function CalendarPage() {
   const { data: session } = useSession();
   const { safeFetch } = usePageError('CalendarPage');
   const isAdminUser = session?.user?.roles?.includes('admin') ?? false;
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const today = useMemo(() => new Date(), []);
-  const [year, setYear] = useState<number>(today.getFullYear());
-  const [monthZeroIdx, setMonthZeroIdx] = useState<number>(today.getMonth());
+  // Slice C2 — view persists in ?view= so a wall-TV deep link remembers
+  // the desired view + the bookmark-the-week use case keeps working.
+  const view: CalendarView = parseView(searchParams?.get('view') ?? null);
+  const [focus, setFocus] = useState<Date>(() => new Date());
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const cells = useMemo(() => buildMonthGrid(year, monthZeroIdx), [year, monthZeroIdx]);
+  const year = focus.getFullYear();
+  const monthZeroIdx = focus.getMonth();
+
+  const monthCells = useMemo(
+    () => buildMonthGrid(year, monthZeroIdx),
+    [year, monthZeroIdx],
+  );
+  const weekCells = useMemo(() => buildWeekCells(focus), [focus]);
+  const dayCell = useMemo(() => buildDayCell(focus), [focus]);
   const eventsByDay = useMemo(() => groupEventsByDay(events), [events]);
+
+  const setView = useCallback(
+    (next: CalendarView) => {
+      const url = new URL(window.location.href);
+      if (next === 'month') url.searchParams.delete('view');
+      else url.searchParams.set('view', next);
+      router.replace(`${url.pathname}${url.search}`, { scroll: false });
+    },
+    [router],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { fromIso, toIso } = monthGridWindow(year, monthZeroIdx);
+      const { fromIso, toIso } =
+        view === 'month'
+          ? monthGridWindow(year, monthZeroIdx)
+          : weekWindow(focus, view);
       const params = new URLSearchParams({ from: fromIso, to: toIso });
       const res = await safeFetch<{ events: ScheduleEvent[] }>(
         `/api/admin/schedule?${params}`,
@@ -81,27 +116,15 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [year, monthZeroIdx, safeFetch]);
+  }, [view, year, monthZeroIdx, focus, safeFetch]);
 
   useEffect(() => {
     if (isAdminUser) void load();
   }, [isAdminUser, load]);
 
-  const goPrevMonth = () => {
-    const next = stepMonth(year, monthZeroIdx, -1);
-    setYear(next.year);
-    setMonthZeroIdx(next.monthZeroIdx);
-  };
-  const goNextMonth = () => {
-    const next = stepMonth(year, monthZeroIdx, 1);
-    setYear(next.year);
-    setMonthZeroIdx(next.monthZeroIdx);
-  };
-  const goToday = () => {
-    const now = new Date();
-    setYear(now.getFullYear());
-    setMonthZeroIdx(now.getMonth());
-  };
+  const goPrev = () => setFocus((f) => stepFocus(f, view, -1));
+  const goNext = () => setFocus((f) => stepFocus(f, view, 1));
+  const goToday = () => setFocus(new Date());
 
   if (!session?.user) return null;
   if (!isAdminUser) {
@@ -112,22 +135,41 @@ export default function CalendarPage() {
     );
   }
 
+  const navLabel = view === 'month' ? 'month' : view === 'week' ? 'week' : 'day';
+
   return (
     <div
       className="calendar-page"
       data-testid="calendar-page"
-      data-view="month"
+      data-view={view}
     >
       <div className="calendar-page__header">
         <h2 className="calendar-page__title" data-testid="calendar-title">
-          {MONTH_NAMES[monthZeroIdx]} {year}
+          {viewHeaderLabel(focus, view)}
         </h2>
         <div className="calendar-page__nav">
+          <div
+            className="calendar-page__view-switcher"
+            role="group"
+            aria-label="Calendar view"
+          >
+            {(['month', 'week', 'day'] as CalendarView[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                data-action={`view-${v}`}
+                data-current={view === v ? 'true' : undefined}
+                onClick={() => setView(v)}
+              >
+                {v[0].toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
-            data-action="prev-month"
-            onClick={goPrevMonth}
-            aria-label="Previous month"
+            data-action={`prev-${navLabel}`}
+            onClick={goPrev}
+            aria-label={`Previous ${navLabel}`}
           >
             ←
           </button>
@@ -140,27 +182,35 @@ export default function CalendarPage() {
           </button>
           <button
             type="button"
-            data-action="next-month"
-            onClick={goNextMonth}
-            aria-label="Next month"
+            data-action={`next-${navLabel}`}
+            onClick={goNext}
+            aria-label={`Next ${navLabel}`}
           >
             →
           </button>
         </div>
       </div>
 
-      <div className="calendar-month__weekdays" aria-hidden>
-        {DAY_HEADERS.map((d) => (
-          <div key={d} className="calendar-month__weekday">{d}</div>
-        ))}
-      </div>
+      {view === 'month' && renderMonth()}
+      {view === 'week' && renderWeek()}
+      {view === 'day' && renderDay()}
+    </div>
+  );
 
-      <div
-        className="calendar-month__grid"
-        data-testid="calendar-month-grid"
-        data-loading={loading ? 'true' : undefined}
-      >
-        {cells.map((cell) => {
+  function renderMonth() {
+    return (
+      <>
+        <div className="calendar-month__weekdays" aria-hidden>
+          {DAY_HEADERS.map((d) => (
+            <div key={d} className="calendar-month__weekday">{d}</div>
+          ))}
+        </div>
+        <div
+          className="calendar-month__grid"
+          data-testid="calendar-month-grid"
+          data-loading={loading ? 'true' : undefined}
+        >
+          {monthCells.map((cell) => {
           const dayEvents = eventsByDay.get(cell.iso) ?? [];
           return (
             <div
@@ -218,7 +268,190 @@ export default function CalendarPage() {
             </div>
           );
         })}
+        </div>
+      </>
+    );
+  }
+
+  function renderWeek() {
+    return (
+      <div
+        className="calendar-week"
+        data-testid="calendar-week-grid"
+        data-loading={loading ? 'true' : undefined}
+      >
+        <div className="calendar-week__header">
+          <div className="calendar-week__hour-gutter" aria-hidden />
+          {weekCells.map((cell) => (
+            <div
+              key={cell.iso}
+              className="calendar-week__day-header"
+              data-today={cell.isToday ? 'true' : undefined}
+            >
+              <span>{cell.weekday}</span>
+              <strong>{cell.day}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="calendar-week__all-day">
+          <div className="calendar-week__hour-gutter" aria-hidden>All day</div>
+          {weekCells.map((cell) => {
+            const dayEvents = (eventsByDay.get(cell.iso) ?? []).filter((e) => e.all_day);
+            return (
+              <div
+                key={cell.iso}
+                className="calendar-week__all-day-cell"
+                data-iso={cell.iso}
+              >
+                {dayEvents.map((ev) => renderEventPill(ev))}
+              </div>
+            );
+          })}
+        </div>
+        <div className="calendar-week__body">
+          <div className="calendar-week__hour-gutter">
+            {HOUR_ROWS.map((h) => (
+              <div key={h.hour} className="calendar-week__hour-label">{h.label}</div>
+            ))}
+          </div>
+          {weekCells.map((cell) => {
+            const timedEvents = (eventsByDay.get(cell.iso) ?? []).filter((e) => !e.all_day);
+            return (
+              <div
+                key={cell.iso}
+                className="calendar-week__day-col"
+                data-iso={cell.iso}
+                data-today={cell.isToday ? 'true' : undefined}
+              >
+                {HOUR_ROWS.map((h) => (
+                  <div key={h.hour} className="calendar-week__hour-cell" />
+                ))}
+                {timedEvents.map((ev) => {
+                  const pos = eventGridPosition(ev.start_time, ev.end_time);
+                  return renderTimedEvent(ev, pos);
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  function renderDay() {
+    const dayEvents = eventsByDay.get(dayCell.iso) ?? [];
+    const allDay = dayEvents.filter((e) => e.all_day);
+    const timed = dayEvents.filter((e) => !e.all_day);
+    return (
+      <div
+        className="calendar-day"
+        data-testid="calendar-day-grid"
+        data-loading={loading ? 'true' : undefined}
+      >
+        <div className="calendar-day__all-day">
+          <div className="calendar-week__hour-gutter" aria-hidden>All day</div>
+          <div className="calendar-week__all-day-cell">
+            {allDay.length === 0 ? (
+              <span style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--text-xs)' }}>
+                No all-day events.
+              </span>
+            ) : (
+              allDay.map((ev) => renderEventPill(ev))
+            )}
+          </div>
+        </div>
+        <div className="calendar-day__body">
+          <div className="calendar-week__hour-gutter">
+            {HOUR_ROWS.map((h) => (
+              <div key={h.hour} className="calendar-week__hour-label">{h.label}</div>
+            ))}
+          </div>
+          <div
+            className="calendar-week__day-col"
+            data-iso={dayCell.iso}
+            data-today={dayCell.isToday ? 'true' : undefined}
+          >
+            {HOUR_ROWS.map((h) => (
+              <div key={h.hour} className="calendar-week__hour-cell" />
+            ))}
+            {timed.map((ev) => renderTimedEvent(ev, eventGridPosition(ev.start_time, ev.end_time)))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderEventPill(ev: ScheduleEvent) {
+    const phaseColor = PHASE_COLORS[ev.event_type] ?? ev.color ?? PHASE_COLORS.other;
+    const phaseLabel = PHASE_LABELS[ev.event_type] ?? ev.event_type;
+    const title = `${phaseLabel} · ${ev.title}${ev.location ? ` · ${ev.location}` : ''}`;
+    if (ev.job_id) {
+      return (
+        <Link
+          key={ev.id}
+          href={`/admin/jobs/${ev.job_id}`}
+          className="calendar-event calendar-event--has-link"
+          data-testid="calendar-event"
+          data-phase={ev.event_type}
+          style={{ ['--phase-color' as string]: phaseColor }}
+          title={title}
+        >
+          <span className="calendar-event__title">{ev.title}</span>
+        </Link>
+      );
+    }
+    return (
+      <span
+        key={ev.id}
+        className="calendar-event"
+        data-testid="calendar-event"
+        data-phase={ev.event_type}
+        style={{ ['--phase-color' as string]: phaseColor }}
+        title={title}
+      >
+        <span className="calendar-event__title">{ev.title}</span>
+      </span>
+    );
+  }
+
+  function renderTimedEvent(ev: ScheduleEvent, pos: { topPct: number; heightPct: number }) {
+    const phaseColor = PHASE_COLORS[ev.event_type] ?? ev.color ?? PHASE_COLORS.other;
+    const phaseLabel = PHASE_LABELS[ev.event_type] ?? ev.event_type;
+    const title = `${phaseLabel} · ${ev.title}${ev.location ? ` · ${ev.location}` : ''}`;
+    const positioned = {
+      position: 'absolute' as const,
+      top: `${pos.topPct}%`,
+      height: `${pos.heightPct}%`,
+      left: 2,
+      right: 2,
+      ['--phase-color' as string]: phaseColor,
+    };
+    if (ev.job_id) {
+      return (
+        <Link
+          key={ev.id}
+          href={`/admin/jobs/${ev.job_id}`}
+          className="calendar-event calendar-event--timed calendar-event--has-link"
+          data-testid="calendar-event"
+          data-phase={ev.event_type}
+          style={positioned}
+          title={title}
+        >
+          <span className="calendar-event__title">{ev.title}</span>
+        </Link>
+      );
+    }
+    return (
+      <span
+        key={ev.id}
+        className="calendar-event calendar-event--timed"
+        data-testid="calendar-event"
+        data-phase={ev.event_type}
+        style={positioned}
+        title={title}
+      >
+        <span className="calendar-event__title">{ev.title}</span>
+      </span>
+    );
+  }
 }
