@@ -297,6 +297,43 @@ Fourth slice. The piece daddy actually drives.
   `buildPhaseEventRow({ jobId, phase, dates, assignee })` that the
   calendar test can lock without spinning up the React form
 
+**C5 shipped 2026-06-16** — day-before + day-of phase reminder cron.
+- `lib/calendar/phase-reminder.ts` — pure helpers:
+  - `classifyReminder(startTimeIso, now)` returns `'day-of'` /
+    `'day-before'` / `null` based on the local-day match in
+    America/Chicago (via `Intl.DateTimeFormat('en-CA', { timeZone:
+    'America/Chicago' })`).
+  - `buildPhaseReminderRow(event, kind)` produces the notify
+    payload: 📍 + `'high'` escalation on day-of, 🔔 + `'normal'` on
+    day-before. Title format `"<emoji> Today/Tomorrow: <Phase> —
+    <JobName>"`. Body includes phase icon + location + notes.
+    Link to `/admin/jobs/<id>` when job_id is set, else
+    `/admin/calendar` as fallback. `source_type:'schedule_events'`
+    + `source_id:event.id` so a future "snooze" UI can target the
+    exact event.
+  - `buildPhaseReminderRows(events, now)` walks the universe + emits
+    one row per qualifying event, drops rows with no `assigned_to`.
+  - `PHASE_EVENT_TYPES = ['research','field_work','drawing_deliverables']`
+    exported so the cron + the calendar share one source of truth.
+- `app/api/cron/phase-reminders/route.ts` — GET endpoint admin-gated
+  via `CRON_SECRET` bearer (same pattern as drawing-due-reminder).
+  Pulls a ±2 day window of `event_type` ∈ PHASE_EVENT_TYPES and
+  `status='approved'`, hands to `buildPhaseReminderRows`, calls
+  `notify()` per row sequentially (try/catch so a single bad row
+  doesn't sink the rest), returns `{ candidate_events,
+  reminders_sent }` so the health dashboard can lock it.
+- `vercel.json` registers the cron at `0 13 * * *` (8am Central /
+  7am Standard) — same time as the existing drawing-due-reminder
+  so morning notifications land together.
+- Source-locked by `__tests__/calendar/c5-phase-reminders.test.ts`
+  (19 assertions: classification per local day, payload shape per
+  kind, link fallback, body assembly, legacy-title fallback, fan-out
+  + skip cases, PHASE_EVENT_TYPES contract, cron auth gate, ±2d
+  query window, helper handoff, response shape, vercel.json
+  schedule registration).
+
+Full suite after C5: 8431 green (+19).
+
 ### C5 — Day-before + day-of reminder cron
 Fifth slice.
 
