@@ -20,10 +20,13 @@ const SELECT_COLS =
 const VALID_STATUS = new Set(['new', 'contacted', 'quoted', 'accepted', 'declined', 'lost']);
 
 // Fields a client may set on create/update (besides status, handled separately).
+// `converted_job_id` is included so the C6 lead → job conversion can stamp
+// the new job id on the original lead row in the same PATCH that flips
+// status to 'accepted'.
 const EDITABLE_FIELDS = [
   'name', 'email', 'phone', 'company', 'source', 'notes', 'property_address',
   'city', 'state', 'survey_type', 'estimated_acreage', 'quote_amount',
-  'assigned_to', 'follow_up_date',
+  'assigned_to', 'follow_up_date', 'converted_job_id',
 ] as const;
 
 function pickEditable(body: Record<string, unknown>): Record<string, unknown> {

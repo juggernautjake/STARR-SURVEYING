@@ -352,6 +352,50 @@ Fifth slice.
   (`buildPhaseReminderRows(events, now)`) so the test can fake the cron
   clock without invoking the route
 
+**C6 shipped 2026-06-16** — lead → job prefill conversion.
+- `lib/calendar/lead-to-job.ts` — pure mapper:
+  - `LeadForConversion` loose-typed input (no Lead import from the
+    route so this helper stays portable).
+  - `EMPTY_JOB_DRAFT` mirrors the new-job form's useState defaults
+    so a future drift in either side gets caught by the source-lock.
+  - `buildJobDraftFromLead(lead)` produces `"<Customer> Survey"`
+    job name, copies email/phone/company → `client_*`, copies
+    property address/city, defaults state to 'TX' when missing,
+    stringifies numeric `estimated_acreage` + `quote_amount` (drops
+    NaN / non-finite), appends `"Converted from lead <id>."`
+    provenance line, maps the schema's free-text `survey_type`
+    onto the form's enum values via `SURVEY_TYPE_MAP` (boundary /
+    alta / topo / construction / subdivision / asbuilt, fallback
+    boundary).
+- `app/admin/jobs/new/page.tsx`:
+  - `useSearchParams` reads `?fromLead=<id>`. A `useRef` guards
+    against a second prefill fire in React 18 strict mode.
+  - Fetches `/api/admin/leads/<id>`, runs the helper, spreads into
+    the form state.
+  - Sticky banner above the form
+    (`data-testid="lead-prefill-banner"`) shows the source lead +
+    explains the status flip that will happen on save.
+  - On successful POST, PATCHes the lead with
+    `status='accepted'` + `converted_job_id=<newJobId>`. Best-
+    effort (catch + log); a PATCH failure doesn't undo the just-
+    created job.
+- `app/admin/leads/[id]/page.tsx` — `Convert to job` button
+  (`data-action="convert-to-job"`) in the header, only rendered
+  when `!lead.converted_job_id`. Routes to `/admin/jobs/new?
+  fromLead=<id>`. Once converted, the existing Pipeline section's
+  "View job →" link is the right path forward.
+- `app/api/admin/leads/route.ts` — `EDITABLE_FIELDS` extended with
+  `'converted_job_id'` so the PATCH actually persists.
+- Source-locked by `__tests__/calendar/c6-lead-to-job.test.ts`
+  (22 assertions: EMPTY_JOB_DRAFT defaults, mapper output per
+  field, state default, numeric stringification + NaN drop,
+  provenance line, survey_type mapping per known value + fallback,
+  preserved form defaults, page wiring (useSearchParams, ref-
+  guarded effect, lead fetch path, PATCH on save), banner gate,
+  detail-page button + route, leads PATCH allow-list addition).
+
+Full suite after C6: 8453 green (+22).
+
 ### C6 — Lead → Job prefill
 Sixth slice. Closes the loop from the previous plan.
 

@@ -186,6 +186,21 @@ export default function LeadDetailPage() {
               ✓ Mark contacted
             </button>
           )}
+          {/* Slice C6 — only show "Convert to job" when there isn't
+              one already; once converted, the Pipeline section's
+              "View job →" link is the right path forward. */}
+          {!lead.converted_job_id && (
+            <button
+              className="jobs-page__btn"
+              data-action="convert-to-job"
+              onClick={() =>
+                router.push(`/admin/jobs/new?fromLead=${encodeURIComponent(lead.id)}`)
+              }
+              title="Open the new-job form with this lead's details prefilled"
+            >
+              → Convert to job
+            </button>
+          )}
           <select
             className="job-form__select"
             data-testid="status-select"
