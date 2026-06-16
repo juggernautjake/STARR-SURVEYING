@@ -178,6 +178,42 @@ Full suite after P3: 8507 green (+15).
 - Phase legend filtered everything out: a distinct "All phases
   hidden — tap a chip above to show again" hint.
 
+**P4 shipped 2026-06-16** — keyboard shortcuts cheat sheet
+modal makes the P1-shipped shortcuts discoverable.
+- `app/admin/calendar/page.tsx`:
+  - `showCheatSheet` state + `?` button in the nav row
+    (`data-action="toggle-cheat-sheet"`, `aria-haspopup="dialog"`,
+    `aria-expanded` mirrors state).
+  - Keydown handler extended: `?` toggles, `Escape` closes when
+    open. `showCheatSheet` added to the effect's deps so Esc reads
+    fresh state.
+  - Modal renders as `role="dialog"` + `aria-modal="true"` with a
+    backdrop click-outside that ONLY closes when
+    `e.target === e.currentTarget` (descendant clicks survive).
+  - Dynamic `Previous / next {navLabel}` row mirrors the active
+    view so the hint matches what `←`/`→` actually do.
+  - Lists every shortcut the calendar wires: ←, →, T, M, W, D, F,
+    ?, Esc. Foot disclaimer notes the input-field skip.
+- `app/admin/styles/Calendar.css`:
+  - Fixed-inset backdrop (rgba navy 45%) + flex centering.
+  - Inner panel: card surface, max-height 80vh + overflow scroll,
+    18px y-axis brand-aware shadow, `min(440px, 100%)` width so
+    a phone gets a full-width modal.
+  - Two-col shortcut grid (`max-content 1fr`). `<kbd>` chips
+    styled mono with a bottom-heavy double border for the keycap
+    look.
+  - `@keyframes calendar-cheat-fade-in` (backdrop opacity ramp) +
+    `@keyframes calendar-cheat-pop-in` (panel 8px-rise + scale).
+  - Reduced-motion fallback disables both modal animations.
+- Source-locked by `__tests__/calendar/p4-cheat-sheet.test.ts`
+  (18 assertions: state declaration, ? + Esc key handling, effect
+  deps, ARIA on the button + dialog, click-outside guard, all
+  nine shortcut rows present, dynamic nav-label caption,
+  data-action targets, modal styling contract, kbd chip styling,
+  keyframes, reduced-motion, no-drift token check).
+
+Full suite after P4: 8525 green (+18).
+
 ### P4 — Keyboard shortcuts cheat sheet
 - A small `?` button at the right end of the nav row.
 - Press `?` (no modifiers) OR click the button → opens a modal

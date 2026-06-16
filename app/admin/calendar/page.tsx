@@ -88,6 +88,10 @@ export default function CalendarPage() {
   // to toggle. Local state on purpose; the wall-TV use case doesn't
   // need URL persistence (and a hidden phase is the rare path).
   const [hiddenPhases, setHiddenPhases] = useState<Set<string>>(() => new Set());
+  // Slice P4 — keyboard cheat sheet modal. Discoverable via the
+  // `?` button in the nav row OR the `?` key. Closes on Esc, click
+  // outside, or `?` again.
+  const [showCheatSheet, setShowCheatSheet] = useState<boolean>(false);
 
   // Slice C3 — fullscreen / big-screen mode. The page calls
   // requestFullscreen() on its root; the browser hides everything
@@ -221,12 +225,16 @@ export default function CalendarPage() {
         case 'm': case 'M': setView('month'); e.preventDefault(); break;
         case 'w': case 'W': setView('week'); e.preventDefault(); break;
         case 'd': case 'D': setView('day'); e.preventDefault(); break;
+        case '?': setShowCheatSheet((v) => !v); e.preventDefault(); break;
+        case 'Escape':
+          if (showCheatSheet) { setShowCheatSheet(false); e.preventDefault(); }
+          break;
         default: break;
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [goPrev, goNext, goToday, toggleFullscreen, setView]);
+  }, [goPrev, goNext, goToday, toggleFullscreen, setView, showCheatSheet]);
 
   // Slice C3 — auto-refresh while fullscreen. Reuses the `load`
   // callback that already exists; it picks up the active focus + view.
@@ -367,6 +375,18 @@ export default function CalendarPage() {
           >
             {isFullscreen ? '⤡' : '⛶'}
           </button>
+          <button
+            type="button"
+            data-action="toggle-cheat-sheet"
+            data-current={showCheatSheet ? 'true' : undefined}
+            onClick={() => setShowCheatSheet((v) => !v)}
+            aria-label="Keyboard shortcuts"
+            aria-haspopup="dialog"
+            aria-expanded={showCheatSheet}
+            title="Keyboard shortcuts (?)"
+          >
+            ?
+          </button>
         </div>
       </div>
 
@@ -427,6 +447,52 @@ export default function CalendarPage() {
       {view === 'month' && renderMonth()}
       {view === 'week' && renderWeek()}
       {view === 'day' && renderDay()}
+
+      {showCheatSheet && (
+        <div
+          className="calendar-page__cheat-sheet-backdrop"
+          data-testid="calendar-cheat-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Keyboard shortcuts"
+          onClick={(e) => {
+            // Click-outside: only close when the click target IS the
+            // backdrop, not a descendant of the inner panel.
+            if (e.target === e.currentTarget) setShowCheatSheet(false);
+          }}
+        >
+          <div className="calendar-page__cheat-sheet">
+            <div className="calendar-page__cheat-sheet-header">
+              <h3>Keyboard shortcuts</h3>
+              <button
+                type="button"
+                data-action="close-cheat-sheet"
+                onClick={() => setShowCheatSheet(false)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <dl className="calendar-page__cheat-sheet-list">
+              <dt><kbd>←</kbd> / <kbd>→</kbd></dt>
+              <dd>Previous / next {navLabel}</dd>
+              <dt><kbd>T</kbd></dt>
+              <dd>Jump to today</dd>
+              <dt><kbd>M</kbd> / <kbd>W</kbd> / <kbd>D</kbd></dt>
+              <dd>Switch to month / week / day view</dd>
+              <dt><kbd>F</kbd></dt>
+              <dd>Toggle fullscreen / big-screen mode</dd>
+              <dt><kbd>?</kbd></dt>
+              <dd>Open or close this sheet</dd>
+              <dt><kbd>Esc</kbd></dt>
+              <dd>Close this sheet (or exit fullscreen)</dd>
+            </dl>
+            <p className="calendar-page__cheat-sheet-foot">
+              Shortcuts are ignored while typing in a text field.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 
