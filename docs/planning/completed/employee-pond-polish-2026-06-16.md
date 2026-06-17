@@ -44,7 +44,7 @@
 | **P3-cf** | Favorite calculators — star toggle + favorited tabs sort to the left ✅ shipped |
 | **P3-ba** | New surveyor utility: Bearing / Azimuth calculator with quadrant + mode toggle ✅ shipped |
 | **P4a** | Reset link (re-randomize orb starting positions) ✅ shipped |
-| **P4b** | Camera offset + omni-directional scroll ring + reset re-centers camera |
+| **P4b** | Camera offset + omni-directional scroll ring + reset re-centers camera ✅ shipped |
 
 Each slice runs the three post-build checks and lands in its own
 commit so a regression can be bisected cleanly.

@@ -334,6 +334,67 @@
   }
 }
 
+/* ── Slice P4b — camera layer + omni-directional scroll ring ─ */
+.employee-pond__camera-layer {
+  position: absolute;
+  inset: 0;
+  /* Imperative `transform: translate3d(-cx, -cy)` is written by the
+   * pan rAF loop in EmployeePond.tsx. willChange keeps the
+   * compositor on the layer so the pan stays buttery. */
+  will-change: transform;
+}
+.employee-pond__scroll-ring {
+  /* Sit on the same positioning context as the pond and extend
+   * 14px outside the pond circle so the ring band is visible
+   * around the pool. position:absolute on the pond-wrap. */
+  position: absolute;
+  inset: -14px;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  z-index: 6;
+  color: rgba(30, 58, 138, 0.55);
+  pointer-events: none;
+  transition: color 160ms ease;
+}
+.employee-pond__scroll-ring--hover {
+  color: rgba(30, 58, 138, 0.92);
+}
+.employee-pond__scroll-ring-stroke {
+  /* Stroke-only hit test: pointer events only fire on the band,
+   * so clicks INSIDE the ring (the pond itself) pass straight
+   * through to the orbs. */
+  pointer-events: stroke;
+  stroke-width: 1.4;
+  cursor: grab;
+  vector-effect: non-scaling-stroke;
+  /* The hover rule below bumps the stroke up so the ring visibly
+   * grows when the surveyor's pointer is on it. */
+  transition: stroke-width 140ms ease;
+}
+.employee-pond__scroll-ring--hover .employee-pond__scroll-ring-stroke {
+  stroke-width: 2.4;
+  cursor: grabbing;
+}
+.employee-pond__scroll-ring-tooltip {
+  /* Anchored at the pond-wrap's top-left; the inline transform
+   * adds 50% + the hover offset so the tooltip ends up next to
+   * the cursor without covering it. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 7;
+  background: rgba(15, 23, 42, 0.92);
+  color: #FFFFFF;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+}
+
 /* ── Slice P4a — Reset link below the pond ─────────────────── */
 .employee-pond__reset-wrap {
   display: flex;
