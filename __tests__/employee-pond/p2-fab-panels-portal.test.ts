@@ -22,9 +22,14 @@ describe('FloatingMessenger — panel portals to document.body', () => {
     expect(SRC).toMatch(/import \{ createPortal \} from 'react-dom'/);
   });
 
-  it("wraps the panel render in createPortal(<panel>, document.body)", () => {
-    expect(SRC).toMatch(/\{isOpen && typeof document !== 'undefined' && createPortal\(\s*\n\s*<div className="messenger-panel"/);
-    expect(SRC).toMatch(/<\/div>,\s*\n\s*document\.body,\s*\n\s*\)\}/);
+  it("wraps the panel render in createPortal(<overlay + panel>, document.body)", () => {
+    // Slice fab-modal-fix-2026-06-17 — added a messenger-overlay
+    // backdrop wrapper around the .messenger-panel so the modal
+    // has a visible dimmed-page state. The portal's first child
+    // is now the overlay; the panel sits inside it.
+    expect(SRC).toMatch(/\{isOpen && typeof document !== 'undefined' && createPortal\(\s*\n\s*<div\s+className="messenger-overlay"/);
+    expect(SRC).toMatch(/className="messenger-panel"/);
+    expect(SRC).toMatch(/document\.body,\s*\n\s*\)\}/);
   });
 
   it("guards against SSR (typeof document !== 'undefined')", () => {
@@ -39,11 +44,15 @@ describe('DiscussionThreadButton (Flag an Issue) — panel portals to document.b
     expect(SRC).toMatch(/import \{ createPortal \} from 'react-dom'/);
   });
 
-  it("wraps the discussion-panel render in createPortal(<panel>, document.body)", () => {
-    expect(SRC).toMatch(/\{isOpen && typeof document !== 'undefined' && createPortal\(\s*\n\s*<div className="discussion-panel"/);
+  it("wraps the discussion-panel render in createPortal(<overlay + panel>, document.body)", () => {
+    // Slice fab-modal-fix-2026-06-17 — added a discussion-overlay
+    // backdrop wrapper around .discussion-panel. The portal's
+    // first child is now the overlay; the panel sits inside it.
+    expect(SRC).toMatch(/\{isOpen && typeof document !== 'undefined' && createPortal\(\s*\n\s*<div\s+className="discussion-overlay"/);
+    expect(SRC).toMatch(/className="discussion-panel"/);
   });
 
   it("closes the portal call with document.body as the target", () => {
-    expect(SRC).toMatch(/<\/div>,\s*\n\s*document\.body,\s*\n\s*\)\}/);
+    expect(SRC).toMatch(/document\.body,\s*\n\s*\)\}/);
   });
 });

@@ -18,8 +18,18 @@
    Added [class*="admin-rail"] (admin-nav redesign Phase 3 slice 3b — the
    48 px IconRail uses navy gradient bg, so its child <a> icons must keep
    their own white-70%-opacity color or they vanish navy-on-navy). */
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]) { color: var(--color-brand-navy, #1D3095); }
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):hover { color: var(--color-brand-navy-d, #152050); }
+/* Slice button-readability-2026-06-17 — user feedback: "the +New
+ * Job button needs to have white text, not blue and black". The
+ * jobs-page button variants paint their own foreground (`#fff`
+ * on `--brand-navy` for primary; #374151 on subtle for
+ * secondary), but the admin-layout `<a>` color rule above had
+ * higher specificity than the button CSS, so it tinted the
+ * primary button's text navy → invisible navy-on-navy. Excluding
+ * `[class*="jobs-page__btn"]` lets the button CSS win. The same
+ * exclusion catches any future page that adopts the
+ * `*-page__btn--*` convention. */
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="jobs-page__btn"]) { color: var(--color-brand-navy, #1D3095); }
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="jobs-page__btn"]):hover { color: var(--color-brand-navy-d, #152050); }
 
 /* === SIDEBAR === */
 .admin-sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; height:100dvh; background:linear-gradient(180deg,var(--color-brand-navy-d),var(--color-brand-navy)); display:flex; flex-direction:column; z-index:50; transition:transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
@@ -229,10 +239,17 @@
               padding 0.35s ease;
 }
 
-/* Expanded state */
+/* Expanded state.
+ *
+ * Slice fab-modal-fix-2026-06-17 — `overflow: visible` so the
+ * per-button tooltips (positioned `bottom: calc(100% + 8px)` over
+ * the wrap) aren't clipped by `.fab-menu__buttons` when the pill
+ * is open. Collapsed state still uses `overflow: hidden` for the
+ * max-width:0 collapse animation. */
 .fab-menu--expanded .fab-menu__buttons {
   max-width: 250px;
   opacity: 1;
+  overflow: visible;
 }
 
 /* Collapsed state */
