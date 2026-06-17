@@ -1,0 +1,198 @@
+/* app/admin/styles/EmployeePond.css
+ *
+ * employee-pond Slice E1 — pond skeleton. Surface, pond circle,
+ * static orb layout, below-pond list. Physics + interactions
+ * arrive in later slices; this stylesheet declares the shapes
+ * those slices key off.
+ *
+ * Tokens come from app/styles/tokens.css per
+ * docs/admin-styling-contract.md. No drift names.
+ */
+
+.employee-pond {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+}
+
+/* ── Toolbar — search + filter (E2 will wire them) ────────────── */
+.employee-pond__toolbar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.employee-pond__search {
+  flex: 1 1 240px;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+}
+.employee-pond__search:focus {
+  outline: var(--border-focus);
+  outline-offset: 2px;
+  border-color: var(--color-brand-navy);
+}
+.employee-pond__filter-btn {
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 40px;
+}
+.employee-pond__filter-btn:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.employee-pond__filter-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Pond surface ───────────────────────────────────────────── */
+.employee-pond__surface {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+}
+.employee-pond__pond {
+  position: relative;
+  width: calc(var(--pond-radius, 280px) * 2);
+  height: calc(var(--pond-radius, 280px) * 2);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.85), transparent 60%),
+    radial-gradient(circle at center, #DCEEFB 0%, #A6CFE9 60%, #79B5D6 100%);
+  box-shadow:
+    inset 0 8px 24px rgba(15, 20, 25, 0.12),
+    0 12px 28px -8px rgba(29, 48, 149, 0.18);
+  overflow: hidden;
+}
+
+/* Soft inner ring to telegraph the pond boundary. */
+.employee-pond__pond::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+/* ── Orbs ───────────────────────────────────────────────────── */
+.employee-pond__orb {
+  --orb-size: 64px;
+  position: absolute;
+  /* Center anchor — the inline translate3d on each orb adjusts from
+   * the pond center. The "50%" inside the translate is the orb's
+   * own half-size, not the parent's; combined with `top/left: 50%`
+   * the math reads cleanly. */
+  top: 50%;
+  left: 50%;
+  width: var(--orb-size);
+  height: var(--orb-size);
+  border-radius: 50%;
+  background: var(--color-bg-card);
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 6px 12px -4px rgba(15, 20, 25, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  will-change: transform;
+  transition: box-shadow 160ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.employee-pond__orb:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 3px;
+}
+.employee-pond__orb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.employee-pond__orb-initials {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+}
+
+/* ── Below-pond list ────────────────────────────────────────── */
+.employee-pond__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+.employee-pond__list-item {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid #F3F4F6;
+  font-size: var(--text-sm);
+}
+.employee-pond__list-name {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-medium);
+}
+.employee-pond__list-email {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+}
+
+/* ── View toggle (lives on the page above the pond) ─────────── */
+.employees-page__view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+.employees-page__view-toggle button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 32px;
+}
+.employees-page__view-toggle button:hover {
+  color: var(--color-brand-navy);
+}
+.employees-page__view-toggle button[data-current='true'] {
+  background: var(--color-bg-card);
+  color: var(--color-brand-navy);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 768px) {
+  .employee-pond__orb {
+    --orb-size: 56px;
+  }
+  .employee-pond__pond {
+    /* Tighter on phone so the whole pond fits in portrait without
+     * needing to scroll. */
+    --pond-radius: 160px;
+  }
+}

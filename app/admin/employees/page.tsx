@@ -5,6 +5,18 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 import type { UserRole } from '@/lib/auth';
+// employee-pond Slice E1 — alternative viewer behind a view toggle.
+import EmployeePond from './EmployeePond';
+import '../styles/EmployeePond.css';
+
+const VIEW_PREF_KEY = 'admin/employees/view';
+type EmployeeView = 'list' | 'pond';
+
+function readSavedView(): EmployeeView {
+  if (typeof window === 'undefined') return 'list';
+  const v = window.localStorage.getItem(VIEW_PREF_KEY);
+  return v === 'pond' ? 'pond' : 'list';
+}
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
@@ -73,6 +85,17 @@ export default function EmployeesPage() {
   const canView = isAdmin || isDev || isTechSupport;
 
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
+  // Slice E1 — list / pond view toggle, persisted in localStorage.
+  const [view, setView] = useState<EmployeeView>('list');
+  useEffect(() => {
+    setView(readSavedView());
+  }, []);
+  const setViewAndPersist = useCallback((next: EmployeeView) => {
+    setView(next);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(VIEW_PREF_KEY, next);
+    }
+  }, []);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
@@ -120,8 +143,43 @@ export default function EmployeesPage() {
           <h2 className="jobs-page__title">Employees</h2>
           <span className="jobs-page__count">{employees.length} team members</span>
         </div>
+        {/* Slice E1 — list / pond view toggle. */}
+        <div
+          className="employees-page__view-toggle"
+          role="group"
+          aria-label="Employee view"
+          data-testid="employees-view-toggle"
+        >
+          {(['list', 'pond'] as EmployeeView[]).map((v) => (
+            <button
+              key={v}
+              type="button"
+              data-action={`view-${v}`}
+              data-current={view === v ? 'true' : undefined}
+              onClick={() => setViewAndPersist(v)}
+            >
+              {v === 'list' ? 'List' : 'Pond'}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Slice E1 — pond view replaces the rest of the page when
+          active; keeps the title + view toggle visible above it. */}
+      {view === 'pond' ? (
+        <EmployeePond
+          employees={employees.map((e) => ({
+            id: e.id,
+            email: e.email,
+            name: e.name,
+            roles: e.roles,
+            avatar_url: e.avatar_url,
+            job_title: e.job_title,
+            hire_date: e.hire_date,
+          }))}
+        />
+      ) : (
+      <>
       {/* Summary stats */}
       <div className="jobs-page__my-summary">
         <div className="jobs-page__my-stat">
@@ -245,6 +303,8 @@ export default function EmployeesPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );
