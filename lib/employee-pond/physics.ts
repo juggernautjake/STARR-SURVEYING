@@ -52,6 +52,15 @@ export interface PhysicsOptions {
    *  with distance via `strength / (dist + 50)`. */
   cursor?: { x: number; y: number } | null;
   cursorAttraction?: number;
+  /** Slice E7 — fired when two orbs overlap during the repulsion
+   *  pass AND at least one of them is currently being dragged. The
+   *  React side uses this to spawn particle effects at the
+   *  contact point. */
+  onDraggedCollision?: (event: {
+    x: number;
+    y: number;
+    force: number;
+  }) => void;
 }
 
 /** Slice E6b — defaults tuned for a dynamic + organic floaty feel.
@@ -83,6 +92,7 @@ export function stepPhysics(orbs: OrbState[], opts: PhysicsOptions): void {
     idleJitter = 0,
     cursor = null,
     cursorAttraction = 0,
+    onDraggedCollision,
   } = opts;
   if (dt <= 0) return;
 
@@ -145,6 +155,15 @@ export function stepPhysics(orbs: OrbState[], opts: PhysicsOptions): void {
       if (!b.dragging) {
         b.vx += nx * force;
         b.vy += ny * force;
+      }
+      // Slice E7 — emit a collision event when a dragged orb is
+      // involved. Contact point is the midpoint of the two
+      // colliding circles. `force` mirrors the repulsion intensity
+      // so the React side can scale particle count/velocity.
+      if (onDraggedCollision && (a.dragging || b.dragging)) {
+        const cx = (a.x + b.x) / 2;
+        const cy = (a.y + b.y) / 2;
+        onDraggedCollision({ x: cx, y: cy, force });
       }
     }
   }

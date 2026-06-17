@@ -22,6 +22,10 @@ interface UsePondPhysicsArgs {
   /** When false (e.g. during fullscreen + reduced motion, or while
    *  the page is hidden), the loop pauses to save battery. */
   enabled: boolean;
+  /** Slice E7 — forwarded to stepPhysics so the React side can spawn
+   *  particles at the collision point. The hook holds the latest
+   *  callback in a ref so reads are stable inside the loop. */
+  onDraggedCollision?: (event: { x: number; y: number; force: number }) => void;
 }
 
 /** Maximum dt the loop will integrate at once. Caps the catch-up
@@ -57,6 +61,10 @@ export function useEmployeePondPhysics(
   // the handle's setCursor() and read each rAF tick before
   // stepPhysics so the attraction force tracks the user's mouse.
   const cursorRef = useRef<{ x: number; y: number } | null>(null);
+  // Slice E7 — collision callback ref so the rAF closure always
+  // reads the latest function without re-binding the loop.
+  const collisionCbRef = useRef<UsePondPhysicsArgs['onDraggedCollision']>(undefined);
+  collisionCbRef.current = args.onDraggedCollision;
 
   // Sync the orb pool whenever the visible set changes. Existing
   // orbs keep their position + velocity; newly-visible ones spawn
@@ -107,6 +115,7 @@ export function useEmployeePondPhysics(
         pondRadius: args.pondRadius,
         ...DEFAULT_PHYSICS,
         cursor: cursorRef.current,
+        onDraggedCollision: collisionCbRef.current,
         dt,
       });
 

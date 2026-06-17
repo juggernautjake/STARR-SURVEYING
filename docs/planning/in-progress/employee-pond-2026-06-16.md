@@ -437,8 +437,75 @@
 - The E5 source-lock that pinned the inline `onClick={() =>
   handleOrbClick(employee)}` was widened to match the new
   wrapped-with-suppression-guard pattern.
-| Particle FX on collision during drag | **E7** |
-| Shake-to-release detection + settle animation | **E7** |
+| Particle FX on collision during drag | **✅ E7** |
+| Shake-to-release detection + settle animation | **✅ E7** |
+
+**E7 shipped 2026-06-16** — particle FX + shake-to-release + kick.
+- `lib/employee-pond/drag.ts`:
+  - `SHAKE_MIN_REVERSALS = 3`, `SHAKE_WINDOW_MS = 400` constants.
+  - `detectShake(samples)` — pure helper that returns true when
+    the horizontal direction reversed `SHAKE_MIN_REVERSALS`
+    times inside `SHAKE_WINDOW_MS`. False when buffer too short,
+    when motion stays one direction, or when the window is too
+    wide (a slow swerve isn't a shake).
+- `lib/employee-pond/physics.ts`:
+  - `PhysicsOptions.onDraggedCollision?` callback added.
+  - `stepPhysics` fires it inside the repulsion pass whenever
+    overlap involves a dragging orb; argument is the contact
+    midpoint + the current `force` magnitude so the React side
+    can scale particle count.
+- `app/admin/employees/useEmployeePondPhysics.ts`:
+  - `collisionCbRef` holds the latest callback; loop reads
+    `.current` so a React-side identity change doesn't re-bind
+    the rAF. Forwarded into `stepPhysics` every frame.
+- `app/admin/employees/EmployeePond.tsx`:
+  - `Particle` interface, `MAX_ACTIVE_PARTICLES = 64`, particle
+    state + `particleSeqRef` counter.
+  - `spawnParticles(x, y, count)` mints 3–7 particles at a
+    point (more for harder collisions); pool is capped via
+    `slice(next.length - MAX_ACTIVE_PARTICLES)` so a long drag
+    can't drown the page.
+  - `removeParticle(id)` retires a particle when its CSS
+    animation ends.
+  - `handleDraggedCollision(e)` — throttles to once per ≥40 ms
+    so a deep overlap firing every step doesn't drown the pond;
+    forwarded into the physics hook via a `ref` (the callback
+    is defined AFTER the hook call because it depends on
+    `physics`).
+  - `kickNeighbors(originX, originY, range, strength)` walks
+    `physics.orbs` and patches velocities outward with
+    distance fall-off + a small random jitter.
+  - `handleOrbPointerDown` resets `shakeReleasedRef`.
+  - `handleOrbPointerMove` calls `detectShake(samples)` after
+    sampling. On a positive hit:
+    - assigns a random release velocity 600–1000 px/s,
+    - flips `physics.setDragging(id, false)`,
+    - spawns 12 particles at the release point,
+    - `kickNeighbors(pond.x, pond.y, 140, 220)` so surrounding
+      orbs bounce outward and the pond visibly reacts.
+  - `handleOrbPointerUp` skips the normal release-velocity
+    logic when `shakeReleasedRef.current` is true (the shake
+    already assigned velocity).
+- `app/admin/styles/EmployeePond.css`:
+  - `.employee-pond__particle` — 8 px circle, absolute,
+    `pointer-events: none`, brand-hue `hsl()` color set inline.
+  - `@keyframes employee-pond-particle` — translates from
+    `(--p-x, --p-y)` toward
+    `(--p-x + --p-vx*0.5, --p-y + --p-vy*0.5)` while fading
+    opacity 1 → 0 and scaling 1 → 0.3 over 600 ms.
+  - `prefers-reduced-motion` collapses the animation to 1 ms.
+- Source-locked by `__tests__/employee-pond/e7-particles-shake.test.ts`
+  (22 assertions: detectShake thresholds + four branches;
+  stepPhysics collision callback fires only when overlap +
+  dragging orb is involved, contact-point math, no-overlap
+  no-fire; hook ref forward + every-frame handoff; page state,
+  pool cap, 40-ms throttle, shakeReleasedRef reset, shake
+  detection wiring incl. setDragging false + 12-particle
+  burst + 140/220 neighbor kick, pointerup skip-when-shake;
+  CSS particle box + keyframes vars + reduced-motion).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings, full suite 8784 green
+  (+22).
 | Below-pond list of currently-visible employees | **E8** |
 | Email + Direct Message contact buttons (incl. `?to=` on inbox) | **E9** |
 | Recipient continuity: widget ↔ dedicated /admin/messages page | **E9b** |

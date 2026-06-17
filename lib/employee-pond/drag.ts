@@ -63,3 +63,30 @@ export function exceedsDragThreshold(dx: number, dy: number): boolean {
  *  motion at 60 fps — enough to compute a flick velocity
  *  without amplifying jitter. */
 export const MOTION_BUFFER_LIMIT = 8;
+
+/** Slice E7 — shake detection thresholds. Three horizontal velocity
+ *  reversals within 400 ms triggers a release. Tunable; tests lock
+ *  the constants so a future relaxation has to update both. */
+export const SHAKE_MIN_REVERSALS = 3;
+export const SHAKE_WINDOW_MS = 400;
+
+/** Returns true when the motion buffer shows a rapid back-and-forth
+ *  shake: at least SHAKE_MIN_REVERSALS sign changes of the
+ *  horizontal motion within the last SHAKE_WINDOW_MS. Pure so the
+ *  source-lock can verify both the happy path and the bored-cursor
+ *  case where dx is mostly the same sign. */
+export function detectShake(samples: MotionSample[]): boolean {
+  if (samples.length < SHAKE_MIN_REVERSALS + 1) return false;
+  const window = samples[samples.length - 1].t - samples[0].t;
+  if (window > SHAKE_WINDOW_MS) return false;
+  let reversals = 0;
+  let lastSign = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const dx = samples[i].x - samples[i - 1].x;
+    const sign = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+    if (sign === 0) continue;
+    if (lastSign !== 0 && sign !== lastSign) reversals++;
+    lastSign = sign;
+  }
+  return reversals >= SHAKE_MIN_REVERSALS;
+}

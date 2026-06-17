@@ -21,9 +21,23 @@ import {
   pointerToPondCoords,
   computeReleaseVelocity,
   exceedsDragThreshold,
+  detectShake,
   MOTION_BUFFER_LIMIT,
   type MotionSample,
 } from '@/lib/employee-pond/drag';
+
+/** Slice E7 — particles spawned at collision points + at shake
+ *  release. State holds only what the JSX needs; CSS owns the
+ *  animation, which auto-removes via onAnimationEnd. */
+interface Particle {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  hue: number;
+}
+const MAX_ACTIVE_PARTICLES = 64;
 
 /** Render-side orb radius (px) for the collision math. The CSS uses
  *  `--orb-size: 64px` on desktop, 56 px on phone; 32 is the desktop
@@ -217,6 +231,85 @@ export default function EmployeePond({ employees }: Props) {
    *  pointerup so a drag-then-release doesn't accidentally open
    *  the dialogue. */
   const suppressNextClickRef = useRef<boolean>(false);
+  /** Slice E7 — set when shake-to-release has already fired during
+   *  the current drag so pointermove + pointerup know not to
+   *  re-apply drag logic. */
+  const shakeReleasedRef = useRef<boolean>(false);
+
+  // Slice E7 — particle pool + spawner. State drives the render;
+  // CSS animation auto-removes each particle 600 ms after spawn
+  // via onAnimationEnd. The pool caps at MAX_ACTIVE_PARTICLES so a
+  // user dragging through dozens of orbs can't slow the page.
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const particleSeqRef = useRef<number>(0);
+  const spawnParticles = useCallback((x: number, y: number, count: number) => {
+    const fresh: Particle[] = [];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 140;
+      fresh.push({
+        id: `p-${particleSeqRef.current++}`,
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        // Brand palette range: navy (220) → indigo / violet (290).
+        hue: 220 + Math.floor(Math.random() * 70),
+      });
+    }
+    setParticles((prev) => {
+      const next = [...prev, ...fresh];
+      return next.length > MAX_ACTIVE_PARTICLES
+        ? next.slice(next.length - MAX_ACTIVE_PARTICLES)
+        : next;
+    });
+  }, []);
+  const removeParticle = useCallback((id: string) => {
+    setParticles((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+  /** Slice E7 — collision callback handed to the physics hook.
+   *  Throttle via a per-frame guard so a single deep overlap that
+   *  fires every step doesn't drown the pond in particles. */
+  const lastCollisionAtRef = useRef<number>(0);
+  const handleDraggedCollision = useCallback(
+    (e: { x: number; y: number; force: number }) => {
+      const now = performance.now();
+      if (now - lastCollisionAtRef.current < 40) return;
+      lastCollisionAtRef.current = now;
+      // Scale particle count with collision force, clamped 3..7.
+      const count = Math.max(3, Math.min(7, Math.round(3 + e.force / 80)));
+      spawnParticles(e.x, e.y, count);
+    },
+    [spawnParticles],
+  );
+  // Bridge the forward reference for the physics hook call above.
+  useEffect(() => {
+    handleDraggedCollisionRef.current = handleDraggedCollision;
+  }, [handleDraggedCollision]);
+
+  /** Slice E7 — kicks neighbors near a release point. Used after
+   *  shake-to-release so the pond visibly reacts (orbs jitter
+   *  outward, then settle back). Pure-ish (touches physics through
+   *  the handle) so we keep it as a helper. */
+  const kickNeighbors = useCallback(
+    (originX: number, originY: number, range: number, strength: number) => {
+      for (const o of physics.orbs) {
+        const dx = o.x - originX;
+        const dy = o.y - originY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= 0 || dist > range) continue;
+        const fall = 1 - dist / range;
+        const jitter = 0.5 + Math.random();
+        physics.setOrb(o.id, {
+          vx: o.vx + (dx / dist) * strength * fall * jitter,
+          vy: o.vy + (dy / dist) * strength * fall * jitter,
+        });
+      }
+    },
+    // physics handle identity is stable; deps narrow on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   // Click-outside / Esc to dismiss the filter panel.
   useEffect(() => {
@@ -270,7 +363,16 @@ export default function EmployeePond({ employees }: Props) {
     orbRadius: ORB_RADIUS_PX,
     seed,
     enabled: true,
+    // Slice E7 — declared below; the hook reads via a ref so the
+    // forward reference here is fine for compilation order.
+    onDraggedCollision: (e) => handleDraggedCollisionRef.current?.(e),
   });
+  // handleDraggedCollision is defined later (it depends on physics);
+  // a ref bridges the order. We assign to the ref in an effect so
+  // the latest version is always read.
+  const handleDraggedCollisionRef = useRef<
+    ((e: { x: number; y: number; force: number }) => void) | null
+  >(null);
   const setOrbRef = useCallback(
     (id: string) => (el: HTMLElement | null) => {
       if (el) orbRefsRef.current.set(id, el);
@@ -385,6 +487,7 @@ export default function EmployeePond({ employees }: Props) {
       dragMotionRef.current = { dx: 0, dy: 0 };
       motionSamplesRef.current = [];
       suppressNextClickRef.current = false;
+      shakeReleasedRef.current = false;
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
@@ -422,6 +525,24 @@ export default function EmployeePond({ employees }: Props) {
         const samples = motionSamplesRef.current;
         samples.push({ x: pond.x, y: pond.y, t: performance.now() });
         if (samples.length > MOTION_BUFFER_LIMIT) samples.shift();
+
+        // Slice E7 — shake detection. Only fire once per drag.
+        if (!shakeReleasedRef.current && detectShake(samples)) {
+          shakeReleasedRef.current = true;
+          // Release the orb with a random fling so the user feels
+          // the "let go" moment.
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 600 + Math.random() * 400;
+          physics.setOrb(employee.id, {
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+          });
+          physics.setDragging(employee.id, false);
+          // Spawn a burst of particles + kick the neighbors so the
+          // pond visibly reacts.
+          spawnParticles(pond.x, pond.y, 12);
+          kickNeighbors(pond.x, pond.y, 140, 220);
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -433,7 +554,10 @@ export default function EmployeePond({ employees }: Props) {
       if (draggingIdRef.current !== employee.id) return;
       const motion = dragMotionRef.current;
       const wasDragged = exceedsDragThreshold(motion.dx, motion.dy);
-      if (wasDragged) {
+      // Slice E7 — if shake already released the orb, skip the
+      // pointerup release-velocity application (the shake already
+      // assigned a strong velocity + cleared the dragging flag).
+      if (wasDragged && !shakeReleasedRef.current) {
         const release = computeReleaseVelocity(motionSamplesRef.current);
         physics.setOrb(employee.id, { vx: release.vx, vy: release.vy });
         physics.setDragging(employee.id, false);
@@ -663,6 +787,26 @@ export default function EmployeePond({ employees }: Props) {
               center frame (same as the orbs). Backdrop catches
               clicks outside to dismiss; the panel itself stops
               propagation so internal clicks don't close it. */}
+          {/* Slice E7 — particle FX. Each particle's CSS animation
+              auto-runs once + onAnimationEnd removes the node. */}
+          {particles.map((p) => (
+            <span
+              key={p.id}
+              className="employee-pond__particle"
+              data-testid="employee-pond-particle"
+              style={
+                {
+                  '--p-x': p.x,
+                  '--p-y': p.y,
+                  '--p-vx': p.vx,
+                  '--p-vy': p.vy,
+                  background: `hsl(${p.hue}deg 70% 60%)`,
+                } as React.CSSProperties
+              }
+              onAnimationEnd={() => removeParticle(p.id)}
+              aria-hidden
+            />
+          ))}
           {selectedEmployee && dialoguePosition && (
             <>
               <div

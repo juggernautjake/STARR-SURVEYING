@@ -559,6 +559,43 @@
   }
 }
 
+/* ── Slice E7 — collision particles ────────────────────────── */
+.employee-pond__particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 25;
+  /* The starting position is (--p-x, --p-y) in pond-center px; the
+   * `- 50%` centers the particle on that point. The animation
+   * ramps that position out by (--p-vx * 0.6, --p-vy * 0.6) and
+   * fades to zero opacity. CSS-only — no JS rAF per particle. */
+  --travel-x: calc((var(--p-x) + var(--p-vx) * 0.5) * 1px - 50%);
+  --travel-y: calc((var(--p-y) + var(--p-vy) * 0.5) * 1px - 50%);
+  --start-x: calc(var(--p-x) * 1px - 50%);
+  --start-y: calc(var(--p-y) * 1px - 50%);
+  animation: employee-pond-particle 600ms ease-out forwards;
+  box-shadow: 0 0 6px currentColor;
+}
+@keyframes employee-pond-particle {
+  0% {
+    opacity: 1;
+    transform: translate3d(var(--start-x), var(--start-y), 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--travel-x), var(--travel-y), 0) scale(0.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .employee-pond__particle {
+    animation: employee-pond-particle 1ms linear forwards;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .employee-pond__dialogue {
     animation: none;
