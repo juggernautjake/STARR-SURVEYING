@@ -167,8 +167,11 @@ describe('EmployeePond.tsx — E3 hook wiring', () => {
   });
 
   it('calls the hook with visibleIds + ORB_RADIUS_PX + POND_RADIUS_PX + seed + enabled', () => {
+    // E10 swapped `enabled: true` for `enabled: !reduceMotion` so the
+    // hook pauses under prefers-reduced-motion. Widen the lock to
+    // accept either an enabled boolean literal or an expression.
     expect(SRC).toMatch(
-      /useEmployeePondPhysics\(orbRefsRef\.current, \{[\s\S]*?visibleIds,[\s\S]*?pondRadius: POND_RADIUS_PX,[\s\S]*?orbRadius: ORB_RADIUS_PX,[\s\S]*?seed,[\s\S]*?enabled: true,[\s\S]*?\}\);/,
+      /useEmployeePondPhysics\(orbRefsRef\.current, \{[\s\S]*?visibleIds,[\s\S]*?pondRadius: POND_RADIUS_PX,[\s\S]*?orbRadius: ORB_RADIUS_PX,[\s\S]*?seed,[\s\S]*?enabled:[^,]+,/,
     );
   });
 

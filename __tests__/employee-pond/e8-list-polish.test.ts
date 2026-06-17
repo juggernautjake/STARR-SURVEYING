@@ -27,7 +27,9 @@ describe('EmployeePond.tsx — E8 list row markup', () => {
   });
 
   it("row click opens the same dialogue as clicking an orb", () => {
-    expect(SRC).toMatch(/onClick=\{\(\) => handleOrbClick\(e\)\}/);
+    // E10 widened handleOrbClick with an opener arg for focus
+    // return; the list row now passes its currentTarget.
+    expect(SRC).toMatch(/onClick=\{\(ev\) => handleOrbClick\(e, ev\.currentTarget\)\}/);
   });
 
   it("row hover cross-highlights the matching orb (mouse/pen only)", () => {

@@ -628,7 +628,54 @@ universal reach until E9c builds the dedicated page).
 - **Three post-build checks: green** — typecheck clean, lint
   clean on the touched files, full suite 8829 green (+18).
 | In-app email composer page at /admin/email/new | **E9c** |
-| `prefers-reduced-motion` + accessibility audit | **E10** |
+| `prefers-reduced-motion` + accessibility audit | **✅ E10** |
+| Full mobile-responsive build of the pond surface | **E10b** |
+
+**E10 shipped 2026-06-16** — reduced-motion + a11y audit.
+- `app/admin/employees/EmployeePond.tsx`:
+  - `reduceMotion` state subscribes to
+    `window.matchMedia('(prefers-reduced-motion: reduce)')` +
+    a `change` listener so a live OS toggle propagates.
+  - Physics hook now called with `enabled: !reduceMotion` so
+    the rAF loop pauses for sensitive users.
+  - `spawnParticles` short-circuits when `reduceMotion` is
+    true — the gesture still works, it just doesn't shower
+    sparkles.
+  - `dialogueOpenerRef` captures the element that opened the
+    dialogue (orb or list row); `closeDialogue` returns focus
+    to it via `setTimeout(0)` after the React close commits,
+    then clears the ref so stale elements don't leak.
+  - `handleOrbClick(employee, opener?)` widened to take the
+    trigger element; orb `onClick` passes
+    `orbRefsRef.current.get(...)`, `onKeyDown` passes
+    `e.currentTarget`, list row `onClick` passes
+    `ev.currentTarget`.
+  - Pond surface gets `role="region"` +
+    `aria-roledescription="Interactive employee pond"` +
+    a live `aria-label` ("Employee pond — N employees
+    visible. Use the list below or Tab to navigate.") so
+    screen readers announce the section and point users at
+    the easier nav path (the below-pond list).
+- `app/admin/employees/useEmployeePondPhysics.ts`:
+  - New effect: when `enabled === false`, write a one-shot
+    static transform for every orb (so they land at their
+    seeded positions instead of stacking at center). Re-runs
+    on `visibleIds` / `pondRadius` changes.
+- Source-locked by
+  `__tests__/employee-pond/e10-reduced-motion-a11y.test.ts`
+  (14 assertions: matchMedia subscribe + change listener
+  cleanup; hook enabled-flag swap; spawnParticles short-
+  circuit; static-fallback effect + its deps; focus-return
+  capture + setTimeout focus + opener clear; orb onClick +
+  onKeyDown + list row onClick all pass an opener; pond
+  role + aria-roledescription + live aria-label shape).
+- Three prior source-locks were widened to accept the new
+  hook signature: E3 (`enabled: true` → expression), E5
+  (`handleOrbClick(employee)` → with-opener variant), E8
+  (list row click → `(ev) => handleOrbClick(e, ev.currentTarget)`).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings, full suite 8843
+  green (+14).
 | Privacy contract: per-user public/private settings + role visibility matrix | **E12** |
 | Activity history schema (jobs / bonuses / salary / payouts / hours / photos) | **E13** |
 | Activity history surfaces (admin "everything" page + employee "my history") | **E14** |
@@ -662,6 +709,62 @@ Risk-ordered:
 - E10 is the QA sweep.
 
 ## Design notes added 2026-06-16 — feedback on the prototype
+
+### E10b — Mobile-responsive build of the full pond surface
+User feedback (2026-06-16): "Please also create a version of
+this for all mobile devices. Create the look same look and
+feel and styling, just make it all formatted and functional
+for mobile devices."
+
+The current pond surface is desktop-tuned. The phone breakpoint
+shrinks the pond + list grid but the full UX (orbs, search,
+filter, dialogue, contact buttons, drag, hover tooltip, list
+rows) needs an end-to-end pass for touch / portrait phones.
+
+E10b actions:
+- **Toolbar layout on phone**: search field becomes full-
+  width row 1; filter button + count chip become row 2 with
+  44 pt min touch targets. Filter panel pops as a full-
+  screen sheet on phone (matching the calendar's cheat-sheet
+  pattern from the previous plans).
+- **Pond sizing**: pond radius already drops to 160 px at
+  ≤768 px; verify orb count + density still feels right at
+  that scale, otherwise tune to 180 px + 48 px orbs.
+- **Touch drag**: pointerdown / move / up already work for
+  touch (Slice E6). Verify no double-fire with the pond's
+  cursor-attraction onPointerMove (which already excludes
+  touch).
+- **Touch hover**: hover effects are skipped on touch — make
+  sure the on-tap dialogue path is still discoverable. Add
+  a tap-and-hold gesture that surfaces the tooltip (name +
+  email) without committing to the dialogue, so phone users
+  get name-confirmation parity with desktop hover.
+- **Dialogue on phone**: at the moment the dialogue is
+  280×360 anchored next to the orb. On a 360-wide phone the
+  panel may overflow the viewport. Convert to a bottom-sheet
+  modal on phone: slides up from the bottom, full-width with
+  safe-area inset for the home indicator, X close + drag-
+  down dismissal gesture.
+- **List rows on phone**: already collapse to single column
+  via E8. Verify 44 pt touch targets on the row buttons +
+  the "Open profile" link inside the dialogue.
+- **Email + DM buttons on phone**: already full-width via
+  E5's `.employee-pond__dialogue-contact` flex. Verify on a
+  narrow phone they don't overlap with the safe-area.
+- **Phone-specific particles**: the particle pool may feel
+  too dense on a small screen; reduce `MAX_ACTIVE_PARTICLES`
+  to 32 on phone (or scale particle count down per
+  collision).
+- **Performance check on phone**: profile the rAF loop with
+  ~30 orbs on a mid-tier Android (Pixel 4a class). If
+  framerate drops below 50 fps, reduce repulsion pass cost
+  (broad-phase grid) or cap visible orb count.
+- **Source-locked** via a single test file
+  `__tests__/employee-pond/e10b-mobile.test.ts` that locks
+  the new CSS phone rules, the bottom-sheet markup, and the
+  tap-and-hold tooltip gesture.
+
+E10b is the next slice after this commit.
 
 ### E6b — Dynamic / organic / fun feel + selection focus
 User feedback after E6 shipped (in their words):

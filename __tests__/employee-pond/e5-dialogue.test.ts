@@ -113,8 +113,9 @@ describe('EmployeePond.tsx — E5 dialogue wiring', () => {
   it("orb element gets onClick + onKeyDown handlers + a data-selected mirror", () => {
     // E6 wraps the click in a guard that suppresses it after a
     // drag, so the test now locks on the click-handler invocation
-    // pattern (handleOrbClick still fires for non-drag taps).
-    expect(SRC).toMatch(/handleOrbClick\(employee\)/);
+    // pattern. E10 widened the signature with the focus-return
+    // opener arg — accept any extra args after `employee`.
+    expect(SRC).toMatch(/handleOrbClick\(employee[,)]/);
     expect(SRC).toMatch(/onKeyDown=\{\(e\) => \{[\s\S]*?if \(e\.key === 'Enter' \|\| e\.key === ' '\)/);
     expect(SRC).toMatch(/data-selected=\{selectedEmployee\?\.id === employee\.id \? 'true' : undefined\}/);
   });

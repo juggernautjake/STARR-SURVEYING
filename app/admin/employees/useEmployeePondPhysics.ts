@@ -97,6 +97,20 @@ export function useEmployeePondPhysics(
     orbByIdRef.current = nextById;
   }, [args.visibleIds, args.pondRadius, args.orbRadius, args.seed]);
 
+  // Slice E10 — when the loop is disabled (prefers-reduced-motion,
+  // or any future battery-save toggle), write a one-shot transform
+  // for every orb so it lands at its seeded position instead of
+  // stacking at the pond center.
+  useEffect(() => {
+    if (args.enabled) return;
+    for (const orb of orbsRef.current) {
+      const el = refs.get(orb.id);
+      if (!el) continue;
+      const scale = orb.scale ?? 1;
+      el.style.transform = `translate3d(calc(${orb.x.toFixed(2)}px - 50%), calc(${orb.y.toFixed(2)}px - 50%), 0) scale(${scale.toFixed(3)})`;
+    }
+  }, [args.enabled, args.visibleIds, args.pondRadius, refs]);
+
   // rAF loop. Effect runs once per `enabled` / `pondRadius` change
   // and owns the cancel side.
   useEffect(() => {

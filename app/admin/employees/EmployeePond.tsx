@@ -196,6 +196,28 @@ export default function EmployeePond({ employees }: Props) {
   } | null>(null);
   const dialogueRef = useRef<HTMLDivElement | null>(null);
 
+  // Slice E10 — prefers-reduced-motion respected end-to-end. When
+  // true, the physics rAF loop is paused (orbs render at their
+  // initial seeded positions), particle spawning is short-circuited,
+  // and the cursor attraction is bypassed via the disabled loop.
+  // The CSS reduced-motion blocks (set by prior slices) collapse the
+  // remaining transitions for hover / dialogue pop / tooltip / etc.
+  const [reduceMotion, setReduceMotion] = useState<boolean>(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduceMotion(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Slice E10 — capture the orb element that opened the dialogue so
+  // we can return focus to it on close (avoids the screen-reader
+  // user landing back at the document root after dismissing).
+  const dialogueOpenerRef = useRef<HTMLElement | null>(null);
+
   // Slice E4 — hover state. Tracks the orb the cursor is currently
   // over so we can scale that orb (and grow its collision radius —
   // the existing repulsion loop bumps neighbors). Tooltip renders
@@ -243,6 +265,10 @@ export default function EmployeePond({ employees }: Props) {
   const [particles, setParticles] = useState<Particle[]>([]);
   const particleSeqRef = useRef<number>(0);
   const spawnParticles = useCallback((x: number, y: number, count: number) => {
+    // Slice E10 — respect prefers-reduced-motion. No particles at all
+    // when the user has asked for less motion; the gesture still
+    // works, it just doesn't shower sparkles.
+    if (reduceMotion) return;
     const fresh: Particle[] = [];
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -263,7 +289,7 @@ export default function EmployeePond({ employees }: Props) {
         ? next.slice(next.length - MAX_ACTIVE_PARTICLES)
         : next;
     });
-  }, []);
+  }, [reduceMotion]);
   const removeParticle = useCallback((id: string) => {
     setParticles((prev) => prev.filter((p) => p.id !== id));
   }, []);
@@ -362,7 +388,7 @@ export default function EmployeePond({ employees }: Props) {
     pondRadius: POND_RADIUS_PX,
     orbRadius: ORB_RADIUS_PX,
     seed,
-    enabled: true,
+    enabled: !reduceMotion,
     // Slice E7 — declared below; the hook reads via a ref so the
     // forward reference here is fine for compilation order.
     onDraggedCollision: (e) => handleDraggedCollisionRef.current?.(e),
@@ -383,9 +409,10 @@ export default function EmployeePond({ employees }: Props) {
 
   /** Slice E5 — orb click opens the dialogue. Reads the orb's CURRENT
    *  physics position so the panel anchors to where the orb actually
-   *  is right now (not to its CSS-static origin). */
+   *  is right now (not to its CSS-static origin). Slice E10 also
+   *  captures the trigger element so we can return focus on close. */
   const handleOrbClick = useCallback(
-    (employee: PondEmployee) => {
+    (employee: PondEmployee, opener?: HTMLElement | null) => {
       const orbState = physics.orbs.find((o) => o.id === employee.id);
       const x = orbState?.x ?? 0;
       const y = orbState?.y ?? 0;
@@ -398,6 +425,14 @@ export default function EmployeePond({ employees }: Props) {
         gap: 16,
         pondRadius: POND_RADIUS_PX,
       });
+      // Slice E10 — capture the focus origin so closeDialogue can
+      // return focus there. Fallback: the orb DOM element.
+      dialogueOpenerRef.current =
+        opener ??
+        orbRefsRef.current.get(employee.id) ??
+        (typeof document !== 'undefined'
+          ? (document.activeElement as HTMLElement | null)
+          : null);
       setSelectedEmployee(employee);
       setDialoguePosition(anchor);
     },
@@ -409,6 +444,22 @@ export default function EmployeePond({ employees }: Props) {
   const closeDialogue = useCallback(() => {
     setSelectedEmployee(null);
     setDialoguePosition(null);
+    // Slice E10 — return focus to whichever element opened the
+    // dialogue (orb or list row) so keyboard + screen-reader users
+    // don't get dropped back at the document root.
+    const opener = dialogueOpenerRef.current;
+    if (opener && typeof opener.focus === 'function') {
+      // setTimeout 0 so React's render cycle commits the close
+      // first; otherwise the orb may not yet be tabbable.
+      setTimeout(() => {
+        try {
+          opener.focus();
+        } catch {
+          /* ignore */
+        }
+      }, 0);
+    }
+    dialogueOpenerRef.current = null;
   }, []);
 
   // Esc dismisses the dialogue. Click-outside is handled by an inline
@@ -682,7 +733,9 @@ export default function EmployeePond({ employees }: Props) {
         <div
           ref={pondElRef}
           className="employee-pond__pond"
-          aria-label="Employee pond"
+          role="region"
+          aria-roledescription="Interactive employee pond"
+          aria-label={`Employee pond — ${visibleEmployees.length} employee${visibleEmployees.length === 1 ? '' : 's'} visible. Use the list below or Tab to navigate.`}
           data-selection-active={selectedEmployee ? 'true' : undefined}
           onPointerMove={(e) => {
             // Slice E6b — feed pond-relative cursor into the
@@ -718,12 +771,12 @@ export default function EmployeePond({ employees }: Props) {
                   suppressNextClickRef.current = false;
                   return;
                 }
-                handleOrbClick(employee);
+                handleOrbClick(employee, orbRefsRef.current.get(employee.id) ?? null);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  handleOrbClick(employee);
+                  handleOrbClick(employee, e.currentTarget);
                 }
               }}
               onPointerEnter={(e) => {
@@ -974,7 +1027,7 @@ export default function EmployeePond({ employees }: Props) {
                 data-employee-id={e.id}
                 data-selected={selectedEmployee?.id === e.id ? 'true' : undefined}
                 data-hovered={hoveredEmployeeId === e.id ? 'true' : undefined}
-                onClick={() => handleOrbClick(e)}
+                onClick={(ev) => handleOrbClick(e, ev.currentTarget)}
                 onPointerEnter={(ev) => {
                   if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') {
                     setHoveredEmployeeId(e.id);
