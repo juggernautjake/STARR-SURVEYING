@@ -31,6 +31,11 @@ export interface AddEventForm {
   /** Slice S2 — comma- or newline-separated emails for
    *  'specific_users' mode. Parsed by parseViewerEmails. */
   viewerEmailsRaw?: string;
+  /** Slice S3 — per-event reminder leads (in minutes). Empty list
+   *  means "no reminders". Undefined falls through to the DB
+   *  default `[60]`. The form surfaces the canonical
+   *  REMINDER_LEAD_CHOICES picks via a checkbox group. */
+  reminderMinutesBefore?: number[];
 }
 
 export interface SchedulePayload {
@@ -46,6 +51,11 @@ export interface SchedulePayload {
   /** Slice S2 — empty for private + all_users modes; non-empty list
    *  for specific_users. */
   viewer_emails: string[];
+  /** Slice S3 — sorted-asc, deduplicated, positive-only reminder
+   *  leads. Empty array means "no reminders". The DB column is
+   *  NOT NULL DEFAULT '{60}' so omitting it from the payload is
+   *  also safe; the builder always includes it for clarity. */
+  reminder_minutes_before: number[];
 }
 
 export type BuildScheduleResult =
@@ -102,6 +112,13 @@ export function buildSchedulePayload(form: AddEventForm): BuildScheduleResult {
     return { ok: false, error: 'Pick at least one viewer for a specific-users event.' };
   }
 
+  // Slice S3 — clean up the reminder leads: drop anything
+  // non-numeric or non-positive, dedupe, sort ascending so the
+  // cron's per-lead loop produces stable test output. Default to
+  // `[60]` when the caller omits the field, matching the DB
+  // column's NOT NULL DEFAULT.
+  const reminderMinutesBefore = normalizeReminderLeads(form.reminderMinutesBefore);
+
   return {
     ok: true,
     payload: {
@@ -114,8 +131,24 @@ export function buildSchedulePayload(form: AddEventForm): BuildScheduleResult {
       color: form.color?.trim() || null,
       visibility,
       viewer_emails: viewerEmails,
+      reminder_minutes_before: reminderMinutesBefore,
     },
   };
+}
+
+/** Slice S3 — pure helper. Takes a possibly-undefined / messy
+ *  array of reminder leads and returns a sorted, deduplicated,
+ *  positive-only number[]. Undefined falls through to `[60]` so a
+ *  caller that doesn't surface the picker still gets the
+ *  legacy 1-hour reminder. Exported for direct testing. */
+export function normalizeReminderLeads(input: number[] | undefined): number[] {
+  if (input === undefined) return [60];
+  const seen = new Set<number>();
+  for (const v of input) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) continue;
+    seen.add(Math.round(v));
+  }
+  return Array.from(seen).sort((a, b) => a - b);
 }
 
 /** Slice S2 — parse a raw textarea (comma- and/or newline-

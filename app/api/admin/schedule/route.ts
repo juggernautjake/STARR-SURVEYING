@@ -18,7 +18,7 @@ import { expandRecurrence } from '@/lib/schedule/recurrence';
 // Slice S2 — visibility + viewer_emails join the column list so every
 // GET / POST / PATCH echoes the new fields.
 const SELECT_COLS =
-  'id, title, event_type, start_time, end_time, all_day, location, notes, job_id, assigned_to, assigned_by, color, created_at, recurrence_rule, recurrence_end, series_id, status, visibility, viewer_emails';
+  'id, title, event_type, start_time, end_time, all_day, location, notes, job_id, assigned_to, assigned_by, color, created_at, recurrence_rule, recurrence_end, series_id, status, visibility, viewer_emails, reminder_minutes_before';
 
 const EVENT_COLORS: Record<string, string> = {
   field_work: '#059669', office: '#1D3095', meeting: '#7C3AED', training: '#D97706',
@@ -120,6 +120,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // Slice S2 — visibility model.
     visibility?: 'private' | 'specific_users' | 'all_users';
     viewer_emails?: string[];
+    // Slice S3 — per-event reminder lead times (minutes).
+    reminder_minutes_before?: number[];
   };
   const title = (body.title ?? '').trim();
   if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
@@ -154,6 +156,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     ? Array.from(new Set((body.viewer_emails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean)))
     : [];
 
+  // Slice S3 — sanitize reminder leads on the server too so a
+  // legacy client or a hand-rolled curl can't smuggle in negative
+  // numbers or duplicates. Defaults to `[60]` when the field is
+  // omitted (matches the DB column default + the form default).
+  const reminderMinutesBefore = Array.isArray(body.reminder_minutes_before)
+    ? Array.from(new Set(
+        body.reminder_minutes_before
+          .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0)
+          .map((n) => Math.round(n)),
+      )).sort((a, b) => a - b)
+    : [60];
+
   const { data, error } = await supabaseAdmin
     .from('schedule_events')
     .insert({
@@ -173,6 +187,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       status: body.status ?? 'approved',
       visibility,
       viewer_emails: viewerEmails,
+      reminder_minutes_before: reminderMinutesBefore,
     })
     .select(SELECT_COLS)
     .single();
@@ -213,8 +228,17 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   body.id = (body.id as string).split(':')[0];
 
   const patch: Record<string, unknown> = {};
-  for (const f of ['title', 'event_type', 'start_time', 'end_time', 'all_day', 'location', 'notes', 'job_id', 'assigned_to', 'recurrence_rule', 'recurrence_end', 'status', 'visibility', 'viewer_emails']) {
+  for (const f of ['title', 'event_type', 'start_time', 'end_time', 'all_day', 'location', 'notes', 'job_id', 'assigned_to', 'recurrence_rule', 'recurrence_end', 'status', 'visibility', 'viewer_emails', 'reminder_minutes_before']) {
     if (body[f] !== undefined) patch[f] = body[f] === '' ? null : body[f];
+  }
+  // Slice S3 — same lead sanitization as POST on a PATCH so the
+  // PATCH path can't bypass it.
+  if (Array.isArray(patch.reminder_minutes_before)) {
+    patch.reminder_minutes_before = Array.from(new Set(
+      (patch.reminder_minutes_before as unknown[])
+        .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0)
+        .map((n) => Math.round(n)),
+    )).sort((a, b) => a - b);
   }
   // Slice S2 — patches keep visibility ↔ viewer_emails coherent:
   // toggling AWAY from specific_users empties viewer_emails so the
