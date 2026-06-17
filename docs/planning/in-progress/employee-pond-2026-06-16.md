@@ -894,7 +894,63 @@ helper to filter their displays.
   matrix copy).
 - **Three post-build checks: green** — typecheck clean, lint
   clean on touched files, full suite 8922 green (+17).
-| Activity history schema (jobs / bonuses / salary / payouts / hours / photos) | **E13** |
+| Activity history schema (jobs / bonuses / salary / payouts / hours / photos) | **✅ E13** |
+
+**E13 shipped 2026-06-16** — activity history schema.
+- `seeds/296_employee_bonuses.sql` — per-employee bonus log.
+  Columns: `id`, `user_email`, `amount_cents (BIGINT)`,
+  `reason (NOT NULL)`, `awarded_by`, `awarded_at`,
+  `related_job_id (FK to jobs, nullable)`, `notes`, audit
+  timestamps. Indexes: `(user_email, awarded_at DESC)` for the
+  activity list; partial index on `related_job_id` for the
+  "show all bonuses tied to this job" query.
+- `seeds/297_employee_salary_history.sql` — per-employee salary
+  change log. Columns: `id`, `user_email`,
+  `base_hourly_rate_cents`, `base_annual_salary_cents`,
+  `effective_from (NOT NULL)`, `effective_to (NULL = current)`,
+  `changed_by`, `change_reason`, `notes`, audit timestamps. CHECK
+  constraints: at least one of hourly / annual must be set;
+  `effective_from <= effective_to` when both present. Indexes:
+  `(user_email, effective_from DESC)`, plus a partial index for
+  the "current compensation" row (`WHERE effective_to IS NULL`).
+- `seeds/298_employee_payouts.sql` — per-employee payout ledger.
+  Columns: `id`, `user_email`, `period_start (DATE NOT NULL)`,
+  `period_end (DATE NOT NULL)`, `gross_cents (BIGINT NOT NULL)`,
+  `net_cents (BIGINT NOT NULL)`, `items (JSONB NOT NULL DEFAULT
+  '[]')`, `paid_at (NOT NULL)`, `method (DEFAULT 'direct_deposit')`,
+  `reference`, `notes`, `created_by`, audit timestamps. CHECK
+  constraints: `period_start <= period_end`; `gross_cents >= 0`,
+  `net_cents >= 0`, `net_cents <= gross_cents`. Indexes:
+  `(user_email, paid_at DESC)`, `(period_end DESC)`.
+- `lib/employee-pond/activity-history.ts`:
+  - `ACTIVITY_TABLES` constant mapping `'bonuses' | 'salary' |
+    'payouts'` → table names so consumers don't hard-code.
+  - TypeScript interfaces matching each table 1:1:
+    `EmployeeBonus`, `EmployeeSalaryHistoryRow`, `EmployeePayout`
+    with `PayoutLineItem` for the JSONB shape.
+  - `formatCents(n)` — canonical USD formatter, `'—'` on null /
+    undefined / NaN.
+  - `formatHours(n)` — singular vs plural label, `'—'` on
+    null / undefined / NaN.
+  - `currentSalaryRow(rows)` — returns the row with
+    `effective_to IS NULL` if one exists; falls back to the most
+    recent `effective_from` otherwise; null on empty input.
+  - `sumBonusesSince(bonuses, sinceIso)` — inclusive YTD sum
+    helper for the admin everything-page header summary.
+- Source-locked by
+  `__tests__/employee-pond/e13-activity-history.test.ts` (22
+  assertions: ACTIVITY_TABLES shape; formatCents zero + thousand
+  + million + nulls + negative; formatHours singular vs plural +
+  nulls; currentSalaryRow empty + open-row + fallback;
+  sumBonusesSince inclusive cutoff + no-match + empty; SQL
+  schemas — bonuses columns + reference + index; salary CHECK
+  constraints + partial current index; payouts columns + JSONB
+  items + amounts CHECK + method default + activity index).
+- **Three post-build checks: green** — typecheck clean, lint
+  clean, full suite 8944 green (+22).
+
+E14 (admin "everything" page + employee "My history" page)
+consumes the schemas + helper next.
 | Activity history surfaces (admin "everything" page + employee "my history") | **E14** |
 | Three post-build checks per slice (`tsc --noEmit`, `eslint`, `vitest`) | every slice |
 | Optional follow-up: DOB / gender / FT-PT schema columns | **E11** |
