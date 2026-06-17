@@ -44,7 +44,12 @@ const MAX_ACTIVE_PARTICLES = 64;
  *  half so collisions feel right on the surface the user spends
  *  most of their time on. */
 const ORB_RADIUS_PX = 32;
-const POND_RADIUS_PX = 280;
+/** Slice P3 — user feedback: "please make the pond view bigger".
+ *  Bumped from 280 → 360 (28% larger diameter). The physics constants
+ *  in the hook key off this value, so collision math + soft-viewport
+ *  gravity remain correct for the new circle. Mobile breakpoints
+ *  stay smaller (160/140) so the pond still fits on phones. */
+const POND_RADIUS_PX = 360;
 
 export interface PondEmployee {
   id: string;
@@ -728,7 +733,7 @@ export default function EmployeePond({ employees }: Props) {
         data-orb-count={visibleEmployees.length}
         // The CSS keys on this --radius var so the surface and the
         // child orb absolute positions agree on geometry.
-        style={{ ['--pond-radius' as string]: '280px' }}
+        style={{ ['--pond-radius' as string]: '360px' }}
       >
         {/* Slice P1 — pond-wrap is positioned + the same size as
             the pond circle. The pond itself stays overflow:hidden

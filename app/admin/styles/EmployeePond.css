@@ -182,8 +182,12 @@
  * the same. */
 .employee-pond__pond-wrap {
   position: relative;
-  width: calc(var(--pond-radius, 280px) * 2);
-  height: calc(var(--pond-radius, 280px) * 2);
+  /* Slice P3 — bumped the desktop fallback 280px → 360px to match
+   * the JS `POND_RADIUS_PX = 360`. The inline `--pond-radius` from
+   * the component always wins; this fallback only matters if the
+   * inline var is missing (SSR / older render path). */
+  width: calc(var(--pond-radius, 360px) * 2);
+  height: calc(var(--pond-radius, 360px) * 2);
 }
 .employee-pond__pond {
   position: absolute;
@@ -339,7 +343,7 @@
    * pond circle (radius * 2 with breathing room) so the list reads
    * as a vertical column directly under the circle. */
   margin: 0 auto;
-  max-width: calc(var(--pond-radius, 280px) * 2 + var(--space-6, 32px) * 2);
+  max-width: calc(var(--pond-radius, 360px) * 2 + var(--space-6, 32px) * 2);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--space-1) var(--space-3);

@@ -172,8 +172,12 @@ describe('EmployeePond.css — E1 contract', () => {
     // escape the pond's overflow:hidden clip. The pond itself now
     // uses `position: absolute; inset: 0` to fill the wrap, and the
     // CSS variable lives on the wrap. Widen the lock accordingly.
+    // Slice P3 — desktop fallback bumped 280 → 360 to match the
+    // larger pond requested by the user. Inline `--pond-radius` from
+    // the component is the source of truth; the fallback only fires
+    // when the inline var is missing.
     expect(CSS).toMatch(
-      /\.employee-pond__pond-wrap \{[\s\S]*?width: calc\(var\(--pond-radius, 280px\) \* 2\)/,
+      /\.employee-pond__pond-wrap \{[\s\S]*?width: calc\(var\(--pond-radius, 360px\) \* 2\)/,
     );
     expect(CSS).toMatch(/\.employee-pond__pond \{[\s\S]*?inset: 0/);
   });
