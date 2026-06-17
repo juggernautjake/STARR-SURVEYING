@@ -627,7 +627,58 @@ universal reach until E9c builds the dedicated page).
   + hydrate-once ref + activeConv set + fetchMessages call).
 - **Three post-build checks: green** — typecheck clean, lint
   clean on the touched files, full suite 8829 green (+18).
-| In-app email composer page at /admin/email/new | **E9c** |
+| In-app email composer page at /admin/email/new | **✅ E9c** |
+
+**E9c shipped 2026-06-16** — in-app email composer.
+- `app/api/admin/email/send/route.ts`:
+  - Admin-gated POST. Validates `to` (regex email shape), `subject`,
+    `body` (all required + trimmed).
+  - Sends via Resend (`POST https://api.resend.com/emails`) using
+    the same pattern as `app/api/contact/route.ts`. `reply_to`
+    set to the signed-in sender's email so a recipient hitting
+    Reply lands on the actual sender, not the noreply alias.
+  - HTML body escapes user content + linebreaks → `<p>…<br>…</p>`.
+  - Dev-mode short-circuit: when `RESEND_API_KEY` is missing or
+    placeholder, logs + returns success so the UI flow is
+    reachable without a live key.
+  - 502 with clean messages on Resend non-2xx + network errors.
+- `app/admin/email/new/page.tsx`:
+  - Reads `?to=<email>` first; falls back to
+    `readActiveRecipient()` so jumping from the messenger widget
+    or `/admin/messages` (or anywhere that's written through the
+    E9b shared store) lands with the recipient already loaded.
+  - Persists the recipient back through `saveActiveRecipient(to)`
+    once the value matches the email-shape regex so leaving for
+    the messenger widget or `/admin/messages` keeps continuity.
+  - Composes To / Subject / Body. Send button POSTs through the
+    new endpoint; disables while sending; renders success /
+    error states via `role="status"` + `role="alert"`. Clears
+    Subject + Body on success.
+- `app/admin/styles/EmailCompose.css`:
+  - Page surface tuned to a 720 px max-width content column.
+  - Send button uses `--color-brand-navy` + `--color-text-on-brand`
+    + 44 pt min-height (mobile-friendly).
+  - Success / error status banners use
+    `--color-success-bg` / `--color-error-bg` tokens.
+  - Phone breakpoint stretches the Send button to full-width.
+- `app/admin/employees/EmployeePond.tsx`:
+  - Email button now `<a href="/admin/email/new?to=<encoded>">`
+    — no more `mailto:`. The dialogue's other buttons unchanged.
+- Source-locked by `__tests__/employee-pond/e9c-email-page.test.ts`
+  (19 assertions: page `'use client'` + shared-store import +
+  `?to=` then store hydrate + persist-on-valid-email; three
+  form testIDs; Send POST shape; role="status"/role="alert"
+  + send-disabled; endpoint auth gate + every validation
+  branch + dev-mode short-circuit + reply_to wiring + 502
+  failure modes + HTML escape; EmployeePond button switched
+  from mailto: to the new route + no mailto: in the contact-
+  email block; CSS Send brand-navy + 44 pt, status banner
+  tokens, no-drift check).
+- The E9 source-lock that pinned the old `mailto:` href on the
+  Email button was updated to assert the new in-app route.
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings, full suite 8881 green
+  (+19).
 | `prefers-reduced-motion` + accessibility audit | **✅ E10** |
 | Full mobile-responsive build of the pond surface | **✅ E10b** |
 | Soft viewport — orbs render but can drift outside the visible circle | **✅ E10b** |

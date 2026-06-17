@@ -15,9 +15,12 @@ const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 describe('EmployeePond dialogue — E9 Email button', () => {
   const SRC = read('app/admin/employees/EmployeePond.tsx');
 
-  it('Email button is now an <a> with mailto: href so right-click + copy works', () => {
+  it('Email button is an <a> that links to the in-app email composer with recipient prefilled (E9c)', () => {
+    // E9 originally shipped mailto: as a stop-gap; E9c built the
+    // in-app composer at /admin/email/new so the button now
+    // routes there with ?to=<email>.
     expect(SRC).toMatch(
-      /<a\s*\n\s*href=\{`mailto:\$\{selectedEmployee\.email\}`\}[\s\S]*?data-action="contact-email"/,
+      /<a\s*\n\s*href=\{`\/admin\/email\/new\?to=\$\{encodeURIComponent\(selectedEmployee\.email\)\}`\}[\s\S]*?data-action="contact-email"/,
     );
   });
 

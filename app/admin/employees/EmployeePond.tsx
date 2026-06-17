@@ -958,14 +958,14 @@ export default function EmployeePond({ employees }: Props) {
                     Open profile →
                   </a>
                   <div className="employee-pond__dialogue-contact">
-                    {/* Slice E9 — Email button. Until E9c builds the
-                        in-app email composer page, this opens the
-                        OS mail client (mailto:) with the recipient
-                        prefilled. The href makes right-click + copy
-                        work; the onClick simply lets the browser
-                        navigate. */}
+                    {/* Slice E9c — Email button routes to the
+                        in-app email composer page with the
+                        recipient preloaded. E9b's shared
+                        recipient store also makes the value
+                        flow to the messenger widget + the
+                        dedicated /admin/messages page. */}
                     <a
-                      href={`mailto:${selectedEmployee.email}`}
+                      href={`/admin/email/new?to=${encodeURIComponent(selectedEmployee.email)}`}
                       className="employee-pond__dialogue-btn"
                       data-action="contact-email"
                       data-testid="employee-pond-dialogue-email"
