@@ -951,9 +951,59 @@ helper to filter their displays.
 
 E14 (admin "everything" page + employee "My history" page)
 consumes the schemas + helper next.
-| Activity history surfaces (admin "everything" page + employee "my history") | **E14** |
+| Activity history surfaces (admin "everything" page + employee "my history") | **✅ E14 (admin page; "/me/history" → E14b)** |
+
+**E14 shipped 2026-06-16** — admin "everything" page + API.
+The user's-own `/me/history` mirror page is straightforward (calls
+the same endpoint with `email = session.user.email`) and stays
+queued as **E14b**.
+- `app/api/admin/employees/[email]/history/route.ts`:
+  - GET reads the `[email]` segment off the URL pathname (the
+    `withErrorHandler` wrapper is single-arg so no Next ctx
+    available).
+  - Auth gates on signed-in user. Hydrates the target user's
+    privacy row up-front; uses
+    `viewerSeesEverything(viewer, targetEmail)` to decide
+    whether salary + payouts ever leave the server.
+  - Bonuses returned when viewer is admin / self **OR** when
+    the target user has `show_bonuses_to_employees = true`.
+  - Salary history + payouts are returned **only when**
+    `viewerSeesEverything === true`. Non-admin viewers never
+    see the rows — enforced at the API layer so a hostile
+    client can't bypass the JS-side helper.
+  - Response: `{ target_email, viewer_sees_everything,
+    bonuses, salary_history, payouts }`.
+- `app/admin/employees/manage/[email]/history/page.tsx`:
+  - `'use client'`, reads dynamic email param, fetches the
+    history endpoint with `credentials: 'include'`.
+  - Four tabs (Overview / Bonuses / Salary / Payouts).
+    `salary` + `payouts` tab buttons are hidden when
+    `viewer_sees_everything === false` so the page reflects
+    the gate.
+  - Overview shows YTD bonus total via `sumBonusesSince`,
+    current salary via `currentSalaryRow` (admin-only), and a
+    plain-language privacy notice for limited viewers
+    explaining the role requirement.
+  - Bonus / Salary / Payout rows each carry stable testIDs.
+    Currency rendered via `formatCents` so every surface
+    shares the canonical USD format.
+  - Back link routes to `/admin/employees/manage?email=<…>`
+    so the user can step back to the main profile.
+- Stylesheet reused from `EmailCompose.css` — keeps the page
+  consistent with the rest of the admin shell.
+- Source-locked by
+  `__tests__/employee-pond/e14-history-page.test.ts` (16
+  assertions: API auth gate + privacy hydrate + sees-everything
+  gate + bonuses-vs-toggle + salary/payouts always-admin-only +
+  response shape + pathname parse; page `'use client'` + fetch
+  call + tab list + admin-only tab gating + YTD overview +
+  current-salary-admin-only + bonus/salary/payout row testIDs +
+  back link + helper import).
+- **Three post-build checks: green** — typecheck clean, lint
+  clean, full suite 8960 green (+16).
 | Three post-build checks per slice (`tsc --noEmit`, `eslint`, `vitest`) | every slice |
-| Optional follow-up: DOB / gender / FT-PT schema columns | **E11** |
+| Optional follow-up: DOB / gender / FT-PT schema columns | **⏸️ E11 — DEFERRED. Rationale: the dialogue renders `—` placeholders today; adding the columns is decoupled from the visible feature and lands as part of the next employee-data PR.** |
+| `/me/history` mirror page (employee viewing their own history) | **⏸️ E14b — DEFERRED. Rationale: the API already enforces visibility correctly for `viewer === target`; the mirror page is a copy of the admin page targeting `session.user.email` and lands when an employee profile portal is built.** |
 
 ## Three post-build checks (per slice)
 
