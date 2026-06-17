@@ -191,6 +191,14 @@ export default function EmployeePond({ employees }: Props) {
   const HOVER_SCALE = 1.18;
   const HOVER_RADIUS = ORB_RADIUS_PX * HOVER_SCALE;
 
+  // Slice E6b — selection scale + previous tracker. While the
+  // dialogue is open, the selected orb stays enlarged (matching the
+  // hover bump) so the user can see which one the dialogue points
+  // at even after their cursor moves away.
+  const prevSelectedRef = useRef<string | null>(null);
+  const SELECTION_SCALE = HOVER_SCALE;
+  const SELECTION_RADIUS = HOVER_RADIUS;
+
   // Slice E6 — drag refs. All non-rendering state so React doesn't
   // re-render the world on every pointermove event. `pondElRef`
   // points at the .employee-pond__pond element so we can read its
@@ -317,7 +325,13 @@ export default function EmployeePond({ employees }: Props) {
   // resting size; the new one grows. The repulsion in the physics
   // step naturally pushes neighbors away from the now-larger orb
   // and they re-converge once it shrinks back.
+  //
+  // Slice E6b — while the dialogue is open, the selection effect
+  // owns the bump for the selected orb. Hover changes are still
+  // tracked (for tooltip) but no longer drive scale/radius — that
+  // prevents fighting between the two effects.
   useEffect(() => {
+    if (selectedEmployee) return; // selection effect owns the bump
     const prev = prevHoveredRef.current;
     if (prev && prev !== hoveredEmployeeId) {
       physics.setOrb(prev, { scale: 1, radius: ORB_RADIUS_PX });
@@ -331,7 +345,26 @@ export default function EmployeePond({ employees }: Props) {
     prevHoveredRef.current = hoveredEmployeeId;
     // physics handle identity is stable; deps intentionally narrow.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hoveredEmployeeId]);
+  }, [hoveredEmployeeId, selectedEmployee]);
+
+  // Slice E6b — selection effect. When the user opens a dialogue,
+  // the selected orb stays enlarged + the repulsion loop pushes
+  // neighbors away. When the dialogue closes, the selected orb
+  // returns to its resting size and the pond settles back together.
+  useEffect(() => {
+    const prev = prevSelectedRef.current;
+    if (prev && prev !== selectedEmployee?.id) {
+      physics.setOrb(prev, { scale: 1, radius: ORB_RADIUS_PX });
+    }
+    if (selectedEmployee) {
+      physics.setOrb(selectedEmployee.id, {
+        scale: SELECTION_SCALE,
+        radius: SELECTION_RADIUS,
+      });
+    }
+    prevSelectedRef.current = selectedEmployee?.id ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmployee]);
 
   /** Slice E6 — pointerdown on an orb captures the pointer and
    *  records the drag origin. We don't flip `dragging` in the
@@ -526,6 +559,21 @@ export default function EmployeePond({ employees }: Props) {
           ref={pondElRef}
           className="employee-pond__pond"
           aria-label="Employee pond"
+          data-selection-active={selectedEmployee ? 'true' : undefined}
+          onPointerMove={(e) => {
+            // Slice E6b — feed pond-relative cursor into the
+            // physics so orbs feel a gentle attraction. Skip touch
+            // input so a finger swipe (used for drag) doesn't
+            // double-fire as an attractor.
+            if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+            const rect = pondElRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const pond = pointerToPondCoords(e.clientX, e.clientY, rect);
+            physics.setCursor(pond);
+          }}
+          onPointerLeave={() => {
+            physics.setCursor(null);
+          }}
         >
           {visibleEmployees.map((employee) => (
             <div

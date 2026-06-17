@@ -44,21 +44,46 @@ export interface PhysicsOptions {
   bounceRestitution: number;
   /** elapsed seconds since the last step */
   dt: number;
+  /** Slice E6b — small random force added each frame so the pond
+   *  never goes fully still. px/s² scale. Default 0. */
+  idleJitter?: number;
+  /** Slice E6b — when the cursor is inside the pond, orbs feel a
+   *  gentle attraction toward it. Strength constant; falls off
+   *  with distance via `strength / (dist + 50)`. */
+  cursor?: { x: number; y: number } | null;
+  cursorAttraction?: number;
 }
 
-/** Reasonable defaults that produce a calm, floaty pond at 60 fps.
- *  Source-locked; tests use them as a baseline. */
+/** Slice E6b — defaults tuned for a dynamic + organic floaty feel.
+ *  Lower gravity so orbs glide rather than snap, higher damping
+ *  factor (closer to 1.0 = less drag), small idle jitter so the
+ *  pond never goes completely still, gentle cursor attraction
+ *  when the cursor is in the pond. Source-locked; tests + the
+ *  hook share them. */
 export const DEFAULT_PHYSICS: Omit<PhysicsOptions, 'dt' | 'pondRadius'> = {
-  gravity: 1.4,
+  gravity: 0.8,
   repulsion: 900,
-  damping: 0.45,
+  damping: 0.85,
   bounceRestitution: 0.55,
+  idleJitter: 24,
+  cursor: null,
+  cursorAttraction: 4000,
 };
 
 /** One simulation step. Mutates `orbs` in place for performance —
  *  the hook calls this with the same array every frame. */
 export function stepPhysics(orbs: OrbState[], opts: PhysicsOptions): void {
-  const { pondRadius, gravity, repulsion, damping, bounceRestitution, dt } = opts;
+  const {
+    pondRadius,
+    gravity,
+    repulsion,
+    damping,
+    bounceRestitution,
+    dt,
+    idleJitter = 0,
+    cursor = null,
+    cursorAttraction = 0,
+  } = opts;
   if (dt <= 0) return;
 
   // 1. Gravity toward (0, 0). Stronger when far from center so a
@@ -67,6 +92,34 @@ export function stepPhysics(orbs: OrbState[], opts: PhysicsOptions): void {
     if (o.dragging) continue;
     o.vx -= o.x * gravity * dt;
     o.vy -= o.y * gravity * dt;
+  }
+
+  // 1b. Slice E6b — cursor attraction. When the cursor is inside
+  //     the pond, every non-dragging orb feels a gentle pull toward
+  //     it. Force falls off as 1 / (dist + 50) so a close-by orb
+  //     doesn't get a runaway tug.
+  if (cursor && cursorAttraction > 0) {
+    for (const o of orbs) {
+      if (o.dragging) continue;
+      const dx = cursor.x - o.x;
+      const dy = cursor.y - o.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1) continue;
+      const force = (cursorAttraction / (dist + 50)) * dt;
+      o.vx += (dx / dist) * force;
+      o.vy += (dy / dist) * force;
+    }
+  }
+
+  // 1c. Slice E6b — idle jitter. Tiny random per-frame force so the
+  //     pond never goes fully still. Bounded by `idleJitter` (px/s²)
+  //     so it stays subtle.
+  if (idleJitter > 0) {
+    for (const o of orbs) {
+      if (o.dragging) continue;
+      o.vx += (Math.random() - 0.5) * 2 * idleJitter * dt;
+      o.vy += (Math.random() - 0.5) * 2 * idleJitter * dt;
+    }
   }
 
   // 2. Pairwise repulsion when orbs overlap. O(n²) but n ≤ 50

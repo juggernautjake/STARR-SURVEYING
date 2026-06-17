@@ -534,6 +534,29 @@
 .employee-pond__orb[data-selected='true'] {
   outline: 3px solid var(--color-brand-navy);
   outline-offset: 2px;
+  z-index: 5;
+}
+
+/* ── Slice E6b — selection focus dim ───────────────────────── */
+.employee-pond__orb {
+  /* opacity transitions smoothly when selection-active flips */
+  transition: box-shadow 160ms ease, opacity 200ms ease;
+}
+.employee-pond__pond[data-selection-active='true']
+  .employee-pond__orb:not([data-selected='true']) {
+  opacity: 0.32;
+}
+.employee-pond__pond[data-selection-active='true']
+  .employee-pond__orb[data-selected='true'] {
+  /* Make sure the focused orb sits ABOVE the dimmed neighbors. */
+  opacity: 1;
+  z-index: 5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .employee-pond__orb {
+    transition: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -324,7 +324,63 @@
   only the pre-existing `<img>` warnings (one new for the
   dialogue avatar), full suite 8702 green (+24).
 | Drag interaction (pointer down/move/up) | **✅ E6** |
-| Hockey-table feel + selected-puck visual focus | **E6b** |
+| Hockey-table feel + selected-puck visual focus | **✅ E6b** |
+
+**E6b shipped 2026-06-16** — dynamic/organic feel + selection focus.
+- `lib/employee-pond/physics.ts`:
+  - `DEFAULT_PHYSICS` retuned: `gravity 1.4 → 0.8`, `damping 0.45
+    → 0.85` (so velocities decay gently rather than snapping
+    to zero), `idleJitter: 24` and `cursorAttraction: 4000` added.
+  - `PhysicsOptions` extended with `idleJitter`,
+    `cursor: { x; y } | null`, `cursorAttraction`.
+  - `stepPhysics` now applies three additional forces (skipped
+    for dragging orbs):
+    1. Cursor attraction — pull toward the active cursor with
+       force `strength / (dist + 50)` so close orbs don't get
+       a runaway tug.
+    2. Idle jitter — small `(rand-0.5) * 2 * idleJitter * dt`
+       per axis so the pond never stops.
+- `app/admin/employees/useEmployeePondPhysics.ts`:
+  - Internal `cursorRef` holds the current pond-relative cursor.
+  - Loop hands `cursorRef.current` to `stepPhysics` every frame.
+  - Handle gains `setCursor(cursor: {x;y} | null)`.
+- `app/admin/employees/EmployeePond.tsx`:
+  - `SELECTION_SCALE` + `SELECTION_RADIUS` constants (same
+    magnitudes as hover bump) + `prevSelectedRef` so the
+    effect knows which orb to reset on change.
+  - New useEffect on `selectedEmployee`: on change, resets the
+    previous selected orb and bumps the new one — the orb
+    stays enlarged as long as the dialogue is open.
+  - Hover useEffect early-returns when a dialogue is open so
+    the two effects don't fight; hover tooltip + state still
+    track normally for other interactions.
+  - Pond surface gets `data-selection-active="true"` when a
+    dialogue is open; `onPointerMove` (mouse/pen only) feeds
+    pond-relative cursor into `physics.setCursor`;
+    `onPointerLeave` clears it.
+- `app/admin/styles/EmployeePond.css`:
+  - `.employee-pond__pond[data-selection-active='true']
+    .employee-pond__orb:not([data-selected='true'])` fades to
+    `opacity: 0.32`.
+  - The selected orb stays `opacity: 1` + `z-index: 5` so it
+    sits above the dimmed crowd.
+  - Orb gets an `opacity 200ms ease` transition so the dim is
+    smooth; reduced-motion disables it.
+- E3 source-locks that assumed zero idle jitter were updated to
+  opt out via `idleJitter: 0` explicitly so the deterministic
+  pure-gravity / non-overlap assertions still hold.
+- Source-locked by `__tests__/employee-pond/e6b-feel-selection.test.ts`
+  (22 assertions: DEFAULT_PHYSICS tuned constants; cursor
+  attraction force direction + null no-op + drag-skip; idle
+  jitter non-zero produces motion + zero leaves still; hook
+  cursorRef + every-frame handoff + setCursor handle; page
+  selection constants + prevRef + selection effect bumping +
+  hover-suppression; pond data-selection-active + cursor
+  handlers + touch-input skip; CSS dim rule + selected-orb
+  opacity-1-z-5 + transition + reduced-motion).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings, full suite 8762 green
+  (+22).
 
 **E6 shipped 2026-06-16** — drag interaction.
 - `lib/employee-pond/drag.ts`:

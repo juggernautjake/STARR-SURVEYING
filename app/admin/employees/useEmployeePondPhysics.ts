@@ -39,6 +39,10 @@ export interface PondPhysicsHandle {
   setOrb: (id: string, patch: Partial<OrbState>) => void;
   /** Marks the orb as currently dragged (skips gravity/damping). */
   setDragging: (id: string, dragging: boolean) => void;
+  /** Slice E6b — pond-relative cursor position drives the gentle
+   *  attraction force. `null` removes the cursor (e.g. on
+   *  pointerleave) so orbs return to plain gravity. */
+  setCursor: (cursor: { x: number; y: number } | null) => void;
 }
 
 export function useEmployeePondPhysics(
@@ -49,6 +53,10 @@ export function useEmployeePondPhysics(
   const orbByIdRef = useRef<Map<string, OrbState>>(new Map());
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  // Slice E6b — cursor position in pond-center coords. Updated via
+  // the handle's setCursor() and read each rAF tick before
+  // stepPhysics so the attraction force tracks the user's mouse.
+  const cursorRef = useRef<{ x: number; y: number } | null>(null);
 
   // Sync the orb pool whenever the visible set changes. Existing
   // orbs keep their position + velocity; newly-visible ones spawn
@@ -98,6 +106,7 @@ export function useEmployeePondPhysics(
       stepPhysics(orbsRef.current, {
         pondRadius: args.pondRadius,
         ...DEFAULT_PHYSICS,
+        cursor: cursorRef.current,
         dt,
       });
 
@@ -157,6 +166,9 @@ export function useEmployeePondPhysics(
         // down. No explicit nudge — the drag's last velocity is
         // already in vx/vy.
       }
+    },
+    setCursor(cursor) {
+      cursorRef.current = cursor;
     },
   };
 }

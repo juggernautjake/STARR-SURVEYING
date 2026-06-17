@@ -25,9 +25,11 @@ function orb(over: Partial<OrbState> = {}): OrbState {
 }
 
 describe('stepPhysics — gravity', () => {
-  it('an orb at center with zero velocity stays put', () => {
+  it('an orb at center with zero velocity stays put (jitter off for determinism)', () => {
     const list = [orb()];
-    stepPhysics(list, { pondRadius: POND, ...DEFAULT_PHYSICS, dt: 0.016 });
+    // E6b added idle jitter to the defaults; opt out so this
+    // pure-gravity assertion stays deterministic.
+    stepPhysics(list, { pondRadius: POND, ...DEFAULT_PHYSICS, idleJitter: 0, dt: 0.016 });
     expect(list[0].x).toBeCloseTo(0, 3);
     expect(list[0].y).toBeCloseTo(0, 3);
   });
@@ -61,9 +63,11 @@ describe('stepPhysics — pairwise repulsion', () => {
     expect(list[1].vx).toBeGreaterThan(0); // 'b' pushed right
   });
 
-  it('two non-overlapping orbs exchange no force', () => {
+  it('two non-overlapping orbs exchange no force (jitter off for determinism)', () => {
     const list = [orb({ id: 'a', x: 0, y: 0 }), orb({ id: 'b', x: 100, y: 0 })];
-    stepPhysics(list, { pondRadius: POND, ...DEFAULT_PHYSICS, dt: 0.016 });
+    // E6b added idle jitter to the defaults; opt out so this
+    // assertion stays deterministic.
+    stepPhysics(list, { pondRadius: POND, ...DEFAULT_PHYSICS, idleJitter: 0, dt: 0.016 });
     // Only gravity acts; both at y=0 means no y velocity.
     expect(list[0].vy).toBe(0);
     expect(list[1].vy).toBe(0);
