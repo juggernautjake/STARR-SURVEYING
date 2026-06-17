@@ -4,6 +4,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -181,8 +182,13 @@ export default function DiscussionThreadButton() {
         </div>
       )}
 
-      {/* Discussion panel */}
-      {isOpen && (
+      {/* Discussion panel — Slice P-msg-fix — portaled to <body>
+          so the position:fixed panel escapes the FAB pill's
+          flex/overflow context. Without the portal, the panel
+          rendered as a flex child inside .fab-menu__buttons which
+          caused it to render collapsed / clipped instead of
+          popping up as its own bottom-right window. */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div className="discussion-panel" ref={panelRef}>
           {/* Header */}
           <div className="discussion-panel__header">
@@ -342,7 +348,8 @@ export default function DiscussionThreadButton() {
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
