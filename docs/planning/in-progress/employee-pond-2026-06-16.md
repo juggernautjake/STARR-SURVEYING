@@ -38,6 +38,12 @@
   - **Email** routes to the existing **email interface page**
     (the on-app email surface, not `mailto:`). Slice **E9**
     locates that route + adds a `?to=<email>` prefill query param.
+    The email page must **preload the employee as recipient** so
+    the compose form opens with `To:` already populated — no
+    re-typing — when the user clicks Email from the pond.
+    Continuity carries through if they switch composers (web
+    page ↔ widget ↔ dedicated messages page) — the recipient
+    travels with them per E9b's shared store.
 - **Recipient continuity** (added 2026-06-16 per user clarification):
   When the bottom-right messenger has a recipient loaded AND the
   user navigates to the dedicated `/admin/messages` page, the page
@@ -210,7 +216,61 @@
 - **Three post-build checks: green** — typecheck clean, lint
   only the pre-existing `<img>` warning, full suite 8678 green
   (+22).
-| Hover scale + neighbor bump + tooltip | **E4** |
+| Hover scale + neighbor bump + tooltip | **✅ E4** |
+
+**E4 shipped 2026-06-16** — hover scale + neighbor bump + tooltip.
+- `lib/employee-pond/physics.ts`:
+  - `OrbState.scale?: number` added (default 1.0). Physics step
+    doesn't read it; it's a transform-write field consumed by
+    the hook.
+- `app/admin/employees/useEmployeePondPhysics.ts`:
+  - Transform write appends `scale(<scale>)` so the hover bump
+    is visually applied without React re-renders.
+  - `setOrb` accepts `radius` + `scale` patches so the hover
+    hook can change both atomically.
+- `app/admin/employees/EmployeePond.tsx`:
+  - `hoveredEmployeeId` state + `prevHoveredRef` to know which
+    orb to reset.
+  - `HOVER_SCALE = 1.18` + `HOVER_RADIUS = ORB_RADIUS_PX *
+    HOVER_SCALE` constants.
+  - `useEffect` on `hoveredEmployeeId` change resets the prior
+    orb to `{ scale: 1, radius: ORB_RADIUS_PX }` and bumps the
+    new one to `{ scale: HOVER_SCALE, radius: HOVER_RADIUS }`.
+    The existing pairwise repulsion in the physics step
+    naturally pushes neighbors away from the now-larger orb;
+    when the radius shrinks, gravity pulls them back to
+    center → the "expanding and shrinking should bump
+    neighbors" requirement is satisfied without any new
+    physics code.
+  - Orb element: `data-hovered` mirror; `onPointerEnter` /
+    `onPointerLeave` (excludes touch input via `pointerType`
+    check so a finger swipe doesn't trigger the bump);
+    `onFocus` / `onBlur` so keyboard users get the same path.
+  - Orb markup restructured: avatar/initials now inside an
+    `.employee-pond__orb-clip` wrapper that owns
+    `overflow: hidden`; the outer orb becomes
+    `overflow: visible` so the tooltip can escape.
+  - Tooltip: `<div role="tooltip">` with name + email,
+    `aria-hidden` mirrors hover state, stable testID.
+- `app/admin/styles/EmployeePond.css`:
+  - Orb overflow flipped to visible; new `.orb-clip` owns the
+    circular clipping.
+  - `data-hovered` orb gets a brand-navy-tinted shadow + z-index
+    bump.
+  - Tooltip styled as a small dark pill below the orb with an
+    upward-pointing caret, fade-in transition, hover-controlled
+    opacity. `prefers-reduced-motion` collapses to 1 ms.
+- Source-locked by `__tests__/employee-pond/e4-hover-tooltip.test.ts`
+  (17 assertions: physics bumps neighbors harder when radius
+  grows; hook transform write includes scale; setOrb radius +
+  scale patches; component state + constants + hover-change
+  effect; pointer / focus listeners with touch-excluded
+  semantics; orb markup restructure incl. clip + tooltip; CSS
+  overflow flip + clip overflow + data-hovered shadow + tooltip
+  fade + arrow caret + reduced-motion + no-drift token check).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings, full suite 8719 green
+  (+17).
 | Click → side dialogue panel anchored to orb | **✅ E5** |
 
 **E5 shipped 2026-06-16** — click → side dialogue.

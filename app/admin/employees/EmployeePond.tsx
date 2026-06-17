@@ -175,6 +175,15 @@ export default function EmployeePond({ employees }: Props) {
   } | null>(null);
   const dialogueRef = useRef<HTMLDivElement | null>(null);
 
+  // Slice E4 — hover state. Tracks the orb the cursor is currently
+  // over so we can scale that orb (and grow its collision radius —
+  // the existing repulsion loop bumps neighbors). Tooltip renders
+  // inside the hovered orb.
+  const [hoveredEmployeeId, setHoveredEmployeeId] = useState<string | null>(null);
+  const prevHoveredRef = useRef<string | null>(null);
+  const HOVER_SCALE = 1.18;
+  const HOVER_RADIUS = ORB_RADIUS_PX * HOVER_SCALE;
+
   // Click-outside / Esc to dismiss the filter panel.
   useEffect(() => {
     if (!filterOpen) return;
@@ -277,6 +286,27 @@ export default function EmployeePond({ employees }: Props) {
     return () => document.removeEventListener('keydown', onKey);
   }, [selectedEmployee, closeDialogue]);
 
+  // Slice E4 — drive scale + collision radius from the hover state.
+  // When the hovered orb changes, the previous one returns to its
+  // resting size; the new one grows. The repulsion in the physics
+  // step naturally pushes neighbors away from the now-larger orb
+  // and they re-converge once it shrinks back.
+  useEffect(() => {
+    const prev = prevHoveredRef.current;
+    if (prev && prev !== hoveredEmployeeId) {
+      physics.setOrb(prev, { scale: 1, radius: ORB_RADIUS_PX });
+    }
+    if (hoveredEmployeeId) {
+      physics.setOrb(hoveredEmployeeId, {
+        scale: HOVER_SCALE,
+        radius: HOVER_RADIUS,
+      });
+    }
+    prevHoveredRef.current = hoveredEmployeeId;
+    // physics handle identity is stable; deps intentionally narrow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoveredEmployeeId]);
+
   const filterCount = selectedRoles.size;
 
   return (
@@ -371,6 +401,7 @@ export default function EmployeePond({ employees }: Props) {
               data-testid="employee-pond-orb"
               data-employee-id={employee.id}
               data-selected={selectedEmployee?.id === employee.id ? 'true' : undefined}
+              data-hovered={hoveredEmployeeId === employee.id ? 'true' : undefined}
               role="button"
               tabIndex={0}
               aria-label={`${employee.name} — ${employee.email}`}
@@ -381,24 +412,56 @@ export default function EmployeePond({ employees }: Props) {
                   handleOrbClick(employee);
                 }
               }}
+              onPointerEnter={(e) => {
+                // Skip mouse hover semantics during a drag (E6) so
+                // a panning finger doesn't trigger the radius bump.
+                if (e.pointerType === 'mouse' || e.pointerType === 'pen') {
+                  setHoveredEmployeeId(employee.id);
+                }
+              }}
+              onPointerLeave={() => {
+                setHoveredEmployeeId((cur) => (cur === employee.id ? null : cur));
+              }}
+              onFocus={() => setHoveredEmployeeId(employee.id)}
+              onBlur={() =>
+                setHoveredEmployeeId((cur) => (cur === employee.id ? null : cur))
+              }
             >
-              {employee.avatar_url ? (
-                <img
-                  src={employee.avatar_url}
-                  alt={employee.name}
-                  className="employee-pond__orb-img"
-                  loading="lazy"
-                />
-              ) : (
-                <span className="employee-pond__orb-initials" aria-hidden>
-                  {employee.name
-                    .split(/\s+/)
-                    .map((w) => w[0])
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase()}
+              <div className="employee-pond__orb-clip">
+                {employee.avatar_url ? (
+                  <img
+                    src={employee.avatar_url}
+                    alt={employee.name}
+                    className="employee-pond__orb-img"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="employee-pond__orb-initials" aria-hidden>
+                    {employee.name
+                      .split(/\s+/)
+                      .map((w) => w[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()}
+                  </span>
+                )}
+              </div>
+              {/* Slice E4 — hover tooltip. Always in the DOM so the
+                  opacity transition runs cleanly; visibility is
+                  driven by the orb's `data-hovered` attribute. */}
+              <div
+                className="employee-pond__orb-tooltip"
+                data-testid="employee-pond-orb-tooltip"
+                role="tooltip"
+                aria-hidden={hoveredEmployeeId !== employee.id}
+              >
+                <strong className="employee-pond__orb-tooltip-name">
+                  {employee.name}
+                </strong>
+                <span className="employee-pond__orb-tooltip-email">
+                  {employee.email}
                 </span>
-              )}
+              </div>
             </div>
           ))}
           {/* Slice E5 — anchored dialogue panel. Lives inside the

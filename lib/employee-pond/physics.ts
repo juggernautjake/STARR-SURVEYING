@@ -24,6 +24,11 @@ export interface OrbState {
    *  gravity / damping / bounce for it so the orb tracks the
    *  pointer. Slice E6 flips it; E3 honors it. */
   dragging?: boolean;
+  /** CSS scale factor written into the orb's transform every frame.
+   *  Default 1.0. Slice E4 flips it to 1.2 on hover so the orb
+   *  visually grows; the matching radius bump on the same patch
+   *  drives the neighbor bump via the existing repulsion loop. */
+  scale?: number;
 }
 
 export interface PhysicsOptions {

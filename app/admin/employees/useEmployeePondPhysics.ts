@@ -110,7 +110,13 @@ export function useEmployeePondPhysics(
         // to the pond center. Works regardless of phone/desktop
         // orb-size because the `- 50%` is relative to the orb's own
         // rendered width.
-        el.style.transform = `translate3d(calc(${orb.x.toFixed(2)}px - 50%), calc(${orb.y.toFixed(2)}px - 50%), 0)`;
+        //
+        // Slice E4 — append `scale(<scale>)` so hover can grow the
+        // orb visually while the matching radius bump on the same
+        // patch drives the neighbor bump through the existing
+        // repulsion loop. Default 1.0 = no visual change.
+        const scale = orb.scale ?? 1;
+        el.style.transform = `translate3d(calc(${orb.x.toFixed(2)}px - 50%), calc(${orb.y.toFixed(2)}px - 50%), 0) scale(${scale.toFixed(3)})`;
       }
       rafRef.current = window.requestAnimationFrame(loop);
     };
@@ -137,6 +143,10 @@ export function useEmployeePondPhysics(
       if (patch.vx !== undefined) o.vx = patch.vx;
       if (patch.vy !== undefined) o.vy = patch.vy;
       if (patch.dragging !== undefined) o.dragging = patch.dragging;
+      // Slice E4 — radius + scale patches let the hover hook bump
+      // both the visual size AND the collision radius in one call.
+      if (patch.radius !== undefined) o.radius = patch.radius;
+      if (patch.scale !== undefined) o.scale = patch.scale;
     },
     setDragging(id, dragging) {
       const o = orbByIdRef.current.get(id);
