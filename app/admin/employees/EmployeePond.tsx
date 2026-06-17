@@ -27,6 +27,7 @@ import {
 } from '@/lib/employee-pond/drag';
 import {
   applyCameraStep,
+  maybeWrapCamera,
   panVectorFromPointer,
   type CameraPosition,
   type PanVector,
@@ -55,9 +56,15 @@ const ORB_RADIUS_PX = 32;
  *  doesn't change magnitude). The camera is clamped to ||cam|| ≤
  *  PAN_MAX_OFFSET_PX so the user can't scroll into the void forever,
  *  but the envelope is generous enough that orbs flung out by drag
- *  collisions are still findable. */
+ *  collisions are still findable.
+ *
+ *  Slice W1 — bumped the clamp 720 → 4000 so the new Pac-Man wrap
+ *  has plenty of room to fire before the safety net would. In
+ *  normal use the wrap kicks in around `pondRadius + orbRadius`
+ *  (~392 px) so 4000 is purely defensive against pathological
+ *  inputs. */
 const PAN_SPEED_PX_S = 260;
-const PAN_MAX_OFFSET_PX = 720; // 2 × POND_RADIUS_PX
+const PAN_MAX_OFFSET_PX = 4000;
 /** Slice P3 — user feedback: "please make the pond view bigger".
  *  Bumped from 280 → 360 (28% larger diameter). The physics constants
  *  in the hook key off this value, so collision math + soft-viewport
@@ -320,6 +327,10 @@ export default function EmployeePond({ employees }: Props) {
   const panRafRef = useRef<number | null>(null);
   const panLastTsRef = useRef<number>(0);
   const [scrollRingHover, setScrollRingHover] = useState<{ x: number; y: number } | null>(null);
+  // Slice W1 — forward-ref bridge so the pan rAF (defined before
+  // the physics hook) can read the live orb list for the Pac-Man
+  // wrap check without re-binding the loop every frame.
+  const orbsForWrapRef = useRef<ReadonlyArray<{ x: number; y: number; radius: number }>>([]);
 
   /** Write the current camera onto the orb layer. Called by the
    *  rAF loop and by handleReset (which moves the camera
@@ -341,6 +352,18 @@ export default function EmployeePond({ employees }: Props) {
     const pan = panRef.current;
     if (pan.vx !== 0 || pan.vy !== 0) {
       cameraRef.current = applyCameraStep(cameraRef.current, pan, dt, PAN_MAX_OFFSET_PX);
+      // Slice W1 — Pac-Man wrap: if the user has scrolled past
+      // every orb AND is still panning, hop the camera to the
+      // opposite side of the cluster so orbs come into view again
+      // from the leading edge. The wrap fires only when the
+      // viewport is empty, so the user can't see the jump.
+      const wrapped = maybeWrapCamera(
+        cameraRef.current,
+        pan,
+        orbsForWrapRef.current,
+        POND_RADIUS_PX,
+      );
+      if (wrapped) cameraRef.current = wrapped;
       writeCameraToLayer();
       panRafRef.current = requestAnimationFrame(panStep);
     } else {
@@ -604,6 +627,10 @@ export default function EmployeePond({ employees }: Props) {
   const handleDraggedCollisionRef = useRef<
     ((e: { x: number; y: number; force: number }) => void) | null
   >(null);
+  // Slice W1 — keep orbsForWrapRef pointed at the live physics
+  // orb list each render so the pan rAF (which captured the ref
+  // earlier) reads the latest positions without a callback rebind.
+  orbsForWrapRef.current = physics.orbs;
   const setOrbRef = useCallback(
     (id: string) => (el: HTMLElement | null) => {
       if (el) orbRefsRef.current.set(id, el);
@@ -918,6 +945,17 @@ export default function EmployeePond({ employees }: Props) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Slice W2 — user feedback: "move the 'Showing 3 of 3'
+          right above the circle but beneath the search text
+          input bar." Its own centered row keeps it visually
+          attached to the pond rather than fighting the toolbar
+          for horizontal space. */}
+      <div
+        className="employee-pond__count-row"
+        data-testid="employee-pond-count-row"
+      >
         <span
           className="employee-pond__count"
           data-testid="employee-pond-count"

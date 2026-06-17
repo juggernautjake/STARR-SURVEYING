@@ -26,6 +26,13 @@
    * suffix used to push it down). */
   align-items: center;
   flex-wrap: wrap;
+  /* Slice W2 — user feedback: "make it so that the search bar is
+   * centered over the circle viewer". Constrain the toolbar to
+   * the pond's diameter and center it so the search + filter sit
+   * directly above the circle instead of hugging the page edge. */
+  justify-content: center;
+  margin: 0 auto;
+  max-width: calc(var(--pond-radius, 360px) * 2);
 }
 .employee-pond__search {
   /* Slice P1 — bounded width so the field doesn't eat the whole
@@ -88,6 +95,15 @@
 /* ── Slice E2 — filter dropdown panel ──────────────────────── */
 .employee-pond__filter-wrap {
   position: relative;
+  /* Slice W2 — make the wrap itself a flex container the exact
+   * height of the search input so the button inside truly shares
+   * the toolbar baseline. Without this the wrap shrink-fitted the
+   * button's intrinsic height and inherited 2-3px of extra space
+   * from the toolbar's flex-item alignment, leaving the button
+   * visually below the search input. */
+  display: inline-flex;
+  align-items: stretch;
+  height: 40px;
 }
 .employee-pond__filter-panel {
   position: absolute;
@@ -153,8 +169,16 @@
 }
 
 /* ── Slice E2 — visible-count chip ────────────────────────── */
+/* Slice W2 — count moved out of the toolbar into its own row
+ * directly above the pond circle, per user spec. The chip itself
+ * keeps its quiet styling; the new row handles the centering. */
+.employee-pond__count-row {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-1) auto var(--space-2);
+  max-width: calc(var(--pond-radius, 360px) * 2);
+}
 .employee-pond__count {
-  margin-left: auto;
   font-size: var(--text-xs);
   color: var(--color-text-secondary);
   font-weight: var(--weight-medium);
@@ -363,9 +387,15 @@
 .employee-pond__scroll-ring-stroke {
   /* Stroke-only hit test: pointer events only fire on the band,
    * so clicks INSIDE the ring (the pond itself) pass straight
-   * through to the orbs. */
+   * through to the orbs.
+   *
+   * Slice W1 — user feedback ("make the scroll ring outline a
+   * bit thicker and easier to click"). Bumped resting stroke
+   * 1.4 → 3.0 viewBox units (~22px rendered) and hover stroke
+   * 2.4 → 4.6 (~35px rendered) so the band has roughly double
+   * the click footprint without overlapping the pond viewport. */
   pointer-events: stroke;
-  stroke-width: 1.4;
+  stroke-width: 3.0;
   cursor: grab;
   vector-effect: non-scaling-stroke;
   /* The hover rule below bumps the stroke up so the ring visibly
@@ -373,7 +403,7 @@
   transition: stroke-width 140ms ease;
 }
 .employee-pond__scroll-ring--hover .employee-pond__scroll-ring-stroke {
-  stroke-width: 2.4;
+  stroke-width: 4.6;
   cursor: grabbing;
 }
 .employee-pond__scroll-ring-tooltip {

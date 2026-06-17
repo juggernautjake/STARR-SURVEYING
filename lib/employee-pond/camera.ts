@@ -78,3 +78,53 @@ export function pointerIsOnRing(
   const d = Math.hypot(pointer.x, pointer.y);
   return d >= ringInnerRadius && d <= ringOuterRadius;
 }
+
+interface OrbViewportPos {
+  x: number;
+  y: number;
+  /** Collision/visual radius (px). Used so an orb with its edge
+   *  poking into the viewport counts as visible. */
+  radius: number;
+}
+
+/** Slice W1 (pond-camera-wrap-2026-06-17) — Pac-Man-style camera
+ *  wrap. Returns the new camera position when the viewport is
+ *  empty AND the user is actively panning; null otherwise.
+ *
+ *  The wrap drops the camera at `-panDirection * wrapDistance`
+ *  where `wrapDistance = viewportRadius + orbRadius + wrapBuffer`.
+ *  That puts the camera just past the orb cluster on the side
+ *  OPPOSITE the pan direction. The pan velocity is unchanged, so
+ *  the next frame the camera advances toward world (0,0) and orbs
+ *  cross into the viewport from the leading edge.
+ *
+ *  The teleport ONLY fires when no orb is visible — neither the
+ *  pre-jump frame nor the post-jump frame has anything inside the
+ *  pond, so the user can't see the camera move. */
+export function maybeWrapCamera(
+  camera: CameraPosition,
+  pan: PanVector,
+  orbs: ReadonlyArray<OrbViewportPos>,
+  viewportRadius: number,
+  wrapBuffer: number = 16,
+): CameraPosition | null {
+  const panMag = Math.hypot(pan.vx, pan.vy);
+  if (panMag < 1) return null;
+  for (const orb of orbs) {
+    const dx = orb.x - camera.x;
+    const dy = orb.y - camera.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= viewportRadius + orb.radius) return null;
+  }
+  // Conservative single-orb radius for the wrap distance — every
+  // orb in the input shares the same render-side radius, so we
+  // read it from the first one (the orb list is never empty in
+  // practice; bail safely if it is).
+  if (orbs.length === 0) return null;
+  const orbRadius = orbs[0].radius;
+  const wrapDistance = viewportRadius + orbRadius + wrapBuffer;
+  return {
+    x: -(pan.vx / panMag) * wrapDistance,
+    y: -(pan.vy / panMag) * wrapDistance,
+  };
+}

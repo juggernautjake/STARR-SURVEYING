@@ -135,7 +135,9 @@ describe('EmployeePond CSS — ring + tooltip + camera layer (P4b)', () => {
   });
 
   it('hover bumps the stroke width — the user-facing "ring enlarges slightly"', () => {
-    expect(CSS).toMatch(/\.employee-pond__scroll-ring--hover \.employee-pond__scroll-ring-stroke\s*\{[\s\S]*?stroke-width:\s*2\.4/);
+    // Slice W1 bumped the stroke widths to make the ring easier
+    // to click (user feedback). Hover stroke went 2.4 → 4.6.
+    expect(CSS).toMatch(/\.employee-pond__scroll-ring--hover \.employee-pond__scroll-ring-stroke\s*\{[\s\S]*?stroke-width:\s*4\.6/);
   });
 
   it('renders a tooltip element keyed off the hover state', () => {
