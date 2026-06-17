@@ -18,6 +18,12 @@ import type { Density, HubLayoutRow, ThemeId } from '@/lib/hub/types';
 interface Profile {
   user_name: string; job_title: string; hire_date: string | null;
   hourly_rate: number; is_active: boolean; available_balance: number;
+  /** Slice EP1 — personal info. All four fields are optional; the
+   *  card renders "Not set" placeholders when empty. */
+  date_of_birth?: string | null;
+  gender?: string | null;
+  pronouns?: string | null;
+  bio?: string | null;
 }
 interface Cert { id: string; certification_name: string; certification_type: string; issued_date: string; expiry_date: string | null; pay_bump_amount: number; }
 interface ProfileChange { change_type: string; title: string; description: string; old_value: string; new_value: string; created_at: string; }
@@ -25,6 +31,20 @@ interface LearningCredit { entity_label: string; points_earned: number; earned_a
 
 const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString() : '—';
 const fmtCurrency = (n: number) => '$' + (n || 0).toFixed(2);
+
+/** Slice EP1 — derive age from a DOB string (`YYYY-MM-DD` or full
+ *  ISO). Returns null when the input is missing or unparseable. The
+ *  365.25 factor handles leap years; we floor so a birthday in the
+ *  future doesn't yield a fractional age. Pure + exported so the
+ *  test suite can pin the contract. */
+export function deriveAge(dob: string | null | undefined, now: Date = new Date()): number | null {
+  if (!dob) return null;
+  const t = Date.parse(dob);
+  if (!Number.isFinite(t)) return null;
+  const years = (now.getTime() - t) / (365.25 * 24 * 60 * 60 * 1000);
+  if (years < 0) return null;
+  return Math.floor(years);
+}
 
 type Tab = 'info' | 'credentials' | 'credits' | 'changes' | 'themes';
 
@@ -41,6 +61,16 @@ export default function ProfilePanel() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('info');
   const [hubLayout, setHubLayout] = useState<HubLayoutRow | null>(null);
+  // Slice EP1 — personal-info card edit state.
+  const [personalEditing, setPersonalEditing] = useState(false);
+  const [personalDraft, setPersonalDraft] = useState<{
+    date_of_birth: string;
+    gender: string;
+    pronouns: string;
+    bio: string;
+  }>({ date_of_birth: '', gender: '', pronouns: '', bio: '' });
+  const [personalSaving, setPersonalSaving] = useState(false);
+  const [personalError, setPersonalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!email) return;
@@ -154,6 +184,7 @@ export default function ProfilePanel() {
 
       {/* Profile Info */}
       {tab === 'info' && (
+        <>
         <div className="admin-card">
           <div className="emp-manage__field"><label>Name</label><span>{profile?.user_name || name || '—'}</span></div>
           <div className="emp-manage__field"><label>Email</label><span>{email}</span></div>
@@ -164,6 +195,165 @@ export default function ProfilePanel() {
             <div className="emp-manage__field"><label>Available Balance</label><span>{fmtCurrency(profile.available_balance)}</span></div>
           )}
         </div>
+
+        {/* Slice EP1 — Personal info card. View / edit toggle so
+            the surveyor can fill in DOB / gender / pronouns / bio
+            without leaving the page. */}
+        <div className="admin-card" data-testid="profile-personal-info" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <strong>Personal info</strong>
+            {!personalEditing && (
+              <button
+                type="button"
+                className="admin-btn admin-btn--secondary admin-btn--sm"
+                data-testid="profile-personal-edit"
+                onClick={() => {
+                  setPersonalDraft({
+                    date_of_birth: profile?.date_of_birth ?? '',
+                    gender: profile?.gender ?? '',
+                    pronouns: profile?.pronouns ?? '',
+                    bio: profile?.bio ?? '',
+                  });
+                  setPersonalError(null);
+                  setPersonalEditing(true);
+                }}
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          {!personalEditing ? (
+            <>
+              <div className="emp-manage__field">
+                <label>Date of birth</label>
+                <span data-testid="profile-personal-dob">
+                  {profile?.date_of_birth ? fmtDate(profile.date_of_birth) : 'Not set'}
+                </span>
+              </div>
+              <div className="emp-manage__field">
+                <label>Age</label>
+                <span data-testid="profile-personal-age">
+                  {(() => {
+                    const age = deriveAge(profile?.date_of_birth);
+                    return age == null ? 'Not set' : `${age} years`;
+                  })()}
+                </span>
+              </div>
+              <div className="emp-manage__field">
+                <label>Gender</label>
+                <span data-testid="profile-personal-gender">
+                  {profile?.gender?.trim() || 'Not set'}
+                </span>
+              </div>
+              <div className="emp-manage__field">
+                <label>Pronouns</label>
+                <span data-testid="profile-personal-pronouns">
+                  {profile?.pronouns?.trim() || 'Not set'}
+                </span>
+              </div>
+              <div className="emp-manage__field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
+                <label>About me</label>
+                <p data-testid="profile-personal-bio" style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#374151' }}>
+                  {profile?.bio?.trim() || 'Not set'}
+                </p>
+              </div>
+            </>
+          ) : (
+            <form
+              data-testid="profile-personal-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setPersonalSaving(true);
+                setPersonalError(null);
+                try {
+                  const res = await fetch('/api/admin/payroll/employees', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      user_email: email,
+                      date_of_birth: personalDraft.date_of_birth || null,
+                      gender: personalDraft.gender || null,
+                      pronouns: personalDraft.pronouns || null,
+                      bio: personalDraft.bio || null,
+                    }),
+                  });
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  const data = await res.json() as { profile: Profile };
+                  setProfile((cur) => cur ? { ...cur, ...data.profile } : data.profile);
+                  setPersonalEditing(false);
+                } catch (err) {
+                  setPersonalError(err instanceof Error ? err.message : 'Could not save.');
+                } finally {
+                  setPersonalSaving(false);
+                }
+              }}
+            >
+              <div className="emp-manage__field">
+                <label htmlFor="profile-personal-dob-input">Date of birth</label>
+                <input
+                  id="profile-personal-dob-input"
+                  type="date"
+                  value={personalDraft.date_of_birth}
+                  onChange={(e) => setPersonalDraft((d) => ({ ...d, date_of_birth: e.target.value }))}
+                />
+              </div>
+              <div className="emp-manage__field">
+                <label htmlFor="profile-personal-gender-input">Gender</label>
+                <input
+                  id="profile-personal-gender-input"
+                  type="text"
+                  placeholder="Free-form (e.g. Woman, Man, Non-binary…)"
+                  value={personalDraft.gender}
+                  onChange={(e) => setPersonalDraft((d) => ({ ...d, gender: e.target.value }))}
+                />
+              </div>
+              <div className="emp-manage__field">
+                <label htmlFor="profile-personal-pronouns-input">Pronouns</label>
+                <input
+                  id="profile-personal-pronouns-input"
+                  type="text"
+                  placeholder="she/her, they/them…"
+                  value={personalDraft.pronouns}
+                  onChange={(e) => setPersonalDraft((d) => ({ ...d, pronouns: e.target.value }))}
+                />
+              </div>
+              <div className="emp-manage__field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
+                <label htmlFor="profile-personal-bio-input">About me</label>
+                <textarea
+                  id="profile-personal-bio-input"
+                  rows={4}
+                  placeholder="A short bio for your profile."
+                  value={personalDraft.bio}
+                  onChange={(e) => setPersonalDraft((d) => ({ ...d, bio: e.target.value }))}
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+              {personalError && (
+                <p role="alert" style={{ color: 'var(--color-error)', fontSize: '0.78rem' }}>
+                  {personalError}
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn--secondary admin-btn--sm"
+                  onClick={() => { setPersonalEditing(false); setPersonalError(null); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="admin-btn admin-btn--primary admin-btn--sm"
+                  disabled={personalSaving}
+                  data-testid="profile-personal-save"
+                >
+                  {personalSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+        </>
       )}
 
       {/* Credentials */}
