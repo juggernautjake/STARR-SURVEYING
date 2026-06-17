@@ -1,0 +1,887 @@
+/* app/admin/styles/EmployeePond.css
+ *
+ * employee-pond Slice E1 — pond skeleton. Surface, pond circle,
+ * static orb layout, below-pond list. Physics + interactions
+ * arrive in later slices; this stylesheet declares the shapes
+ * those slices key off.
+ *
+ * Tokens come from app/styles/tokens.css per
+ * docs/admin-styling-contract.md. No drift names.
+ */
+
+.employee-pond {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+}
+
+/* ── Toolbar — search + filter (E2 will wire them) ────────────── */
+.employee-pond__toolbar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.employee-pond__search {
+  flex: 1 1 240px;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+}
+.employee-pond__search:focus {
+  outline: var(--border-focus);
+  outline-offset: 2px;
+  border-color: var(--color-brand-navy);
+}
+.employee-pond__filter-btn {
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 40px;
+}
+.employee-pond__filter-btn:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.employee-pond__filter-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.employee-pond__filter-btn[data-open='true'] {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.employee-pond__filter-caret {
+  font-size: 0.6rem;
+  margin-left: 4px;
+  transition: transform 120ms ease;
+}
+.employee-pond__filter-btn[data-open='true'] .employee-pond__filter-caret {
+  transform: rotate(180deg);
+}
+
+/* ── Slice E2 — filter dropdown panel ──────────────────────── */
+.employee-pond__filter-wrap {
+  position: relative;
+}
+.employee-pond__filter-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 220px;
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 24px -8px rgba(15, 20, 25, 0.18);
+  padding: var(--space-2);
+  animation: employee-pond-filter-pop 140ms ease both;
+}
+@keyframes employee-pond-filter-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.employee-pond__filter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.employee-pond__filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+.employee-pond__filter-row:hover {
+  background: var(--color-bg-subtle);
+}
+.employee-pond__filter-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand-navy);
+}
+.employee-pond__filter-clear {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: 6px;
+  border: 1px solid #E5E7EB;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.employee-pond__filter-clear:hover:not(:disabled) {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+.employee-pond__filter-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Slice E2 — visible-count chip ────────────────────────── */
+.employee-pond__count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+}
+
+.employee-pond__list-empty {
+  grid-column: 1 / -1;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  padding: var(--space-2) 0;
+}
+
+/* ── Pond surface ───────────────────────────────────────────── */
+.employee-pond__surface {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+}
+.employee-pond__pond {
+  position: relative;
+  width: calc(var(--pond-radius, 280px) * 2);
+  height: calc(var(--pond-radius, 280px) * 2);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.85), transparent 60%),
+    radial-gradient(circle at center, #DCEEFB 0%, #A6CFE9 60%, #79B5D6 100%);
+  box-shadow:
+    inset 0 8px 24px rgba(15, 20, 25, 0.12),
+    0 12px 28px -8px rgba(29, 48, 149, 0.18);
+  overflow: hidden;
+}
+
+/* Soft inner ring to telegraph the pond boundary. */
+.employee-pond__pond::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+/* ── Orbs ───────────────────────────────────────────────────── */
+.employee-pond__orb {
+  --orb-size: 64px;
+  position: absolute;
+  /* Center anchor — the inline translate3d on each orb adjusts from
+   * the pond center. The "50%" inside the translate is the orb's
+   * own half-size, not the parent's; combined with `top/left: 50%`
+   * the math reads cleanly. */
+  top: 50%;
+  left: 50%;
+  width: var(--orb-size);
+  height: var(--orb-size);
+  border-radius: 50%;
+  background: var(--color-bg-card);
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 6px 12px -4px rgba(15, 20, 25, 0.25);
+  cursor: pointer;
+  will-change: transform;
+  transition: box-shadow 160ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Slice E4 — overflow visible so the hover tooltip can escape the
+   * orb boundary. The avatar still clips to a circle via the inner
+   * .employee-pond__orb-clip wrapper. */
+  overflow: visible;
+}
+.employee-pond__orb[data-hovered='true'] {
+  box-shadow: 0 10px 18px -6px rgba(29, 48, 149, 0.35);
+  z-index: 2;
+}
+/* Slice E6 — while the user is actively dragging, give the orb a
+ * grabbing cursor so the gesture telegraphs. The active class is
+ * set on pointerdown via :active; no JS needed. */
+.employee-pond__orb {
+  cursor: grab;
+  touch-action: none; /* prevent the browser from interpreting drags as scrolls */
+}
+.employee-pond__orb:active {
+  cursor: grabbing;
+}
+.employee-pond__orb:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 3px;
+}
+.employee-pond__orb-clip {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.employee-pond__orb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.employee-pond__orb-initials {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+}
+
+/* ── Slice E4 — hover tooltip (escapes the orb via overflow:visible) ── */
+.employee-pond__orb-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, 8px);
+  background: var(--color-text-primary);
+  color: var(--color-text-on-dark);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font-size: var(--text-xs);
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 3;
+  box-shadow: 0 6px 16px -4px rgba(15, 20, 25, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.employee-pond__orb-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: var(--color-text-primary);
+}
+.employee-pond__orb[data-hovered='true'] .employee-pond__orb-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 4px);
+}
+.employee-pond__orb-tooltip-name {
+  font-weight: var(--weight-semibold);
+}
+.employee-pond__orb-tooltip-email {
+  font-weight: var(--weight-normal);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .employee-pond__orb-tooltip {
+    transition: opacity 1ms;
+  }
+}
+
+/* ── Below-pond list ────────────────────────────────────────── */
+.employee-pond__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+.employee-pond__list-item {
+  margin: 0;
+}
+
+/* ── Slice E8 — clickable list row ────────────────────────── */
+.employee-pond__list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+.employee-pond__list-row:hover,
+.employee-pond__list-row[data-hovered='true'] {
+  background: var(--color-bg-subtle);
+  border-color: #E5E7EB;
+}
+.employee-pond__list-row:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+.employee-pond__list-row[data-selected='true'] {
+  background: var(--color-bg-card);
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 4px 12px -4px rgba(29, 48, 149, 0.18);
+}
+
+.employee-pond__list-avatar {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.employee-pond__list-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.employee-pond__list-avatar-initials {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.employee-pond__list-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.employee-pond__list-name {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.employee-pond__list-email {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.employee-pond__list-title {
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
+.employee-pond__list-roles {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 50%;
+}
+.employee-pond__list-role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.employee-pond__list-role-more {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  font-weight: var(--weight-medium);
+}
+
+/* ── View toggle (lives on the page above the pond) ─────────── */
+.employees-page__view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+.employees-page__view-toggle button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 32px;
+}
+.employees-page__view-toggle button:hover {
+  color: var(--color-brand-navy);
+}
+.employees-page__view-toggle button[data-current='true'] {
+  background: var(--color-bg-card);
+  color: var(--color-brand-navy);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Slice E5 — anchored dialogue panel ─────────────────────── */
+.employee-pond__dialogue-backdrop {
+  /* Sits behind the dialogue inside the pond surface. Catches clicks
+   * outside the panel to dismiss; visually transparent so the pond
+   * remains visible. */
+  position: absolute;
+  inset: -200vw;
+  z-index: 30;
+  background: transparent;
+}
+.employee-pond__dialogue {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 40;
+  width: 280px;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 36px -10px rgba(15, 20, 25, 0.28);
+  padding: var(--space-3) var(--space-4);
+  animation: employee-pond-dialogue-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform;
+}
+@keyframes employee-pond-dialogue-pop {
+  from { opacity: 0; transform-box: fill-box; transform: translate(var(--tx, 0), var(--ty, 0)) scale(0.5); }
+  to   { opacity: 1; transform: translate(var(--tx, 0), var(--ty, 0)) scale(1); }
+}
+/* The keyframes alone can't carry the dialogue's runtime translate
+ * (it's set inline). Instead of fighting the cascade, we play the
+ * animation off opacity + scale only and rely on the inline
+ * transform staying intact. */
+.employee-pond__dialogue {
+  animation-name: employee-pond-dialogue-fade-scale;
+}
+@keyframes employee-pond-dialogue-fade-scale {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.employee-pond__dialogue-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 1.4rem;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.employee-pond__dialogue-close:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+.employee-pond__dialogue-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.employee-pond__dialogue-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 4px 8px -2px rgba(15, 20, 25, 0.18);
+}
+.employee-pond__dialogue-avatar--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-subtle);
+  font-family: var(--font-heading);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+}
+.employee-pond__dialogue-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.employee-pond__dialogue-name {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+.employee-pond__dialogue-email {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  overflow-wrap: anywhere;
+}
+.employee-pond__dialogue-fields {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.employee-pond__dialogue-fields > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.employee-pond__dialogue-fields dt {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  margin: 0;
+}
+.employee-pond__dialogue-fields dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+.employee-pond__dialogue-dim {
+  color: var(--color-text-tertiary) !important;
+  font-style: italic;
+}
+.employee-pond__dialogue-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.employee-pond__dialogue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-brand-navy);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+.employee-pond__dialogue-link:hover {
+  text-decoration: underline;
+}
+.employee-pond__dialogue-contact {
+  display: flex;
+  gap: var(--space-1);
+}
+.employee-pond__dialogue-btn {
+  flex: 1;
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  padding: 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 40px;
+}
+.employee-pond__dialogue-btn:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.employee-pond__dialogue-btn--primary {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.employee-pond__dialogue-btn--primary:hover {
+  filter: brightness(1.1);
+  color: var(--color-text-on-brand);
+}
+/* Selected orb gets a brand-navy ring so the user can see which orb
+ * the dialogue points to. */
+.employee-pond__orb[data-selected='true'] {
+  outline: 3px solid var(--color-brand-navy);
+  outline-offset: 2px;
+  z-index: 5;
+}
+
+/* ── Slice E6b — selection focus dim ───────────────────────── */
+.employee-pond__orb {
+  /* opacity transitions smoothly when selection-active flips */
+  transition: box-shadow 160ms ease, opacity 200ms ease;
+}
+.employee-pond__pond[data-selection-active='true']
+  .employee-pond__orb:not([data-selected='true']) {
+  opacity: 0.32;
+}
+.employee-pond__pond[data-selection-active='true']
+  .employee-pond__orb[data-selected='true'] {
+  /* Make sure the focused orb sits ABOVE the dimmed neighbors. */
+  opacity: 1;
+  z-index: 5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .employee-pond__orb {
+    transition: none;
+  }
+}
+
+/* ── Slice E7 — collision particles ────────────────────────── */
+.employee-pond__particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 25;
+  /* The starting position is (--p-x, --p-y) in pond-center px; the
+   * `- 50%` centers the particle on that point. The animation
+   * ramps that position out by (--p-vx * 0.6, --p-vy * 0.6) and
+   * fades to zero opacity. CSS-only — no JS rAF per particle. */
+  --travel-x: calc((var(--p-x) + var(--p-vx) * 0.5) * 1px - 50%);
+  --travel-y: calc((var(--p-y) + var(--p-vy) * 0.5) * 1px - 50%);
+  --start-x: calc(var(--p-x) * 1px - 50%);
+  --start-y: calc(var(--p-y) * 1px - 50%);
+  animation: employee-pond-particle 600ms ease-out forwards;
+  box-shadow: 0 0 6px currentColor;
+}
+@keyframes employee-pond-particle {
+  0% {
+    opacity: 1;
+    transform: translate3d(var(--start-x), var(--start-y), 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--travel-x), var(--travel-y), 0) scale(0.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .employee-pond__particle {
+    animation: employee-pond-particle 1ms linear forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .employee-pond__dialogue {
+    animation: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* ── Slice E10b — mobile-responsive build ─────────────────
+   * Keep the desktop look + feel; layer phone-specific
+   * formatting that hits Apple HIG 44 pt touch minimums + uses
+   * iOS safe-area insets. The desktop CSS above is byte-
+   * identical when the viewport is wider than 768 px.
+   * ───────────────────────────────────────────────────────── */
+
+  /* Toolbar — search becomes its own full-width row; filter
+   * button + count chip share the next row with 44 pt targets. */
+  .employee-pond__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .employee-pond__search {
+    width: 100%;
+    min-height: 44px;
+  }
+  .employee-pond__filter-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .employee-pond__filter-btn {
+    min-height: 44px;
+    flex: 1;
+  }
+  .employee-pond__count {
+    margin-left: 0;
+  }
+
+  /* Filter panel — pops as a full-screen sheet on phone so
+   * checkboxes have room to breathe. Same pattern as the
+   * calendar's cheat sheet from the prior plan. */
+  .employee-pond__filter-panel {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
+    padding: var(--space-4);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
+    z-index: 100;
+    box-shadow: 0 -8px 24px -4px rgba(15, 20, 25, 0.18);
+  }
+  .employee-pond__filter-list {
+    max-height: none;
+  }
+  .employee-pond__filter-row {
+    /* 44 pt total height = 8 px padding + 28 px line height + 8 px. */
+    padding: 10px 12px;
+    font-size: var(--text-base);
+  }
+  .employee-pond__filter-row input[type='checkbox'] {
+    width: 22px;
+    height: 22px;
+  }
+  .employee-pond__filter-clear {
+    min-height: 44px;
+    font-size: var(--text-base);
+  }
+
+  /* Pond surface — orbs + container size already tuned in the
+   * base mobile block (below); ensure the pond stays centered
+   * with padding around it so portrait-iPhone fingers don't
+   * brush the orbs by accident when scrolling. */
+  .employee-pond__orb {
+    --orb-size: 56px;
+  }
+  .employee-pond__pond {
+    /* Tighter on phone so the whole pond fits in portrait
+     * without needing to scroll. */
+    --pond-radius: 160px;
+  }
+  .employee-pond__surface {
+    padding: var(--space-3);
+  }
+
+  /* Dialogue — slides up from the bottom as a sheet on phone
+   * instead of anchoring next to the orb. Full width, top
+   * corners rounded, safe-area inset for the home indicator,
+   * scrollable body if the field list ever overflows. The
+   * inline `transform` from anchorDialogue is overridden via
+   * !important because that style is set per-orb at click time
+   * by the React component (and the desktop math doesn't make
+   * sense on a 360-wide phone). */
+  .employee-pond__dialogue {
+    position: fixed !important;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: none;
+    min-height: auto;
+    max-height: 88vh;
+    overflow-y: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -12px 36px -6px rgba(15, 20, 25, 0.28);
+    transform: translateY(0) !important;
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    animation: employee-pond-sheet-rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes employee-pond-sheet-rise {
+    from { transform: translateY(100%) !important; }
+    to   { transform: translateY(0) !important; }
+  }
+  .employee-pond__dialogue-close {
+    /* Larger close button + grip handle hint at the top so the
+     * sheet metaphor is clear. */
+    width: 44px;
+    height: 44px;
+    font-size: 1.6rem;
+  }
+  /* Grab handle — purely visual; the sheet dismisses via close
+   * button or backdrop tap. */
+  .employee-pond__dialogue::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: #D1D5DB;
+  }
+  .employee-pond__dialogue-actions {
+    /* Action footer stays at the bottom; bottom safe-area
+     * padding lives on the parent. */
+    gap: var(--space-2);
+  }
+  .employee-pond__dialogue-btn {
+    /* 44 pt min touch target on the Email + Message buttons. */
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+  .employee-pond__dialogue-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Slice E8 — single-column list on phone so each row has room
+   * to breathe; role pills wrap to a second line if needed. */
+  .employee-pond__list {
+    grid-template-columns: 1fr;
+  }
+  .employee-pond__list-row {
+    /* 44 pt total via padding + 36 px avatar. */
+    padding: 10px 12px;
+  }
+  .employee-pond__list-roles {
+    max-width: none;
+  }
+
+  /* View toggle on the page header gets a slight bump too. */
+  .employees-page__view-toggle button {
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+  }
+}
+
+/* Small-phone (≤ 480 px) — tighten margins so the pond + list
+ * stack readably without horizontal scroll. */
+@media (max-width: 480px) {
+  .employee-pond__pond {
+    --pond-radius: 140px;
+  }
+  .employee-pond__orb {
+    --orb-size: 52px;
+  }
+  .employee-pond__list-row {
+    gap: var(--space-2);
+  }
+  .employee-pond__list-avatar {
+    width: 32px;
+    height: 32px;
+  }
+}

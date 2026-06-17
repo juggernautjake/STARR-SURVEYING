@@ -3,6 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
+// employee-pond Slice E9b — cross-surface recipient continuity.
+import {
+  readActiveRecipient,
+  saveActiveRecipient,
+} from '@/lib/employee-pond/messenger-recipient';
 
 interface Conversation {
   id: string;
@@ -151,6 +156,43 @@ export default function MessagesInboxPage() {
     }, 15000);
     return () => clearInterval(interval);
   }, [loadUnread, loadConversations, activeConv, fetchMessages]);
+
+  // employee-pond Slice E9b — write the active recipient through to
+  // localStorage every time the user opens a direct conversation so
+  // the FloatingMessenger widget + future surfaces can pick up the
+  // same recipient. Group convs clear the saved value.
+  const userEmailLower = session?.user?.email?.toLowerCase();
+  useEffect(() => {
+    if (!activeConv || activeConv.type !== 'direct') return;
+    if (!userEmailLower) return;
+    const other = (activeConv.participants || [])
+      .map((p) => p.user_email)
+      .find((email) => email && email.toLowerCase() !== userEmailLower);
+    if (other) saveActiveRecipient(other);
+  }, [activeConv, userEmailLower]);
+
+  // employee-pond Slice E9b — hydrate continuity on mount. If the
+  // user just jumped here from the FloatingMessenger widget (or
+  // the pond's DM button), pre-select the conversation with the
+  // saved recipient so they don't lose context.
+  const continuityHydratedRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (continuityHydratedRef.current) return;
+    if (conversations.length === 0) return;
+    const saved = readActiveRecipient();
+    if (!saved) return;
+    const target = saved.toLowerCase();
+    const existing = conversations.find((c) => {
+      if (c.type !== 'direct') return false;
+      const others = (c.participants || []).map((p) => p.user_email.toLowerCase());
+      return others.includes(target);
+    });
+    if (existing) {
+      setActiveConv(existing);
+      fetchMessages(existing.id);
+    }
+    continuityHydratedRef.current = true;
+  }, [conversations, fetchMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
