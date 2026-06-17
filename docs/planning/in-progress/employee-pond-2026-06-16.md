@@ -546,8 +546,47 @@
 - **Three post-build checks: green** — typecheck clean, lint
   only the pre-existing `<img>` warnings (one new for the row
   avatar), full suite 8799 green (+15).
-| Email + Direct Message contact buttons (incl. `?to=` on inbox) | **E9** |
+| Email + Direct Message contact buttons (incl. `?to=` on inbox) | **✅ E9 (DM done; in-app email page → E9c)** |
+
+**E9 shipped 2026-06-16** — Email + DM contact buttons (DM lands
+end-to-end; in-app email composer page deferred to **E9c** because
+no email surface exists yet — Email button uses `mailto:` for
+universal reach until E9c builds the dedicated page).
+- `app/admin/employees/EmployeePond.tsx`:
+  - Email button is now an `<a href={mailto:<email>}>` so right-
+    click + copy works and the OS mail client opens reliably.
+    `data-action="contact-email"` + testID preserved.
+  - DM button dispatches a `CustomEvent('employee-pond:open-
+    messenger', { detail: { email } })` then calls
+    `closeDialogue()` so the widget has full focus. SSR-safe:
+    guards on `typeof window === 'undefined'`.
+- `app/admin/components/FloatingMessenger.tsx`:
+  - `useEffect` listens for `employee-pond:open-messenger`. On
+    receive, normalizes the email (`trim()` + `toLowerCase()`),
+    refuses when no `userEmail` is signed in, then either:
+    1. Reuses an existing direct conversation whose
+       participants include the target email — `setActiveConv` +
+       jump to chat view + fetch messages.
+    2. POSTs `/api/admin/messages/conversations` with
+       `{ type: 'direct', participant_emails: [targetEmail] }`,
+       picks up the new conv, and lands the user in chat.
+  - Listener cleans up on unmount via removeEventListener so an
+    auth-driven re-mount doesn't leak duplicate handlers.
+- Source-locked by `__tests__/employee-pond/e9-contact-buttons.test.ts`
+  (12 assertions: Email mailto + testID; DM CustomEvent dispatch
+  + closeDialogue afterward + SSR guard; FloatingMessenger
+  addEventListener + cleanup + email normalize + user-email
+  guard + existing-conv reuse + new-conv POST + view+fetch
+  jump).
+- **E9c** (queued) builds the dedicated `/admin/email/new`
+  composer page. **E9b** (queued) layers shared recipient
+  continuity across the messenger widget, `/admin/messages`,
+  and (once E9c lands) the email composer.
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings, full suite 8811
+  green (+12).
 | Recipient continuity: widget ↔ dedicated /admin/messages page | **E9b** |
+| In-app email composer page at /admin/email/new | **E9c** |
 | `prefers-reduced-motion` + accessibility audit | **E10** |
 | Privacy contract: per-user public/private settings + role visibility matrix | **E12** |
 | Activity history schema (jobs / bonuses / salary / payouts / hours / photos) | **E13** |

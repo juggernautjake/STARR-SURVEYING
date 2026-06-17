@@ -905,22 +905,40 @@ export default function EmployeePond({ employees }: Props) {
                     Open profile →
                   </a>
                   <div className="employee-pond__dialogue-contact">
-                    <button
-                      type="button"
+                    {/* Slice E9 — Email button. Until E9c builds the
+                        in-app email composer page, this opens the
+                        OS mail client (mailto:) with the recipient
+                        prefilled. The href makes right-click + copy
+                        work; the onClick simply lets the browser
+                        navigate. */}
+                    <a
+                      href={`mailto:${selectedEmployee.email}`}
                       className="employee-pond__dialogue-btn"
                       data-action="contact-email"
                       data-testid="employee-pond-dialogue-email"
-                      // E9 wires the email page route.
                     >
                       ✉ Email
-                    </button>
+                    </a>
+                    {/* Slice E9 — Direct Message button. Dispatches a
+                        custom event the FloatingMessenger listens for;
+                        the widget opens at the bottom-right with the
+                        recipient preloaded. E9b will swap to a shared
+                        recipient store so the same id flows to the
+                        dedicated /admin/messages page. */}
                     <button
                       type="button"
                       className="employee-pond__dialogue-btn employee-pond__dialogue-btn--primary"
                       data-action="contact-dm"
                       data-testid="employee-pond-dialogue-dm"
-                      // E9 opens the bottom-right messenger preloaded
-                      // with this recipient.
+                      onClick={() => {
+                        if (typeof window === 'undefined') return;
+                        window.dispatchEvent(
+                          new CustomEvent('employee-pond:open-messenger', {
+                            detail: { email: selectedEmployee.email },
+                          }),
+                        );
+                        closeDialogue();
+                      }}
                     >
                       💬 Message
                     </button>

@@ -171,6 +171,62 @@ export default function FloatingMessenger() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // employee-pond Slice E9 — external open-with-recipient hook. The
+  // employee-pond dialogue dispatches `employee-pond:open-messenger`
+  // with `{ email }`; we open the widget and either jump to an
+  // existing direct conv with that email or POST a new one. Listens
+  // once on mount; cleans up on unmount. The dependency on
+  // `conversations` ensures we always work with the latest snapshot
+  // when deciding whether to reuse vs create.
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const detail = (e as CustomEvent<{ email?: string }>).detail;
+      const targetEmail = detail?.email?.trim().toLowerCase();
+      if (!targetEmail) return;
+      if (!userEmail) return;
+      setIsOpen(true);
+      // Reuse the most recent direct conversation involving the
+      // target email if one exists; otherwise create one.
+      const existing = conversations.find((c) => {
+        if (c.type !== 'direct') return false;
+        const others = (c.participants || []).map((p) => p.user_email.toLowerCase());
+        return others.includes(targetEmail);
+      });
+      if (existing) {
+        setActiveConv(existing);
+        setView('chat');
+        fetchMessages(existing.id);
+        return;
+      }
+      try {
+        const res = await fetch('/api/admin/messages/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'direct',
+            title: null,
+            participant_emails: [targetEmail],
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const conv = data.conversation;
+          conv.participants = [
+            { user_email: targetEmail, role: 'member' },
+            { user_email: userEmail, role: 'owner' },
+          ];
+          setActiveConv(conv);
+          setView('chat');
+          fetchMessages(conv.id);
+          fetchConversations();
+        }
+      } catch { /* silent */ }
+    };
+    window.addEventListener('employee-pond:open-messenger', handler);
+    return () =>
+      window.removeEventListener('employee-pond:open-messenger', handler);
+  }, [conversations, userEmail, fetchMessages, fetchConversations]);
+
   // Open a conversation
   function openConversation(conv: Conversation) {
     setActiveConv(conv);
