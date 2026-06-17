@@ -12,6 +12,7 @@ import { useActiveTimeEntry } from '@/lib/timeTracking';
 import { useCaptureReceipt } from '@/lib/receipts';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import WarningCallout from '@/lib/WarningCallout';
 
 /**
  * Receipt-capture entry point — F2 #2.
@@ -142,24 +143,14 @@ export default function CaptureReceiptScreen() {
 
       <View style={styles.body}>
         {fromStopLabel ? (
-          <View
-            style={[
-              styles.fromStopCallout,
-              {
-                backgroundColor: '#FEF3C7',
-                borderColor: '#D97706',
-              },
-            ]}
-          >
-            <Text style={[styles.calloutTitle, { color: '#92400E' }]}>
-              🧾 Forget a receipt?
-            </Text>
-            <Text style={[styles.calloutBody, { color: '#1F2733' }]}>
-              We&apos;ll stamp this receipt with your stop time
-              ({fromStopLabel}) so the AI extraction has a head-start
-              and the bookkeeper can trace it back to the stop.
-            </Text>
-          </View>
+          // S3 — shared amber callout. Three hard-coded literals
+          // (#FEF3C7 / #D97706 / #92400E) replaced with palette
+          // tokens via WarningCallout.
+          <WarningCallout
+            testID="money-capture-warning-from-stop"
+            title="🧾 Forget a receipt?"
+            body={`We'll stamp this receipt with your stop time (${fromStopLabel}) so the AI extraction has a head-start and the bookkeeper can trace it back to the stop.`}
+          />
         ) : null}
         {active ? (
           <Text style={[styles.subtitle, { color: palette.muted }]}>

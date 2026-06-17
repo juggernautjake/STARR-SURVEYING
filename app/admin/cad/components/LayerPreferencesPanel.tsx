@@ -11,6 +11,11 @@ import type {
   BearingFormat, AngleFormat, LinearUnit, LinearFormat, AreaUnit, CoordMode,
 } from '@/lib/cad/types';
 import { regenerateLayerLabels } from '@/lib/cad/labels';
+// cad-desktop-tauri-and-perf Slice P4 — async chunked regen for
+// large layers. The auto helper picks sync vs chunked based on
+// feature count so small layers don't pay the per-chunk
+// scheduling cost.
+import { regenerateLayerLabelsAuto } from '@/lib/cad/labels/regenerate-layer-labels-chunked';
 import Tooltip from './Tooltip';
 import ColorSwatchInput from './ColorSwatchInput';
 
@@ -273,10 +278,21 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
         ...((partial.pointLabelOffset) ?? {}),
       },
     };
-    const labelMap = regenerateLayerLabels(features, { ...liveLayer, displayPreferences: mergedPrefs }, displayPrefs);
-    labelMap.forEach((labels, featureId) => {
-      store.setFeatureTextLabels(featureId, labels);
-    });
+    // cad-desktop-tauri-and-perf Slice P4 — fire-and-forget chunked
+    // regen. The auto helper yields every LABEL_REGEN_CHUNK_SIZE
+    // features on layers above the threshold so the slider's hold
+    // gesture stays responsive and the canvas keeps animating.
+    // Small layers still hit the sync path (no scheduling overhead).
+    void (async () => {
+      const labelMap = await regenerateLayerLabelsAuto(
+        features,
+        { ...liveLayer, displayPreferences: mergedPrefs },
+        displayPrefs,
+      );
+      labelMap.forEach((labels, featureId) => {
+        store.setFeatureTextLabels(featureId, labels);
+      });
+    })();
   }
 
   function applyToExistingFeatures() {

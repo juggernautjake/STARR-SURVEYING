@@ -1,13 +1,17 @@
 // app/admin/jobs/new/page.tsx — Create new job
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import { SURVEY_TYPES } from '../../components/jobs/JobCard';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import Tooltip from '../../research/components/Tooltip';
+import {
+  buildJobDraftFromLead,
+  type LeadForConversion,
+} from '@/lib/calendar/lead-to-job';
 
 export default function NewJobPage() {
   const { data: session } = useSession();
@@ -43,6 +47,37 @@ export default function NewJobPage() {
     is_legacy: false,
     stage: 'quote',
   });
+
+  // Slice C6 — when arriving with ?fromLead=<id>, fetch the lead +
+  // prefill every mappable field via buildJobDraftFromLead so daddy
+  // doesn't retype what the customer already gave him on the contact
+  // form. Track the lead id throughout the lifetime of the page so
+  // the create handler can flip lead.status='accepted' + set
+  // converted_job_id on the original lead row.
+  const searchParams = useSearchParams();
+  const fromLeadId = searchParams?.get('fromLead') ?? null;
+  const [prefilledLead, setPrefilledLead] = useState<LeadForConversion | null>(null);
+  const prefillFiredRef = useRef(false);
+  useEffect(() => {
+    if (!fromLeadId) return;
+    if (prefillFiredRef.current) return; // strict-mode guard
+    prefillFiredRef.current = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/leads/${encodeURIComponent(fromLeadId)}`, {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { lead: LeadForConversion };
+        if (!data.lead) return;
+        setPrefilledLead(data.lead);
+        const draft = buildJobDraftFromLead(data.lead);
+        setForm((prev) => ({ ...prev, ...draft }));
+      } catch (e) {
+        console.error('[new-job] lead prefill failed', e);
+      }
+    })();
+  }, [fromLeadId]);
 
   function updateField(field: string, value: string | boolean) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -82,6 +117,29 @@ export default function NewJobPage() {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        // Slice C6 — once the job lands, flip the original lead so
+        // /admin/leads no longer carries it as 'new' or 'quoted'.
+        // PATCH to status='accepted' (the Q3b auto-dismiss path
+        // clears the new-query bell notification at the same time)
+        // and stamp converted_job_id so the lead detail page can
+        // link forward. Best-effort: a failure here doesn't undo
+        // the just-created job; we just log + continue.
+        if (prefilledLead) {
+          try {
+            await fetch('/api/admin/leads', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                id: prefilledLead.id,
+                status: 'accepted',
+                converted_job_id: data.job.id,
+              }),
+            });
+          } catch (e) {
+            console.warn('[new-job] lead PATCH after conversion failed', e);
+          }
+        }
         router.push(`/admin/jobs/${data.job.id}`);
       } else {
         // The API now returns a specific `error` (and often a `step`
@@ -107,6 +165,26 @@ export default function NewJobPage() {
           <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
           <h2 className="job-form__title">Create New Job</h2>
         </div>
+
+        {prefilledLead && (
+          <div
+            className="job-form__lead-banner"
+            data-testid="lead-prefill-banner"
+            style={{
+              background: 'var(--color-bg-subtle)',
+              border: '1px solid #E5E7EB',
+              borderLeft: '4px solid var(--color-brand-navy)',
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-3) var(--space-4)',
+              margin: 'var(--space-3) 0',
+            }}
+          >
+            <strong>Prefilled from lead</strong>{' '}
+            — <Link href={`/admin/leads/${prefilledLead.id}`}>{prefilledLead.name}</Link>.
+            Edit any field below before saving. The lead status will flip to{' '}
+            <code>accepted</code> the moment the job is created.
+          </div>
+        )}
 
         {error && <div className="job-form__error">{error}</div>}
 

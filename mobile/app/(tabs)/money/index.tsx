@@ -86,11 +86,16 @@ export default function MoneyScreen() {
             <View
               style={[
                 styles.filterChip,
-                { backgroundColor: '#FEF3C7', borderColor: '#D97706' },
+                {
+                  backgroundColor: palette.warningCallout.background,
+                  borderColor: palette.warningCallout.border,
+                },
               ]}
               accessibilityLabel="Filter active: needs review"
             >
-              <Text style={styles.filterChipText}>
+              <Text
+                style={[styles.filterChipText, { color: palette.warningCallout.title }]}
+              >
                 👀 Filter: {receipts.length}{' '}
                 {receipts.length === 1 ? 'receipt' : 'receipts'} needing review
               </Text>
@@ -123,14 +128,16 @@ export default function MoneyScreen() {
               {
                 marginHorizontal: 16,
                 marginBottom: 8,
-                backgroundColor: '#FEF3C7',
-                borderColor: '#D97706',
+                backgroundColor: palette.warningCallout.background,
+                borderColor: palette.warningCallout.border,
                 alignSelf: 'flex-start',
                 opacity: pressed ? 0.75 : 1,
               },
             ]}
           >
-            <Text style={styles.filterChipText}>
+            <Text
+              style={[styles.filterChipText, { color: palette.warningCallout.title }]}
+            >
               👀 {reviewCount}{' '}
               {reviewCount === 1 ? 'receipt needs' : 'receipts need'} your
               review →
@@ -232,7 +239,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   filterChipText: {
-    color: '#92400E',
+    // S3 — color comes from palette.warningCallout.title at the call
+    // site so the chip respects dark / sun schemes.
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,

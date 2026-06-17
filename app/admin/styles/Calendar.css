@@ -1,0 +1,1526 @@
+/* app/admin/styles/Calendar.css
+ *
+ * job-calendar Slice C1 — the org-wide calendar at /admin/calendar.
+ * Layered on top of AdminLayout.css; tokens come from
+ * app/styles/tokens.css per docs/admin-styling-contract.md.
+ *
+ * Surface tuned for THREE viewing distances:
+ *   - phone (≤768px) — single-week strip + per-day detail OR a vertical
+ *     day-list. Avoids a tiny illegible month grid.
+ *   - desktop (≥769px) — classic 6-row × 7-col month grid.
+ *   - big-screen (`data-display-mode="big-screen"`) — fullscreen wall TV
+ *     mode: hide chrome, scale text, expand cell padding. Shipped in C3.
+ */
+
+.calendar-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  /* Eat the full main area so the grid uses every vertical pixel. */
+  min-height: calc(100vh - 4rem);
+}
+
+/* Header — month/year title + prev/today/next + view switcher. */
+.calendar-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.calendar-page__title {
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.calendar-page__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.calendar-page__nav button {
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 36px;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.calendar-page__nav button:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.calendar-page__nav button[data-current='true'] {
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  border-color: var(--color-brand-navy);
+}
+
+/* View switcher — Month / Week / Day. */
+.calendar-page__view-switcher {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  padding: 2px;
+  margin-right: var(--space-2);
+}
+.calendar-page__view-switcher button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 32px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.calendar-page__view-switcher button:hover {
+  color: var(--color-brand-navy);
+}
+.calendar-page__view-switcher button[data-current='true'] {
+  background: var(--color-bg-card);
+  color: var(--color-brand-navy);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * job-calendar Slice G1 — phase legend. Renders below the header,
+ * three chips (Research / Field Work / Drawing & Deliverables) each
+ * acting as a visibility toggle. Hidden state shrinks the swatch +
+ * mutes the label so users can see what's filtered without
+ * second-guessing.
+ *
+ * Phase colors come from --color-phase-* tokens declared in
+ * app/styles/tokens.css. The legend itself uses the brand-navy
+ * token system; only the swatch background reads from --color-phase-*.
+ * ─────────────────────────────────────────────────────────────────── */
+.calendar-page__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.calendar-page__legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  min-height: 28px;
+  transition: opacity 120ms ease, border-color 120ms ease;
+}
+.calendar-page__legend-chip:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.calendar-page__legend-chip[data-hidden='true'] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.calendar-page__legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+/* Day-of-week header row. */
+.calendar-month__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-1);
+}
+.calendar-month__weekday {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: var(--space-1) 0;
+}
+
+/* The 6×7 grid itself. */
+.calendar-month__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  /* Six rows, each fluid to fill the page height. */
+  grid-auto-rows: minmax(7.5rem, 1fr);
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.calendar-month__cell {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow: hidden;
+  position: relative;
+}
+.calendar-month__cell[data-in-month='false'] {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-tertiary);
+}
+.calendar-month__cell[data-today='true'] {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: -2px;
+}
+
+.calendar-month__cell-num {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+.calendar-month__cell[data-in-month='false'] .calendar-month__cell-num {
+  color: var(--color-text-tertiary);
+}
+.calendar-month__cell[data-today='true'] .calendar-month__cell-num {
+  color: var(--color-brand-navy);
+}
+
+/* The scrollable inner list of events. The user's spec was explicit:
+ * "if there is a lot then it should be scrollable within each day's
+ * square". */
+.calendar-month__events {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  /* Tight scrollbar styling so it doesn't jump out visually on a busy
+   * wall-TV view. */
+  scrollbar-width: thin;
+  flex: 1;
+  min-height: 0;
+}
+.calendar-month__events::-webkit-scrollbar { width: 6px; }
+.calendar-month__events::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 999px;
+}
+
+.calendar-event {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  border-left: 3px solid var(--phase-color, #6B7280);
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  /* Truncate long titles; full text in title= tooltip. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 120ms ease;
+}
+.calendar-event:hover {
+  background: #FFFFFF;
+  text-decoration: none;
+}
+.calendar-event--has-link {
+  cursor: pointer;
+}
+.calendar-event__time {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+.calendar-event__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M3 — week view phone optimization.
+ *
+ * Desktop week view: 7 columns × hour rows, ~140 px per column.
+ * Phone (≤768 px): same 7 columns but each column takes 30vw so
+ * three days fill the viewport; the parent .calendar-week becomes
+ * a horizontal scroll-snap container so the user swipes between
+ * 3-day windows. Hour gutter sticks to the left so labels stay
+ * visible across the scroll. Hour rows fatten to 3 rem each so a
+ * timed event is thumb-tappable.
+ *
+ * Coupled with M2: the .calendar-week wrapper carries
+ * data-swipe-skip="true" so the page-level swipe gesture (which
+ * advances the focus by a full week) doesn't double-fire from
+ * inside the horizontal scroll.
+ * ─────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .calendar-week {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+  }
+  /* Each of the three inner sections — header, all-day strip, body
+   * — uses the same column template so they scroll together as the
+   * user pans. */
+  .calendar-week__header,
+  .calendar-week__all-day,
+  .calendar-week__body {
+    grid-template-columns: 4rem repeat(7, 30vw);
+    width: max-content;
+  }
+  /* Hour gutter is sticky-left so labels stay anchored across the
+   * scroll. Background opaque so day columns don't bleed through. */
+  .calendar-week__hour-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--color-bg-card);
+  }
+  /* Day columns snap to the start so the scroll naturally lands on
+   * day boundaries — no half-day windows. */
+  .calendar-week__day-header,
+  .calendar-week__day-col,
+  .calendar-week__all-day-cell {
+    scroll-snap-align: start;
+  }
+  /* Fat hour rows so a timed event renders thumb-tappable. */
+  .calendar-week__body {
+    grid-auto-rows: minmax(3rem, 1fr);
+  }
+  .calendar-week__day-col {
+    grid-auto-rows: minmax(3rem, 1fr);
+  }
+  .calendar-week__hour-gutter {
+    grid-auto-rows: minmax(3rem, 1fr);
+  }
+  /* Today's day column gets a brand-navy outline that survives the
+   * horizontal scroll (already declared on desktop; just ensure
+   * it's still visible inside the scrolling parent). */
+  .calendar-week__day-col[data-today='true'] {
+    outline-offset: -3px;
+  }
+}
+
+/* Print resets the horizontal scroll so the printout shows all 7
+ * days side-by-side as designed for paper. */
+@media print {
+  .calendar-week {
+    overflow-x: visible !important;
+  }
+  .calendar-week__header,
+  .calendar-week__all-day,
+  .calendar-week__body {
+    grid-template-columns: 4rem repeat(7, 1fr) !important;
+    width: auto !important;
+  }
+  .calendar-week__hour-gutter {
+    position: static !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M4 — day view phone polish. Adds a sticky
+ * day header so the user keeps their orientation while scrolling the
+ * hour grid. The same header renders on desktop for visual parity
+ * but is only sticky on phone (sticky on desktop would compete with
+ * the page-level header).
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-day__day-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
+}
+.calendar-day__day-header-weekday {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.calendar-day__day-header-date {
+  font-size: var(--text-xl);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+}
+.calendar-day__day-header[data-today='true'] {
+  border-left: 4px solid var(--color-brand-navy);
+}
+.calendar-day__day-header[data-today='true'] .calendar-day__day-header-date {
+  color: var(--color-brand-navy);
+}
+.calendar-day__day-header-today-tag {
+  margin-left: auto;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+/* Phone tweaks for the day view — sticky header, fat hour rows,
+ * horizontally scrolling all-day strip when many chips. */
+@media (max-width: 768px) {
+  .calendar-day__day-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    /* Background needs to be opaque so events behind don't bleed
+     * through during scroll. */
+    background: var(--color-bg-card);
+    box-shadow: 0 1px 3px rgba(15, 20, 25, 0.06);
+    /* Wider date numeral on phone — clear hit / read at a glance. */
+  }
+  .calendar-day__day-header-date {
+    font-size: var(--text-2xl);
+  }
+
+  /* All-day strip — when there are several chips, allow horizontal
+   * scroll so a long list doesn't break the layout. */
+  .calendar-day__all-day .calendar-week__all-day-cell {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: var(--space-1);
+    padding: 4px;
+  }
+  .calendar-day__all-day .calendar-week__all-day-cell > * {
+    flex-shrink: 0;
+  }
+
+  /* Fat hour rows so a thumb can hit any 30-min event. The desktop
+   * grid uses `grid-auto-rows: 1fr` inside `.calendar-week__day-col`;
+   * on phone we set a fixed minimum so the column gets at least
+   * 3.5rem per hour even when the viewport is short. */
+  .calendar-day .calendar-week__day-col {
+    grid-auto-rows: minmax(3.5rem, 1fr);
+  }
+  .calendar-day .calendar-week__hour-gutter {
+    grid-auto-rows: minmax(3.5rem, 1fr);
+  }
+
+  /* The body grid on phone keeps its hour gutter + 1 day col
+   * structure but the hour-gutter shrinks to leave more room for
+   * the events. */
+  .calendar-day__body {
+    grid-template-columns: 3rem 1fr;
+  }
+}
+
+@media print {
+  .calendar-day__day-header {
+    position: static;
+    box-shadow: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M2 — swipe gesture edge-ghost indicators.
+ * The React side flips opacity via inline style as the user drags;
+ * the CSS provides position, size, and the visual treatment. Only
+ * visible on phone-width screens; desktop never shows them because
+ * the swipe handler skips mouse pointer types.
+ * ─────────────────────────────────────────────────────────────────── */
+.calendar-page__swipe-ghost {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 56px;
+  display: none; /* desktop: hidden */
+  align-items: center;
+  justify-content: center;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  border-radius: 999px;
+  font-size: 1.6rem;
+  z-index: 90;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+  box-shadow: 0 6px 18px -4px rgba(15, 20, 25, 0.25);
+}
+.calendar-page__swipe-ghost--left  { left: 16px; }
+.calendar-page__swipe-ghost--right { right: 16px; }
+
+@media (max-width: 768px) {
+  .calendar-page__swipe-ghost {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page__swipe-ghost {
+    transition: none;
+  }
+}
+
+/* Print never shows the gesture ghosts. */
+@media print {
+  .calendar-page__swipe-ghost {
+    display: none !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P6 — wall-TV refresh indicator. The big-
+ * screen mode auto-refreshes every 5 min; without a visible signal,
+ * a viewer can't tell if the calendar is live or frozen on stale
+ * data. P6 adds a small corner dot that glows briefly around each
+ * auto-refresh, then fades. Only visible when BOTH
+ *   data-display-mode='big-screen'  AND  data-refreshing='true'
+ * so it stays out of the way of regular use.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-page__refresh-dot {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-success, #10B981);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 200;
+  transition: opacity 200ms ease;
+}
+
+/* Show the dot only when both attributes are set on the root. The
+ * combinator key — same component scope, two predicates — keeps
+ * the dot invisible in normal admin use. */
+.calendar-page[data-display-mode='big-screen'][data-refreshing='true'] .calendar-page__refresh-dot {
+  opacity: 1;
+  animation: calendar-refresh-glow 1200ms ease-out;
+}
+
+@keyframes calendar-refresh-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    transform: scale(1);
+  }
+  60% {
+    box-shadow: 0 0 0 18px rgba(16, 185, 129, 0);
+    transform: scale(1.4);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    transform: scale(1);
+  }
+}
+
+/* Reduced-motion: still show the dot (it's a meaningful status
+ * signal), but skip the expanding ring. The opacity flip alone is
+ * still a clear "we just refreshed" tell. */
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page[data-display-mode='big-screen'][data-refreshing='true'] .calendar-page__refresh-dot {
+    animation: none;
+  }
+}
+
+/* Print — the dot is wall-TV-only, never on paper. */
+@media print {
+  .calendar-page__refresh-dot {
+    display: none !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P5 — print stylesheet. Daddy hits the 🖨
+ * button → window.print() → the browser's print dialog. The rules
+ * below strip everything that's only useful on-screen (nav, legend,
+ * cheat sheet, loading chip, fullscreen-only animations) and tune
+ * the grid for paper:
+ *   - black on white text
+ *   - keep phase-color accent strips (color comes through on a
+ *     color printer; greys readably on black-and-white)
+ *   - allow page breaks BETWEEN week rows so a busy month still
+ *     fits on letter-size paper
+ *   - landscape friendly: print at 100% width + ~ landscape ratio
+ * ─────────────────────────────────────────────────────────────────── */
+
+@media print {
+  /* Hide every interactive surface — printed paper can't tap. */
+  .calendar-page__nav,
+  .calendar-page__legend,
+  .calendar-page__loading-chip,
+  .calendar-page__cheat-sheet-backdrop,
+  .calendar-page__empty {
+    display: none !important;
+  }
+
+  /* Hide the admin sidebar + topbar — they're chrome that paper
+   * doesn't need. Selectors mirror app/admin/styles/AdminLayout.css. */
+  .admin-sidebar,
+  .admin-topbar {
+    display: none !important;
+  }
+  .admin-layout__content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Page-level reset for paper. */
+  .calendar-page {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    padding: 0.5cm !important;
+    font-size: 11pt;
+  }
+  .calendar-page__header {
+    display: block !important;
+    border-bottom: 1px solid #000000;
+    padding-bottom: 0.25cm;
+    margin-bottom: 0.5cm;
+  }
+  .calendar-page__title {
+    color: #000000 !important;
+    font-size: 18pt;
+    margin: 0;
+  }
+
+  /* Month grid — fluid rows so a busy month still fits. Allow a
+   * page break BETWEEN week rows; never INSIDE a week. */
+  .calendar-month__grid {
+    grid-auto-rows: minmax(2.4cm, auto);
+    gap: 1pt;
+    animation: none !important; /* no shimmer/fade in print */
+  }
+  .calendar-month__cell {
+    border: 1px solid #000000 !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    outline: none !important;
+    animation: none !important;
+  }
+  .calendar-month__cell[data-in-month='false'] {
+    /* Surrounding-month days — print them faded so the focus is
+     * obvious without losing the visual grid. */
+    color: #999999 !important;
+    background: #FAFAFA !important;
+  }
+  .calendar-month__cell-num {
+    color: #000000 !important;
+  }
+  .calendar-month__weekday {
+    color: #000000 !important;
+  }
+
+  /* Events keep their phase-color left border so the color-coding
+   * survives a color printout; greyscale prints just see a darker
+   * left edge but still read by phase shape. */
+  .calendar-event {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    border-left: 3px solid var(--phase-color, #000000) !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+  }
+  .calendar-event__time,
+  .calendar-event__title {
+    color: #000000 !important;
+  }
+
+  /* Week + day timed-event pills — give them a thin black border so
+   * they read on paper. */
+  .calendar-event--timed {
+    background: #FFFFFF !important;
+    border: 1px solid #000000 !important;
+    border-left-width: 3px !important;
+  }
+
+  /* Force landscape for the month view so a 6×7 grid actually
+   * fits. Week + day views look better portrait, so don't lock. */
+  .calendar-page[data-view='month'] {
+    /* @page is the print spec'd way to set page orientation. */
+  }
+  @page {
+    margin: 1cm;
+  }
+
+  /* Big-screen / display-mode chrome is irrelevant on paper. */
+  .calendar-page[data-display-mode='big-screen'] {
+    background: #FFFFFF !important;
+    padding: 0.5cm !important;
+    font-size: 11pt;
+  }
+
+  /* Pause every animation so the snapshot the printer sees is
+   * stable. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P4 — keyboard shortcuts cheat sheet. Modal
+ * sits on top of the calendar with a brand-navy-tinted backdrop;
+ * click-outside / Esc / `?` all close it (handled in the React layer
+ * — CSS just handles the look + the fade-in).
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-page__cheat-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 14, 20, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: calendar-cheat-fade-in 160ms ease both;
+  padding: var(--space-4);
+}
+.calendar-page__cheat-sheet {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  width: min(440px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 18px 36px -12px rgba(15, 20, 25, 0.25);
+  animation: calendar-cheat-pop-in 200ms ease both;
+}
+.calendar-page__cheat-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.calendar-page__cheat-sheet-header h3 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+  color: var(--color-text-primary);
+}
+.calendar-page__cheat-sheet-header button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.calendar-page__cheat-sheet-header button:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-brand-navy);
+}
+.calendar-page__cheat-sheet-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-3);
+}
+.calendar-page__cheat-sheet-list dt {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 0;
+}
+.calendar-page__cheat-sheet-list dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  align-self: center;
+}
+.calendar-page__cheat-sheet-list kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 2px 6px;
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+}
+.calendar-page__cheat-sheet-foot {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  border-top: 1px solid #E5E7EB;
+  padding-top: var(--space-3);
+}
+
+@keyframes calendar-cheat-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes calendar-cheat-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page__cheat-sheet-backdrop,
+  .calendar-page__cheat-sheet {
+    animation: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M5 — cheat sheet mobile sizing. The
+ * desktop modal is `min(440px, 100%)` wide + 80vh max-height. On
+ * a phone, fill the screen instead — backdrop padding drops to 0,
+ * inner panel goes full-width + full-height. Close button bumps to
+ * 44 × 44 pt (Apple HIG). Bottom inset respects the home indicator
+ * via env(safe-area-inset-bottom) so the panel doesn't tuck behind
+ * the iOS / Android system bar.
+ * ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .calendar-page__cheat-sheet-backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+  .calendar-page__cheat-sheet {
+    width: 100%;
+    max-height: none;
+    min-height: 100%;
+    border-radius: 0;
+    /* Respect the iOS home-bar inset so the panel content sits
+     * above the home indicator, not under it. */
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    /* Top inset too — covers the iOS Dynamic Island / notch on
+     * landscape orientations. */
+    padding-top: calc(var(--space-5) + env(safe-area-inset-top, 0px));
+  }
+  .calendar-page__cheat-sheet-header button {
+    /* Apple HIG 44pt minimum; up from desktop 32px. */
+    width: 44px;
+    height: 44px;
+    font-size: 1.2rem;
+  }
+  /* Bigger gap between the kbd column and the description column —
+   * a thumb's pixel target on the close button needs breathing room
+   * around the list rows too. */
+  .calendar-page__cheat-sheet-list {
+    gap: var(--space-3) var(--space-4);
+  }
+  .calendar-page__cheat-sheet-list kbd {
+    /* Slight bump so keycaps are legible at arm's length. */
+    min-width: 32px;
+    font-size: var(--text-sm);
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P3 — per-view empty states. Renders ABOVE
+ * the grid as a friendly banner so the grid itself keeps its nav
+ * affordance (date squares are still readable). Two flavours:
+ *   data-empty-kind='no-events'    — the fetch returned []
+ *   data-empty-kind='all-hidden'   — legend filters hid everything
+ * Different icon + copy + CTA per kind.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-page__empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid var(--color-brand-navy);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  /* Fade in so the banner doesn't pop after a fetch completes. */
+  animation: calendar-empty-fade-in 200ms ease both;
+}
+.calendar-page__empty[data-empty-kind='all-hidden'] {
+  border-left-color: var(--color-warning, #F59E0B);
+}
+.calendar-page__empty-icon {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+.calendar-page__empty-message {
+  flex: 1;
+  color: var(--color-text-primary);
+}
+.calendar-page__empty-cta {
+  color: var(--color-brand-navy);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-brand-navy);
+  background: var(--color-bg-card);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.calendar-page__empty-cta:hover {
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.calendar-page__empty-cta:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+
+@keyframes calendar-empty-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Phone — stack the CTA below the message so neither truncates. */
+@media (max-width: 768px) {
+  .calendar-page__empty {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .calendar-page__empty-cta {
+    align-self: stretch;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page__empty {
+    animation: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P2 — skeleton loader. While the page is
+ * fetching a new month/week/day window, paint a soft shimmer ACROSS
+ * the existing grid (rather than wipe events to blank) so the user
+ * sees something is happening without losing visual context. Two
+ * pieces:
+ *   - `[data-loading='true']::after` overlay on each grid container —
+ *     a translucent gradient that sweeps left-to-right.
+ *   - Tiny "Loading…" chip on the calendar header that fades in.
+ * ─────────────────────────────────────────────────────────────────── */
+
+@keyframes calendar-shimmer-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+.calendar-month__grid[data-loading='true'],
+.calendar-week[data-loading='true'],
+.calendar-day[data-loading='true'] {
+  position: relative;
+  overflow: hidden;
+}
+.calendar-month__grid[data-loading='true']::after,
+.calendar-week[data-loading='true']::after,
+.calendar-day[data-loading='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Translucent navy-tinted gradient — visible enough to read as
+   * "something is happening" but light enough that the user still
+   * sees the events behind it. */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(29, 48, 149, 0.04) 30%,
+    rgba(29, 48, 149, 0.10) 50%,
+    rgba(29, 48, 149, 0.04) 70%,
+    transparent 100%
+  );
+  animation: calendar-shimmer-sweep 1.4s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* Small chip in the header that fades in while loading. The page's
+ * data-loading attribute lives on the grid; the chip keys on the page
+ * root's data-fetching attribute instead so it stays decoupled from
+ * grid-only rules. */
+.calendar-page__loading-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  border: 1px solid #E5E7EB;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.calendar-page[data-fetching='true'] .calendar-page__loading-chip {
+  opacity: 1;
+}
+.calendar-page__loading-chip::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-brand-navy);
+  animation: calendar-shimmer-pulse 1s ease-in-out infinite;
+}
+@keyframes calendar-shimmer-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1); }
+}
+
+/* Phone breakpoint — the grid is collapsed to a stacked day-list, so
+ * the sweep overlay doesn't have a clean shape to sit on. Hide the
+ * overlay; the header chip carries the loading signal alone. */
+@media (max-width: 768px) {
+  .calendar-month__grid[data-loading='true']::after,
+  .calendar-week[data-loading='true']::after,
+  .calendar-day[data-loading='true']::after {
+    display: none;
+  }
+}
+
+/* Vestibular-safe — pause both sweep + pulse when the OS requests
+ * reduced motion. Loading chip stays visible (it's the alternate
+ * signal) but doesn't pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .calendar-month__grid[data-loading='true']::after,
+  .calendar-week[data-loading='true']::after,
+  .calendar-day[data-loading='true']::after {
+    animation: none;
+    background: rgba(29, 48, 149, 0.04);
+  }
+  .calendar-page__loading-chip::before {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-polish Slice P1 — motion + transitions. Every effect here
+ * is additive on top of the structure shipped by the job-calendar
+ * plan; honor `prefers-reduced-motion` so vestibular sensitivities
+ * always get the static version.
+ * ─────────────────────────────────────────────────────────────────── */
+
+/* Hover lift on event pills + the timed-event variant. Subtle (1px)
+ * so a dense grid doesn't get visually noisy. */
+.calendar-event {
+  transform: translateY(0);
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.calendar-event--has-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px -1px rgba(29, 48, 149, 0.12);
+}
+
+/* The 2-color band the day cells already have (`.calendar-month__cell`)
+ * gets a soft lift on hover too — telegraphs that the cell is
+ * "tappable" via its events. */
+.calendar-month__cell {
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+.calendar-month__cell:hover {
+  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.05);
+}
+
+/* View-switch fade-in. Re-trigger on data-view change so the new
+ * view's grid animates in. Pure CSS; no JS for the transition. */
+@keyframes calendar-view-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.calendar-month__grid,
+.calendar-week,
+.calendar-day {
+  animation: calendar-view-fade-in 180ms ease both;
+}
+
+/* Today cell — soft ring pulse. Long cycle (4s) + low amplitude so it
+ * draws the eye without competing with the actual events. */
+@keyframes calendar-today-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(29, 48, 149, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(29, 48, 149, 0.12); }
+}
+.calendar-month__cell[data-today='true'] {
+  animation: calendar-today-pulse 4s ease-in-out infinite;
+}
+.calendar-week__day-col[data-today='true'] {
+  animation: calendar-today-pulse 4s ease-in-out infinite;
+}
+
+/* Legend chip — smooth opacity + line-through cross-fade when toggled. */
+.calendar-page__legend-chip {
+  transition:
+    opacity 160ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    text-decoration-color 200ms ease,
+    background-color 120ms ease;
+}
+
+/* Nav button focus ring — tighter + brand-navy outline so keyboard
+ * navigation reads. Same rule for the view switcher + legend +
+ * pickers + nav buttons + fullscreen toggle. */
+.calendar-page__nav button:focus-visible,
+.calendar-page__nav select:focus-visible,
+.calendar-page__view-switcher button:focus-visible,
+.calendar-page__legend-chip:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+
+/* Big-screen mode — animation looks great on the wall TV; just keep
+ * the today pulse but slow it to 6s so it's quieter at distance. */
+.calendar-page[data-display-mode='big-screen'] .calendar-month__cell[data-today='true'],
+.calendar-page[data-display-mode='big-screen'] .calendar-week__day-col[data-today='true'] {
+  animation-duration: 6s;
+}
+
+/* Vestibular-safe — every animation collapses to instantaneous when
+ * the user has set the OS to reduce motion. The hover lift becomes a
+ * static state; the view fade-in + today pulse + chip transition
+ * become 1ms (effectively off). Keeps semantic transitions
+ * discoverable through `transition-duration: 0.01ms` rather than
+ * removing the rules so DevTools-level introspection still works. */
+@media (prefers-reduced-motion: reduce) {
+  .calendar-event,
+  .calendar-month__cell,
+  .calendar-month__grid,
+  .calendar-week,
+  .calendar-day,
+  .calendar-page__legend-chip {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .calendar-event--has-link:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * job-calendar Slice C2 — week + day views. Both share the same
+ * hour-row grid; week is 7 day columns, day is 1.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-week,
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.calendar-week__header,
+.calendar-day__all-day,
+.calendar-week__all-day {
+  display: grid;
+  grid-template-columns: 4rem repeat(7, 1fr);
+  gap: var(--space-1);
+  align-items: stretch;
+}
+.calendar-day__all-day {
+  grid-template-columns: 4rem 1fr;
+}
+.calendar-week__header > * {
+  padding: var(--space-1) var(--space-2);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+.calendar-week__day-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-text-secondary);
+}
+.calendar-week__day-header[data-today='true'] {
+  color: var(--color-brand-navy);
+  font-weight: var(--weight-semibold);
+}
+.calendar-week__day-header strong {
+  font-size: var(--text-lg);
+  color: inherit;
+}
+
+.calendar-week__hour-gutter {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  padding: 4px;
+  text-align: right;
+}
+.calendar-week__all-day .calendar-week__hour-gutter,
+.calendar-day__all-day .calendar-week__hour-gutter {
+  align-self: center;
+}
+.calendar-week__all-day-cell {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  min-height: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calendar-week__body,
+.calendar-day__body {
+  display: grid;
+  grid-template-columns: 4rem repeat(7, 1fr);
+  gap: var(--space-1);
+  flex: 1;
+  min-height: 24rem;
+  margin-top: var(--space-2);
+}
+.calendar-day__body {
+  grid-template-columns: 4rem 1fr;
+}
+
+.calendar-week__hour-gutter,
+.calendar-week__day-col {
+  display: grid;
+  grid-auto-rows: 1fr;
+}
+.calendar-week__day-col {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+}
+.calendar-week__day-col[data-today='true'] {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: -2px;
+}
+.calendar-week__hour-cell {
+  border-top: 1px solid #F3F4F6;
+}
+.calendar-week__hour-cell:first-child {
+  border-top: 0;
+}
+.calendar-week__hour-label {
+  border-top: 1px solid transparent; /* keep height parity with hour cells */
+}
+
+.calendar-event--timed {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  border-left-width: 3px;
+  border-left-style: solid;
+  border-left-color: var(--phase-color, #6B7280);
+  background: rgba(29, 48, 149, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  overflow: hidden;
+}
+.calendar-event--timed:hover {
+  background: rgba(29, 48, 149, 0.16);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * job-calendar Slice C4 — per-job phase scheduler panel inside
+ * /admin/jobs/[id]. Lives alongside the calendar styles because the
+ * scheduler and the calendar share the phase-color contract.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.job-phase-scheduler {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.job-phase-scheduler__intro h3 {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  color: var(--color-text-primary);
+}
+.job-phase-scheduler__intro p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+.job-phase-scheduler__error {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+.job-phase-scheduler__section {
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid #6B7280;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+.job-phase-scheduler__section[data-phase='research']             { border-left-color: #0D9488; }
+.job-phase-scheduler__section[data-phase='field_work']           { border-left-color: #D97706; }
+.job-phase-scheduler__section[data-phase='drawing_deliverables'] { border-left-color: #7C3AED; }
+
+.job-phase-scheduler__section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-2);
+}
+.job-phase-scheduler__section-header h4 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+.job-phase-scheduler__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+.job-phase-scheduler__scheduled ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.job-phase-scheduler__scheduled li {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+.job-phase-scheduler__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.job-phase-scheduler__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+.job-phase-scheduler__form input {
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  min-height: 36px;
+}
+.job-phase-scheduler__form input:focus {
+  outline: var(--border-focus);
+  outline-offset: 2px;
+  border-color: var(--color-brand-navy);
+}
+.job-phase-scheduler__form button {
+  align-self: flex-start;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  border: 1px solid var(--color-brand-navy);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  min-height: 40px;
+  cursor: pointer;
+}
+.job-phase-scheduler__form button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Year + month picker selects in the header. Same shape as the nav
+ * buttons so the toolbar visually rhymes. */
+.calendar-page__nav select {
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  min-height: 36px;
+  cursor: pointer;
+}
+.calendar-page__nav select:focus {
+  outline: var(--border-focus);
+  outline-offset: 2px;
+  border-color: var(--color-brand-navy);
+}
+.calendar-page__nav button[data-action='toggle-fullscreen'] {
+  font-size: 1.1rem;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * job-calendar Slice C3 — fullscreen / big-screen mode. The page calls
+ * requestFullscreen() on the calendar root; the browser already hides
+ * everything outside that root. The rules below scale the inner
+ * content for an 8-foot viewing distance:
+ *   - bump base font sizes via the page-level data-display-mode key
+ *   - expand padding on cells + event pills
+ *   - paint a solid background so a TV doesn't show the host page's
+ *     gradient through any z-fighting transparency
+ * ─────────────────────────────────────────────────────────────────── */
+
+.calendar-page[data-display-mode='big-screen'] {
+  background: var(--color-bg-app, #F9FAFB);
+  padding: var(--space-5);
+  font-size: 1.05rem;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-page__title {
+  font-size: 2.25rem;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-month__weekday {
+  font-size: var(--text-sm);
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-month__cell {
+  padding: var(--space-3);
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-month__cell-num {
+  font-size: var(--text-lg);
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-event {
+  font-size: var(--text-sm);
+  padding: 4px 8px;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-week__day-header strong {
+  font-size: 1.6rem;
+}
+.calendar-page[data-display-mode='big-screen'] .calendar-week__hour-label {
+  font-size: var(--text-sm);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+ * calendar-mobile Slice M1 — phone toolbar + 44pt touch targets.
+ *
+ * Goal: reorganize the desktop toolbar (3-button view switcher + 2
+ * pickers + 3 nav buttons + 3 action buttons = 11 elements) into a
+ * layout that reads on a 320–390 px phone. Two stacked rows:
+ *   Row 1: title + view switcher
+ *   Row 2: prev / today / next + action buttons
+ * Plus the obligatory 44pt minimum on every interactive — Apple HIG
+ * + gloved hands in the field.
+ * ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Month grid — stacked day-list. */
+  .calendar-month__weekdays { display: none; }
+  .calendar-month__grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+  }
+  .calendar-month__cell {
+    min-height: auto;
+  }
+  /* Hide cells that aren't in the focused month — phone users don't
+   * need to see the overflow days. */
+  .calendar-month__cell[data-in-month='false'] {
+    display: none;
+  }
+  .calendar-month__events {
+    overflow-y: visible;
+  }
+
+  /* Toolbar layout — title on row 1, nav on row 2. The header
+   * already wraps via `flex-wrap: wrap` on its parent; here we just
+   * force it to stack. */
+  .calendar-page__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .calendar-page__title {
+    font-size: var(--text-xl);
+  }
+  /* The title's inline wrapper (title + loading chip) goes left. */
+  .calendar-page__header > div:first-child {
+    align-items: baseline;
+  }
+  /* The nav row goes full-width with edge-anchored prev/next so the
+   * thumb naturally finds them. */
+  .calendar-page__nav {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    justify-content: space-between;
+  }
+  /* View switcher takes its own line above the nav buttons so they
+   * don't compete for thumb real estate. */
+  .calendar-page__view-switcher {
+    flex: 1 1 100%;
+    margin-right: 0;
+    margin-bottom: var(--space-1);
+    justify-content: stretch;
+  }
+  .calendar-page__view-switcher button {
+    flex: 1;
+    min-height: 44px;
+  }
+  /* Drop the month + year pickers on phone — prev/next is the
+   * better gesture on small screens; pickers stay on desktop. */
+  .calendar-page__nav select {
+    display: none;
+  }
+  /* Every other nav button hits 44pt min so a gloved finger works. */
+  .calendar-page__nav button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+  }
+  /* Prev / today / next anchor at the edges so a thumb on either
+   * side hits them without aiming. */
+  .calendar-page__nav button[data-action$='-month'],
+  .calendar-page__nav button[data-action$='-week'],
+  .calendar-page__nav button[data-action$='-day'],
+  .calendar-page__nav button[data-action='today'] {
+    flex: 1 1 auto;
+  }
+  /* The trailing action triplet (fullscreen + print + ?) collapses
+   * into icon-only square buttons — emoji icons stay readable. */
+  .calendar-page__nav button[data-action='toggle-fullscreen'],
+  .calendar-page__nav button[data-action='print-calendar'],
+  .calendar-page__nav button[data-action='toggle-cheat-sheet'] {
+    flex: 0 0 44px;
+    padding: 0;
+  }
+}

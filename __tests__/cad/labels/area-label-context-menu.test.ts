@@ -45,7 +45,9 @@ describe('Slice 231 — context-menu JSX', () => {
 
   it('Re-center button looks up the linked feature, runs pickFeatureCentroid, and writes position', () => {
     expect(SRC).toContain('data-testid="area-label-ctx-recenter"');
-    expect(SRC).toMatch(/const linked = drawingStore\.getFeature\(ann\.linkedFeatureId\);/);
+    // P6k widened — CanvasViewport's `drawingStore.X(...)` callbacks
+    // route through `useDrawingStore.getState().X(...)`.
+    expect(SRC).toMatch(/const linked = (drawingStore|useDrawingStore\.getState\(\))\.getFeature\(ann\.linkedFeatureId\);/);
     expect(SRC).toMatch(/const c = pickFeatureCentroid\(linked\);/);
     expect(SRC).toMatch(/annStore\.updateAnnotation\(ann\.id, \{ position: c \} as Partial<AreaAnnotation>\);/);
   });

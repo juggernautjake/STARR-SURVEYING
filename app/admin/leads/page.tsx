@@ -1,8 +1,11 @@
 // app/admin/leads/page.tsx — Leads management (admin only)
 'use client';
 import '../styles/AdminJobs.css';
-import { useCallback, useEffect, useState } from 'react';
+import '../styles/Leads.css';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 
 interface Lead {
@@ -31,13 +34,60 @@ const STATUS_OPTIONS = [
 
 const SOURCE_OPTIONS = ['Website', 'Phone', 'Email', 'Referral', 'Walk-in', 'Social Media', 'Other'];
 
+/** Slice S1b — concise relative time for the per-card timestamp.
+ *  Goal: at-a-glance "how stale is this lead" signal without taking
+ *  the surveyor's attention from the customer name. */
+function formatRelativeAge(iso: string): string {
+  try {
+    const then = new Date(iso).getTime();
+    if (!Number.isFinite(then)) return '';
+    const diffMs = Date.now() - then;
+    if (diffMs < 0) return 'just now';
+    const min = Math.round(diffMs / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.round(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const day = Math.round(hr / 24);
+    if (day < 30) return `${day}d ago`;
+    const mo = Math.round(day / 30);
+    if (mo < 12) return `${mo}mo ago`;
+    const yr = Math.round(mo / 12);
+    return `${yr}y ago`;
+  } catch {
+    return '';
+  }
+}
+
 export default function LeadsPage() {
   const { data: session } = useSession();
   const { safeFetch, safeAction } = usePageError('LeadsPage');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  // Slice Q3b — status filter persists in the URL so a "show me new
+  // only" view is shareable + the back button restores the right
+  // pill. The Q1 ?focus param is preserved across filter changes.
+  const router = useRouter();
+  const initialStatusFilter = (() => {
+    // Reading once at mount is fine — the effect below keeps URL → state in sync.
+    if (typeof window === 'undefined') return 'all';
+    return new URL(window.location.href).searchParams.get('status') ?? 'all';
+  })();
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
+  const setStatusFilterAndUrl = useCallback(
+    (next: string) => {
+      setStatusFilter(next);
+      if (typeof window === 'undefined') return;
+      const url = new URL(window.location.href);
+      if (next === 'all') url.searchParams.delete('status');
+      else url.searchParams.set('status', next);
+      // Replace (not push) — the surveyor's back button stays usable
+      // for the page they came from, not every filter click.
+      router.replace(`${url.pathname}${url.search}`, { scroll: false });
+    },
+    [router],
+  );
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', phone: '', company: '', source: 'Phone',
@@ -46,6 +96,19 @@ export default function LeadsPage() {
   });
 
   const isAdminUser = session?.user?.roles?.includes('admin') ?? false;
+
+  // mobile-and-customer-query-gap Slice Q2/Q3 — the new-lead bell-icon
+  // notification deep-links to `/admin/leads?focus=<leadId>`. Read the
+  // param so we can outline + scroll-into-view the matching card the
+  // moment the page hydrates.
+  const searchParams = useSearchParams();
+  const focusLeadId = searchParams?.get('focus') ?? null;
+  const focusedCardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!focusLeadId) return;
+    if (!focusedCardRef.current) return;
+    focusedCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusLeadId, leads]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,7 +172,7 @@ export default function LeadsPage() {
   const filtered = statusFilter === 'all' ? leads : leads.filter(l => l.status === statusFilter);
 
   return (
-    <div className="jobs-page">
+    <div className="jobs-page leads-page">
       <div className="jobs-page__header">
         <div className="jobs-page__header-left">
           <h2 className="jobs-page__title">Leads</h2>
@@ -124,7 +187,7 @@ export default function LeadsPage() {
       <div className="jobs-page__pipeline">
         <button
           className={`jobs-page__pipeline-stage ${statusFilter === 'all' ? 'jobs-page__pipeline-stage--active' : ''}`}
-          onClick={() => setStatusFilter('all')}
+          onClick={() => setStatusFilterAndUrl('all')}
           style={{ '--stage-color': '#374151' } as React.CSSProperties}
         >
           <span className="jobs-page__pipeline-label">All</span>
@@ -134,7 +197,7 @@ export default function LeadsPage() {
           <button
             key={s.key}
             className={`jobs-page__pipeline-stage ${statusFilter === s.key ? 'jobs-page__pipeline-stage--active' : ''}`}
-            onClick={() => setStatusFilter(statusFilter === s.key ? 'all' : s.key)}
+            onClick={() => setStatusFilterAndUrl(statusFilter === s.key ? 'all' : s.key)}
             style={{ '--stage-color': s.color } as React.CSSProperties}
           >
             <span className="jobs-page__pipeline-label">{s.label}</span>
@@ -204,35 +267,85 @@ export default function LeadsPage() {
         </div>
       ) : (
         <div className="jobs-page__grid">
-          {filtered.map(lead => (
-            <div key={lead.id} className="job-card">
-              <div className="job-card__header">
-                <span className="job-card__stage" style={{ background: STATUS_OPTIONS.find(s => s.key === lead.status)?.color }}>
-                  {STATUS_OPTIONS.find(s => s.key === lead.status)?.label}
-                </span>
+          {filtered.map(lead => {
+            const statusOption = STATUS_OPTIONS.find(s => s.key === lead.status);
+            return (
+              <div
+                key={lead.id}
+                ref={lead.id === focusLeadId ? focusedCardRef : undefined}
+                className="lead-card"
+                data-testid="lead-card"
+                data-focused={lead.id === focusLeadId ? 'true' : undefined}
+                style={{ '--lead-status-color': statusOption?.color ?? '#6B7280' } as React.CSSProperties}
+              >
+                <div className="lead-card__top">
+                  <span className="lead-card__status" data-testid="lead-card-status">
+                    {statusOption?.label ?? lead.status}
+                  </span>
+                  <span className="lead-card__age" title={lead.created_at}>
+                    {formatRelativeAge(lead.created_at)}
+                  </span>
+                </div>
+                <h3 className="lead-card__name">{lead.name}</h3>
+                <div className="lead-card__contact">
+                  {lead.company && <span>{lead.company}</span>}
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()}>
+                      {lead.email}
+                    </a>
+                  )}
+                  {lead.phone && (
+                    <a href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()}>
+                      {lead.phone}
+                    </a>
+                  )}
+                  {!lead.company && !lead.email && !lead.phone && (
+                    <span style={{ fontStyle: 'italic' }}>No contact details</span>
+                  )}
+                </div>
+                {lead.property_address && (
+                  <p className="lead-card__address">{lead.property_address}</p>
+                )}
+                <div className="lead-card__actions">
+                  <select
+                    className="lead-card__status-select"
+                    value={lead.status}
+                    onChange={e => void changeStatus(lead, e.target.value)}
+                  >
+                    {STATUS_OPTIONS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                  {/* Slice Q3b — one-tap "I've reached out" for the
+                      common-case workflow. Only shows for the still-
+                      "new" leads since contacted+ already cleared the
+                      notification on the server side. */}
+                  {lead.status === 'new' && (
+                    <button
+                      className="lead-card__btn lead-card__btn--primary"
+                      data-action="mark-contacted"
+                      onClick={() => void changeStatus(lead, 'contacted')}
+                      title="Mark as contacted + dismiss the new-query notification"
+                    >
+                      ✓ Mark contacted
+                    </button>
+                  )}
+                  <Link
+                    href={`/admin/leads/${lead.id}`}
+                    className="lead-card__btn"
+                    data-action="view-detail"
+                  >
+                    Open →
+                  </Link>
+                  <button
+                    className="lead-card__btn lead-card__btn--danger"
+                    data-action="delete-lead"
+                    onClick={() => void deleteLead(lead.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <h3 className="job-card__name">{lead.name}</h3>
-              <p className="job-card__client">{lead.company || lead.email || lead.phone || '—'}</p>
-              {lead.property_address && <p className="job-card__address">{lead.property_address}</p>}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', alignItems: 'center' }}>
-                <select
-                  className="job-form__select"
-                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', flex: 1 }}
-                  value={lead.status}
-                  onChange={e => void changeStatus(lead, e.target.value)}
-                >
-                  {STATUS_OPTIONS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                </select>
-                <button
-                  className="jobs-page__btn"
-                  style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: 'var(--color-error)' }}
-                  onClick={() => void deleteLead(lead.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

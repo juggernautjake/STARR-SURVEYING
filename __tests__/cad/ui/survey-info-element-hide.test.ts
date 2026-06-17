@@ -72,7 +72,10 @@ describe('LayerPanel — per-element eye toggles under SURVEY-INFO', () => {
   });
 
   it('toggles the element\'s flag via updateTitleBlock on click', () => {
-    expect(PANEL_SRC).toMatch(/store\.updateTitleBlock\(\{\s*\[el\.key\]:\s*!el\.visible\s*\}\s*as Partial<TitleBlockConfig>\)/);
+    // P6d swapped the LayerPanel's whole-store `store` binding for
+    // per-field selectors + `useDrawingStore.getState()` callbacks;
+    // accept either form for the toggle call.
+    expect(PANEL_SRC).toMatch(/(store|useDrawingStore\.getState\(\))\.updateTitleBlock\(\{\s*\[el\.key\]:\s*!el\.visible\s*\}\s*as Partial<TitleBlockConfig>\)/);
   });
 });
 

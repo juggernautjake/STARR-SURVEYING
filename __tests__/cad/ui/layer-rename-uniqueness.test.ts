@@ -34,10 +34,13 @@ describe('LayerPanel.commitRename — case-insensitive uniqueness', () => {
     expect(SRC).toMatch(/cad:commandOutput/);
   });
 
-  it('does NOT call store.updateLayer when the collision check fails', () => {
+  it('does NOT call updateLayer when the collision check fails', () => {
     // Collision branch returns before the updateLayer call below it.
+    // P6d dropped the `const store = useDrawingStore()` whole-store
+    // sub, so the call now goes through
+    // `useDrawingStore.getState().updateLayer(...)`. Accept either.
     expect(SRC).toMatch(
-      /if \(collision\) \{[\s\S]*?setRenamingId\(null\);\s*\n\s*return;\s*\n\s*\}\s*\n\s*store\.updateLayer\(renamingId/,
+      /if \(collision\) \{[\s\S]*?setRenamingId\(null\);\s*\n\s*return;\s*\n\s*\}\s*\n\s*(store|useDrawingStore\.getState\(\))\.updateLayer\(renamingId/,
     );
   });
 });

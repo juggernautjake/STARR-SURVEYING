@@ -6,6 +6,9 @@ import { useDynamicCursor } from '../hooks/useDynamicCursor';
 import { useTooltipApi } from './TooltipProvider';
 import { buildFeatureTooltip } from './featureTooltip';
 import SelectionDragChip from './SelectionDragChip';
+// cad-desktop-tauri-and-perf Slice P6f — extracted N/E coordinate
+// tracker. Keeps cursor moves from reconciling the 14k-line parent.
+import CanvasCoordsPill from './CanvasCoordsPill';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -36,10 +39,22 @@ import {
   cullFeaturesWithIndex,
   expandBBox,
   lodSimplificationThreshold,
+  shouldRenderLabels,
   shouldUseLOD,
   simplifyPolyline,
   type BoundingBox as LodBoundingBox,
 } from '@/lib/cad/geometry/lod';
+// cad-desktop-tauri-and-perf Slice P2 — viewport-cull result cache
+// memoizes `cullFeaturesWithIndex` on (camera AABB + index identity).
+// A no-move re-render skips the spatial query entirely.
+import {
+  createViewportCullCache,
+  getCachedCull,
+  setCachedCull,
+} from '@/lib/cad/spatial/viewport-cull-cache';
+// cad-desktop-tauri-and-perf Slice N1b — per-phase frame-time
+// markers feed the Perf overlay + the Phase-3 go/no-go decision.
+import { measureRender } from '@/lib/cad/perf/render-markers';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
@@ -783,11 +798,41 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     _layerContainers: Map<string, import('pixi.js').Container>;
   } | null>(null);
 
-  const drawingStore = useDrawingStore();
-  const selectionStore = useSelectionStore();
-  const toolStore = useToolStore();
-  const viewportStore = useViewportStore();
-  const undoStore = useUndoStore();
+  // cad-desktop-tauri-and-perf Slice P6k — last whole-store sub
+  // on CanvasViewport. Subscribe to ONLY the narrow render-time
+  // doc fields so the component stops reconciling on every
+  // feature add / mutation (which fires constantly during AI
+  // runs, bulk imports, and interactive draws). Reads that need
+  // the latest snapshot at click / rAF time go through
+  // `useDrawingStore.getState().X`.
+  const codeDisplayMode = useDrawingStore((s) => s.document.settings.codeDisplayMode);
+  const displayPreferences = useDrawingStore((s) => s.document.settings.displayPreferences);
+  const drawingRotationDeg = useDrawingStore((s) => s.document.settings.drawingRotationDeg ?? 0);
+  const layerOrderLen = useDrawingStore((s) => s.document.layerOrder.length);
+  // cad-desktop-tauri-and-perf Slice P6j — last whole-store sub.
+  // The render-time tool reads (`activeTool` / `perpStartPoint`
+  // / `offsetSourceId` — drive the per-tool floating panels +
+  // the `useEffect` cursor swap) move to per-field selectors;
+  // every other ~140 callback access reads through
+  // `useToolStore.getState().X` at call time so we always get
+  // the latest snapshot.
+  const perpStartPoint = useToolStore((s) => s.state.perpStartPoint);
+  const offsetSourceId = useToolStore((s) => s.state.offsetSourceId);
+  // cad-desktop-tauri-and-perf Slice P6f — the only render-time
+  // viewport read (`cursorWorld`) moved to the extracted
+  // `CanvasCoordsPill`. The remaining 16 viewport-store call
+  // sites are inside event handlers and the rAF render loop, so
+  // they read the latest snapshot via `useViewportStore.getState()`
+  // instead of holding a whole-store subscription that woke React
+  // on every mousemove.
+  //
+  // cad-desktop-tauri-and-perf Slice P6g — same treatment for the
+  // selection + undo stores. CanvasViewport never renders selection
+  // or undo state directly (selection chrome is painted by the rAF
+  // loop off `useSelectionStore.getState()` and undo is consumed
+  // by the menu bar / keyboard hooks), so the whole-store subs
+  // were pure wake-up cost — ~100 callback usages SED-converted to
+  // `useXStore.getState().X`.
 
   // Interaction state (not store state)
   const isPanningRef = useRef(false);
@@ -857,6 +902,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       })
     | null
   >(null);
+  // cad-desktop-tauri-and-perf Slice P2 — memoize the cull RESULT
+  // keyed by (camera AABB hash + featureIndex identity). The index
+  // already does the O(log) spatial query, but this skips even
+  // that on a no-move re-render (the typical animation-frame
+  // pattern when the user's just hovering).
+  const cullCacheRef = useRef(createViewportCullCache<Feature[]>());
+  // cad-desktop-tauri-and-perf Slice P3b — per-feature draw-state
+  // cache. Records the feature reference, simplification epsilon,
+  // and layer color last used to tessellate each Graphics. On the
+  // next render, a feature is redrawn ONLY when any of those
+  // changed OR its id is in the store's `dirtyFeatureIds`.
+  const drawStateRef = useRef<
+    Map<
+      string,
+      {
+        feature: Feature;
+        epsilon: number;
+        layerColor: string;
+      }
+    >
+  >(new Map());
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
@@ -1083,11 +1149,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   useEffect(() => {
     const handler = (e: Event) => {
       const { tool } = (e as CustomEvent).detail as { tool: string };
-      toolStore.setTool(tool as import('@/lib/cad/types').ToolType);
+      useToolStore.getState().setTool(tool as import('@/lib/cad/types').ToolType);
     };
     window.addEventListener('cad:activateTool', handler);
     return () => window.removeEventListener('cad:activateTool', handler);
-  }, [toolStore]);
+  }, []);
 
   // Phase 8 §11.6 Slice 1 — IntersectDialog announces when
   // it wants to receive canvas clicks for source picking.
@@ -1138,7 +1204,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }, []);
 
   // Update cursor when active tool changes
-  const activeTool = toolStore.state.activeTool;
+  const activeTool = useToolStore((s) => s.state.activeTool);
   useEffect(() => {
     if (!isPanningRef.current && !isSpaceDownRef.current) {
       setCursorStyle(TOOL_CURSORS[activeTool] ?? 'crosshair');
@@ -1147,8 +1213,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
   // Switch the on-canvas point code between numeric ("308") and alpha
   // ("BC01") when the document's codeDisplayMode changes — regenerate the
-  // affected POINT labels so the change shows immediately.
-  const codeDisplayMode = drawingStore.document.settings.codeDisplayMode;
+  // affected POINT labels so the change shows immediately. `codeDisplayMode`
+  // is bound at the top of the component via a per-field selector.
   useEffect(() => {
     const dStore = useDrawingStore.getState();
     const doc = dStore.document;
@@ -1271,7 +1337,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const height = canvas.offsetHeight || 600;
 
         const bgColor = parseInt(
-          (drawingStore.document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
+          (useDrawingStore.getState().document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
           16,
         );
 
@@ -1421,12 +1487,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           _layerContainers: new Map(),
         };
 
-        viewportStore.setScreenSize(width, height);
+        useViewportStore.getState().setScreenSize(width, height);
 
         // ── Zoom-to-fit: center the drawing paper in the viewport ──
         // Calculate the paper bounds from settings and zoom to show the entire page
         {
-          const docSettings = drawingStore.document.settings;
+          const docSettings = useDrawingStore.getState().document.settings;
           const { paperSize: ps, paperOrientation: po, drawingScale: ds } = docSettings;
           let [pw, ph] = PAPER_SIZE_MAP[ps ?? 'TABLOID'] ?? [11, 17];
           if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
@@ -1442,7 +1508,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             maxX: ox + paperW,
             maxY: oy + paperH,
           };
-          viewportStore.zoomToExtents(paperBounds, 0.05);
+          useViewportStore.getState().zoomToExtents(paperBounds, 0.05);
         }
 
         cadLog.info('CanvasViewport', 'PixiJS canvas initialised successfully');
@@ -1521,7 +1587,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           (pixiRef.current.app.renderer as { resolution: number }).resolution = newResolution;
         }
         pixiRef.current.app.renderer.resize(width, height);
-        viewportStore.setScreenSize(width, height);
+        useViewportStore.getState().setScreenSize(width, height);
       });
     });
     ro.observe(containerRef.current);
@@ -1530,16 +1596,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('error', suppressResizeObserverError);
     };
-  }, [viewportStore]);
+    // P6f — actions read off `useViewportStore.getState()` inside
+    // the effect body, so the effect needs no store dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─────────────────────────────────────────────
   // W→S coordinate transforms (called per frame)
   // ─────────────────────────────────────────────
   function w2s(wx: number, wy: number) {
-    return viewportStore.worldToScreen(wx, wy);
+    return useViewportStore.getState().worldToScreen(wx, wy);
   }
   function s2w(sx: number, sy: number) {
-    return viewportStore.screenToWorld(sx, sy);
+    return useViewportStore.getState().screenToWorld(sx, sy);
   }
 
   // ─────────────────────────────────────────────
@@ -1675,7 +1744,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (!doc.settings.gridVisible) return;
 
     const { zoom, screenWidth, screenHeight } = useViewportStore.getState();
-    const wb = viewportStore.getWorldBounds();
+    const wb = useViewportStore.getState().getWorldBounds();
     const baseMajor = doc.settings.gridMajorSpacing;
     const baseMinor = baseMajor / doc.settings.gridMinorDivisions;
     const gridStyle = doc.settings.gridStyle;
@@ -1788,7 +1857,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (!pixi) return;
 
     const doc = useDrawingStore.getState().document;
-    const visibleFeatures = drawingStore.getVisibleFeatures();
+    const visibleFeatures = useDrawingStore.getState().getVisibleFeatures();
     const visibleIds = new Set(visibleFeatures.map((f) => f.id));
 
     // Phase 7 §19 — frustum culling. Compute the world-space
@@ -1805,20 +1874,41 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // on each render.
     const indexCache = ensureFeatureIndex(visibleFeatures, doc.features, doc.layers);
     const viewportBBox = computeViewportWorldBBox();
-    const culledFeatures = viewportBBox
-      ? cullFeaturesWithIndex(
+    // cad-desktop-tauri-and-perf Slice P2 — try the cull cache
+    // first. A hit means the camera AABB AND the feature-index
+    // identity matched the last render, so the previous result
+    // array is still authoritative. The cache key includes the
+    // index identity so any add/remove/visibility change
+    // invalidates immediately.
+    let culledFeatures: Feature[];
+    if (!viewportBBox) {
+      culledFeatures = visibleFeatures;
+    } else {
+      const cached = getCachedCull(cullCacheRef.current, viewportBBox, indexCache);
+      if (cached) {
+        culledFeatures = cached;
+      } else {
+        culledFeatures = cullFeaturesWithIndex(
           visibleFeatures,
           indexCache.index,
           indexCache.bboxByFeatureId,
-          viewportBBox
-        )
-      : visibleFeatures;
+          viewportBBox,
+        );
+        setCachedCull(cullCacheRef.current, viewportBBox, indexCache, culledFeatures);
+      }
+    }
     const culledIds = new Set(culledFeatures.map((f) => f.id));
     const { zoom } = useViewportStore.getState();
     const worldPerPixel = zoom > 0 ? 1 / zoom : 0;
-    const lodActive = shouldUseLOD(worldPerPixel);
+    // cad-desktop-tauri-and-perf Slice P5 — thread the
+    // doc-settings LOD config into every threshold call so a
+    // surveyor (or the AI) can tune the dot / simplify behavior
+    // per drawing. Undefined config falls back to the original
+    // DEFAULT_LOD_* constants.
+    const lodConfig = doc.settings.lod;
+    const lodActive = shouldUseLOD(worldPerPixel, lodConfig);
     const simplifyEpsilon = lodActive
-      ? lodSimplificationThreshold(worldPerPixel)
+      ? lodSimplificationThreshold(worldPerPixel, lodConfig)
       : 0;
 
     // Lazily-maintained per-layer sub-containers (for per-layer rotation)
@@ -1866,9 +1956,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
+    // cad-desktop-tauri-and-perf Slice P3b — read the dirty set ONCE
+    // per render. We accumulate the ids we actually re-tessellate so
+    // they can be cleared after the loop; ids in the dirty set whose
+    // features didn't make the cull are intentionally left so they
+    // get redrawn next time they enter the viewport.
+    const drawnState = drawStateRef.current;
+    const dirtyIds = useDrawingStore.getState().dirtyFeatureIds;
+    const processedDirty: string[] = [];
+
     for (const feature of culledFeatures) {
       const layer = doc.layers[feature.layerId];
       const layerRotDeg = layer?.rotationDeg ?? 0;
+      const layerColor = layer?.color ?? '';
 
       // Determine parent container
       let parentContainer: import('pixi.js').Container = pixi.featureLayer;
@@ -1882,6 +1982,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       let g = pixi.featureGraphics.get(feature.id);
+      const freshlyCreated = !g;
       if (!g) {
         g = new pixi.GraphicsClass();
         pixi.featureGraphics.set(feature.id, g);
@@ -1892,7 +1993,47 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       g.visible = true;
 
-      drawFeature(g, feature, simplifyEpsilon);
+      // cad-desktop-tauri-and-perf Slice P3b — skip drawFeature when
+      // nothing affecting the tessellation has changed. We compare
+      // feature reference identity (zustand returns a fresh object
+      // on every mutation), the LOD epsilon, and the layer's
+      // current color (a layer-color change goes through
+      // updateLayer, which doesn't stamp the feature dirty
+      // directly). Any miss → full retessellate, then refresh the
+      // cached draw-state.
+      const prev = drawnState.get(feature.id);
+      const isDirty = dirtyIds.has(feature.id);
+      const needsRedraw =
+        freshlyCreated ||
+        isDirty ||
+        !prev ||
+        prev.feature !== feature ||
+        prev.epsilon !== simplifyEpsilon ||
+        prev.layerColor !== layerColor;
+      if (needsRedraw) {
+        drawFeature(g, feature, simplifyEpsilon);
+        drawStateRef.current.set(feature.id, {
+          feature,
+          epsilon: simplifyEpsilon,
+          layerColor,
+        });
+        if (isDirty) processedDirty.push(feature.id);
+      }
+    }
+
+    // Drop drawStateRef entries for features that no longer have a
+    // backing Graphics object (visibility-toggled out or removed).
+    if (drawnState.size > pixi.featureGraphics.size) {
+      for (const id of drawnState.keys()) {
+        if (!pixi.featureGraphics.has(id)) drawnState.delete(id);
+      }
+    }
+
+    // Hand back the dirty stamps we processed. Ids we skipped
+    // (off-screen culls etc.) stay dirty so they redraw when they
+    // re-enter the viewport.
+    if (processedDirty.length > 0) {
+      useDrawingStore.getState().clearFeatureDirty(processedDirty);
     }
   }
 
@@ -2239,7 +2380,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       imageCacheDocIdRef.current = doc.id;
     }
 
-    const visibleFeatures = drawingStore.getVisibleFeatures().filter(
+    const visibleFeatures = useDrawingStore.getState().getVisibleFeatures().filter(
       (f) => f.geometry.type === 'IMAGE' && f.geometry.image,
     );
     const activeIds = new Set(visibleFeatures.map((f) => f.id));
@@ -2620,7 +2761,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // cad-survey-info-hide Slice 1 — read the LIVE document via
     // getState() (not the stale `drawingStore` hook closure). This
     // function runs from a requestAnimationFrame loop, so the
-    // captured `drawingStore.document` could hold the SURVEY-INFO
+    // captured `useDrawingStore.getState().document` could hold the SURVEY-INFO
     // visibility as of the last React render — making the eye
     // toggle appear dead. `renderPaperFurniture` already reads
     // getState(); match it.
@@ -4049,7 +4190,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pixi = pixiRef.current;
     if (!pixi) return;
 
-    const layerVisibleFeatures = drawingStore.getVisibleFeatures();
+    // cad-desktop-tauri-and-perf Slice P5 — bail entirely when the
+    // current zoom puts world units above `lod.labelThreshold` (or
+    // its DEFAULT_LOD_LABEL_THRESHOLD fallback). Labels become
+    // illegible long before the geometry LOD trips; running their
+    // generation + Pixi.Text creation cost when nothing's readable
+    // is pure waste. We also wipe whatever the previous frame
+    // rendered so a fast zoom-out doesn't leave stale labels on
+    // screen.
+    const { zoom: lblZoom } = useViewportStore.getState();
+    const lblWorldPerPixel = lblZoom > 0 ? 1 / lblZoom : 0;
+    const docSettings = useDrawingStore.getState().document.settings;
+    if (!shouldRenderLabels(lblWorldPerPixel, docSettings.lod)) {
+      for (const [, txt] of pixi.labelTexts) {
+        txt.parent?.removeChild(txt);
+        txt.destroy();
+      }
+      pixi.labelTexts.clear();
+      return;
+    }
+
+    const layerVisibleFeatures = useDrawingStore.getState().getVisibleFeatures();
     // Phase 7 §19 — skip out-of-viewport features so we don't
     // tessellate labels the surveyor can't see. Keep the
     // unculled set in `keepLabelIds` so labels only get
@@ -4295,7 +4456,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;
     const drawingScale = doc.settings.drawingScale ?? 50;
-    const layerVisible = drawingStore.getVisibleFeatures().filter(f => f.type === 'TEXT');
+    const layerVisible = useDrawingStore.getState().getVisibleFeatures().filter(f => f.type === 'TEXT');
     // Phase 7 §19 — viewport cull TEXT features the same way
     // we cull geometry. Keep the layer-visible set so off-
     // viewport text objects survive across pans without
@@ -4461,7 +4622,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const glowEnabled = docSettings.hoverGlowEnabled ?? true;
     const glowIntensity = docSettings.hoverGlowIntensity ?? 1.0;
     if (hoveredId && !selectedIds.has(hoveredId) && glowEnabled) {
-      const feature = drawingStore.getFeature(hoveredId);
+      const feature = useDrawingStore.getState().getFeature(hoveredId);
       if (feature) {
         const geom = feature.geometry;
         // Helper: draw geometry outline for glow layers
@@ -4536,7 +4697,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     // Draw selection highlights
     for (const featureId of selectedIds) {
-      const feature = drawingStore.getFeature(featureId);
+      const feature = useDrawingStore.getState().getFeature(featureId);
       if (!feature) continue;
 
       // Highlight: selection color outline — width from settings.
@@ -4692,7 +4853,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     rotateHandleRef.current = null;
     if (toolState.activeTool === 'ROTATE' && selectedIds.size > 0) {
       const selFeatures = Array.from(selectedIds)
-        .map((id) => drawingStore.getFeature(id))
+        .map((id) => useDrawingStore.getState().getFeature(id))
         .filter((f): f is Feature => !!f);
       const loneImage =
         selFeatures.length === 1 && selFeatures[0].geometry.type === 'IMAGE';
@@ -4740,7 +4901,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (transferState.isOpen && transferState.pickedIds.size > 0) {
       const PICK_COLOR = 0x3b82f6; // blue-500
       for (const fid of transferState.pickedIds) {
-        const feat = drawingStore.getFeature(fid);
+        const feat = useDrawingStore.getState().getFeature(fid);
         if (!feat) continue;
         const bb = featureBounds(feat);
         if (!Number.isFinite(bb.minX)) continue;
@@ -4762,7 +4923,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (transferState.isOpen && transferState.pickModeActive) {
       const hoveredId = hoveredIdRef.current;
       if (hoveredId && !transferState.pickedIds.has(hoveredId)) {
-        const feat = drawingStore.getFeature(hoveredId);
+        const feat = useDrawingStore.getState().getFeature(hoveredId);
         if (feat) {
           const bb = featureBounds(feat);
           if (Number.isFinite(bb.minX)) {
@@ -4800,7 +4961,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const ringAlpha = 0.85 * fade;
         const PULSE_GREEN = 0x22c55e; // green-500
         for (const fid of transferState.recentlyTransferred.ids) {
-          const feat = drawingStore.getFeature(fid);
+          const feat = useDrawingStore.getState().getFeature(fid);
           if (!feat) continue;
           const bb = featureBounds(feat);
           if (!Number.isFinite(bb.minX)) continue;
@@ -8224,23 +8385,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
     // Update drawing rotation container pivot/rotation before rendering
     updateDrawingRotContainer();
-    renderPaper();
-    renderGrid();
-    renderFeatures();
-    renderImageFeatures();
-    renderLabels();
-    // Slice 229 — stored AREA_LABEL annotations render here so they
-    // sit on the same labelLayer as the auto bearing/distance labels.
-    renderAreaAnnotations();
-    renderTextFeatures();
-    renderSelection();
-    renderSnapIndicator();
-    renderToolPreview();
-    renderTransferGhost();
-    renderIntersectPreview();
-    renderCopilotPreview();
-    renderTitleBlock();
-    renderPaperFurniture();
+    measureRender('renderAll', () => {
+      renderPaper();
+      renderGrid();
+      measureRender('renderFeatures', renderFeatures);
+      measureRender('renderImageFeatures', renderImageFeatures);
+      measureRender('renderLabels', renderLabels);
+      // Slice 229 — stored AREA_LABEL annotations render here so they
+      // sit on the same labelLayer as the auto bearing/distance labels.
+      renderAreaAnnotations();
+      renderTextFeatures();
+      measureRender('renderSelection', renderSelection);
+      renderSnapIndicator();
+      renderToolPreview();
+      renderTransferGhost();
+      renderIntersectPreview();
+      renderCopilotPreview();
+      renderTitleBlock();
+      renderPaperFurniture();
+    });
   }
 
   // ─────────────────────────────────────────────
@@ -8253,11 +8416,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
    * on — it must be the active layer.
    */
   function canEditLayer(layerId: string): boolean {
-    const layer = drawingStore.getLayer(layerId);
+    const layer = useDrawingStore.getState().getLayer(layerId);
     if (!layer || layer.locked || layer.visible === false) return false;
     if (
       useUIStore.getState().restrictEditingToActiveLayer &&
-      layerId !== drawingStore.activeLayerId
+      layerId !== useDrawingStore.getState().activeLayerId
     ) {
       return false;
     }
@@ -8267,9 +8430,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function hitTest(sx: number, sy: number): string | null {
     // Use drawing-rotation-aware coordinate conversion
     const { wx, wy } = screenToDrawingWorld(sx, sy);
-    const worldTol = HIT_TOLERANCE_PX / viewportStore.zoom;
+    const worldTol = HIT_TOLERANCE_PX / useViewportStore.getState().zoom;
     // Exclude features on locked/hidden/non-active layers from selection.
-    const layerVisible = drawingStore.getVisibleFeatures().filter((f) =>
+    const layerVisible = useDrawingStore.getState().getVisibleFeatures().filter((f) =>
       canEditLayer(f.layerId),
     );
 
@@ -8281,8 +8444,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // an O(n) → O(cell footprint) speedup.
     const indexCache = ensureFeatureIndex(
       layerVisible,
-      drawingStore.document.features,
-      drawingStore.document.layers
+      useDrawingStore.getState().document.features,
+      useDrawingStore.getState().document.layers
     );
     const queryBox: LodBoundingBox = {
       minX: wx - worldTol,
@@ -8428,12 +8591,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           sy >= bounds.y && sy <= bounds.y + bounds.height) {
         if (key.startsWith('text:')) {
           const featureId = key.slice(5); // strip 'text:' prefix
-          const tf = drawingStore.getFeature(featureId);
+          const tf = useDrawingStore.getState().getFeature(featureId);
           if (tf && !canEditLayer(tf.layerId)) continue;
           return { featureId, labelId: featureId, isTextFeature: true, key };
         }
         const [featureId, labelId] = key.split(':');
-        const lf = drawingStore.getFeature(featureId);
+        const lf = useDrawingStore.getState().getFeature(featureId);
         if (lf && !canEditLayer(lf.layerId)) continue;
         return { featureId, labelId, isTextFeature: false, key };
       }
@@ -8497,12 +8660,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { wx: maxX, wy: maxY } = s2w(Math.max(start.x, end.x), Math.min(start.y, end.y));
     const selBox: BoundingBox = { minX, minY, maxX, maxY };
 
-    const mode = drawingStore.document.settings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
+    const mode = useDrawingStore.getState().document.settings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
 
     // Determine containment test based on mode
     const useFullContainment = mode === 'WINDOW_FULL_ONLY' || isWindowDrag;
 
-    const matchedIds: string[] = drawingStore
+    const matchedIds: string[] = useDrawingStore.getState()
       .getVisibleFeatures()
       .filter((f) => {
         if (!canEditLayer(f.layerId)) return false;
@@ -8523,14 +8686,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const polylineGroupIds = new Set<string>();
       const featureGroupIds  = new Set<string>();
       for (const id of matchedIds) {
-        const f = drawingStore.getFeature(id);
+        const f = useDrawingStore.getState().getFeature(id);
         const pgid = f?.properties?.polylineGroupId as string | undefined;
         if (pgid) polylineGroupIds.add(pgid);
         if (f?.featureGroupId) featureGroupIds.add(f.featureGroupId);
       }
       if (polylineGroupIds.size > 0 || featureGroupIds.size > 0) {
         const expanded = new Set(matchedIds);
-        for (const f of drawingStore.getVisibleFeatures()) {
+        for (const f of useDrawingStore.getState().getVisibleFeatures()) {
           const pgid = f.properties?.polylineGroupId as string | undefined;
           if (pgid && polylineGroupIds.has(pgid) && canEditLayer(f.layerId)) {
             expanded.add(f.id);
@@ -8549,7 +8712,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const polylineGroupIds = new Set<string>();
       const featureGroupIds  = new Set<string>();
       for (const id of matchedIds) {
-        const f = drawingStore.getFeature(id);
+        const f = useDrawingStore.getState().getFeature(id);
         const pgid = f?.properties?.polylineGroupId as string | undefined;
         if (pgid) polylineGroupIds.add(pgid);
         if (f?.featureGroupId) featureGroupIds.add(f.featureGroupId);
@@ -8557,7 +8720,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // For each polyline group, check if ALL members are in the box
       if (polylineGroupIds.size > 0) {
         for (const gid of polylineGroupIds) {
-          const groupMembers = drawingStore.getVisibleFeatures().filter(
+          const groupMembers = useDrawingStore.getState().getVisibleFeatures().filter(
             (f) => f.properties?.polylineGroupId === gid
           );
           const allInBox = groupMembers.every((f) => matchedSet.has(f.id));
@@ -8569,8 +8732,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // For each feature group, check if ALL members are in the box
       if (featureGroupIds.size > 0) {
         for (const gid of featureGroupIds) {
-          const group = drawingStore.getFeatureGroup(gid);
-          const groupMembers = (group?.featureIds ?? []).map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
+          const group = useDrawingStore.getState().getFeatureGroup(gid);
+          const groupMembers = (group?.featureIds ?? []).map((id) => useDrawingStore.getState().getFeature(id)).filter(Boolean) as Feature[];
           const allInBox = groupMembers.every((f) => matchedSet.has(f.id));
           if (!allInBox) {
             for (const f of groupMembers) matchedSet.delete(f.id);
@@ -8587,7 +8750,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Create feature helper
   // ─────────────────────────────────────────────
   function createFeature(type: FeatureType, points: Point2D[]): Feature | null {
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const mergedStyle = { ...DEFAULT_FEATURE_STYLE, ...layerStyle };
     const id = generateId();
@@ -8683,7 +8846,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   function commitTextFeature(text: string, wx: number, wy: number) {
     if (!text.trim()) return;
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const feature: Feature = {
       id: generateId(),
@@ -8707,15 +8870,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         textAlign: 'left',
       },
     };
-    drawingStore.addFeature(feature);
-    undoStore.pushUndo(makeAddFeatureEntry(feature));
+    useDrawingStore.getState().addFeature(feature);
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
   }
 
   // ─────────────────────────────────────────────
   // Helper: get all segment IDs that share a polylineGroupId
   // ─────────────────────────────────────────────
   function getPolylineGroupIds(groupId: string): string[] {
-    return drawingStore
+    return useDrawingStore.getState()
       .getAllFeatures()
       .filter((f) => f.properties.polylineGroupId === groupId)
       .map((f) => f.id);
@@ -8725,7 +8888,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Create a single LINE segment as part of a polyline group
   // ─────────────────────────────────────────────
   function createPolylineSegment(start: Point2D, end: Point2D, groupId: string): Feature {
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const ds = useToolStore.getState().state.drawStyle;
     const { azimuth: segAzimuth, distance: segDist } = inverseBearingDistance(start, end);
@@ -8761,18 +8924,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Just reset drawing state; undo is already recorded per segment.
       polylineGroupIdRef.current = null;
       lastPolylineSegmentIdRef.current = null;
-      toolStore.clearDrawingPoints();
+      useToolStore.getState().clearDrawingPoints();
       return;
     }
 
     // SPLINE: convert fit points to cubic bezier control points
     if (type === 'SPLINE') {
       if (drawingPoints.length < 2) {
-        toolStore.clearDrawingPoints();
+        useToolStore.getState().clearDrawingPoints();
         return;
       }
       const controlPoints = fitPointsToBezier(drawingPoints, false);
-      const { activeLayerId, getActiveLayerStyle } = drawingStore;
+      const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
       const layerStyle = getActiveLayerStyle();
       const ds = useToolStore.getState().state.drawStyle;
       const feature: Feature = {
@@ -8794,31 +8957,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         properties: {},
       };
       const labelledFeature = withAutoLabels(feature);
-      drawingStore.addFeature(labelledFeature);
-      undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
-      toolStore.clearDrawingPoints();
+      useDrawingStore.getState().addFeature(labelledFeature);
+      useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
+      useToolStore.getState().clearDrawingPoints();
       return;
     }
 
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
     const labelledFeature = withAutoLabels(feature);
-    drawingStore.addFeature(labelledFeature);
-    undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
-    toolStore.clearDrawingPoints();
+    useDrawingStore.getState().addFeature(labelledFeature);
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
+    useToolStore.getState().clearDrawingPoints();
   }
 
   /** Finish a control-point spline (raw control points used directly). */
   function finishControlPointSpline() {
     const drawingPoints = useToolStore.getState().state.drawingPoints;
     if (drawingPoints.length < 4) {
-      toolStore.clearDrawingPoints();
+      useToolStore.getState().clearDrawingPoints();
       return;
     }
     // Pad to a multiple of 3 + 1 if needed (trim extra points)
     const usable = Math.floor((drawingPoints.length - 1) / 3) * 3 + 1;
     const controlPoints = drawingPoints.slice(0, usable);
-    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
     const layerStyle = getActiveLayerStyle();
     const ds = useToolStore.getState().state.drawStyle;
     const feature: Feature = {
@@ -8840,16 +9003,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       properties: {},
     };
     const labelledFeature = withAutoLabels(feature);
-    drawingStore.addFeature(labelledFeature);
-    undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
-    toolStore.clearDrawingPoints();
+    useDrawingStore.getState().addFeature(labelledFeature);
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
+    useToolStore.getState().clearDrawingPoints();
   }
 
   // ─────────────────────────────────────────────
   // Ortho / Polar constraint helper
   // ─────────────────────────────────────────────
   function applyConstraints(pt: Point2D): Point2D {
-    const ts = toolStore.state;
+    const ts = useToolStore.getState().state;
     const { orthoEnabled, polarEnabled, polarAngle, drawingPoints, basePoint, rotateCenter } = ts;
     if (!orthoEnabled && !polarEnabled) return pt;
 
@@ -8891,7 +9054,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // Use rotation-aware coordinate conversion
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const cursor = { x: wx, y: wy };
-    const { settings } = drawingStore.document;
+    const { settings } = useDrawingStore.getState().document;
 
     if (settings.snapEnabled) {
       // §19.1 — narrow the feature list with the spatial
@@ -8901,13 +9064,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // (snap targets endpoints and midpoints lying inside
       // the radius, which can be on a feature whose bbox
       // overlaps the cursor by less than the radius).
-      const layerVisible = drawingStore.getVisibleFeatures();
+      const layerVisible = useDrawingStore.getState().getVisibleFeatures();
       const indexCache = ensureFeatureIndex(
         layerVisible,
-        drawingStore.document.features,
-        drawingStore.document.layers
+        useDrawingStore.getState().document.features,
+        useDrawingStore.getState().document.layers
       );
-      const worldRadius = settings.snapRadius / Math.max(0.0001, viewportStore.zoom);
+      const worldRadius = settings.snapRadius / Math.max(0.0001, useViewportStore.getState().zoom);
       const queryBox: LodBoundingBox = {
         minX: cursor.x - worldRadius,
         minY: cursor.y - worldRadius,
@@ -8923,7 +9086,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         cursor,
         candidates,
         settings.snapRadius,
-        viewportStore.zoom,
+        useViewportStore.getState().zoom,
         settings.snapTypes,
         settings.gridMajorSpacing / settings.gridMinorDivisions,
       );
@@ -8942,9 +9105,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // unselected feature. The whole selection shifts by the same delta, so
   // bearings, lengths, and angles are untouched — it just snaps the end.
   function endpointSnapDelta(dx: number, dy: number): { dx: number; dy: number } {
-    const settings = drawingStore.document.settings;
+    const settings = useDrawingStore.getState().document.settings;
     if (!settings.snapEnabled) return { dx, dy };
-    const selectedIds = selectionStore.selectedIds;
+    const selectedIds = useSelectionStore.getState().selectedIds;
     if (selectedIds.size === 0) return { dx, dy };
 
     const endpointsOf = (f: Feature): Point2D[] => {
@@ -8957,14 +9120,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const moving: Point2D[] = [];
     for (const id of selectedIds) {
-      const f = drawingStore.getFeature(id);
+      const f = useDrawingStore.getState().getFeature(id);
       if (f) for (const p of endpointsOf(f)) moving.push({ x: p.x + dx, y: p.y + dy });
     }
     if (moving.length === 0) return { dx, dy };
 
-    const targets = drawingStore.getVisibleFeatures().filter((f) => !selectedIds.has(f.id));
+    const targets = useDrawingStore.getState().getVisibleFeatures().filter((f) => !selectedIds.has(f.id));
     if (targets.length === 0) return { dx, dy };
-    const zoom = Math.max(0.0001, viewportStore.zoom);
+    const zoom = Math.max(0.0001, useViewportStore.getState().zoom);
     const worldRadius = settings.snapRadius / zoom;
     const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
 
@@ -8984,10 +9147,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Grip hit testing
   // ─────────────────────────────────────────────
   function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number; gripType?: 'SPLINE_FIT' | 'SPLINE_HANDLE' | 'ROTATE' } | null {
-    const { selectedIds } = selectionStore;
-    const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
+    const { selectedIds } = useSelectionStore.getState();
+    const gripHitSize = (useDrawingStore.getState().document.settings.gripSize ?? 6) + 2;
     for (const featureId of selectedIds) {
-      const feature = drawingStore.getFeature(featureId);
+      const feature = useDrawingStore.getState().getFeature(featureId);
       if (!feature) continue;
 
       // IMAGE rotation handle takes priority over the resize grips.
@@ -9139,7 +9302,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const end = computePerpEndpoint(cursor);
     if (!end) return;
     finishFeature('LINE', [st.perpStartPoint, end]);
-    toolStore.clearPerp();
+    useToolStore.getState().clearPerp();
     window.dispatchEvent(new CustomEvent('cad:commandOutput', {
       detail: { text: 'PERPENDICULAR — line placed.' },
     }));
@@ -9179,14 +9342,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // "Snap point to another point" pick: the click picks the target.
       if (snapPickRef.current) {
         const pick = snapPickRef.current;
-        const f = drawingStore.getFeature(pick.featureId);
+        const f = useDrawingStore.getState().getFeature(pick.featureId);
         if (f) {
           // Resolve the target point: snap to a nearby point / endpoint of
           // ANOTHER feature, else use the raw clicked location.
-          const settings = drawingStore.document.settings;
-          const zoom = Math.max(0.0001, viewportStore.zoom);
+          const settings = useDrawingStore.getState().document.settings;
+          const zoom = Math.max(0.0001, useViewportStore.getState().zoom);
           const raw = screenToDrawingWorld(sx, sy);
-          const targets = drawingStore.getVisibleFeatures().filter((t) => t.id !== pick.featureId);
+          const targets = useDrawingStore.getState().getVisibleFeatures().filter((t) => t.id !== pick.featureId);
           const grid = settings.gridMajorSpacing / settings.gridMinorDivisions;
           const snap = findSnapPoint(
             { x: raw.wx, y: raw.wy }, targets,
@@ -9206,7 +9369,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Features to move: the whole multi-selection when more than one
             // element is selected (rigid translate keeps their relative
             // positions), otherwise just the right-clicked feature.
-            const groupIds = (pick.selectionIds ?? []).filter((id) => drawingStore.getFeature(id));
+            const groupIds = (pick.selectionIds ?? []).filter((id) => useDrawingStore.getState().getFeature(id));
             const multi = groupIds.length > 1;
             const dx = target.x - cur.x;
             const dy = target.y - cur.y;
@@ -9217,27 +9380,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // proportions/relationships are preserved.
               const ops: Parameters<typeof makeBatchEntry>[1] = [];
               for (const id of groupIds) {
-                const ff = drawingStore.getFeature(id);
+                const ff = useDrawingStore.getState().getFeature(id);
                 if (!ff) continue;
                 const b = JSON.parse(JSON.stringify(ff));
                 const moved = transformFeature(ff, (p) => translate(p, dx, dy));
-                drawingStore.updateFeature(id, { geometry: moved.geometry });
-                const a = drawingStore.getFeature(id);
+                useDrawingStore.getState().updateFeature(id, { geometry: moved.geometry });
+                const a = useDrawingStore.getState().getFeature(id);
                 if (a) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: b, after: a } });
               }
               if (ops.length > 0) {
-                undoStore.pushUndo(makeBatchEntry(`Snap ${ops.length} elements to point`, ops));
+                useUndoStore.getState().pushUndo(makeBatchEntry(`Snap ${ops.length} elements to point`, ops));
               }
               snapPickRef.current = null;
               setSnapPickMode(false);
-              setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+              setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
               return;
             }
 
             if (pick.moveWhole) {
               // Translate the whole feature so the vertex lands on target.
               const moved = transformFeature(f, (p) => translate(p, dx, dy));
-              drawingStore.updateFeature(f.id, { geometry: moved.geometry });
+              useDrawingStore.getState().updateFeature(f.id, { geometry: moved.geometry });
             } else {
               // Move just this vertex onto the target.
               const ng = { ...g };
@@ -9250,11 +9413,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 verts[pick.vertexIndex] = { ...target };
                 ng.vertices = verts;
               }
-              drawingStore.updateFeatureGeometry(f.id, ng);
+              useDrawingStore.getState().updateFeatureGeometry(f.id, ng);
             }
-            const after = drawingStore.getFeature(f.id);
+            const after = useDrawingStore.getState().getFeature(f.id);
             if (after) {
-              undoStore.pushUndo(makeBatchEntry(
+              useUndoStore.getState().pushUndo(makeBatchEntry(
                 pick.moveWhole ? 'Snap feature to point' : 'Snap point',
                 [{ type: 'MODIFY_FEATURE', data: { id: f.id, before, after } }],
               ));
@@ -9263,11 +9426,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         snapPickRef.current = null;
         setSnapPickMode(false);
-        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
         return;
       }
 
-      const toolState = toolStore.state;
+      const toolState = useToolStore.getState().state;
       const { activeTool } = toolState;
 
       // Phase 8 §11.7 — Pick-mode box-select. When the
@@ -9281,7 +9444,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (_pickTx.pickModeActive) {
         const _hit = hitTest(sx, sy);
         if (!_hit) {
-          toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
+          useToolStore.getState().setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
         }
         return;
       }
@@ -9322,14 +9485,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const { wx, wy } = screenToDrawingWorld(sx, sy);
           const startAngle = Math.atan2(wy - h.pivot.y, wx - h.pivot.x);
           const originals = new Map<string, Feature>();
-          for (const id of selectionStore.selectedIds) {
-            const f = drawingStore.getFeature(id);
+          for (const id of useSelectionStore.getState().selectedIds) {
+            const f = useDrawingStore.getState().getFeature(id);
             if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
           }
           if (originals.size > 0) {
             // Clear any half-started two-click pivot so it can't fire a
             // stray rotation after this grab-drag commits.
-            if (toolState.rotateCenter) toolStore.setRotateCenter(null);
+            if (toolState.rotateCenter) useToolStore.getState().setRotateCenter(null);
             rotateGrabRef.current = { pivot: h.pivot, startAngle, originals };
             setCursorStyle('grabbing');
             return;
@@ -9348,22 +9511,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const currentAngle = Math.atan2(cursorVec.y, cursorVec.x);
           const deltaAngle = currentAngle - op.baseAngle;
           for (const [id, orig] of op.originals) {
-            const after = drawingStore.getFeature(id);
+            const after = useDrawingStore.getState().getFeature(id);
             if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
           }
           if (ops.length > 0) {
             const deg = ((deltaAngle * 180) / Math.PI).toFixed(1);
-            undoStore.pushUndo(makeBatchEntry(`Rotate ${deg}°`, ops));
+            useUndoStore.getState().pushUndo(makeBatchEntry(`Rotate ${deg}°`, ops));
           }
         } else {
           const curDist = Math.hypot(cursorVec.x, cursorVec.y);
           const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
           for (const [id, orig] of op.originals) {
-            const after = drawingStore.getFeature(id);
+            const after = useDrawingStore.getState().getFeature(id);
             if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
           }
           if (ops.length > 0) {
-            undoStore.pushUndo(makeBatchEntry(`Scale ×${factor.toFixed(3)}`, ops));
+            useUndoStore.getState().pushUndo(makeBatchEntry(`Scale ×${factor.toFixed(3)}`, ops));
           }
         }
         interactiveOpRef.current = null;
@@ -9514,16 +9677,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             origPosX, origPosY, livePosX: origPosX, livePosY: origPosY,
           };
           // Mark this TB element as "selected" so LayerPanel keeps SURVEY-INFO highlighted
-          selectionStore.setSelectedTBElem(tbHit);
+          useSelectionStore.getState().setSelectedTBElem(tbHit);
           setCursorStyle('grabbing');
           return;
         }
       }
       // Clicking outside all TB elements clears TB selection
-      selectionStore.setSelectedTBElem(null);
+      useSelectionStore.getState().setSelectedTBElem(null);
 
       // Check grip first (when SELECT tool active and something selected)
-      if (activeTool === 'SELECT' && selectionStore.selectedIds.size > 0) {
+      if (activeTool === 'SELECT' && useSelectionStore.getState().selectedIds.size > 0) {
         const grip = hitTestGrip(sx, sy);
         if (grip) {
           const gType = grip.gripType === 'SPLINE_FIT' ? 'SPLINE_FIT'
@@ -9531,7 +9694,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             : grip.gripType === 'ROTATE' ? 'ROTATE'
             : 'VERTEX';
           gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: gType };
-          const startFeat = drawingStore.getFeature(grip.featureId) ?? null;
+          const startFeat = useDrawingStore.getState().getFeature(grip.featureId) ?? null;
           gripStartRef.current = startFeat;
           // Begin an image-rotation session so the handle follows the cursor.
           if (gType === 'ROTATE' && startFeat?.geometry.image) {
@@ -9599,7 +9762,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       switch (activeTool) {
         case 'SELECT': {
           // We've confirmed no TB element was hit (those return early above), so clear TB selection
-          selectionStore.setSelectedTBElem(null);
+          useSelectionStore.getState().setSelectedTBElem(null);
           // Ctrl/Cmd (or Shift) make a click additive: toggle the hit
           // feature into/out of the current multi-selection instead of
           // replacing it. Ctrl is the common surveyor habit for picking
@@ -9628,9 +9791,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (labelHit) {
             if (labelHit.isTextFeature) {
               // TEXT feature — select it and start drag-to-move
-              const textFeature = drawingStore.getFeature(labelHit.featureId);
+              const textFeature = useDrawingStore.getState().getFeature(labelHit.featureId);
               if (textFeature) {
-                selectionStore.select(labelHit.featureId, additive ? 'TOGGLE' : 'REPLACE');
+                useSelectionStore.getState().select(labelHit.featureId, additive ? 'TOGGLE' : 'REPLACE');
                 const startWorld = screenToDrawingWorld(sx, sy);
                 const originals = new Map<string, Feature>();
                 originals.set(labelHit.featureId, JSON.parse(JSON.stringify(textFeature)));
@@ -9644,7 +9807,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               }
             } else {
               // Regular feature text label — drag offset
-              const feature = drawingStore.getFeature(labelHit.featureId);
+              const feature = useDrawingStore.getState().getFeature(labelHit.featureId);
               const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
               if (feature && label) {
                 const { wx, wy } = screenToDrawingWorld(sx, sy);
@@ -9686,10 +9849,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
-            const hitFeature = drawingStore.getFeature(hit);
+            const hitFeature = useDrawingStore.getState().getFeature(hit);
             const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
             const featureGid  = hitFeature?.featureGroupId ?? undefined;
-            const groupMode = drawingStore.document.settings.groupSelectMode ?? 'GROUP_FIRST';
+            const groupMode = useDrawingStore.getState().document.settings.groupSelectMode ?? 'GROUP_FIRST';
             let featureIds: string[];
 
             if (polylineGid && !additive) {
@@ -9698,39 +9861,39 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 // If the group is already selected, clicking a specific segment
                 // narrows selection to just that segment (drill-down behavior).
                 const groupIds = getPolylineGroupIds(polylineGid);
-                const allGroupSelected = groupIds.every((id) => selectionStore.selectedIds.has(id));
+                const allGroupSelected = groupIds.every((id) => useSelectionStore.getState().selectedIds.has(id));
                 if (allGroupSelected) {
                   // Already selected whole group — drill down to individual segment
-                  selectionStore.select(hit, 'REPLACE');
+                  useSelectionStore.getState().select(hit, 'REPLACE');
                   featureIds = [hit];
                 } else {
                   // Select entire group
                   featureIds = groupIds;
-                  selectionStore.selectMultiple(featureIds, 'REPLACE');
+                  useSelectionStore.getState().selectMultiple(featureIds, 'REPLACE');
                 }
               } else {
                 // ELEMENT_FIRST: first click selects individual segment only.
                 // User can right-click > "Select Group" to get the whole group.
                 const mode = additive ? 'TOGGLE' : 'REPLACE';
-                selectionStore.select(hit, mode);
+                useSelectionStore.getState().select(hit, mode);
                 featureIds = [hit];
               }
             } else if (featureGid && !additive && groupMode === 'GROUP_FIRST') {
               // Feature group (named group): same GROUP_FIRST drill-down behavior.
-              const group = drawingStore.getFeatureGroup(featureGid);
+              const group = useDrawingStore.getState().getFeatureGroup(featureGid);
               const groupMemberIds = group?.featureIds ?? [];
               const allGroupSelected = groupMemberIds.length > 0 &&
-                groupMemberIds.every((id) => selectionStore.selectedIds.has(id));
+                groupMemberIds.every((id) => useSelectionStore.getState().selectedIds.has(id));
               if (allGroupSelected) {
-                selectionStore.select(hit, 'REPLACE');
+                useSelectionStore.getState().select(hit, 'REPLACE');
                 featureIds = [hit];
               } else {
-                featureIds = groupMemberIds.filter((id) => !!drawingStore.getFeature(id));
-                selectionStore.selectMultiple(featureIds, 'REPLACE');
+                featureIds = groupMemberIds.filter((id) => !!useDrawingStore.getState().getFeature(id));
+                useSelectionStore.getState().selectMultiple(featureIds, 'REPLACE');
               }
             } else {
               const mode = additive ? 'TOGGLE' : 'REPLACE';
-              selectionStore.select(hit, mode);
+              useSelectionStore.getState().select(hit, mode);
               featureIds = [hit];
             }
 
@@ -9740,14 +9903,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // descriptions are LABELS, handled above, and stay draggable;
             // moving a point with the Move tool carries its labels along.)
             setCursorStyle('pointer');
-            toolStore.setBoxSelect(null, null, false);
+            useToolStore.getState().setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
             // Empty canvas → start a box-select (the CAD-standard expectation
             // the command hint advertises). Shift/Ctrl at mouseup adds to the
             // selection; a click with no drag deselects (handled in the
             // box-select mouseup). Panning is on Space+drag or middle-mouse.
-            toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
+            useToolStore.getState().setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           }
           break;
         }
@@ -9756,19 +9919,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const feature = createFeature('POINT', [worldPt]);
           if (feature) {
             const labelledFeature = withAutoLabels(feature);
-            drawingStore.addFeature(labelledFeature);
-            undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
+            useDrawingStore.getState().addFeature(labelledFeature);
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
           }
           break;
         }
 
         case 'DRAW_LINE': {
           if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt);
+            useToolStore.getState().addDrawingPoint(worldPt);
           } else {
             // Pass both points directly to avoid stale-snapshot issues —
             // addDrawingPoint updates the Zustand store, but the React
-            // snapshot (toolStore.state) won't reflect it until re-render.
+            // snapshot (useToolStore.getState().state) won't reflect it until re-render.
             const linePoints = [toolState.drawingPoints[0], worldPt];
             finishFeature('LINE', linePoints);
           }
@@ -9780,37 +9943,37 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (prevPoints.length === 0) {
             // First click: start a new polyline group
             polylineGroupIdRef.current = generateId();
-            toolStore.addDrawingPoint(worldPt);
+            useToolStore.getState().addDrawingPoint(worldPt);
           } else {
             const lastPt = prevPoints[prevPoints.length - 1];
             const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
             // Only create a segment if the new point is meaningfully different
-            if (dist > MIN_SEGMENT_LENGTH_BASE / viewportStore.zoom) {
+            if (dist > MIN_SEGMENT_LENGTH_BASE / useViewportStore.getState().zoom) {
               const segment = createPolylineSegment(lastPt, worldPt, polylineGroupIdRef.current!);
-              drawingStore.addFeature(withAutoLabels(segment));
-              undoStore.pushUndo(makeAddFeatureEntry(segment));
+              useDrawingStore.getState().addFeature(withAutoLabels(segment));
+              useUndoStore.getState().pushUndo(makeAddFeatureEntry(segment));
               lastPolylineSegmentIdRef.current = segment.id;
-              toolStore.addDrawingPoint(worldPt);
+              useToolStore.getState().addDrawingPoint(worldPt);
             }
           }
           break;
         }
 
         case 'DRAW_POLYGON': {
-          toolStore.addDrawingPoint(worldPt);
+          useToolStore.getState().addDrawingPoint(worldPt);
           break;
         }
 
         case 'DRAW_RECTANGLE': {
           if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt);
+            useToolStore.getState().addDrawingPoint(worldPt);
           } else {
             const p1 = toolState.drawingPoints[0];
             const p2 = worldPt;
             // Require both dimensions to be non-trivial (reuse the polyline min-length constant
             // as a sensible minimum world-space dimension for any drawn shape)
             if (Math.abs(p2.x - p1.x) < MIN_SEGMENT_LENGTH_BASE || Math.abs(p2.y - p1.y) < MIN_SEGMENT_LENGTH_BASE) {
-              toolStore.clearDrawingPoints();
+              useToolStore.getState().clearDrawingPoints();
               break;
             }
             const vertices: Point2D[] = [
@@ -9823,26 +9986,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               id: generateId(),
               type: 'POLYGON',
               geometry: { type: 'POLYGON', vertices },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'RECTANGLE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
-            toolStore.clearDrawingPoints();
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
 
         case 'DRAW_REGULAR_POLYGON': {
           if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt); // center
+            useToolStore.getState().addDrawingPoint(worldPt); // center
           } else {
             const center = toolState.drawingPoints[0];
             const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
-            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { useToolStore.getState().clearDrawingPoints(); break; }
             const startAngle = Math.atan2(worldPt.y - center.y, worldPt.x - center.x);
-            const sides = toolStore.state.regularPolygonSides;
+            const sides = useToolStore.getState().state.regularPolygonSides;
             const vertices: Point2D[] = Array.from({ length: sides }, (_, i) => {
               const angle = startAngle + (2 * Math.PI * i) / sides;
               return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
@@ -9851,24 +10014,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               id: generateId(),
               type: 'POLYGON',
               geometry: { type: 'POLYGON', vertices },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'REGULAR_POLYGON', sides: sides.toString() },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
-            toolStore.clearDrawingPoints();
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
 
         case 'DRAW_CIRCLE': {
           if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt); // center
+            useToolStore.getState().addDrawingPoint(worldPt); // center
           } else {
             const center = toolState.drawingPoints[0];
             const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
-            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { useToolStore.getState().clearDrawingPoints(); break; }
             // True circle: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
@@ -9877,13 +10040,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'CIRCLE',
                 circle: { center: { ...center }, radius },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'CIRCLE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
-            toolStore.clearDrawingPoints();
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
@@ -9892,12 +10055,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Edge/diameter mode: first click sets a point on the circle edge,
           // second click sets the diametrically opposite point.
           if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt); // first edge point
+            useToolStore.getState().addDrawingPoint(worldPt); // first edge point
           } else {
             const p1 = toolState.drawingPoints[0];
             const diameter = Math.hypot(worldPt.x - p1.x, worldPt.y - p1.y);
             const radius = diameter / 2;
-            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { useToolStore.getState().clearDrawingPoints(); break; }
             const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
             // True circle: store parametric data, no polygon vertices
             const feature: Feature = {
@@ -9907,13 +10070,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'CIRCLE',
                 circle: { center, radius },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'CIRCLE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
-            toolStore.clearDrawingPoints();
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
@@ -9921,13 +10084,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         case 'DRAW_ELLIPSE': {
           // Center mode: first click sets the center, second click sets the corner of the bounding box.
           if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt); // center
+            useToolStore.getState().addDrawingPoint(worldPt); // center
           } else {
             const center = toolState.drawingPoints[0];
             const radiusX = Math.abs(worldPt.x - center.x);
             const radiusY = Math.abs(worldPt.y - center.y);
             if (radiusX < MIN_SEGMENT_LENGTH_BASE || radiusY < MIN_SEGMENT_LENGTH_BASE) {
-              toolStore.clearDrawingPoints(); break;
+              useToolStore.getState().clearDrawingPoints(); break;
             }
             // True ellipse: store parametric data, no polygon vertices
             const feature: Feature = {
@@ -9937,13 +10100,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'ELLIPSE',
                 ellipse: { center: { ...center }, radiusX, radiusY, rotation: 0 },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'ELLIPSE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
-            toolStore.clearDrawingPoints();
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
@@ -9952,13 +10115,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Edge mode: first click sets one corner of the bounding box,
           // second click sets the diametrically opposite corner.
           if (toolState.drawingPoints.length === 0) {
-            toolStore.addDrawingPoint(worldPt); // first corner
+            useToolStore.getState().addDrawingPoint(worldPt); // first corner
           } else {
             const p1 = toolState.drawingPoints[0];
             const radiusX = Math.abs(worldPt.x - p1.x) / 2;
             const radiusY = Math.abs(worldPt.y - p1.y) / 2;
             if (radiusX < MIN_SEGMENT_LENGTH_BASE || radiusY < MIN_SEGMENT_LENGTH_BASE) {
-              toolStore.clearDrawingPoints(); break;
+              useToolStore.getState().clearDrawingPoints(); break;
             }
             const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
             // True ellipse: store parametric data, no polygon vertices
@@ -9969,13 +10132,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 type: 'ELLIPSE',
                 ellipse: { center, radiusX, radiusY, rotation: 0 },
               },
-              layerId: drawingStore.activeLayerId,
-              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              layerId: useDrawingStore.getState().activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...useDrawingStore.getState().getActiveLayerStyle() },
               properties: { shapeType: 'ELLIPSE' },
             };
-            drawingStore.addFeature(withAutoLabels(feature));
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
-            toolStore.clearDrawingPoints();
+            useDrawingStore.getState().addFeature(withAutoLabels(feature));
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
@@ -9984,7 +10147,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         case 'DRAW_SPLINE_FIT': {
           // Curved line / Spline fit-point tool: each click adds a fit point.
           // On finish, the fit points are converted to cubic bezier control points.
-          const splinePts = toolStore.state.drawingPoints;
+          const splinePts = useToolStore.getState().state.drawingPoints;
           // Closing the loop: clicking on (or snapping back to) the first
           // fit point finishes the spline as a CLOSED curve, so it transitions
           // smoothly through the start point instead of stopping abruptly.
@@ -9994,18 +10157,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const closeWorld = 12 / splineZoom; // ~12 px grab radius
             if (Math.hypot(worldPt.x - first.x, worldPt.y - first.y) <= closeWorld) {
               finishFitSpline(splinePts, true);
-              toolStore.clearDrawingPoints();
+              useToolStore.getState().clearDrawingPoints();
               break;
             }
           }
-          toolStore.addDrawingPoint(worldPt);
+          useToolStore.getState().addDrawingPoint(worldPt);
           break;
         }
 
         case 'DRAW_SPLINE_CONTROL': {
           // Control-point spline: each click adds a raw control point.
           // Points are used directly as cubic bezier control points (groups of 4).
-          toolStore.addDrawingPoint(worldPt);
+          useToolStore.getState().addDrawingPoint(worldPt);
           break;
         }
 
@@ -10024,14 +10187,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         case 'DRAW_ARC': {
           // 3-point arc: click start point, mid-arc point, end point
           if (toolState.drawingPoints.length < 2) {
-            toolStore.addDrawingPoint(worldPt);
+            useToolStore.getState().addDrawingPoint(worldPt);
           } else {
             const p1 = toolState.drawingPoints[0];
             const p2 = toolState.drawingPoints[1];
             const p3 = worldPt;
             const arcGeom = arcFrom3Points(p1, p2, p3);
             if (arcGeom && arcGeom.radius > MIN_SEGMENT_LENGTH_BASE) {
-              const { activeLayerId, getActiveLayerStyle } = drawingStore;
+              const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
               const layerStyle = getActiveLayerStyle();
               const feature: Feature = {
                 id: generateId(),
@@ -10041,10 +10204,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
                 properties: {},
               };
-              drawingStore.addFeature(withAutoLabels(feature));
-              undoStore.pushUndo(makeAddFeatureEntry(feature));
+              useDrawingStore.getState().addFeature(withAutoLabels(feature));
+              useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             }
-            toolStore.clearDrawingPoints();
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
@@ -10052,11 +10215,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         case 'ERASE': {
           const hit = hitTest(sx, sy);
           if (hit) {
-            const feature = drawingStore.getFeature(hit);
+            const feature = useDrawingStore.getState().getFeature(hit);
             if (feature) {
-              drawingStore.removeFeature(hit);
-              selectionStore.deselectAll();
-              undoStore.pushUndo(makeRemoveFeatureEntry(feature));
+              useDrawingStore.getState().removeFeature(hit);
+              useSelectionStore.getState().deselectAll();
+              useUndoStore.getState().pushUndo(makeRemoveFeatureEntry(feature));
             }
           }
           break;
@@ -10064,53 +10227,53 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'MOVE': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (!toolState.basePoint) {
-            toolStore.setBasePoint(worldPt);
+            useToolStore.getState().setBasePoint(worldPt);
           } else {
             const rawDx = worldPt.x - toolState.basePoint.x;
             const rawDy = worldPt.y - toolState.basePoint.y;
             // Snap the selection's nearest endpoint onto a point/line-end.
             const { dx, dy } = endpointSnapDelta(rawDx, rawDy);
-            const selectedIds = Array.from(selectionStore.selectedIds);
+            const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
             if (selectedIds.length === 0) break;
             const ops = selectedIds.flatMap((id) => {
-              const f = drawingStore.getFeature(id);
+              const f = useDrawingStore.getState().getFeature(id);
               if (!f) {
                 cadLog.warn('CanvasViewport', `MOVE: feature "${id}" not found — skipped`);
                 return [];
               }
               const newF = transformFeature(f, (p) => translate(p, dx, dy));
-              drawingStore.updateFeature(id, { geometry: newF.geometry });
+              useDrawingStore.getState().updateFeature(id, { geometry: newF.geometry });
               return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
             });
-            if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Move', ops));
-            toolStore.resetToolState();
+            if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Move', ops));
+            useToolStore.getState().resetToolState();
           }
           break;
         }
 
         case 'COPY': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (!toolState.basePoint) {
-            toolStore.setBasePoint(worldPt);
+            useToolStore.getState().setBasePoint(worldPt);
           } else {
             const dx = worldPt.x - toolState.basePoint.x;
             const dy = worldPt.y - toolState.basePoint.y;
-            const selectedIds = Array.from(selectionStore.selectedIds);
+            const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
             if (selectedIds.length === 0) break;
             const newFeatures: Feature[] = [];
             for (const id of selectedIds) {
-              const f = drawingStore.getFeature(id);
+              const f = useDrawingStore.getState().getFeature(id);
               if (!f) {
                 cadLog.warn('CanvasViewport', `COPY: feature "${id}" not found — skipped`);
                 continue;
@@ -10120,20 +10283,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               newFeatures.push(newF);
             }
             if (newFeatures.length > 0) {
-              drawingStore.addFeatures(newFeatures);
+              useDrawingStore.getState().addFeatures(newFeatures);
               const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
-              undoStore.pushUndo(makeBatchEntry('Copy', ops));
+              useUndoStore.getState().pushUndo(makeBatchEntry('Copy', ops));
             }
-            toolStore.setBasePoint(worldPt); // Allow multiple copies
+            useToolStore.getState().setBasePoint(worldPt); // Allow multiple copies
           }
           break;
         }
 
         case 'ROTATE': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           // Single image → live "follow the cursor" rotation around the
@@ -10141,15 +10304,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // (Shift snaps to 15°). The image rotates for real as you move
           // so you see the result before finalizing.
           {
-            const selIds = Array.from(selectionStore.selectedIds);
-            const only = selIds.length === 1 ? drawingStore.getFeature(selIds[0]) : null;
+            const selIds = Array.from(useSelectionStore.getState().selectedIds);
+            const only = selIds.length === 1 ? useDrawingStore.getState().getFeature(selIds[0]) : null;
             if (!toolState.copyMode && only?.geometry.type === 'IMAGE' && only.geometry.image) {
               const session = imageRotateRef.current;
               if (session?.viaTool && session.featureId === only.id) {
                 // Click 2 — finalize with a single undo entry.
-                const after = drawingStore.getFeature(session.featureId);
+                const after = useDrawingStore.getState().getFeature(session.featureId);
                 if (after) {
-                  undoStore.pushUndo({
+                  useUndoStore.getState().pushUndo({
                     id: generateId(),
                     description: 'Rotate image',
                     timestamp: Date.now(),
@@ -10157,9 +10320,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   });
                 }
                 imageRotateRef.current = null;
-                toolStore.setRotateCenter(null);
+                useToolStore.getState().setRotateCenter(null);
                 setHud(null);
-                toolStore.setTool('SELECT'); // one-shot: release the tool
+                useToolStore.getState().setTool('SELECT'); // one-shot: release the tool
               } else {
                 // Click 1 — begin the live session.
                 const center = imageCenter(only.geometry.image);
@@ -10172,14 +10335,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   viaTool: true,
                   before: only,
                 };
-                toolStore.setRotateCenter(center);
+                useToolStore.getState().setRotateCenter(center);
               }
               break;
             }
           }
           if (!toolState.rotateCenter) {
             // Click 1: set the pivot
-            toolStore.setRotateCenter(worldPt);
+            useToolStore.getState().setRotateCenter(worldPt);
           } else {
             // Click 2: commit the rotation. Angle =
             // atan2(cursor − center) — matches the live ghost
@@ -10191,7 +10354,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               break;
             }
             const angleDeg = (angleRad * 180) / Math.PI;
-            const ids = Array.from(selectionStore.selectedIds);
+            const ids = Array.from(useSelectionStore.getState().selectedIds);
             if (ids.length === 0) break;
             if (toolState.copyMode) {
               // Duplicate then rotate the duplicates so
@@ -10201,12 +10364,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // those.
               duplicateSelection(0, 0);
               rotateSelection(angleDeg, center);
-              toolStore.setRotateCenter(null); // chain more copies
+              useToolStore.getState().setRotateCenter(null); // chain more copies
             } else {
               rotateSelection(angleDeg, center);
               // One-shot: release the tool back to SELECT so the
               // cursor isn't stuck rotating after the operation.
-              toolStore.setTool('SELECT');
+              useToolStore.getState().setTool('SELECT');
             }
           }
           break;
@@ -10214,14 +10377,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'SCALE': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (!toolState.basePoint) {
             // Click 1: set the pivot
-            toolStore.setBasePoint(worldPt);
+            useToolStore.getState().setBasePoint(worldPt);
           } else {
             // Click 2: commit the scale. Factor = dist /
             // refDist, matching the live ghost preview so the
@@ -10233,16 +10396,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (!Number.isFinite(factor) || factor <= 0 || Math.abs(factor - 1) < 1e-9) {
               break;
             }
-            const ids = Array.from(selectionStore.selectedIds);
+            const ids = Array.from(useSelectionStore.getState().selectedIds);
             if (ids.length === 0) break;
             if (toolState.copyMode) {
               duplicateSelection(0, 0);
               scaleSelection(factor);
-              toolStore.setBasePoint(null); // chain more copies
+              useToolStore.getState().setBasePoint(null); // chain more copies
             } else {
               scaleSelection(factor);
               // One-shot: release the tool back to SELECT.
-              toolStore.setTool('SELECT');
+              useToolStore.getState().setTool('SELECT');
             }
           }
           break;
@@ -10250,9 +10413,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         case 'MIRROR': {
           // If nothing selected, auto-select the clicked element first
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
 
@@ -10272,7 +10435,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (mirrorAxisMode === 'PICK_LINE') {
             const hit = hitTest(sx, sy);
             if (hit) {
-              const lineFeat = drawingStore.getFeature(hit);
+              const lineFeat = useDrawingStore.getState().getFeature(hit);
               if (lineFeat) {
                 const ep = pickAxisFromFeature(lineFeat, worldPt);
                 if (ep) {
@@ -10295,7 +10458,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else {
             // TWO_POINTS — collect first click, then commit on second.
             if (toolState.drawingPoints.length === 0) {
-              toolStore.addDrawingPoint(worldPt);
+              useToolStore.getState().addDrawingPoint(worldPt);
               break;
             }
             lineA = toolState.drawingPoints[0];
@@ -10306,7 +10469,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             if (!lineA || !lineB) break;
             const a = lineA;
             const b = lineB;
-            const selectedIds = Array.from(selectionStore.selectedIds);
+            const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
             if (selectedIds.length === 0) break;
             const reflect = (p: Point2D): Point2D => mirror(p, a, b);
 
@@ -10317,7 +10480,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // selected so the user can chain more ops.
               const newFeatures: Feature[] = [];
               for (const id of selectedIds) {
-                const f = drawingStore.getFeature(id);
+                const f = useDrawingStore.getState().getFeature(id);
                 if (!f) {
                   cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
                   continue;
@@ -10328,26 +10491,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 newFeatures.push({ ...cloned, geometry: mirrored.geometry });
               }
               if (newFeatures.length > 0) {
-                drawingStore.addFeatures(newFeatures);
+                useDrawingStore.getState().addFeatures(newFeatures);
                 const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
-                undoStore.pushUndo(makeBatchEntry('Mirror Copy', ops));
-                selectionStore.selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
+                useUndoStore.getState().pushUndo(makeBatchEntry('Mirror Copy', ops));
+                useSelectionStore.getState().selectMultiple(newFeatures.map((f) => f.id), 'REPLACE');
               }
             } else {
               // Default: mirror in place
               const ops = selectedIds.flatMap((id) => {
-                const f = drawingStore.getFeature(id);
+                const f = useDrawingStore.getState().getFeature(id);
                 if (!f) {
                   cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
                   return [];
                 }
                 const newF = transformFeature(f, reflect);
-                drawingStore.updateFeature(id, { geometry: newF.geometry });
+                useDrawingStore.getState().updateFeature(id, { geometry: newF.geometry });
                 return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
               });
-              if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Mirror', ops));
+              if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Mirror', ops));
             }
-            toolStore.clearDrawingPoints();
+            useToolStore.getState().clearDrawingPoints();
           }
           break;
         }
@@ -10357,9 +10520,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // active direction. Auto-selects the clicked feature
           // when nothing is selected so the user can do
           // single-click flips.
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           flipSelectionByDirection(toolState.flipDirection, toolState.copyMode);
@@ -10370,9 +10533,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // INVERT uses the clicked point as the inversion
           // center (= 180° rotation pivot). Auto-selects
           // when empty selection so single-click works.
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           invertSelection(worldPt, toolState.copyMode);
@@ -10383,9 +10546,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // ARRAY: click commits using the current mode +
           // parameters from the toolbar. Auto-selects the
           // clicked feature when the selection is empty.
-          if (selectionStore.selectedIds.size === 0) {
+          if (useSelectionStore.getState().selectedIds.size === 0) {
             const hit = hitTest(sx, sy);
-            if (hit) selectionStore.select(hit, 'REPLACE');
+            if (hit) useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (toolState.arrayMode === 'POLAR') {
@@ -10396,7 +10559,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // arrayPolarCenter resets via setArrayPolarCenter
             // null below.
             if (!toolState.arrayPolarCenter) {
-              toolStore.setArrayPolarCenter(worldPt);
+              useToolStore.getState().setArrayPolarCenter(worldPt);
               break;
             }
             arraySelectionPolar(
@@ -10405,7 +10568,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               toolState.arrayPolarCenter,
               toolState.arrayPolarRotate,
             );
-            toolStore.setArrayPolarCenter(null);
+            useToolStore.getState().setArrayPolarCenter(null);
             break;
           }
           arraySelectionRectangular(
@@ -10520,9 +10683,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }));
             break;
           }
-          const f = drawingStore.getFeature(hit);
+          const f = useDrawingStore.getState().getFeature(hit);
           if (!f) break;
-          const layer = drawingStore.document.layers[f.layerId];
+          const layer = useDrawingStore.getState().document.layers[f.layerId];
           const layerName = layer?.name ?? f.layerId;
           const fg = f.geometry;
           const parts: string[] = [];
@@ -10623,14 +10786,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // trace, or any other noisy import.
           const hit = hitTest(sx, sy);
           if (!hit) break;
-          const beforeF = drawingStore.getFeature(hit);
+          const beforeF = useDrawingStore.getState().getFeature(hit);
           const ok = simplifyPolylineFeature(hit, toolState.simplifyTolerance);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'SIMPLIFY — pick a POLYLINE / POLYGON; tolerance may be too small to drop any vertices.' },
             }));
           } else {
-            const afterF = drawingStore.getFeature(hit);
+            const afterF = useDrawingStore.getState().getFeature(hit);
             const beforeN = (beforeF?.geometry.vertices?.length ?? 0);
             const afterN = (afterF?.geometry.vertices?.length ?? 0);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
@@ -10674,7 +10837,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               }));
               break;
             }
-            toolStore.setPerpAnchor(anchor.id, anchor.point, anchor.dir);
+            useToolStore.getState().setPerpAnchor(anchor.id, anchor.point, anchor.dir);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'PERPENDICULAR — start locked. Drag away from the line (90° by default) and click to set the length, or type length/bearing.' },
             }));
@@ -10689,7 +10852,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           finishFeature('LINE', [start, end]);
-          toolStore.clearPerp();
+          useToolStore.getState().clearPerp();
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
             detail: { text: 'PERPENDICULAR — line placed.' },
           }));
@@ -10733,8 +10896,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (!hit) break;
           if (!toolState.matchPropertiesSourceId) {
-            toolStore.setMatchPropertiesSourceId(hit);
-            selectionStore.select(hit, 'REPLACE');
+            useToolStore.getState().setMatchPropertiesSourceId(hit);
+            useSelectionStore.getState().select(hit, 'REPLACE');
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'MATCH PROPERTIES — source locked. Click any feature to apply the source style. Esc to finish.' },
             }));
@@ -10794,7 +10957,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           //      Click 2 picks the second line and commits.
           const hit = hitTest(sx, sy);
           if (!hit) break;
-          const f = drawingStore.getFeature(hit);
+          const f = useDrawingStore.getState().getFeature(hit);
           if (!f) break;
           // Polyline-vertex branch.
           if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
@@ -10834,8 +10997,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           if (!toolState.filletPickedLineId) {
-            toolStore.setFilletPickedLine(hit, worldPt);
-            selectionStore.select(hit, 'REPLACE');
+            useToolStore.getState().setFilletPickedLine(hit, worldPt);
+            useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (toolState.filletPickedLineId === hit) {
@@ -10851,7 +11014,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               detail: { text: `FILLET — ${result.reason ?? 'failed'}` },
             }));
           }
-          toolStore.setFilletPickedLine(null, null);
+          useToolStore.getState().setFilletPickedLine(null, null);
           break;
         }
 
@@ -10860,7 +11023,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // straight LINE bevel instead of an ARC.
           const hit = hitTest(sx, sy);
           if (!hit) break;
-          const f = drawingStore.getFeature(hit);
+          const f = useDrawingStore.getState().getFeature(hit);
           if (!f) break;
           if ((f.geometry.type === 'POLYLINE' || f.geometry.type === 'POLYGON') && f.geometry.vertices) {
             const verts = f.geometry.vertices;
@@ -10903,8 +11066,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             break;
           }
           if (!toolState.chamferPickedLineId) {
-            toolStore.setChamferPickedLine(hit, worldPt);
-            selectionStore.select(hit, 'REPLACE');
+            useToolStore.getState().setChamferPickedLine(hit, worldPt);
+            useSelectionStore.getState().select(hit, 'REPLACE');
             break;
           }
           if (toolState.chamferPickedLineId === hit) {
@@ -10924,7 +11087,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               detail: { text: `CHAMFER — ${cResult.reason ?? 'failed'}` },
             }));
           }
-          toolStore.setChamferPickedLine(null, null);
+          useToolStore.getState().setChamferPickedLine(null, null);
           break;
         }
 
@@ -10938,11 +11101,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const hit = hitTest(sx, sy);
           if (hit) {
             // Add to selection (toggle if already selected).
-            selectionStore.select(hit, 'TOGGLE');
+            useSelectionStore.getState().select(hit, 'TOGGLE');
             break;
           }
           // Empty click — try to commit the join.
-          if (selectionStore.selectedIds.size >= 2) {
+          if (useSelectionStore.getState().selectedIds.size >= 2) {
             const result = joinSelection();
             if (!result.ok) {
               cadLog.info('CanvasViewport', `JOIN: ${result.reason ?? 'failed'}`);
@@ -10969,27 +11132,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Phase 1: Select the feature to offset
             const hit = hitTest(sx, sy);
             if (hit) {
-              const f = drawingStore.getFeature(hit);
+              const f = useDrawingStore.getState().getFeature(hit);
               if (f && isOffsetableFeature(f)) {
-                toolStore.setOffsetSourceId(hit);
+                useToolStore.getState().setOffsetSourceId(hit);
                 // Capture which segment the cursor is closest
                 // to so SEGMENT mode can isolate it on commit.
                 // Curved features return null and fall through
                 // to whole-shape offset.
                 if (offsetSegmentMode === 'SEGMENT' && isSegmentableFeature(f)) {
-                  toolStore.setOffsetSourceSegmentIndex(findClosestSegmentIndex(f, worldPt));
+                  useToolStore.getState().setOffsetSourceSegmentIndex(findClosestSegmentIndex(f, worldPt));
                 } else {
-                  toolStore.setOffsetSourceSegmentIndex(null);
+                  useToolStore.getState().setOffsetSourceSegmentIndex(null);
                 }
-                selectionStore.select(hit, 'REPLACE');
+                useSelectionStore.getState().select(hit, 'REPLACE');
               }
             }
           } else {
             // Phase 2: Commit the offset at the current cursor position
-            const sourceFeat = drawingStore.getFeature(offsetSourceId);
+            const sourceFeat = useDrawingStore.getState().getFeature(offsetSourceId);
             if (!sourceFeat) {
-              toolStore.setOffsetSourceId(null);
-              toolStore.setOffsetSourceSegmentIndex(null);
+              useToolStore.getState().setOffsetSourceId(null);
+              useToolStore.getState().setOffsetSourceSegmentIndex(null);
               break;
             }
 
@@ -11012,9 +11175,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   segmentIndex: useSegment ? offsetSourceSegmentIndex : undefined,
                 },
               );
-              toolStore.setOffsetSourceId(null);
-              toolStore.setOffsetSourceSegmentIndex(null);
-              selectionStore.deselectAll();
+              useToolStore.getState().setOffsetSourceId(null);
+              useToolStore.getState().setOffsetSourceSegmentIndex(null);
+              useSelectionStore.getState().deselectAll();
               break;
             }
 
@@ -11036,9 +11199,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   segmentIndex: useSegment ? offsetSourceSegmentIndex : undefined,
                 },
               );
-              toolStore.setOffsetSourceId(null);
-              toolStore.setOffsetSourceSegmentIndex(null);
-              selectionStore.deselectAll();
+              useToolStore.getState().setOffsetSourceId(null);
+              useToolStore.getState().setOffsetSourceSegmentIndex(null);
+              useSelectionStore.getState().deselectAll();
               break;
             }
 
@@ -11100,9 +11263,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             );
 
             // Reset source selection so user can pick the next feature
-            toolStore.setOffsetSourceId(null);
-            toolStore.setOffsetSourceSegmentIndex(null);
-            selectionStore.deselectAll();
+            useToolStore.getState().setOffsetSourceId(null);
+            useToolStore.getState().setOffsetSourceSegmentIndex(null);
+            useSelectionStore.getState().deselectAll();
           }
           break;
         }
@@ -11113,11 +11276,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // we log bearing + distance from the previous node
           // and accumulate the total. The running chain stays
           // on canvas as a faint poly until the surveyor hits
-          // Esc (which calls toolStore.clearDrawingPoints via
+          // Esc (which calls useToolStore.getState().clearDrawingPoints via
           // resetToolState).
           const { drawingPoints: dpts } = toolState;
           if (dpts.length === 0) {
-            toolStore.addDrawingPoint(worldPt);
+            useToolStore.getState().addDrawingPoint(worldPt);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'INVERSE — base point set. Click again to measure each leg; press Esc to finish.' },
             }));
@@ -11141,7 +11304,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Advance the chain so the next click measures from
           // here. The surveyor can chain as many legs as they
           // want; Esc clears.
-          toolStore.addDrawingPoint(worldPt);
+          useToolStore.getState().addDrawingPoint(worldPt);
           break;
         }
 
@@ -11150,7 +11313,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const { drawingPoints: dpts } = toolState;
           if (dpts.length === 0) {
             // First click: record the base point and prompt for bearing+distance
-            toolStore.addDrawingPoint(worldPt);
+            useToolStore.getState().addDrawingPoint(worldPt);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'Base point set — type bearing and distance in command bar (e.g. N45-30-15E 150.00)' },
             }));
@@ -11168,7 +11331,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // of any line drawn between the same endpoints.
           const dpts = toolState.drawingPoints;
           if (dpts.length === 0) {
-            toolStore.addDrawingPoint(worldPt);
+            useToolStore.getState().addDrawingPoint(worldPt);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
               detail: { text: 'DIM — base point set. Click the second point to place the bearing + distance annotation.' },
             }));
@@ -11194,7 +11357,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // reads parallel to the geometry (math convention,
           // CCW positive).
           const rotation = len > 1e-9 ? Math.atan2(dy, dx) : 0;
-          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
           const layerStyle = getActiveLayerStyle();
           const dimFeature: Feature = {
             id: generateId(),
@@ -11219,12 +11382,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               dimensionToY: to.y,
             },
           };
-          drawingStore.addFeature(dimFeature);
-          undoStore.pushUndo(makeAddFeatureEntry(dimFeature));
+          useDrawingStore.getState().addFeature(dimFeature);
+          useUndoStore.getState().pushUndo(makeAddFeatureEntry(dimFeature));
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
             detail: { text: `DIM — placed annotation: ${bearingStr}  ${distStr}'` },
           }));
-          toolStore.clearDrawingPoints();
+          useToolStore.getState().clearDrawingPoints();
           break;
         }
 
@@ -11235,7 +11398,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // closing the polygon back to vertex 0). Esc clears,
           // double-click commits and emits the final summary.
           const { drawingPoints: dpts } = toolState;
-          toolStore.addDrawingPoint(worldPt);
+          useToolStore.getState().addDrawingPoint(worldPt);
           const updated = [...dpts, worldPt];
           if (updated.length >= 2) {
             // Perimeter (open chain length plus the close-back leg).
@@ -11270,10 +11433,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (dpts.length === 0) {
             // First click: hit-test for a line/polyline
             const hit = hitTest(sx, sy);
-            const feat = hit ? drawingStore.getFeature(hit) : null;
+            const feat = hit ? useDrawingStore.getState().getFeature(hit) : null;
             if (feat && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
-              toolStore.addDrawingPoint(worldPt);
-              selectionStore.select(feat.id, 'REPLACE');
+              useToolStore.getState().addDrawingPoint(worldPt);
+              useSelectionStore.getState().select(feat.id, 'REPLACE');
               window.dispatchEvent(new CustomEvent('cad:commandOutput', {
                 detail: { text: 'First line selected — click second line' },
               }));
@@ -11281,12 +11444,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           } else if (dpts.length === 1) {
             // Second click: hit-test for a different line/polyline
             const hit = hitTest(sx, sy);
-            const feat = hit ? drawingStore.getFeature(hit) : null;
-            const selIds = Array.from(selectionStore.selectedIds);
+            const feat = hit ? useDrawingStore.getState().getFeature(hit) : null;
+            const selIds = Array.from(useSelectionStore.getState().selectedIds);
             const firstId = selIds[0] ?? null;
             if (feat && feat.id !== firstId && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
-              toolStore.addDrawingPoint(worldPt);
-              selectionStore.selectMultiple([firstId, feat.id].filter(Boolean) as string[], 'REPLACE');
+              useToolStore.getState().addDrawingPoint(worldPt);
+              useSelectionStore.getState().selectMultiple([firstId, feat.id].filter(Boolean) as string[], 'REPLACE');
               window.dispatchEvent(new CustomEvent('cad:commandOutput', {
                 detail: { text: 'Second line selected — type radius in command bar and press Enter' },
               }));
@@ -11298,7 +11461,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingStore, selectionStore, toolStore, viewportStore, undoStore],
+    [],
   );
 
   const handleMouseMove = useCallback(
@@ -11308,10 +11471,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const sy = e.clientY - rect.top;
 
       if (isPanningRef.current) {
-        const panMult = drawingStore.document.settings.panSpeed ?? 1.0;
+        const panMult = useDrawingStore.getState().document.settings.panSpeed ?? 1.0;
         const dx = (sx - lastMouseRef.current.x) * panMult;
         const dy = (sy - lastMouseRef.current.y) * panMult;
-        viewportStore.pan(dx, dy);
+        useViewportStore.getState().pan(dx, dy);
       }
 
       lastMouseRef.current = { x: sx, y: sy };
@@ -11320,7 +11483,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (paperDragRef.current) {
         const { wx, wy } = s2w(sx, sy);
         const pd = paperDragRef.current;
-        drawingStore.updateSettings({
+        useDrawingStore.getState().updateSettings({
           paperOrigin: { x: pd.originX + (wx - pd.startWx), y: pd.originY + (wy - pd.startWy) },
         });
         return;
@@ -11366,14 +11529,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const { wx, wy } = screenToDrawingWorld(sx, sy);
         const dx = wx - startWorld.x;
         const dy = wy - startWorld.y;
-        drawingStore.updateTextLabel(featureId, labelId, {
+        useDrawingStore.getState().updateTextLabel(featureId, labelId, {
           offset: { x: startOffset.x + dx, y: startOffset.y + dy },
           userPositioned: true,
         });
         // §14 — move grouped sibling labels by the same delta.
         if (siblings) {
           for (const sib of siblings) {
-            drawingStore.updateTextLabel(featureId, sib.labelId, {
+            useDrawingStore.getState().updateTextLabel(featureId, sib.labelId, {
               offset: { x: sib.startOffset.x + dx, y: sib.startOffset.y + dy },
               userPositioned: true,
             });
@@ -11432,7 +11595,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         for (const [id, orig] of grab.originals) {
           const newF = transformFeature(orig, (p) => rotate(p, grab.pivot, delta));
-          drawingStore.updateFeatureGeometry(id, newF.geometry);
+          useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
         }
         const deg = normalizeDeg((delta * 180) / Math.PI);
         setHud({
@@ -11455,7 +11618,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const deltaAngle = currentAngle - op.baseAngle;
           for (const [id, orig] of op.originals) {
             const newF = transformFeature(orig, (p) => rotate(p, op.pivot, deltaAngle));
-            drawingStore.updateFeatureGeometry(id, newF.geometry);
+            useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
           }
           const deg = (deltaAngle * 180) / Math.PI;
           setInteractivePanel((prev) =>
@@ -11466,7 +11629,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
           for (const [id, orig] of op.originals) {
             const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
-            drawingStore.updateFeatureGeometry(id, newF.geometry);
+            useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
           }
           setInteractivePanel((prev) =>
             prev ? { ...prev, currentFactor: factor } : { type: 'SCALE', currentAngleDeg: 0, currentFactor: factor }
@@ -11479,7 +11642,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Grip drag update
       if (gripDragRef.current) {
         const { featureId, vertexIndex } = gripDragRef.current;
-        const feature = drawingStore.getFeature(featureId);
+        const feature = useDrawingStore.getState().getFeature(featureId);
         if (feature) {
           // Interactive image rotation (rotate-handle drag): spin around
           // the image center so the grabbed handle follows the cursor.
@@ -11495,7 +11658,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 newRot = Math.round(newRot / step) * step;
               }
               const rotated = setImageRotationAroundCenter(startImg, newRot);
-              drawingStore.updateFeatureGeometry(featureId, { ...feature.geometry, image: rotated });
+              useDrawingStore.getState().updateFeatureGeometry(featureId, { ...feature.geometry, image: rotated });
               const deg = normalizeDeg((newRot * 180) / Math.PI);
               setHud({
                 sx: sx + 18,
@@ -11671,7 +11834,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               break;
             }
           }
-          drawingStore.updateFeatureGeometry(featureId, geom);
+          useDrawingStore.getState().updateFeatureGeometry(featureId, geom);
 
           // While resizing an image, float a hint at the cursor with
           // the live size and the Ctrl=keep-aspect tip (corner grips).
@@ -11687,9 +11850,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // RO tool live-follow on a single image (no button held): the image
       // spins to track the cursor around its center until the next click.
-      if (toolStore.state.activeTool === 'ROTATE' && imageRotateRef.current?.viaTool) {
+      if (useToolStore.getState().state.activeTool === 'ROTATE' && imageRotateRef.current?.viaTool) {
         const session = imageRotateRef.current;
-        const feature = drawingStore.getFeature(session.featureId);
+        const feature = useDrawingStore.getState().getFeature(session.featureId);
         const startImg = session.before.geometry.image;
         if (feature && startImg) {
           const world = screenToDrawingWorld(sx, sy);
@@ -11700,8 +11863,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             newRot = Math.round(newRot / step) * step;
           }
           const rotated = setImageRotationAroundCenter(startImg, newRot);
-          drawingStore.updateFeatureGeometry(session.featureId, { ...feature.geometry, image: rotated });
-          toolStore.setPreviewPoint({ x: world.wx, y: world.wy });
+          useDrawingStore.getState().updateFeatureGeometry(session.featureId, { ...feature.geometry, image: rotated });
+          useToolStore.getState().setPreviewPoint({ x: world.wx, y: world.wy });
           const deg = normalizeDeg((newRot * 180) / Math.PI);
           setHud({
             sx: sx + 18,
@@ -11724,22 +11887,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             const orig = originals.get(id);
             if (!orig) continue;
             const translated = transformFeature(orig, (pt) => translate(pt, dx, dy));
-            drawingStore.updateFeatureGeometry(id, translated.geometry);
+            useDrawingStore.getState().updateFeatureGeometry(id, translated.geometry);
           }
         }
       }
 
-      toolStore.setPreviewPoint(worldPt);
-      viewportStore.setCursorWorld(worldPt);
+      useToolStore.getState().setPreviewPoint(worldPt);
+      useViewportStore.getState().setCursorWorld(worldPt);
 
       // Update hover state for ALL tools — shows highlighted element under cursor
       if (!isPanningRef.current && !dragFeatureRef.current && !tbDragRef.current) {
         // Check TB element hover (SELECT tool only)
-        const tbHover = toolStore.state.activeTool === 'SELECT' ? hitTestTBElement(sx, sy) : null;
+        const tbHover = useToolStore.getState().state.activeTool === 'SELECT' ? hitTestTBElement(sx, sy) : null;
         if (tbHover !== hoveredTBElemRef.current) {
           hoveredTBElemRef.current = tbHover;
           // Sync to selection store so LayerPanel can highlight SURVEY-INFO layer
-          selectionStore.setHoveredTBElem(tbHover);
+          useSelectionStore.getState().setHoveredTBElem(tbHover);
         }
         if (tbHover) {
           // Show 'text' cursor when hovering over an editable field, 'grab' for drag-only elements
@@ -11765,7 +11928,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           hoveredIdRef.current = hoverFeatureId;
           hoveredLabelKeyRef.current = newLabelKey;
           // Drives LayerPanel per-layer + per-item highlighting too.
-          selectionStore.setHovered(hoverFeatureId);
+          useSelectionStore.getState().setHovered(hoverFeatureId);
           // Re-render immediately so label colors track the marker glow.
           if (featureChanged && pixiRef.current?.app) {
             renderLabels();
@@ -11773,16 +11936,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }
         }
         // Update cursor style for SELECT tool
-        if (toolStore.state.activeTool === 'SELECT') {
+        if (useToolStore.getState().state.activeTool === 'SELECT') {
           if (!gripDragRef.current && !tbHover) {
             // Test grips/handles whenever something is selected — the
             // image rotation handle floats off the box, so it can be hot
             // even when the cursor isn't over the feature body.
-            const onGrip = selectionStore.selectedIds.size > 0 ? hitTestGrip(sx, sy) : null;
+            const onGrip = useSelectionStore.getState().selectedIds.size > 0 ? hitTestGrip(sx, sy) : null;
             if (onGrip) {
               // Image grips get a directional resize cursor so the
               // surveyor knows the corner/edge is draggable to resize.
-              const gripFeat = drawingStore.getFeature(onGrip.featureId);
+              const gripFeat = useDrawingStore.getState().getFeature(onGrip.featureId);
               setCursorStyle(
                 gripFeat?.geometry.type === 'IMAGE'
                   ? imageGripCursor(onGrip.vertexIndex)
@@ -11807,21 +11970,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }
           }
         } else if (
-          toolStore.state.activeTool === 'ROTATE' &&
+          useToolStore.getState().state.activeTool === 'ROTATE' &&
           !rotateGrabRef.current &&
           rotateHandleRef.current &&
           Math.hypot(sx - rotateHandleRef.current.sx, sy - rotateHandleRef.current.sy) <= 12
         ) {
           // Hovering the selection rotate grab-node — show it's grabbable.
           setCursorStyle('grab');
-        } else if (toolStore.state.activeTool === 'ERASE') {
+        } else if (useToolStore.getState().state.activeTool === 'ERASE') {
           // Erase tool: yellow when nothing under cursor, red when hovering erasable element
           setCursorStyle(hit ? SVG_CURSOR_ERASE_ACTIVE : SVG_CURSOR_ERASE_IDLE);
-        } else if (hit && !toolStore.state.activeTool.startsWith('DRAW_')) {
+        } else if (hit && !useToolStore.getState().state.activeTool.startsWith('DRAW_')) {
           // For modification tools: show pointer cursor when hovering a selectable element
           setCursorStyle('pointer');
         } else if (!tbHover) {
-          const cursor = TOOL_CURSORS[toolStore.state.activeTool] ?? SVG_CURSOR_CROSSHAIR;
+          const cursor = TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? SVG_CURSOR_CROSSHAIR;
           if (!isPanningRef.current) setCursorStyle(cursor);
         }
       } else if (isPanningRef.current) {
@@ -11830,31 +11993,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         if (hoveredIdRef.current !== null) {
           hoveredIdRef.current = null;
-          selectionStore.setHovered(null);
+          useSelectionStore.getState().setHovered(null);
         }
         if (hoveredTBElemRef.current !== null) {
           hoveredTBElemRef.current = null;
-          selectionStore.setHoveredTBElem(null);
+          useSelectionStore.getState().setHoveredTBElem(null);
         }
       }
 
       // Box select: update end point
-      const toolState = toolStore.state;
+      const toolState = useToolStore.getState().state;
       if (toolState.isBoxSelecting && toolState.boxStart) {
-        toolStore.setBoxSelect(toolState.boxStart, { x: sx, y: sy }, true);
+        useToolStore.getState().setBoxSelect(toolState.boxStart, { x: sx, y: sy }, true);
       }
 
       // Update snap label
       const snap = snapResultRef.current;
       if (snap) {
-        const { sx: lx, sy: ly } = viewportStore.worldToScreen(snap.point.x, snap.point.y);
+        const { sx: lx, sy: ly } = useViewportStore.getState().worldToScreen(snap.point.x, snap.point.y);
         setSnapLabel({ sx: lx, sy: ly, text: SNAP_LABEL[snap.type] ?? snap.type });
       } else {
         setSnapLabel(null);
       }
 
       // Update floating HUD with operation values
-      const ts = toolStore.state;
+      const ts = useToolStore.getState().state;
       const prefs = useDrawingStore.getState().document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
       const hudLines: string[] = [];
       if (ts.activeTool === 'DRAW_LINE' || ts.activeTool === 'DRAW_POLYLINE') {
@@ -11930,7 +12093,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [viewportStore, toolStore, drawingStore],
+    [],
   );
 
   const handleMouseUp = useCallback(
@@ -11938,7 +12101,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (e.button === 1 || (e.button === 0 && isMiddleMouseRef.current)) {
         isPanningRef.current = false;
         isMiddleMouseRef.current = false;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default'));
         return;
       }
 
@@ -11957,16 +12120,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         rotateGrabRef.current = null;
         const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[] = [];
         for (const [id, before] of grab.originals) {
-          const after = drawingStore.getFeature(id);
+          const after = useDrawingStore.getState().getFeature(id);
           if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
         }
-        if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Rotate', ops));
+        if (ops.length > 0) useUndoStore.getState().pushUndo(makeBatchEntry('Rotate', ops));
         setHud(null);
-        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
         return;
       }
 
-      const toolState = toolStore.state;
+      const toolState = useToolStore.getState().state;
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -11980,8 +12143,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         setCursorStyle('grab');
         const down = mouseDownPosRef.current;
         const moved = down ? Math.hypot(sx - down.x, sy - down.y) : 0;
-        if (moved < 4 && !hitTest(sx, sy) && selectionStore.selectedIds.size > 0) {
-          selectionStore.deselectAll();
+        if (moved < 4 && !hitTest(sx, sy) && useSelectionStore.getState().selectedIds.size > 0) {
+          useSelectionStore.getState().deselectAll();
         }
         return;
       }
@@ -12026,11 +12189,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const moved = Math.abs(livePosX - origPosX) > 0.01 || Math.abs(livePosY - origPosY) > 0.01;
         if (moved) {
           const pos = { x: livePosX, y: livePosY };
-          if (element === 'northArrow')       drawingStore.updateTitleBlock({ northArrowPos: pos });
-          if (element === 'titleBlock')       drawingStore.updateTitleBlock({ titleBlockPos: pos });
-          if (element === 'scaleBar')         drawingStore.updateTitleBlock({ scaleBarPos: pos });
-          if (element === 'signatureBlock')   drawingStore.updateTitleBlock({ signatureBlockPos: pos });
-          if (element === 'officialSealLabel')drawingStore.updateTitleBlock({ officialSealLabelPos: pos });
+          if (element === 'northArrow')       useDrawingStore.getState().updateTitleBlock({ northArrowPos: pos });
+          if (element === 'titleBlock')       useDrawingStore.getState().updateTitleBlock({ titleBlockPos: pos });
+          if (element === 'scaleBar')         useDrawingStore.getState().updateTitleBlock({ scaleBarPos: pos });
+          if (element === 'signatureBlock')   useDrawingStore.getState().updateTitleBlock({ signatureBlockPos: pos });
+          if (element === 'officialSealLabel')useDrawingStore.getState().updateTitleBlock({ officialSealLabelPos: pos });
           // Slice 227 — cert + notes persist into the active template
           // (not the drawing's titleBlock settings) since they're owned
           // by the template store.
@@ -12081,7 +12244,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         tbDragRef.current = null;
         hoveredTBElemRef.current = null;
-        selectionStore.setHoveredTBElem(null);
+        useSelectionStore.getState().setHoveredTBElem(null);
         setCursorStyle('default');
         return;
       }
@@ -12099,13 +12262,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const operations: any[] = [];
           for (const id of featureIds) {
             const before = originals.get(id);
-            const after = drawingStore.getFeature(id);
+            const after = useDrawingStore.getState().getFeature(id);
             if (before && after) {
               operations.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
             }
           }
           if (operations.length > 0) {
-            undoStore.pushUndo({
+            useUndoStore.getState().pushUndo({
               id: generateId(),
               description: `Move ${featureIds.length} element(s)`,
               timestamp: Date.now(),
@@ -12124,9 +12287,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const isRotate = gripDragRef.current.type === 'ROTATE';
         const { featureId } = gripDragRef.current;
         const before = gripStartRef.current;
-        const after = drawingStore.getFeature(featureId);
+        const after = useDrawingStore.getState().getFeature(featureId);
         if (after) {
-          undoStore.pushUndo({
+          useUndoStore.getState().pushUndo({
             id: generateId(),
             description: isRotate ? 'Rotate image' : 'Grip edit',
             timestamp: Date.now(),
@@ -12137,7 +12300,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         gripStartRef.current = null;
         imageRotateRef.current = null;
         setHud(null); // clear the image-resize size/Ctrl hint
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default'));
         return;
       }
 
@@ -12157,7 +12320,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
-        const threshold = drawingStore.document.settings.dragThreshold ?? 5;
+        const threshold = useDrawingStore.getState().document.settings.dragThreshold ?? 5;
         if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
           if (ids.length > 0) {
@@ -12171,27 +12334,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         // Short-drag no-op: a plain click in Pick mode flows
         // through the click handler at handleClick → togglePick.
-        toolStore.setBoxSelect(null, null, false);
+        useToolStore.getState().setBoxSelect(null, null, false);
       } else if (toolState.isBoxSelecting && toolState.activeTool === 'SELECT') {
         // Finish box selection
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
-        const threshold = drawingStore.document.settings.dragThreshold ?? 5;
+        const threshold = useDrawingStore.getState().document.settings.dragThreshold ?? 5;
         if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
-          selectionStore.selectMultiple(ids, (e.shiftKey || e.ctrlKey || e.metaKey) ? 'ADD' : 'REPLACE');
+          useSelectionStore.getState().selectMultiple(ids, (e.shiftKey || e.ctrlKey || e.metaKey) ? 'ADD' : 'REPLACE');
         } else if (!clickHitFeatureRef.current && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          selectionStore.deselectAll();
+          useSelectionStore.getState().deselectAll();
         }
-        toolStore.setBoxSelect(null, null, false);
+        useToolStore.getState().setBoxSelect(null, null, false);
       }
 
       isPanningRef.current = false;
-      setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
+      setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default'));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, selectionStore, drawingStore, undoStore],
+    [],
   );
 
   const handleDoubleClick = useCallback(
@@ -12199,7 +12362,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
-      const toolState = toolStore.state;
+      const toolState = useToolStore.getState().state;
       const { activeTool } = toolState;
 
       if (activeTool === 'DRAW_POLYLINE') {
@@ -12241,7 +12404,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           return;
         } else {
           // TEXT feature — select it and open properties
-          selectionStore.select(labelHit.featureId, 'REPLACE');
+          useSelectionStore.getState().select(labelHit.featureId, 'REPLACE');
           return;
         }
       }
@@ -12254,11 +12417,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         );
       } else if (activeTool === 'SELECT') {
         // Double-click on empty canvas in SELECT mode → deselect all
-        selectionStore.deselectAll();
+        useSelectionStore.getState().deselectAll();
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, drawingStore, selectionStore],
+    [],
   );
 
   // ─────────────────────────────────────────────
@@ -12267,23 +12430,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (e.detail < 3) return; // Only handle triple-click
-      const toolState = toolStore.state;
+      const toolState = useToolStore.getState().state;
       if (toolState.activeTool !== 'SELECT') return;
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       const hit = hitTest(sx, sy);
       if (!hit) return;
-      const feature = drawingStore.getFeature(hit);
+      const feature = useDrawingStore.getState().getFeature(hit);
       if (!feature) return;
-      const sameLayerIds = drawingStore
+      const sameLayerIds = useDrawingStore.getState()
         .getVisibleFeatures()
         .filter((f) => f.layerId === feature.layerId)
         .map((f) => f.id);
-      selectionStore.selectMultiple(sameLayerIds, 'REPLACE');
+      useSelectionStore.getState().selectMultiple(sameLayerIds, 'REPLACE');
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, drawingStore, selectionStore],
+    [],
   );
 
   // ─────────────────────────────────────────────
@@ -12322,7 +12485,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         interactiveOpRef.current = null;
         setInteractivePanel(null);
-        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
         e.stopPropagation();
       }
       // Cancel a grab-node rotate drag on Escape — restore the originals.
@@ -12333,12 +12496,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         rotateGrabRef.current = null;
         setHud(null);
-        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
         e.stopPropagation();
       }
       // Cancel offset source selection on Escape (so user can re-pick)
-      if (e.key === 'Escape' && toolStore.state.activeTool === 'OFFSET' && toolStore.state.offsetSourceId) {
-        toolStore.setOffsetSourceId(null);
+      if (e.key === 'Escape' && useToolStore.getState().state.activeTool === 'OFFSET' && useToolStore.getState().state.offsetSourceId) {
+        useToolStore.getState().setOffsetSourceId(null);
         useSelectionStore.getState().deselectAll();
         e.stopPropagation();
       }
@@ -12347,11 +12510,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (e.code === 'Space') {
         isSpaceDownRef.current = false;
         isPanningRef.current = false;
-        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair');
+        setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'crosshair');
       }
     };
     const onConfirm = () => {
-      const toolState = toolStore.state;
+      const toolState = useToolStore.getState().state;
       const { activeTool, drawingPoints } = toolState;
       if (activeTool === 'DRAW_POLYLINE' && drawingPoints.length >= 2) {
         finishFeature('POLYLINE');
@@ -12363,7 +12526,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         finishControlPointSpline();
       } else if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length >= 2) {
         // Confirm is not needed (handled by click), but allow Enter to cancel
-        toolStore.clearDrawingPoints();
+        useToolStore.getState().clearDrawingPoints();
       }
     };
     const onZoomExtents = () => {
@@ -12552,7 +12715,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         })
         .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
       if (ops.length > 0) undStore.pushUndo(makeBatchEntry('Rotate', ops));
-      toolStore.resetToolState();
+      useToolStore.getState().resetToolState();
     };
     const onScale = (e: Event) => {
       const { center, factor } = (e as CustomEvent).detail as {
@@ -12574,7 +12737,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         })
         .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
       if (ops.length > 0) undStore.pushUndo(makeBatchEntry('Scale', ops));
-      toolStore.resetToolState();
+      useToolStore.getState().resetToolState();
     };
     // Command-bar "type a radius" path for DRAW_CIRCLE. Mirrors
     // the second-click branch at line 7875 but uses the typed
@@ -12623,6 +12786,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // `cad:regenerateCanvas` all converge here.
     const onRegenerateCanvas = () => {
       featureIndexCacheRef.current = null;
+      // cad-desktop-tauri-and-perf Slice P3b — bust the per-feature
+      // draw-state cache too so the next render rebuilds every
+      // Graphics from scratch. Preserves the user-facing
+      // "Refresh canvas" semantics shipped in cad-ux-cleanup-pass
+      // Slice 11 even after the dirty-region optimization.
+      useDrawingStore.getState().markAllFeaturesDirty();
       requestAnimationFrame(() => renderFeatures());
     };
     window.addEventListener('cad:regenerateCanvas', onRegenerateCanvas);
@@ -13043,7 +13212,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:curbReturn', onCurbReturn);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolStore]);
+  }, []);
 
   // ─────────────────────────────────────────────
   // Wheel events. Three distinct gestures land here:
@@ -13203,11 +13372,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const op = interactiveOpRef.current;
     if (!op) return;
     for (const [id, orig] of op.originals) {
-      drawingStore.updateFeatureGeometry(id, orig.geometry);
+      useDrawingStore.getState().updateFeatureGeometry(id, orig.geometry);
     }
     interactiveOpRef.current = null;
     setInteractivePanel(null);
-    setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+    setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
   }
 
   function commitInteractiveOp(value: number) {
@@ -13218,19 +13387,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const angleRad = (value * Math.PI) / 180;
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     } else {
       const factor = Math.max(0.0001, value);
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     }
     // Collect undo ops
     const ops = [...op.originals.entries()]
       .map(([id, orig]) => {
-        const after = drawingStore.getFeature(id);
+        const after = useDrawingStore.getState().getFeature(id);
         return after ? { type: 'MODIFY_FEATURE' as const, data: { id, before: orig, after } } : null;
       })
       .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
@@ -13238,11 +13407,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const label = op.type === 'ROTATE'
         ? `Rotate ${value.toFixed(1)}°`
         : `Scale ×${value.toFixed(3)}`;
-      undoStore.pushUndo(makeBatchEntry(label, ops));
+      useUndoStore.getState().pushUndo(makeBatchEntry(label, ops));
     }
     interactiveOpRef.current = null;
     setInteractivePanel(null);
-    setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+    setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'default');
   }
 
   function previewInteractiveOp(value: number) {
@@ -13252,13 +13421,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const angleRad = (value * Math.PI) / 180;
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     } else {
       const factor = Math.max(0.0001, value);
       for (const [id, orig] of op.originals) {
         const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
-        drawingStore.updateFeatureGeometry(id, newF.geometry);
+        useDrawingStore.getState().updateFeatureGeometry(id, newF.geometry);
       }
     }
   }
@@ -13273,7 +13442,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       const { wx, wy } = screenToDrawingWorld(sx, sy);
-      const toolState = toolStore.state;
+      const toolState = useToolStore.getState().state;
       const { activeTool } = toolState;
 
       // Right-click during an interactive op: cancel the op, do not open context menu
@@ -13284,8 +13453,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // On-line offset tool: right-click cancels the in-progress anchor
       // (or exits cleanly when idle) instead of opening the context menu.
-      if (activeTool === 'PERPENDICULAR' && toolStore.state.perpStartPoint) {
-        toolStore.clearPerp();
+      if (activeTool === 'PERPENDICULAR' && useToolStore.getState().state.perpStartPoint) {
+        useToolStore.getState().clearPerp();
         window.dispatchEvent(new CustomEvent('cad:commandOutput', {
           detail: { text: 'PERPENDICULAR — cancelled.' },
         }));
@@ -13313,8 +13482,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Cancel — no segments yet
           polylineGroupIdRef.current = null;
           lastPolylineSegmentIdRef.current = null;
-          toolStore.clearDrawingPoints();
-          toolStore.setTool('SELECT');
+          useToolStore.getState().clearDrawingPoints();
+          useToolStore.getState().setTool('SELECT');
         }
         return;
       }
@@ -13324,8 +13493,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (toolState.drawingPoints.length >= 2) {
           finishFeature('SPLINE');
         } else {
-          toolStore.clearDrawingPoints();
-          toolStore.setTool('SELECT');
+          useToolStore.getState().clearDrawingPoints();
+          useToolStore.getState().setTool('SELECT');
         }
         return;
       }
@@ -13335,15 +13504,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (toolState.drawingPoints.length >= 4) {
           finishControlPointSpline();
         } else {
-          toolStore.clearDrawingPoints();
-          toolStore.setTool('SELECT');
+          useToolStore.getState().clearDrawingPoints();
+          useToolStore.getState().setTool('SELECT');
         }
         return;
       }
 
       // Right-click during arc drawing: cancel
       if (activeTool === 'DRAW_ARC' && toolState.drawingPoints.length > 0) {
-        toolStore.clearDrawingPoints();
+        useToolStore.getState().clearDrawingPoints();
         return;
       }
 
@@ -13364,13 +13533,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
          activeTool === 'DRAW_ELLIPSE' || activeTool === 'DRAW_ELLIPSE_EDGE') &&
         toolState.drawingPoints.length > 0
       ) {
-        toolStore.clearDrawingPoints();
+        useToolStore.getState().clearDrawingPoints();
         return;
       }
 
       // Right-click during line drawing: cancel
       if (activeTool === 'DRAW_LINE' && toolState.drawingPoints.length > 0) {
-        toolStore.clearDrawingPoints();
+        useToolStore.getState().clearDrawingPoints();
         return;
       }
 
@@ -13391,22 +13560,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
       const hit = hitTest(sx, sy);
       // If hit a feature not yet selected, select it first
-      if (hit && !selectionStore.selectedIds.has(hit)) {
-        selectionStore.select(hit, 'REPLACE');
+      if (hit && !useSelectionStore.getState().selectedIds.has(hit)) {
+        useSelectionStore.getState().select(hit, 'REPLACE');
       }
       setContextMenu({ x: e.clientX, y: e.clientY, worldX: wx, worldY: wy, featureId: hit });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, selectionStore, drawingStore, undoStore],
+    [],
   );
 
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
 
-  const hasNoLayers = drawingStore.document.layerOrder.length === 0;
+  const hasNoLayers = layerOrderLen === 0;
   const isDrawingTool = activeTool.startsWith('DRAW_');
-  const cursorWorld = viewportStore.cursorWorld;
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-gray-400">
@@ -13451,7 +13619,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Clear hover state when cursor exits the canvas
           if (hoveredIdRef.current !== null) {
             hoveredIdRef.current = null;
-            selectionStore.setHovered(null);
+            useSelectionStore.getState().setHovered(null);
           }
           // Phase 8 §6 — drop the feature-hover tooltip too.
           if (lastHoverFeatureRef.current !== null) {
@@ -13461,7 +13629,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           tooltipApiRef.current?.hideTooltip();
           if (hoveredTBElemRef.current !== null) {
             hoveredTBElemRef.current = null;
-            selectionStore.setHoveredTBElem(null);
+            useSelectionStore.getState().setHoveredTBElem(null);
           }
           hoveredLabelKeyRef.current = null;
           setSnapLabel(null);
@@ -13476,14 +13644,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const sx = e.clientX - rect.left;
           const sy = e.clientY - rect.top;
           const worldPt = screenToDrawingWorld(sx, sy);
-          const projImg = drawingStore.getProjectImage(imageId);
+          const projImg = useDrawingStore.getState().getProjectImage(imageId);
           if (!projImg) return;
-          const drawingScale = drawingStore.document.settings.drawingScale ?? 50;
+          const drawingScale = useDrawingStore.getState().document.settings.drawingScale ?? 50;
           const defaultWidthIn = 4;
           const worldW = defaultWidthIn * drawingScale;
           const worldH = worldW * (projImg.originalHeight / projImg.originalWidth);
           const featureId = generateId();
-          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
           const layerStyle = getActiveLayerStyle();
           const feature: Feature = {
             id: featureId,
@@ -13505,10 +13673,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
             properties: { imageName: projImg.name },
           };
-          drawingStore.addFeature(feature);
-          undoStore.pushUndo(makeAddFeatureEntry(feature));
-          toolStore.setTool('SELECT');
-          selectionStore.select(featureId, 'REPLACE');
+          useDrawingStore.getState().addFeature(feature);
+          useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+          useToolStore.getState().setTool('SELECT');
+          useSelectionStore.getState().select(featureId, 'REPLACE');
         }}
       />
       {snapLabel && (
@@ -13580,7 +13748,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           currentAngleDeg={interactivePanel.currentAngleDeg}
           currentFactor={interactivePanel.currentFactor}
           originals={interactiveOpRef.current.originals}
-          displayPrefs={drawingStore.document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES}
+          displayPrefs={displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES}
           onCommit={commitInteractiveOp}
           onCancel={cancelInteractiveOp}
           onPreview={previewInteractiveOp}
@@ -13588,8 +13756,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       )}
 
       {/* On-line offset (PERPENDICULAR) numeric panel */}
-      {toolStore.state.activeTool === 'PERPENDICULAR' && toolStore.state.perpStartPoint && (
-        <OnLineOffsetPanel onCommit={commitPerp} onCancel={() => toolStore.clearPerp()} />
+      {activeTool === 'PERPENDICULAR' && perpStartPoint && (
+        <OnLineOffsetPanel onCommit={commitPerp} onCancel={() => useToolStore.getState().clearPerp()} />
       )}
 
       {/* Slice 1 of cad-offset-tool-2026-05-29.md — floating offset
@@ -13597,10 +13765,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           picked. Apply hands off to applyInteractiveOffset via the
           panel's own helper; cancel + commit both release the source
           + return the tool-store to the awaiting-pick state. */}
-      {toolStore.state.activeTool === 'OFFSET' && toolStore.state.offsetSourceId && (
+      {activeTool === 'OFFSET' && offsetSourceId && (
         <OffsetPanel
-          onCommit={() => toolStore.setOffsetSourceId(null)}
-          onCancel={() => toolStore.setOffsetSourceId(null)}
+          onCommit={() => useToolStore.getState().setOffsetSourceId(null)}
+          onCancel={() => useToolStore.getState().setOffsetSourceId(null)}
         />
       )}
 
@@ -13735,7 +13903,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             <button
               className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
               onClick={() => {
-                drawingStore.updateTitleBlock({
+                useDrawingStore.getState().updateTitleBlock({
                   titleBlockPos: null, scaleBarPos: null, signatureBlockPos: null,
                   northArrowPos: null, officialSealLabelPos: null,
                 });
@@ -13747,7 +13915,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             <button
               className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
               onClick={() => {
-                drawingStore.updateTitleBlock({
+                useDrawingStore.getState().updateTitleBlock({
                   titleBlockScale: 1.0, signatureBlockScale: 1.0, scaleBarScale: 1.0, northArrowScale: 1.0,
                   titleBlockRotationDeg: 0, signatureBlockRotationDeg: 0, scaleBarRotationDeg: 0,
                   northArrowRotationOffsetDeg: 0,
@@ -13808,7 +13976,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               data-testid="area-label-ctx-recenter"
               className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
               onClick={() => {
-                const linked = drawingStore.getFeature(ann.linkedFeatureId);
+                const linked = useDrawingStore.getState().getFeature(ann.linkedFeatureId);
                 if (linked) {
                   const c = pickFeatureCentroid(linked);
                   annStore.updateAnnotation(ann.id, { position: c } as Partial<AreaAnnotation>);
@@ -14001,7 +14169,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               {tbFieldEditState.label}
             </div>
             {tbFieldEditState.key === 'scaleLabel' ? (() => {
-              const currentDs = drawingStore.document.settings.drawingScale ?? 50;
+              const currentDs = useDrawingStore.getState().document.settings.drawingScale ?? 50;
               const scaleOptions = Array.from({ length: 17 }, (_, i) => 20 + i * 5);
               const currentValue = tbFieldEditState.value || `1" = ${currentDs}'`;
               return (
@@ -14017,10 +14185,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       // the SCALE field always in agreement.
                       const m = e.currentTarget.value.match(/=\s*(\d+(?:\.\d+)?)/);
                       if (m) {
-                        drawingStore.updateSettings({ drawingScale: parseFloat(m[1]) });
-                        drawingStore.updateTitleBlock({ scaleLabel: '' });
+                        useDrawingStore.getState().updateSettings({ drawingScale: parseFloat(m[1]) });
+                        useDrawingStore.getState().updateTitleBlock({ scaleLabel: '' });
                       } else {
-                        drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                        useDrawingStore.getState().updateTitleBlock({ scaleLabel: e.currentTarget.value });
                       }
                       setTbFieldEditState(null);
                     }}
@@ -14044,14 +14212,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   placeholder={`Enter ${tbFieldEditState.label.toLowerCase()}…`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                      useDrawingStore.getState().updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
                       setTbFieldEditState(null);
                     } else if (e.key === 'Escape') {
                       setTbFieldEditState(null);
                     }
                   }}
                   onBlur={(e) => {
-                    drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                    useDrawingStore.getState().updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
                     setTbFieldEditState(null);
                   }}
                 />
@@ -14065,7 +14233,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       {/* Label attribute editor (double-click on bearing/distance label) */}
       {labelEditState && (() => {
         const { featureId, labelId } = labelEditState;
-        const feature = drawingStore.getFeature(featureId);
+        const feature = useDrawingStore.getState().getFeature(featureId);
         const label = feature?.textLabels?.find((l) => l.id === labelId);
         if (!feature || !label) { setLabelEditState(null); return null; }
         return (
@@ -14102,14 +14270,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     // regeneration) and update the on-canvas label text in
                     // place — keeping the label id stable so this editor
                     // stays open while typing.
-                    const f = drawingStore.getFeature(featureId);
+                    const f = useDrawingStore.getState().getFeature(featureId);
                     if (f) {
                       const propKey = label.kind === 'POINT_NAME' ? 'name' : 'description';
-                      drawingStore.updateFeature(featureId, {
+                      useDrawingStore.getState().updateFeature(featureId, {
                         properties: { ...f.properties, [propKey]: v },
                       });
                     }
-                    drawingStore.updateTextLabel(featureId, labelId, { text: v });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { text: v });
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === 'Escape') setLabelEditState(null);
@@ -14129,7 +14297,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   value={label.style.fontSize}
                   onChange={(e) => {
                     const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 10));
-                    drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontSize: v } });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontSize: v } });
                   }}
                 />
               </div>
@@ -14141,7 +14309,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   value={Number(label.scale.toFixed(2))}
                   onChange={(e) => {
                     const v = Math.max(0.1, Math.min(10, parseFloat(e.target.value) || 1));
-                    drawingStore.updateTextLabel(featureId, labelId, { scale: v });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { scale: v });
                   }}
                 />
               </div>
@@ -14155,7 +14323,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                   onChange={(e) => {
                     const raw = e.target.value.trim();
                     const rotation = raw === '' ? null : (parseFloat(raw) * Math.PI) / 180;
-                    drawingStore.updateTextLabel(featureId, labelId, { rotation });
+                    useDrawingStore.getState().updateTextLabel(featureId, labelId, { rotation });
                   }}
                 />
               </div>
@@ -14164,7 +14332,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 <select
                   className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
                   value={label.style.fontFamily}
-                  onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontFamily: e.target.value } })}
+                  onChange={(e) => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontFamily: e.target.value } })}
                 >
                   <option value="Arial">Arial</option>
                   <option value="Times New Roman">Times New Roman</option>
@@ -14176,11 +14344,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               <div className="flex items-center gap-2">
                 <button
                   className={`px-2 py-0.5 text-[10px] rounded border ${label.style.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
-                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontWeight: label.style.fontWeight === 'bold' ? 'normal' : 'bold' } })}
+                  onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontWeight: label.style.fontWeight === 'bold' ? 'normal' : 'bold' } })}
                 >B</button>
                 <button
                   className={`px-2 py-0.5 text-[10px] rounded border italic ${label.style.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
-                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
+                  onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
                 >I</button>
               </div>
               {/* Slice 234 — Opt-in label background highlight. Default
@@ -14197,7 +14365,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     checked={label.style.backgroundColor !== null}
                     onChange={(e) => {
                       const nextBg = e.target.checked ? (label.style.backgroundColor ?? '#ffffff') : null;
-                      drawingStore.updateTextLabel(featureId, labelId, {
+                      useDrawingStore.getState().updateTextLabel(featureId, labelId, {
                         style: { ...label.style, backgroundColor: nextBg },
                       });
                     }}
@@ -14212,7 +14380,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                         className="w-6 h-5"
                         data-testid="label-editor-background-color"
                         value={label.style.backgroundColor ?? '#ffffff'}
-                        onChange={(c) => drawingStore.updateTextLabel(featureId, labelId, {
+                        onChange={(c) => useDrawingStore.getState().updateTextLabel(featureId, labelId, {
                           style: { ...label.style, backgroundColor: c },
                         })}
                       />
@@ -14226,7 +14394,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                         value={label.style.padding}
                         onChange={(e) => {
                           const v = Math.max(0, Math.min(20, parseInt(e.target.value) || 0));
-                          drawingStore.updateTextLabel(featureId, labelId, {
+                          useDrawingStore.getState().updateTextLabel(featureId, labelId, {
                             style: { ...label.style, padding: v },
                           });
                         }}
@@ -14244,14 +14412,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-yellow-900/40 hover:bg-yellow-800/60 text-yellow-400 text-[9px] rounded border border-yellow-700/40 transition-colors"
                         onClick={() => {
-                          drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false });
+                          useDrawingStore.getState().updateTextLabel(featureId, labelId, { userPositioned: false });
                           // Regenerate to restore default offset/position
-                          const f = drawingStore.getFeature(featureId);
+                          const f = useDrawingStore.getState().getFeature(featureId);
                           if (f) {
-                            const layerDoc = drawingStore.document.layers[f.layerId];
+                            const layerDoc = useDrawingStore.getState().document.layers[f.layerId];
                             if (layerDoc) {
-                              const newLabels = generateLabelsForFeature(f, layerDoc, drawingStore.document.settings.displayPreferences);
-                              drawingStore.setFeatureTextLabels(featureId, newLabels);
+                              const newLabels = generateLabelsForFeature(f, layerDoc, useDrawingStore.getState().document.settings.displayPreferences);
+                              useDrawingStore.getState().setFeatureTextLabels(featureId, newLabels);
                             }
                           }
                         }}
@@ -14260,13 +14428,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                     {label.rotation !== null && (
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-900/40 hover:bg-purple-800/60 text-purple-400 text-[9px] rounded border border-purple-700/40 transition-colors"
-                        onClick={() => drawingStore.updateTextLabel(featureId, labelId, { rotation: null })}
+                        onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { rotation: null })}
                       >↩ Rotation</button>
                     )}
                     {label.scale !== 1 && (
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-sky-900/40 hover:bg-sky-800/60 text-sky-400 text-[9px] rounded border border-sky-700/40 transition-colors"
-                        onClick={() => drawingStore.updateTextLabel(featureId, labelId, { scale: 1 })}
+                        onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { scale: 1 })}
                       >↩ Scale</button>
                     )}
                     {/* "Reset All" only when more than one property is overridden */}
@@ -14274,13 +14442,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                       <button
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[9px] rounded border border-gray-600 transition-colors"
                         onClick={() => {
-                          drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false, rotation: null, scale: 1 });
-                          const f = drawingStore.getFeature(featureId);
+                          useDrawingStore.getState().updateTextLabel(featureId, labelId, { userPositioned: false, rotation: null, scale: 1 });
+                          const f = useDrawingStore.getState().getFeature(featureId);
                           if (f) {
-                            const layerDoc = drawingStore.document.layers[f.layerId];
+                            const layerDoc = useDrawingStore.getState().document.layers[f.layerId];
                             if (layerDoc) {
-                              const newLabels = generateLabelsForFeature(f, layerDoc, drawingStore.document.settings.displayPreferences);
-                              drawingStore.setFeatureTextLabels(featureId, newLabels);
+                              const newLabels = generateLabelsForFeature(f, layerDoc, useDrawingStore.getState().document.settings.displayPreferences);
+                              useDrawingStore.getState().setFeatureTextLabels(featureId, newLabels);
                             }
                           }
                         }}
@@ -14329,8 +14497,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               className="w-full text-left px-3 py-1.5 hover:bg-gray-700 text-red-400"
               onClick={() => {
                 setDrawingMenu(null);
-                toolStore.clearDrawingPoints();
-                toolStore.setTool('SELECT');
+                useToolStore.getState().clearDrawingPoints();
+                useToolStore.getState().setTool('SELECT');
               }}
             >
               ✕ Cancel Drawing
@@ -14339,27 +14507,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         </>
       )}
 
-      {/* Permanent N/E coordinate tracker in the bottom-left of the canvas */}
-      <div
-        className="absolute bottom-1 left-1 pointer-events-none z-20 flex items-center gap-2 px-2 py-0.5 rounded text-[10px] font-mono"
-        style={{ background: 'rgba(0,0,0,0.55)', color: '#c8d8ff', border: '1px solid rgba(120,150,220,0.35)' }}
-      >
-        {(() => {
-          const dispPrefs = useDrawingStore.getState().document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
-          const c = formatCoordinates(cursorWorld.x, cursorWorld.y, dispPrefs);
-          return (
-            <>
-              <span>{c.label1}: {c.value1}</span>
-              <span className="text-gray-500">|</span>
-              <span>{c.label2}: {c.value2}</span>
-            </>
-          );
-        })()}
-      </div>
+      {/* cad-desktop-tauri-and-perf Slice P6f — the permanent N/E
+         coordinate tracker lives in its own memoized sub-component
+         (`CanvasCoordsPill`) so cursor moves don't reconcile the
+         14k-line CanvasViewport. */}
+      <CanvasCoordsPill />
 
       {/* Drawing rotation indicator — shown when rotation is non-zero */}
       {(() => {
-        const rotDeg = drawingStore.document.settings.drawingRotationDeg ?? 0;
+        const rotDeg = drawingRotationDeg;
         if (Math.abs(rotDeg) < 0.01) return null;
         return (
           <div
@@ -14387,11 +14543,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           onClose={() => {
             setImageInsertState(null);
             onPlaceImageConsumed?.();
-            toolStore.setTool('SELECT');
+            useToolStore.getState().setTool('SELECT');
           }}
           onInsert={(image, worldW, worldH) => {
             const featureId = generateId();
-            const { activeLayerId, getActiveLayerStyle } = drawingStore;
+            const { activeLayerId, getActiveLayerStyle } = useDrawingStore.getState();
             const layerStyle = getActiveLayerStyle();
             const feature: Feature = {
               id: featureId,
@@ -14415,14 +14571,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
               properties: { imageName: image.name },
             };
-            drawingStore.addFeature(feature);
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            useDrawingStore.getState().addFeature(feature);
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
             setImageInsertState(null);
             onPlaceImageConsumed?.();
             // Switch to SELECT + select the new image so its grips +
             // properties are immediately available for scale/rotate.
-            toolStore.setTool('SELECT');
-            selectionStore.select(featureId, 'REPLACE');
+            useToolStore.getState().setTool('SELECT');
+            useSelectionStore.getState().select(featureId, 'REPLACE');
           }}
         />
       )}

@@ -10,6 +10,23 @@ node_modules/
 /.next/
 /out/
 
+# cad-desktop-tauri-and-perf Slice T1 — desktop build artifacts.
+# `out-desktop/` is the static-export output the Tauri shell bundles;
+# `.desktop-stash/` is the temporary stash the prepare-desktop-build
+# script renames non-CAD app directories into during a desktop build
+# (it should always be empty between builds, but guard anyway).
+/out-desktop/
+/.desktop-stash/
+
+# cad-desktop-tauri-and-perf Slice T2 — Tauri shell build artifacts.
+# `src-tauri/target/` is Cargo's incremental build cache; `gen/` is
+# the schema directory `tauri-build` writes on first build. Both can
+# get large (~hundreds of MB) and don't belong in version control.
+# `Cargo.lock` IS committed (Tauri convention for app crates — needed
+# for reproducible builds) so it stays out of the ignore list.
+/src-tauri/target/
+/src-tauri/gen/
+
 # TypeScript
 tsconfig.tsbuildinfo
 

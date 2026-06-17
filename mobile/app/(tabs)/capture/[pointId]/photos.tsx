@@ -122,6 +122,14 @@ export default function PointPhotosScreen() {
         jobId: point.job_id,
         dataPointId: pointId ?? null,
         source,
+        // mobile-and-customer-query-gap Slice D1d — surface the typed
+        // point name so the office-side reconcile helper can late-
+        // bind even if the data_point_id round-trip hasn't landed.
+        // Today every capture from this screen already has a
+        // dataPointId, but we set point_name belt-and-suspenders so
+        // a future TRV import that re-creates the same point keeps
+        // working without manual reconciliation.
+        pointName: point.name ?? null,
       });
       haptics.success();
       // Stay on the screen — the new photo lands in the grid via
@@ -187,6 +195,8 @@ export default function PointPhotosScreen() {
         jobId: point.job_id,
         dataPointId: pointId ?? null,
         source: 'camera',
+        // Slice D1d — same point_name late-bind contract.
+        pointName: point.name ?? null,
       });
       haptics.success();
     } catch (err) {

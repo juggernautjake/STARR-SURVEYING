@@ -3,7 +3,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore, useAIStore, AI_MODE_CYCLE } from '@/lib/cad/store';
-import { formatDistance, formatCoordinates, formatAngle } from '@/lib/cad/geometry/units';
+// cad-desktop-tauri-and-perf Slice P6 — extracted cursor pill so
+// mousemove ticks don't reconcile the whole StatusBar subtree.
+import StatusBarCursorPill from './StatusBarCursorPill';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { listAutosaves } from '@/lib/cad/persistence/autosave';
 import type { SnapType } from '@/lib/cad/types';
@@ -67,22 +69,32 @@ interface StatusBarProps {
 }
 
 export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {}) {
-  const drawingStore = useDrawingStore();
-  const viewportStore = useViewportStore();
-  const selectionStore = useSelectionStore();
-  const toolStore = useToolStore();
+  // cad-desktop-tauri-and-perf Slice P6b — every store is now read
+  // via per-field selectors so cursor moves (viewport.cursorWorld)
+  // and drawing ticks (tool.state.drawingPoints) don't reconcile
+  // the entire status bar. The P6 extraction pulled the pill out;
+  // P6b makes sure the parent itself stops listening to fields it
+  // doesn't render.
+  const doc = useDrawingStore((s) => s.document);
+  const activeLayerId = useDrawingStore((s) => s.activeLayerId);
+  const updateSettings = useDrawingStore((s) => s.updateSettings);
+  const setActiveLayer = useDrawingStore((s) => s.setActiveLayer);
+  const zoom = useViewportStore((s) => s.zoom);
+  const setZoom = useViewportStore((s) => s.setZoom);
+  const selCount = useSelectionStore((s) => s.selectedIds.size);
+  const activeTool = useToolStore((s) => s.state.activeTool);
+  const orthoEnabled = useToolStore((s) => s.state.orthoEnabled);
+  const polarEnabled = useToolStore((s) => s.state.polarEnabled);
+  const polarAngle = useToolStore((s) => s.state.polarAngle);
+  const copyMode = useToolStore((s) => s.state.copyMode);
   const aiMode = useAIStore((s) => s.mode);
   const aiSandbox = useAIStore((s) => s.sandbox);
   const cycleAIMode = useAIStore((s) => s.cycleMode);
-  const cursor = viewportStore.cursorWorld;
-  const zoom = viewportStore.zoom;
 
-  const { document: doc, activeLayerId } = drawingStore;
   const activeLayer = doc.layers[activeLayerId];
   const { snapEnabled, gridVisible, drawingScale } = doc.settings;
   const enabledSnapTypes = doc.settings.snapTypes ?? [];
   const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
-  const selCount = selectionStore.selectionCount();
   // §UX U18 — surface the otherwise-buried "hidden features"
   // state. The Layer panel's "Hidden Items" button is easy to
   // miss; this pill in the status bar makes the count visible
@@ -113,8 +125,6 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
       cancelled = true;
     };
   }, [doc.id]);
-
-  const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
   const zoomPct = Math.round(zoom * 100);
@@ -168,7 +178,7 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
     const next = current.includes(type)
       ? current.filter((t) => t !== type)
       : [...current, type];
-    drawingStore.updateSettings({ snapTypes: next });
+    updateSettings({ snapTypes: next });
   }
 
   // Sync input value whenever the external zoom changes (not while editing)
@@ -180,7 +190,7 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
 
   function applyZoomPct(pct: number) {
     const clamped = Math.max(MIN_ZOOM_PCT, Math.min(MAX_ZOOM_PCT, pct));
-    viewportStore.setZoom(clamped / 100);
+    setZoom(clamped / 100);
   }
 
   function incrementZoom() {
@@ -212,48 +222,24 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
     }
   }
 
-  // Live distance/angle when drawing — formatted per display preferences
-  let distanceInfo: { dist: string; bearing: string } | null = null;
-  const lastPt = drawingPoints[drawingPoints.length - 1] ?? basePoint ?? rotateCenter;
-  if (lastPt && (activeTool.startsWith('DRAW_') || activeTool === 'MOVE' || activeTool === 'COPY' || activeTool === 'MIRROR')) {
-    const dx = cursor.x - lastPt.x;
-    const dy = cursor.y - lastPt.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    // Math angle (counter-clockwise from east) → survey bearing
-    const mathAngleRad = Math.atan2(dy, dx);
-    distanceInfo = {
-      dist: formatDistance(dist, prefs),
-      bearing: formatAngle(mathAngleRad, prefs, 'BEARING'),
-    };
-  }
-
-  // Formatted cursor coordinates
-  const coords = formatCoordinates(cursor.x, cursor.y, prefs);
+  // cad-desktop-tauri-and-perf Slice P6 — the live distance/bearing
+  // + formatted coordinates moved to `StatusBarCursorPill`. The
+  // parent function no longer touches the cursor at all.
 
   function toggleSnap() {
-    drawingStore.updateSettings({ snapEnabled: !snapEnabled });
+    updateSettings({ snapEnabled: !snapEnabled });
   }
 
   function toggleGrid() {
-    drawingStore.updateSettings({ gridVisible: !gridVisible });
+    updateSettings({ gridVisible: !gridVisible });
   }
 
   return (
     <div className="flex items-center bg-gray-900 border-t border-gray-700 px-3 py-0.5 text-xs text-gray-400 gap-4 overflow-hidden">
-      {/* Coordinates */}
-      <span className="font-mono shrink-0 text-cyan-300">
-        {coords.label1}: {coords.value1} &nbsp; {coords.label2}: {coords.value2}
-      </span>
-
-      {/* Live dist/bearing when drawing */}
-      {distanceInfo && (
-        <>
-          <span className="text-gray-600">|</span>
-          <span className="font-mono shrink-0 text-cyan-400">
-            d={distanceInfo.dist} &nbsp; {distanceInfo.bearing}
-          </span>
-        </>
-      )}
+      {/* cad-desktop-tauri-and-perf Slice P6 — memoized sub-component
+          owns the live coordinate + distance display so mousemove
+          ticks don't reconcile the rest of the status bar. */}
+      <StatusBarCursorPill prefs={prefs} />
 
       <span className="text-gray-600">|</span>
 
@@ -348,7 +334,7 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
       <button
         className="hover:text-white transition-colors shrink-0"
         title="Active layer"
-        onClick={() => drawingStore.setActiveLayer(activeLayerId)}
+        onClick={() => setActiveLayer(activeLayerId)}
       >
         Layer: <span className={activeLayer?.locked ? 'text-yellow-400' : 'text-white'}>{activeLayer?.name ?? '—'}{activeLayer?.locked ? ' 🔒' : ''}</span>
       </button>
@@ -455,14 +441,14 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
               <button
                 type="button"
                 className="flex-1 text-[10px] py-0.5 px-1.5 rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
-                onClick={() => drawingStore.updateSettings({ snapTypes: SNAP_TYPE_INFO.map((s) => s.type) })}
+                onClick={() => updateSettings({ snapTypes: SNAP_TYPE_INFO.map((s) => s.type) })}
               >
                 Enable all
               </button>
               <button
                 type="button"
                 className="flex-1 text-[10px] py-0.5 px-1.5 rounded bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
-                onClick={() => drawingStore.updateSettings({ snapTypes: [] })}
+                onClick={() => updateSettings({ snapTypes: [] })}
               >
                 Disable all
               </button>

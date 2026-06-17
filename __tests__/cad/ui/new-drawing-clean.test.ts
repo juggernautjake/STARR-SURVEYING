@@ -39,7 +39,9 @@ describe('new-drawing + exit wiring (source-locked)', () => {
 
   it('the Exit button only prompts when the drawing is dirty', () => {
     const src = read('app/admin/cad/components/MenuBar.tsx');
-    expect(src).toMatch(/if \(drawingStore\.isDirty\)\s*\{[\s\S]*?window\.confirm/);
+    // P6h widened — `drawingStore.isDirty` became the per-field
+    // `isDirty` selector at the top of the component.
+    expect(src).toMatch(/if \((drawingStore\.isDirty|isDirty)\)\s*\{[\s\S]*?window\.confirm/);
   });
 
   it('the beforeunload guard only arms when dirty', () => {

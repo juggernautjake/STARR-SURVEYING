@@ -41,9 +41,13 @@ describe('CanvasViewport — cad:regenerateCanvas listener', () => {
   const SRC = read('app/admin/cad/components/CanvasViewport.tsx');
 
   it('clears the feature-index cache and schedules a renderFeatures rAF', () => {
-    expect(SRC).toMatch(
-      /const onRegenerateCanvas = \(\) => \{\s*\n\s*featureIndexCacheRef\.current = null;\s*\n\s*requestAnimationFrame\(\(\) => renderFeatures\(\)\);\s*\n\s*\}/,
-    );
+    // cad-desktop-tauri-and-perf Slice P3b — the handler now also
+    // calls `markAllFeaturesDirty()` so the per-feature draw-state
+    // cache is busted alongside the index. Source-lock the
+    // INVARIANT calls without freezing the exact body.
+    expect(SRC).toMatch(/const onRegenerateCanvas = \(\) => \{/);
+    expect(SRC).toMatch(/featureIndexCacheRef\.current = null;/);
+    expect(SRC).toMatch(/requestAnimationFrame\(\(\) => renderFeatures\(\)\)/);
   });
 
   it('subscribes + unsubscribes the listener through the effect cleanup pair', () => {

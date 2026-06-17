@@ -207,8 +207,10 @@ describe('Slice 229 — CanvasViewport render path', () => {
   it('defines renderAreaAnnotations + invokes it from the per-frame pipeline', () => {
     expect(SRC).toMatch(/function renderAreaAnnotations\(\) \{/);
     // Sandwiched between renderLabels and renderTextFeatures so it
-    // sits on the labelLayer with the other labels.
-    expect(SRC).toMatch(/renderLabels\(\);\s*\n\s*\/\/ Slice 229[\s\S]*?renderAreaAnnotations\(\);\s*\n\s*renderTextFeatures\(\);/);
+    // sits on the labelLayer with the other labels. Slice N1b
+    // wrapped renderLabels in `measureRender(...)`, so the regex
+    // tolerates either the raw call or the measured form.
+    expect(SRC).toMatch(/(renderLabels\(\);|measureRender\('renderLabels', renderLabels\);?)\s*\n\s*\/\/ Slice 229[\s\S]*?renderAreaAnnotations\(\);\s*\n\s*renderTextFeatures\(\);/);
   });
 
   it('renderAreaAnnotations GCs Pixi text objects whose annotations were removed', () => {

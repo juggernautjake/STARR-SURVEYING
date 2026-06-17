@@ -10,7 +10,12 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "check-eas": "node scripts/check-eas-config.mjs",
+    "build:ios": "npm run check-eas && eas build --profile preview --platform ios",
+    "build:android": "npm run check-eas && eas build --profile preview --platform android",
+    "submit:ios": "npm run check-eas && eas submit --profile production --platform ios --latest",
+    "submit:android": "npm run check-eas && eas submit --profile production --platform android --latest"
   },
   "dependencies": {
     "@journeyapps/react-native-quick-sqlite": "^2.4.0",

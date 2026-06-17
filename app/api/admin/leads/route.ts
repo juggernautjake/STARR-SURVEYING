@@ -20,10 +20,13 @@ const SELECT_COLS =
 const VALID_STATUS = new Set(['new', 'contacted', 'quoted', 'accepted', 'declined', 'lost']);
 
 // Fields a client may set on create/update (besides status, handled separately).
+// `converted_job_id` is included so the C6 lead → job conversion can stamp
+// the new job id on the original lead row in the same PATCH that flips
+// status to 'accepted'.
 const EDITABLE_FIELDS = [
   'name', 'email', 'phone', 'company', 'source', 'notes', 'property_address',
   'city', 'state', 'survey_type', 'estimated_acreage', 'quote_amount',
-  'assigned_to', 'follow_up_date',
+  'assigned_to', 'follow_up_date', 'converted_job_id',
 ] as const;
 
 function pickEditable(body: Record<string, unknown>): Record<string, unknown> {
@@ -118,6 +121,30 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+
+  // mobile-and-customer-query-gap Slice Q3b — once the lead leaves
+  // `'new'`, the "new query" bell-icon notification no longer reflects
+  // truth. Dismiss every outstanding `lead.new` notification keyed to
+  // this lead so the office's unread count reflects work-in-progress
+  // rather than work-already-claimed. Best-effort: a dismissal
+  // failure logs but never breaks the status change.
+  if (
+    typeof patch.status === 'string' &&
+    patch.status !== 'new' &&
+    typeof body.id === 'string'
+  ) {
+    try {
+      await supabaseAdmin
+        .from('notifications')
+        .update({ is_dismissed: true })
+        .eq('source_type', 'leads')
+        .eq('source_id', body.id)
+        .eq('type', 'lead.new')
+        .eq('is_dismissed', false);
+    } catch (err) {
+      console.error('[admin/leads] notification dismiss failed:', err);
+    }
+  }
   return NextResponse.json({ lead: data });
 }, { routeName: 'admin/leads' });
 

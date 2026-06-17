@@ -30,7 +30,9 @@ describe('point-label drag grouping — POINT_LABEL_KINDS', () => {
 
   it('the live drag handler shifts every sibling by the same (dx, dy) and marks them userPositioned', () => {
     expect(SRC).toMatch(
-      /if \(siblings\) \{[\s\S]*?for \(const sib of siblings\) \{[\s\S]*?drawingStore\.updateTextLabel\(featureId, sib\.labelId, \{\s*\n\s*offset: \{ x: sib\.startOffset\.x \+ dx, y: sib\.startOffset\.y \+ dy \},\s*\n\s*userPositioned: true,/,
+      // P6k widened — `drawingStore.X(...)` callbacks route through
+      // `useDrawingStore.getState().X(...)`.
+      /if \(siblings\) \{[\s\S]*?for \(const sib of siblings\) \{[\s\S]*?(drawingStore|useDrawingStore\.getState\(\))\.updateTextLabel\(featureId, sib\.labelId, \{\s*\n\s*offset: \{ x: sib\.startOffset\.x \+ dx, y: sib\.startOffset\.y \+ dy \},\s*\n\s*userPositioned: true,/,
     );
   });
 });

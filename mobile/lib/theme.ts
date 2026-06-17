@@ -24,6 +24,17 @@ export interface Palette {
   accent: string;
   danger: string;
   success: string;
+  /** S3 — shared "amber callout" role used by the receipt screens
+   *  and any future "we noticed a thing; here's friendly context"
+   *  banner. Three sub-colors so the consumer doesn't need to know
+   *  the implementation: background tint, border accent, title
+   *  text color. Body text inherits `palette.text` so a long
+   *  callout still reads. */
+  warningCallout: {
+    background: string;
+    border: string;
+    title: string;
+  };
 }
 
 /**
@@ -57,6 +68,13 @@ export const colors: Record<Scheme, Palette> = {
     accent: '#1D3095',
     danger: '#B42318',
     success: '#067647',
+    // S3 — amber receipt-callout role (previously hard-coded in
+    // money/capture.tsx + money/index.tsx).
+    warningCallout: {
+      background: '#FEF3C7',
+      border: '#D97706',
+      title: '#92400E',
+    },
   },
   dark: {
     background: '#0B0E14',
@@ -67,6 +85,14 @@ export const colors: Record<Scheme, Palette> = {
     accent: '#7B8DDB',
     danger: '#F97066',
     success: '#47CD89',
+    // Dark scheme — deepen the background so it sits on top of the
+    // dark surface without disappearing, but keep the warm yellow
+    // tone so it still reads as "heads-up, friendly".
+    warningCallout: {
+      background: '#3F2D08',
+      border: '#FBBF24',
+      title: '#FDE68A',
+    },
   },
   // Sun-readable. Same family as `light` but pushed to maximum
   // contrast on every surface so a phone in direct sun is still
@@ -82,5 +108,12 @@ export const colors: Record<Scheme, Palette> = {
     accent: '#001A8C',
     danger: '#9F0014',
     success: '#004D1A',
+    // Sun scheme — push the title + border to the deepest amber we
+    // can render so the callout is still legible in 100k lux.
+    warningCallout: {
+      background: '#FEF3C7',
+      border: '#7A3E00',
+      title: '#5C2F00',
+    },
   },
 };

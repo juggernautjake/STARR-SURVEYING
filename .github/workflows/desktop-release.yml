@@ -1,0 +1,165 @@
+# .github/workflows/desktop-release.yml
+#
+# cad-desktop-tauri-and-perf Slice T8 — desktop release matrix.
+#
+# Trigger: pushes of `v*` tags (e.g. `v0.1.0-tauri`). Each tagged
+# build produces signed installers for macOS (`.dmg` / `.app`),
+# Windows (`.msi` / portable `.exe`), and Linux (`.AppImage`,
+# `.deb`) via `tauri-apps/tauri-action@v0`. The action drives
+# `npm run build:desktop` (Slice T1's static-export prep) and
+# `tauri build` (Slice T2's Cargo crate) for each runner. Each job
+# pushes its artifacts to a draft GitHub Release the maintainer
+# publishes manually after smoke-testing.
+#
+# Signing secrets (configured at the repo level):
+#   APPLE_CERTIFICATE          — base64 .p12, encrypted in secrets
+#   APPLE_CERTIFICATE_PASSWORD — passphrase for the .p12
+#   APPLE_SIGNING_IDENTITY     — Developer ID Application: <Team>
+#   APPLE_ID                   — Apple Developer account email
+#   APPLE_PASSWORD             — app-specific notarization password
+#   APPLE_TEAM_ID              — TeamID (10-char string)
+#   WINDOWS_CERTIFICATE        — base64 .pfx code-signing cert
+#   WINDOWS_CERTIFICATE_PASSWORD — passphrase for the .pfx
+#   TAURI_SIGNING_PRIVATE_KEY  — minisign private key for the auto-
+#                                 update manifest signature
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#
+# Missing secrets do NOT fail the build — the macOS / Windows
+# jobs produce UNSIGNED artifacts when secrets aren't set, so a
+# maintainer running this workflow against a fork without secrets
+# still gets installable binaries (with the usual OS warnings).
+
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Allow manual triggers for testing the matrix without cutting a tag.
+  workflow_dispatch:
+
+# Avoid two simultaneous release runs interleaving.
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      # One platform failure shouldn't kill the rest — surveyors on
+      # the other OSes can still install while the broken job is
+      # being fixed.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+          - platform: macos-intel
+            runner: macos-13
+            target: x86_64-apple-darwin
+          - platform: windows
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - platform: linux
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cargo cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
+
+      - name: Install Linux build deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Node.js dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build + bundle via tauri-action
+        uses: tauri-apps/tauri-action@v0
+        env:
+          # cad-desktop-tauri-and-perf Slice T1 — the static-export
+          # prep script needs this set so next.config.js flips to
+          # `output: 'export'` for the Tauri build step. The action
+          # runs `beforeBuildCommand` (which is `npm run build:desktop`
+          # per tauri.conf.json) and that command sets the env var
+          # internally; we mirror it here for safety in case anyone
+          # tweaks tauri.conf later.
+          STARR_BUILD_TARGET: desktop
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing + notarization. tauri-action picks these
+          # up automatically; empty values produce an UNSIGNED build.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows .pfx code-signing.
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          # Auto-update signing (minisign). Tauri's updater plugin
+          # verifies signatures with the public key embedded in
+          # tauri.conf.json before applying an update.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          # Push artifacts into a draft GitHub Release named after
+          # the tag (the maintainer publishes once smoke-testing is
+          # done).
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Starr CAD ${{ github.ref_name }}'
+          releaseBody: |
+            Starr CAD desktop build for ${{ matrix.platform }}.
+
+            See https://github.com/${{ github.repository }}/releases/${{ github.ref_name }} for
+            the cross-platform release notes.
+
+            Built from commit ${{ github.sha }}.
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
+
+  # cad-desktop-tauri-and-perf Slice T8 — sanity-check the
+  # cross-platform manifest after every matrix run. Currently a
+  # no-op pass-through because the source-lock tests
+  # (__tests__/desktop/) already verify the desktop build's TS +
+  # config wiring; this job exists so a future slice can attach
+  # post-publish smoke checks (latest.json validation, mirror
+  # propagation, etc.) without rewiring the trigger.
+  finalize:
+    name: Finalize draft release
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    steps:
+      - name: Echo summary
+        run: |
+          echo "Build matrix finished for ${{ github.ref_name }}."
+          echo "Open the draft release at: https://github.com/${{ github.repository }}/releases"

@@ -188,6 +188,16 @@ export interface DrawingSettings {
    *  coding confusing. */
   boxSelectColorHint?: boolean;
 
+  /** cad-desktop-tauri-and-perf Slice P5 — Level-of-Detail thresholds.
+   *  All three fields are optional; missing fields fall back to the
+   *  `DEFAULT_LOD_*` constants in `lib/cad/geometry/lod.ts`.
+   *  AI-controllable via `updateSettings({ lod: { ... } })`. */
+  lod?: {
+    pixelThreshold?: number;
+    labelThreshold?: number;
+    simplifyMultiplier?: number;
+  };
+
   // Paper
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';

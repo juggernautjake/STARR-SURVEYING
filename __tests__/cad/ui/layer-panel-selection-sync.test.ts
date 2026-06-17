@@ -18,7 +18,12 @@ const SRC = fs.readFileSync(
 
 describe('panel ↔ canvas selection sync', () => {
   it('a panel row click selects the feature in the selection store', () => {
-    expect(SRC).toMatch(/selectionStore\.select\(featureId, mode\)/);
+    // P6d converted the LayerPanel's selection callback from the
+    // whole-store `selectionStore.select(...)` form to
+    // `useSelectionStore.getState().select(...)` so the panel no
+    // longer subscribes to every selection-store field. Accept
+    // either form.
+    expect(SRC).toMatch(/(selectionStore|useSelectionStore\.getState\(\))\.select\(featureId, mode\)/);
   });
 
   it('auto-expands the selected feature\'s layer + group ancestry on selection change', () => {

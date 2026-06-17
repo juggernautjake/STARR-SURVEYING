@@ -119,7 +119,9 @@ describe('MenuBar — TRV import/export wiring', () => {
 
   it('declares exportTrv() function wired to downloadTrv', () => {
     expect(MENUBAR_SRC).toMatch(/function exportTrv\(\)/);
-    expect(MENUBAR_SRC).toMatch(/downloadTrv\(drawingStore\.document\)/);
+    // P6h widened — `drawingStore.document` became the per-field `doc`
+    // selector at the top of the component.
+    expect(MENUBAR_SRC).toMatch(/downloadTrv\((drawingStore\.document|doc)\)/);
   });
 
   it('declares importTrv() that opens a file picker + previews counts', () => {
@@ -142,11 +144,13 @@ describe('MenuBar — TRV import/export wiring', () => {
   });
 
   it('appends layers + features to the drawing store on confirm', () => {
-    expect(MENUBAR_SRC).toMatch(/for \(const l of report\.mapped\.layers\) drawingStore\.addLayer\(l\)/);
+    // P6h widened — `drawingStore.X(...)` callbacks moved to
+    // `useDrawingStore.getState().X(...)`.
+    expect(MENUBAR_SRC).toMatch(/for \(const l of report\.mapped\.layers\) (drawingStore|useDrawingStore\.getState\(\))\.addLayer\(l\)/);
     // cad-duplicate-point-handling Slice 4 — features now run
     // through dedupeTrvFeaturesAgainstDrawing before addFeatures
     // so cross-file `:N` collisions resolve automatically.
-    expect(MENUBAR_SRC).toMatch(/drawingStore\.addFeatures\(deduped(Open|Import)\.features\)/);
+    expect(MENUBAR_SRC).toMatch(/(drawingStore|useDrawingStore\.getState\(\))\.addFeatures\(deduped(Open|Import)\.features\)/);
   });
 
   it('renders "Export as Traverse PC (.TRV)…" + "Import Traverse PC (.TRV)…" menu entries', () => {

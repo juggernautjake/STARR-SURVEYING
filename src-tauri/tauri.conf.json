@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Starr CAD",
+  "version": "0.1.0",
+  "identifier": "com.starrsurveying.starr-cad",
+  "build": {
+    "// cad-desktop-tauri-and-perf Slice T2":
+      "Dev points at Next's localhost server; prod loads the static-export bundle from `../out-desktop/`. The web build is unaffected — STARR_BUILD_TARGET is set by `npm run build:desktop` (Slice T1).",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build:desktop",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../out-desktop"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Starr CAD",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 720,
+        "resizable": true,
+        "fullscreen": false,
+        "// landing URL":
+          "Tauri serves the static export from the bundle root; route into the CAD canvas directly so the standalone binary opens straight into the survey workspace.",
+        "url": "/admin/cad/"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "Surveying CAD for desktop.",
+    "longDescription": "Standalone Starr CAD — TRV / STARR / CSV import, full surveying workspace, AI-assisted editing.",
+    "copyright": "© Starr Surveying",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "// cad-desktop-tauri-and-perf Slice T8":
+      "Code-signing + notarization knobs live in the CI workflow (env vars passed to tauri-action). The bundler still produces installable artifacts when those env vars are empty — the OS will show the usual unsigned-binary warning, but the binary still launches. Once the signing certs land in repo secrets the CI emits signed artifacts automatically.",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "entitlements": null,
+      "exceptionDomain": ""
+    },
+    "windows": {
+      "// Slice T8":
+        "wix toolset is bundled with tauri-action. Leaving timestampUrl empty lets the action pick the appropriate sectigo time-stamping mirror at build time."
+    }
+  }
+}

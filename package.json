@@ -6,6 +6,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:desktop": "node scripts/prepare-desktop-build.mjs run -- next build",
+    "build:desktop:stash": "node scripts/prepare-desktop-build.mjs stash",
+    "build:desktop:restore": "node scripts/prepare-desktop-build.mjs restore",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
@@ -23,6 +29,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "@sparticuz/chromium": "^133.0.0",
     "@supabase/supabase-js": "2.38.5",
+    "@tauri-apps/api": "^2.0.0",
     "@tiptap/extension-color": "^2.11.0",
     "@tiptap/extension-heading": "^2.11.0",
     "@tiptap/extension-highlight": "^2.11.0",
@@ -70,6 +77,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "@tauri-apps/cli": "^2.0.0",
     "@types/dompurify": "^3.0.5",
     "@types/node": "20.10.5",
     "@types/qrcode": "^1.5.6",

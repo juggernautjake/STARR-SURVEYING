@@ -121,7 +121,9 @@ describe('MenuBar — Slice 4 wires Slice-4 helper into both TRV branches', () =
   });
 
   it('addFeatures receives the deduped output, not the raw mapped features', () => {
-    const dedupedAdds = SRC.match(/drawingStore\.addFeatures\(deduped(?:Open|Import)\.features\)/g) ?? [];
+    // P6h widened — MenuBar's `drawingStore.addFeatures(...)` callback
+    // now goes through `useDrawingStore.getState().addFeatures(...)`.
+    const dedupedAdds = SRC.match(/(drawingStore|useDrawingStore\.getState\(\))\.addFeatures\(deduped(?:Open|Import)\.features\)/g) ?? [];
     expect(dedupedAdds.length).toBe(2);
   });
 });
