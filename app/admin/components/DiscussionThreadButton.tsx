@@ -182,14 +182,37 @@ export default function DiscussionThreadButton() {
         </div>
       )}
 
-      {/* Discussion panel — Slice P-msg-fix — portaled to <body>
-          so the position:fixed panel escapes the FAB pill's
-          flex/overflow context. Without the portal, the panel
-          rendered as a flex child inside .fab-menu__buttons which
-          caused it to render collapsed / clipped instead of
-          popping up as its own bottom-right window. */}
+      {/* Discussion panel — Slice fab-modal-fix-2026-06-17 —
+          portaled to <body> WITH an explicit backdrop overlay so
+          the user sees a clear dimmed-page state even when the
+          rest of the panel CSS hasn't loaded yet. The defensive
+          inline styles on the backdrop + panel guarantee the
+          modal is visible even if a downstream CSS regression
+          hides the .discussion-panel class. Click the backdrop
+          to close. */}
       {isOpen && typeof document !== 'undefined' && createPortal(
-        <div className="discussion-panel" ref={panelRef}>
+        <div
+          className="discussion-overlay"
+          data-testid="discussion-overlay"
+          onClick={() => setIsOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9000,
+            background: 'rgba(15, 23, 42, 0.32)',
+          }}
+        >
+        <div
+          className="discussion-panel"
+          ref={panelRef}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            right: 0,
+            zIndex: 9001,
+            background: '#FFFFFF',
+          }}>
           {/* Header */}
           <div className="discussion-panel__header">
             <div className="discussion-panel__header-tabs">
@@ -348,6 +371,7 @@ export default function DiscussionThreadButton() {
               </button>
             </div>
           )}
+        </div>
         </div>,
         document.body,
       )}

@@ -355,9 +355,18 @@ export default function FloatingMessenger() {
     ? contacts.filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()) || c.email.toLowerCase().includes(contactSearch.toLowerCase()))
     : contacts;
 
-  // Don't render on login or full messages page
+  // Don't render on login or full messages page.
+  //
+  // Slice fab-modal-fix-2026-06-17 — user reported the Messages FAB
+  // button "isn't even there anymore". Root cause: the old
+  // `pathname.startsWith('/admin/messages')` exit hid the FAB on
+  // every /admin/messages/* sub-route (/admin/messages/contacts,
+  // /admin/messages/[id], etc.), but the user expects to keep quick
+  // access to the floating messenger while browsing those sub-
+  // pages. Now we only hide on the canonical /admin/messages
+  // landing where the full messenger UI is already on screen.
   if (pathname === '/admin/login' || !userEmail) return null;
-  if (pathname.startsWith('/admin/messages')) return null;
+  if (pathname === '/admin/messages') return null;
 
   return (
     <>
@@ -378,15 +387,35 @@ export default function FloatingMessenger() {
         </div>
       )}
 
-      {/* Panel — Slice P-msg-fix — portaled to <body> so the
-          position:fixed panel escapes the FAB pill's flex/overflow
-          context. Without the portal, the panel rendered as a
-          flex child inside .fab-menu__buttons (which has
-          overflow:hidden + opacity transitions), which caused the
-          panel to appear collapsed / clipped instead of popping
-          up as its own bottom-right window. */}
+      {/* Panel — Slice fab-modal-fix-2026-06-17 — portaled to
+          <body> with an explicit backdrop overlay so the user sees
+          a clear dimmed-page state even when the rest of the panel
+          CSS hasn't loaded yet. The defensive inline styles on the
+          backdrop + panel guarantee the modal is visible even if a
+          downstream CSS regression hides the .messenger-panel
+          class. Click the backdrop to close. */}
       {isOpen && typeof document !== 'undefined' && createPortal(
-        <div className="messenger-panel">
+        <div
+          className="messenger-overlay"
+          data-testid="messenger-overlay"
+          onClick={() => setIsOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9000,
+            background: 'rgba(15, 23, 42, 0.32)',
+          }}
+        >
+        <div
+          className="messenger-panel"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            right: 0,
+            zIndex: 9001,
+            background: '#FFFFFF',
+          }}>
           {/* Header */}
           <div className="messenger-panel__header">
             {view === 'chat' && activeConv ? (
@@ -650,6 +679,7 @@ export default function FloatingMessenger() {
               </div>
             </>
           )}
+        </div>
         </div>,
         document.body,
       )}

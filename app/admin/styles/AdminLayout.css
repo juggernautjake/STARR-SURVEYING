@@ -239,10 +239,17 @@
               padding 0.35s ease;
 }
 
-/* Expanded state */
+/* Expanded state.
+ *
+ * Slice fab-modal-fix-2026-06-17 — `overflow: visible` so the
+ * per-button tooltips (positioned `bottom: calc(100% + 8px)` over
+ * the wrap) aren't clipped by `.fab-menu__buttons` when the pill
+ * is open. Collapsed state still uses `overflow: hidden` for the
+ * max-width:0 collapse animation. */
 .fab-menu--expanded .fab-menu__buttons {
   max-width: 250px;
   opacity: 1;
+  overflow: visible;
 }
 
 /* Collapsed state */
