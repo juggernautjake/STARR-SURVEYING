@@ -9,8 +9,16 @@
 // can swap views without a re-fetch.
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UserRole } from '@/lib/auth';
+import { useEmployeePondPhysics } from './useEmployeePondPhysics';
+
+/** Render-side orb radius (px) for the collision math. The CSS uses
+ *  `--orb-size: 64px` on desktop, 56 px on phone; 32 is the desktop
+ *  half so collisions feel right on the surface the user spends
+ *  most of their time on. */
+const ORB_RADIUS_PX = 32;
+const POND_RADIUS_PX = 280;
 
 export interface PondEmployee {
   id: string;
@@ -186,18 +194,29 @@ export default function EmployeePond({ employees }: Props) {
     [employees, query, selectedRoles],
   );
 
-  // E1 — static layout snapshot, now driven by `visibleEmployees`
-  // so search + filter immediately blip orbs in/out. E3 replaces
-  // this with the rAF physics loop; the data-attribute + structure
-  // stay the same so the source locks survive the swap.
-  const orbs = useMemo(() => {
-    const rand = mulberry32(seed);
-    const pondRadius = 280;
-    return visibleEmployees.map((e) => ({
-      employee: e,
-      pos: placeOrb(rand, pondRadius),
-    }));
-  }, [visibleEmployees, seed]);
+  // E3 — refs map keyed by employee id so the physics hook can
+  // imperatively write `transform` to each orb every frame
+  // without going through React. `useRef` + callback refs so
+  // strict-mode double-mount doesn't leak ghosts.
+  const orbRefsRef = useRef<Map<string, HTMLElement | null>>(new Map());
+  const visibleIds = useMemo(
+    () => visibleEmployees.map((e) => e.id),
+    [visibleEmployees],
+  );
+  useEmployeePondPhysics(orbRefsRef.current, {
+    visibleIds,
+    pondRadius: POND_RADIUS_PX,
+    orbRadius: ORB_RADIUS_PX,
+    seed,
+    enabled: true,
+  });
+  const setOrbRef = useCallback(
+    (id: string) => (el: HTMLElement | null) => {
+      if (el) orbRefsRef.current.set(id, el);
+      else orbRefsRef.current.delete(id);
+    },
+    [],
+  );
 
   const filterCount = selectedRoles.size;
 
@@ -279,21 +298,19 @@ export default function EmployeePond({ employees }: Props) {
       <div
         className="employee-pond__surface"
         data-testid="employee-pond-surface"
-        data-orb-count={orbs.length}
+        data-orb-count={visibleEmployees.length}
         // The CSS keys on this --radius var so the surface and the
         // child orb absolute positions agree on geometry.
         style={{ ['--pond-radius' as string]: '280px' }}
       >
         <div className="employee-pond__pond" aria-label="Employee pond">
-          {orbs.map(({ employee, pos }) => (
+          {visibleEmployees.map((employee) => (
             <div
               key={employee.id}
+              ref={setOrbRef(employee.id)}
               className="employee-pond__orb"
               data-testid="employee-pond-orb"
               data-employee-id={employee.id}
-              style={{
-                transform: `translate3d(calc(${pos.x}px - 50%), calc(${pos.y}px - 50%), 0)`,
-              }}
               role="button"
               tabIndex={0}
               aria-label={`${employee.name} — ${employee.email}`}

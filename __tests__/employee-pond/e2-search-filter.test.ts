@@ -163,8 +163,10 @@ describe('EmployeePond.tsx — E2 page wiring', () => {
     expect(SRC).toMatch(/data-testid="employee-pond-list-empty"/);
   });
 
-  it('orb layout is driven by visibleEmployees (not the full set)', () => {
-    expect(SRC).toMatch(/return visibleEmployees\.map\(\(e\) => \(\{/);
+  it('orb render is driven by visibleEmployees (not the full set)', () => {
+    // E3 replaced the static layout map with a direct render over
+    // visibleEmployees + the physics hook for positioning.
+    expect(SRC).toMatch(/visibleEmployees\.map\(\(employee\) => \(/);
   });
 });
 

@@ -29,9 +29,15 @@
   surrounding orbs jitter; pond resettles toward center.
 - **Missing DB fields** (DOB / age / gender / FT-PT): show "—". Tracked
   as **E11** for a follow-up schema slice.
-- **Contact buttons**: Email opens `mailto:<address>`; Direct Message
-  opens `/admin/messages?to=<email>` (requires the existing inbox to
-  honor the query param — slice **E9** ships both halves).
+- **Contact buttons** (refined 2026-06-16 per user clarification):
+  - **Direct Message** opens the existing **bottom-right messenger
+    widget** with the selected user **preloaded as the recipient**.
+    No navigation. Slice **E9** wires whatever opens the widget
+    today (likely a top-level provider or a global event) + injects
+    the recipient.
+  - **Email** routes to the existing **email interface page**
+    (the on-app email surface, not `mailto:`). Slice **E9**
+    locates that route + adds a `?to=<email>` prefill query param.
 - **Initial layout**: random each mount. Stable id-based hash seeds the
   starting positions only so React strict-mode double-render doesn't
   rearrange the pond before first paint.
@@ -145,7 +151,56 @@
   destructive hover + count chip + empty-list + no-drift check).
 - **Three post-build checks: green** — typecheck clean, lint only
   the pre-existing `<img>` warning, full suite 8656 green (+24).
-| Physics loop (gravity + repulsion + damping + bounds) | **E3** |
+| Physics loop (gravity + repulsion + damping + bounds) | **✅ E3** |
+
+**E3 shipped 2026-06-16** — pond physics loop.
+- `lib/employee-pond/physics.ts` — pure `stepPhysics(orbs, opts)`
+  that mutates the orb array in place for performance. Forces
+  applied per frame in order: gravity toward center, pairwise
+  repulsion when overlapping (O(n²), <1250 checks at n=50),
+  semi-implicit Euler integration, pond-wall bounce with energy
+  retention (`bounceRestitution = 0.55`), exponential damping
+  (`Math.pow(damping, dt)` so the per-frame factor is correct
+  regardless of dt). `DEFAULT_PHYSICS` constants exported so the
+  hook and the test share one source of truth.
+  `totalKineticEnergy` helper for "is the pond settled?" checks.
+  The `dragging` flag on `OrbState` short-circuits every force
+  except the repulsion it inflicts on neighbors — E6 will flip
+  it during drag.
+- `app/admin/employees/useEmployeePondPhysics.ts` — rAF hook
+  owning the loop. Caps `dt` at 33 ms so a tab-switch catch-up
+  frame can't explode the simulation. Battery-saving guard: the
+  loop is skipped entirely when `enabled === false`. Orb pool
+  syncs to `visibleIds` on change (existing orbs keep their
+  position + velocity; new orbs spawn at a randomized point via
+  `placeOrb`; vanished orbs drop out). Every frame writes
+  `transform = translate3d(calc(<x>px - 50%), calc(<y>px - 50%),
+  0)` directly to the DOM elements via the refs Map — no React
+  re-render per frame. Returns a `PondPhysicsHandle` with
+  `setOrb` + `setDragging` so E6 (drag) can imperatively patch
+  positions.
+- `app/admin/employees/EmployeePond.tsx` — imports the hook,
+  declares `ORB_RADIUS_PX = 32` and `POND_RADIUS_PX = 280`
+  constants, holds an `orbRefsRef` (Map<id, HTMLElement>) +
+  a stable `setOrbRef(id)` callback ref. Each orb element
+  attaches the ref + drops the previous inline static
+  transform; physics owns position now. `data-orb-count`
+  reflects `visibleEmployees.length` for diagnostic tooling.
+- Source-locked by `__tests__/employee-pond/e3-physics.test.ts`
+  (22 assertions: gravity restoration, dragging-suppresses-
+  gravity, dt-≤-0 no-op, repulsion sign per orb, dragger-pushes-
+  but-isn't-pushed, wall clamp, normal reflection, damping
+  reduces velocity, kinetic energy decay; hook contract for
+  rAF lifecycle + dt cap + disabled guard + visibleIds sync +
+  setOrb/setDragging handle + imperative transform write;
+  page wiring for hook import + refs map + setOrbRef + hook
+  call args + ref attachment + static-transform-dropped).
+- The E2 test that locked the pre-physics layout shape was
+  widened to the new render path (`visibleEmployees.map((employee)
+  => ...`).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warning, full suite 8678 green
+  (+22).
 | Hover scale + neighbor bump + tooltip | **E4** |
 | Click → side dialogue panel anchored to orb | **E5** |
 | Drag interaction (pointer down/move/up) | **E6** |
