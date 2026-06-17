@@ -177,7 +177,20 @@ export function mulberry32(seed: number): () => number {
 }
 
 export default function EmployeePond({ employees }: Props) {
-  const seed = useMemo(() => buildPondSeed(employees), [employees]);
+  // Slice P4a — `respawnNonce` is bumped by the Reset link below the
+  // pond. It folds into the seed via XOR so a fresh layout is
+  // produced on every click. The physics hook detects the changed
+  // seed and re-spawns every visible orb at a new random position.
+  const [respawnNonce, setRespawnNonce] = useState<number>(0);
+  const seed = useMemo(
+    () => (buildPondSeed(employees) ^ respawnNonce) >>> 0,
+    [employees, respawnNonce],
+  );
+  const handleReset = useCallback(() => {
+    // Bump by a random 32-bit-ish value so users who click rapidly
+    // don't land on a degenerate seed sequence.
+    setRespawnNonce((n) => (n + 1 + Math.floor(Math.random() * 0xFFFFFFFF)) >>> 0);
+  }, []);
   // Slice E2 — search + role filter state. Search drives the orb
   // filter via a pure helper so the source-lock test can cover
   // every branch without React.
@@ -1020,6 +1033,25 @@ export default function EmployeePond({ employees }: Props) {
             </>
           )}
         </div>
+      </div>
+
+      {/* Slice P4a — Reset link sits between the pond and the
+          list. Clicking it re-randomizes every visible orb's
+          starting position via a seed bump; the physics loop
+          smoothly catches up over the next few frames so the
+          surveyor watches the pond rearrange itself rather than
+          jump-cutting. */}
+      <div className="employee-pond__reset-wrap">
+        <button
+          type="button"
+          className="employee-pond__reset"
+          onClick={handleReset}
+          data-testid="employee-pond-reset"
+          aria-label="Reset pond — re-randomize all orb positions"
+          title="Re-randomize the orb positions"
+        >
+          ↻ Reset
+        </button>
       </div>
 
       {/* Slice E8 — below-pond list reads as a flat, scannable

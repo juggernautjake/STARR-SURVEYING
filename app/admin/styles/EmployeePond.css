@@ -334,6 +334,36 @@
   }
 }
 
+/* ── Slice P4a — Reset link below the pond ─────────────────── */
+.employee-pond__reset-wrap {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-3) 0 var(--space-2);
+}
+.employee-pond__reset {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #6B7280);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 120ms ease, background-color 120ms ease, text-decoration-color 120ms ease;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.employee-pond__reset:hover,
+.employee-pond__reset:focus-visible {
+  color: var(--color-brand-navy, #1E3A8A);
+  text-decoration-color: currentColor;
+  background-color: rgba(30, 58, 138, 0.06);
+  outline: none;
+}
+
 /* ── Below-pond list ────────────────────────────────────────── */
 .employee-pond__list {
   list-style: none;

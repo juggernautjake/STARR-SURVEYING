@@ -57,6 +57,13 @@ export function useEmployeePondPhysics(
   const orbByIdRef = useRef<Map<string, OrbState>>(new Map());
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  // Slice P4a — track the last seed so the sync-effect can tell
+  // "seed changed" (user clicked Reset, or the employee set
+  // changed) apart from "visibleIds changed" (search/filter). On
+  // a seed change we forget prior orb positions so every visible
+  // orb spawns fresh; on a visibleIds change we keep existing
+  // positions and only spawn the newly-visible ones.
+  const lastSeedRef = useRef<number | null>(null);
   // Slice E6b — cursor position in pond-center coords. Updated via
   // the handle's setCursor() and read each rAF tick before
   // stepPhysics so the attraction force tracks the user's mouse.
@@ -69,8 +76,14 @@ export function useEmployeePondPhysics(
   // Sync the orb pool whenever the visible set changes. Existing
   // orbs keep their position + velocity; newly-visible ones spawn
   // at a randomized point inside the pond; vanished ones drop out.
+  //
+  // Slice P4a — when the seed changes (Reset clicked, or the
+  // employee list itself changed), discard prior positions so every
+  // visible orb gets a fresh randomized placement. Search/filter
+  // changes leave the seed alone so settled orbs stay put.
   useEffect(() => {
-    const existing = orbByIdRef.current;
+    const seedChanged = lastSeedRef.current !== args.seed;
+    const existing = seedChanged ? new Map<string, OrbState>() : orbByIdRef.current;
     const rand = mulberry32(args.seed);
     const next: OrbState[] = [];
     const nextById = new Map<string, OrbState>();
@@ -95,6 +108,7 @@ export function useEmployeePondPhysics(
     }
     orbsRef.current = next;
     orbByIdRef.current = nextById;
+    lastSeedRef.current = args.seed;
   }, [args.visibleIds, args.pondRadius, args.orbRadius, args.seed]);
 
   // Slice E10 — when the loop is disabled (prefers-reduced-motion,
