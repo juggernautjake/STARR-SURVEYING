@@ -12,6 +12,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UserRole } from '@/lib/auth';
 import { useEmployeePondPhysics } from './useEmployeePondPhysics';
+import {
+  anchorDialogue,
+  yearsWithCompany,
+  type DialogueOrigin,
+} from '@/lib/employee-pond/dialogue-anchor';
 
 /** Render-side orb radius (px) for the collision math. The CSS uses
  *  `--orb-size: 64px` on desktop, 56 px on phone; 32 is the desktop
@@ -157,6 +162,19 @@ export default function EmployeePond({ employees }: Props) {
   const [filterOpen, setFilterOpen] = useState<boolean>(false);
   const filterPanelRef = useRef<HTMLDivElement | null>(null);
 
+  // Slice E5 — click dialogue. `selectedEmployee` carries everything
+  // the panel renders so we don't have to re-resolve from the
+  // employees array. `dialoguePosition` is computed at click time
+  // from the orb's CURRENT physics position so the panel grows out
+  // of that spot (the orb continues drifting; the panel stays put).
+  const [selectedEmployee, setSelectedEmployee] = useState<PondEmployee | null>(null);
+  const [dialoguePosition, setDialoguePosition] = useState<{
+    left: number;
+    top: number;
+    origin: DialogueOrigin;
+  } | null>(null);
+  const dialogueRef = useRef<HTMLDivElement | null>(null);
+
   // Click-outside / Esc to dismiss the filter panel.
   useEffect(() => {
     if (!filterOpen) return;
@@ -203,7 +221,7 @@ export default function EmployeePond({ employees }: Props) {
     () => visibleEmployees.map((e) => e.id),
     [visibleEmployees],
   );
-  useEmployeePondPhysics(orbRefsRef.current, {
+  const physics = useEmployeePondPhysics(orbRefsRef.current, {
     visibleIds,
     pondRadius: POND_RADIUS_PX,
     orbRadius: ORB_RADIUS_PX,
@@ -217,6 +235,47 @@ export default function EmployeePond({ employees }: Props) {
     },
     [],
   );
+
+  /** Slice E5 — orb click opens the dialogue. Reads the orb's CURRENT
+   *  physics position so the panel anchors to where the orb actually
+   *  is right now (not to its CSS-static origin). */
+  const handleOrbClick = useCallback(
+    (employee: PondEmployee) => {
+      const orbState = physics.orbs.find((o) => o.id === employee.id);
+      const x = orbState?.x ?? 0;
+      const y = orbState?.y ?? 0;
+      const anchor = anchorDialogue({
+        orbX: x,
+        orbY: y,
+        orbRadius: ORB_RADIUS_PX,
+        dialogueWidth: 280,
+        dialogueHeight: 360,
+        gap: 16,
+        pondRadius: POND_RADIUS_PX,
+      });
+      setSelectedEmployee(employee);
+      setDialoguePosition(anchor);
+    },
+    // physics handle is stable across renders by design; declared in
+    // deps so a future refactor doesn't accidentally break the link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const closeDialogue = useCallback(() => {
+    setSelectedEmployee(null);
+    setDialoguePosition(null);
+  }, []);
+
+  // Esc dismisses the dialogue. Click-outside is handled by an inline
+  // overlay so dialogue clicks don't propagate up.
+  useEffect(() => {
+    if (!selectedEmployee) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDialogue();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selectedEmployee, closeDialogue]);
 
   const filterCount = selectedRoles.size;
 
@@ -311,9 +370,17 @@ export default function EmployeePond({ employees }: Props) {
               className="employee-pond__orb"
               data-testid="employee-pond-orb"
               data-employee-id={employee.id}
+              data-selected={selectedEmployee?.id === employee.id ? 'true' : undefined}
               role="button"
               tabIndex={0}
               aria-label={`${employee.name} — ${employee.email}`}
+              onClick={() => handleOrbClick(employee)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleOrbClick(employee);
+                }
+              }}
             >
               {employee.avatar_url ? (
                 <img
@@ -334,6 +401,133 @@ export default function EmployeePond({ employees }: Props) {
               )}
             </div>
           ))}
+          {/* Slice E5 — anchored dialogue panel. Lives inside the
+              pond surface so its absolute coords share the pond's
+              center frame (same as the orbs). Backdrop catches
+              clicks outside to dismiss; the panel itself stops
+              propagation so internal clicks don't close it. */}
+          {selectedEmployee && dialoguePosition && (
+            <>
+              <div
+                className="employee-pond__dialogue-backdrop"
+                data-testid="employee-pond-dialogue-backdrop"
+                onClick={closeDialogue}
+              />
+              <div
+                ref={dialogueRef}
+                className="employee-pond__dialogue"
+                data-testid="employee-pond-dialogue"
+                data-origin={dialoguePosition.origin}
+                role="dialog"
+                aria-label={`${selectedEmployee.name} details`}
+                style={{
+                  transform: `translate(${dialoguePosition.left}px, ${dialoguePosition.top}px)`,
+                  transformOrigin: dialoguePosition.origin.replace('-', ' '),
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="employee-pond__dialogue-close"
+                  data-testid="employee-pond-dialogue-close"
+                  data-action="close-dialogue"
+                  aria-label="Close"
+                  onClick={closeDialogue}
+                >
+                  ×
+                </button>
+                <div className="employee-pond__dialogue-head">
+                  {selectedEmployee.avatar_url ? (
+                    <img
+                      src={selectedEmployee.avatar_url}
+                      alt={selectedEmployee.name}
+                      className="employee-pond__dialogue-avatar"
+                    />
+                  ) : (
+                    <span
+                      className="employee-pond__dialogue-avatar employee-pond__dialogue-avatar--initials"
+                      aria-hidden
+                    >
+                      {selectedEmployee.name
+                        .split(/\s+/)
+                        .map((w) => w[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </span>
+                  )}
+                  <div className="employee-pond__dialogue-head-text">
+                    <h3 className="employee-pond__dialogue-name">{selectedEmployee.name}</h3>
+                    <p className="employee-pond__dialogue-email">{selectedEmployee.email}</p>
+                  </div>
+                </div>
+                <dl className="employee-pond__dialogue-fields">
+                  <div>
+                    <dt>Roles</dt>
+                    <dd>
+                      {selectedEmployee.roles.length > 0
+                        ? selectedEmployee.roles
+                            .map((r) => ROLE_FILTER_LABELS[r] ?? r)
+                            .join(', ')
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Job title</dt>
+                    <dd>{selectedEmployee.job_title ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Years with company</dt>
+                    <dd>
+                      {(() => {
+                        const y = yearsWithCompany(selectedEmployee.hire_date);
+                        return y === null ? '—' : `${y} yr${y === 1 ? '' : 's'}`;
+                      })()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>DOB · Age · Gender</dt>
+                    <dd className="employee-pond__dialogue-dim">— (schema add tracked as E11)</dd>
+                  </div>
+                  <div>
+                    <dt>Employment type</dt>
+                    <dd className="employee-pond__dialogue-dim">—</dd>
+                  </div>
+                </dl>
+                <div className="employee-pond__dialogue-actions">
+                  <a
+                    href={`/admin/employees/manage?email=${encodeURIComponent(selectedEmployee.email)}`}
+                    className="employee-pond__dialogue-link"
+                    data-action="open-profile"
+                    data-testid="employee-pond-dialogue-profile"
+                  >
+                    Open profile →
+                  </a>
+                  <div className="employee-pond__dialogue-contact">
+                    <button
+                      type="button"
+                      className="employee-pond__dialogue-btn"
+                      data-action="contact-email"
+                      data-testid="employee-pond-dialogue-email"
+                      // E9 wires the email page route.
+                    >
+                      ✉ Email
+                    </button>
+                    <button
+                      type="button"
+                      className="employee-pond__dialogue-btn employee-pond__dialogue-btn--primary"
+                      data-action="contact-dm"
+                      data-testid="employee-pond-dialogue-dm"
+                      // E9 opens the bottom-right messenger preloaded
+                      // with this recipient.
+                    >
+                      💬 Message
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

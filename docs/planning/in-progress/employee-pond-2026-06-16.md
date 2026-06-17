@@ -202,7 +202,58 @@
   only the pre-existing `<img>` warning, full suite 8678 green
   (+22).
 | Hover scale + neighbor bump + tooltip | **E4** |
-| Click → side dialogue panel anchored to orb | **E5** |
+| Click → side dialogue panel anchored to orb | **✅ E5** |
+
+**E5 shipped 2026-06-16** — click → side dialogue.
+- `lib/employee-pond/dialogue-anchor.ts`:
+  - `anchorDialogue(input)` decides position + origin corner.
+    Strategy: orb in left half → dialogue to the right; orb in
+    right half → dialogue to the left. Same for top/bottom. The
+    origin corner is the corner of the dialogue pointing at the
+    orb so the expand animation grows out of that point.
+  - `yearsWithCompany(hireDateIso, now?)` returns a one-decimal
+    seniority number; null when the hire date isn't parseable;
+    0 when hire date is in the future.
+- `app/admin/employees/EmployeePond.tsx`:
+  - State: `selectedEmployee`, `dialoguePosition` (left/top/origin).
+  - `handleOrbClick(employee)` reads the orb's CURRENT physics
+    position from `physics.orbs` so the panel anchors to where
+    the orb actually is at click time (not its CSS-static origin).
+  - Esc dismisses via a document keydown listener active only
+    while the dialogue is open.
+  - Orb element: `onClick` + `onKeyDown` (Enter / Space) opens
+    the dialogue; `data-selected` mirrors `selectedEmployee?.id`
+    for the brand-navy outline ring.
+  - Dialogue render block: transparent backdrop catches outside
+    clicks (`onClick={closeDialogue}`); panel itself stops
+    propagation. Panel shows avatar/initials, name, email, then
+    `<dl>` rows for Roles, Job title, Years with company, DOB ·
+    Age · Gender (— placeholder), Employment type (—). Open
+    profile link routes to `/admin/employees/manage?email=<…>`.
+    Email + Direct Message buttons rendered with stable
+    `data-action="contact-email"` / `"contact-dm"` so E9 can wire
+    them without touching the markup.
+- `app/admin/styles/EmployeePond.css`:
+  - `.employee-pond__dialogue-backdrop` (inset:-200vw to catch
+    clicks anywhere outside the panel), `.employee-pond__dialogue`
+    (280×360, brand-navy primary button, soft drop shadow,
+    pop-in fade keyframes), avatar 48 px with white border,
+    field rows in a stacked `<dl>` grid, action footer with
+    Open profile link + two contact buttons. Selected orb gets a
+    3 px brand-navy outline ring. `prefers-reduced-motion`
+    disables the pop animation.
+- Source-locked by `__tests__/employee-pond/e5-dialogue.test.ts`
+  (24 assertions: anchor in all four quadrants + center, gap
+  respected; yearsWithCompany null/future/3.5y; page state +
+  click reads physics position + orb onClick/onKeyDown +
+  data-selected mirror + Esc dismiss + backdrop + every
+  field-row label + open-profile route + two contact buttons +
+  click-outside-vs-stopPropagation contract; CSS surface +
+  primary brand-navy button + selected-orb ring + reduced-motion
+  + no-drift token check).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings (one new for the
+  dialogue avatar), full suite 8702 green (+24).
 | Drag interaction (pointer down/move/up) | **E6** |
 | Particle FX on collision during drag | **E7** |
 | Shake-to-release detection + settle animation | **E7** |

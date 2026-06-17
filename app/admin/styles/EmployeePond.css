@@ -280,6 +280,196 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
+/* ── Slice E5 — anchored dialogue panel ─────────────────────── */
+.employee-pond__dialogue-backdrop {
+  /* Sits behind the dialogue inside the pond surface. Catches clicks
+   * outside the panel to dismiss; visually transparent so the pond
+   * remains visible. */
+  position: absolute;
+  inset: -200vw;
+  z-index: 30;
+  background: transparent;
+}
+.employee-pond__dialogue {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 40;
+  width: 280px;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 36px -10px rgba(15, 20, 25, 0.28);
+  padding: var(--space-3) var(--space-4);
+  animation: employee-pond-dialogue-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform;
+}
+@keyframes employee-pond-dialogue-pop {
+  from { opacity: 0; transform-box: fill-box; transform: translate(var(--tx, 0), var(--ty, 0)) scale(0.5); }
+  to   { opacity: 1; transform: translate(var(--tx, 0), var(--ty, 0)) scale(1); }
+}
+/* The keyframes alone can't carry the dialogue's runtime translate
+ * (it's set inline). Instead of fighting the cascade, we play the
+ * animation off opacity + scale only and rely on the inline
+ * transform staying intact. */
+.employee-pond__dialogue {
+  animation-name: employee-pond-dialogue-fade-scale;
+}
+@keyframes employee-pond-dialogue-fade-scale {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.employee-pond__dialogue-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 1.4rem;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.employee-pond__dialogue-close:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+.employee-pond__dialogue-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.employee-pond__dialogue-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 4px 8px -2px rgba(15, 20, 25, 0.18);
+}
+.employee-pond__dialogue-avatar--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-subtle);
+  font-family: var(--font-heading);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+}
+.employee-pond__dialogue-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.employee-pond__dialogue-name {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+.employee-pond__dialogue-email {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  overflow-wrap: anywhere;
+}
+.employee-pond__dialogue-fields {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.employee-pond__dialogue-fields > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.employee-pond__dialogue-fields dt {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  margin: 0;
+}
+.employee-pond__dialogue-fields dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+.employee-pond__dialogue-dim {
+  color: var(--color-text-tertiary) !important;
+  font-style: italic;
+}
+.employee-pond__dialogue-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.employee-pond__dialogue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-brand-navy);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+.employee-pond__dialogue-link:hover {
+  text-decoration: underline;
+}
+.employee-pond__dialogue-contact {
+  display: flex;
+  gap: var(--space-1);
+}
+.employee-pond__dialogue-btn {
+  flex: 1;
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  padding: 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  min-height: 40px;
+}
+.employee-pond__dialogue-btn:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.employee-pond__dialogue-btn--primary {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.employee-pond__dialogue-btn--primary:hover {
+  filter: brightness(1.1);
+  color: var(--color-text-on-brand);
+}
+/* Selected orb gets a brand-navy ring so the user can see which orb
+ * the dialogue points to. */
+.employee-pond__orb[data-selected='true'] {
+  outline: 3px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .employee-pond__dialogue {
+    animation: none;
+  }
+}
+
 @media (max-width: 768px) {
   .employee-pond__orb {
     --orb-size: 56px;
