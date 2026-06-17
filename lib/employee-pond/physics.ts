@@ -175,25 +175,35 @@ export function stepPhysics(orbs: OrbState[], opts: PhysicsOptions): void {
     o.y += o.vy * dt;
   }
 
-  // 4. Pond-wall bounce. Project the orb back inside the pond and
-  //    reflect its velocity along the inward normal.
+  // 4. Slice E10b — soft pond viewport. Orbs can drift OUTSIDE the
+  //    visible circle (the pond's `overflow: hidden` clips them
+  //    visually) but feel a gentle inward pull proportional to how
+  //    far they are. They always come home eventually via
+  //    gravity + this pull + damping. No hard wall bounce so a
+  //    user dragging or shaking an orb can fling it off-screen
+  //    without snapping back; collisions can knock orbs out of
+  //    view, then collisions can bring them back.
+  //
+  //    bounceRestitution is retained on the options interface for
+  //    API compatibility but is no longer applied by the soft
+  //    viewport — kept as a hint for a future opt-in hard-wall
+  //    mode.
+  void bounceRestitution;
   for (const o of orbs) {
     if (o.dragging) continue;
     const distSq = o.x * o.x + o.y * o.y;
-    const maxDist = pondRadius - o.radius;
-    if (distSq <= maxDist * maxDist) continue;
+    const visible = pondRadius - o.radius;
+    if (distSq <= visible * visible) continue;
     const dist = Math.sqrt(distSq);
     if (dist <= 0) continue;
-    const nx = o.x / dist;
-    const ny = o.y / dist;
-    o.x = nx * maxDist;
-    o.y = ny * maxDist;
-    const vn = o.vx * nx + o.vy * ny;
-    if (vn > 0) {
-      const factor = 1 + bounceRestitution;
-      o.vx -= factor * vn * nx;
-      o.vy -= factor * vn * ny;
-    }
+    const overshoot = dist - visible;
+    // Linear in overshoot — steady tug back, scaled by dt so the
+    // result is frame-rate-independent. Tuned so an orb flung to
+    // 2× the visible radius returns to view in ~1.5 s under
+    // typical gravity + damping defaults.
+    const pull = overshoot * 3 * dt;
+    o.vx -= (o.x / dist) * pull;
+    o.vy -= (o.y / dist) * pull;
   }
 
   // 5. Damping — velocity decays exponentially so the pond settles

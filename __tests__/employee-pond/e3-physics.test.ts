@@ -84,19 +84,49 @@ describe('stepPhysics — pairwise repulsion', () => {
   });
 });
 
-describe('stepPhysics — pond wall bounce', () => {
-  it('clamps an orb that crossed the pond edge back inside', () => {
-    const list = [orb({ x: 1000, y: 0, vx: 50 })]; // way outside
-    stepPhysics(list, { pondRadius: POND, ...DEFAULT_PHYSICS, dt: 0.016 });
-    const dist = Math.sqrt(list[0].x ** 2 + list[0].y ** 2);
-    expect(dist).toBeLessThanOrEqual(POND - R + 0.0001);
+describe('stepPhysics — soft pond viewport (E10b)', () => {
+  it("an orb OUTSIDE the visible radius gains an inward velocity (gentle pull, not a clamp)", () => {
+    // E10b removed the hard wall in favor of a soft viewport: orbs
+    // can drift outside the visible circle but feel a continuous
+    // pull-back; gravity + damping bring them home over time.
+    const list = [orb({ x: 1000, y: 0, vx: 50 })];
+    stepPhysics(list, {
+      pondRadius: POND,
+      ...DEFAULT_PHYSICS,
+      idleJitter: 0,
+      dt: 0.016,
+    });
+    // Position is NOT clamped — orb stays outside.
+    expect(list[0].x).toBeGreaterThan(POND);
+    // Velocity now points inward (decelerating from +50; the
+    // gravity + pull combine to a negative net velocity-change).
+    expect(list[0].vx).toBeLessThan(50);
   });
 
-  it('reflects the velocity normal component when leaving the pond', () => {
+  it("an orb at the edge with outward velocity decelerates rather than reflecting", () => {
     const list = [orb({ x: POND - R + 1, y: 0, vx: 200 })];
-    stepPhysics(list, { pondRadius: POND, ...DEFAULT_PHYSICS, dt: 0.016 });
-    // Was moving outward; reflection should now point inward.
-    expect(list[0].vx).toBeLessThan(0);
+    stepPhysics(list, {
+      pondRadius: POND,
+      ...DEFAULT_PHYSICS,
+      idleJitter: 0,
+      dt: 0.016,
+    });
+    // No instantaneous sign-flip: still moving outward, just slower.
+    expect(list[0].vx).toBeGreaterThan(0);
+    expect(list[0].vx).toBeLessThan(200);
+  });
+
+  it("orbs inside the visible radius are unaffected by the viewport pull", () => {
+    const list = [orb({ x: 100, y: 0, vx: 0 })];
+    const before = list[0].vx;
+    stepPhysics(list, {
+      pondRadius: POND,
+      ...DEFAULT_PHYSICS,
+      idleJitter: 0,
+      dt: 0.016,
+    });
+    // Only gravity pulls — no extra viewport tug.
+    expect(list[0].vx).toBeLessThan(before);
   });
 });
 

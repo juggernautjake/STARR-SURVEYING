@@ -703,20 +703,185 @@
 }
 
 @media (max-width: 768px) {
+  /* ── Slice E10b — mobile-responsive build ─────────────────
+   * Keep the desktop look + feel; layer phone-specific
+   * formatting that hits Apple HIG 44 pt touch minimums + uses
+   * iOS safe-area insets. The desktop CSS above is byte-
+   * identical when the viewport is wider than 768 px.
+   * ───────────────────────────────────────────────────────── */
+
+  /* Toolbar — search becomes its own full-width row; filter
+   * button + count chip share the next row with 44 pt targets. */
+  .employee-pond__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .employee-pond__search {
+    width: 100%;
+    min-height: 44px;
+  }
+  .employee-pond__filter-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .employee-pond__filter-btn {
+    min-height: 44px;
+    flex: 1;
+  }
+  .employee-pond__count {
+    margin-left: 0;
+  }
+
+  /* Filter panel — pops as a full-screen sheet on phone so
+   * checkboxes have room to breathe. Same pattern as the
+   * calendar's cheat sheet from the prior plan. */
+  .employee-pond__filter-panel {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
+    padding: var(--space-4);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
+    z-index: 100;
+    box-shadow: 0 -8px 24px -4px rgba(15, 20, 25, 0.18);
+  }
+  .employee-pond__filter-list {
+    max-height: none;
+  }
+  .employee-pond__filter-row {
+    /* 44 pt total height = 8 px padding + 28 px line height + 8 px. */
+    padding: 10px 12px;
+    font-size: var(--text-base);
+  }
+  .employee-pond__filter-row input[type='checkbox'] {
+    width: 22px;
+    height: 22px;
+  }
+  .employee-pond__filter-clear {
+    min-height: 44px;
+    font-size: var(--text-base);
+  }
+
+  /* Pond surface — orbs + container size already tuned in the
+   * base mobile block (below); ensure the pond stays centered
+   * with padding around it so portrait-iPhone fingers don't
+   * brush the orbs by accident when scrolling. */
   .employee-pond__orb {
     --orb-size: 56px;
   }
   .employee-pond__pond {
-    /* Tighter on phone so the whole pond fits in portrait without
-     * needing to scroll. */
+    /* Tighter on phone so the whole pond fits in portrait
+     * without needing to scroll. */
     --pond-radius: 160px;
   }
+  .employee-pond__surface {
+    padding: var(--space-3);
+  }
+
+  /* Dialogue — slides up from the bottom as a sheet on phone
+   * instead of anchoring next to the orb. Full width, top
+   * corners rounded, safe-area inset for the home indicator,
+   * scrollable body if the field list ever overflows. The
+   * inline `transform` from anchorDialogue is overridden via
+   * !important because that style is set per-orb at click time
+   * by the React component (and the desktop math doesn't make
+   * sense on a 360-wide phone). */
+  .employee-pond__dialogue {
+    position: fixed !important;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: none;
+    min-height: auto;
+    max-height: 88vh;
+    overflow-y: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -12px 36px -6px rgba(15, 20, 25, 0.28);
+    transform: translateY(0) !important;
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    animation: employee-pond-sheet-rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes employee-pond-sheet-rise {
+    from { transform: translateY(100%) !important; }
+    to   { transform: translateY(0) !important; }
+  }
+  .employee-pond__dialogue-close {
+    /* Larger close button + grip handle hint at the top so the
+     * sheet metaphor is clear. */
+    width: 44px;
+    height: 44px;
+    font-size: 1.6rem;
+  }
+  /* Grab handle — purely visual; the sheet dismisses via close
+   * button or backdrop tap. */
+  .employee-pond__dialogue::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: #D1D5DB;
+  }
+  .employee-pond__dialogue-actions {
+    /* Action footer stays at the bottom; bottom safe-area
+     * padding lives on the parent. */
+    gap: var(--space-2);
+  }
+  .employee-pond__dialogue-btn {
+    /* 44 pt min touch target on the Email + Message buttons. */
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+  .employee-pond__dialogue-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
   /* Slice E8 — single-column list on phone so each row has room
    * to breathe; role pills wrap to a second line if needed. */
   .employee-pond__list {
     grid-template-columns: 1fr;
   }
+  .employee-pond__list-row {
+    /* 44 pt total via padding + 36 px avatar. */
+    padding: 10px 12px;
+  }
   .employee-pond__list-roles {
     max-width: none;
+  }
+
+  /* View toggle on the page header gets a slight bump too. */
+  .employees-page__view-toggle button {
+    min-height: 40px;
+    padding: var(--space-1) var(--space-3);
+  }
+}
+
+/* Small-phone (≤ 480 px) — tighten margins so the pond + list
+ * stack readably without horizontal scroll. */
+@media (max-width: 480px) {
+  .employee-pond__pond {
+    --pond-radius: 140px;
+  }
+  .employee-pond__orb {
+    --orb-size: 52px;
+  }
+  .employee-pond__list-row {
+    gap: var(--space-2);
+  }
+  .employee-pond__list-avatar {
+    width: 32px;
+    height: 32px;
   }
 }

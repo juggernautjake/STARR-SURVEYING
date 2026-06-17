@@ -629,7 +629,72 @@ universal reach until E9c builds the dedicated page).
   clean on the touched files, full suite 8829 green (+18).
 | In-app email composer page at /admin/email/new | **E9c** |
 | `prefers-reduced-motion` + accessibility audit | **✅ E10** |
-| Full mobile-responsive build of the pond surface | **E10b** |
+| Full mobile-responsive build of the pond surface | **✅ E10b** |
+| Soft viewport — orbs render but can drift outside the visible circle | **✅ E10b** |
+
+**E10b shipped 2026-06-16** — mobile-responsive build + soft pond
+viewport.
+- `app/admin/styles/EmployeePond.css` — `@media (max-width: 768px)`
+  block extended for a full phone-tuned pass:
+  - **Toolbar reorg**: stacks column; search becomes its own
+    full-width row at 44 pt min; filter button + count chip share
+    the next row.
+  - **Filter panel as a sheet**: `position: fixed; inset: 0`
+    full-screen on phone with `env(safe-area-inset-bottom/top)`
+    padding so the iOS home indicator + notch stay clear. List
+    rows bump padding + font size to thumb-friendly; checkboxes
+    grow to 22 × 22 px.
+  - **Dialogue as a bottom-sheet**: `position: fixed !important;
+    bottom: 0; width: 100%`; top corners rounded (`var(--radius-lg)
+    var(--radius-lg) 0 0`); slides up via
+    `@keyframes employee-pond-sheet-rise` (translateY 100% → 0 in
+    220 ms cubic-bezier ease-out); grab-handle pseudo-element at
+    the top; safe-area-inset-bottom padding so contact buttons
+    don't touch the home indicator; every interactive (close,
+    Email, Message, Open profile) at 44 pt min.
+  - **Surface padding** reduced so the pond + list don't crowd
+    the edge.
+- `@media (max-width: 480px)` block added — small-phone
+  tightening: `--pond-radius: 140px`, `--orb-size: 52px`,
+  list-row avatar 32 × 32.
+- `lib/employee-pond/physics.ts` — **soft viewport**:
+  - Removed the hard wall-bounce + position clamp (the previous
+    "snap back at the edge" semantics).
+  - Replaced with a soft inward pull whose magnitude is
+    proportional to overshoot. An orb that drifts outside the
+    visible radius (via drag fling / shake release / hard
+    collision) gets a continuous inward tug; gravity + damping
+    bring it home over ~1–2 seconds. No instantaneous reflection,
+    so the user sees a smooth return rather than a snap.
+  - The pond's existing `overflow: hidden` clips off-screen orbs
+    visually — they're DOM-rendered, still tick in the physics,
+    and can be brought back into view by search filter, by
+    collisions from other orbs, or by gravity. Matches the user
+    spec's "window into a larger world" feel.
+  - `bounceRestitution` retained on the options interface for
+    API compatibility (`void bounceRestitution;` documents it
+    explicitly).
+  - Dragging orbs bypass the viewport pull just like every other
+    force, so the user can drag freely off-screen.
+- E3 wall tests rewritten to assert the new soft-viewport
+  behavior (orb stays outside but vx points inward; outside-orb
+  drifts back over 5 s of simulation; inside-orb unaffected by
+  the viewport tug; dragging-orb sees no force).
+- Source-locked by `__tests__/employee-pond/e10b-mobile-viewport.test.ts`
+  (19 assertions: soft viewport in four shapes; mobile toolbar
+  reorg + 44 pt; full-screen filter panel + safe-area + thumb-
+  size rows; bottom-sheet dialogue + sheet-rise keyframes + grab
+  handle + 44 pt buttons + close + safe-area; small-phone size
+  tightening).
+- **Three post-build checks: green** — typecheck clean, lint
+  clean on touched files, full suite 8862 green (+19).
+- **Particle triple-check (this slice)**: reviewed the entire
+  particle path end-to-end (`spawnParticles` → state push with
+  pool cap → CSS custom-prop translate3d animation → onAnimationEnd
+  removal). No issues found. Reduced-motion path verified to
+  short-circuit at React + collapse-to-1ms at CSS. Pool cap
+  keeps render bounded even under a long drag through dozens
+  of orbs.
 
 **E10 shipped 2026-06-16** — reduced-motion + a11y audit.
 - `app/admin/employees/EmployeePond.tsx`:
