@@ -792,7 +792,67 @@ viewport.
 - **Three post-build checks: green** — typecheck clean, lint
   only the pre-existing `<img>` warnings, full suite 8843
   green (+14).
-| Privacy contract: per-user public/private settings + role visibility matrix | **E12** |
+| Privacy contract: per-user public/private settings + role visibility matrix | **✅ E12 (foundation; E12b adds API + UI)** |
+
+**E12 shipped 2026-06-16** — privacy foundation: schema + pure
+visibility helper. The actual API + the per-user settings UI ship
+as **E12b** so this slice stays surgical.
+- `seeds/295_employee_privacy.sql`:
+  - `employee_privacy` table with `user_email` as PK.
+  - Contact + employment-context fields default to `true`
+    (visible by default for team coherence): name, email,
+    phone, hire_date, job_title, employment_type, photos,
+    jobs_history.
+  - Personal + pay-adjacent fields default to `false`: DOB,
+    gender, address, hours, bonuses.
+  - **No salary / payout columns** — those categories are
+    admin-only at the JS layer regardless of any user toggle,
+    so persisting a toggle row would be misleading.
+  - `idx_employee_privacy_updated_at` index for the
+    "recently changed" admin diagnostic.
+- `lib/employee-pond/visibility.ts`:
+  - `ADMIN_VISIBILITY_ROLES` = `['admin', 'developer',
+    'tech_support', 'equipment_manager']` — roles that see
+    every field.
+  - `ALWAYS_ADMIN_ONLY_FIELDS` = `['hourly_rate',
+    'annual_salary', 'payout_history']` — pay-data the helper
+    refuses to surface to non-admins regardless of toggles.
+  - `EmployeePrivacy` interface mirrors the schema columns 1:1.
+  - `DEFAULT_EMPLOYEE_PRIVACY` — sensible defaults applied at
+    read time when no DB row exists.
+  - `viewerSeesEverything(viewer, targetEmail)` — true when
+    viewer is the target OR holds any admin-visibility role.
+  - `filterEmployeeView({ viewer, target, targetPrivacy? })`
+    — pure filter:
+    1. Own profile → full record returned.
+    2. Admin viewer → full record returned.
+    3. Otherwise → only the fields the target's toggles allow,
+       with `email` always present (it's the id) and `name`
+       falling back to literal `'Employee'` when the name
+       toggle is off so the UI always has something to render.
+       Pay-data fields are NEVER returned in this branch.
+  - `hydrateEmployeePrivacy(partial)` — merges a partial row
+    (from the DB or a form draft) over the defaults so
+    callers always have a complete struct to work with.
+- Source-locked by `__tests__/employee-pond/e12-visibility.test.ts`
+  (24 assertions: ADMIN_VISIBILITY_ROLES list + ALWAYS_ADMIN_ONLY
+  list; default-privacy split by sensitivity; viewerSeesEverything
+  own-profile + every admin role + general-role false; filter
+  helper own-profile branch + admin branch incl. salary + payout
+  + every admin role variant; general-viewer-public-defaults
+  surface + private-defaults hidden + always-admin-only never
+  surfaces + opt-in surfaces + opt-out hides + name fallback +
+  email-always-present; hydrate null + partial; SQL schema
+  PK + every default + no-salary-column + index).
+- **Three post-build checks: green** — typecheck clean, lint
+  clean, full suite 8905 green (+24).
+
+E12b (queued) ships the GET/PUT endpoint for the user's own
+settings + the `/me/privacy` (or settings panel) UI that exposes
+the toggles. E13 (activity history schema) + E14 (admin
+"everything" page + employee "my history" page) consume the
+helper to filter their displays.
+| Privacy API + per-user settings UI | **E12b** |
 | Activity history schema (jobs / bonuses / salary / payouts / hours / photos) | **E13** |
 | Activity history surfaces (admin "everything" page + employee "my history") | **E14** |
 | Three post-build checks per slice (`tsc --noEmit`, `eslint`, `vitest`) | every slice |
