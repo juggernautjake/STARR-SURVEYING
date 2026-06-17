@@ -18,6 +18,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
+// Slice S1 (calendar-day-create-and-alerts-2026-06-17) — reuse the
+// today-schedule widget's compact event form for the hover-plus
+// modal so the calendar + the hub widget surface the same form
+// (and any future field extension lights up on both at once).
+import AddEventForm from '@/lib/hub/calendar/AddEventForm';
 import {
   buildMonthGrid,
   groupEventsByDay,
@@ -110,6 +115,31 @@ export default function CalendarPage() {
   // out of fullscreen flips the React state back without us polling.
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Slice S1 — hover-plus day-create flow. `actionMenuIso` is the
+  // ISO date of the cell whose Event/Job menu is currently open
+  // (null when no menu). `createEventForIso` is the ISO date
+  // pre-filled into the create-event modal (null when the modal is
+  // closed). The two are separate because the menu closes the
+  // moment the modal opens.
+  const [actionMenuIso, setActionMenuIso] = useState<string | null>(null);
+  const [createEventForIso, setCreateEventForIso] = useState<string | null>(null);
+
+  // Slice S1 — close the day-action menu on any document click
+  // that lands outside `.calendar-month__action-menu`. The menu
+  // anchor itself stops propagation, so opening it isn't auto-
+  // closed by this listener.
+  useEffect(() => {
+    if (!actionMenuIso) return;
+    function handle(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('.calendar-month__action-menu')) return;
+      if (target && target.closest('.calendar-month__hover-add')) return;
+      setActionMenuIso(null);
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [actionMenuIso]);
 
 
   const year = focus.getFullYear();
@@ -629,6 +659,45 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Slice S1 — create-event modal anchored to the day cell
+          the user clicked "+" on. Reuses AddEventForm so any
+          future field (visibility / custom reminders / etc.)
+          lands on both the hub widget AND the calendar at once. */}
+      {createEventForIso && (
+        <div
+          className="calendar-page__create-backdrop"
+          data-testid="calendar-create-event-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Create event for ${createEventForIso}`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreateEventForIso(null);
+          }}
+        >
+          <div className="calendar-page__create-modal">
+            <div className="calendar-page__create-modal-header">
+              <h3>Create event — {createEventForIso}</h3>
+              <button
+                type="button"
+                onClick={() => setCreateEventForIso(null)}
+                aria-label="Close create event"
+                data-testid="calendar-create-event-close"
+              >
+                ✕
+              </button>
+            </div>
+            <AddEventForm
+              defaultDate={createEventForIso}
+              onCancel={() => setCreateEventForIso(null)}
+              onCreated={() => {
+                setCreateEventForIso(null);
+                void load();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -661,6 +730,53 @@ export default function CalendarPage() {
                   <span style={{ marginLeft: 4, color: 'var(--color-text-secondary)', fontSize: 'var(--text-xs)' }}>
                     {MONTH_NAMES[cell.date.getMonth()].slice(0, 3)}
                   </span>
+                )}
+                {/* Slice S1 — hover-plus affordance. The button
+                    is hidden by default and animates in on cell
+                    hover via CSS (.calendar-month__cell:hover
+                    .calendar-month__hover-add). Clicking it opens
+                    the Event/Job menu anchored to this cell. */}
+                <button
+                  type="button"
+                  className="calendar-month__hover-add"
+                  data-testid="calendar-day-add"
+                  data-iso={cell.iso}
+                  aria-label={`Add to ${cell.iso}`}
+                  title="Add event or job"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionMenuIso((cur) => (cur === cell.iso ? null : cell.iso));
+                  }}
+                >
+                  +
+                </button>
+                {actionMenuIso === cell.iso && (
+                  <div
+                    className="calendar-month__action-menu"
+                    data-testid="calendar-day-action-menu"
+                    role="menu"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="calendar-day-action-event"
+                      onClick={() => {
+                        setCreateEventForIso(cell.iso);
+                        setActionMenuIso(null);
+                      }}
+                    >
+                      📅 Create event
+                    </button>
+                    <Link
+                      role="menuitem"
+                      data-testid="calendar-day-action-job"
+                      href={`/admin/jobs/new?scheduled_for=${cell.iso}`}
+                      onClick={() => setActionMenuIso(null)}
+                    >
+                      💼 Create job
+                    </Link>
+                  </div>
                 )}
               </div>
               <div className="calendar-month__events">

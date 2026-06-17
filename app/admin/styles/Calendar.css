@@ -190,6 +190,138 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--color-text-primary);
+  /* Slice S1 — position the hover-plus button against the cell
+   * number row. Relative positioning so the absolute-positioned
+   * button + menu anchor here rather than on the cell itself. */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Slice S1 — hover-plus affordance.
+ *
+ * Hidden by default; fades in when the user mouses over the cell.
+ * The cell itself owns the hover state so the button doesn't pop
+ * in/out as the user moves over individual events. Keyboard
+ * focus also reveals it. */
+.calendar-month__hover-add {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--color-brand-navy);
+  background: var(--color-brand-navy);
+  color: #FFFFFF;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.calendar-month__cell:hover .calendar-month__hover-add,
+.calendar-month__hover-add:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.calendar-month__hover-add:hover {
+  transform: scale(1.08);
+}
+.calendar-month__hover-add:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+
+/* Slice S1 — Event/Job action menu, anchored to the hover-plus
+ * button. Cell has overflow:hidden which would clip the menu, so
+ * we lift the menu up via z-index + absolute positioning that
+ * pushes it against the cell's top-right corner; if it overflows
+ * the cell, the surrounding grid still scrolls cleanly. */
+.calendar-month__action-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.2);
+}
+.calendar-month__action-menu button,
+.calendar-month__action-menu a {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+}
+.calendar-month__action-menu button:hover,
+.calendar-month__action-menu a:hover {
+  background: #EBF0FF;
+  color: var(--color-brand-navy);
+}
+
+/* Slice S1 — create-event centered modal (reuses the
+ * cheat-sheet's backdrop + panel pattern for visual consistency). */
+.calendar-page__create-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+.calendar-page__create-modal {
+  width: min(440px, 100%);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: 0 20px 50px -15px rgba(15, 23, 42, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.calendar-page__create-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.calendar-page__create-modal-header h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.calendar-page__create-modal-header button {
+  background: transparent;
+  border: 0;
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+.calendar-page__create-modal-header button:hover {
+  background: #EBF0FF;
+  color: var(--color-brand-navy);
 }
 .calendar-month__cell[data-in-month='false'] .calendar-month__cell-num {
   color: var(--color-text-tertiary);
