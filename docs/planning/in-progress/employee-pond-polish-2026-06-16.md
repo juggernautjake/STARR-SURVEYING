@@ -42,7 +42,7 @@
 | **P2** | Soften physics — repulsion + hover bump cut to ~⅓ ✅ shipped |
 | **P3** | Bigger pond — `POND_RADIUS_PX` 280 → 360 ✅ shipped |
 | **P3-cf** | Favorite calculators — star toggle + favorited tabs sort to the left ✅ shipped |
-| **P3-ba** | New surveyor utility: Bearing / Azimuth calculator with quadrant + mode toggle |
+| **P3-ba** | New surveyor utility: Bearing / Azimuth calculator with quadrant + mode toggle ✅ shipped |
 | **P4** | Camera offset + omni-directional scroll ring + reset link |
 
 Each slice runs the three post-build checks and lands in its own

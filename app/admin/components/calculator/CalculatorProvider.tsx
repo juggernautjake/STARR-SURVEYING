@@ -24,9 +24,14 @@ import { CasioFx991 } from './models/CasioFx991';
 import { CasioFx115 } from './models/CasioFx115';
 import { Hp35s } from './models/Hp35s';
 import { Hp33s } from './models/Hp33s';
+// Slice P3-ba — surveyor utility: bearing ↔ azimuth conversion.
+// Not a vendor calculator, so it carries its own `Surveyor` brand
+// in the tab strip.
+import { BearingAzimuth } from './models/BearingAzimuth';
 
 export type ModelKey =
   | 'generic'
+  | 'bearing-az'
   | 'ti-36x-pro'
   | 'ti-30xs-multiview'
   | 'ti-30xa'
@@ -37,7 +42,7 @@ export type ModelKey =
 
 export interface ModelDef {
   key: ModelKey;
-  brand: 'Generic' | 'TI' | 'Casio' | 'HP';
+  brand: 'Generic' | 'TI' | 'Casio' | 'HP' | 'Surveyor';
   label: string;
   /** Default modal dimensions per device. Real keypads have a natural ratio. */
   width: number;
@@ -50,6 +55,10 @@ export const CALCULATOR_MODELS: ModelDef[] = [
   // cad-trv-fidelity Slice 14 — the DEFAULT generic arithmetic calc,
   // listed first. Simple Windows-calculator-style; not exam-specific.
   { key: 'generic',           brand: 'Generic', label: 'Generic Calculator', width: 320, height: 460, phase: 1 },
+  // Slice P3-ba — bearing ↔ azimuth converter for field-CAD round
+  // trips. Compact form-based UI (no keypad), so the default size
+  // is smaller than the vendor emulators.
+  { key: 'bearing-az',        brand: 'Surveyor', label: 'Bearing ↔ Azimuth', width: 340, height: 480, phase: 1 },
   // Widths bumped per user feedback — earlier widths cramped the keys.
   // Heights also bumped a touch to keep the keypad aspect-ratio sane.
   // Phase 2: representative algebraic.
@@ -370,6 +379,7 @@ function mapKey(key: string): string | null {
 function renderModel(model: ModelDef) {
   // C-6+ replaces each placeholder with the real shell as phases ship.
   if (model.key === 'generic') return <GenericCalculator />;
+  if (model.key === 'bearing-az') return <BearingAzimuth />;
   if (model.key === 'ti-36x-pro') return <Ti36xPro />;
   if (model.key === 'ti-30xs-multiview') return <Ti30xsMultiView />;
   if (model.key === 'ti-30xa') return <Ti30xa />;
