@@ -162,6 +162,9 @@ describe('Slice 5 — normalizeWidgets', () => {
 describe('Slice 5 — hub-store hydrate runs the normalizer on load', () => {
   it('hub-store imports normalizeWidgets and pipes hydrate(widgets) through it', () => {
     expect(STORE_SRC).toMatch(/import \{ normalizeWidgets \} from '\.\/normalize-customization';/);
-    expect(STORE_SRC).toMatch(/widgets:\s*normalizeWidgets\(widgets\)/);
+    // Slice P7 widened the assertion: the normalized layout is now
+    // wrapped with `dedupeWidgetsById(...)` before it hits the store
+    // so the next read of widgets/draftWidgets cannot contain dupes.
+    expect(STORE_SRC).toMatch(/widgets:\s*(?:dedupeWidgetsById\()?normalizeWidgets\(widgets\)\)?/);
   });
 });
