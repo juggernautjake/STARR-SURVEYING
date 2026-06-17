@@ -252,7 +252,11 @@
   flex-wrap: wrap;
 }
 .jobs-page__search-form {
-  flex: 1;
+  /* Slice P5 — user feedback: search bars were stretching across
+   * the whole row. Cap the form at ~380px so the input reads as a
+   * normal control; flex-shrink stays on so narrow viewports still
+   * collapse it without overflow. */
+  flex: 0 1 380px;
   display: flex;
   gap: 0.35rem;
 }
