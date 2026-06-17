@@ -323,13 +323,73 @@
 - **Three post-build checks: green** — typecheck clean, lint
   only the pre-existing `<img>` warnings (one new for the
   dialogue avatar), full suite 8702 green (+24).
-| Drag interaction (pointer down/move/up) | **E6** |
+| Drag interaction (pointer down/move/up) | **✅ E6** |
+| Hockey-table feel + selected-puck visual focus | **E6b** |
+
+**E6 shipped 2026-06-16** — drag interaction.
+- `lib/employee-pond/drag.ts`:
+  - `pointerToPondCoords` translates window-space pointer to
+    pond-center frame; pure, deterministic.
+  - `MotionSample` + `computeReleaseVelocity` computes a flick
+    velocity from the first + last samples; zero when fewer than
+    two samples or zero elapsed time.
+  - `DRAG_THRESHOLD_PX = 5` + `exceedsDragThreshold(dx, dy)`
+    so the click vs drag disambiguation happens once, in one
+    place.
+  - `MOTION_BUFFER_LIMIT = 8` keeps the recent-motion buffer
+    bounded.
+- `app/admin/employees/EmployeePond.tsx`:
+  - Drag refs: `pondElRef` (so handlers can read the bounding
+    rect), `draggingIdRef`, `dragStartRef`, `dragMotionRef`,
+    `motionSamplesRef`, `suppressNextClickRef`.
+  - `handleOrbPointerDown` captures the pointer + records the
+    drag origin from the orb's CURRENT physics position. Doesn't
+    flip `physics.dragging` yet — that waits until motion
+    crosses the threshold so a quick tap still opens the
+    dialogue.
+  - `handleOrbPointerMove` checks the threshold once; on crossing,
+    calls `physics.setDragging(id, true)`, marks
+    `suppressNextClickRef = true`, then on every move converts
+    pointer → pond coords and writes both the new position AND
+    a fresh motion sample to the buffer (`shift()`-trimmed at
+    `MOTION_BUFFER_LIMIT`).
+  - `handleOrbPointerUp` computes the release velocity from the
+    motion buffer, applies it via `physics.setOrb`, clears the
+    dragging flag. Drag state reset on every release.
+  - `handleOrbPointerCancel` ends the drag gracefully (no
+    release velocity) when the OS reclaims the pointer.
+  - Orb `onClick` checks `suppressNextClickRef` before opening
+    the dialogue so a drag-then-release doesn't accidentally
+    select.
+- `app/admin/styles/EmployeePond.css`:
+  - Orb `cursor: grab` (resting) and `cursor: grabbing` on
+    `:active` so the gesture telegraphs.
+  - `touch-action: none` on the orb so a finger drag doesn't
+    scroll the page.
+- Source-locked by `__tests__/employee-pond/e6-drag.test.ts`
+  (21 assertions: pointer translation in three directions,
+  threshold disc inside/outside, threshold constant, release
+  velocity with three buffer shapes, MOTION_BUFFER_LIMIT
+  constant; page wiring incl. import, every ref, pointerdown
+  capture + physics.orbs read, pointermove threshold +
+  setDragging + pond-relative track + buffer trim, pointerup
+  release-vel + clear, pointercancel guard, click suppression,
+  every handler attached; CSS cursor states + touch-action).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings, full suite 8740 green
+  (+21).
+- The E5 source-lock that pinned the inline `onClick={() =>
+  handleOrbClick(employee)}` was widened to match the new
+  wrapped-with-suppression-guard pattern.
 | Particle FX on collision during drag | **E7** |
 | Shake-to-release detection + settle animation | **E7** |
 | Below-pond list of currently-visible employees | **E8** |
 | Email + Direct Message contact buttons (incl. `?to=` on inbox) | **E9** |
 | Recipient continuity: widget ↔ dedicated /admin/messages page | **E9b** |
 | `prefers-reduced-motion` + accessibility audit | **E10** |
+| Privacy contract: per-user public/private settings + role visibility matrix | **E12** |
+| Activity history schema (jobs / bonuses / salary / payouts / hours / photos) | **E13** |
+| Activity history surfaces (admin "everything" page + employee "my history") | **E14** |
 | Three post-build checks per slice (`tsc --noEmit`, `eslint`, `vitest`) | every slice |
 | Optional follow-up: DOB / gender / FT-PT schema columns | **E11** |
 
@@ -358,6 +418,140 @@ Risk-ordered:
 - E8 is small + valuable on its own.
 - E9 closes the contact loop.
 - E10 is the QA sweep.
+
+## Design notes added 2026-06-16 — feedback on the prototype
+
+### E6b — Dynamic / organic / fun feel + selection focus
+User feedback after E6 shipped (in their words):
+- The pond should feel "dynamic and organic and fun to
+  interact with" (the "hockey table" comparison was just a
+  metaphor for the floaty/glide feel — not a hard
+  requirement).
+- When a puck is selected, **all other pucks should fade
+  slightly + the selected one stays full-color + enlarged**
+  until the user unselects (closes the dialogue or clicks
+  elsewhere).
+
+E6b actions:
+- **Physics tuning** for the floaty/organic feel:
+  - Lower `gravity` (1.4 → ~0.8) so orbs drift in rather
+    than snap.
+  - Raise `damping` (per-second factor) so they settle
+    gently after a perturbation.
+  - Add a small idle-jitter (tiny random force per frame
+    capped at low magnitude) so the pond never goes
+    completely still.
+- **Cursor-position attraction**: when the cursor is inside
+  the pond, apply a faint additional force toward the
+  cursor (so orbs seem subtly aware of where the user is
+  looking). Falls off with distance; doesn't override the
+  central gravity.
+- **Selection state visual**: while a dialogue is open:
+  - All NON-selected orbs get `opacity: 0.35`
+  - The selected orb keeps `opacity: 1` AND retains the
+    hover scale via `physics.setOrb(selected, { scale: 1.18,
+    radius: HOVER_RADIUS })`
+  - On unselect (close), restore all to `opacity: 1` and the
+    selected orb to `scale: 1, radius: ORB_RADIUS_PX`
+- Implementation: a new `data-selection-active` attribute on
+  `.employee-pond__pond` flips the CSS rule that fades
+  non-selected orbs. Pure CSS handles the dim; physics handle
+  changes drive the persistent scale/radius bump.
+
+### E12 — Privacy contract + role visibility matrix
+User feedback: visibility should vary by viewer role + per-user
+public/private toggles. Locking the matrix:
+
+**Roles that see EVERYTHING** (no filtering):
+`admin`, `developer`, `tech_support`, `equipment_manager`,
+plus the user themselves (own profile is always fully visible).
+
+**Roles that see GENERAL info only** (public fields per the
+viewed user's privacy settings):
+`employee`, `field_crew`, `drawer`, `researcher`, `teacher`,
+`student`, `guest`.
+
+**Per-user public/private settings** (new `employee_privacy`
+table or columns on `registered_users`):
+- `show_full_name_to_employees` (default true)
+- `show_email_to_employees` (default true)
+- `show_phone_to_employees` (default true if a phone is on file)
+- `show_dob_to_employees` (default false)
+- `show_gender_to_employees` (default false)
+- `show_address_to_employees` (default false)
+- `show_hire_date_to_employees` (default true)
+- `show_job_title_to_employees` (default true)
+- `show_photos_to_employees` (default true — for the avatar in
+  the pond + the photos they've posted)
+- `show_jobs_history_to_employees` (default true — which past
+  jobs they were on)
+- `show_hours_to_employees` (default false — pay-adjacent data
+  defaults to private)
+- `show_bonuses_to_employees` (default false)
+- `show_salary_to_employees` (always false to non-admins,
+  regardless of the toggle — pay info is admin-only)
+- `show_payout_history_to_employees` (always false to
+  non-admins)
+
+Each employee gets a `/admin/employees/manage/privacy` panel
+(or `/me/privacy`) where they can flip each toggle. The toggles
+that say "always false to non-admins, regardless of toggle"
+aren't surfaced as user-editable — they're enforced server-side
+in the visibility filter.
+
+The visibility filter is a pure helper
+`lib/employee-pond/visibility.ts`:
+```ts
+filterEmployeeView(
+  viewer: { roles: UserRole[]; email: string },
+  target: FullEmployeeProfile,
+  targetPrivacy: EmployeePrivacy,
+): VisibleEmployeeProfile
+```
+Used by both the API list endpoint AND the dialogue panel
+render so the same rules apply everywhere. Source-locked at
+that boundary.
+
+### E13 — Activity history schema
+The data model the user wants tracked per employee, mostly
+sourcing from existing tables but with a few additions:
+
+| Surface | Source today | Add for E13 |
+|---|---|---|
+| **Jobs they've been part of** | `job_team` table (per-job assignees) | indexed read by `user_email` |
+| **Hours worked** | `daily_time_logs` + `job_time_entries` | nothing new; the query already aggregates |
+| **Photos posted** | `field_media` (mobile) + `job_files` (web) keyed on `created_by` | `created_by` index |
+| **Bonuses** | `employee_bonuses` (need to add) | new table with `user_email, amount, reason, awarded_by, awarded_at, related_job_id?` |
+| **Salary history** | `employee_salary_history` (need to add) | new table with `user_email, base_hourly_rate, base_salary_annual, effective_from, effective_to, changed_by, change_reason` |
+| **Payout history** | `employee_payouts` (need to add) | new table with `user_email, period_start, period_end, gross, net, items[], paid_at, method` |
+| **Personal info** | `registered_users` + `employee_profiles` | new columns added in E11 (DOB / gender / FT-PT) |
+
+Three new seeds (`employee_bonuses`, `employee_salary_history`,
+`employee_payouts`) for the missing tables. RLS policies
+restrict reads to the user themselves + admin/owner roles.
+
+### E14 — Activity history surfaces
+- **Admin "everything" page** at `/admin/employees/manage/[email]/
+  history` — a single tabbed view (Overview, Jobs, Hours, Photos,
+  Bonuses, Salary, Payouts) where admins can scrub every
+  company-related activity for one employee.
+- **Employee "my history" page** at `/me/history` — the
+  same view but with the admin-only sections (Salary, Payouts)
+  redacted. Employees see their own salary always (it's their
+  own data); the dim is only for non-admins viewing OTHER
+  employees.
+
+Both surfaces consume the visibility filter from E12 so the
+same code paths enforce the matrix.
+
+### Slice order — updated
+E1 → E2 → E3 → E5 → E4 → **E6** → **E6b** → E7 → E8 → E9 →
+E9b → E10 → (E11 optional) → **E12** → **E13** → **E14**
+
+E6b lands right after E6 so the polish ships while the drag
+slice is still hot in memory. The privacy + history slices
+group at the end because they touch the schema + auth surface
+significantly and are independent of the visual interactions.
 
 ## TL;DR
 

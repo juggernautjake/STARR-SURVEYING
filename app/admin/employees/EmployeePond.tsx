@@ -17,6 +17,13 @@ import {
   yearsWithCompany,
   type DialogueOrigin,
 } from '@/lib/employee-pond/dialogue-anchor';
+import {
+  pointerToPondCoords,
+  computeReleaseVelocity,
+  exceedsDragThreshold,
+  MOTION_BUFFER_LIMIT,
+  type MotionSample,
+} from '@/lib/employee-pond/drag';
 
 /** Render-side orb radius (px) for the collision math. The CSS uses
  *  `--orb-size: 64px` on desktop, 56 px on phone; 32 is the desktop
@@ -184,6 +191,25 @@ export default function EmployeePond({ employees }: Props) {
   const HOVER_SCALE = 1.18;
   const HOVER_RADIUS = ORB_RADIUS_PX * HOVER_SCALE;
 
+  // Slice E6 — drag refs. All non-rendering state so React doesn't
+  // re-render the world on every pointermove event. `pondElRef`
+  // points at the .employee-pond__pond element so we can read its
+  // bounding rect inside the pointer handlers.
+  const pondElRef = useRef<HTMLDivElement | null>(null);
+  const draggingIdRef = useRef<string | null>(null);
+  const dragStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    orbX: number;
+    orbY: number;
+  } | null>(null);
+  const dragMotionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const motionSamplesRef = useRef<MotionSample[]>([]);
+  /** Suppresses the synthetic click event that fires after a drag
+   *  pointerup so a drag-then-release doesn't accidentally open
+   *  the dialogue. */
+  const suppressNextClickRef = useRef<boolean>(false);
+
   // Click-outside / Esc to dismiss the filter panel.
   useEffect(() => {
     if (!filterOpen) return;
@@ -307,6 +333,110 @@ export default function EmployeePond({ employees }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hoveredEmployeeId]);
 
+  /** Slice E6 — pointerdown on an orb captures the pointer and
+   *  records the drag origin. We don't flip `dragging` in the
+   *  physics until the user actually moves past the threshold, so
+   *  a tap-and-release still opens the dialogue (E5). */
+  const handleOrbPointerDown = useCallback(
+    (employee: PondEmployee, e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return; // left/primary only
+      const orbState = physics.orbs.find((o) => o.id === employee.id);
+      if (!orbState) return;
+      draggingIdRef.current = employee.id;
+      dragStartRef.current = {
+        pointerX: e.clientX,
+        pointerY: e.clientY,
+        orbX: orbState.x,
+        orbY: orbState.y,
+      };
+      dragMotionRef.current = { dx: 0, dy: 0 };
+      motionSamplesRef.current = [];
+      suppressNextClickRef.current = false;
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // setPointerCapture can throw in obscure browsers; ignore.
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const handleOrbPointerMove = useCallback(
+    (employee: PondEmployee, e: React.PointerEvent<HTMLDivElement>) => {
+      if (draggingIdRef.current !== employee.id) return;
+      const start = dragStartRef.current;
+      if (!start) return;
+      const dx = e.clientX - start.pointerX;
+      const dy = e.clientY - start.pointerY;
+      dragMotionRef.current = { dx, dy };
+      if (!exceedsDragThreshold(dx, dy)) return;
+
+      // Cross the threshold once → mark the physics step to skip
+      // gravity/damping/bounce for this orb; the orb tracks the
+      // pointer until release.
+      physics.setDragging(employee.id, true);
+      suppressNextClickRef.current = true;
+
+      // Convert the pointer position into pond-center coords so the
+      // orb follows the cursor exactly, not the start-relative
+      // delta (which would drift if the pointer enters / exits
+      // window bounds).
+      const rect = pondElRef.current?.getBoundingClientRect();
+      if (rect) {
+        const pond = pointerToPondCoords(e.clientX, e.clientY, rect);
+        physics.setOrb(employee.id, { x: pond.x, y: pond.y });
+        const samples = motionSamplesRef.current;
+        samples.push({ x: pond.x, y: pond.y, t: performance.now() });
+        if (samples.length > MOTION_BUFFER_LIMIT) samples.shift();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const handleOrbPointerUp = useCallback(
+    (employee: PondEmployee, e: React.PointerEvent<HTMLDivElement>) => {
+      if (draggingIdRef.current !== employee.id) return;
+      const motion = dragMotionRef.current;
+      const wasDragged = exceedsDragThreshold(motion.dx, motion.dy);
+      if (wasDragged) {
+        const release = computeReleaseVelocity(motionSamplesRef.current);
+        physics.setOrb(employee.id, { vx: release.vx, vy: release.vy });
+        physics.setDragging(employee.id, false);
+      }
+      // Reset drag state. suppressNextClickRef stays true if a
+      // drag happened so the synthetic click is ignored.
+      draggingIdRef.current = null;
+      dragStartRef.current = null;
+      dragMotionRef.current = { dx: 0, dy: 0 };
+      motionSamplesRef.current = [];
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const handleOrbPointerCancel = useCallback(
+    (employee: PondEmployee, _e: React.PointerEvent<HTMLDivElement>) => {
+      if (draggingIdRef.current !== employee.id) return;
+      // The OS reclaimed the pointer (e.g. system gesture). Drop the
+      // drag without applying a release velocity so the orb settles.
+      physics.setDragging(employee.id, false);
+      draggingIdRef.current = null;
+      dragStartRef.current = null;
+      dragMotionRef.current = { dx: 0, dy: 0 };
+      motionSamplesRef.current = [];
+      suppressNextClickRef.current = false;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const filterCount = selectedRoles.size;
 
   return (
@@ -392,7 +522,11 @@ export default function EmployeePond({ employees }: Props) {
         // child orb absolute positions agree on geometry.
         style={{ ['--pond-radius' as string]: '280px' }}
       >
-        <div className="employee-pond__pond" aria-label="Employee pond">
+        <div
+          ref={pondElRef}
+          className="employee-pond__pond"
+          aria-label="Employee pond"
+        >
           {visibleEmployees.map((employee) => (
             <div
               key={employee.id}
@@ -405,7 +539,15 @@ export default function EmployeePond({ employees }: Props) {
               role="button"
               tabIndex={0}
               aria-label={`${employee.name} — ${employee.email}`}
-              onClick={() => handleOrbClick(employee)}
+              onClick={() => {
+                // Slice E6 — drag suppresses the click that would
+                // otherwise open the dialogue.
+                if (suppressNextClickRef.current) {
+                  suppressNextClickRef.current = false;
+                  return;
+                }
+                handleOrbClick(employee);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
@@ -426,6 +568,10 @@ export default function EmployeePond({ employees }: Props) {
               onBlur={() =>
                 setHoveredEmployeeId((cur) => (cur === employee.id ? null : cur))
               }
+              onPointerDown={(e) => handleOrbPointerDown(employee, e)}
+              onPointerMove={(e) => handleOrbPointerMove(employee, e)}
+              onPointerUp={(e) => handleOrbPointerUp(employee, e)}
+              onPointerCancel={(e) => handleOrbPointerCancel(employee, e)}
             >
               <div className="employee-pond__orb-clip">
                 {employee.avatar_url ? (
