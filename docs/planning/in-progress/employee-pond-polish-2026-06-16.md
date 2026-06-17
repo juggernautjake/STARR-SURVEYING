@@ -41,6 +41,8 @@
 | **P1** | Rename "Pond" → "Interactive" + toolbar alignment + drag-image fix + centered list |
 | **P2** | Soften physics — repulsion + hover bump cut to ~⅓ |
 | **P3** | Bigger pond — `POND_RADIUS_PX` 280 → 360 |
+| **P3-cf** | Favorite calculators — star toggle + favorited tabs sort to the left ✅ shipped |
+| **P3-ba** | New surveyor utility: Bearing / Azimuth calculator with quadrant + mode toggle |
 | **P4** | Camera offset + omni-directional scroll ring + reset link |
 
 Each slice runs the three post-build checks and lands in its own

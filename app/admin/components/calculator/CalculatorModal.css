@@ -95,6 +95,41 @@
   gap: 0.3rem;
   white-space: nowrap;
 }
+
+/* Slice P3-cf — wrap that holds the star button + the tab side
+ * by side. Star sits at top-left of the tab; flex layout keeps
+ * the two glued together as one visual unit. */
+.calc-tabstrip__tab-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+.calc-tabstrip__fav {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #9CA3AF;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.35rem;
+  cursor: pointer;
+  border-radius: 4px 0 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.calc-tabstrip__fav:hover {
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.08);
+}
+.calc-tabstrip__fav[aria-pressed='true'] {
+  color: #F59E0B;
+}
+.calc-tabstrip__tab-wrap--fav .calc-tabstrip__tab {
+  /* Tiny gold accent so the user can spot favorites at a glance
+   * even with many tabs. */
+  border-top: 2px solid #F59E0B;
+}
 .calc-tabstrip__tab {
   display: inline-flex;
   flex-direction: column;
