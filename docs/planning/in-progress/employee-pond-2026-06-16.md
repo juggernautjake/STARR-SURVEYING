@@ -852,7 +852,48 @@ settings + the `/me/privacy` (or settings panel) UI that exposes
 the toggles. E13 (activity history schema) + E14 (admin
 "everything" page + employee "my history" page) consume the
 helper to filter their displays.
-| Privacy API + per-user settings UI | **E12b** |
+| Privacy API + per-user settings UI | **✅ E12b** |
+
+**E12b shipped 2026-06-16** — privacy API + per-user settings UI.
+- `app/api/admin/employees/privacy/route.ts`:
+  - `EDITABLE_KEYS` allow-list (13 entries — every column in
+    seeds/295). Salary + payout fields explicitly absent.
+  - **GET** auth-gates on signed-in email, lowercases for
+    lookup, selects only the legal columns from
+    `employee_privacy` for the current user, hydrates
+    against `DEFAULT_EMPLOYEE_PRIVACY` so missing rows fall
+    back to the documented defaults. Returns
+    `{ privacy, defaults }` so the page can later add a
+    "reset to default" button.
+  - **PUT** auth-gates, validates the body is an object,
+    walks each key against the allow-list (rejects unknown
+    keys + non-boolean values with a 400), refuses empty
+    bodies. Upserts on `user_email` with a fresh
+    `updated_at` timestamp and returns the hydrated row.
+- `app/admin/me/privacy/page.tsx`:
+  - `'use client'` + `useSession` gate.
+  - Four `GROUPS` (Contact / Personal / Employment / Activity)
+    drive the form layout; every field has a `label` + a
+    plain-English `hint` so users understand what they're
+    flipping.
+  - Loads via GET on mount; toggles update local state; Save
+    PUTs the full struct. Status banners via `role="status"` +
+    `role="alert"`. Save button disables while in flight.
+  - Intro copy explicitly calls out the role visibility matrix
+    + the salary/payout admin-only enforcement so users
+    understand the contract.
+- Stylesheet borrowed from `EmailCompose.css` so the page
+  matches the rest of the admin shell without a new file.
+- Source-locked by
+  `__tests__/employee-pond/e12b-privacy-api-ui.test.ts` (17
+  assertions: GET + PUT auth gates; EDITABLE_KEYS shape + no
+  salary/payout; GET hydrate + defaults return; PUT unknown-
+  key + non-boolean + empty-body rejection; PUT upsert path +
+  lowercase email; page testIDs for groups + toggles; load on
+  mount; PUT body shape; role="status"/alert; save-disable;
+  matrix copy).
+- **Three post-build checks: green** — typecheck clean, lint
+  clean on touched files, full suite 8922 green (+17).
 | Activity history schema (jobs / bonuses / salary / payouts / hours / photos) | **E13** |
 | Activity history surfaces (admin "everything" page + employee "my history") | **E14** |
 | Three post-build checks per slice (`tsc --noEmit`, `eslint`, `vitest`) | every slice |
