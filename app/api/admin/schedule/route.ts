@@ -15,8 +15,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { expandRecurrence } from '@/lib/schedule/recurrence';
 
+// Slice S2 — visibility + viewer_emails join the column list so every
+// GET / POST / PATCH echoes the new fields.
 const SELECT_COLS =
-  'id, title, event_type, start_time, end_time, all_day, location, notes, job_id, assigned_to, assigned_by, color, created_at, recurrence_rule, recurrence_end, series_id, status';
+  'id, title, event_type, start_time, end_time, all_day, location, notes, job_id, assigned_to, assigned_by, color, created_at, recurrence_rule, recurrence_end, series_id, status, visibility, viewer_emails';
 
 const EVENT_COLORS: Record<string, string> = {
   field_work: '#059669', office: '#1D3095', meeting: '#7C3AED', training: '#D97706',
@@ -39,8 +41,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .select(SELECT_COLS)
     .order('start_time', { ascending: true });
 
-  // Non-admins only see events assigned to them.
-  if (!isAdmin(session.user.roles)) query = query.eq('assigned_to', session.user.email);
+  // Non-admins see events they're assigned to OR events that are
+  // visible to them — either flagged `all_users`, or
+  // `specific_users` with their email in `viewer_emails`. Admins
+  // continue to see everything.
+  //
+  // Slice S2 — implements the user's spec: "We can either include
+  // specific users, or all users, or keep it private."
+  if (!isAdmin(session.user.roles)) {
+    const email = session.user.email;
+    query = query.or(
+      [
+        `assigned_to.eq.${email}`,
+        `visibility.eq.all_users`,
+        `and(visibility.eq.specific_users,viewer_emails.cs.{${email}})`,
+      ].join(','),
+    );
+  }
   // Status filter — default hides pending/denied so they don't clutter the
   // calendar; the time-off approval page asks for status='pending' explicitly.
   if (includeStatus && includeStatus !== 'all') {
@@ -100,6 +117,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     title?: string; event_type?: string; start_time?: string; end_time?: string;
     all_day?: boolean; location?: string; notes?: string; job_id?: string | null; assigned_to?: string;
     recurrence_rule?: string | null; recurrence_end?: string | null; status?: 'approved' | 'pending' | 'denied';
+    // Slice S2 — visibility model.
+    visibility?: 'private' | 'specific_users' | 'all_users';
+    viewer_emails?: string[];
   };
   const title = (body.title ?? '').trim();
   if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
@@ -121,6 +141,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
+  // Slice S2 — accept visibility + viewer_emails. Defaults to
+  // 'private' so a legacy client that doesn't send the field
+  // still lands on the safest setting; viewer_emails is force-
+  // emptied unless the row is `specific_users` so we can't
+  // silently expose an event via a stale array on the body.
+  const visibility = (body.visibility ?? 'private') as 'private' | 'specific_users' | 'all_users';
+  if (!['private', 'specific_users', 'all_users'].includes(visibility)) {
+    return NextResponse.json({ error: 'Invalid visibility' }, { status: 400 });
+  }
+  const viewerEmails = visibility === 'specific_users'
+    ? Array.from(new Set((body.viewer_emails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean)))
+    : [];
+
   const { data, error } = await supabaseAdmin
     .from('schedule_events')
     .insert({
@@ -138,6 +171,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       recurrence_rule: body.recurrence_rule || null,
       recurrence_end: body.recurrence_end || null,
       status: body.status ?? 'approved',
+      visibility,
+      viewer_emails: viewerEmails,
     })
     .select(SELECT_COLS)
     .single();
@@ -178,8 +213,21 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   body.id = (body.id as string).split(':')[0];
 
   const patch: Record<string, unknown> = {};
-  for (const f of ['title', 'event_type', 'start_time', 'end_time', 'all_day', 'location', 'notes', 'job_id', 'assigned_to', 'recurrence_rule', 'recurrence_end', 'status']) {
+  for (const f of ['title', 'event_type', 'start_time', 'end_time', 'all_day', 'location', 'notes', 'job_id', 'assigned_to', 'recurrence_rule', 'recurrence_end', 'status', 'visibility', 'viewer_emails']) {
     if (body[f] !== undefined) patch[f] = body[f] === '' ? null : body[f];
+  }
+  // Slice S2 — patches keep visibility ↔ viewer_emails coherent:
+  // toggling AWAY from specific_users empties viewer_emails so the
+  // row can't leak; toggling INTO specific_users with no
+  // viewer_emails leaves the array empty (the API caller is
+  // expected to also patch viewer_emails in the same request).
+  if (patch.visibility !== undefined && patch.visibility !== 'specific_users') {
+    patch.viewer_emails = [];
+  }
+  if (Array.isArray(patch.viewer_emails)) {
+    patch.viewer_emails = Array.from(
+      new Set((patch.viewer_emails as string[]).map((e) => e.trim().toLowerCase()).filter(Boolean)),
+    );
   }
   if (typeof patch.event_type === 'string') patch.color = EVENT_COLORS[patch.event_type] ?? EVENT_COLORS.other;
   if ('title' in patch && !String(patch.title).trim()) {

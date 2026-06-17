@@ -6,6 +6,14 @@
 // unit-testable; datetimes are kept as local `YYYY-MM-DDTHH:MM` strings
 // (the API accepts them) so the builder is deterministic in tests.
 
+/** Slice S2 — visibility model. The DB column is constrained to
+ *  these three values; the UI surfaces the same trio. */
+export type EventVisibility = 'private' | 'specific_users' | 'all_users';
+
+export const EVENT_VISIBILITIES: ReadonlyArray<EventVisibility> = [
+  'private', 'specific_users', 'all_users',
+];
+
 export interface AddEventForm {
   title: string;
   /** 'YYYY-MM-DD' */
@@ -17,6 +25,12 @@ export interface AddEventForm {
   location?: string;
   eventType?: string;
   color?: string;
+  /** Slice S2 — visibility model. Defaults to 'private' so a user
+   *  who never opens the new selector ships a private event. */
+  visibility?: EventVisibility;
+  /** Slice S2 — comma- or newline-separated emails for
+   *  'specific_users' mode. Parsed by parseViewerEmails. */
+  viewerEmailsRaw?: string;
 }
 
 export interface SchedulePayload {
@@ -27,6 +41,11 @@ export interface SchedulePayload {
   event_type: string;
   location: string | null;
   color: string | null;
+  /** Slice S2 — always echoed on POST/PATCH; defaults to 'private'. */
+  visibility: EventVisibility;
+  /** Slice S2 — empty for private + all_users modes; non-empty list
+   *  for specific_users. */
+  viewer_emails: string[];
 }
 
 export type BuildScheduleResult =
@@ -69,6 +88,20 @@ export function buildSchedulePayload(form: AddEventForm): BuildScheduleResult {
     end_time = `${form.date}T${form.endTime}`;
   }
 
+  // Slice S2 — visibility + viewer_emails. Defaults to 'private'
+  // so a caller that doesn't set the field still ships a safe
+  // value (the DB column is NOT NULL DEFAULT 'private' too).
+  const visibility: EventVisibility = form.visibility ?? 'private';
+  if (!EVENT_VISIBILITIES.includes(visibility)) {
+    return { ok: false, error: 'Visibility must be private, specific_users, or all_users.' };
+  }
+  const viewerEmails = visibility === 'specific_users'
+    ? parseViewerEmails(form.viewerEmailsRaw ?? '')
+    : [];
+  if (visibility === 'specific_users' && viewerEmails.length === 0) {
+    return { ok: false, error: 'Pick at least one viewer for a specific-users event.' };
+  }
+
   return {
     ok: true,
     payload: {
@@ -79,6 +112,30 @@ export function buildSchedulePayload(form: AddEventForm): BuildScheduleResult {
       event_type: form.eventType?.trim() || 'other',
       location: form.location?.trim() || null,
       color: form.color?.trim() || null,
+      visibility,
+      viewer_emails: viewerEmails,
     },
   };
+}
+
+/** Slice S2 — parse a raw textarea (comma- and/or newline-
+ *  separated) into a clean list of lowercased, de-duplicated
+ *  emails. Rejects entries that don't look like an email so a
+ *  typo doesn't silently land in the database. Pure + exported
+ *  so the test suite can pin the contract. */
+export function parseViewerEmails(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const piece of raw.split(/[\s,]+/)) {
+    const e = piece.trim().toLowerCase();
+    if (!e) continue;
+    // Liberal email check: one @ surrounded by non-empty text, then
+    // a dot somewhere after. Enough to catch typos like "alice"
+    // without rejecting valid emails the strict RFC would allow.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) continue;
+    if (seen.has(e)) continue;
+    seen.add(e);
+    out.push(e);
+  }
+  return out;
 }

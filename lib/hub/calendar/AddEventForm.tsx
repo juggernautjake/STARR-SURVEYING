@@ -7,7 +7,11 @@
 // /api/admin/schedule, then calls `onCreated` to refresh the widget.
 
 import React, { useState } from 'react';
-import { buildSchedulePayload, type AddEventForm as AddEventFormValues } from './schedule-payload';
+import {
+  buildSchedulePayload,
+  type AddEventForm as AddEventFormValues,
+  type EventVisibility,
+} from './schedule-payload';
 
 export interface AddEventFormProps {
   /** Pre-fill the date field (e.g. today). 'YYYY-MM-DD'. */
@@ -28,6 +32,10 @@ export default function AddEventForm({ defaultDate = '', onCreated, onCancel }: 
     endTime: '10:00',
     location: '',
     eventType: 'other',
+    // Slice S2 — default to 'private' so a user who never opens
+    // the new selector still ships the safest visibility.
+    visibility: 'private',
+    viewerEmailsRaw: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -126,6 +134,37 @@ export default function AddEventForm({ defaultDate = '', onCreated, onCancel }: 
           ))}
         </select>
       </div>
+      {/* Slice S2 — visibility selector. Defaults to 'private'; the
+          three options match the user spec ("specific users / all
+          users / keep it private"). The viewer-emails picker only
+          shows when 'specific_users' is selected. */}
+      <div style={visibilityRowStyle}>
+        <label style={visibilityLabelStyle}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-fg-secondary)' }}>
+            Who can see this?
+          </span>
+          <select
+            value={form.visibility ?? 'private'}
+            aria-label="Visibility"
+            onChange={(e) => set('visibility', e.target.value as EventVisibility)}
+            style={inputStyle}
+          >
+            <option value="private">Private — just me</option>
+            <option value="specific_users">Specific users</option>
+            <option value="all_users">Everyone on the team</option>
+          </select>
+        </label>
+        {form.visibility === 'specific_users' && (
+          <textarea
+            value={form.viewerEmailsRaw ?? ''}
+            placeholder="alice@starr.com, bob@starr.com…"
+            aria-label="Viewer emails"
+            onChange={(e) => set('viewerEmailsRaw', e.target.value)}
+            style={{ ...inputStyle, minHeight: 56, resize: 'vertical' }}
+          />
+        )}
+      </div>
+
       {!form.allDay && (
         // Slice 4 (doc 04) — timed events get an automatic reminder ~1h
         // before via the schedule-event-reminders cron.
@@ -176,6 +215,16 @@ const reminderHintStyle: React.CSSProperties = {
   margin: 0,
   fontSize: '0.72rem',
   color: 'var(--theme-fg-secondary)',
+};
+const visibilityRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+};
+const visibilityLabelStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
 };
 const actionsStyle: React.CSSProperties = {
   display: 'flex',

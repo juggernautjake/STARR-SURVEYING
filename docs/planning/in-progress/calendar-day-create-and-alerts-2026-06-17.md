@@ -47,7 +47,7 @@ modal + job-prefill link); S2/S3 layer on the persistence work.
 | Slice | What ships |
 |---|---|
 | **S1** | Hover-plus button on month-view day cells + small Event/Job menu + a centered "Create event" modal reusing AddEventForm (date pre-filled) + Job menu item navigates to `/admin/jobs/new?scheduled_for=<iso>`. After event create the calendar refetches. CSS-only show/hide for the plus on cell hover so it stays out of the user's way until they want it. ✅ shipped |
-| **S2** | Schema migration: add `visibility` ('private' \| 'specific_users' \| 'all_users') + `viewer_emails text[]` to `schedule_events`. API accepts/echoes them. Modal form gets a visibility selector + a multi-email picker (specific users mode). |
+| **S2** | Schema migration: add `visibility` ('private' \| 'specific_users' \| 'all_users') + `viewer_emails text[]` to `schedule_events`. API accepts/echoes them. Modal form gets a visibility selector + a multi-email picker (specific users mode). ✅ shipped |
 | **S3** | Schema migration: add `reminder_minutes_before integer[]` to `schedule_events` (default `[60]`). Modal form gets a "Remind me" multi-select (5min / 15min / 1hr / 1day / off). `schedule-event-reminders` cron extended to fire per configured lead. |
 
 Each slice ships with the standard three post-build checks.
