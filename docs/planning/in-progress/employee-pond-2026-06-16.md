@@ -506,7 +506,46 @@
 - **Three post-build checks: green** — typecheck clean, lint
   only the pre-existing `<img>` warnings, full suite 8784 green
   (+22).
-| Below-pond list of currently-visible employees | **E8** |
+| Below-pond list of currently-visible employees | **✅ E8** |
+
+**E8 shipped 2026-06-16** — below-pond list polish.
+- `app/admin/employees/EmployeePond.tsx`:
+  - Every row is now a real `<button>` so keyboard tab order
+    works + screen readers announce the row as actionable.
+  - Click → calls the same `handleOrbClick(e)` as clicking the
+    orb, opening the E5 dialogue anchored to the orb's
+    current position.
+  - Hover (mouse/pen only) cross-highlights the matching orb
+    by writing to `hoveredEmployeeId`, so the user can locate
+    a specific employee by name and immediately see where
+    they're floating. Focus also fires for keyboard parity.
+  - `data-selected` / `data-hovered` mirrors the dialogue +
+    hover state so the row visually reflects the same state
+    as the orb.
+  - Row content: 36 px avatar (image with initials fallback) +
+    name + email + optional job title + up to 3 role pills
+    with a `+N` overflow indicator using `ROLE_FILTER_LABELS`
+    so the labels match the filter dropdown.
+- `app/admin/styles/EmployeePond.css`:
+  - `.employee-pond__list-row` flex layout, brand-navy hover
+    ring, brand-navy border + soft shadow when selected,
+    `:focus-visible` outline for keyboard nav.
+  - Avatar 36×36 with circle clip + image / initials variants.
+  - Role pill uses `--color-bg-subtle` + `--radius-pill`
+    (canonical tokens — no drift).
+  - Phone breakpoint collapses the list grid to a single
+    column + drops the 50% role-pill width cap so wide
+    multi-role rows still read.
+- Source-locked by `__tests__/employee-pond/e8-list-polish.test.ts`
+  (15 assertions: button + testID + data-attrs + click handler +
+  pointer cross-highlight + focus parity + avatar fallback +
+  text layout + 3-pill cap + overflow `+N` + label source-of-
+  truth; CSS row flex + hover ring + selected border + avatar
+  shape + pill shape + phone column collapse + no-drift token
+  check).
+- **Three post-build checks: green** — typecheck clean, lint
+  only the pre-existing `<img>` warnings (one new for the row
+  avatar), full suite 8799 green (+15).
 | Email + Direct Message contact buttons (incl. `?to=` on inbox) | **E9** |
 | Recipient continuity: widget ↔ dedicated /admin/messages page | **E9b** |
 | `prefers-reduced-motion` + accessibility audit | **E10** |

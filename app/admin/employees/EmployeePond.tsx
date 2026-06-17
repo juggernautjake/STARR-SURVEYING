@@ -932,9 +932,12 @@ export default function EmployeePond({ employees }: Props) {
         </div>
       </div>
 
-      {/* Slice E2 — below-pond list now mirrors the visible
-          employees so the user sees a flat readout of who's
-          currently in the pond. E8 will style it further. */}
+      {/* Slice E8 — below-pond list reads as a flat, scannable
+          mirror of who's currently in the pond. Rows are
+          clickable (open the same E5 dialogue) and hoverable
+          (cross-highlight the matching orb so the user can locate
+          a specific employee by name and immediately see where
+          they are floating). */}
       <ul className="employee-pond__list" data-testid="employee-pond-list">
         {visibleEmployees.length === 0 ? (
           <li
@@ -946,8 +949,69 @@ export default function EmployeePond({ employees }: Props) {
         ) : (
           visibleEmployees.map((e) => (
             <li key={e.id} className="employee-pond__list-item">
-              <span className="employee-pond__list-name">{e.name}</span>
-              <span className="employee-pond__list-email">{e.email}</span>
+              <button
+                type="button"
+                className="employee-pond__list-row"
+                data-testid="employee-pond-list-row"
+                data-employee-id={e.id}
+                data-selected={selectedEmployee?.id === e.id ? 'true' : undefined}
+                data-hovered={hoveredEmployeeId === e.id ? 'true' : undefined}
+                onClick={() => handleOrbClick(e)}
+                onPointerEnter={(ev) => {
+                  if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') {
+                    setHoveredEmployeeId(e.id);
+                  }
+                }}
+                onPointerLeave={() => {
+                  setHoveredEmployeeId((cur) => (cur === e.id ? null : cur));
+                }}
+                onFocus={() => setHoveredEmployeeId(e.id)}
+                onBlur={() =>
+                  setHoveredEmployeeId((cur) => (cur === e.id ? null : cur))
+                }
+              >
+                <span className="employee-pond__list-avatar" aria-hidden>
+                  {e.avatar_url ? (
+                    <img
+                      src={e.avatar_url}
+                      alt=""
+                      className="employee-pond__list-avatar-img"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="employee-pond__list-avatar-initials">
+                      {e.name
+                        .split(/\s+/)
+                        .map((w) => w[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <span className="employee-pond__list-text">
+                  <span className="employee-pond__list-name">{e.name}</span>
+                  <span className="employee-pond__list-email">{e.email}</span>
+                  {e.job_title && (
+                    <span className="employee-pond__list-title">{e.job_title}</span>
+                  )}
+                </span>
+                <span
+                  className="employee-pond__list-roles"
+                  aria-label="Roles"
+                >
+                  {e.roles.slice(0, 3).map((r) => (
+                    <span key={r} className="employee-pond__list-role-pill">
+                      {ROLE_FILTER_LABELS[r] ?? r}
+                    </span>
+                  ))}
+                  {e.roles.length > 3 && (
+                    <span className="employee-pond__list-role-more">
+                      +{e.roles.length - 3}
+                    </span>
+                  )}
+                </span>
+              </button>
             </li>
           ))
         )}

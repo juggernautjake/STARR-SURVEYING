@@ -308,19 +308,119 @@
   gap: var(--space-1) var(--space-3);
 }
 .employee-pond__list-item {
+  margin: 0;
+}
+
+/* ── Slice E8 — clickable list row ────────────────────────── */
+.employee-pond__list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+.employee-pond__list-row:hover,
+.employee-pond__list-row[data-hovered='true'] {
+  background: var(--color-bg-subtle);
+  border-color: #E5E7EB;
+}
+.employee-pond__list-row:focus-visible {
+  outline: 2px solid var(--color-brand-navy);
+  outline-offset: 2px;
+}
+.employee-pond__list-row[data-selected='true'] {
+  background: var(--color-bg-card);
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 4px 12px -4px rgba(29, 48, 149, 0.18);
+}
+
+.employee-pond__list-avatar {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.employee-pond__list-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.employee-pond__list-avatar-initials {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.employee-pond__list-text {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: var(--space-1) 0;
-  border-bottom: 1px solid #F3F4F6;
-  font-size: var(--text-sm);
+  gap: 2px;
 }
 .employee-pond__list-name {
   color: var(--color-text-primary);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .employee-pond__list-email {
   color: var(--color-text-tertiary);
   font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.employee-pond__list-title {
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
+.employee-pond__list-roles {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 50%;
+}
+.employee-pond__list-role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.employee-pond__list-role-more {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  font-weight: var(--weight-medium);
 }
 
 /* ── View toggle (lives on the page above the pond) ─────────── */
@@ -610,5 +710,13 @@
     /* Tighter on phone so the whole pond fits in portrait without
      * needing to scroll. */
     --pond-radius: 160px;
+  }
+  /* Slice E8 — single-column list on phone so each row has room
+   * to breathe; role pills wrap to a second line if needed. */
+  .employee-pond__list {
+    grid-template-columns: 1fr;
+  }
+  .employee-pond__list-roles {
+    max-width: none;
   }
 }
