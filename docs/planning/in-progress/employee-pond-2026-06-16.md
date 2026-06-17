@@ -38,6 +38,15 @@
   - **Email** routes to the existing **email interface page**
     (the on-app email surface, not `mailto:`). Slice **E9**
     locates that route + adds a `?to=<email>` prefill query param.
+- **Recipient continuity** (added 2026-06-16 per user clarification):
+  When the bottom-right messenger has a recipient loaded AND the
+  user navigates to the dedicated `/admin/messages` page, the page
+  must open with the same recipient still selected. Slice **E9b**
+  ships this: the messenger's recipient state lives in a shared
+  store (localStorage or a top-level provider) so both surfaces
+  read from the same key. Conversely, going from the dedicated
+  page back to the small messenger keeps the same recipient. A
+  single source of truth in either direction.
 - **Initial layout**: random each mount. Stable id-based hash seeds the
   starting positions only so React strict-mode double-render doesn't
   rearrange the pond before first paint.
@@ -259,6 +268,7 @@
 | Shake-to-release detection + settle animation | **E7** |
 | Below-pond list of currently-visible employees | **E8** |
 | Email + Direct Message contact buttons (incl. `?to=` on inbox) | **E9** |
+| Recipient continuity: widget ↔ dedicated /admin/messages page | **E9b** |
 | `prefers-reduced-motion` + accessibility audit | **E10** |
 | Three post-build checks per slice (`tsc --noEmit`, `eslint`, `vitest`) | every slice |
 | Optional follow-up: DOB / gender / FT-PT schema columns | **E11** |
