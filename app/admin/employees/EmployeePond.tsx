@@ -730,6 +730,12 @@ export default function EmployeePond({ employees }: Props) {
         // child orb absolute positions agree on geometry.
         style={{ ['--pond-radius' as string]: '280px' }}
       >
+        {/* Slice P1 — pond-wrap is positioned + the same size as
+            the pond circle. The pond itself stays overflow:hidden
+            so orbs clip to the round window; the dialogue (rendered
+            below as a sibling of the pond) escapes the clip so it
+            renders fully in front of the pond. */}
+        <div className="employee-pond__pond-wrap">
         <div
           ref={pondElRef}
           className="employee-pond__pond"
@@ -805,6 +811,9 @@ export default function EmployeePond({ employees }: Props) {
                     alt={employee.name}
                     className="employee-pond__orb-img"
                     loading="lazy"
+                    // Slice P1 — block native image drag so our
+                    // pointerdown drag handler isn't pre-empted.
+                    draggable={false}
                   />
                 ) : (
                   <span className="employee-pond__orb-initials" aria-hidden>
@@ -860,6 +869,10 @@ export default function EmployeePond({ employees }: Props) {
               aria-hidden
             />
           ))}
+        </div>
+        {/* Slice P1 — dialogue sits OUTSIDE the pond's
+            overflow:hidden so it renders fully in front of the
+            circle viewer even when anchored to an edge orb. */}
           {selectedEmployee && dialoguePosition && (
             <>
               <div
@@ -896,6 +909,7 @@ export default function EmployeePond({ employees }: Props) {
                       src={selectedEmployee.avatar_url}
                       alt={selectedEmployee.name}
                       className="employee-pond__dialogue-avatar"
+                      draggable={false}
                     />
                   ) : (
                     <span
@@ -1048,6 +1062,7 @@ export default function EmployeePond({ employees }: Props) {
                       alt=""
                       className="employee-pond__list-avatar-img"
                       loading="lazy"
+                      draggable={false}
                     />
                   ) : (
                     <span className="employee-pond__list-avatar-initials">

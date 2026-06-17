@@ -158,7 +158,10 @@ export default function EmployeesPage() {
               data-current={view === v ? 'true' : undefined}
               onClick={() => setViewAndPersist(v)}
             >
-              {v === 'list' ? 'List' : 'Pond'}
+              {/* The internal value stays 'pond' so users on the
+                  previous build don't lose their saved preference;
+                  only the visible label flips per user feedback. */}
+              {v === 'list' ? 'List' : 'Interactive'}
             </button>
           ))}
         </div>
