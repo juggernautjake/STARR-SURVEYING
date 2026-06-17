@@ -585,7 +585,48 @@ universal reach until E9c builds the dedicated page).
 - **Three post-build checks: green** — typecheck clean, lint
   only the pre-existing `<img>` warnings, full suite 8811
   green (+12).
-| Recipient continuity: widget ↔ dedicated /admin/messages page | **E9b** |
+| Recipient continuity: widget ↔ dedicated /admin/messages page | **✅ E9b** |
+
+**E9b shipped 2026-06-16** — cross-surface recipient continuity.
+- `lib/employee-pond/messenger-recipient.ts`:
+  - Shared localStorage-backed store keyed by
+    `admin/messages/active-recipient`.
+  - `MESSENGER_RECIPIENT_TTL_MS = 1 hour` so stale recipients age
+    out — returning the next day doesn't auto-open yesterday's
+    chat.
+  - `normalizeRecipientEmail` (trim + lowercase) used by every
+    callsite so the store always agrees on identity.
+  - `saveActiveRecipient(email)`, `readActiveRecipient(now?)`,
+    `clearActiveRecipient()`, plus pure `isRecipientFresh` for
+    the freshness check. SSR-safe: every function short-
+    circuits when `typeof window === 'undefined'` or when
+    localStorage throws (private mode).
+- `app/admin/components/FloatingMessenger.tsx`:
+  - **Persist** effect — whenever `activeConv` changes and is a
+    direct conv, the other participant's email is normalized
+    and persisted. Group conversations don't touch the store
+    (no single recipient).
+  - **Hydrate** effect — when the widget opens AND the user
+    isn't already on a chat view, the saved recipient (if
+    fresh) jumps the widget straight to the matching
+    conversation. Idempotent: doesn't override an active context.
+- `app/admin/messages/page.tsx`:
+  - Mirror persist effect (same shape as the widget) so picking
+    a recipient here also writes through.
+  - Mirror hydrate effect, gated by `continuityHydratedRef` so
+    it fires exactly once per page load and only after
+    `conversations` populates. Auto-selects the conversation
+    matching the saved recipient on entry.
+- Source-locked by
+  `__tests__/employee-pond/e9b-recipient-continuity.test.ts`
+  (18 assertions: normalization edges; TTL freshness gates;
+  localStorage round-trip via a node-side stub matching the
+  desktop test pattern; clear + empty-save semantics; unparseable
+  + too-old short-circuit; FloatingMessenger persist + hydrate +
+  active-chat guard; messages page imports + persist + hydrate
+  + hydrate-once ref + activeConv set + fetchMessages call).
+- **Three post-build checks: green** — typecheck clean, lint
+  clean on the touched files, full suite 8829 green (+18).
 | In-app email composer page at /admin/email/new | **E9c** |
 | `prefers-reduced-motion` + accessibility audit | **E10** |
 | Privacy contract: per-user public/private settings + role visibility matrix | **E12** |

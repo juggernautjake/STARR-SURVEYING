@@ -6,6 +6,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
+// employee-pond Slice E9b — cross-surface recipient continuity.
+import {
+  readActiveRecipient,
+  saveActiveRecipient,
+} from '@/lib/employee-pond/messenger-recipient';
 
 interface Conversation {
   id: string;
@@ -170,6 +175,44 @@ export default function FloatingMessenger() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // employee-pond Slice E9b — persist the active recipient whenever
+  // a direct conversation is opened so the dedicated /admin/messages
+  // page can pick up the same recipient. Group conversations don't
+  // have a single recipient, so we clear the store in that case.
+  useEffect(() => {
+    if (!activeConv) return;
+    if (activeConv.type !== 'direct') return;
+    if (!userEmail) return;
+    const other = (activeConv.participants || [])
+      .map((p) => p.user_email)
+      .find((email) => email && email.toLowerCase() !== userEmail.toLowerCase());
+    if (other) saveActiveRecipient(other);
+  }, [activeConv, userEmail]);
+
+  // employee-pond Slice E9b — hydrate continuity when the widget
+  // opens. If the user already had a recipient in flight on
+  // /admin/messages or in the pond, jump straight to that
+  // conversation when they pop the widget. Idempotent across opens
+  // — we only auto-jump when the user hasn't already landed on a
+  // chat view.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (view === 'chat' && activeConv) return; // already on a chat
+    const saved = readActiveRecipient();
+    if (!saved) return;
+    const targetEmail = saved.toLowerCase();
+    const existing = conversations.find((c) => {
+      if (c.type !== 'direct') return false;
+      const others = (c.participants || []).map((p) => p.user_email.toLowerCase());
+      return others.includes(targetEmail);
+    });
+    if (existing) {
+      setActiveConv(existing);
+      setView('chat');
+      fetchMessages(existing.id);
+    }
+  }, [isOpen, conversations, view, activeConv, fetchMessages]);
 
   // employee-pond Slice E9 — external open-with-recipient hook. The
   // employee-pond dialogue dispatches `employee-pond:open-messenger`
