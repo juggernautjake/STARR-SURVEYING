@@ -9,7 +9,7 @@
 // can swap views without a re-fetch.
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { UserRole } from '@/lib/auth';
 
 export interface PondEmployee {
@@ -24,6 +24,76 @@ export interface PondEmployee {
 
 interface Props {
   employees: PondEmployee[];
+}
+
+/** Slice E2 — the 11 roles the registered_users.roles[] array can
+ *  hold. Same source-of-truth as the existing employees list page.
+ *  Order matters: drives the legend display order. */
+const FILTER_ROLES: readonly UserRole[] = [
+  'admin',
+  'employee',
+  'field_crew',
+  'equipment_manager',
+  'drawer',
+  'researcher',
+  'tech_support',
+  'teacher',
+  'student',
+  'developer',
+  'guest',
+];
+
+const ROLE_FILTER_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  employee: 'Employee',
+  field_crew: 'Field Crew',
+  equipment_manager: 'Equipment Mgr',
+  drawer: 'Drawer',
+  researcher: 'Researcher',
+  tech_support: 'Tech Support',
+  teacher: 'Teacher',
+  student: 'Student',
+  developer: 'Developer',
+  guest: 'Guest',
+};
+
+/** Slice E2 — search + role filter contract. Search is name + email
+ *  only (case-insensitive substring); role filter is a Set; an empty
+ *  Set means "all roles pass". Pure so the source-lock can verify
+ *  each branch without React. */
+export interface EmployeeFilter {
+  query: string;
+  selectedRoles: ReadonlySet<UserRole>;
+}
+
+export function matchesEmployee(
+  employee: PondEmployee,
+  filter: EmployeeFilter,
+): boolean {
+  const q = filter.query.trim().toLowerCase();
+  if (q.length > 0) {
+    const hayName = employee.name.toLowerCase();
+    const hayEmail = employee.email.toLowerCase();
+    if (!hayName.includes(q) && !hayEmail.includes(q)) return false;
+  }
+  if (filter.selectedRoles.size > 0) {
+    let hit = false;
+    for (const r of employee.roles) {
+      if (filter.selectedRoles.has(r)) {
+        hit = true;
+        break;
+      }
+    }
+    if (!hit) return false;
+  }
+  return true;
+}
+
+export function filterEmployees(
+  employees: PondEmployee[],
+  filter: EmployeeFilter,
+): PondEmployee[] {
+  return employees.filter((e) => matchesEmployee(e, filter));
 }
 
 /** Pure helper — produces a stable initial layout seed per employee
@@ -69,38 +139,141 @@ export function mulberry32(seed: number): () => number {
 
 export default function EmployeePond({ employees }: Props) {
   const seed = useMemo(() => buildPondSeed(employees), [employees]);
-  // E1 — static layout snapshot. E3 replaces this with the rAF physics
-  // loop; the data-attribute + structure stay the same so the source
-  // locks survive the swap.
+  // Slice E2 — search + role filter state. Search drives the orb
+  // filter via a pure helper so the source-lock test can cover
+  // every branch without React.
+  const [query, setQuery] = useState<string>('');
+  const [selectedRoles, setSelectedRoles] = useState<ReadonlySet<UserRole>>(
+    () => new Set<UserRole>(),
+  );
+  const [filterOpen, setFilterOpen] = useState<boolean>(false);
+  const filterPanelRef = useRef<HTMLDivElement | null>(null);
+
+  // Click-outside / Esc to dismiss the filter panel.
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!filterPanelRef.current) return;
+      if (filterPanelRef.current.contains(e.target as Node)) return;
+      setFilterOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFilterOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [filterOpen]);
+
+  const toggleRole = (role: UserRole) => {
+    setSelectedRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) next.delete(role);
+      else next.add(role);
+      return next;
+    });
+  };
+  const clearFilters = () => {
+    setQuery('');
+    setSelectedRoles(new Set());
+  };
+
+  const visibleEmployees = useMemo(
+    () => filterEmployees(employees, { query, selectedRoles }),
+    [employees, query, selectedRoles],
+  );
+
+  // E1 — static layout snapshot, now driven by `visibleEmployees`
+  // so search + filter immediately blip orbs in/out. E3 replaces
+  // this with the rAF physics loop; the data-attribute + structure
+  // stay the same so the source locks survive the swap.
   const orbs = useMemo(() => {
     const rand = mulberry32(seed);
     const pondRadius = 280;
-    return employees.map((e) => ({
+    return visibleEmployees.map((e) => ({
       employee: e,
       pos: placeOrb(rand, pondRadius),
     }));
-  }, [employees, seed]);
+  }, [visibleEmployees, seed]);
+
+  const filterCount = selectedRoles.size;
 
   return (
     <div className="employee-pond" data-testid="employee-pond">
       <div className="employee-pond__toolbar" data-testid="employee-pond-toolbar">
-        {/* Slice E2 — search bar + role filter dropdown land here. */}
         <input
           type="search"
           className="employee-pond__search"
           placeholder="Search by name or email…"
           data-testid="employee-pond-search"
           aria-label="Search employees by name or email"
-          disabled
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
         />
-        <button
-          type="button"
-          className="employee-pond__filter-btn"
-          data-testid="employee-pond-filter-btn"
-          disabled
+        <div
+          className="employee-pond__filter-wrap"
+          ref={filterPanelRef}
+          data-testid="employee-pond-filter-wrap"
         >
-          Filter by role
-        </button>
+          <button
+            type="button"
+            className="employee-pond__filter-btn"
+            data-testid="employee-pond-filter-btn"
+            data-open={filterOpen ? 'true' : undefined}
+            onClick={() => setFilterOpen((o) => !o)}
+            aria-haspopup="true"
+            aria-expanded={filterOpen}
+          >
+            Filter by role{filterCount > 0 ? ` (${filterCount})` : ''}
+            <span className="employee-pond__filter-caret" aria-hidden>▾</span>
+          </button>
+          {filterOpen && (
+            <div
+              className="employee-pond__filter-panel"
+              data-testid="employee-pond-filter-panel"
+              role="dialog"
+              aria-label="Filter by role"
+            >
+              <ul className="employee-pond__filter-list">
+                {FILTER_ROLES.map((role) => {
+                  const checked = selectedRoles.has(role);
+                  return (
+                    <li key={role}>
+                      <label className="employee-pond__filter-row">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleRole(role)}
+                          data-testid={`employee-pond-filter-${role}`}
+                        />
+                        <span>{ROLE_FILTER_LABELS[role]}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              <button
+                type="button"
+                className="employee-pond__filter-clear"
+                data-testid="employee-pond-filter-clear"
+                onClick={clearFilters}
+                disabled={query === '' && filterCount === 0}
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+        </div>
+        <span
+          className="employee-pond__count"
+          data-testid="employee-pond-count"
+          aria-live="polite"
+        >
+          Showing {visibleEmployees.length} of {employees.length}
+        </span>
       </div>
 
       <div
@@ -147,15 +320,25 @@ export default function EmployeePond({ employees }: Props) {
         </div>
       </div>
 
-      {/* Slice E8 — below-pond list of currently-visible employees.
-          E1 stubs it as a basic list so the layout settles. */}
+      {/* Slice E2 — below-pond list now mirrors the visible
+          employees so the user sees a flat readout of who's
+          currently in the pond. E8 will style it further. */}
       <ul className="employee-pond__list" data-testid="employee-pond-list">
-        {employees.map((e) => (
-          <li key={e.id} className="employee-pond__list-item">
-            <span className="employee-pond__list-name">{e.name}</span>
-            <span className="employee-pond__list-email">{e.email}</span>
+        {visibleEmployees.length === 0 ? (
+          <li
+            className="employee-pond__list-empty"
+            data-testid="employee-pond-list-empty"
+          >
+            No employees match the current search or filters.
           </li>
-        ))}
+        ) : (
+          visibleEmployees.map((e) => (
+            <li key={e.id} className="employee-pond__list-item">
+              <span className="employee-pond__list-name">{e.name}</span>
+              <span className="employee-pond__list-email">{e.email}</span>
+            </li>
+          ))
+        )}
       </ul>
     </div>
   );

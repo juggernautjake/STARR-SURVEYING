@@ -57,6 +57,100 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+.employee-pond__filter-btn[data-open='true'] {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+.employee-pond__filter-caret {
+  font-size: 0.6rem;
+  margin-left: 4px;
+  transition: transform 120ms ease;
+}
+.employee-pond__filter-btn[data-open='true'] .employee-pond__filter-caret {
+  transform: rotate(180deg);
+}
+
+/* ── Slice E2 — filter dropdown panel ──────────────────────── */
+.employee-pond__filter-wrap {
+  position: relative;
+}
+.employee-pond__filter-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 220px;
+  background: var(--color-bg-card);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 24px -8px rgba(15, 20, 25, 0.18);
+  padding: var(--space-2);
+  animation: employee-pond-filter-pop 140ms ease both;
+}
+@keyframes employee-pond-filter-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.employee-pond__filter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.employee-pond__filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+.employee-pond__filter-row:hover {
+  background: var(--color-bg-subtle);
+}
+.employee-pond__filter-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand-navy);
+}
+.employee-pond__filter-clear {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: 6px;
+  border: 1px solid #E5E7EB;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.employee-pond__filter-clear:hover:not(:disabled) {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+.employee-pond__filter-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Slice E2 — visible-count chip ────────────────────────── */
+.employee-pond__count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+}
+
+.employee-pond__list-empty {
+  grid-column: 1 / -1;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  padding: var(--space-2) 0;
+}
 
 /* ── Pond surface ───────────────────────────────────────────── */
 .employee-pond__surface {

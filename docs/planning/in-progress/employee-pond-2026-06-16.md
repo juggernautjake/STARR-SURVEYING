@@ -102,8 +102,49 @@
 |---|---|
 | `/admin/employees` view toggle (List / Pond) + localStorage persist | **✅ E1** |
 | Pond skeleton (data fetch, layout, no physics yet) | **✅ E1** |
-| Search bar (name + email) | **E2** |
-| Role filter dropdown (multi-select) | **E2** |
+| Search bar (name + email) | **✅ E2** |
+| Role filter dropdown (multi-select) | **✅ E2** |
+
+**E2 shipped 2026-06-16** — search + role filter.
+- `app/admin/employees/EmployeePond.tsx`:
+  - `EmployeeFilter` interface + `matchesEmployee` predicate
+    (case-insensitive substring on name OR email; role match is OR
+    over the selected Set; empty filter passes everyone). Search
+    deliberately does NOT match against the roles array — that's
+    the dropdown's job.
+  - `filterEmployees` walks the list once.
+  - `FILTER_ROLES` + `ROLE_FILTER_LABELS` map the 11 known roles.
+  - State: `query`, `selectedRoles: ReadonlySet<UserRole>`,
+    `filterOpen`. `useEffect` listens for mousedown outside the
+    panel + Esc to dismiss.
+  - `visibleEmployees = filterEmployees(employees, { query,
+    selectedRoles })`; both the orb layout AND the below-pond list
+    are now derived from this so search/filter immediately blip
+    orbs in/out.
+  - Toolbar: enabled search input controlled by `query`, filter
+    button showing `Filter by role (N)` when N > 0, multi-select
+    panel with one checkbox per role (each `data-testid=
+    "employee-pond-filter-<role>"`), Clear filters button that
+    resets both query + selectedRoles, live count chip
+    (`Showing X of Y`).
+  - Below-pond list now shows an explicit empty state when nothing
+    matches.
+- `app/admin/styles/EmployeePond.css`:
+  - Filter dropdown panel (positioned absolute with brand-navy
+    accent on the open state, 140 ms pop-in keyframes).
+  - Checkbox uses `accent-color: var(--color-brand-navy)`.
+  - Clear-filters button turns `--color-error` on hover so the
+    destructive intent telegraphs.
+  - Count chip + empty-state row.
+- Source-locked by `__tests__/employee-pond/e2-search-filter.test.ts`
+  (24 assertions: predicate per branch incl. trim, name vs email,
+  role-non-match, role-OR semantics, search-AND-role compose;
+  list helper order + empty; page state + enabled search +
+  conditional panel + per-role testIDs + clear behavior + filter
+  count label + click-outside/Esc; CSS panel + checkbox accent +
+  destructive hover + count chip + empty-list + no-drift check).
+- **Three post-build checks: green** — typecheck clean, lint only
+  the pre-existing `<img>` warning, full suite 8656 green (+24).
 | Physics loop (gravity + repulsion + damping + bounds) | **E3** |
 | Hover scale + neighbor bump + tooltip | **E4** |
 | Click → side dialogue panel anchored to orb | **E5** |
