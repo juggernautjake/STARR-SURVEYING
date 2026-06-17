@@ -17,7 +17,9 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import {
   buildEventReminder,
+  dueReminderLeads,
   REMINDER_LOOKAHEAD_MIN,
+  REMINDER_SCAN_AHEAD_MIN,
   type ReminderEvent,
 } from '@/lib/notifications/event-reminder';
 
@@ -34,12 +36,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const nowMs = Date.now();
   const fromIso = new Date(nowMs).toISOString();
-  const toIso = new Date(nowMs + REMINDER_LOOKAHEAD_MIN * 60_000).toISOString();
+  // Slice S3 — widen the scan to cover the longest configured
+  // lead (1 day) plus the cron's own hourly window, so a 1-day
+  // lead on an event ~25h out still lands in the scan and fires.
+  const toIso = new Date(nowMs + REMINDER_SCAN_AHEAD_MIN * 60_000).toISOString();
 
-  // Timed (non-all-day) events starting inside the look-ahead window.
+  // Timed (non-all-day) events starting inside the scan window.
   const { data, error } = await supabaseAdmin
     .from('schedule_events')
-    .select('id, title, assigned_to, start_time, all_day, location')
+    .select('id, title, assigned_to, start_time, all_day, location, reminder_minutes_before')
     .eq('all_day', false)
     .gte('start_time', fromIso)
     .lte('start_time', toIso);
@@ -47,12 +52,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   let sent = 0;
   for (const row of (data ?? []) as ReminderEvent[]) {
+    // Slice S3 — fire one notification per LEAD whose ready-to-
+    // fire moment falls in the current hour's window.
+    // `buildEventReminder` still constructs the per-event copy;
+    // any due lead in this hour triggers a single notify() call.
+    const dueLeads = dueReminderLeads(row, nowMs, REMINDER_LOOKAHEAD_MIN);
+    if (dueLeads.length === 0) continue;
     const reminder = buildEventReminder(row, nowMs);
     if (!reminder) continue;
-    try {
-      await notify(reminder);
-      sent += 1;
-    } catch { /* ignore individual failures */ }
+    for (const _lead of dueLeads) {
+      void _lead;
+      try {
+        await notify(reminder);
+        sent += 1;
+      } catch { /* ignore individual failures */ }
+    }
   }
 
   return NextResponse.json({ scanned: data?.length ?? 0, sent });

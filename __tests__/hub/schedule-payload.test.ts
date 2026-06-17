@@ -22,6 +22,11 @@ describe('buildSchedulePayload — happy paths', () => {
     const r = buildSchedulePayload(TIMED);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    // Slice S2 added `visibility` and `viewer_emails` — `private`
+    // + an empty array is the safe default when the caller leaves
+    // both fields off. Slice S3 added `reminder_minutes_before`
+    // with a `[60]` default (the legacy 1-hour reminder) when the
+    // form doesn't surface the picker.
     expect(r.payload).toEqual({
       title: 'Site visit',
       start_time: '2026-05-30T09:00',
@@ -30,6 +35,9 @@ describe('buildSchedulePayload — happy paths', () => {
       event_type: 'field_work',
       location: 'North parcel',
       color: '#15803d',
+      visibility: 'private',
+      viewer_emails: [],
+      reminder_minutes_before: [60],
     });
   });
 
