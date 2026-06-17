@@ -25,6 +25,12 @@ import {
   MOTION_BUFFER_LIMIT,
   type MotionSample,
 } from '@/lib/employee-pond/drag';
+import {
+  applyCameraStep,
+  panVectorFromPointer,
+  type CameraPosition,
+  type PanVector,
+} from '@/lib/employee-pond/camera';
 
 /** Slice E7 — particles spawned at collision points + at shake
  *  release. State holds only what the JSX needs; CSS owns the
@@ -44,7 +50,20 @@ const MAX_ACTIVE_PARTICLES = 64;
  *  half so collisions feel right on the surface the user spends
  *  most of their time on. */
 const ORB_RADIUS_PX = 32;
-const POND_RADIUS_PX = 280;
+/** Slice P4b — scroll-ring pan tuning. The pan velocity is constant
+ *  while the pointer is on the ring (angle picks direction; distance
+ *  doesn't change magnitude). The camera is clamped to ||cam|| ≤
+ *  PAN_MAX_OFFSET_PX so the user can't scroll into the void forever,
+ *  but the envelope is generous enough that orbs flung out by drag
+ *  collisions are still findable. */
+const PAN_SPEED_PX_S = 260;
+const PAN_MAX_OFFSET_PX = 720; // 2 × POND_RADIUS_PX
+/** Slice P3 — user feedback: "please make the pond view bigger".
+ *  Bumped from 280 → 360 (28% larger diameter). The physics constants
+ *  in the hook key off this value, so collision math + soft-viewport
+ *  gravity remain correct for the new circle. Mobile breakpoints
+ *  stay smaller (160/140) so the pond still fits on phones. */
+const POND_RADIUS_PX = 360;
 
 export interface PondEmployee {
   id: string;
@@ -171,8 +190,194 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
+/** Slice P4b — omni-directional scroll ring. SVG circle with
+ *  `pointer-events: stroke` so only the band itself starts a pan
+ *  (clicks inside the pond pass through). Hover bumps the stroke
+ *  width and pops a "Click to scroll" tooltip near the pointer. */
+function ScrollRing({
+  panSpeed,
+  panRef,
+  ensurePanLoop,
+  stopPanLoop,
+  hover,
+  setHover,
+}: {
+  panSpeed: number;
+  panRef: React.MutableRefObject<PanVector>;
+  ensurePanLoop: () => void;
+  stopPanLoop: () => void;
+  hover: { x: number; y: number } | null;
+  setHover: (v: { x: number; y: number } | null) => void;
+}) {
+  const ringWrapRef = useRef<SVGSVGElement | null>(null);
+  const draggingRef = useRef(false);
+
+  function pointerInRing(e: React.PointerEvent<SVGElement>): { x: number; y: number } | null {
+    const el = ringWrapRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return {
+      x: e.clientX - (rect.left + rect.width / 2),
+      y: e.clientY - (rect.top + rect.height / 2),
+    };
+  }
+
+  function startPan(e: React.PointerEvent<SVGElement>) {
+    e.preventDefault();
+    const pt = pointerInRing(e);
+    if (!pt) return;
+    draggingRef.current = true;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    panRef.current = panVectorFromPointer(pt, panSpeed);
+    ensurePanLoop();
+  }
+
+  function movePan(e: React.PointerEvent<SVGElement>) {
+    const pt = pointerInRing(e);
+    if (pt) setHover(pt);
+    if (!draggingRef.current || !pt) return;
+    panRef.current = panVectorFromPointer(pt, panSpeed);
+    ensurePanLoop();
+  }
+
+  function endPan(e: React.PointerEvent<SVGElement>) {
+    draggingRef.current = false;
+    try { (e.currentTarget as Element).releasePointerCapture?.(e.pointerId); } catch { /* ignore */ }
+    stopPanLoop();
+  }
+
+  function leave() {
+    setHover(null);
+    if (draggingRef.current) return;
+    stopPanLoop();
+  }
+
+  return (
+    <>
+      <svg
+        ref={ringWrapRef}
+        className={`employee-pond__scroll-ring ${hover ? 'employee-pond__scroll-ring--hover' : ''}`}
+        data-testid="employee-pond-scroll-ring"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+      >
+        <circle
+          cx="50"
+          cy="50"
+          r="49"
+          fill="none"
+          stroke="currentColor"
+          className="employee-pond__scroll-ring-stroke"
+          onPointerDown={startPan}
+          onPointerMove={movePan}
+          onPointerUp={endPan}
+          onPointerCancel={endPan}
+          onPointerEnter={(e) => {
+            const pt = pointerInRing(e);
+            if (pt) setHover(pt);
+          }}
+          onPointerLeave={leave}
+        />
+      </svg>
+      {hover && (
+        <div
+          className="employee-pond__scroll-ring-tooltip"
+          data-testid="employee-pond-scroll-ring-tooltip"
+          role="tooltip"
+          style={{
+            // Position the tooltip 18px below + 14px right of the
+            // ring center + hover offset so it sits adjacent to the
+            // user's pointer without covering it.
+            transform: `translate(calc(50% + ${(hover.x + 14).toFixed(1)}px), calc(50% + ${(hover.y + 18).toFixed(1)}px))`,
+          }}
+        >
+          Click to scroll
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function EmployeePond({ employees }: Props) {
-  const seed = useMemo(() => buildPondSeed(employees), [employees]);
+  // Slice P4a — `respawnNonce` is bumped by the Reset link below the
+  // pond. It folds into the seed via XOR so a fresh layout is
+  // produced on every click. The physics hook detects the changed
+  // seed and re-spawns every visible orb at a new random position.
+  const [respawnNonce, setRespawnNonce] = useState<number>(0);
+  const seed = useMemo(
+    () => (buildPondSeed(employees) ^ respawnNonce) >>> 0,
+    [employees, respawnNonce],
+  );
+
+  // Slice P4b — omni-directional scroll camera. Imperatively
+  // updated via a rAF loop while the user holds the ring, then
+  // written straight onto the .employee-pond__camera-layer
+  // transform so the React tree never re-renders mid-pan.
+  const cameraRef = useRef<CameraPosition>({ x: 0, y: 0 });
+  const panRef = useRef<PanVector>({ vx: 0, vy: 0 });
+  const cameraLayerRef = useRef<HTMLDivElement | null>(null);
+  const panRafRef = useRef<number | null>(null);
+  const panLastTsRef = useRef<number>(0);
+  const [scrollRingHover, setScrollRingHover] = useState<{ x: number; y: number } | null>(null);
+
+  /** Write the current camera onto the orb layer. Called by the
+   *  rAF loop and by handleReset (which moves the camera
+   *  instantaneously). */
+  const writeCameraToLayer = useCallback(() => {
+    const el = cameraLayerRef.current;
+    if (!el) return;
+    const { x, y } = cameraRef.current;
+    el.style.transform = `translate3d(${(-x).toFixed(2)}px, ${(-y).toFixed(2)}px, 0)`;
+  }, []);
+
+  /** Step the camera one frame and schedule the next one if the
+   *  user is still holding the ring. */
+  const panStep = useCallback((ts: number) => {
+    const last = panLastTsRef.current || ts;
+    const dt = Math.min((ts - last) / 1000, 0.05);
+    panLastTsRef.current = ts;
+
+    const pan = panRef.current;
+    if (pan.vx !== 0 || pan.vy !== 0) {
+      cameraRef.current = applyCameraStep(cameraRef.current, pan, dt, PAN_MAX_OFFSET_PX);
+      writeCameraToLayer();
+      panRafRef.current = requestAnimationFrame(panStep);
+    } else {
+      panRafRef.current = null;
+      panLastTsRef.current = 0;
+    }
+  }, [writeCameraToLayer]);
+
+  const ensurePanLoop = useCallback(() => {
+    if (panRafRef.current === null) {
+      panLastTsRef.current = 0;
+      panRafRef.current = requestAnimationFrame(panStep);
+    }
+  }, [panStep]);
+
+  const stopPanLoop = useCallback(() => {
+    panRef.current = { vx: 0, vy: 0 };
+    if (panRafRef.current !== null) {
+      cancelAnimationFrame(panRafRef.current);
+      panRafRef.current = null;
+    }
+    panLastTsRef.current = 0;
+  }, []);
+
+  useEffect(() => () => stopPanLoop(), [stopPanLoop]);
+
+  const handleReset = useCallback(() => {
+    // Bump by a random 32-bit-ish value so users who click rapidly
+    // don't land on a degenerate seed sequence.
+    setRespawnNonce((n) => (n + 1 + Math.floor(Math.random() * 0xFFFFFFFF)) >>> 0);
+    // Slice P4b — Reset also recenters the camera (matches the
+    // user's spec: "return the viewer to the center and refresh
+    // all of the employee icons/orbs").
+    stopPanLoop();
+    cameraRef.current = { x: 0, y: 0 };
+    writeCameraToLayer();
+  }, [stopPanLoop, writeCameraToLayer]);
   // Slice E2 — search + role filter state. Search drives the orb
   // filter via a pure helper so the source-lock test can cover
   // every branch without React.
@@ -728,8 +933,14 @@ export default function EmployeePond({ employees }: Props) {
         data-orb-count={visibleEmployees.length}
         // The CSS keys on this --radius var so the surface and the
         // child orb absolute positions agree on geometry.
-        style={{ ['--pond-radius' as string]: '280px' }}
+        style={{ ['--pond-radius' as string]: '360px' }}
       >
+        {/* Slice P1 — pond-wrap is positioned + the same size as
+            the pond circle. The pond itself stays overflow:hidden
+            so orbs clip to the round window; the dialogue (rendered
+            below as a sibling of the pond) escapes the clip so it
+            renders fully in front of the pond. */}
+        <div className="employee-pond__pond-wrap">
         <div
           ref={pondElRef}
           className="employee-pond__pond"
@@ -752,6 +963,20 @@ export default function EmployeePond({ employees }: Props) {
             physics.setCursor(null);
           }}
         >
+          {/* Slice P4b — camera layer. The pond keeps its
+              overflow:hidden viewport; this inner layer carries a
+              `translate3d(-cx, -cy)` transform written each rAF
+              while the user holds the scroll ring. Orbs +
+              particles are world-positioned children of this
+              layer, so they shift as a unit when the camera
+              moves. Gravity in physics keeps targeting (0,0) so
+              orbs drift back toward the world origin even after
+              the camera has panned away. */}
+          <div
+            ref={cameraLayerRef}
+            className="employee-pond__camera-layer"
+            data-testid="employee-pond-camera-layer"
+          >
           {visibleEmployees.map((employee) => (
             <div
               key={employee.id}
@@ -805,6 +1030,9 @@ export default function EmployeePond({ employees }: Props) {
                     alt={employee.name}
                     className="employee-pond__orb-img"
                     loading="lazy"
+                    // Slice P1 — block native image drag so our
+                    // pointerdown drag handler isn't pre-empted.
+                    draggable={false}
                   />
                 ) : (
                   <span className="employee-pond__orb-initials" aria-hidden>
@@ -860,6 +1088,24 @@ export default function EmployeePond({ employees }: Props) {
               aria-hidden
             />
           ))}
+          </div>{/* /.employee-pond__camera-layer */}
+        </div>
+        {/* Slice P4b — omni-directional scroll ring. Sits OUTSIDE
+            the pond's overflow:hidden so it can extend slightly
+            beyond the visible circle. Pointer events on the ring
+            stroke start a continuous pan in the direction of the
+            click; releasing the pointer stops the pan. */}
+        <ScrollRing
+          panSpeed={PAN_SPEED_PX_S}
+          panRef={panRef}
+          ensurePanLoop={ensurePanLoop}
+          stopPanLoop={stopPanLoop}
+          hover={scrollRingHover}
+          setHover={setScrollRingHover}
+        />
+        {/* Slice P1 — dialogue sits OUTSIDE the pond's
+            overflow:hidden so it renders fully in front of the
+            circle viewer even when anchored to an edge orb. */}
           {selectedEmployee && dialoguePosition && (
             <>
               <div
@@ -896,6 +1142,7 @@ export default function EmployeePond({ employees }: Props) {
                       src={selectedEmployee.avatar_url}
                       alt={selectedEmployee.name}
                       className="employee-pond__dialogue-avatar"
+                      draggable={false}
                     />
                   ) : (
                     <span
@@ -1003,6 +1250,25 @@ export default function EmployeePond({ employees }: Props) {
         </div>
       </div>
 
+      {/* Slice P4a — Reset link sits between the pond and the
+          list. Clicking it re-randomizes every visible orb's
+          starting position via a seed bump; the physics loop
+          smoothly catches up over the next few frames so the
+          surveyor watches the pond rearrange itself rather than
+          jump-cutting. */}
+      <div className="employee-pond__reset-wrap">
+        <button
+          type="button"
+          className="employee-pond__reset"
+          onClick={handleReset}
+          data-testid="employee-pond-reset"
+          aria-label="Reset pond — re-randomize all orb positions"
+          title="Re-randomize the orb positions"
+        >
+          ↻ Reset
+        </button>
+      </div>
+
       {/* Slice E8 — below-pond list reads as a flat, scannable
           mirror of who's currently in the pond. Rows are
           clickable (open the same E5 dialogue) and hoverable
@@ -1048,6 +1314,7 @@ export default function EmployeePond({ employees }: Props) {
                       alt=""
                       className="employee-pond__list-avatar-img"
                       loading="lazy"
+                      draggable={false}
                     />
                   ) : (
                     <span className="employee-pond__list-avatar-initials">

@@ -24,9 +24,14 @@ import { CasioFx991 } from './models/CasioFx991';
 import { CasioFx115 } from './models/CasioFx115';
 import { Hp35s } from './models/Hp35s';
 import { Hp33s } from './models/Hp33s';
+// Slice P3-ba — surveyor utility: bearing ↔ azimuth conversion.
+// Not a vendor calculator, so it carries its own `Surveyor` brand
+// in the tab strip.
+import { BearingAzimuth } from './models/BearingAzimuth';
 
 export type ModelKey =
   | 'generic'
+  | 'bearing-az'
   | 'ti-36x-pro'
   | 'ti-30xs-multiview'
   | 'ti-30xa'
@@ -37,7 +42,7 @@ export type ModelKey =
 
 export interface ModelDef {
   key: ModelKey;
-  brand: 'Generic' | 'TI' | 'Casio' | 'HP';
+  brand: 'Generic' | 'TI' | 'Casio' | 'HP' | 'Surveyor';
   label: string;
   /** Default modal dimensions per device. Real keypads have a natural ratio. */
   width: number;
@@ -50,6 +55,10 @@ export const CALCULATOR_MODELS: ModelDef[] = [
   // cad-trv-fidelity Slice 14 — the DEFAULT generic arithmetic calc,
   // listed first. Simple Windows-calculator-style; not exam-specific.
   { key: 'generic',           brand: 'Generic', label: 'Generic Calculator', width: 320, height: 460, phase: 1 },
+  // Slice P3-ba — bearing ↔ azimuth converter for field-CAD round
+  // trips. Compact form-based UI (no keypad), so the default size
+  // is smaller than the vendor emulators.
+  { key: 'bearing-az',        brand: 'Surveyor', label: 'Bearing ↔ Azimuth', width: 340, height: 480, phase: 1 },
   // Widths bumped per user feedback — earlier widths cramped the keys.
   // Heights also bumped a touch to keep the keypad aspect-ratio sane.
   // Phase 2: representative algebraic.
@@ -68,6 +77,39 @@ export const CALCULATOR_MODELS: ModelDef[] = [
 ];
 
 const LAST_MODEL_STORAGE_KEY = 'calculatorLastModel';
+/** Slice P3-cf — localStorage key for the star/favorite set. */
+const FAVORITES_STORAGE_KEY = 'calculatorFavorites';
+
+/** Read the saved favorites Set; defensive against malformed JSON. */
+function readFavorites(): Set<ModelKey> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    const known = new Set<string>(CALCULATOR_MODELS.map((m) => m.key));
+    return new Set(parsed.filter((k): k is ModelKey => typeof k === 'string' && known.has(k)));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Pure helper — sort the model list so favorited models bubble to
+ *  the left while preserving the original order within each group.
+ *  Exported (alongside `CALCULATOR_MODELS`) so tests can verify
+ *  the sort contract without rendering. */
+export function sortModelsByFavorites(
+  models: readonly ModelDef[],
+  favorites: ReadonlySet<ModelKey>,
+): ModelDef[] {
+  const starred: ModelDef[] = [];
+  const rest: ModelDef[] = [];
+  for (const m of models) {
+    (favorites.has(m.key) ? starred : rest).push(m);
+  }
+  return [...starred, ...rest];
+}
 // cad-trv-fidelity Slice 14 — the generic arithmetic calc is the default.
 const DEFAULT_MODEL: ModelKey = 'generic';
 
@@ -85,6 +127,11 @@ interface CalculatorCtx {
   loadState: (model: ModelKey) => Promise<unknown | null>;
   /** Wipe saved state for a model (called by the modal's ↻ button). */
   clearState: (model: ModelKey) => Promise<void>;
+  /** Slice P3-cf — favorite calculators. Stars persist to
+   *  localStorage; the modal's tab strip reads `favorites` to
+   *  reorder so starred calculators sit on the left. */
+  favorites: ReadonlySet<ModelKey>;
+  toggleFavorite: (model: ModelKey) => void;
 }
 
 const Ctx = createContext<CalculatorCtx | null>(null);
@@ -103,6 +150,27 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
     if (stored && CALCULATOR_MODELS.some(m => m.key === stored)) return stored;
     return DEFAULT_MODEL;
   });
+
+  // Slice P3-cf — favorites Set. Persisted to localStorage; the
+  // sort runs on every render but it's O(n) over <10 models so
+  // the cost is negligible.
+  const [favorites, setFavorites] = useState<Set<ModelKey>>(() => readFavorites());
+  const toggleFavorite = useCallback((model: ModelKey) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(model)) next.delete(model);
+      else next.add(model);
+      try {
+        window.localStorage.setItem(
+          FAVORITES_STORAGE_KEY,
+          JSON.stringify(Array.from(next)),
+        );
+      } catch {
+        /* localStorage quota */
+      }
+      return next;
+    });
+  }, []);
 
   const setCurrentModel = useCallback((model: ModelKey) => {
     setCurrentModelState(model);
@@ -217,10 +285,12 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
 
   const ctxValue = useMemo<CalculatorCtx>(() => ({
     isOpen, currentModel, openCalculator, closeCalculator, setCurrentModel,
-    saveState, loadState, clearState,
-  }), [isOpen, currentModel, openCalculator, closeCalculator, setCurrentModel, saveState, loadState, clearState]);
+    saveState, loadState, clearState, favorites, toggleFavorite,
+  }), [isOpen, currentModel, openCalculator, closeCalculator, setCurrentModel, saveState, loadState, clearState, favorites, toggleFavorite]);
 
   const activeModel = CALCULATOR_MODELS.find(m => m.key === currentModel) ?? CALCULATOR_MODELS[0];
+  // Slice P3-cf — favorites sorted to the left of the tab strip.
+  const orderedModels = sortModelsByFavorites(CALCULATOR_MODELS, favorites);
 
   return (
     <Ctx.Provider value={ctxValue}>
@@ -238,20 +308,46 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
         }}
         toolbar={
           <div className="calc-tabstrip" role="tablist" aria-label="Approved calculators">
-            {CALCULATOR_MODELS.map(m => (
-              <button
-                key={m.key}
-                type="button"
-                role="tab"
-                aria-selected={m.key === currentModel}
-                className={`calc-tabstrip__tab ${m.key === currentModel ? 'calc-tabstrip__tab--active' : ''}`}
-                onClick={() => setCurrentModel(m.key)}
-                title={m.label}
-              >
-                <span className="calc-tabstrip__brand">{m.brand}</span>
-                <span className="calc-tabstrip__label">{m.label}</span>
-              </button>
-            ))}
+            {orderedModels.map(m => {
+              const isFav = favorites.has(m.key);
+              return (
+                <div
+                  key={m.key}
+                  className={`calc-tabstrip__tab-wrap ${isFav ? 'calc-tabstrip__tab-wrap--fav' : ''}`}
+                  data-favorite={isFav ? 'true' : undefined}
+                >
+                  {/* Slice P3-cf — star button. Persists toggle to
+                      localStorage; the modal re-sorts favorites to
+                      the left automatically. Click-stop so the
+                      tab itself doesn't activate. */}
+                  <button
+                    type="button"
+                    className="calc-tabstrip__fav"
+                    data-testid={`calc-tab-fav-${m.key}`}
+                    aria-label={isFav ? `Unfavorite ${m.label}` : `Favorite ${m.label}`}
+                    aria-pressed={isFav}
+                    title={isFav ? 'Remove from favorites' : 'Pin to the left (favorite)'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(m.key);
+                    }}
+                  >
+                    {isFav ? '★' : '☆'}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={m.key === currentModel}
+                    className={`calc-tabstrip__tab ${m.key === currentModel ? 'calc-tabstrip__tab--active' : ''}`}
+                    onClick={() => setCurrentModel(m.key)}
+                    title={m.label}
+                  >
+                    <span className="calc-tabstrip__brand">{m.brand}</span>
+                    <span className="calc-tabstrip__label">{m.label}</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         }
       >
@@ -283,6 +379,7 @@ function mapKey(key: string): string | null {
 function renderModel(model: ModelDef) {
   // C-6+ replaces each placeholder with the real shell as phases ship.
   if (model.key === 'generic') return <GenericCalculator />;
+  if (model.key === 'bearing-az') return <BearingAzimuth />;
   if (model.key === 'ti-36x-pro') return <Ti36xPro />;
   if (model.key === 'ti-30xs-multiview') return <Ti30xsMultiView />;
   if (model.key === 'ti-30xa') return <Ti30xa />;

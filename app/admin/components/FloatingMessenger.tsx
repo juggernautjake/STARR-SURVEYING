@@ -4,6 +4,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 // employee-pond Slice E9b — cross-surface recipient continuity.
@@ -377,8 +378,14 @@ export default function FloatingMessenger() {
         </div>
       )}
 
-      {/* Panel */}
-      {isOpen && (
+      {/* Panel — Slice P-msg-fix — portaled to <body> so the
+          position:fixed panel escapes the FAB pill's flex/overflow
+          context. Without the portal, the panel rendered as a
+          flex child inside .fab-menu__buttons (which has
+          overflow:hidden + opacity transitions), which caused the
+          panel to appear collapsed / clipped instead of popping
+          up as its own bottom-right window. */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div className="messenger-panel">
           {/* Header */}
           <div className="messenger-panel__header">
@@ -643,7 +650,8 @@ export default function FloatingMessenger() {
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

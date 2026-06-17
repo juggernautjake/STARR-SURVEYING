@@ -68,10 +68,23 @@ export interface PhysicsOptions {
  *  factor (closer to 1.0 = less drag), small idle jitter so the
  *  pond never goes completely still, gentle cursor attraction
  *  when the cursor is in the pond. Source-locked; tests + the
- *  hook share them. */
+ *  hook share them.
+ *
+ *  Slice P2 (pond-polish-2026-06-16) — user feedback:
+ *    "the orbs/circles/icons are too bouncy. They bounce around a
+ *     little too aggressively, and whenever I hover over one and it
+ *     grows it knocks all of the orbs/circles around it all over
+ *     the place. Please just soften the bouncing so that they just
+ *     bump around a bit. maybe like, 1/3 of the bounciness."
+ *  Repulsion cut to ⅓ (900 → 300). The hover-pop effect feeds
+ *  through the SAME repulsion loop (hover bumps the orb's radius
+ *  up to 1.2× which triggers neighbor overlap), so cutting
+ *  repulsion proportionally calms the hover bump too. Gravity +
+ *  damping + jitter + cursor attraction stay untouched so the
+ *  slow organic floaty feel survives. */
 export const DEFAULT_PHYSICS: Omit<PhysicsOptions, 'dt' | 'pondRadius'> = {
   gravity: 0.8,
-  repulsion: 900,
+  repulsion: 300,
   damping: 0.85,
   bounceRestitution: 0.55,
   idleJitter: 24,

@@ -119,6 +119,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
 
   // Work workspace ────────────────────────────────────────────────
   { href: '/admin/work',            label: 'Work',            workspace: 'work', iconName: 'Briefcase',     description: 'Active jobs + crew + dispatch.', keywords: ['operations', 'jobs', 'dispatch'] },
+  // Slice P6 — surface the org-wide /admin/calendar page (already
+  // shipped: month/week/day + fullscreen + phase legend) in the
+  // Work rail. Previously it only existed as a file with no nav
+  // entry, so users couldn't get to it without typing the URL.
+  { href: '/admin/calendar',        label: 'Calendar',        workspace: 'work', iconName: 'CalendarDays',  description: 'Org-wide job schedule — year, month, week, day.', keywords: ['schedule', 'phases', 'events', 'jobs', 'planning'] },
   { href: '/admin/jobs',            label: 'All Jobs',        workspace: 'work', iconName: 'ListChecks',    description: 'Every active + archived job.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['projects'] },
   { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Create a job.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },

@@ -96,6 +96,37 @@ interface HubStore {
 
 const HUB_LAYOUT_ENDPOINT = '/api/admin/me/hub-layout';
 
+/** Slice P7 — user feedback: "whenever I am editing the hub widgets
+ *  and attempt to resize or grab a widget for the first time, it
+ *  duplicates the widget in the editing grid viewer."
+ *
+ *  We could not pinpoint a single code path that introduces the
+ *  duplicate, but every render path uses `key={inst.id}` so a
+ *  duplicate id is the only way React would paint two divs. This
+ *  helper de-dupes any layout coming in by id; it keeps the FIRST
+ *  occurrence so a freshly-pushed update on top of a stale layout
+ *  drops the stale copy without disturbing positions. Pure +
+ *  exported so the test suite can lock the contract. */
+export function dedupeWidgetsById(widgets: WidgetInstance[]): WidgetInstance[] {
+  const seen = new Set<string>();
+  const out: WidgetInstance[] = [];
+  let droppedAny = false;
+  for (const w of widgets) {
+    if (seen.has(w.id)) {
+      droppedAny = true;
+      continue;
+    }
+    seen.add(w.id);
+    out.push(w);
+  }
+  if (droppedAny && typeof console !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    console.warn(
+      '[hub-store] dropped duplicate widget id(s) — investigate the path that produced this layout',
+    );
+  }
+  return out;
+}
+
 export const useHubStore = create<HubStore>((set, get) => ({
   widgets: [],
   draftWidgets: null,
@@ -116,7 +147,9 @@ export const useHubStore = create<HubStore>((set, get) => ({
       // (with showTitle=false / dropped style fields / unknown
       // density / etc.) still renders cleanly. The normalizer is a
       // pass-through for layouts written after the overhaul.
-      widgets: normalizeWidgets(widgets),
+      // Slice P7 — dedupe by id on ingress so a stale duplicate from
+      // an older save can't paint twice on first render.
+      widgets: dedupeWidgetsById(normalizeWidgets(widgets)),
       draftWidgets: null,
       isEditMode: false,
       isDirty: false,
@@ -136,7 +169,12 @@ export const useHubStore = create<HubStore>((set, get) => ({
     if (isEditMode) return;
     set({
       isEditMode: true,
-      draftWidgets: cloneWidgets(widgets),
+      // Slice P7 — defensive dedupe on draft init in case the saved
+      // layout itself had a duplicate. Without this, the first drag
+      // in the editor renders the duplicate at its preview position
+      // while the stale copy stays put, producing the user-reported
+      // "duplicates the widget on first grab" symptom.
+      draftWidgets: dedupeWidgetsById(cloneWidgets(widgets)),
       isDirty: false,
       saveStatus: 'idle',
       saveError: null,
@@ -156,12 +194,24 @@ export const useHubStore = create<HubStore>((set, get) => ({
   setDraftWidgets: (widgets) => {
     const { isEditMode } = get();
     if (!isEditMode) return;
-    set({ draftWidgets: widgets, isDirty: true });
+    // Slice P7 — dedupe so no caller (drag-reflow, resize-reflow,
+    // auto-format, etc.) can ever paint two divs for one widget.
+    set({ draftWidgets: dedupeWidgetsById(widgets), isDirty: true });
   },
 
   addWidget: (widget) => {
     const { draftWidgets, isEditMode } = get();
     if (!isEditMode || !draftWidgets) return;
+    // Slice P7 — guard against re-adding an existing id. The palette
+    // generates fresh UUIDs today, but a future code path could call
+    // addWidget with an existing instance — this drops the dup on
+    // the floor instead of stacking two cards on the same cell.
+    if (draftWidgets.some((w) => w.id === widget.id)) {
+      if (typeof console !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        console.warn('[hub-store] addWidget called with existing id — ignoring', widget.id);
+      }
+      return;
+    }
     set({ draftWidgets: [...draftWidgets, widget], isDirty: true });
   },
 

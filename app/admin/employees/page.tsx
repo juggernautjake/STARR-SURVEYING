@@ -158,7 +158,10 @@ export default function EmployeesPage() {
               data-current={view === v ? 'true' : undefined}
               onClick={() => setViewAndPersist(v)}
             >
-              {v === 'list' ? 'List' : 'Pond'}
+              {/* The internal value stays 'pond' so users on the
+                  previous build don't lose their saved preference;
+                  only the visible label flips per user feedback. */}
+              {v === 'list' ? 'List' : 'Interactive'}
             </button>
           ))}
         </div>
@@ -211,9 +214,13 @@ export default function EmployeesPage() {
           />
         </form>
         <div style={{ display: 'flex', gap: '.5rem' }}>
+          {/* Slice P5 — pin both selects to the 36px baseline shared
+              by `.jobs-page__search` so the role/status filters sit
+              flush with the search input next door instead of
+              rendering ~2px taller from their default padding. */}
           <select
             className="job-form__select"
-            style={{ width: 'auto', minWidth: '140px' }}
+            style={{ width: 'auto', minWidth: '140px', height: 36, boxSizing: 'border-box' }}
             value={roleFilter}
             onChange={e => setRoleFilter(e.target.value as UserRole | 'all')}
           >
@@ -222,7 +229,7 @@ export default function EmployeesPage() {
           </select>
           <select
             className="job-form__select"
-            style={{ width: 'auto', minWidth: '120px' }}
+            style={{ width: 'auto', minWidth: '120px', height: 36, boxSizing: 'border-box' }}
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
           >

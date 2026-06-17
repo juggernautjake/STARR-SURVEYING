@@ -98,7 +98,10 @@ export default function ContactsPage() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
         <form
           onSubmit={(e) => { e.preventDefault(); setAppliedSearch(search.trim()); }}
-          style={{ display: 'flex', gap: 8, flex: '1 1 280px', minWidth: 240 }}
+          /* Slice P5 — was `flex: 1 1 280px` which made the form
+           * grow to fill the row. Cap at 380px so the search is a
+           * normal-width control; still shrinks on narrow viewports. */
+          style={{ display: 'flex', gap: 8, flex: '0 1 380px', minWidth: 240 }}
         >
           <input
             type="search"
@@ -229,8 +232,15 @@ export default function ContactsPage() {
   );
 }
 
+/* Slice P5 — the contacts page used to mix font-size + vertical
+ * padding, so each control derived its height from its content
+ * (the input was 36px, the secondary buttons ~34px, the chips
+ * ~28px). Pin every interactive control on the search row to a
+ * 36px box-sizing:border-box height so they share one baseline. */
 const primaryButtonStyle: React.CSSProperties = {
-  padding: '8px 14px',
+  height: 36,
+  boxSizing: 'border-box',
+  padding: '0 14px',
   borderRadius: 8,
   border: '1px solid var(--theme-accent, #3b82f6)',
   background: 'var(--theme-accent, #3b82f6)',
@@ -240,7 +250,9 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 600,
 };
 const secondaryButtonStyle: React.CSSProperties = {
-  padding: '8px 12px',
+  height: 36,
+  boxSizing: 'border-box',
+  padding: '0 12px',
   borderRadius: 8,
   border: '1px solid var(--theme-border, #e5e7eb)',
   background: 'transparent',
@@ -250,14 +262,18 @@ const secondaryButtonStyle: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   flex: 1,
-  padding: '8px 10px',
+  height: 36,
+  boxSizing: 'border-box',
+  padding: '0 10px',
   borderRadius: 8,
   border: '1px solid var(--theme-border, #e5e7eb)',
   background: 'var(--theme-bg-surface, white)',
   fontSize: '0.95rem',
 };
 const chipStyle: React.CSSProperties = {
-  padding: '4px 10px',
+  height: 36,
+  boxSizing: 'border-box',
+  padding: '0 12px',
   borderRadius: 999,
   border: '1px solid var(--theme-border, #e5e7eb)',
   background: 'transparent',

@@ -20,13 +20,22 @@
 .employee-pond__toolbar {
   display: flex;
   gap: var(--space-2);
+  /* Slice P1 — center on the cross-axis so the search input + the
+   * filter button share the same vertical baseline regardless of
+   * minor height differences (the filter button's "(N)" count
+   * suffix used to push it down). */
   align-items: center;
   flex-wrap: wrap;
 }
 .employee-pond__search {
-  flex: 1 1 240px;
+  /* Slice P1 — bounded width so the field doesn't eat the whole
+   * toolbar row; fixed height matches the filter button so they
+   * sit on the same baseline. */
+  flex: 0 1 340px;
+  height: 40px;
   min-height: 40px;
-  padding: var(--space-2) var(--space-3);
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
   border: 1px solid #E5E7EB;
   border-radius: var(--radius-md);
   background: var(--color-bg-input);
@@ -42,12 +51,18 @@
   border: 1px solid #E5E7EB;
   background: var(--color-bg-card);
   color: var(--color-text-primary);
-  padding: var(--space-2) var(--space-3);
+  /* Slice P1 — fixed height so the button aligns with the search
+   * input baseline (both 40 px tall). */
+  padding: 0 var(--space-3);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   cursor: pointer;
+  height: 40px;
   min-height: 40px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
 }
 .employee-pond__filter-btn:hover {
   border-color: var(--color-brand-navy);
@@ -158,10 +173,25 @@
   justify-content: center;
   padding: var(--space-4);
 }
-.employee-pond__pond {
+/* Slice P1 — wrapper around the pond that the dialogue sits in.
+ * Same dimensions as the pond circle but WITHOUT overflow:hidden,
+ * so the dialogue can extend past the circle's edge while orbs
+ * keep clipping. The pond's center anchor (top:50%/left:50%) and
+ * the dialogue's center anchor share this wrap as their
+ * positioned ancestor, so the anchor math from the helper stays
+ * the same. */
+.employee-pond__pond-wrap {
   position: relative;
-  width: calc(var(--pond-radius, 280px) * 2);
-  height: calc(var(--pond-radius, 280px) * 2);
+  /* Slice P3 — bumped the desktop fallback 280px → 360px to match
+   * the JS `POND_RADIUS_PX = 360`. The inline `--pond-radius` from
+   * the component always wins; this fallback only matters if the
+   * inline var is missing (SSR / older render path). */
+  width: calc(var(--pond-radius, 360px) * 2);
+  height: calc(var(--pond-radius, 360px) * 2);
+}
+.employee-pond__pond {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
   background:
     radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.85), transparent 60%),
@@ -241,6 +271,12 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Slice P1 — block the browser's native image drag so our
+   * pointerdown drag handler isn't pre-empted. pointer-events: none
+   * routes pointer events to the orb wrapper, which owns the drag
+   * lifecycle. */
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 .employee-pond__orb-initials {
   font-family: var(--font-heading);
@@ -298,14 +334,111 @@
   }
 }
 
+/* ── Slice P4b — camera layer + omni-directional scroll ring ─ */
+.employee-pond__camera-layer {
+  position: absolute;
+  inset: 0;
+  /* Imperative `transform: translate3d(-cx, -cy)` is written by the
+   * pan rAF loop in EmployeePond.tsx. willChange keeps the
+   * compositor on the layer so the pan stays buttery. */
+  will-change: transform;
+}
+.employee-pond__scroll-ring {
+  /* Sit on the same positioning context as the pond and extend
+   * 14px outside the pond circle so the ring band is visible
+   * around the pool. position:absolute on the pond-wrap. */
+  position: absolute;
+  inset: -14px;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  z-index: 6;
+  color: rgba(30, 58, 138, 0.55);
+  pointer-events: none;
+  transition: color 160ms ease;
+}
+.employee-pond__scroll-ring--hover {
+  color: rgba(30, 58, 138, 0.92);
+}
+.employee-pond__scroll-ring-stroke {
+  /* Stroke-only hit test: pointer events only fire on the band,
+   * so clicks INSIDE the ring (the pond itself) pass straight
+   * through to the orbs. */
+  pointer-events: stroke;
+  stroke-width: 1.4;
+  cursor: grab;
+  vector-effect: non-scaling-stroke;
+  /* The hover rule below bumps the stroke up so the ring visibly
+   * grows when the surveyor's pointer is on it. */
+  transition: stroke-width 140ms ease;
+}
+.employee-pond__scroll-ring--hover .employee-pond__scroll-ring-stroke {
+  stroke-width: 2.4;
+  cursor: grabbing;
+}
+.employee-pond__scroll-ring-tooltip {
+  /* Anchored at the pond-wrap's top-left; the inline transform
+   * adds 50% + the hover offset so the tooltip ends up next to
+   * the cursor without covering it. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 7;
+  background: rgba(15, 23, 42, 0.92);
+  color: #FFFFFF;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+}
+
+/* ── Slice P4a — Reset link below the pond ─────────────────── */
+.employee-pond__reset-wrap {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-3) 0 var(--space-2);
+}
+.employee-pond__reset {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #6B7280);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 120ms ease, background-color 120ms ease, text-decoration-color 120ms ease;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.employee-pond__reset:hover,
+.employee-pond__reset:focus-visible {
+  color: var(--color-brand-navy, #1E3A8A);
+  text-decoration-color: currentColor;
+  background-color: rgba(30, 58, 138, 0.06);
+  outline: none;
+}
+
 /* ── Below-pond list ────────────────────────────────────────── */
 .employee-pond__list {
   list-style: none;
   padding: 0;
-  margin: 0;
+  /* Slice P1 — center the list under the pond rather than letting
+   * it stretch across the page. The max-width matches the desktop
+   * pond circle (radius * 2 with breathing room) so the list reads
+   * as a vertical column directly under the circle. */
+  margin: 0 auto;
+  max-width: calc(var(--pond-radius, 360px) * 2 + var(--space-6, 32px) * 2);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--space-1) var(--space-3);
+  justify-content: center;
 }
 .employee-pond__list-item {
   margin: 0;

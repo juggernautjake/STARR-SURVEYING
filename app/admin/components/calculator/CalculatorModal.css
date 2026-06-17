@@ -95,6 +95,41 @@
   gap: 0.3rem;
   white-space: nowrap;
 }
+
+/* Slice P3-cf — wrap that holds the star button + the tab side
+ * by side. Star sits at top-left of the tab; flex layout keeps
+ * the two glued together as one visual unit. */
+.calc-tabstrip__tab-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+.calc-tabstrip__fav {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #9CA3AF;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.35rem;
+  cursor: pointer;
+  border-radius: 4px 0 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.calc-tabstrip__fav:hover {
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.08);
+}
+.calc-tabstrip__fav[aria-pressed='true'] {
+  color: #F59E0B;
+}
+.calc-tabstrip__tab-wrap--fav .calc-tabstrip__tab {
+  /* Tiny gold accent so the user can spot favorites at a glance
+   * even with many tabs. */
+  border-top: 2px solid #F59E0B;
+}
 .calc-tabstrip__tab {
   display: inline-flex;
   flex-direction: column;
@@ -808,4 +843,156 @@
 .calc-modal__resize:hover {
   background:
     linear-gradient(135deg, transparent 0 45%, rgba(59, 130, 246, 1) 45% 55%, transparent 55% 70%, rgba(59, 130, 246, 0.9) 70% 80%, transparent 80%);
+}
+
+/* ── Slice P3-ba — Bearing / Azimuth converter ─────────────────── */
+.bearing-az {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.85rem;
+  height: 100%;
+  box-sizing: border-box;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #1F2937;
+}
+.bearing-az__row {
+  display: flex;
+  gap: 0.4rem;
+}
+.bearing-az__mode,
+.bearing-az__quad {
+  flex: 1;
+  height: 36px;
+  padding: 0 0.6rem;
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #475569;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.bearing-az__mode:hover,
+.bearing-az__quad:hover {
+  border-color: #1E3A8A;
+  color: #1E3A8A;
+}
+.bearing-az__mode--active,
+.bearing-az__quad--active {
+  background: #1E3A8A;
+  border-color: #1E3A8A;
+  color: #FFFFFF;
+}
+.bearing-az__dms {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.bearing-az__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.bearing-az__field-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bearing-az__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.bearing-az__input-wrap input {
+  flex: 1;
+  width: 100%;
+  height: 38px;
+  padding: 0 1.4rem 0 0.55rem;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  background: #FFFFFF;
+  color: #0F172A;
+  box-sizing: border-box;
+  transition: border-color 120ms ease;
+}
+.bearing-az__input-wrap input:focus {
+  border-color: #1E3A8A;
+}
+.bearing-az__unit {
+  position: absolute;
+  right: 0.55rem;
+  font-size: 0.85rem;
+  color: #94A3B8;
+  pointer-events: none;
+}
+.bearing-az__output {
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  background: #F8FAFC;
+}
+.bearing-az__output--warn {
+  border-color: #F59E0B;
+  background: #FFFBEB;
+}
+.bearing-az__output-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+}
+.bearing-az__output-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #0F172A;
+}
+.bearing-az__warn {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: #B45309;
+}
+.bearing-az__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.bearing-az__action {
+  flex: 1;
+  height: 38px;
+  border: 1px solid #1E3A8A;
+  background: #1E3A8A;
+  color: #FFFFFF;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 120ms ease, transform 80ms ease;
+}
+.bearing-az__action:hover {
+  background: #1E40AF;
+}
+.bearing-az__action:active {
+  transform: translateY(1px);
+}
+.bearing-az__action--ghost {
+  background: transparent;
+  color: #1E3A8A;
+}
+.bearing-az__action--ghost:hover {
+  background: #EFF6FF;
 }

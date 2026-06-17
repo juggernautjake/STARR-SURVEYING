@@ -235,7 +235,10 @@ export default function AllJobsPage() {
             onClick={() => setShowDeleted((v) => !v)}
             title={showDeleted ? 'Back to active jobs' : 'View deleted jobs (recoverable for 30 days)'}
             style={{
-              height: 38,
+              /* Slice P5 — was 38px; the search row's other controls
+               * sit at 36 (.jobs-page__search/search-btn/view-toggle).
+               * Match them so the row baseline is flat. */
+              height: 36,
               boxSizing: 'border-box',
               padding: '0 14px',
               borderRadius: 8,
