@@ -76,12 +76,36 @@ to the new key and remove `PAYMENT_ENCRYPTION_KEY_OLD`.
 
 ## PCI scope
 
+> **SAQ A eligibility checklist:**
+> [`docs/security/saq-a-eligibility-checklist.md`](./saq-a-eligibility-checklist.md)
+> — one-page audit the office runs whenever the `/pay` route or the
+> Stripe webhook changes. Confirms every PCI DSS SAQ A condition is
+> still met by our integration.
+
 | Method | PCI scope | Notes |
 |---|---|---|
 | **Stripe (card / ACH)** | SAQ A | Stripe Elements tokenises in the browser. The app never sees or stores raw card data. We store only the Stripe `payment_intent.id` (P5). |
 | **Venmo / CashApp / Zelle** | Out of scope | Customer-to-customer P2P transfers. The app stores tokenless transaction references (last-4 of the platform tx id) only after the office confirms receipt. |
 | **Cash / check** | Out of scope | No card data touches the app. |
 | **ACH (employee payouts)** | Out of scope for PCI; subject to GLBA / state bank-data rules | Account + routing are encrypted at rest (this doc). Reads are audit-logged. The export to PNC is a CSV the office uploads via their bank's portal — no raw card numbers. |
+
+### What we store vs. what Stripe stores
+
+The PCI boundary lives at Stripe's iframe. Everything to the right
+of the boundary is Stripe's PCI surface; everything to the left is
+ours.
+
+| Data | Our DB | Stripe |
+|---|---|---|
+| Full card number (PAN) | **never** | yes |
+| Card CVV / CVC | **never** | tokenised, not stored |
+| Card expiry | **never** | yes |
+| Card last-4 | **never** | yes |
+| Cardholder name | **never** | yes |
+| Stripe `payment_intent.id` (`pi_…`) | yes (`payments.external_id`) | yes |
+| Stripe `charge.id` last-4 | yes (`PublicPaymentSummary.external_id_tail`) | full id only |
+| Payer email | yes (gated) | yes |
+| Receipt URL | not stored — receipt PDF is rendered server-side from our data | n/a |
 
 **No card numbers are ever stored in this database.** Stripe's
 tokenization keeps card-PAN out of our control entirely — only
