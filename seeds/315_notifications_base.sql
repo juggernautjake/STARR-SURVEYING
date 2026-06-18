@@ -7,51 +7,86 @@
 -- Historical note: seed 222 ("starr-field-notifications") says it "extends
 -- the EXISTING `notifications` table". That assumes the table was created
 -- manually before the seed era. In a fresh database, every notify() call
--- silently fails and the bell shows nothing. This seed creates the base
--- table with the FULL column set so:
---   - lib/notifications.ts inserts succeed
---   - the bell-icon GET in /api/admin/notifications returns rows
---   - seed 222's column adds become no-ops (the columns already exist)
---   - seed 248's borrow-notification trigger fires correctly
+-- silently fails and the bell shows nothing. In an existing DB where the
+-- legacy table is present but missing the columns seed 222 + this seed
+-- expect, a naive CREATE TABLE IF NOT EXISTS leaves the schema as-is and
+-- the indexes below blow up with 42703 ("column does not exist").
 --
--- Idempotent — every column / index / policy uses IF NOT EXISTS.
+-- Strategy: CREATE TABLE IF NOT EXISTS with a minimal core, then
+-- ADD COLUMN IF NOT EXISTS for every other column. Both fresh + legacy
+-- databases end up with the same schema after this runs.
+--
+-- After this seed, the helper inserts succeed, the bell-icon GET in
+-- /api/admin/notifications returns rows, seed 222's column adds become
+-- no-ops, and seed 248's borrow-notification trigger fires correctly.
+--
+-- Idempotent — every column / index / policy uses IF NOT EXISTS guards.
 -- ============================================================================
 
 BEGIN;
 
--- ── Table ────────────────────────────────────────────────────────────────────
--- Column set merges what lib/notifications.ts writes + what seed 222 adds:
---   Helper writes:    user_email, type, title, body, icon, link,
---                     source_type, source_id, escalation_level, thread_id
---   Lifecycle flags:  is_read, is_dismissed, read_at
---   Seed-222 adds:    target_user_id, delivered_at, dismissed_at, expires_at
--- Keeping them all on the base table means seed 222's `ALTER ADD COLUMN IF
--- NOT EXISTS` calls turn into no-ops.
+-- ── Table (minimal core) ─────────────────────────────────────────────────────
+-- Just the always-required columns. Every other column gets added below via
+-- ALTER ADD COLUMN IF NOT EXISTS so we don't fight a pre-existing table.
 CREATE TABLE IF NOT EXISTS public.notifications (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_email       TEXT NOT NULL,
-  type             TEXT NOT NULL,
-  title            TEXT NOT NULL,
-  body             TEXT,
-  icon             TEXT,
-  link             TEXT,
-  source_type      TEXT,
-  source_id        TEXT,
-  escalation_level TEXT NOT NULL DEFAULT 'normal'
-                     CHECK (escalation_level IN ('low', 'normal', 'high', 'urgent', 'critical')),
-  thread_id        TEXT,
-  is_read          BOOLEAN NOT NULL DEFAULT FALSE,
-  is_dismissed     BOOLEAN NOT NULL DEFAULT FALSE,
-  read_at          TIMESTAMPTZ,
-  target_user_id   UUID,
-  delivered_at     TIMESTAMPTZ,
-  dismissed_at     TIMESTAMPTZ,
-  expires_at       TIMESTAMPTZ,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_email TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON TABLE public.notifications IS
   'Central notification inbox. Written via lib/notifications.ts; read by NotificationBell + /api/admin/notifications.';
+
+-- ── Backfill every other column the app + seed 222 expect ────────────────────
+-- Order matters where one column references another — none do here, so this
+-- is straightforward additive ALTERs.
+ALTER TABLE public.notifications
+  ADD COLUMN IF NOT EXISTS type             TEXT,
+  ADD COLUMN IF NOT EXISTS title            TEXT,
+  ADD COLUMN IF NOT EXISTS body             TEXT,
+  ADD COLUMN IF NOT EXISTS icon             TEXT,
+  ADD COLUMN IF NOT EXISTS link             TEXT,
+  ADD COLUMN IF NOT EXISTS source_type      TEXT,
+  ADD COLUMN IF NOT EXISTS source_id        TEXT,
+  ADD COLUMN IF NOT EXISTS escalation_level TEXT DEFAULT 'normal',
+  ADD COLUMN IF NOT EXISTS thread_id        TEXT,
+  ADD COLUMN IF NOT EXISTS is_read          BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_dismissed     BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS read_at          TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS target_user_id   UUID,
+  ADD COLUMN IF NOT EXISTS delivered_at     TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS dismissed_at     TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS expires_at       TIMESTAMPTZ;
+
+-- type + title were NOT NULL on the fresh-database path; preserve that
+-- invariant by tightening the constraint AFTER the column-add backfill.
+-- Wrapped in a DO so a legacy table where these are already NOT NULL
+-- doesn't error out a second time.
+DO $$ BEGIN
+  -- Default any NULL rows so the SET NOT NULL doesn't blow up on legacy data.
+  UPDATE public.notifications SET type = COALESCE(type, 'info') WHERE type IS NULL;
+  UPDATE public.notifications SET title = COALESCE(title, 'Notification') WHERE title IS NULL;
+  ALTER TABLE public.notifications ALTER COLUMN type SET NOT NULL;
+  ALTER TABLE public.notifications ALTER COLUMN title SET NOT NULL;
+EXCEPTION
+  WHEN others THEN
+    -- Non-fatal: if a downstream constraint complains, leave the columns
+    -- nullable rather than fail the migration.
+    NULL;
+END $$;
+
+-- Constraint on escalation_level — add only when missing.
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'notifications_escalation_level_check'
+  ) THEN
+    ALTER TABLE public.notifications
+      ADD CONSTRAINT notifications_escalation_level_check
+      CHECK (escalation_level IN ('low', 'normal', 'high', 'urgent', 'critical'));
+  END IF;
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ── Indexes ──────────────────────────────────────────────────────────────────
 -- Bell-icon poll: "show me my unread notifications, newest first."
@@ -111,3 +146,7 @@ COMMIT;
 -- ── Verification ─────────────────────────────────────────────────────────────
 --   SELECT to_regclass('public.notifications');     -- non-null
 --   SELECT count(*) FROM public.notifications;      -- 0 on first apply
+--   -- Confirm every expected column is present:
+--   SELECT column_name FROM information_schema.columns
+--    WHERE table_schema='public' AND table_name='notifications'
+--    ORDER BY ordinal_position;
