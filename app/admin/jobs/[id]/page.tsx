@@ -8,6 +8,10 @@ import Link from 'next/link';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import JobFileManager from '../../components/jobs/JobFileManager';
+// LR6 of lead-reply-expansion-2026-06-18.md — back-link card to the
+// originating lead so the running conversation isn't lost after
+// conversion.
+import JobOriginatingLead from './JobOriginatingLead';
 import JobEquipmentList from '../../components/jobs/JobEquipmentList';
 import JobResearchPanel from '../../components/jobs/JobResearchPanel';
 import JobCadPanel from '../../components/jobs/JobCadPanel';
@@ -579,6 +583,12 @@ export default function JobDetailPage() {
             </div>
             <div className="job-detail__overview-grid">
               <div className="job-detail__overview-main">
+                {/* LR6 — back-link card to the originating lead so the
+                    surveyor can jump into the running conversation
+                    (replies + office notes) from the job overview. The
+                    card silently no-renders when this job wasn't
+                    converted from a lead. */}
+                <JobOriginatingLead jobId={jobId} />
                 {/* Description — click to edit */}
                 <div className="job-detail__section">
                   <h3>Description</h3>

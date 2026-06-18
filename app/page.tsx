@@ -464,7 +464,7 @@ export default function HomePage(): React.ReactElement {
               <a href="mailto:info@starr-surveying.com" className="home-contact__direct-email-link">
                 info@starr-surveying.com
               </a>
-              {' '}— attach any photos, deeds, or plats and we&apos;ll respond from the same address.
+              {' '}— attach any photos, deeds, or plats so we have what we need to quote you.
             </p>
           </div>
 

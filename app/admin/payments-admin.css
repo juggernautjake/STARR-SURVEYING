@@ -1,0 +1,46 @@
+/* ==========================================================================
+   PAYMENTS ADMIN STYLES — P21 of payment-infrastructure-2026-06-18
+
+   Shared utilities for the office-side payment surfaces:
+     - /admin/invoices/new
+     - /admin/payments/inbox
+     - /admin/payouts/runs (+ [id] + dispatch + ad-hoc + tax-report)
+
+   Brand palette + focus rings + reduced-motion handling stay in
+   lockstep with the customer-facing Pay.css so the office surface
+   feels like the same product.
+   ========================================================================== */
+
+/* Universal :focus-visible — WCAG AA 3:1 contrast vs the typical
+   white card background. Same color as the customer portal so the
+   muscle memory carries across surfaces. */
+.payments-admin :focus-visible,
+[data-payments-admin] :focus-visible {
+  outline: 3px solid #1D3095;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Standard sr-only helper. */
+.payments-admin .visually-hidden,
+[data-payments-admin] .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Reduced-motion: suspend any shimmer / fade. */
+@media (prefers-reduced-motion: reduce) {
+  .payments-admin *,
+  [data-payments-admin] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

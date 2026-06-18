@@ -18,6 +18,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { deriveAge } from '../../profile/ProfilePanel';
 // Slice EP7b — admin edit affordance for the personal-info card.
 import AdminPersonalInfoEditor from './AdminPersonalInfoEditor';
+// P14 of payment-infrastructure-2026-06-18.md — per-employee
+// payout audit trail.
+import EmployeePayoutHistory from './EmployeePayoutHistory';
 
 interface Profile {
   user_email: string;
@@ -313,6 +316,8 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
       </div>
       </>
       )}{/* /(hasOptionalInfo || viewerIsAdmin) */}
+
+      <EmployeePayoutHistory email={email} />
     </div>
   );
 }

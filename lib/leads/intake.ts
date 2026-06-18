@@ -328,18 +328,26 @@ interface StorageSurface {
  *  return a parallel array of `{name, size, storage_path}` summaries.
  *  Errors are swallowed per-file: a failed upload omits its storage_path
  *  but keeps the name/size so the admin page can still surface the
- *  filename. */
+ *  filename.
+ *
+ *  LR2 of lead-reply-expansion-2026-06-18.md — the `pathPrefix` arg
+ *  (optional) overrides the leadId-based prefix so the reply route
+ *  can store its files under `replies/<reply_id>/...` instead of
+ *  alongside the intake attachments. Defaults to `leadId` (existing
+ *  intake call sites are unchanged). */
 export async function uploadLeadAttachments(
   storage: StorageSurface,
   leadId: string,
   files: ReadonlyArray<{ name: string; size: number; bytes: ArrayBuffer | Buffer | Uint8Array; contentType?: string }>,
   makeUuid: () => string = () => crypto.randomUUID(),
+  pathPrefix?: string,
 ): Promise<Array<{ name: string; size: number; storage_path?: string }>> {
   if (files.length === 0) return [];
   const bucket = storage.from(LEAD_ATTACHMENTS_BUCKET);
+  const prefix = pathPrefix ?? leadId;
   const out: Array<{ name: string; size: number; storage_path?: string }> = [];
   for (const f of files) {
-    const path = buildAttachmentStoragePath(leadId, makeUuid(), f.name);
+    const path = buildAttachmentStoragePath(prefix, makeUuid(), f.name);
     try {
       const { error } = await bucket.upload(path, f.bytes, {
         contentType: f.contentType ?? 'application/octet-stream',

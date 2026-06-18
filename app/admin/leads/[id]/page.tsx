@@ -18,6 +18,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../../hooks/usePageError';
+// lead-reply-2026-06-18 — full email composer launched from the Reply
+// button in the header. The modal owns its own state + posts to the
+// /api/admin/leads/{id}/reply route; this page just opens it.
+import ReplyDialog from './ReplyDialog';
+// LR1 of lead-reply-expansion-2026-06-18.md — reply history card that
+// reads from the same /reply endpoint and renders the per-lead
+// conversation log under the Notes card.
+import RepliesList from './RepliesList';
+// LR3 — office-side conversation notes card. Backed by the new
+// public.lead_notes table (seed 320) + /api/admin/leads/[id]/notes.
+import LeadNotesCard from './LeadNotesCard';
 
 interface LeadAttachment {
   name: string;
@@ -105,6 +116,11 @@ export default function LeadDetailPage() {
   const router = useRouter();
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
+  // lead-reply-2026-06-18 — Reply modal open / closed.
+  const [replyOpen, setReplyOpen] = useState(false);
+  // LR1 — bumping this forces the RepliesList component to refetch
+  // (used by onSent to surface a fresh row immediately).
+  const [repliesRefreshKey, setRepliesRefreshKey] = useState(0);
   const isAdminUser = session?.user?.roles?.includes('admin') ?? false;
 
   const load = useCallback(async () => {
@@ -214,10 +230,29 @@ export default function LeadDetailPage() {
           </span>
         </div>
         <div className="lead-detail__actions">
+          {/* lead-reply-2026-06-18 — primary reply button. Opens the
+              composer modal that posts to /api/admin/leads/{id}/reply.
+              Disabled when the lead has no email on file so we can't
+              accidentally send to nowhere. */}
+          <button
+            type="button"
+            className="lead-detail__btn lead-detail__btn--primary"
+            data-action="reply"
+            data-testid="reply-button"
+            onClick={() => setReplyOpen(true)}
+            disabled={!lead.email}
+            title={
+              lead.email
+                ? `Reply to ${lead.email}`
+                : 'This lead has no email on file'
+            }
+          >
+            ✉️ Reply
+          </button>
           {lead.status === 'new' && (
             <button
               type="button"
-              className="lead-detail__btn lead-detail__btn--primary"
+              className="lead-detail__btn"
               data-action="mark-contacted"
               onClick={() => void changeStatus('contacted')}
               title="Mark as contacted + dismiss the new-query notification"
@@ -238,18 +273,30 @@ export default function LeadDetailPage() {
               → Convert to job
             </button>
           )}
-          <select
-            className="lead-detail__select"
-            data-testid="status-select"
-            value={lead.status}
-            onChange={(e) => void changeStatus(e.target.value)}
+          {/* lead-status-affordance-2026-06-18 — the select used to
+              float beside the action buttons with no label, so it
+              wasn't obvious it controlled the lead's status. Wrap it
+              in a labeled group + size the select to its longest
+              option ("Contacted" + chevron) so it doesn't stretch
+              awkwardly wide next to the buttons. */}
+          <label
+            className="lead-detail__status-group"
+            data-testid="status-select-group"
           >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+            <span className="lead-detail__status-label">Current status:</span>
+            <select
+              className="lead-detail__select"
+              data-testid="status-select"
+              value={lead.status}
+              onChange={(e) => void changeStatus(e.target.value)}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -344,13 +391,34 @@ export default function LeadDetailPage() {
             <span aria-hidden>📝</span> Notes from customer
           </h3>
           {lead.notes ? (
-            <div className="lead-detail__notes" data-testid="lead-notes">
+            <div
+              className="lead-detail__notes"
+              data-testid="lead-notes"
+              // S2 token migration — canonical bg token. The .lead-
+              // detail__notes class below still ships its own
+              // background, but the inline style pins the contract
+              // so the s2-contract test asserts on the source of
+              // truth.
+              style={{ background: 'var(--color-bg-subtle)' }}
+            >
               {lead.notes}
             </div>
           ) : (
             <p className="lead-detail__empty">No notes provided.</p>
           )}
         </section>
+
+        {/* LR3 of lead-reply-expansion-2026-06-18.md — office-side
+            conversation notes. Lives between the customer's original
+            message and the outbound reply history so the page reads
+            top-to-bottom as a single thread. */}
+        <LeadNotesCard leadId={lead.id} />
+
+        {/* LR1 of lead-reply-expansion-2026-06-18.md — outbound reply
+            history. Reads from /api/admin/leads/[id]/reply (shipped in
+            edfdc2c) and refreshes whenever the ReplyDialog fires
+            onSent (via the refreshKey bump). */}
+        <RepliesList leadId={lead.id} refreshKey={repliesRefreshKey} />
 
         {/* lead-attachments-2026-06-18 — render whatever files the
             customer sent via the public form. Each chip is a button-
@@ -507,16 +575,53 @@ export default function LeadDetailPage() {
         .lead-detail__btn--primary:hover {
           background: linear-gradient(135deg, #16266F 0%, #1D3095 100%);
         }
-        .lead-detail__select {
-          padding: 8px 12px;
-          border-radius: 8px;
+        /* lead-status-affordance-2026-06-18 — labeled group around the
+           status select. The label sits inline with the dropdown on
+           wider screens and stacks above it under 480px so the chip
+           still reads clearly on a phone. */
+        .lead-detail__status-group {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 4px 10px 4px 12px;
+          background: #F8FAFC;
           border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .lead-detail__status-label {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          white-space: nowrap;
+        }
+        .lead-detail__select {
+          /* Width sized to the longest option label ("Contacted")
+             plus the chevron — was previously stretching to ~8rem
+             which looked awkward next to the action buttons. */
+          padding: 6px 8px;
+          border-radius: 6px;
+          border: 1px solid transparent;
           background: white;
           color: #1F2937;
           font-size: 0.875rem;
           font-weight: 600;
           cursor: pointer;
-          min-width: 8rem;
+          width: auto;
+          min-width: 0;
+        }
+        .lead-detail__select:hover,
+        .lead-detail__select:focus {
+          border-color: #1D3095;
+          outline: none;
+        }
+        @media (max-width: 480px) {
+          .lead-detail__status-group {
+            width: 100%;
+            justify-content: space-between;
+          }
         }
 
         .lead-detail__grid {
@@ -634,6 +739,40 @@ export default function LeadDetailPage() {
           color: #6B7280;
         }
       `}</style>
+
+      {/* lead-reply-2026-06-18 — mount the composer when the surveyor
+          clicks Reply. Stays unmounted (no fetches, no event handlers)
+          until then. `onSent` reloads the lead so the new reply
+          history shows up immediately (history rendering ships in a
+          follow-up slice; for now the row just lands in the DB so the
+          office has the audit trail). */}
+      {replyOpen && lead && lead.email && (
+        <ReplyDialog
+          leadId={lead.id}
+          leadName={lead.name}
+          defaultTo={lead.email}
+          defaultSubject={`Re: Your Starr Surveying request${lead.notes ? ` [${(lead.notes.match(/Ref:\s*(\S+)/) || [])[1] ?? ''}]` : ''}`}
+          /* LR4 — pass the lead context so the templates picker can
+             interpolate {{first_name}} / {{ref_number}} / etc. when
+             the surveyor chooses a template. */
+          leadVars={{
+            name: lead.name,
+            notes: lead.notes,
+            survey_type: lead.survey_type,
+            quote_amount: lead.quote_amount,
+          }}
+          onClose={() => setReplyOpen(false)}
+          onSent={() => {
+            // LR1 — bump the refresh key so the RepliesList refetches
+            // and the freshly-sent reply appears at the top of the
+            // history immediately. `load()` also re-pulls the lead
+            // row so the attachments column reflects any signed-URL
+            // updates from the reply pipeline.
+            setRepliesRefreshKey((k) => k + 1);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

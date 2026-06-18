@@ -1,0 +1,81 @@
+# Lead reply expansion — 2026-06-18
+
+> User ask:
+>   - "Please do render the reply history."
+>   - "We need to be able to keep notes for jobs and customers
+>     and be able to recall ongoing conversations with
+>     customers."
+>   - "Please build out some common replies."
+>   - "Make it so that AI is integrated into this so that it can
+>     generate a good reply at the click of a button to respond
+>     to the customers questions or comments."
+>   - "Yes, please pull the attachments into the lead attachments
+>     bucket."
+>   - "Build out the full planning document and move it into the
+>     in progress folder so that the stop hook can start
+>     building in slices."
+
+## Top-level diagnosis
+
+The reply composer shipped in `edfdc2c` (LR0) gave the office
+an outbound channel, but the conversation surface around it is
+incomplete:
+
+1. **Reply history is invisible.** The GET endpoint at
+   `/api/admin/leads/[id]/reply` exists but nothing renders it.
+   Every send writes to `public.lead_replies` and then vanishes
+   from the UI until you query the table by hand.
+2. **Reply attachments don't persist.** Files attached in the
+   composer flow through Resend but the bytes never land in
+   the `lead-attachments` bucket. The office only has the
+   Resend log as the archive.
+3. **No notes / ongoing-conversation surface.** Surveyors need
+   a per-customer (per-lead, per-job) running thread of
+   internal context — "Hank called Mary on Tuesday, said quote
+   too high, needs revised pricing for 5-acre add-on." Today
+   that goes in someone's head.
+4. **No common replies.** Every reply is composed from scratch.
+   The same three or four messages get rewritten every week
+   (intro, quote follow-up, scheduling, closeout).
+5. **No AI assist.** The user wants a one-click "draft a reply
+   to this customer's question" button — Claude reads the
+   thread + the customer's most recent message + the lead
+   context, drafts a polite reply, the surveyor edits / sends.
+
+## Slice plan
+
+Each slice = its own commit + the three post-build checks
+(typecheck, lint, vitest). Slices are sized so the stop hook
+can pick them up one at a time.
+
+| Slice | What ships |
+|---|---|
+| **LR1** | **Render reply history** below the Notes card on `/admin/leads/[id]`. New `<RepliesList>` client component pulls from `GET /api/admin/leads/[id]/reply`, renders newest-first, each entry showing sender, sent_at, subject, preview, expand-on-click for full HTML body + attachments list. Render the `send_error` inline so failed sends are visible too. Lazy loads (only fetches when the page mounts past the contact card, not every poll). Refreshes when the ReplyDialog fires `onSent` via a parent-tracked refreshKey bump so the new row appears immediately. ✅ shipped |
+| **LR2** | **Pull reply attachments into the bucket.** `uploadLeadAttachments` grew an optional `pathPrefix` arg so the reply route can store under `replies/<reply_id>/<uuid>-<name>`. The reply POST now collects raw bytes alongside the Resend base64, uploads + backfills `lead_replies.attachments` with the storage paths after the row insert returns. The GET signs URLs across every row (Promise.all signLeadAttachmentUrls) so the history view's chips link to real downloads. Failures fall through silently — the Resend email is the legal record. ✅ shipped |
+| **LR3** | **Notes card → conversation log.** Seed 320 creates `public.lead_notes` (id, lead_id, author_email, body, pinned, created_at, updated_at, org_id, with a BEFORE UPDATE trigger keeping updated_at fresh). The existing `lead.notes` column stays untouched (customer-supplied); the new table holds office-side notes. `/api/admin/leads/[id]/notes` ships GET/POST/PATCH/DELETE all gated to admin. `<LeadNotesCard>` renders below the customer-notes card with an inline composer (textarea + pin checkbox + Save), Ctrl/⌘+Enter submit shortcut, per-row pin toggle + delete-with-confirm, pinned-first sort + a tinted background for pinned items. Apply seed 320 to enable. ✅ shipped |
+| **LR4** | **Common reply templates** — seed 321 creates `public.reply_templates` with the audit columns + UNIQUE (org_id, name) + a BEFORE UPDATE trigger, then seeds the five org-defaults: First contact (intake), Quote follow-up (sales), Scheduling site visit (scheduling), Requesting more info (intake), Job complete (delivery). Each body uses the `{{var}}` substitution syntax. Pure helpers in `lib/leads/templates.ts`: `interpolateTemplate(template, vars)` swaps `{{key}}` tokens (whitespace-tolerant; unknown keys stay literal), `extractFirstName / extractRefNumber / formatQuoteAmount`, plus `buildTemplateVarsFromLead({name, notes, survey_type, quote_amount})` for the dialog. `GET /api/admin/reply-templates` lists org-defaults first then by category + name. ReplyDialog renders a "📋 Templates ▾" picker above the formatting toolbar; choosing a template interpolates from the lead context and fills subject + body. Apply seed 321 to enable. ✅ shipped |
+| **LR5** | **AI-drafted reply via Claude.** Pure helpers in `lib/leads/ai-draft.ts`: `SYSTEM_PROMPT` (declares the firm's identity + contact line, bans inventing pricing/dates, bans revealing office notes verbatim), `buildDraftPrompt(ctx)` packs customer + survey type + reference + reply history (capped 6, newest-first) + office notes (capped 6, marked DO NOT REVEAL) + optional surveyor hint, `extractDraftHtml` strips ```html …``` fences. POST `/api/admin/leads/[id]/ai-draft` calls `claude-sonnet-4-6` via the `@anthropic-ai/sdk`, returns `{ html, model }`; degrades to 503 `AI_DISABLED` when ANTHROPIC_API_KEY isn't set. ReplyDialog renders a 🤖 AI Draft button alongside the Templates picker; click expands a hint panel ("optional instruction for the draft"); submit posts to the endpoint, pastes the returned HTML into the editor, surfaces error toasts. AI button hides when the 503 lands so dev/unconfigured envs aren't cluttered. ✅ shipped |
+| **LR6** | **Conversation threading on the job after conversion.** New `GET /api/admin/jobs/[id]/origin-lead` looks up the lead via `converted_job_id`, returns `{ lead: { id, name, status, reference_number, reply_count, notes_count, last_replied_at } | null }`. New `<JobOriginatingLead>` renders a brand-tinted card at the top of the job overview tab: 💬 + "Originating inquiry" header with the SS-… reference chip, then a meta line ("From Mary Smith · 5 replies · 3 office notes · last reply 2d ago"), then a primary "View full conversation →" link back to `/admin/leads/[id]`. The card silently no-renders when no lead converted to this job, so jobs created fresh (without `?fromLead`) stay uncluttered. ✅ shipped |
+| **LR7** | **Surface customer-side replies.** Seed 322 extends `lead_replies` with `direction` (CHECK outbound/inbound, default outbound), `from_email`, and `inbound_message_id`; relaxes `body_html` NOT NULL so text-only providers land cleanly; adds an `idx_lead_replies_lead_direction_sent` index for thread sort + a `uniq_lead_replies_inbound_message_id` partial unique to dedupe webhook retries. Pure helpers in `lib/leads/inbound-parser.ts` parse the provider-agnostic JSON (Resend Inbound / Postmark / SendGrid Inbound Parse / Mailgun Routes all post similar shapes): `parseAddress`, `extractFromEmail`, `extractBodyText`, `extractBodyHtml`, `extractReferenceNumber` (subject or body), `extractMessageId`, and `parseInbound` returns null when sender or reference is missing. POST `/api/webhooks/email-inbound` is gated by `EMAIL_INBOUND_WEBHOOK_SECRET` (`x-webhook-secret` header), looks up the lead via `LIKE 'Ref: <id>%'` on notes, inserts the inbound row, catches 23505 on retries. RepliesList now renders direction-aware rows: ↗ outbound (brand-blue) vs ↘ inbound (green tinted card), uses `from_email` for inbound senders, falls back to `body_text` when `body_html` is null. The reply GET endpoint selects the new columns. Provider DNS + webhook URL wiring is out-of-codebase work the office does when ready. ✅ shipped |
+| **LR8** | **Style + polish pass.** Three coordinated passes consolidated into one commit; each covers a surface:<br>**Pass 1 — ReplyDialog** focus rings on To/Subject + contenteditable editor (brand-blue 3-px outer ring on inputs, 2-px inset on editor), hover tint on Templates / AI / Emoji toggles, hover-lift + deeper shadow on the Send button.<br>**Pass 2 — RepliesList** focus-visible inset ring on the expand-row header for keyboard navigation, mobile collapse under 520 px (header rearranges into 2 rows via grid-template-areas so sender + subject + time + chevron don't crush together on a phone).<br>**Pass 3 — LeadNotesCard + JobOriginatingLead** matching focus rings on the textarea + pin/delete icon buttons + Save button, hover-lift on Save and on the JobOriginatingLead back-link. Every motion guarded by `@media (prefers-reduced-motion: reduce)`. ✅ shipped |
+| **LR9** | **QA + bug review pass.** Cross-slice walkthrough surfaced two real stored-XSS vectors, both fixed:<br>**Bug 1 (LR4 templates).** Customer-supplied vars (`{{first_name}}`, `{{full_name}}`, `{{survey_type}}`) were interpolated into the body via `innerHTML` without escaping — a lead named `<script>alert(1)</script>` would have executed when the surveyor picked a template. **Fix**: new `interpolateTemplateHtml(template, vars)` HTML-escapes every var value via `escapeHtml`; the dialog uses the HTML-safe variant for bodies (subjects keep the plain `interpolateTemplate` since `&` shouldn't double-escape in a mailbox).<br>**Bug 2 (LR7 inbound).** Inbound webhook stored the customer's raw email HTML; RepliesList renders inbound bodies via `dangerouslySetInnerHTML`. A hostile customer could embed `<script>`, `<iframe>`, `onerror=`, or `javascript:`/`data:` URIs. **Fix**: new `sanitizeInboundHtml(html)` strips dangerous tag blocks (script / style / iframe / object / embed), inline event handlers (`on\w+=`), and rewrites `javascript:` + `data:` URIs to `#`. Applied in `parseInbound` so the row stored in the DB is already safe.<br>Verified via QA walkthrough: AI draft works on fresh / stale / converted leads (empty replies + notes arrays), attachment downloads from history use signed URLs, and notes survive lead → job conversion (FK is on lead_id; JobOriginatingLead surfaces the back-link). ✅ shipped |
+
+## Notes locked from the spec
+
+- **Reply history is the source of truth** for what the office
+  said. `lead.notes` stays customer-supplied; `lead_notes` is
+  office-supplied; `lead_replies` is outbound; inbound replies
+  (when LR7 lands) live in the same `lead_replies` table with
+  a `direction` column.
+- **Templates use `{{var}}` interpolation, not Handlebars.** A
+  tiny pure helper `interpolateTemplate(template, vars)` keeps
+  the surface testable without pulling in a templating lib.
+- **AI draft is one-shot.** The surveyor edits the result; we
+  don't ship multi-turn chat with the AI in the composer.
+  That'd be a separate slice if anyone asks for it.
+- **Attachments archive is best-effort.** The Resend email is
+  the legal record; the bucket is a UI convenience. Per-file
+  upload failures drop the storage_path silently.
+- **AI never auto-sends.** The draft lands in the editor; the
+  surveyor reads + clicks Send. Closed-loop human review
+  prevents tone disasters.
