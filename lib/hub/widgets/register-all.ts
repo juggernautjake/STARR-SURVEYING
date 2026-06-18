@@ -70,3 +70,9 @@ import './streak-counter';
 import './daily-briefing';
 // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
 import './contacts';
+// Slice W8 (hub-cad-roles-polish-2026-06-18) — consolidated
+// comms-inbox widget. Absorbs messages + mentions-inbox +
+// open-discussions into one size-adaptive tile (W5 pattern).
+// Legacy widgets stay registered so saved layouts keep
+// rendering until users replace them.
+import './comms-inbox';
