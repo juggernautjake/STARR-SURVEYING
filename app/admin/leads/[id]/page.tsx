@@ -391,7 +391,16 @@ export default function LeadDetailPage() {
             <span aria-hidden>📝</span> Notes from customer
           </h3>
           {lead.notes ? (
-            <div className="lead-detail__notes" data-testid="lead-notes">
+            <div
+              className="lead-detail__notes"
+              data-testid="lead-notes"
+              // S2 token migration — canonical bg token. The .lead-
+              // detail__notes class below still ships its own
+              // background, but the inline style pins the contract
+              // so the s2-contract test asserts on the source of
+              // truth.
+              style={{ background: 'var(--color-bg-subtle)' }}
+            >
               {lead.notes}
             </div>
           ) : (
