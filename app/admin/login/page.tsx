@@ -14,7 +14,11 @@ function LoginContent() {
   const error = searchParams.get('error');
   const registered = searchParams.get('registered');
   const pending = searchParams.get('pending');
-  const callbackUrl = searchParams.get('callbackUrl') || '/admin/dashboard';
+  // post-signup-landing-hub-2026-06-18 — default callback is the Hub.
+  // Whenever a new account first signs in (or any user lands without a
+  // deep link), they go to /admin/me. The dashboard at /admin/dashboard
+  // stays reachable from the nav but isn't the home page anymore.
+  const callbackUrl = searchParams.get('callbackUrl') || '/admin/me';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

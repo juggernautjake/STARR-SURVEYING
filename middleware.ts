@@ -98,9 +98,12 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(redirectTarget, req.url));
   }
 
-  // Allow login and register pages
+  // Allow login and register pages.
+  // post-signup-landing-hub-2026-06-18 — a signed-in user hitting /login
+  // or /register bounces to the Hub instead of the legacy dashboard, so
+  // newly-created accounts land at /admin/me on their first sign-in.
   if (pathname === '/admin/login' || pathname === '/admin/register') {
-    if (req.auth?.user) return NextResponse.redirect(new URL('/admin/dashboard', req.url));
+    if (req.auth?.user) return NextResponse.redirect(new URL('/admin/me', req.url));
     return NextResponse.next();
   }
 
@@ -124,10 +127,13 @@ export default auth((req) => {
   if (userRoles.includes('admin')) return NextResponse.next();
 
   // Check route-specific role restrictions (first match wins — order matters)
+  // post-signup-landing-hub-2026-06-18 — fall-back bounce target is the
+  // Hub so a forbidden route lands the user on their personal home, not
+  // a less-useful dashboard.
   for (const route of ROUTE_ROLES) {
     if (matchesRoute(pathname, route.prefix)) {
       if (!route.roles.some(r => userRoles.includes(r))) {
-        return NextResponse.redirect(new URL('/admin/dashboard', req.url));
+        return NextResponse.redirect(new URL('/admin/me', req.url));
       }
       break;
     }
