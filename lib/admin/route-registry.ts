@@ -154,7 +154,14 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/research-cad',         label: 'Research & CAD',   workspace: 'research-cad', iconName: 'Compass',     description: 'Research projects + CAD drawings landing.', keywords: ['cad', 'research'] },
   { href: '/admin/research',             label: 'Property Research', workspace: 'research-cad', iconName: 'Microscope',  description: 'Property research projects.', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true, keywords: ['property', 'records'] },
   { href: '/admin/research/testing',     label: 'Testing Lab',      workspace: 'research-cad', iconName: 'FlaskConical', description: 'Test research pipelines + adapters.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['lab', 'experiments'] },
-  { href: '/admin/cad',                  label: 'CAD Editor',       workspace: 'research-cad', iconName: 'PenTool',     description: 'CAD drawing editor.', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true, keywords: ['drawing', 'plat'] },
+  // Slice W4 (hub-cad-roles-polish-2026-06-18) — user spec: "If
+  // a user does not have the drawing role and clicks the cad
+  // button … they are still routed to the cad software. We might
+  // change this in the future, but for now leave it." `roles:`
+  // is intentionally absent so EVERY signed-in user sees the CAD
+  // entry; re-add the role gate when the broader permissions
+  // story (W7) lands.
+  { href: '/admin/cad',                  label: 'CAD Editor',       workspace: 'research-cad', iconName: 'PenTool',     description: 'CAD drawing editor.', internalOnly: true, keywords: ['drawing', 'plat'] },
   { href: '/admin/research/billing',     label: 'Research Billing', workspace: 'research-cad', iconName: 'Receipt',     description: 'Research cost + billing rollup.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/research/coverage',    label: 'Coverage',         workspace: 'research-cad', iconName: 'Map',         description: 'County coverage map.', roles: [...RESEARCH_ROLES, 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/research/library',     label: 'Library',          workspace: 'research-cad', iconName: 'Library',     description: 'Research document library.', roles: [...RESEARCH_ROLES, 'tech_support'], internalOnly: true, showInRail: false },
@@ -179,6 +186,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/employees',             label: 'Employees',        workspace: 'office', iconName: 'UsersRound',   description: 'Employee directory.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/employees/manage',      label: 'Manage Employee',  workspace: 'office', iconName: 'UserCog',      description: 'Edit an employee record.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/users',                 label: 'Manage Users',     workspace: 'office', iconName: 'KeyRound',     description: 'User accounts + roles.', roles: ['admin', 'tech_support'] },
+  // Slice W7 (hub-cad-roles-polish-2026-06-18) — role builder.
+  // Admin-only; surfaces alongside Manage Users in the Office
+  // workspace.
+  { href: '/admin/roles/custom',          label: 'Role Builder',     workspace: 'office', iconName: 'ShieldPlus',   description: 'Define new roles on top of the built-in role list.', roles: ['admin'], internalOnly: true, keywords: ['permissions', 'roles', 'custom'] },
   { href: '/admin/payroll',               label: 'Payroll',          workspace: 'office', iconName: 'BadgeDollarSign', description: 'Payroll runs.', roles: ['admin'], internalOnly: true, keywords: ['paychecks', 'wages'] },
   { href: '/admin/pay-progression',       label: 'Pay Progression',  workspace: 'office', iconName: 'TrendingUp',   description: 'Pay rate progression model.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raises', 'progression'] },
   { href: '/admin/payout-log',            label: 'Payout History',   workspace: 'office', iconName: 'ScrollText',   description: 'Historical payout log.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },

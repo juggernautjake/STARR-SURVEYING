@@ -70,3 +70,29 @@ import './streak-counter';
 import './daily-briefing';
 // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
 import './contacts';
+// Slice W8 (hub-cad-roles-polish-2026-06-18) — consolidated
+// comms-inbox widget. Absorbs messages + mentions-inbox +
+// open-discussions into one size-adaptive tile (W5 pattern).
+// Legacy widgets stay registered so saved layouts keep
+// rendering until users replace them.
+import './comms-inbox';
+// Slice W9a — consolidated pending-bin widget. Absorbs
+// pending-receipts + pending-time-off + pending-hours +
+// assignments-due. Legacy widgets stay registered.
+import './pending-bin';
+// Slice W9b — consolidated drawings-hub widget. Absorbs
+// drawings + drawings-in-progress + recent-drawings. Legacy
+// widgets stay registered.
+import './drawings-hub';
+// Slice W9c — consolidated money widget. Absorbs my-pay +
+// monthly-revenue + outstanding-invoices. Legacy widgets stay
+// registered.
+import './money';
+// Slice W9d — consolidated learning-stack widget. Absorbs
+// class-assignments + flashcards-due + recommended-lessons.
+// Legacy widgets stay registered.
+import './learning-stack';
+// Slice W9e — consolidated field-pulse widget. Absorbs
+// team-status + vehicles-status + equipment-out + low-consumables.
+// Legacy widgets stay registered.
+import './field-pulse';

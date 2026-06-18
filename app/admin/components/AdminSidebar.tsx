@@ -154,7 +154,11 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     ]},
 
     { label: 'CAD', items: [
-      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true },
+      // Slice W4 — temporary bypass (user spec: any signed-in
+      // user reaches the CAD editor). `roles:` is intentionally
+      // absent. Restore the role gate when permissions (W7)
+      // land.
+      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', internalOnly: true },
     ]},
 
     { label: 'Rewards & Pay', items: [

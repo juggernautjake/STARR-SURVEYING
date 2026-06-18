@@ -86,6 +86,8 @@ import { STANDARD_NOTES as STANDARD_NOTES_LIB } from '@/lib/cad/templates/standa
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
+// Slice W11 — pure helpers for the new DRAW_FREEHAND tool.
+import { chaikinSmooth, decimateByMinSpacing } from '@/lib/cad/geometry/freehand';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { nameDrawnFeature } from '@/lib/cad/points/point-registry';
 import { cadLog } from '@/lib/cad/logger';
@@ -847,6 +849,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const imageCacheDocIdRef = useRef<string | null>(null);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
+  // Slice W10 — MEASURE_AREA snap-to-foot step. 0 = disabled
+  // (default). The AreaMeasureHUD's "Snap to foot" toggle
+  // dispatches `cad:setAreaSnap` with `{ enabled, stepFt }`;
+  // this ref stays in sync via the listener below.
+  const areaSnapStepRef = useRef<number>(0);
+  // Slice W11 — DRAW_FREEHAND drag state. The pointer-down
+  // handler flips `freehandActiveRef.current = true` and pushes
+  // the first point into `toolState.drawingPoints`; mouseMove
+  // accumulates subsequent points respecting the surveyor's
+  // `freehandMinSpacingFt` (in world ft); mouseUp commits the
+  // captured stroke as a POLYLINE feature carrying the current
+  // drawStyle (optionally chaikin-smoothed first) and clears
+  // the ref.
+  const freehandActiveRef = useRef<boolean>(false);
   // Phase 8 §11.6 — true while the IntersectDialog has a slot
   // open for canvas-side picking. Next canvas click feeds the
   // hit feature id back to the dialog and gets swallowed.
@@ -1153,6 +1169,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
     window.addEventListener('cad:activateTool', handler);
     return () => window.removeEventListener('cad:activateTool', handler);
+  }, []);
+
+  // Slice W10 — AreaMeasureHUD broadcasts the snap-to-foot
+  // toggle here. When enabled, MEASURE_AREA clicks round to
+  // the nearest grid step (default 1 ft).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ enabled: boolean; stepFt?: number }>).detail;
+      if (!detail) { areaSnapStepRef.current = 0; return; }
+      areaSnapStepRef.current = detail.enabled ? (detail.stepFt ?? 1) : 0;
+    };
+    window.addEventListener('cad:setAreaSnap', handler);
+    return () => {
+      window.removeEventListener('cad:setAreaSnap', handler);
+      areaSnapStepRef.current = 0;
+    };
   }, []);
 
   // Phase 8 §11.6 Slice 1 — IntersectDialog announces when
@@ -5577,16 +5609,58 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.moveTo(cs.sx, cs.sy);
         g.lineTo(sp0.sx, sp0.sy);
       }
-      // Vertex markers
+      // Vertex markers — Slice W10 bumps the visible hit
+      // targets from 4 px → 7 px (with a 1.5 px outline ring)
+      // so surveyors don't squint at click affordances. The
+      // first vertex gets an extra ring so the close-back leg
+      // is unambiguous when the cursor crosses the polygon.
+      g.lineStyle(1.5, 0xffffff, 0.85);
       g.beginFill(0xff66cc, 0.95);
       for (const v of drawingPoints) {
         const sp = w2s(v.x, v.y);
-        g.drawCircle(sp.sx, sp.sy, 4);
+        g.drawCircle(sp.sx, sp.sy, 7);
       }
       g.endFill();
+      // First-vertex emphasis ring — signals where "close" lands.
+      if (drawingPoints.length >= 3) {
+        const sp = w2s(drawingPoints[0].x, drawingPoints[0].y);
+        g.lineStyle(1.5, 0xffeeff, 0.95);
+        g.drawCircle(sp.sx, sp.sy, 11);
+      }
       // Cursor marker
       g.lineStyle(1.5, 0xff44aa, 0.95);
-      g.drawCircle(cs.sx, cs.sy, 5);
+      g.drawCircle(cs.sx, cs.sy, 7);
+      return;
+    }
+
+    // Slice W11 — DRAW_FREEHAND live preview. While the user is
+    // dragging, render the running stroke through `drawingPoints`
+    // in the current tool drawStyle so the surveyor sees the
+    // line they're about to commit. We skip the close-back leg
+    // and translucent fill since freehand strokes are open by
+    // default.
+    if (activeTool === 'DRAW_FREEHAND' && drawingPoints.length >= 1) {
+      const ds = useToolStore.getState().state.drawStyle;
+      // Parse `#rrggbb` → 0xrrggbb for Pixi; fall back to magenta
+      // when the surveyor hasn't picked an override.
+      let strokeColor = 0xff44aa;
+      if (ds.color && /^#[0-9a-fA-F]{6}$/.test(ds.color)) {
+        strokeColor = parseInt(ds.color.slice(1), 16);
+      }
+      const strokeAlpha = ds.opacity != null && Number.isFinite(ds.opacity) ? Math.max(0, Math.min(1, ds.opacity)) : 0.9;
+      const strokeWeight = ds.lineWeight != null && Number.isFinite(ds.lineWeight) && ds.lineWeight > 0 ? ds.lineWeight : 1.5;
+      g.lineStyle(strokeWeight, strokeColor, strokeAlpha);
+      const fp0 = w2s(drawingPoints[0].x, drawingPoints[0].y);
+      g.moveTo(fp0.sx, fp0.sy);
+      for (let i = 1; i < drawingPoints.length; i += 1) {
+        const fp = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineTo(fp.sx, fp.sy);
+      }
+      // Cursor head so the surveyor sees where the next sample lands.
+      const lastFh = drawingPoints[drawingPoints.length - 1];
+      const headS = w2s(lastFh.x, lastFh.y);
+      g.lineStyle(1, 0xffffff, 0.85);
+      g.drawCircle(headS.sx, headS.sy, 3);
       return;
     }
 
@@ -9925,6 +9999,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           break;
         }
 
+        case 'DRAW_FREEHAND': {
+          // Slice W11 — pointer-down arms the freehand drag. We
+          // capture the first point through the standard
+          // drawingPoints store so the existing render loop
+          // shows a live preview without a separate path. The
+          // ref keeps mouseMove / mouseUp's branches cheap to
+          // check on every event.
+          freehandActiveRef.current = true;
+          useToolStore.getState().clearDrawingPoints();
+          useToolStore.getState().addDrawingPoint(worldPt);
+          break;
+        }
+
         case 'DRAW_LINE': {
           if (toolState.drawingPoints.length === 0) {
             useToolStore.getState().addDrawingPoint(worldPt);
@@ -11397,9 +11484,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // logs the running perimeter + area (computed by
           // closing the polygon back to vertex 0). Esc clears,
           // double-click commits and emits the final summary.
+          // Slice W10 — when the AreaMeasureHUD's "Snap to
+          // foot" toggle is on, `areaSnapStepRef.current` holds
+          // a positive grid step (ft) and each click rounds to
+          // it before pushing.
           const { drawingPoints: dpts } = toolState;
-          useToolStore.getState().addDrawingPoint(worldPt);
-          const updated = [...dpts, worldPt];
+          const snapStep = areaSnapStepRef.current;
+          const ptToPush = snapStep > 0
+            ? { x: Math.round(worldPt.x / snapStep) * snapStep, y: Math.round(worldPt.y / snapStep) * snapStep }
+            : worldPt;
+          useToolStore.getState().addDrawingPoint(ptToPush);
+          const updated = [...dpts, ptToPush];
           if (updated.length >= 2) {
             // Perimeter (open chain length plus the close-back leg).
             let perim = 0;
@@ -11498,6 +11593,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (snapPickRef.current) {
         getSnappedWorld(sx, sy); // updates snapResultRef → snap marker draws
         setCursorStyle('crosshair');
+        return;
+      }
+
+      // Slice W11 — DRAW_FREEHAND drag. Accumulate world points
+      // respecting the surveyor's per-tool `freehandMinSpacingFt`
+      // setting so we don't blow drawingPoints up with a 5000-
+      // vertex stroke on a fast drag. The existing render loop
+      // already polylines through drawingPoints for the active
+      // tool, so the live preview comes for free.
+      if (freehandActiveRef.current) {
+        const fwx = screenToDrawingWorld(sx, sy);
+        const fpt = { x: fwx.wx, y: fwx.wy };
+        const ts = useToolStore.getState().state;
+        const minSpacing = ts.freehandMinSpacingFt > 0 ? ts.freehandMinSpacingFt : 0.5;
+        const pts = ts.drawingPoints;
+        const last = pts.length > 0 ? pts[pts.length - 1] : null;
+        if (!last || Math.hypot(fpt.x - last.x, fpt.y - last.y) >= minSpacing) {
+          useToolStore.getState().addDrawingPoint(fpt);
+        }
         return;
       }
 
@@ -12106,6 +12220,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       if (e.button !== 0) return;
+
+      // Slice W11 — DRAW_FREEHAND pointer-up commits the
+      // captured stroke as a POLYLINE feature. The current
+      // drawStyle (color / opacity / lineWeight / lineType)
+      // flows through createFeature. When the surveyor has
+      // `freehandSmooth` on, the raw stroke runs through
+      // Chaikin's corner-cutting algorithm before commit so
+      // hand-drawn strokes read as smooth curves rather than
+      // jagged polylines.
+      if (freehandActiveRef.current) {
+        freehandActiveRef.current = false;
+        const ts = useToolStore.getState().state;
+        const captured = [...ts.drawingPoints];
+        useToolStore.getState().clearDrawingPoints();
+        if (captured.length >= 2) {
+          const decimated = decimateByMinSpacing(captured, ts.freehandMinSpacingFt);
+          const finalPts = ts.freehandSmooth ? chaikinSmooth(decimated, 2) : decimated;
+          if (finalPts.length >= 2) {
+            const feature = createFeature('POLYLINE', finalPts);
+            if (feature) {
+              const labelled = withAutoLabels(feature);
+              useDrawingStore.getState().addFeature(labelled);
+              useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelled));
+            }
+          }
+        }
+        return;
+      }
 
       // End a "Move Page" drag (paperOrigin already updated live).
       if (paperDragRef.current) {

@@ -44,12 +44,17 @@ export interface QuickActionDef {
  *  then secondary navigations. */
 export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
   {
+    // Slice W6 — converted from a placeholder action to a real
+    // link. `/admin/me?tab=hours` is the canonical timesheet
+    // surface (same href the command palette uses) so the tile
+    // does the correct thing instead of rendering as a disabled
+    // "Coming soon" button.
     id: 'clock-in-out',
     label: 'Clock In/Out',
-    description: 'Open the clock-in modal or stop your active session.',
+    description: 'Open your timesheet to clock in or out.',
     iconName: 'Clock',
-    kind: 'action',
-    actionId: 'clock-in-out',
+    kind: 'link',
+    href: '/admin/me?tab=hours',
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'success',
   },
@@ -94,7 +99,11 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     iconName: 'PenTool',
     kind: 'link',
     href: '/admin/cad',
-    allowedRoles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'],
+    // Slice W4 — universal bypass. Every UserRole listed so
+    // `quickActionsForRoles` returns this tile for every
+    // signed-in user. Replace with a narrower set once the W7
+    // permissions story carries fine-grained gating.
+    allowedRoles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support', 'equipment_manager', 'employee', 'teacher', 'student', 'guest'],
     tint: 'accent',
   },
   // consolidation Slice 9 (2026-05-30) — intentional widget-equivalent

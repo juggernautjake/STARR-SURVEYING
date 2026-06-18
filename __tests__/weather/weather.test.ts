@@ -30,6 +30,8 @@ describe('toWeatherSnapshot', () => {
   };
 
   it('maps an Open-Meteo forecast into the widget snapshot', () => {
+    // Slice W5 added `daily` — the fixture has a one-day daily
+    // block with no `time` so buildDailyForecast returns [].
     expect(toWeatherSnapshot(forecast, 'Central Texas')).toEqual({
       temperature_f: 71.7,
       description: 'Clear sky',
@@ -37,6 +39,7 @@ describe('toWeatherSnapshot', () => {
       high_f: 90,
       low_f: 71,
       location_label: 'Central Texas',
+      daily: [],
     });
   });
 

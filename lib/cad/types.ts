@@ -751,7 +751,14 @@ export type ToolType =
   | 'MEASURE_AREA'
   | 'DIM'
   | 'DRAW_TEXT'
-  | 'DRAW_IMAGE';
+  | 'DRAW_IMAGE'
+  // Slice W11 (hub-cad-roles-polish-2026-06-18) — free-hand
+  // pen tool. Drag the pointer to record a stroke; release to
+  // commit a POLYLINE feature carrying the current drawStyle
+  // (color / opacity / lineWeight / lineType). When
+  // `toolState.freehandSmooth` is on, the captured stroke is
+  // chaikin-smoothed before commit.
+  | 'DRAW_FREEHAND';
 
 export interface ToolState {
   activeTool: ToolType;
@@ -983,6 +990,23 @@ export interface ToolState {
    * tight tolerance work, increase for noisy GPS traces).
    */
   simplifyTolerance: number;
+
+  // ── DRAW_FREEHAND tool ──
+  // Slice W11 (hub-cad-roles-polish-2026-06-18).
+  /**
+   * When true, the captured freehand stroke runs through
+   * Chaikin's corner-cutting smoother before commit. Default
+   * false — the surveyor sees the raw pointer path.
+   */
+  freehandSmooth: boolean;
+  /**
+   * Minimum world-space distance (ft) between recorded
+   * stroke vertices. Smaller = smoother but more points;
+   * larger = coarser stroke but cheaper to render. Default
+   * 0.5 ft. The mouseMove handler drops samples closer than
+   * this to the previous accepted vertex.
+   */
+  freehandMinSpacingFt: number;
 }
 
 // --- UNDO ---

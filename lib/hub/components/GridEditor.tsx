@@ -80,6 +80,29 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  // Slice W1 — "already added" alert. The store fires a
+  // `hub:duplicate-widget` event when addWidget rejects a
+  // type-level duplicate; the editor listens and surfaces a
+  // small toast.
+  const [duplicateToast, setDuplicateToast] = useState<string | null>(null);
+  useEffect(() => {
+    function onDup(e: Event) {
+      const detail = (e as CustomEvent<{ type?: string }>).detail;
+      const type = detail?.type;
+      if (!type) return;
+      const def = catalog.find((w) => w.id === type);
+      setDuplicateToast(def ? `${def.label} is already on the grid.` : 'Widget already on the grid.');
+    }
+    window.addEventListener('hub:duplicate-widget', onDup);
+    return () => window.removeEventListener('hub:duplicate-widget', onDup);
+    // catalog never changes per mount; safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!duplicateToast) return;
+    const t = setTimeout(() => setDuplicateToast(null), 2400);
+    return () => clearTimeout(t);
+  }, [duplicateToast]);
   // Slice P2 — single-click placement: `placeHover` is the cell the
   // pointer is currently over while a widget type is armed; it drives
   // the live preview footprint. Null when not hovering / not armed.
@@ -257,6 +280,22 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     const size = selected.defaultSize;
     const rect = clampRectToEnvelope({ x, y, w: size.w, h: size.h }, size, size);
     if (overlapsAny(rect, draftWidgets ?? [])) return; // blocked → no-op
+    // Slice W1 — type-level guard at the call site too, so the
+    // duplicate toast fires immediately and we don't even
+    // attempt the addWidget (the store ALSO guards but firing
+    // here keeps the UX snappier + handles the case where the
+    // user smashes the placement before the React render has
+    // cleared `selected`).
+    if ((draftWidgets ?? []).some((w) => w.type === selected.id)) {
+      if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+        try {
+          window.dispatchEvent(new CustomEvent('hub:duplicate-widget', { detail: { type: selected.id } }));
+        } catch { /* ignore */ }
+      }
+      setSelectedType(null);
+      setPlaceHover(null);
+      return;
+    }
     addWidget({
       id: generatePlacementId(),
       type: selected.id,
@@ -518,6 +557,18 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
       data-testid="grid-editor"
       style={overlayStyle}
     >
+      {/* Slice W1 — duplicate-widget toast. Sits inside the
+          overlay so it's visible from any pane. Auto-dismisses
+          after 2.4s. */}
+      {duplicateToast && (
+        <div
+          role="alert"
+          data-testid="grid-editor-duplicate-toast"
+          style={duplicateToastStyle}
+        >
+          {duplicateToast}
+        </div>
+      )}
       <div style={modalStyle}>
         <header style={headerStyle}>
           <div>
@@ -555,17 +606,67 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
               )}
               {filtered.map((w) => {
                 const isSelected = w.id === selectedType;
+                // Slice W1 — paint a "✓ placed" indicator on
+                // palette chips whose widget type is already on
+                // the grid. The store rejects duplicate-type
+                // placements; this is the visual signal so the
+                // user knows BEFORE they try.
+                const isPlaced = (draftWidgets ?? []).some((dw) => dw.type === w.id);
+                const entryStyle = isSelected
+                  ? paletteEntryActiveStyle
+                  : (isPlaced ? paletteEntryPlacedStyle : paletteEntryStyle);
                 return (
                   <li key={w.id}>
                     <button
                       type="button"
                       role="option"
                       aria-selected={isSelected}
-                      onClick={() => setSelectedType(isSelected ? null : w.id)}
-                      style={isSelected ? paletteEntryActiveStyle : paletteEntryStyle}
+                      aria-disabled={isPlaced && !isSelected}
+                      data-placed={isPlaced ? 'true' : undefined}
+                      // Slice W2 — drag-and-drop placement. The
+                      // chip becomes a native HTML5 drag source;
+                      // dragstart arms `selectedType` so the
+                      // existing preview lights up and dragover
+                      // tracks the cursor cell. Disabled when the
+                      // widget is already on the grid.
+                      draggable={!isPlaced}
+                      onDragStart={isPlaced ? undefined : (e) => {
+                        try {
+                          e.dataTransfer.effectAllowed = 'copy';
+                          e.dataTransfer.setData('application/x-hub-widget-type', w.id);
+                          // Fallback for browsers that need text/plain
+                          // to enable drag (Firefox in some configs).
+                          e.dataTransfer.setData('text/plain', w.id);
+                        } catch { /* setData can throw on weird shells */ }
+                        setSelectedType(w.id);
+                      }}
+                      onDragEnd={() => {
+                        // Clear arming after a failed drop (drop
+                        // outside the grid). A successful drop on
+                        // the grid already disarms via
+                        // handleCellPointerDown.
+                        setSelectedType((cur) => (cur === w.id ? null : cur));
+                        setPlaceHover(null);
+                      }}
+                      onClick={() => {
+                        if (isPlaced && !isSelected) {
+                          if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+                            try {
+                              window.dispatchEvent(new CustomEvent('hub:duplicate-widget', { detail: { type: w.id } }));
+                            } catch { /* ignore */ }
+                          }
+                          return;
+                        }
+                        setSelectedType(isSelected ? null : w.id);
+                      }}
+                      style={entryStyle}
                       data-widget-type={w.id}
+                      data-testid={`grid-editor-palette-entry-${w.id}`}
+                      title={isPlaced ? `${w.label} is already on the grid` : `${w.label} — click to arm OR drag onto the grid`}
                     >
-                      <span style={paletteEntryLabelStyle}>{w.label}</span>
+                      <span style={paletteEntryLabelStyle}>
+                        {isPlaced ? '✓ ' : ''}{w.label}
+                      </span>
                       <span style={paletteEntryHintStyle}>
                         {w.defaultSize.w}×{w.defaultSize.h}
                       </span>
@@ -618,6 +719,78 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                 handleCellPointerDown(cell.x, cell.y);
               } : undefined}
               onPointerLeave={selected ? () => setPlaceHover(null) : undefined}
+              // Slice W2 — drag-and-drop placement. dragover
+              // updates the preview cell + signals a valid drop
+              // target via dropEffect; drop resolves to a
+              // placement at the cursor's cell via the existing
+              // handleCellPointerDown.
+              onDragOver={(ev) => {
+                if (!ev.dataTransfer.types.includes('application/x-hub-widget-type')) return;
+                ev.preventDefault();
+                ev.dataTransfer.dropEffect = 'copy';
+                const el = gridContainerRef.current;
+                if (!el) return;
+                const cell = cellUnderPointer(
+                  el.getBoundingClientRect(),
+                  ev.clientX,
+                  ev.clientY,
+                );
+                setPlaceHover((cur) =>
+                  cur && cur.x === cell.x && cur.y === cell.y ? cur : cell,
+                );
+              }}
+              onDrop={(ev) => {
+                const type = ev.dataTransfer.getData('application/x-hub-widget-type')
+                  || ev.dataTransfer.getData('text/plain');
+                if (!type) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                const el = gridContainerRef.current;
+                if (!el) return;
+                const cell = cellUnderPointer(
+                  el.getBoundingClientRect(),
+                  ev.clientX,
+                  ev.clientY,
+                );
+                // Resolve the widget definition from the catalog
+                // by the dropped type. This sidesteps `selected`
+                // (which reads stale via closure inside drop
+                // handlers) and goes straight to the placement
+                // math with everything we need.
+                const def = catalog.find((w) => w.id === type);
+                if (!def) return;
+                // Type-level dup guard: fire the toast + bail.
+                if ((draftWidgets ?? []).some((w) => w.type === type)) {
+                  if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+                    try {
+                      window.dispatchEvent(new CustomEvent('hub:duplicate-widget', { detail: { type } }));
+                    } catch { /* ignore */ }
+                  }
+                  setSelectedType(null);
+                  setPlaceHover(null);
+                  return;
+                }
+                const size = def.defaultSize;
+                const rect = clampRectToEnvelope({ x: cell.x, y: cell.y, w: size.w, h: size.h }, size, size);
+                if (overlapsAny(rect, draftWidgets ?? [])) {
+                  // Drop overlaps an existing widget — disarm + clear preview.
+                  setSelectedType(null);
+                  setPlaceHover(null);
+                  return;
+                }
+                addWidget({
+                  id: generatePlacementId(),
+                  type,
+                  x: rect.x,
+                  y: rect.y,
+                  w: rect.w,
+                  h: rect.h,
+                  customization: { content: def.defaultContent },
+                });
+                setSelectedType(null);
+                setPlaceHover(null);
+              }}
+              onDragLeave={() => setPlaceHover(null)}
             >
               {Array.from({ length: GRID_EDITOR_ROWS * GRID_EDITOR_COLS }).map((_, idx) => {
                 const x = idx % GRID_EDITOR_COLS;
@@ -1135,6 +1308,37 @@ const paletteEntryActiveStyle: React.CSSProperties = {
   background: 'var(--theme-accent, #3b82f6)',
   color: 'var(--theme-accent-fg, #ffffff)',
   borderColor: 'var(--theme-accent, #3b82f6)',
+};
+
+// Slice W1 — palette entry style for widgets already on the
+// grid. Soft green hue + a green outline so the user can see at
+// a glance which widgets are in use without losing affordance
+// (the chip is still clickable; the click fires the
+// "already added" alert).
+const paletteEntryPlacedStyle: React.CSSProperties = {
+  ...paletteEntryStyle,
+  background: 'color-mix(in srgb, #10B981 12%, transparent)',
+  borderColor: '#10B981',
+  color: 'var(--theme-fg-secondary, #4b5563)',
+  cursor: 'not-allowed',
+};
+
+// Slice W1 — duplicate-widget toast pinned to the top of the
+// editor overlay so the user sees the "already added" message
+// even if they're scrolled inside the grid.
+const duplicateToastStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 'var(--hub-spc-4, 16px)',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 1100,
+  padding: '8px 14px',
+  borderRadius: 8,
+  background: '#0f1419',
+  color: '#ffffff',
+  fontSize: '0.85rem',
+  fontWeight: 600,
+  boxShadow: '0 10px 28px rgba(15, 23, 42, 0.35)',
 };
 
 const paletteEntryLabelStyle: React.CSSProperties = {

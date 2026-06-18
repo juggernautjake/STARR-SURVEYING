@@ -124,6 +124,28 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   'class-assignments':        { source: 'settings-form' },
   // contacts plan Slice 5 (2026-05-30) — Contacts hub widget.
   'contacts':                 { source: 'settings-form' },
+  // Slice W8 (hub-cad-roles-polish-2026-06-18) — consolidated
+  // comms inbox. The widget has no SettingsForm yet (only a
+  // single `showOpenLink` boolean in its defaults); register
+  // it as `none` so the schema test stays clean.
+  'comms-inbox':              { source: 'none' },
+  // Slice W9a — consolidated pending-bin. Same `none` story as
+  // comms-inbox (single boolean default).
+  'pending-bin':              { source: 'none' },
+  // Slice W9b — consolidated drawings-hub. Carries a scope
+  // toggle but the saved default is just the initial state;
+  // register as `none` for the schema test.
+  'drawings-hub':             { source: 'none' },
+  // Slice W9c — consolidated money. Single boolean default
+  // (`showOpenLink`); register as `none` for the schema test.
+  'money':                    { source: 'none' },
+  // Slice W9d — consolidated learning-stack. Single boolean
+  // default (`showOpenLink`); register as `none` for the schema
+  // test.
+  'learning-stack':           { source: 'none' },
+  // Slice W9e — consolidated field-pulse. Single boolean default
+  // (`showOpenLink`); register as `none` for the schema test.
+  'field-pulse':              { source: 'none' },
   'crew-calendar':            { source: 'settings-form' },
   'drawings-in-progress':     { source: 'settings-form' },
   // consolidation Slice 4 (2026-05-30) — unified Drawings widget.

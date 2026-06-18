@@ -105,6 +105,16 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
     .order('is_primary', { ascending: false })
     .returns<ContactMethod[]>();
 
+  // Slice W3 — surface roles + drive the "no more information"
+  // fallback. Roles live on registered_users, not employee_profiles,
+  // so this is a small extra read.
+  const { data: userRow } = await supabaseAdmin
+    .from('registered_users')
+    .select('roles')
+    .eq('email', email)
+    .maybeSingle<{ roles: string[] | null }>();
+  const userRoles: string[] = userRow?.roles ?? [];
+
   const age = deriveAge(profile.date_of_birth);
   const canSeePay = isSelf || viewerIsAdmin;
   const contactRows: ContactMethod[] = contacts ?? [];
@@ -112,6 +122,23 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
   const phones = contactRows.filter((c) => c.kind === 'phone');
   const emails = contactRows.filter((c) => c.kind === 'email');
   const addresses = contactRows.filter((c) => c.kind === 'address');
+
+  // Slice W3 — "if they haven't updated it, it should just have
+  // the text 'no more information about [name] is available.'"
+  // The header card (icon / name / email / roles) is ALWAYS
+  // visible per the user spec; the four detail cards collapse
+  // to a single stub when every optional field is empty.
+  const hasOptionalInfo =
+    Boolean(profile.date_of_birth)
+    || Boolean(profile.gender?.trim())
+    || Boolean(profile.pronouns?.trim())
+    || Boolean(profile.bio?.trim())
+    || contactRows.length > 0
+    || certRows.length > 0
+    || Boolean(profile.hire_date)
+    || profile.hourly_rate != null
+    || Boolean(profile.job_title);
+  const displayName = profile.user_name?.trim() || email;
 
   return (
     <div className="profile-page" data-testid="employee-profile-page">
@@ -130,11 +157,30 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
           </div>
           <div style={{ flex: 1 }}>
             <h1 style={{ margin: 0, fontFamily: 'Sora,sans-serif', fontSize: '1.4rem', fontWeight: 700 }}>
-              {profile.user_name ?? email}
+              {displayName}
             </h1>
             <div style={{ color: '#6B7280', fontSize: '0.85rem' }}>{email}</div>
             {profile.job_title && (
               <div style={{ color: '#374151', fontSize: '0.9rem', marginTop: '0.25rem' }}>{profile.job_title}</div>
+            )}
+            {/* Slice W3 — user spec calls out roles in the
+                always-on header. Rendered as small pills below
+                the email line. */}
+            {userRoles.length > 0 && (
+              <div
+                data-testid="employee-profile-roles"
+                style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.35rem' }}
+              >
+                {userRoles.map((r) => (
+                  <span
+                    key={r}
+                    className={`admin-topbar__role-badge admin-topbar__role-badge--${r}`}
+                    style={{ display: 'inline-flex' }}
+                  >
+                    {r.replace('_', ' ')}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
           {isSelf && (
@@ -145,6 +191,18 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
         </div>
       </div>
 
+      {!hasOptionalInfo && !viewerIsAdmin && (
+        <div
+          className="admin-card"
+          data-testid="employee-profile-empty-stub"
+          style={{ textAlign: 'center', color: '#6B7280', fontSize: '0.95rem', padding: '1.5rem 1rem' }}
+        >
+          No more information about {displayName} is available.
+        </div>
+      )}
+
+      {(hasOptionalInfo || viewerIsAdmin) && (
+      <>
       <div className="admin-card" style={{ marginBottom: '1rem' }} data-testid="employee-profile-personal">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
           <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Personal info</h2>
@@ -253,6 +311,8 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
           </ul>
         )}
       </div>
+      </>
+      )}{/* /(hasOptionalInfo || viewerIsAdmin) */}
     </div>
   );
 }

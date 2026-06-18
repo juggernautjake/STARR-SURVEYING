@@ -46,6 +46,9 @@ import {
   RefreshCw,
   Type,
   ImageIcon,
+  // Slice W11 — icons for the new DRAW_FREEHAND tool variants.
+  PenTool,
+  Sparkles,
 } from 'lucide-react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import {
@@ -90,7 +93,7 @@ interface ToolGroupDef {
 // We define this as a factory function so the icons and actions can reference the stores at render time.
 function buildToolGroups(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  toolStore: { setTool: (t: ToolType) => void; state: { regularPolygonSides: number }; setDrawStyle: (s: any) => void },
+  toolStore: { setTool: (t: ToolType) => void; state: { regularPolygonSides: number }; setDrawStyle: (s: any) => void; setFreehandSmooth: (v: boolean) => void },
   viewportStore: { zoomAt: (x: number, y: number, f: number) => void; screenWidth: number; screenHeight: number },
 ): ToolGroupDef[] {
   return [
@@ -178,6 +181,25 @@ function buildToolGroups(
       icon: <Spline size={16} />,
       variants: [
         { tool: 'DRAW_POLYLINE', label: 'Polyline (open)', description: 'Multi-segment open polyline. Click each vertex, right-click or double-click to finish.', shortcut: 'PL', icon: <Spline size={14} /> },
+      ],
+    },
+    {
+      // Slice W11 — free-hand pen tool. Drag the pointer to
+      // record a stroke; release to commit a POLYLINE feature
+      // carrying the current drawStyle (color / opacity /
+      // weight / line type). The "Smoothed" variant flips
+      // toolStore.freehandSmooth on, which chaikin-smooths the
+      // captured path before commit.
+      mainTool: 'DRAW_FREEHAND',
+      label: 'Freehand',
+      description: 'Drag to draw a free-hand stroke. Right-click for solid / dashed / dotted / smoothed variants. Stroke style follows the current Draw Style options (color, opacity, line weight).',
+      shortcut: 'FH',
+      icon: <PenTool size={16} />,
+      variants: [
+        { tool: 'DRAW_FREEHAND', label: 'Freehand — Solid', description: 'Drag for a solid free-hand stroke.', shortcut: 'FH', icon: <PenTool size={14} />, action: () => { toolStore.setTool('DRAW_FREEHAND'); toolStore.setDrawStyle({ lineType: 'SOLID' }); toolStore.setFreehandSmooth(false); } },
+        { tool: 'DRAW_FREEHAND', label: 'Freehand — Dashed', description: 'Drag for a dashed free-hand stroke.', icon: <Slash size={14} />, action: () => { toolStore.setTool('DRAW_FREEHAND'); toolStore.setDrawStyle({ lineType: 'DASHED' }); toolStore.setFreehandSmooth(false); } },
+        { tool: 'DRAW_FREEHAND', label: 'Freehand — Dotted', description: 'Drag for a dotted free-hand stroke.', icon: <GitCommitHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_FREEHAND'); toolStore.setDrawStyle({ lineType: 'DOTTED' }); toolStore.setFreehandSmooth(false); } },
+        { tool: 'DRAW_FREEHAND', label: 'Freehand — Smoothed', description: "Drag for a free-hand stroke; the captured path is Chaikin-smoothed before commit so it reads as a smooth curve instead of a jagged polyline.", icon: <Sparkles size={14} />, action: () => { toolStore.setTool('DRAW_FREEHAND'); toolStore.setDrawStyle({ lineType: 'SOLID' }); toolStore.setFreehandSmooth(true); } },
       ],
     },
     {
