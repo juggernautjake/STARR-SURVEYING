@@ -9,6 +9,12 @@ import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 // Slice MX1 — "Open in /admin/messages →" header link.
 import Link from 'next/link';
+// Slice MX3 — draggable panel via the shared useDraggable hook.
+import { useDraggable } from '@/lib/admin/use-draggable';
+
+const MESSENGER_PANEL_WIDTH = 640;
+const MESSENGER_PANEL_HEIGHT = 600;
+const MESSENGER_DRAG_STORAGE_KEY = 'admin/messenger/panel-position';
 // employee-pond Slice E9b — cross-surface recipient continuity.
 import {
   readActiveRecipient,
@@ -71,6 +77,20 @@ export default function FloatingMessenger() {
   const userEmail = session?.user?.email;
 
   const [isOpen, setIsOpen] = useState(false);
+  // Slice MX3 — draggable panel. Persists position to
+  // localStorage so the user keeps their preferred spot across
+  // page loads. Default placement is the bottom-right corner
+  // above the FAB pill (matches MX1's CSS contract).
+  const drag = useDraggable({
+    storageKey: MESSENGER_DRAG_STORAGE_KEY,
+    width: MESSENGER_PANEL_WIDTH,
+    height: MESSENGER_PANEL_HEIGHT,
+    enabled: isOpen,
+    defaultPlacement: ({ w, h }) => ({
+      x: Math.max(0, w - MESSENGER_PANEL_WIDTH - 24),
+      y: Math.max(0, h - MESSENGER_PANEL_HEIGHT - 88),
+    }),
+  });
   const [view, setView] = useState<PanelView>('list');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -410,38 +430,62 @@ export default function FloatingMessenger() {
         >
         <div
           className="messenger-panel"
+          data-testid="messenger-panel"
           onClick={(e) => e.stopPropagation()}
           // Slice MX1 — defensive inline styles must match the
           // updated CSS contract: the panel sits ABOVE the FAB pill
           // (bottom: 5.5rem ≈ 88px clears the 56px FAB + a 32px
           // breathing gap) and 1.5rem off the right edge so the
           // shadow doesn't get clipped.
-          style={{
+          //
+          // Slice MX3 — once the drag hook has hydrated (mounted),
+          // switch from the bottom-right anchor to absolute
+          // left/top so the panel can be moved. Sized inline so
+          // the hook clamps against the right dimensions.
+          style={drag.mounted ? {
+            position: 'fixed',
+            left: drag.position.x,
+            top: drag.position.y,
+            width: MESSENGER_PANEL_WIDTH,
+            height: MESSENGER_PANEL_HEIGHT,
+            zIndex: 9001,
+            background: '#FFFFFF',
+          } : {
             position: 'fixed',
             bottom: '5.5rem',
             right: '1.5rem',
             zIndex: 9001,
             background: '#FFFFFF',
           }}>
-          {/* Header */}
-          <div className="messenger-panel__header">
+          {/* Header — drag handle. Anything with
+              `data-no-drag` (close, "Open in messages", back
+              button, search input, etc.) swallows the drag. */}
+          <div
+            className="messenger-panel__header"
+            data-testid="messenger-panel-drag-handle"
+            style={{ touchAction: 'none', cursor: drag.mounted ? 'move' : undefined }}
+            onPointerDown={drag.handlers.onPointerDown}
+            onPointerMove={drag.handlers.onPointerMove}
+            onPointerUp={drag.handlers.onPointerUp}
+            onPointerCancel={drag.handlers.onPointerCancel}
+          >
             {view === 'chat' && activeConv ? (
               <>
-                <button className="messenger-panel__back" onClick={() => { setView('list'); setActiveConv(null); setMessages([]); }}>
+                <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setActiveConv(null); setMessages([]); }}>
                   &#8592;
                 </button>
                 <span className="messenger-panel__conv-title">{getConvName(activeConv)}</span>
               </>
             ) : view === 'new' ? (
               <>
-                <button className="messenger-panel__back" onClick={() => { setView('list'); setSelectedContacts([]); setContactSearch(''); }}>
+                <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setSelectedContacts([]); setContactSearch(''); }}>
                   &#8592;
                 </button>
                 <span className="messenger-panel__conv-title">New Conversation</span>
               </>
             ) : view === 'search' ? (
               <>
-                <button className="messenger-panel__back" onClick={() => { setView('list'); setConvSearch(''); setSearchResults([]); }}>
+                <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setConvSearch(''); setSearchResults([]); }}>
                   &#8592;
                 </button>
                 <span className="messenger-panel__conv-title">Search Messages</span>
@@ -464,7 +508,7 @@ export default function FloatingMessenger() {
             >
               Open in messages →
             </Link>
-            <button className="messenger-panel__close" onClick={() => { setIsOpen(false); setView('list'); setActiveConv(null); }}>&#10005;</button>
+            <button data-no-drag className="messenger-panel__close" onClick={() => { setIsOpen(false); setView('list'); setActiveConv(null); }}>&#10005;</button>
           </div>
 
           {/* Slice MX2 — two-pane layout. Sidebar always renders

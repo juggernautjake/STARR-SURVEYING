@@ -75,13 +75,13 @@ describe("FloatingMessenger JSX — 'Open in /admin/messages →' link", () => {
     expect(SRC).toMatch(/data-testid="messenger-open-full"[\s\S]{0,250}onClick=\{\(\) => \{ setIsOpen\(false\); \}\}/);
   });
 
-  it("defensive inline style now matches the new CSS (bottom: 5.5rem, right: 1.5rem)", () => {
-    // The JSX opener carries a comment block + onClick before the
-    // style prop; bump the window so the assertion captures all
-    // of them without going so wide it could match a different
-    // panel elsewhere.
-    expect(SRC).toMatch(/className="messenger-panel"[\s\S]{0,800}bottom:\s*'5\.5rem'/);
-    expect(SRC).toMatch(/className="messenger-panel"[\s\S]{0,800}right:\s*'1\.5rem'/);
+  it("defensive inline style fallback still anchors at bottom: 5.5rem / right: 1.5rem when the drag hook hasn't hydrated", () => {
+    // MX3 made the panel draggable: once `drag.mounted` is true
+    // the inline style switches to left/top from the hook; the
+    // MX1 bottom-right anchor is now the SSR / pre-hydration
+    // fallback (the `else` branch of the ternary).
+    expect(SRC).toMatch(/bottom:\s*'5\.5rem'/);
+    expect(SRC).toMatch(/right:\s*'1\.5rem'/);
   });
 });
 
