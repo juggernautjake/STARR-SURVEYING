@@ -109,6 +109,16 @@ Receipt payment summaries mask:
 
 ## RLS posture
 
+> **Runtime audit:** paste
+> [`scripts/audit-payment-rls.sql`](../../scripts/audit-payment-rls.sql)
+> into the Supabase SQL editor after every payment-domain seed
+> deploy. The query enumerates every table in
+> [`lib/payments/rls-allowlist.ts`](../../lib/payments/rls-allowlist.ts)
+> and reports `rls_enabled`, `service_role_policy_present`,
+> `employee_self_read_policy_present`, + a single `pass` boolean
+> column you can `WHERE pass = FALSE` to surface drift in one
+> query.
+
 | Table | Service role | Authenticated | Anon |
 |---|---|---|---|
 | `invoices` | full | — | — (route-mediated) |
