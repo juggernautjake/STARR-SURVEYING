@@ -65,7 +65,7 @@ keeps these distinct from the calendar S-series.
 | Slice | What ships |
 |---|---|
 | **MX1** | Position the modal above the FAB pill (`bottom: 5.5rem` instead of `0`) + a styling pass on the panel header (real padding, real font hierarchy, a clear header that names the active conversation) + a "Open in /admin/messages →" link in the header that routes to the full page (deep-links the active conversation when one is open). Same restyle applied to the discussion-panel shell + header. ✅ shipped |
-| **MX2** | Two-pane layout inside the messenger panel — sidebar list on the left (conversations) + active thread on the right, sized 560 × 600. Mirrors the dedicated page's hierarchy so the user can always see + switch conversations without back-arrowing into the list. |
+| **MX2** | Two-pane layout — always-visible 240px sidebar (search + conversation list) + main pane that renders chat / new / search / empty-prompt based on `view`. Panel widens to 640 × 600 to fit the split. Sidebar collapses on viewports ≤ 520px so the popup still works on phones. ✅ shipped |
 | **MX3** | Draggable modal via a new `useDraggable` hook extracted from `CalculatorModal`. Applies to messenger + discussion panels; drag handle is the header bar. Position persists in localStorage so the user keeps their preferred spot. |
 | **MX4** | Group chat support in the popup — the existing FloatingMessenger already has a `new` view with multi-select contacts; surface the same flow in MX2's two-pane layout and let the user create a group from the new-thread button. |
 | **MX5** | "Search messages" surface parity with the dedicated page (cross-conversation search results that deep-link into the right thread). |

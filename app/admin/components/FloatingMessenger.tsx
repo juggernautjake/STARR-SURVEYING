@@ -467,9 +467,15 @@ export default function FloatingMessenger() {
             <button className="messenger-panel__close" onClick={() => { setIsOpen(false); setView('list'); setActiveConv(null); }}>&#10005;</button>
           </div>
 
-          {/* === LIST VIEW === */}
-          {view === 'list' && (
-            <>
+          {/* Slice MX2 — two-pane layout. Sidebar always renders
+              the conversation list (search + actions + rows) so
+              the user can switch conversations without backing
+              out into a separate view. Main pane shows the
+              active chat, the new-conversation flow, the search
+              results, or an empty-state prompt when no thread is
+              selected. */}
+          <div className="messenger-panel__body" data-testid="messenger-panel-body">
+          <aside className="messenger-panel__sidebar" data-testid="messenger-panel-sidebar">
               <div className="messenger-panel__actions">
                 <input
                   className="messenger-panel__search"
@@ -525,7 +531,23 @@ export default function FloatingMessenger() {
                   })
                 )}
               </div>
-            </>
+          </aside>
+
+          {/* Slice MX2 — main pane: chat / new / search / empty
+              prompt depending on `view`. */}
+          <section className="messenger-panel__main" data-testid="messenger-panel-main">
+          {view === 'list' && (
+            <div className="messenger-panel__main-empty" data-testid="messenger-panel-main-empty">
+              <span className="messenger-panel__main-empty-icon" aria-hidden>💬</span>
+              <p style={{ margin: 0 }}>Pick a conversation from the left.</p>
+              <button
+                type="button"
+                className="admin-btn admin-btn--primary admin-btn--sm"
+                onClick={() => { setView('new'); fetchContacts(); }}
+              >
+                Start a new chat
+              </button>
+            </div>
           )}
 
           {/* === NEW CONVERSATION VIEW === */}
@@ -701,6 +723,8 @@ export default function FloatingMessenger() {
               </div>
             </>
           )}
+          </section>{/* /.messenger-panel__main */}
+          </div>{/* /.messenger-panel__body */}
         </div>
         </div>,
         document.body,

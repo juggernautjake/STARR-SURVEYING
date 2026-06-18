@@ -1894,6 +1894,11 @@
  *    look how poorly formatted and stylized the messaging modal
  *    is. They look terrible."
  *
+ * Slice MX2 — bump the panel WIDTH so the new two-pane layout
+ * (sidebar list on the left + active conversation on the right)
+ * has room to breathe. 640px matches the gold-standard
+ * /admin/messages page's sidebar+thread proportions.
+ *
  * Move the bottom anchor up so the FAB pill (sits at bottom:1.5rem,
  * 56px tall) stays uncovered, widen the panel + lift the corner
  * radius so it reads as a proper interface, and bump the elevation
@@ -1903,9 +1908,9 @@
   position: fixed;
   bottom: 5.5rem;
   right: 1.5rem;
-  width: 420px;
+  width: 640px;
   max-width: calc(100vw - 3rem);
-  height: 560px;
+  height: 600px;
   max-height: calc(100vh - 7rem);
   background: #FFF;
   border-radius: 16px;
@@ -2000,6 +2005,67 @@
 .messenger-panel__back:hover {
   background: #F1F5F9;
   color: #1E3A8A;
+}
+
+/* === Slice MX2 — two-pane layout (sidebar + main) ===
+ *
+ * The popup mirrors the dedicated /admin/messages page: an
+ * always-visible conversation list on the left + the active
+ * thread (or an empty-state prompt) on the right. The "new" +
+ * "search" views overlay just the main pane so the sidebar stays
+ * available the whole time. */
+.messenger-panel__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.messenger-panel__sidebar {
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #E5E7EB;
+  background: #FAFBFF;
+  min-height: 0;
+}
+.messenger-panel__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #FFFFFF;
+}
+.messenger-panel__main-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #6B7280;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+}
+.messenger-panel__main-empty-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+/* Narrow viewport — collapse the sidebar so the main pane fills
+ * the popup. The user can still toggle back to the list via the
+ * existing back-arrow control. */
+@media (max-width: 720px) {
+  .messenger-panel {
+    width: calc(100vw - 2rem);
+  }
+  .messenger-panel__sidebar {
+    flex-basis: 200px;
+  }
+}
+@media (max-width: 520px) {
+  .messenger-panel__sidebar {
+    display: none;
+  }
 }
 
 /* Header */

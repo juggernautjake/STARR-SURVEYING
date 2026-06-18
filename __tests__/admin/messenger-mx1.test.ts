@@ -26,8 +26,9 @@ describe('Messenger panel CSS — sits above the FAB + has the new shell', () =>
     expect(CSS).toMatch(/\.messenger-panel\s*\{[\s\S]*?bottom:\s*5\.5rem/);
   });
 
-  it('the panel widens to 420px with a 16px corner radius (no longer a top-left-only corner)', () => {
-    expect(CSS).toMatch(/\.messenger-panel\s*\{[\s\S]*?width:\s*420px/);
+  it('the panel widens (MX1 set 420px; MX2 widened again to 640px for the two-pane layout) with a 16px corner radius', () => {
+    // MX2 bumped width 420 → 640 to fit the sidebar + main split.
+    expect(CSS).toMatch(/\.messenger-panel\s*\{[\s\S]*?width:\s*640px/);
     expect(CSS).toMatch(/\.messenger-panel\s*\{[\s\S]*?border-radius:\s*16px/);
   });
 
