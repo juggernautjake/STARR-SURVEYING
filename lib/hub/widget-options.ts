@@ -139,6 +139,10 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   // Slice W9c — consolidated money. Single boolean default
   // (`showOpenLink`); register as `none` for the schema test.
   'money':                    { source: 'none' },
+  // Slice W9d — consolidated learning-stack. Single boolean
+  // default (`showOpenLink`); register as `none` for the schema
+  // test.
+  'learning-stack':           { source: 'none' },
   'crew-calendar':            { source: 'settings-form' },
   'drawings-in-progress':     { source: 'settings-form' },
   // consolidation Slice 4 (2026-05-30) — unified Drawings widget.

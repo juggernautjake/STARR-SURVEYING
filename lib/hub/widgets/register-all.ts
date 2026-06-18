@@ -88,3 +88,7 @@ import './drawings-hub';
 // monthly-revenue + outstanding-invoices. Legacy widgets stay
 // registered.
 import './money';
+// Slice W9d — consolidated learning-stack widget. Absorbs
+// class-assignments + flashcards-due + recommended-lessons.
+// Legacy widgets stay registered.
+import './learning-stack';
