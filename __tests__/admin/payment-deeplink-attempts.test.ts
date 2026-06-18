@@ -111,9 +111,11 @@ describe('app/pay/[invoice]/page.tsx — deep-link flow (P6)', () => {
   });
 
   it("renders the I-sent-it confirmation strip with email + actions", () => {
-    expect(SRC).toMatch(/data-testid="pay-attempt-confirm"/);
+    // After P7 the testids are picked by a ternary so they live as
+    // bare string literals.
+    expect(SRC).toMatch(/'pay-attempt-confirm'/);
     expect(SRC).toMatch(/data-testid="pay-attempt-email"/);
-    expect(SRC).toMatch(/data-testid="pay-attempt-submit"/);
+    expect(SRC).toMatch(/'pay-attempt-submit'/);
   });
 
   it("POSTs to /api/public/invoice/<n>/attempt with method + balance + email", () => {
@@ -124,7 +126,7 @@ describe('app/pay/[invoice]/page.tsx — deep-link flow (P6)', () => {
   });
 
   it("flips to a thank-you state after the attempt is recorded", () => {
-    expect(SRC).toMatch(/data-testid="pay-attempt-received"/);
+    expect(SRC).toMatch(/'pay-attempt-received'/);
     expect(SRC).toMatch(/setAttemptRecorded\(true\)/);
   });
 

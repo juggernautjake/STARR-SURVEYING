@@ -31,6 +31,13 @@ import {
   sanitizeAttemptMessage,
   sumSucceededPayments,
 } from '@/lib/payments/invoice-public';
+import {
+  buildPledgeConfirmationHtml,
+  buildPledgeConfirmationSubject,
+  buildPledgeConfirmationText,
+} from '@/lib/payments/invoice-email';
+import { buildInvoicePayLink } from '@/lib/payments/invoice-number';
+import { OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '@/app/components/ServiceAreaMap';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const url = new URL(req.url);
@@ -51,7 +58,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: invoice } = await supabaseAdmin
     .from('invoices')
-    .select('id, status, total_cents')
+    .select('id, invoice_number, public_slug, status, total_cents, customer_name')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();
   if (!invoice) {
@@ -93,5 +100,63 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ attempt });
+  // P7 — cash / check pledges trigger an immediate confirmation
+  // email so the customer has the mailing address + receipt-incoming
+  // expectations in writing. Deep-link methods skip this (the
+  // platform's own receipt covers them).
+  let pledgeEmailSent = false;
+  let pledgeEmailError: string | null = null;
+  if ((method === 'cash' || method === 'check') && row.payer_email) {
+    const isMailing = (typeof body.is_mailing === 'boolean') ? body.is_mailing : method === 'check';
+    const host = process.env.NEXT_PUBLIC_APP_URL ?? 'https://starr-surveying.com';
+    const payload = {
+      method: method as 'cash' | 'check',
+      invoice_number: invoice.invoice_number,
+      customer_name: invoice.customer_name,
+      amount_cents: intended,
+      office_address_line1: OFFICE_ADDRESS_LINE1,
+      office_address_line2: OFFICE_ADDRESS_LINE2,
+      pay_link: buildInvoicePayLink(host, invoice.public_slug),
+      is_mailing: isMailing,
+    };
+    const subject = buildPledgeConfirmationSubject({ method: payload.method, invoice_number: invoice.invoice_number });
+    const html = buildPledgeConfirmationHtml(payload);
+    const text = buildPledgeConfirmationText(payload);
+
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    if (RESEND_API_KEY && RESEND_API_KEY !== 'your_resend_api_key') {
+      try {
+        const resp = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'Starr Surveying <info@starr-surveying.com>',
+            to: [row.payer_email],
+            reply_to: 'info@starr-surveying.com',
+            subject,
+            html,
+            text,
+          }),
+        });
+        if (resp.ok) {
+          pledgeEmailSent = true;
+        } else {
+          pledgeEmailError = `Resend returned ${resp.status}`;
+        }
+      } catch (err) {
+        pledgeEmailError = err instanceof Error ? err.message : String(err);
+      }
+    } else {
+      // Dev mode — log + treat as sent so the UI surfaces the right
+      // confirmation panel without forcing the office to set up
+      // Resend before previewing the flow.
+      pledgeEmailSent = true;
+      console.log(`[pledge] DEV — would send to ${row.payer_email}: ${subject}`);
+    }
+  }
+
+  return NextResponse.json({ attempt, pledge_email_sent: pledgeEmailSent, pledge_email_error: pledgeEmailError });
 });

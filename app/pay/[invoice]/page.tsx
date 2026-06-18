@@ -66,6 +66,10 @@ export default function PayInvoicePage(): React.ReactElement {
   const [attemptSubmitting, setAttemptSubmitting] = useState(false);
   const [attemptError, setAttemptError] = useState<string | null>(null);
   const [payerEmail, setPayerEmail] = useState('');
+  // P7 — cash/check pledges need to know whether the customer is
+  // mailing it or bringing it in person so the confirmation email
+  // reads correctly. Defaults: cash → in-person, check → by mail.
+  const [pledgeIsMailing, setPledgeIsMailing] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,10 +139,11 @@ export default function PayInvoicePage(): React.ReactElement {
       return;
     }
     if (method.action === 'pledge') {
-      // P7 will wire the pledge flow; for now show the not-yet
-      // toast so the customer knows to call.
-      setAttemptMethod(null);
-      setPendingMethod(method.id);
+      // P7 — switch into the pledge strip. Cash defaults to in-
+      // person; check defaults to by-mail. Customer can flip either.
+      setPledgeIsMailing(method.id === 'check');
+      setAttemptMethod(method.id);
+      setPendingMethod(null);
       return;
     }
     // Stripe: still stubbed per P4 — the form ships in a later slice.
@@ -150,6 +155,7 @@ export default function PayInvoicePage(): React.ReactElement {
     if (!attemptMethod || !invoice) return;
     setAttemptSubmitting(true);
     setAttemptError(null);
+    const isPledge = attemptMethod === 'cash' || attemptMethod === 'check';
     const res = await fetch(`/api/public/invoice/${encodeURIComponent(invoice.invoice_number)}/attempt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -157,6 +163,7 @@ export default function PayInvoicePage(): React.ReactElement {
         method: attemptMethod,
         intended_amount_cents: invoice.balance_cents,
         payer_email: payerEmail.trim() || undefined,
+        ...(isPledge ? { is_mailing: pledgeIsMailing } : {}),
       }),
     });
     setAttemptSubmitting(false);
@@ -251,61 +258,122 @@ export default function PayInvoicePage(): React.ReactElement {
                 })}
               </div>
 
-              {/* P6 — deep-link confirmation strip. After the customer
-                  opens Venmo / CashApp / Zelle, they come back and
-                  tell us whether they actually sent it. */}
-              {attemptMethod && !attemptRecorded && (
-                <div className="pay-methods__confirm" data-testid="pay-attempt-confirm" role="status">
-                  <p className="pay-methods__confirm-lede">
-                    Did you send <strong>{formatDollars(invoice.balance_cents)}</strong> via{' '}
-                    {PAYMENT_METHODS.find((m) => m.id === attemptMethod)?.label}?
-                  </p>
-                  <label className="pay-methods__confirm-email">
-                    Your email (so we can send the receipt)
-                    <input
-                      type="email"
-                      value={payerEmail}
-                      onChange={(e) => setPayerEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      data-testid="pay-attempt-email"
-                      autoComplete="email"
-                    />
-                  </label>
-                  <div className="pay-methods__confirm-actions">
-                    <button
-                      type="button"
-                      className="pay-methods__confirm-cancel"
-                      onClick={() => { setAttemptMethod(null); setPayerEmail(''); }}
-                      disabled={attemptSubmitting}
-                    >
-                      Not yet
-                    </button>
-                    <button
-                      type="button"
-                      className="pay-methods__confirm-yes"
-                      onClick={recordAttempt}
-                      disabled={attemptSubmitting}
-                      data-testid="pay-attempt-submit"
-                    >
-                      {attemptSubmitting ? 'Recording…' : 'Yes, I sent it'}
-                    </button>
-                  </div>
-                  {attemptError && (
-                    <p className="pay-methods__confirm-error" data-testid="pay-attempt-error" role="alert">
-                      {attemptError}
+              {/* P6 — deep-link confirmation strip / P7 — cash + check
+                  pledge strip. After the customer opens Venmo / CashApp
+                  / Zelle (P6) or picks cash / check (P7), they come
+                  back here and tell us how they're paying. */}
+              {attemptMethod && !attemptRecorded && (() => {
+                const isPledge = attemptMethod === 'cash' || attemptMethod === 'check';
+                const methodLabel = PAYMENT_METHODS.find((m) => m.id === attemptMethod)?.label;
+                return (
+                  <div className="pay-methods__confirm" data-testid={isPledge ? 'pay-pledge-confirm' : 'pay-attempt-confirm'} role="status">
+                    <p className="pay-methods__confirm-lede">
+                      {isPledge ? (
+                        <>Pay <strong>{formatDollars(invoice.balance_cents)}</strong> in {attemptMethod === 'check' ? 'check' : 'cash'}?</>
+                      ) : (
+                        <>Did you send <strong>{formatDollars(invoice.balance_cents)}</strong> via {methodLabel}?</>
+                      )}
                     </p>
-                  )}
-                </div>
-              )}
+                    {isPledge && (
+                      <fieldset className="pay-methods__pledge-delivery" data-testid="pay-pledge-delivery">
+                        <legend>How will you deliver it?</legend>
+                        <label>
+                          <input
+                            type="radio"
+                            name="pledge-delivery"
+                            checked={pledgeIsMailing}
+                            onChange={() => setPledgeIsMailing(true)}
+                          />
+                          <span>I'll mail it</span>
+                        </label>
+                        <label>
+                          <input
+                            type="radio"
+                            name="pledge-delivery"
+                            checked={!pledgeIsMailing}
+                            onChange={() => setPledgeIsMailing(false)}
+                          />
+                          <span>I'll bring it in person</span>
+                        </label>
+                      </fieldset>
+                    )}
+                    <label className="pay-methods__confirm-email">
+                      Your email (so we can send the receipt{isPledge ? ' + mailing address' : ''})
+                      <input
+                        type="email"
+                        value={payerEmail}
+                        onChange={(e) => setPayerEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        data-testid="pay-attempt-email"
+                        autoComplete="email"
+                      />
+                    </label>
+                    <div className="pay-methods__confirm-actions">
+                      <button
+                        type="button"
+                        className="pay-methods__confirm-cancel"
+                        onClick={() => { setAttemptMethod(null); setPayerEmail(''); }}
+                        disabled={attemptSubmitting}
+                      >
+                        Not yet
+                      </button>
+                      <button
+                        type="button"
+                        className="pay-methods__confirm-yes"
+                        onClick={recordAttempt}
+                        disabled={attemptSubmitting}
+                        data-testid={isPledge ? 'pay-pledge-submit' : 'pay-attempt-submit'}
+                      >
+                        {attemptSubmitting
+                          ? 'Recording…'
+                          : isPledge
+                            ? (pledgeIsMailing ? "I'm sending it" : "I'll bring it")
+                            : 'Yes, I sent it'}
+                      </button>
+                    </div>
+                    {attemptError && (
+                      <p className="pay-methods__confirm-error" data-testid="pay-attempt-error" role="alert">
+                        {attemptError}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
-              {attemptRecorded && (
-                <div className="pay-methods__received" data-testid="pay-attempt-received" role="status">
-                  <strong>Thank you!</strong> We've logged your payment as pending.
-                  Once we confirm it in {PAYMENT_METHODS.find((m) => m.id === attemptMethod)?.label},
-                  your receipt will arrive at the email you provided. Questions?{' '}
-                  <a href="tel:+19366620077">(936) 662-0077</a>.
-                </div>
-              )}
+              {attemptRecorded && (() => {
+                const isPledge = attemptMethod === 'cash' || attemptMethod === 'check';
+                const methodLabel = PAYMENT_METHODS.find((m) => m.id === attemptMethod)?.label;
+                return (
+                  <div className="pay-methods__received" data-testid={isPledge ? 'pay-pledge-received' : 'pay-attempt-received'} role="status">
+                    <strong>Thank you!</strong>{' '}
+                    {isPledge ? (
+                      <>
+                        We've logged your <strong>{attemptMethod === 'check' ? 'check' : 'cash'}</strong> payment as pending.
+                        {pledgeIsMailing ? (
+                          <> Please mail it to:</>
+                        ) : (
+                          <> Drop by anytime — we'll log the payment when it arrives.</>
+                        )}
+                        {pledgeIsMailing && (
+                          <p className="pay-methods__received-addr" data-testid="pay-pledge-mailing-addr">
+                            <strong>Starr Surveying</strong><br />
+                            3779 W FM 436<br />
+                            Belton, TX 76513
+                          </p>
+                        )}
+                        Your receipt will land at the email you provided once we log the payment.
+                      </>
+                    ) : (
+                      <>
+                        We've logged your payment as pending. Once we confirm it in {methodLabel},
+                        your receipt will arrive at the email you provided.
+                      </>
+                    )}{' '}
+                    Questions?{' '}
+                    <a href="tel:+19366620077">(936) 662-0077</a>.
+                  </div>
+                );
+              })()}
 
               {pendingMethod && !attemptMethod && (
                 <div className="pay-methods__toast" data-testid="pay-methods-toast" role="status">

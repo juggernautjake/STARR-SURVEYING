@@ -126,6 +126,109 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
 </body></html>`;
 }
 
+/** P7 of payment-infrastructure-2026-06-18.md — cash / check pledge
+ *  confirmation. After a customer pledges to pay offline, we send
+ *  them this so they have the company mailing address + a reminder
+ *  that the receipt arrives once the office logs the payment. */
+export interface PledgeConfirmationInput {
+  method: 'cash' | 'check';
+  invoice_number: string;
+  customer_name: string | null;
+  amount_cents: number;
+  office_address_line1: string;
+  office_address_line2: string;
+  pay_link: string;
+  is_mailing: boolean;
+}
+
+export function buildPledgeConfirmationSubject(input: { method: 'cash' | 'check'; invoice_number: string }): string {
+  const label = input.method === 'check' ? 'Check' : 'Cash';
+  return `${label} payment confirmed — Invoice ${input.invoice_number}`;
+}
+
+export function buildPledgeConfirmationHtml(input: PledgeConfirmationInput): string {
+  const greeting = input.customer_name ? `Hello ${escape(input.customer_name)},` : 'Hello,';
+  const methodLabel = input.method === 'check' ? 'check' : 'cash';
+  const deliveryLabel = input.is_mailing ? 'by mail' : 'in person';
+  const checkPayee = input.method === 'check'
+    ? `<p style="margin:0 0 12px;"><strong>Make checks payable to:</strong> Starr Surveying</p>`
+    : '';
+  const mailingBlock = input.is_mailing
+    ? `<p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">Mail your ${methodLabel} to the address above. We'll send your receipt the moment it arrives.</p>`
+    : `<p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">When you stop by, ask for Hank or anyone at the front desk. We'll send your receipt the moment we log the payment.</p>`;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8" /><title>Payment confirmed</title></head>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:Inter,Arial,sans-serif;color:#152050;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;border:1px solid #e4e7ee;overflow:hidden;max-width:600px;width:100%;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#1D3095 0%,#152050 60%,#BD1218 100%);padding:32px 28px;color:#ffffff;">
+              <div style="font-size:13px;letter-spacing:0.1em;text-transform:uppercase;opacity:0.85;">Payment confirmed</div>
+              <div style="font-family:'Sora','Inter',sans-serif;font-size:22px;font-weight:700;margin-top:6px;">Invoice ${escape(input.invoice_number)}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px;">
+              <p style="margin:0 0 16px;font-size:16px;">${greeting}</p>
+              <p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">
+                Thanks for letting us know you're paying <strong>${escape(formatDollars(input.amount_cents))}</strong> in ${escape(methodLabel)} ${escape(deliveryLabel)}.
+              </p>
+              ${checkPayee}
+              <div style="background:#f4f5f9;border:1px solid #e4e7ee;border-radius:10px;padding:16px 18px;margin:0 0 16px;">
+                <div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#6b7280;margin-bottom:6px;">Starr Surveying</div>
+                <div style="font-family:'Sora','Inter',sans-serif;font-size:15px;font-weight:700;">${escape(input.office_address_line1)}</div>
+                <div style="font-size:15px;color:#4a5470;">${escape(input.office_address_line2)}</div>
+              </div>
+              ${mailingBlock}
+              <p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">
+                Want to check your balance any time? Use this link to come back to your invoice:
+              </p>
+              <div style="text-align:center;margin:8px 0 24px;">
+                <a href="${escape(input.pay_link)}" data-testid="pledge-link" style="display:inline-block;background:#1D3095;color:#ffffff;text-decoration:none;font-weight:700;font-family:'Sora','Inter',sans-serif;padding:12px 22px;border-radius:10px;font-size:15px;">View your invoice</a>
+              </div>
+              <p style="margin:0;color:#4a5470;font-size:14px;line-height:1.55;">
+                Questions? Call us at <a href="tel:+19366620077" style="color:#BD1218;font-weight:700;">(936) 662-0077</a>.
+              </p>
+              <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— Starr Surveying</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+}
+
+export function buildPledgeConfirmationText(input: PledgeConfirmationInput): string {
+  const lines: string[] = [
+    `Payment confirmed — Invoice ${input.invoice_number}`,
+    '',
+    input.customer_name ? `Hello ${input.customer_name},` : 'Hello,',
+    '',
+    `Thanks for letting us know you're paying ${formatDollars(input.amount_cents)} in ${input.method} ${input.is_mailing ? 'by mail' : 'in person'}.`,
+  ];
+  if (input.method === 'check') lines.push('', 'Make checks payable to: Starr Surveying');
+  lines.push(
+    '',
+    'Starr Surveying',
+    input.office_address_line1,
+    input.office_address_line2,
+    '',
+    input.is_mailing
+      ? `Mail your ${input.method} to the address above. We'll send your receipt the moment it arrives.`
+      : `When you stop by, ask for Hank or anyone at the front desk. We'll send your receipt the moment we log the payment.`,
+    '',
+    `View your invoice any time: ${input.pay_link}`,
+    '',
+    'Questions? Call (936) 662-0077.',
+    '— Starr Surveying',
+  );
+  return lines.join('\n');
+}
+
 /** Pure helper — plain-text fallback for the email client that
  *  doesn't render HTML. */
 export function buildInvoiceEmailText(input: InvoiceEmailInput): string {

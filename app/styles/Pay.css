@@ -366,6 +366,44 @@
   line-height: 1.5;
 }
 .pay-methods__received a { color: var(--brand-red, #BD1218); font-weight: 700; }
+.pay-methods__received-addr {
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.95rem;
+  background: rgba(255, 255, 255, 0.55);
+  border-left: 4px solid #1f6d3c;
+  border-radius: 6px;
+  color: var(--brand-dark, #152050);
+  font-style: normal;
+  line-height: 1.4;
+}
+
+/* P7 — pledge delivery selector (mail vs in person) */
+.pay-methods__pledge-delivery {
+  border: 0;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pay-methods__pledge-delivery legend {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #4a5470);
+  margin-bottom: 0.25rem;
+  padding: 0;
+}
+.pay-methods__pledge-delivery label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d6d9e3;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+}
+.pay-methods__pledge-delivery label:hover { border-color: var(--brand-blue, #1D3095); }
+.pay-methods__pledge-delivery input[type="radio"] { accent-color: var(--brand-blue, #1D3095); }
 
 /* -------------------------------------------------------------------------
    Paid state
