@@ -44,6 +44,9 @@ import AIChatDock from './components/AIChatDock';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import AIAutoRunner from './components/AIAutoRunner';
 import ChordHUD from './components/ChordHUD';
+// Slice W10 — sticky HUD for the MEASURE_AREA tool. Renders
+// only while that tool is active; null otherwise.
+import AreaMeasureHUD from './components/AreaMeasureHUD';
 import CompletenessPanel from './components/CompletenessPanel';
 import RPLSSubmissionDialog from './components/RPLSSubmissionDialog';
 import RPLSReviewModePanel from './components/RPLSReviewModePanel';
@@ -1443,6 +1446,13 @@ export default function CADLayout() {
           chord (e.g. `I`, `Z`, `R`) is in progress. Clears
           automatically on completion / escape / timeout. */}
       <ChordHUD />
+
+      {/* Slice W10 — sticky HUD for the MEASURE_AREA tool. Pops
+          a small panel at the bottom-right with live perimeter /
+          area / acres readouts plus undo, clear, snap-to-foot,
+          and close-and-log controls. Renders only while
+          MEASURE_AREA is the active tool. */}
+      <AreaMeasureHUD />
 
       {/* Phase 7 §6.2 completeness checklist — slides in from the
           right, gates "Mark Ready for RPLS Review" on summary.ready */}

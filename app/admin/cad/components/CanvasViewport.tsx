@@ -847,6 +847,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const imageCacheDocIdRef = useRef<string | null>(null);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
+  // Slice W10 — MEASURE_AREA snap-to-foot step. 0 = disabled
+  // (default). The AreaMeasureHUD's "Snap to foot" toggle
+  // dispatches `cad:setAreaSnap` with `{ enabled, stepFt }`;
+  // this ref stays in sync via the listener below.
+  const areaSnapStepRef = useRef<number>(0);
   // Phase 8 §11.6 — true while the IntersectDialog has a slot
   // open for canvas-side picking. Next canvas click feeds the
   // hit feature id back to the dialog and gets swallowed.
@@ -1153,6 +1158,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
     window.addEventListener('cad:activateTool', handler);
     return () => window.removeEventListener('cad:activateTool', handler);
+  }, []);
+
+  // Slice W10 — AreaMeasureHUD broadcasts the snap-to-foot
+  // toggle here. When enabled, MEASURE_AREA clicks round to
+  // the nearest grid step (default 1 ft).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ enabled: boolean; stepFt?: number }>).detail;
+      if (!detail) { areaSnapStepRef.current = 0; return; }
+      areaSnapStepRef.current = detail.enabled ? (detail.stepFt ?? 1) : 0;
+    };
+    window.addEventListener('cad:setAreaSnap', handler);
+    return () => {
+      window.removeEventListener('cad:setAreaSnap', handler);
+      areaSnapStepRef.current = 0;
+    };
   }, []);
 
   // Phase 8 §11.6 Slice 1 — IntersectDialog announces when
@@ -5577,16 +5598,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.moveTo(cs.sx, cs.sy);
         g.lineTo(sp0.sx, sp0.sy);
       }
-      // Vertex markers
+      // Vertex markers — Slice W10 bumps the visible hit
+      // targets from 4 px → 7 px (with a 1.5 px outline ring)
+      // so surveyors don't squint at click affordances. The
+      // first vertex gets an extra ring so the close-back leg
+      // is unambiguous when the cursor crosses the polygon.
+      g.lineStyle(1.5, 0xffffff, 0.85);
       g.beginFill(0xff66cc, 0.95);
       for (const v of drawingPoints) {
         const sp = w2s(v.x, v.y);
-        g.drawCircle(sp.sx, sp.sy, 4);
+        g.drawCircle(sp.sx, sp.sy, 7);
       }
       g.endFill();
+      // First-vertex emphasis ring — signals where "close" lands.
+      if (drawingPoints.length >= 3) {
+        const sp = w2s(drawingPoints[0].x, drawingPoints[0].y);
+        g.lineStyle(1.5, 0xffeeff, 0.95);
+        g.drawCircle(sp.sx, sp.sy, 11);
+      }
       // Cursor marker
       g.lineStyle(1.5, 0xff44aa, 0.95);
-      g.drawCircle(cs.sx, cs.sy, 5);
+      g.drawCircle(cs.sx, cs.sy, 7);
       return;
     }
 
@@ -11397,9 +11429,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // logs the running perimeter + area (computed by
           // closing the polygon back to vertex 0). Esc clears,
           // double-click commits and emits the final summary.
+          // Slice W10 — when the AreaMeasureHUD's "Snap to
+          // foot" toggle is on, `areaSnapStepRef.current` holds
+          // a positive grid step (ft) and each click rounds to
+          // it before pushing.
           const { drawingPoints: dpts } = toolState;
-          useToolStore.getState().addDrawingPoint(worldPt);
-          const updated = [...dpts, worldPt];
+          const snapStep = areaSnapStepRef.current;
+          const ptToPush = snapStep > 0
+            ? { x: Math.round(worldPt.x / snapStep) * snapStep, y: Math.round(worldPt.y / snapStep) * snapStep }
+            : worldPt;
+          useToolStore.getState().addDrawingPoint(ptToPush);
+          const updated = [...dpts, ptToPush];
           if (updated.length >= 2) {
             // Perimeter (open chain length plus the close-back leg).
             let perim = 0;
