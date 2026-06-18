@@ -238,18 +238,30 @@ export default function LeadDetailPage() {
               → Convert to job
             </button>
           )}
-          <select
-            className="lead-detail__select"
-            data-testid="status-select"
-            value={lead.status}
-            onChange={(e) => void changeStatus(e.target.value)}
+          {/* lead-status-affordance-2026-06-18 — the select used to
+              float beside the action buttons with no label, so it
+              wasn't obvious it controlled the lead's status. Wrap it
+              in a labeled group + size the select to its longest
+              option ("Contacted" + chevron) so it doesn't stretch
+              awkwardly wide next to the buttons. */}
+          <label
+            className="lead-detail__status-group"
+            data-testid="status-select-group"
           >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+            <span className="lead-detail__status-label">Current status:</span>
+            <select
+              className="lead-detail__select"
+              data-testid="status-select"
+              value={lead.status}
+              onChange={(e) => void changeStatus(e.target.value)}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -507,16 +519,53 @@ export default function LeadDetailPage() {
         .lead-detail__btn--primary:hover {
           background: linear-gradient(135deg, #16266F 0%, #1D3095 100%);
         }
-        .lead-detail__select {
-          padding: 8px 12px;
-          border-radius: 8px;
+        /* lead-status-affordance-2026-06-18 — labeled group around the
+           status select. The label sits inline with the dropdown on
+           wider screens and stacks above it under 480px so the chip
+           still reads clearly on a phone. */
+        .lead-detail__status-group {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 4px 10px 4px 12px;
+          background: #F8FAFC;
           border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .lead-detail__status-label {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          white-space: nowrap;
+        }
+        .lead-detail__select {
+          /* Width sized to the longest option label ("Contacted")
+             plus the chevron — was previously stretching to ~8rem
+             which looked awkward next to the action buttons. */
+          padding: 6px 8px;
+          border-radius: 6px;
+          border: 1px solid transparent;
           background: white;
           color: #1F2937;
           font-size: 0.875rem;
           font-weight: 600;
           cursor: pointer;
-          min-width: 8rem;
+          width: auto;
+          min-width: 0;
+        }
+        .lead-detail__select:hover,
+        .lead-detail__select:focus {
+          border-color: #1D3095;
+          outline: none;
+        }
+        @media (max-width: 480px) {
+          .lead-detail__status-group {
+            width: 100%;
+            justify-content: space-between;
+          }
         }
 
         .lead-detail__grid {
