@@ -44,12 +44,17 @@ export interface QuickActionDef {
  *  then secondary navigations. */
 export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
   {
+    // Slice W6 — converted from a placeholder action to a real
+    // link. `/admin/me?tab=hours` is the canonical timesheet
+    // surface (same href the command palette uses) so the tile
+    // does the correct thing instead of rendering as a disabled
+    // "Coming soon" button.
     id: 'clock-in-out',
     label: 'Clock In/Out',
-    description: 'Open the clock-in modal or stop your active session.',
+    description: 'Open your timesheet to clock in or out.',
     iconName: 'Clock',
-    kind: 'action',
-    actionId: 'clock-in-out',
+    kind: 'link',
+    href: '/admin/me?tab=hours',
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'success',
   },
