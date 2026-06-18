@@ -206,10 +206,12 @@ export default function DiscussionThreadButton() {
           className="discussion-panel"
           ref={panelRef}
           onClick={(e) => e.stopPropagation()}
+          // Slice MX1 — same FAB-clearing offset as the messenger
+          // panel so neither modal covers the green pill.
           style={{
             position: 'fixed',
-            bottom: 0,
-            right: 0,
+            bottom: '5.5rem',
+            right: '1.5rem',
             zIndex: 9001,
             background: '#FFFFFF',
           }}>

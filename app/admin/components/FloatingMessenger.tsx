@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
+// Slice MX1 — "Open in /admin/messages →" header link.
+import Link from 'next/link';
 // employee-pond Slice E9b — cross-surface recipient continuity.
 import {
   readActiveRecipient,
@@ -409,10 +411,15 @@ export default function FloatingMessenger() {
         <div
           className="messenger-panel"
           onClick={(e) => e.stopPropagation()}
+          // Slice MX1 — defensive inline styles must match the
+          // updated CSS contract: the panel sits ABOVE the FAB pill
+          // (bottom: 5.5rem ≈ 88px clears the 56px FAB + a 32px
+          // breathing gap) and 1.5rem off the right edge so the
+          // shadow doesn't get clipped.
           style={{
             position: 'fixed',
-            bottom: 0,
-            right: 0,
+            bottom: '5.5rem',
+            right: '1.5rem',
             zIndex: 9001,
             background: '#FFFFFF',
           }}>
@@ -442,6 +449,21 @@ export default function FloatingMessenger() {
             ) : (
               <span className="messenger-panel__title">Messages</span>
             )}
+            {/* Slice MX1 — "Open in /admin/messages →" route to the
+                full-page messenger per the user's spec ("There also
+                needs to be a button that takes us to the main
+                messaging page"). The button closes the popup before
+                navigating so the dedicated page isn't fighting an
+                already-open modal. */}
+            <Link
+              href={view === 'chat' && activeConv ? `/admin/messages?conversation=${encodeURIComponent(activeConv.id)}` : '/admin/messages'}
+              className="messenger-panel__open-full"
+              data-testid="messenger-open-full"
+              onClick={() => { setIsOpen(false); }}
+              title="Open in the full messages page"
+            >
+              Open in messages →
+            </Link>
             <button className="messenger-panel__close" onClick={() => { setIsOpen(false); setView('list'); setActiveConv(null); }}>&#10005;</button>
           </div>
 

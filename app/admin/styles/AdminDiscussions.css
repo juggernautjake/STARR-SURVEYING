@@ -11,11 +11,48 @@
 .discussion-fab-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#FEF3C7; border-bottom:none; }
 .discussion-fab-wrap:hover .discussion-fab-tooltip { opacity:1; transform:translateY(0); }
 
-/* === DISCUSSION PANEL (slide-up from bottom-right) === */
-.discussion-panel { position:fixed; bottom:0; right:0; width:440px; max-width:100vw; height:80vh; background:#FFF; border-top-left-radius:16px; box-shadow:-4px -4px 24px rgba(0,0,0,.12); z-index:95; display:flex; flex-direction:column; animation:discussion-slide .25s ease-out; }
+/* === DISCUSSION PANEL ===
+ *
+ * Slice MX1 (messenger-overhaul-2026-06-17) — user feedback:
+ *   "The report a bug feature also is formatted/styled poorly …
+ *    none of the pop ups should cover the little green card."
+ *
+ * Same bottom-offset treatment as .messenger-panel so the FAB
+ * pill stays uncovered, plus a roomier header + a richer
+ * elevation. */
+.discussion-panel {
+  position: fixed;
+  bottom: 5.5rem;
+  right: 1.5rem;
+  width: 460px;
+  max-width: calc(100vw - 3rem);
+  height: min(620px, calc(100vh - 7rem));
+  background: #FFF;
+  border-radius: 16px;
+  box-shadow:
+    0 24px 48px -16px rgba(15, 23, 42, 0.35),
+    0 8px 24px rgba(15, 23, 42, 0.16);
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: discussion-slide .25s ease-out;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #0F172A;
+}
 @keyframes discussion-slide { from{transform:translateY(100%)} to{transform:translateY(0)} }
 
-.discussion-panel__header { padding:.75rem 1rem; border-bottom:1px solid #E5E7EB; display:flex; align-items:center; justify-content:space-between; }
+.discussion-panel__header {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 100%);
+  border-radius: 16px 16px 0 0;
+  flex-shrink: 0;
+}
 .discussion-panel__header-tabs { display:flex; gap:.25rem; }
 .discussion-panel__tab { padding:.4rem .75rem; font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#6B7280; background:none; border:1.5px solid transparent; border-radius:6px; cursor:pointer; transition:all .15s; }
 .discussion-panel__tab:hover { color:var(--color-brand-navy); background:#F5F7FF; }
