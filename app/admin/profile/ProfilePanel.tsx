@@ -104,6 +104,32 @@ export default function ProfilePanel() {
   }>({ kind: 'phone', value: '', label: '', is_primary: false });
   const [contactSaving, setContactSaving] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
+  // Slice EP4 — gallery state. Holds the rows loaded from
+  // /api/admin/profile/images + an in-flight upload draft.
+  const [images, setImages] = useState<Array<{
+    id: string; image_url: string; caption: string | null; sort_order: number;
+  }>>([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageCaption, setImageCaption] = useState('');
+
+  const fetchImages = useCallback(async () => {
+    if (!email) return;
+    setImagesLoading(true);
+    try {
+      const res = await fetch(`/api/admin/profile/images?email=${encodeURIComponent(email)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { images: typeof images };
+      setImages(data.images ?? []);
+    } catch {
+      /* swallow — UI just renders the empty state */
+    } finally {
+      setImagesLoading(false);
+    }
+  }, [email]);
+
+  useEffect(() => { void fetchImages(); }, [fetchImages]);
 
   const fetchContacts = useCallback(async () => {
     if (!email) return;
@@ -651,6 +677,127 @@ export default function ProfilePanel() {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* Slice EP4 — "About me" gallery. Grid of uploaded images
+            with a caption + delete button per row + an upload
+            input at the bottom. Storage lands in the public
+            user-gallery bucket via /api/admin/profile/images. */}
+        <div className="admin-card" data-testid="profile-gallery" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <strong>About-me gallery</strong>
+            {imagesLoading && (
+              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+            )}
+          </div>
+          {images.length === 0 ? (
+            <p style={{ color: '#6B7280', margin: 0 }}>No images yet — pick a file below to add one.</p>
+          ) : (
+            <ul
+              data-testid="profile-gallery-grid"
+              style={{
+                listStyle: 'none', margin: 0, padding: 0,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                gap: '0.6rem',
+              }}
+            >
+              {images.map((img) => (
+                <li
+                  key={img.id}
+                  data-testid={`profile-gallery-tile-${img.id}`}
+                  style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB' }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.image_url}
+                    alt={img.caption ?? 'Profile gallery image'}
+                    style={{ display: 'block', width: '100%', aspectRatio: '1 / 1', objectFit: 'cover' }}
+                  />
+                  {img.caption && (
+                    <div style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#374151' }}>
+                      {img.caption}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    data-testid={`profile-gallery-delete-${img.id}`}
+                    title="Delete image"
+                    onClick={async () => {
+                      if (!window.confirm('Delete this image?')) return;
+                      try {
+                        const res = await fetch(`/api/admin/profile/images?id=${encodeURIComponent(img.id)}`, { method: 'DELETE' });
+                        if (res.ok) void fetchImages();
+                      } catch { /* ignore */ }
+                    }}
+                    style={{
+                      position: 'absolute', top: '4px', right: '4px',
+                      background: 'rgba(15, 23, 42, 0.75)', color: '#FFF',
+                      border: 0, borderRadius: '6px',
+                      padding: '0.15rem 0.45rem', fontSize: '0.75rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px dashed #E5E7EB', paddingTop: '0.75rem' }}>
+            <strong style={{ fontSize: '0.85rem' }}>Add image</strong>
+            <input
+              type="text"
+              placeholder="Optional caption"
+              value={imageCaption}
+              data-testid="profile-gallery-caption"
+              onChange={(e) => setImageCaption(e.target.value)}
+            />
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              data-testid="profile-gallery-input"
+              disabled={imageUploading}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                setImageError(null);
+                setImageUploading(true);
+                try {
+                  const dataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => reject(reader.error ?? new Error('Read failed'));
+                    reader.readAsDataURL(file);
+                  });
+                  const res = await fetch('/api/admin/profile/images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dataUrl, caption: imageCaption || null }),
+                  });
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({})) as { error?: string };
+                    throw new Error(data.error ?? `HTTP ${res.status}`);
+                  }
+                  setImageCaption('');
+                  void fetchImages();
+                } catch (err) {
+                  setImageError(err instanceof Error ? err.message : 'Could not upload.');
+                } finally {
+                  setImageUploading(false);
+                }
+              }}
+            />
+            {imageError && (
+              <p role="alert" data-testid="profile-gallery-error" style={{ color: 'var(--color-error)', fontSize: '0.78rem', margin: 0 }}>
+                {imageError}
+              </p>
+            )}
+            {imageUploading && (
+              <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: 0 }}>Uploading…</p>
+            )}
+          </div>
         </div>
         </>
       )}
