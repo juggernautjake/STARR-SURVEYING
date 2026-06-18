@@ -59,6 +59,9 @@ interface ToolStore {
   setPerpLengthFeet: (feet: number | null) => void;
   clearPerp: () => void;
   setSimplifyTolerance: (v: number) => void;
+  // Slice W11 — DRAW_FREEHAND settings.
+  setFreehandSmooth: (v: boolean) => void;
+  setFreehandMinSpacingFt: (v: number) => void;
   resetToolState: () => void;
 }
 
@@ -128,6 +131,9 @@ const defaultToolState: ToolState = {
   perpAzimuthDeg: 0,
   perpLengthFeet: null,
   simplifyTolerance: 0.5,
+  // Slice W11 — DRAW_FREEHAND defaults.
+  freehandSmooth: false,
+  freehandMinSpacingFt: 0.5,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -184,6 +190,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         perpAzimuthDeg: s.state.perpAzimuthDeg,
         perpLengthFeet: s.state.perpLengthFeet,
         simplifyTolerance: s.state.simplifyTolerance,
+        // Slice W11 — preserve DRAW_FREEHAND settings across tool switches.
+        freehandSmooth: s.state.freehandSmooth,
+        freehandMinSpacingFt: s.state.freehandMinSpacingFt,
       },
     })),
 
@@ -447,6 +456,17 @@ export const useToolStore = create<ToolStore>((set) => ({
       },
     })),
 
+  // Slice W11 — DRAW_FREEHAND settings.
+  setFreehandSmooth: (v) =>
+    set((s) => ({ state: { ...s.state, freehandSmooth: !!v } })),
+  setFreehandMinSpacingFt: (v) =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        freehandMinSpacingFt: Number.isFinite(v) && v > 0 ? v : 0.5,
+      },
+    })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -498,6 +518,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         perpAzimuthDeg: s.state.perpAzimuthDeg,
         perpLengthFeet: s.state.perpLengthFeet,
         simplifyTolerance: s.state.simplifyTolerance,
+        // Slice W11 — DRAW_FREEHAND settings persist through resetToolState.
+        freehandSmooth: s.state.freehandSmooth,
+        freehandMinSpacingFt: s.state.freehandMinSpacingFt,
       },
     })),
 }));
