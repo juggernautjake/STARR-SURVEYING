@@ -74,6 +74,13 @@ export default function ReplyDialog({
   // LR4 — templates picker state.
   const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  // LR5 — AI draft state. `aiDisabled` flips when the endpoint
+  // responds with 503 (no ANTHROPIC_API_KEY) so the button hides
+  // gracefully in dev / unconfigured envs.
+  const [aiDrafting, setAiDrafting] = useState(false);
+  const [aiDisabled, setAiDisabled] = useState(false);
+  const [showHintInput, setShowHintInput] = useState(false);
+  const [surveyorHint, setSurveyorHint] = useState('');
 
   // LR4 — fetch the catalog once on mount. Failure is silent; the
   // picker just stays empty + the surveyor composes from scratch.
@@ -97,6 +104,39 @@ export default function ReplyDialog({
     setSubject(nextSubject);
     if (editorRef.current) editorRef.current.innerHTML = nextBody;
     setShowTemplates(false);
+  }
+
+  // LR5 — fire the AI draft. The endpoint takes an optional
+  // surveyorHint so the surveyor can steer the draft ("they asked
+  // about pricing", "scheduling for Tuesday", etc.).
+  async function handleAiDraft() {
+    setAiDrafting(true);
+    try {
+      const res = await fetch(`/api/admin/leads/${encodeURIComponent(leadId)}/ai-draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ surveyorHint: surveyorHint.trim() || undefined }),
+      });
+      if (res.status === 503) {
+        setAiDisabled(true);
+        addToast('AI drafting is not configured in this environment', 'info');
+        return;
+      }
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        addToast(`AI draft failed — ${data.error ?? `HTTP ${res.status}`}`, 'error');
+        return;
+      }
+      const data = (await res.json()) as { html: string };
+      if (editorRef.current) editorRef.current.innerHTML = data.html;
+      setShowHintInput(false);
+      setSurveyorHint('');
+      addToast('Draft ready — review before sending', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'network error';
+      addToast(`AI draft failed — ${msg}`, 'error');
+    }
+    setAiDrafting(false);
   }
 
   // Seed the editor with a friendly greeting so the surveyor isn't
@@ -243,38 +283,99 @@ export default function ReplyDialog({
           </label>
         </div>
 
-        {/* LR4 — templates picker sits ABOVE the formatting toolbar so
-            it reads as a separate action (pick a starting point) from
-            the in-editor formatting controls. */}
-        {templates.length > 0 && (
+        {/* LR4 + LR5 — templates picker AND AI draft button share a row
+            above the formatting toolbar. Both fill the editor with a
+            starting body the surveyor edits + sends. */}
+        {(templates.length > 0 || !aiDisabled) && (
           <div style={templatesRowStyle} data-testid="reply-templates-row">
-            <button
-              type="button"
-              onClick={() => setShowTemplates((v) => !v)}
-              style={templatesToggleStyle}
-              aria-expanded={showTemplates}
-              data-testid="reply-templates-toggle"
-            >
-              📋 Templates ▾
-            </button>
-            {showTemplates && (
-              <ul style={templatesListStyle} data-testid="reply-templates-list">
-                {templates.map((t) => (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      style={templateBtnStyle}
-                      onClick={() => applyTemplate(t)}
-                      data-testid="reply-template-pick"
-                    >
-                      <span style={{ fontWeight: 600 }}>{t.name}</span>
-                      <span style={{ color: '#6B7280', fontSize: '0.72rem' }}>
-                        {t.category}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            {templates.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplates((v) => !v)}
+                  style={templatesToggleStyle}
+                  aria-expanded={showTemplates}
+                  data-testid="reply-templates-toggle"
+                >
+                  📋 Templates ▾
+                </button>
+                {showTemplates && (
+                  <ul style={templatesListStyle} data-testid="reply-templates-list">
+                    {templates.map((t) => (
+                      <li key={t.id}>
+                        <button
+                          type="button"
+                          style={templateBtnStyle}
+                          onClick={() => applyTemplate(t)}
+                          data-testid="reply-template-pick"
+                        >
+                          <span style={{ fontWeight: 600 }}>{t.name}</span>
+                          <span style={{ color: '#6B7280', fontSize: '0.72rem' }}>
+                            {t.category}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+
+            {/* LR5 — AI Draft button. Hidden when the endpoint
+                reported ANTHROPIC_API_KEY isn't configured. */}
+            {!aiDisabled && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowHintInput((v) => !v)}
+                  style={aiDraftBtnStyle}
+                  disabled={aiDrafting}
+                  aria-expanded={showHintInput}
+                  data-testid="reply-ai-toggle"
+                  title="Draft a reply with Claude"
+                >
+                  🤖 AI Draft
+                </button>
+                {showHintInput && (
+                  <div style={aiHintPanelStyle} data-testid="reply-ai-hint-panel">
+                    <label style={{ fontSize: '0.75rem', color: '#475569', display: 'block', marginBottom: 4 }}>
+                      Optional instruction for the draft
+                    </label>
+                    <input
+                      type="text"
+                      placeholder='e.g. "they asked about scheduling for Tuesday"'
+                      value={surveyorHint}
+                      onChange={(e) => setSurveyorHint(e.target.value)}
+                      style={aiHintInputStyle}
+                      data-testid="reply-ai-hint"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleAiDraft();
+                        }
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowHintInput(false)}
+                        style={aiHintCancelStyle}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleAiDraft()}
+                        style={aiHintGoStyle}
+                        disabled={aiDrafting}
+                        data-testid="reply-ai-go"
+                      >
+                        {aiDrafting ? 'Drafting…' : 'Draft reply'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -674,6 +775,59 @@ const templateBtnStyle: React.CSSProperties = {
   fontSize: '0.85rem',
   cursor: 'pointer',
   textAlign: 'left' as const,
+};
+const aiDraftBtnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 6,
+  border: '1px solid color-mix(in srgb, #6366F1 35%, transparent)',
+  background: 'color-mix(in srgb, #6366F1 10%, white)',
+  fontSize: '0.82rem',
+  fontWeight: 600,
+  color: '#4338CA',
+  cursor: 'pointer',
+};
+const aiHintPanelStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '110%',
+  left: '1rem',
+  zIndex: 9101,
+  background: 'white',
+  border: '1px solid #E5E7EB',
+  borderRadius: 8,
+  boxShadow: '0 8px 24px rgba(15, 23, 42, 0.18)',
+  padding: 10,
+  minWidth: 320,
+};
+const aiHintInputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 10px',
+  borderRadius: 6,
+  border: '1px solid #E5E7EB',
+  fontSize: '0.85rem',
+  fontFamily: 'inherit',
+};
+const aiHintCancelStyle: React.CSSProperties = {
+  padding: '5px 12px',
+  borderRadius: 6,
+  border: '1px solid #E5E7EB',
+  background: 'white',
+  color: '#1F2937',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+const aiHintGoStyle: React.CSSProperties = {
+  padding: '5px 14px',
+  borderRadius: 6,
+  border: 0,
+  background: 'linear-gradient(135deg, #4338CA 0%, #6366F1 100%)',
+  color: 'white',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  cursor: 'pointer',
 };
 
 const cancelBtnStyle: React.CSSProperties = {
