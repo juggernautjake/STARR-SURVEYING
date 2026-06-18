@@ -186,6 +186,13 @@ export default function PayoutRunsPage(): React.ReactElement {
         {!wizardOpen && (
           <div className="payouts-page__cta-group">
             <Link
+              href="/admin/payouts/tax-report"
+              className="payouts-page__ad-hoc"
+              data-testid="payouts-tax-report-link"
+            >
+              Tax report
+            </Link>
+            <Link
               href="/admin/payouts/ad-hoc"
               className="payouts-page__ad-hoc"
               data-testid="payouts-ad-hoc-link"
