@@ -25,6 +25,8 @@ import {
   describeInvoiceStatus,
   formatDollars,
 } from '@/lib/payments/live';
+import PayHeader from '../PayHeader';
+import PaySkeleton from '../PaySkeleton';
 import '../../styles/Pay.css';
 
 interface LineItemPublic {
@@ -104,12 +106,9 @@ export default function PayInvoicePage(): React.ReactElement {
 
   if (loading) {
     return (
-      <main className="pay-shell">
-        <section className="pay-hero">
-          <div className="pay-hero__card">
-            <p data-testid="pay-detail-loading">Loading your invoice…</p>
-          </div>
-        </section>
+      <main className="pay-shell" data-testid="pay-detail-loading">
+        <PayHeader />
+        <PaySkeleton />
       </main>
     );
   }
@@ -117,10 +116,11 @@ export default function PayInvoicePage(): React.ReactElement {
   if (error || !invoice) {
     return (
       <main className="pay-shell">
+        <PayHeader />
         <section className="pay-hero">
           <div className="pay-hero__card">
             <h1 className="pay-hero__title">Invoice not found</h1>
-            <p className="pay-hero__subtitle" data-testid="pay-detail-error">
+            <p className="pay-hero__subtitle" data-testid="pay-detail-error" role="alert">
               {error ?? 'We could not find that invoice.'}
             </p>
             <Link href="/pay" className="pay-lookup__submit" style={{ display: 'inline-block', marginTop: '1rem' }}>
@@ -215,6 +215,7 @@ export default function PayInvoicePage(): React.ReactElement {
 
   return (
     <main className="pay-shell" data-testid="pay-detail">
+      <PayHeader />
       <section className="pay-hero pay-hero--compact">
         <div className="pay-hero__card">
           <div className="pay-hero__eyebrow">Invoice {invoice.invoice_number}</div>
@@ -284,8 +285,9 @@ export default function PayInvoicePage(): React.ReactElement {
                       className="pay-methods__card"
                       data-testid={`pay-method-${method.id}`}
                       onClick={() => onMethodClick(method)}
+                      aria-label={`Pay ${formatDollars(invoice.balance_cents)} with ${method.label}`}
                     >
-                      <span className="pay-methods__glyph" aria-hidden>{method.glyph}</span>
+                      <span className="pay-methods__glyph" aria-hidden="true">{method.glyph}</span>
                       <span className="pay-methods__label">{method.label}</span>
                       <span className="pay-methods__blurb">{method.blurb}</span>
                       {deepLink && (
