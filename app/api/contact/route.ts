@@ -1195,6 +1195,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         referenceNumber,
         source: isCalculator ? 'Pricing Calculator' : 'Website',
         isRush,
+        // lead-attachments-2026-06-18 — persist the file summaries so
+        // the admin lead-detail page can list what the customer sent.
+        // Byte storage in Supabase is a follow-up; for now we keep the
+        // names + sizes alongside the Resend email path.
+        attachments: data.attachments.map((a) => ({ name: a.name, size: a.size })),
       };
     }
 

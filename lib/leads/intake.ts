@@ -66,6 +66,12 @@ export interface LeadIntakeInput {
   /** When true, the calculator's rush flag — surfaces as escalation in
    *  the notification (Q2 reads this). Pure-data side, no behavior. */
   isRush?: boolean;
+  /** lead-attachments-2026-06-18 — summary of any files the customer
+   *  attached to the public form. Stored as JSONB on the lead row so
+   *  the admin detail page can list them. The contact route still
+   *  emails the bytes via Resend; persisting bytes to Supabase storage
+   *  is a follow-up slice. */
+  attachments?: ReadonlyArray<{ name: string; size: number; storage_path?: string }>;
 }
 
 /** Output shape — every column in the `leads` table the helper writes.
@@ -85,6 +91,10 @@ export interface LeadRow {
   survey_type: string | null;
   estimated_acreage: number | null;
   created_by: 'website-form';
+  /** lead-attachments-2026-06-18 — empty array when the customer
+   *  attached no files. Always non-null so the JSONB column's NOT
+   *  NULL constraint holds. */
+  attachments: ReadonlyArray<{ name: string; size: number; storage_path?: string }>;
 }
 
 /** Pure mapper — takes the route's normalized payload, produces a
@@ -122,6 +132,14 @@ export function buildLeadRowFromForm(input: LeadIntakeInput): LeadRow {
         ? input.estimatedAcreage
         : null,
     created_by: 'website-form',
+    // lead-attachments-2026-06-18 — copy through the file summaries
+    // the route built from the multipart payload. Always an array
+    // (empty when no files) so the JSONB column stays NOT NULL.
+    attachments: (input.attachments ?? []).map((a) => ({
+      name: a.name,
+      size: a.size,
+      ...(a.storage_path ? { storage_path: a.storage_path } : {}),
+    })),
   };
 }
 
