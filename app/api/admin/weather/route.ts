@@ -58,10 +58,16 @@ export const GET = withErrorHandler(async (req: Request) => {
   // weather_code so the widget's big-size mode can render a
   // forecast strip. The snapshot mapper picks up the daily
   // arrays via `buildDailyForecast`.
+  //
+  // weather-extras-2026-06-18 — also surface feels-like
+  // (`apparent_temperature`), humidity (`relative_humidity_2m`)
+  // for the current snapshot, and per-day rain chance
+  // (`precipitation_probability_max`) for both the headline
+  // and each row in the strip.
   const forecast = await fetchJson(
     `${FORECAST_URL}?latitude=${point.latitude}&longitude=${point.longitude}` +
-      '&current=temperature_2m,weather_code' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min' +
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
       '&temperature_unit=fahrenheit&forecast_days=5&timezone=auto',
   );
 

@@ -94,28 +94,78 @@ function FieldDataPendingWidget({ size, content }: WidgetProps<FieldDataPendingC
   // the captured-age.
   const showWho = bucket !== 'small'; // medium+ (tiny returned above)
   const showAge = bucket === 'large' || bucket === 'xlarge';
+  // Slice S3 — type-breakdown chip strip at medium+ (e.g. "8 points
+  // · 3 photos · 2 notes"); xlarge also surfaces an "Open field-data
+  // queue" CTA pinned to the bottom of the tile.
+  const showTypeChips = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showQueueCta = bucket === 'xlarge';
+  const breakdown = countByType(captures);
   const visible = captures.slice(0, capForBucket(bucket));
 
   return (
-    <ul role="list" style={listStyle}>
-      {visible.map((c) => (
-        <li key={c.id}>
-          {/* Build/Wire — deep-link to the field-data detail page. */}
-          <Link href={`/admin/field-data/${c.id}`} style={rowStyle} aria-label={`Open field data: ${c.job_name ?? c.job_id}`}>
-            <span style={typeIconStyle} aria-hidden>{iconForType(c.data_type)}</span>
-            <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-              <span style={titleStyle}>{c.job_name ?? c.job_number ?? c.job_id}</span>
-              <span style={mutedStyle}>
-                {labelForType(c.data_type)}
-                {showWho ? ` · ${c.collected_by ?? 'crew'}` : ''}
-                {showAge && c.collected_at ? ` · ${formatAge(c.collected_at)}` : ''}
+    <div
+      data-testid={`field-data-pending-${bucket}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, height: '100%' }}
+    >
+      {showTypeChips && breakdown.length > 0 && (
+        <ul
+          data-testid="field-data-pending-type-chips"
+          aria-label="Captures by type"
+          style={chipStripStyle}
+        >
+          {breakdown.map(({ type, count }) => (
+            <li key={type} style={chipStyle}>
+              <span aria-hidden>{iconForType(type)}</span>
+              <span><strong>{count}</strong>&nbsp;{labelForType(type).toLowerCase()}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <ul role="list" style={listStyle}>
+        {visible.map((c) => (
+          <li key={c.id}>
+            {/* Build/Wire — deep-link to the field-data detail page. */}
+            <Link href={`/admin/field-data/${c.id}`} style={rowStyle} aria-label={`Open field data: ${c.job_name ?? c.job_id}`}>
+              <span style={typeIconStyle} aria-hidden>{iconForType(c.data_type)}</span>
+              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <span style={titleStyle}>{c.job_name ?? c.job_number ?? c.job_id}</span>
+                <span style={mutedStyle}>
+                  {labelForType(c.data_type)}
+                  {showWho ? ` · ${c.collected_by ?? 'crew'}` : ''}
+                  {showAge && c.collected_at ? ` · ${formatAge(c.collected_at)}` : ''}
+                </span>
               </span>
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      {showQueueCta && (
+        <Link
+          href="/admin/field-data"
+          data-testid="field-data-pending-cta"
+          style={ctaStyle}
+        >
+          Open field-data queue →
+        </Link>
+      )}
+    </div>
   );
+}
+
+/** Group captures by data_type, sorted descending by count. Pure +
+ *  exported for the spec lock + the type-chip strip render. */
+export function countByType(captures: FieldCapture[]): { type: string; count: number }[] {
+  const map = new Map<string, number>();
+  for (const c of captures) {
+    const raw = (c.data_type ?? '').toLowerCase();
+    const t = raw.length === 0 ? 'other' : raw;
+    map.set(t, (map.get(t) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 function FieldDataPendingSettings({ value, onChange }: WidgetSettingsFormProps<FieldDataPendingContent>) {
@@ -223,3 +273,28 @@ const typeIconStyle: React.CSSProperties = { fontSize: '1.1rem' };
 const titleStyle: React.CSSProperties = { fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, color: 'var(--theme-fg-primary)' };
 const mutedStyle: React.CSSProperties = { fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, marginBottom: 4 };
+const chipStripStyle: React.CSSProperties = {
+  listStyle: 'none', margin: 0, padding: 0,
+  display: 'flex', flexWrap: 'wrap', gap: 6,
+};
+const chipStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  padding: '2px 8px',
+  borderRadius: 999,
+  background: 'var(--theme-bg-elevated)',
+  fontSize: '0.72rem',
+  color: 'var(--theme-fg-primary)',
+  whiteSpace: 'nowrap',
+};
+const ctaStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  padding: '4px 10px',
+  borderRadius: 6,
+  background: 'var(--theme-accent, #3b82f6)',
+  color: 'white',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  textDecoration: 'none',
+  alignSelf: 'flex-start',
+  marginTop: 'auto',
+};

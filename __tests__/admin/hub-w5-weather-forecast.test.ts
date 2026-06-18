@@ -23,7 +23,13 @@ describe('buildDailyForecast (pure)', () => {
       },
     });
     expect(out).toHaveLength(3);
-    expect(out[0]).toEqual({ date: '2026-06-18', high_f: 95, low_f: 72, description: 'Clear sky', icon: '☀️' });
+    expect(out[0]).toEqual({
+      date: '2026-06-18', high_f: 95, low_f: 72,
+      description: 'Clear sky', icon: '☀️',
+      // weather-extras-2026-06-18 — rain chance null when the
+      // upstream omits precipitation_probability_max.
+      rain_chance_pct: null,
+    });
     expect(out[2].date).toBe('2026-06-20');
   });
 
@@ -72,19 +78,26 @@ describe('toWeatherSnapshot — carries the daily strip', () => {
     }, 'Central Texas');
     expect(snap).not.toBeNull();
     expect(snap!.daily).toHaveLength(2);
-    expect(snap!.daily[1]).toEqual({ date: '2026-06-19', high_f: 90, low_f: 68, description: 'Overcast', icon: '☁️' });
+    expect(snap!.daily[1]).toEqual({
+      date: '2026-06-19', high_f: 90, low_f: 68,
+      description: 'Overcast', icon: '☁️',
+      rain_chance_pct: null,
+    });
   });
 });
 
-describe('weather widget — large/xlarge forecast strip (W5)', () => {
+describe('weather widget — forecast strip threshold (W5 + weather-extras-2026-06-18)', () => {
   const SRC = read('lib/hub/widgets/weather/index.tsx');
 
   it('declares the WeatherDay shape on the widget side', () => {
-    expect(SRC).toMatch(/interface WeatherDay \{ date: string; high_f: number; low_f: number; description: string; icon: string; \}/);
+    // weather-extras-2026-06-18 — multi-line shape now carries
+    // the optional rain_chance_pct field. Match across lines.
+    expect(SRC).toMatch(/interface WeatherDay \{[\s\S]*?rain_chance_pct\?: number \| null;[\s\S]*?\}/);
   });
 
-  it('renders the strip only when the bucket is large or xlarge AND the daily array has more than 1 entry', () => {
-    expect(SRC).toMatch(/const showForecast = \(bucket === 'large' \|\| bucket === 'xlarge'\) && \(weather\.daily\?\.length \?\? 0\) > 1/);
+  it('renders the strip at medium / large / xlarge once we have more than one day', () => {
+    expect(SRC).toMatch(/const showForecast =\s*\n\s*\(bucket === 'medium' \|\| bucket === 'large' \|\| bucket === 'xlarge'\)/);
+    expect(SRC).toMatch(/&& \(weather\.daily\?\.length \?\? 0\) > 1/);
   });
 
   it("slices today's row out of the strip so it shows the next 4 days", () => {
@@ -105,5 +118,13 @@ describe('weather API — requests 5 days + daily weather_code (W5)', () => {
 
   it("the daily block now includes weather_code so the strip can pick an icon per day", () => {
     expect(SRC).toMatch(/daily=weather_code,temperature_2m_max,temperature_2m_min/);
+  });
+
+  it("weather-extras-2026-06-18 — daily block also requests precipitation_probability_max", () => {
+    expect(SRC).toMatch(/daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max/);
+  });
+
+  it('weather-extras-2026-06-18 — current snapshot also fetches feels-like + humidity', () => {
+    expect(SRC).toMatch(/current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code/);
   });
 });

@@ -20,6 +20,15 @@ export interface WeatherSnapshot {
    *  so the strip reads as "today + next N days." Empty when
    *  the upstream omits the daily block. */
   daily: WeatherDay[];
+  /** weather-extras-2026-06-18 — "feels-like" / apparent
+   *  temperature in °F. null when Open-Meteo omits it. */
+  feels_like_f: number | null;
+  /** Relative humidity 0–100 (%). null when omitted. */
+  humidity_pct: number | null;
+  /** Today's precipitation probability 0–100 (%). Read from
+   *  the daily `precipitation_probability_max` array (first
+   *  entry); falls back to null when omitted. */
+  rain_chance_pct: number | null;
 }
 
 export interface WeatherDay {
@@ -29,18 +38,30 @@ export interface WeatherDay {
   low_f: number;
   description: string;
   icon: string;
+  /** weather-extras-2026-06-18 — per-day precipitation
+   *  probability 0–100 (%). null when the daily block omits
+   *  the precipitation_probability_max array. */
+  rain_chance_pct: number | null;
 }
 
 /** Shape of the bits of the Open-Meteo `/v1/forecast` response we read.
  *  Everything is optional so a partial/garbled payload returns null
  *  rather than throwing. */
 export interface OpenMeteoForecast {
-  current?: { temperature_2m?: number; weather_code?: number };
+  current?: {
+    temperature_2m?: number;
+    weather_code?: number;
+    // weather-extras-2026-06-18 — apparent temperature + humidity.
+    apparent_temperature?: number;
+    relative_humidity_2m?: number;
+  };
   daily?: {
     time?: string[];
     weather_code?: number[];
     temperature_2m_max?: number[];
     temperature_2m_min?: number[];
+    // weather-extras-2026-06-18 — daily max precipitation probability.
+    precipitation_probability_max?: number[];
   };
 }
 
@@ -63,6 +84,13 @@ export function toWeatherSnapshot(
   const high = forecast.daily?.temperature_2m_max?.[0];
   const low = forecast.daily?.temperature_2m_min?.[0];
 
+  // weather-extras-2026-06-18 — surface feels-like / humidity /
+  // today's rain chance. Each is independently nullable so a
+  // partial Open-Meteo response stays renderable.
+  const feels = forecast.current?.apparent_temperature;
+  const hum = forecast.current?.relative_humidity_2m;
+  const rain0 = forecast.daily?.precipitation_probability_max?.[0];
+
   return {
     temperature_f: temp,
     description: look.description,
@@ -71,7 +99,15 @@ export function toWeatherSnapshot(
     low_f: typeof low === 'number' ? low : temp,
     location_label: locationLabel,
     daily: buildDailyForecast(forecast),
+    feels_like_f: typeof feels === 'number' && Number.isFinite(feels) ? feels : null,
+    humidity_pct: typeof hum === 'number' && Number.isFinite(hum) ? clampPct(hum) : null,
+    rain_chance_pct: typeof rain0 === 'number' && Number.isFinite(rain0) ? clampPct(rain0) : null,
   };
+}
+
+/** Clamp 0–100 + round to int. Pure helper for percentage fields. */
+function clampPct(v: number): number {
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 
 /** Slice W5 — fold the four daily arrays (time / weather_code /
@@ -85,6 +121,7 @@ export function buildDailyForecast(forecast: OpenMeteoForecast): WeatherDay[] {
   const codes = forecast.daily?.weather_code ?? [];
   const highs = forecast.daily?.temperature_2m_max ?? [];
   const lows = forecast.daily?.temperature_2m_min ?? [];
+  const rains = forecast.daily?.precipitation_probability_max ?? [];
   const out: WeatherDay[] = [];
   const n = Math.min(5, times.length, highs.length, lows.length);
   for (let i = 0; i < n; i++) {
@@ -93,7 +130,15 @@ export function buildDailyForecast(forecast: OpenMeteoForecast): WeatherDay[] {
     const lo = lows[i];
     if (!date || typeof hi !== 'number' || typeof lo !== 'number') continue;
     const look = describeWeather(typeof codes[i] === 'number' ? codes[i] : -1);
-    out.push({ date, high_f: hi, low_f: lo, description: look.description, icon: look.icon });
+    const r = rains[i];
+    out.push({
+      date,
+      high_f: hi,
+      low_f: lo,
+      description: look.description,
+      icon: look.icon,
+      rain_chance_pct: typeof r === 'number' && Number.isFinite(r) ? Math.max(0, Math.min(100, Math.round(r))) : null,
+    });
   }
   return out;
 }

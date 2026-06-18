@@ -121,7 +121,7 @@ function QuizHistoryWidget({ size, content }: WidgetProps<QuizHistoryContent>) {
 
   if (bucket === 'tiny') {
     return (
-      <div style={tinyStatWrapStyle()}>
+      <div style={tinyStatWrapStyle()} data-testid="quiz-history-tiny">
         <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{attempts.length}</span>
         <span style={tinyStatLabelStyle()}>{attempts.length === 1 ? 'attempt' : 'attempts'}</span>
       </div>
@@ -131,23 +131,126 @@ function QuizHistoryWidget({ size, content }: WidgetProps<QuizHistoryContent>) {
   const sizeCap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
   const cap = explicitCap ?? sizeCap;
   const filtered = onlyFailed ? filterFailed(attempts) : attempts;
+  // Slice S5 — at medium+ surface an aggregate average + pass/fail
+  // chip strip computed from ALL attempts (not the bucket cap).
+  // At large+ render a small score trend sparkline above the list.
+  const showStats = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showSparkline = bucket === 'large' || bucket === 'xlarge';
+  const stats = summarizeAttempts(attempts);
   return (
-    <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
-      {filtered.slice(0, cap).map((a) => {
-        const pct = attemptPercent(a);
-        const color = pct >= 80 ? 'var(--theme-success)' : pct >= 60 ? 'var(--theme-warning)' : 'var(--theme-danger)';
-        return (
-          <li key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
-            <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{a.quiz_name}</span>
-            {showScore && (
-              <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color, fontWeight: 600 }}>{pct}%</span>
-            )}
+    <div
+      data-testid={`quiz-history-${bucket}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, height: '100%' }}
+    >
+      {showStats && (
+        <ul
+          data-testid="quiz-history-stats-chips"
+          aria-label="Quiz stats"
+          style={chipStripStyle}
+        >
+          <li style={{ ...chipStyle, color: tintForPct(stats.avgPct) }}>
+            <strong>{stats.avgPct}%</strong>&nbsp;avg
           </li>
-        );
-      })}
-    </ul>
+          <li style={{ ...chipStyle, color: 'var(--theme-success)' }}>
+            <strong>{stats.passed}</strong>&nbsp;passed
+          </li>
+          <li style={{ ...chipStyle, color: 'var(--theme-danger)' }}>
+            <strong>{stats.failed}</strong>&nbsp;failed
+          </li>
+        </ul>
+      )}
+      {showSparkline && stats.sparkline.length >= 2 && (
+        <ScoreSparkline points={stats.sparkline} />
+      )}
+
+      <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
+        {filtered.slice(0, cap).map((a) => {
+          const pct = attemptPercent(a);
+          const color = tintForPct(pct);
+          return (
+            <li key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
+              <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{a.quiz_name}</span>
+              {showScore && (
+                <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color, fontWeight: 600 }}>{pct}%</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
+
+function ScoreSparkline({ points }: { points: number[] }) {
+  // Reverse so the oldest attempt is on the left, newest on the right.
+  const series = [...points].reverse();
+  const w = 100; // viewBox units
+  const h = 28;
+  const max = 100;
+  const stepX = series.length > 1 ? w / (series.length - 1) : 0;
+  const path = series
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i * stepX).toFixed(1)} ${(h - (p / max) * h).toFixed(1)}`)
+    .join(' ');
+  return (
+    <svg
+      data-testid="quiz-history-sparkline"
+      aria-label="Score trend"
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      style={{ width: '100%', height: 28 }}
+    >
+      <line x1="0" y1={h - (FAILED_PCT_THRESHOLD / max) * h} x2={w} y2={h - (FAILED_PCT_THRESHOLD / max) * h}
+            stroke="var(--theme-border)" strokeDasharray="2,2" strokeWidth="0.5" />
+      <path d={path} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+/** Pure helper — aggregate stats over an attempt list. The sparkline
+ *  is the score series from oldest → newest. Pure + exported. */
+export function summarizeAttempts(
+  attempts: QuizAttempt[],
+): { avgPct: number; passed: number; failed: number; sparkline: number[] } {
+  if (attempts.length === 0) return { avgPct: 0, passed: 0, failed: 0, sparkline: [] };
+  let sum = 0;
+  let passed = 0;
+  let failed = 0;
+  const series: number[] = [];
+  for (const a of attempts) {
+    const pct = attemptPercent(a);
+    sum += pct;
+    if (pct >= FAILED_PCT_THRESHOLD) passed += 1; else failed += 1;
+    series.push(pct);
+  }
+  return {
+    avgPct: Math.round(sum / attempts.length),
+    passed,
+    failed,
+    // Cap at 12 points so the sparkline stays legible at the widget's
+    // available width.
+    sparkline: series.slice(0, 12),
+  };
+}
+
+/** Tint for a quiz score percentage. Pure + exported. */
+export function tintForPct(pct: number): string {
+  if (pct >= 80) return 'var(--theme-success)';
+  if (pct >= FAILED_PCT_THRESHOLD) return 'var(--theme-warning)';
+  return 'var(--theme-danger)';
+}
+
+const chipStripStyle: React.CSSProperties = {
+  listStyle: 'none', margin: 0, padding: 0,
+  display: 'flex', flexWrap: 'wrap', gap: 6,
+};
+const chipStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center',
+  padding: '2px 8px',
+  borderRadius: 999,
+  background: 'var(--theme-bg-elevated)',
+  fontSize: '0.72rem',
+  whiteSpace: 'nowrap',
+};
 
 defineWidget<QuizHistoryContent>({
   id: 'quiz-history',

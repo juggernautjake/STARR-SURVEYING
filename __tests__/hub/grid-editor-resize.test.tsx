@@ -186,7 +186,12 @@ describe('Slice G4 — placed widget renders from the live push preview', () => 
     expect(SRC).toMatch(/gridRow:\s*`\$\{liveY \+ 1\} \/ span \$\{liveH\}`/);
   });
 
-  it('the size badge underneath the label also shows live dimensions', () => {
-    expect(SRC).toMatch(/<span style=\{placedSizeStyle\}>\{liveW\}×\{liveH\}<\/span>/);
+  it('the size badge underneath the label shows live dimensions while a gesture is active', () => {
+    // grid-editor-polish-2026-06-18 — the badge is now gated on
+    // `isResizing || isMoving` so the widget label takes priority
+    // at rest. Still uses liveW × liveH so during the gesture the
+    // surveyor sees the push-resolved size, not the committed one.
+    expect(SRC).toMatch(/\{\(isResizing \|\| isMoving\) && \(/);
+    expect(SRC).toMatch(/\{liveW\}×\{liveH\}/);
   });
 });

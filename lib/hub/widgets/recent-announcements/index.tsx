@@ -121,24 +121,74 @@ function RecentAnnouncementsWidget({ size, content }: WidgetProps<RecentAnnounce
     );
   }
 
+  // Slice S4 — per-bucket density:
+  //   small  — title only
+  //   medium — + relative date
+  //   large  — + body preview (2-line clamp)
+  //   xlarge — same + "Open announcements →" CTA pinned bottom
   const visible = items.slice(0, capForBucket(bucket));
+  const showDate = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showPreview = bucket === 'large' || bucket === 'xlarge';
+  const showOpenCta = bucket === 'xlarge';
   return (
-    <ul role="list" style={listStyle}>
-      {visible.map((a) => (
-        <li key={a.id} style={rowStyle}>
-          {a.unread && (
-            <span aria-label="Unread" style={{ width: 8, height: 8, borderRadius: 8, background: 'var(--theme-accent)' }} />
-          )}
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-            <span style={titleStyle}>{a.title}</span>
-            {a.body && (
-              <span style={previewStyle}>{a.body}</span>
+    <div
+      data-testid={`recent-announcements-${bucket}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, height: '100%' }}
+    >
+      <ul role="list" style={listStyle}>
+        {visible.map((a) => (
+          <li key={a.id} style={rowStyle}>
+            {a.unread && (
+              <span aria-label="Unread" style={{ width: 8, height: 8, borderRadius: 8, background: 'var(--theme-accent)' }} />
             )}
-          </span>
-        </li>
-      ))}
-    </ul>
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <span style={titleStyle}>{a.title}</span>
+                {showDate && a.created_at && (
+                  <span
+                    style={dateStyle}
+                    data-testid="recent-announcements-row-date"
+                    title={a.created_at}
+                  >
+                    {formatPublishedAge(a.created_at)}
+                  </span>
+                )}
+              </span>
+              {showPreview && a.body && (
+                <span style={previewStyle} data-testid="recent-announcements-row-preview">{a.body}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {showOpenCta && (
+        <a
+          href="/admin/announcements"
+          data-testid="recent-announcements-cta"
+          style={ctaStyle}
+        >
+          Open announcements →
+        </a>
+      )}
+    </div>
   );
+}
+
+/** Short relative age for the row date column.
+ *  "5m" / "3h" / "2d" / "Jun 18" past 7 days. Pure + exported. */
+export function formatPublishedAge(iso: string, nowMs: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const ms = nowMs - t;
+  if (ms < 60_000) return 'just now';
+  const min = Math.floor(ms / 60_000);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d`;
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function RecentAnnouncementsSettings({ value, onChange }: WidgetSettingsFormProps<RecentAnnouncementsContent>) {
@@ -224,4 +274,22 @@ const previewStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600, marginBottom: 4,
+};
+
+const dateStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.7rem)', color: 'var(--theme-fg-secondary)',
+  whiteSpace: 'nowrap', flexShrink: 0,
+};
+
+const ctaStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  padding: '4px 10px',
+  borderRadius: 6,
+  background: 'var(--theme-accent, #3b82f6)',
+  color: 'white',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  textDecoration: 'none',
+  alignSelf: 'flex-start',
+  marginTop: 'auto',
 };

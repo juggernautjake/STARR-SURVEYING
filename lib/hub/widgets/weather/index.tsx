@@ -20,8 +20,28 @@ export interface WeatherContent extends Record<string, unknown> {
 }
 const DEFAULTS: WeatherContent = { location: 'auto', zip: '' };
 
-interface WeatherDay { date: string; high_f: number; low_f: number; description: string; icon: string; }
-interface WeatherSnapshot { temperature_f: number; description: string; icon: string; high_f: number; low_f: number; location_label: string; daily?: WeatherDay[]; }
+interface WeatherDay {
+  date: string;
+  high_f: number;
+  low_f: number;
+  description: string;
+  icon: string;
+  // weather-extras-2026-06-18 — per-day rain chance.
+  rain_chance_pct?: number | null;
+}
+interface WeatherSnapshot {
+  temperature_f: number;
+  description: string;
+  icon: string;
+  high_f: number;
+  low_f: number;
+  location_label: string;
+  daily?: WeatherDay[];
+  // weather-extras-2026-06-18 — current-conditions extras.
+  feels_like_f?: number | null;
+  humidity_pct?: number | null;
+  rain_chance_pct?: number | null;
+}
 
 function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
   const settings = { ...DEFAULTS, ...content };
@@ -66,12 +86,24 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
     );
   }
 
-  // Slice W5 — show the 5-day forecast strip at large/xlarge.
-  // Skip today's row inside the strip (the always-on "current"
-  // block above already covers it), so the strip reads as
+  // weather-extras-2026-06-18 — drop the forecast threshold to
+  // medium so a 4×2 / 3×3 weather tile already shows the
+  // upcoming days. Today's row is skipped (the always-on
+  // "current" block above covers it) so the strip reads as
   // "next 4 days" without duplicating today's data.
-  const showForecast = (bucket === 'large' || bucket === 'xlarge') && (weather.daily?.length ?? 0) > 1;
+  const showForecast =
+    (bucket === 'medium' || bucket === 'large' || bucket === 'xlarge')
+    && (weather.daily?.length ?? 0) > 1;
   const upcoming = showForecast ? (weather.daily ?? []).slice(1, 5) : [];
+
+  // weather-extras-2026-06-18 — surface feels-like / humidity /
+  // rain chance at small+ buckets (the tiny branch has already
+  // returned above, so by this point bucket is small or wider).
+  // Each chip is null-safe so a partial Open-Meteo payload
+  // still renders the others.
+  const showExtras = weather.feels_like_f != null
+    || weather.humidity_pct != null
+    || weather.rain_chance_pct != null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, height: '100%' }}>
@@ -81,6 +113,47 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
       </span>
       <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{weather.description}</span>
       <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{weather.location_label} · H {Math.round(weather.high_f)}° / L {Math.round(weather.low_f)}°</span>
+      {showExtras && (
+        <ul
+          data-testid="weather-extras-strip"
+          style={{
+            listStyle: 'none', margin: '4px 0 0', padding: 0,
+            display: 'flex', flexWrap: 'wrap', gap: 6,
+            fontSize: 'var(--hub-font-xs, 0.72rem)',
+          }}
+        >
+          {weather.feels_like_f != null && (
+            <li
+              data-testid="weather-extra-feels"
+              title="Apparent (feels-like) temperature"
+              style={extraChipStyle}
+            >
+              <span aria-hidden>🌡️</span>
+              <span>Feels {Math.round(weather.feels_like_f)}°</span>
+            </li>
+          )}
+          {weather.humidity_pct != null && (
+            <li
+              data-testid="weather-extra-humidity"
+              title="Relative humidity"
+              style={extraChipStyle}
+            >
+              <span aria-hidden>💧</span>
+              <span>{weather.humidity_pct}% hum</span>
+            </li>
+          )}
+          {weather.rain_chance_pct != null && (
+            <li
+              data-testid="weather-extra-rain"
+              title="Chance of precipitation today"
+              style={extraChipStyle}
+            >
+              <span aria-hidden>🌧️</span>
+              <span>{weather.rain_chance_pct}% rain</span>
+            </li>
+          )}
+        </ul>
+      )}
       {showForecast && (
         <ul
           data-testid="weather-forecast-strip"
@@ -116,6 +189,11 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
                 {' / '}
                 <span>{Math.round(d.low_f)}°</span>
               </span>
+              {d.rain_chance_pct != null && (
+                <span title="Chance of precipitation" style={{ color: 'var(--theme-fg-secondary)' }}>
+                  🌧 {d.rain_chance_pct}%
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -123,6 +201,15 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
     </div>
   );
 }
+
+const extraChipStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  padding: '2px 8px',
+  borderRadius: 999,
+  background: 'var(--theme-bg-elevated, #f3f4f6)',
+  color: 'var(--theme-fg-primary)',
+  whiteSpace: 'nowrap',
+};
 
 function WeatherSettings({ value, onChange }: WidgetSettingsFormProps<WeatherContent>) {
   const settings = { ...DEFAULTS, ...value };
