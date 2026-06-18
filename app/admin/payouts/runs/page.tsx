@@ -184,14 +184,23 @@ export default function PayoutRunsPage(): React.ReactElement {
           </p>
         </div>
         {!wizardOpen && (
-          <button
-            type="button"
-            className="payouts-page__new"
-            onClick={() => setWizardOpen(true)}
-            data-testid="payouts-new-batch"
-          >
-            + New batch
-          </button>
+          <div className="payouts-page__cta-group">
+            <Link
+              href="/admin/payouts/ad-hoc"
+              className="payouts-page__ad-hoc"
+              data-testid="payouts-ad-hoc-link"
+            >
+              One-off payout
+            </Link>
+            <button
+              type="button"
+              className="payouts-page__new"
+              onClick={() => setWizardOpen(true)}
+              data-testid="payouts-new-batch"
+            >
+              + New batch
+            </button>
+          </div>
         )}
       </header>
 
@@ -350,11 +359,19 @@ const styles = `
     font-family: 'Sora', sans-serif; font-size: 1.5rem; font-weight: 700; margin: 0;
   }
   .payouts-page__lede { margin: 0.25rem 0 0; color: #4a5470; }
+  .payouts-page__cta-group { display: flex; gap: 0.5rem; }
   .payouts-page__new {
     background: #BD1218; color: #fff; padding: 0.6rem 1.1rem;
     border: none; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer;
   }
   .payouts-page__new:hover { background: #9c0e13; }
+  .payouts-page__ad-hoc {
+    background: transparent; color: #1D3095;
+    padding: 0.6rem 1.1rem; border: 1px solid #1D3095;
+    border-radius: 10px; font: inherit; font-weight: 700;
+    text-decoration: none; display: inline-block;
+  }
+  .payouts-page__ad-hoc:hover { background: rgba(29, 48, 149, 0.06); }
   .payouts-page__error {
     max-width: 1100px; margin: 0 auto 1rem;
     background: #fdecec; color: #8a0e13;
