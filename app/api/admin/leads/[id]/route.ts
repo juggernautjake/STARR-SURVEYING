@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { signLeadAttachmentUrls } from '@/lib/leads/intake';
 
 // lead-attachments-2026-06-18 — `attachments` column added in seed 317.
 const SELECT_COLS =
@@ -55,7 +56,20 @@ export const GET = withErrorHandler(
       .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    return NextResponse.json({ lead: data });
+
+    // lead-attachments-storage-2026-06-18 — replace each attachment's
+    // raw `storage_path` (a private-bucket object key) with a
+    // short-lived signed URL the browser can hit directly. Files
+    // without a storage_path stay as metadata-only chips. Signing
+    // failures fall through (no signed URL → info-chip variant).
+    const raw = data as unknown as Record<string, unknown>;
+    const rawAttachments = Array.isArray(raw.attachments) ? raw.attachments : [];
+    const signed = await signLeadAttachmentUrls(
+      supabaseAdmin.storage,
+      rawAttachments as Array<{ name: string; size: number; storage_path?: string }>,
+    );
+    const lead = { ...raw, attachments: signed };
+    return NextResponse.json({ lead });
   },
   { routeName: 'admin/leads/[id]' },
 );

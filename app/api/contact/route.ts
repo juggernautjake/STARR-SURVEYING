@@ -9,6 +9,8 @@ import { validateQuoteAttachments, formatBytes } from '@/lib/quote-attachments';
 import {
   insertLeadFromForm,
   notifyIntakeRecipients,
+  updateLeadAttachments,
+  uploadLeadAttachments,
   type LeadIntakeInput,
 } from '@/lib/leads/intake';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -1069,15 +1071,31 @@ async function sendEmail(
 // MAIN API HANDLER
 // =============================================================================
 
+// lead-attachments-storage-2026-06-18 — carry the raw file bytes
+// alongside the Resend-friendly base64 + the metadata summary so the
+// contact-route handler can upload the bytes to Supabase Storage after
+// the lead row lands.
+interface UploadableFile {
+  name: string;
+  size: number;
+  bytes: Buffer;
+  contentType: string;
+}
+
 async function parseRequest(
   request: NextRequest
-): Promise<{ body: IncomingFormData; files: ResendAttachment[]; fileSummaries: Array<{ name: string; size: number }> }> {
+): Promise<{
+  body: IncomingFormData;
+  files: ResendAttachment[];
+  fileSummaries: Array<{ name: string; size: number }>;
+  uploadable: UploadableFile[];
+}> {
   const contentType = request.headers.get('content-type') || '';
 
   // JSON path — the calculator + the previous form-pre-attachments path
   if (contentType.includes('application/json')) {
     const body = (await request.json()) as IncomingFormData;
-    return { body, files: [], fileSummaries: [] };
+    return { body, files: [], fileSummaries: [], uploadable: [] };
   }
 
   // Multipart path — the new quote-form-with-attachments path.
@@ -1086,22 +1104,29 @@ async function parseRequest(
   const body: IncomingFormData = {};
   const files: ResendAttachment[] = [];
   const fileSummaries: Array<{ name: string; size: number }> = [];
+  const uploadable: UploadableFile[] = [];
 
   for (const [key, value] of form.entries()) {
     if (key === 'attachments' && value instanceof File) {
       const buf = Buffer.from(await value.arrayBuffer());
       fileSummaries.push({ name: value.name, size: buf.length });
       files.push({ filename: value.name, content: buf.toString('base64') });
+      uploadable.push({
+        name: value.name,
+        size: buf.length,
+        bytes: buf,
+        contentType: value.type || 'application/octet-stream',
+      });
     } else if (typeof value === 'string') {
       (body as Record<string, string>)[key] = value;
     }
   }
-  return { body, files, fileSummaries };
+  return { body, files, fileSummaries, uploadable };
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const { body, files, fileSummaries } = await parseRequest(request);
+    const { body, files, fileSummaries, uploadable } = await parseRequest(request);
     const referenceNumber = generateReferenceNumber();
 
     // Server-side re-validation of attachments (client already checked,
@@ -1260,6 +1285,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const intake = buildLeadIntake();
         const dev = await insertLeadFromForm(supabaseAdmin, intake);
         if (dev) {
+          // lead-attachments-storage-2026-06-18 — upload bytes (dev mode
+          // path runs against real Supabase too) and backfill the
+          // storage_path. Silent fall-through on failure.
+          if (uploadable.length > 0) {
+            const uploaded = await uploadLeadAttachments(
+              supabaseAdmin.storage,
+              dev.id,
+              uploadable,
+            );
+            await updateLeadAttachments(supabaseAdmin, dev.id, uploaded);
+          }
           await notifyIntakeRecipients(supabaseAdmin, {
             leadId: dev.id,
             input: intake,
@@ -1327,6 +1363,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const insertedLead = await insertLeadFromForm(supabaseAdmin, intake);
       if (insertedLead) {
         console.log(`[${referenceNumber}] Lead inserted as ${insertedLead.id}`);
+        // lead-attachments-storage-2026-06-18 — once the lead.id
+        // exists, upload the customer's files to the private
+        // `lead-attachments` bucket under `{leadId}/{uuid}-{name}`
+        // and backfill the storage_path into the row so the admin
+        // lead-detail page can sign + render download links. Failure
+        // here drops back to the metadata-only attachments (the
+        // bytes still went via Resend) — never blocks the customer's
+        // success response.
+        if (uploadable.length > 0) {
+          const uploaded = await uploadLeadAttachments(
+            supabaseAdmin.storage,
+            insertedLead.id,
+            uploadable,
+          );
+          const updated = await updateLeadAttachments(
+            supabaseAdmin,
+            insertedLead.id,
+            uploaded,
+          );
+          const successfulUploads = uploaded.filter((a) => a.storage_path).length;
+          console.log(
+            `[${referenceNumber}] Attachments: ${successfulUploads}/${uploaded.length} uploaded; row updated: ${updated}`,
+          );
+        }
         const { recipientCount } = await notifyIntakeRecipients(supabaseAdmin, {
           leadId: insertedLead.id,
           input: intake,
