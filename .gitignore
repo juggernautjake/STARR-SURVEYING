@@ -85,3 +85,8 @@ supabase/.temp/
 # Playwright MCP screenshots + per-session audit artifacts (local only).
 audit-*.png
 .playwright-mcp/
+
+# Scratch concatenated SQL / generated build artifacts. Anything in tmp/
+# is a one-shot blob (e.g. seeds_*_to_*.sql for the Supabase web SQL
+# editor) — the canonical source stays in seeds/.
+tmp/
