@@ -50,7 +50,15 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/research', roles: ['admin', 'developer', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
 
   // ── CAD ──
-  { prefix: '/admin/cad', roles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'] },
+  // Slice W4 (hub-cad-roles-polish-2026-06-18) — user spec: "If
+  // a user does not have the drawing role and clicks the cad
+  // button … they are still routed to the cad software. We
+  // might change this in the future, but for now leave it."
+  // The middleware role gate is widened to every UserRole so
+  // any signed-in user lands on the CAD editor. Restore a
+  // narrower list once permissions (W7) lands and the user
+  // decides the long-term policy.
+  { prefix: '/admin/cad', roles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support', 'equipment_manager', 'employee', 'teacher', 'student', 'guest'] },
 
   // ── Rewards & Pay ──
   { prefix: '/admin/rewards/admin', roles: ['admin', 'developer', 'tech_support'] },

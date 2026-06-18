@@ -94,7 +94,11 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     iconName: 'PenTool',
     kind: 'link',
     href: '/admin/cad',
-    allowedRoles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support'],
+    // Slice W4 — universal bypass. Every UserRole listed so
+    // `quickActionsForRoles` returns this tile for every
+    // signed-in user. Replace with a narrower set once the W7
+    // permissions story carries fine-grained gating.
+    allowedRoles: ['admin', 'developer', 'drawer', 'researcher', 'field_crew', 'tech_support', 'equipment_manager', 'employee', 'teacher', 'student', 'guest'],
     tint: 'accent',
   },
   // consolidation Slice 9 (2026-05-30) — intentional widget-equivalent

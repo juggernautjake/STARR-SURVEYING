@@ -176,7 +176,7 @@ Each slice = its own commit + the three post-build checks.
 | **W1** | Type-level dedupe in `addWidget` + matching "already added" toast + `--placed` modifier on palette chips. Closes the duplication bug AND enforces the user spec ("never two of the same widget"). ✅ shipped |
 | **W2** | Drag-and-drop palette → grid via HTML5 drag API. Old click-to-arm + click-cell still works as a fallback. ✅ shipped |
 | **W3** | Profile fallback ("No more information about …") on `/admin/employees/[email]` when every optional field is empty + always-on role pills row in the header per the user spec. ✅ shipped |
-| **W4** | CAD-button bypass: remove the role gate on the `/admin/cad` nav entry + quick-action. Anyone can reach it. |
+| **W4** | CAD-button bypass: middleware + route-registry + sidebar + command-palette + quick-actions all widened so any signed-in user can reach `/admin/cad`. Annotated for restoration once W7 lands. ✅ shipped |
 | **W5** | Weather widget extended with a 5-day forecast strip at `large` / `xlarge`. API change + widget render branch + tests. Establishes the size-relative-content pattern for the rest of the fleet. |
 | **W6** | Quick-actions catalog audit: every href verified against `route-registry.ts`; broken slugs swapped or flagged with a typed deprecation. |
 | **W7** | Role builder page at `/admin/roles/new`. Migration for `custom_roles` + minimal CRUD UI + admin-only gate. |
