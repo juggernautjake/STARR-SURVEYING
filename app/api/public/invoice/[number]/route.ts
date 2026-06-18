@@ -24,9 +24,11 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import {
   PUBLIC_BLOCKED_STATUSES,
+  describePaymentForReceipt,
   sanitizeLineItems,
   sumSucceededPayments,
   type LineItemPublic,
+  type PublicPaymentSummary,
 } from '@/lib/payments/invoice-public';
 
 interface PublicInvoice {
@@ -42,6 +44,10 @@ interface PublicInvoice {
   due_at: string | null;
   paid_at: string | null;
   line_items: LineItemPublic[];
+  // P8 — when paid, show the customer the methods + dates + tx ids
+  // they cleared on. Always present (empty array on a brand-new
+  // invoice).
+  payments: PublicPaymentSummary[];
 }
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -73,10 +79,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: payments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, status')
-    .eq('invoice_id', (invoice as { id?: string }).id ?? '00000000-0000-0000-0000-000000000000');
+    .select('amount_cents, method, status, cleared_at, external_id, payer_email')
+    .eq('invoice_id', (invoice as { id?: string }).id ?? '00000000-0000-0000-0000-000000000000')
+    .order('cleared_at', { ascending: false });
 
   const paid = sumSucceededPayments(payments ?? []);
+  const paymentSummaries: PublicPaymentSummary[] = ((payments ?? []) as Array<Parameters<typeof describePaymentForReceipt>[0]>)
+    .map(describePaymentForReceipt)
+    .filter((s: PublicPaymentSummary | null): s is PublicPaymentSummary => s !== null);
   const total = typeof invoice.total_cents === 'number' ? invoice.total_cents : 0;
   const balance = Math.max(0, total - paid);
 
@@ -93,6 +103,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     due_at: invoice.due_at ?? null,
     paid_at: invoice.paid_at ?? null,
     line_items: sanitizeLineItems(invoice.line_items),
+    payments: paymentSummaries,
   };
 
   return NextResponse.json({ invoice: body });

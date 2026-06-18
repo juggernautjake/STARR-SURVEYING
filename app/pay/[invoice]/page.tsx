@@ -34,6 +34,15 @@ interface LineItemPublic {
   total_cents: number;
 }
 
+interface PublicPaymentSummary {
+  amount_cents: number;
+  method: string;
+  method_label: string;
+  cleared_at: string | null;
+  external_id_tail: string | null;
+  payer_email_mask: string | null;
+}
+
 interface PublicInvoice {
   invoice_number: string;
   public_slug: string;
@@ -47,6 +56,7 @@ interface PublicInvoice {
   due_at: string | null;
   paid_at: string | null;
   line_items: LineItemPublic[];
+  payments: PublicPaymentSummary[];
 }
 
 export default function PayInvoicePage(): React.ReactElement {
@@ -66,6 +76,10 @@ export default function PayInvoicePage(): React.ReactElement {
   const [attemptSubmitting, setAttemptSubmitting] = useState(false);
   const [attemptError, setAttemptError] = useState<string | null>(null);
   const [payerEmail, setPayerEmail] = useState('');
+  // P8 — return-to-portal receipt resend.
+  const [receiptEmail, setReceiptEmail] = useState('');
+  const [receiptStatus, setReceiptStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [receiptError, setReceiptError] = useState<string | null>(null);
   // P7 — cash/check pledges need to know whether the customer is
   // mailing it or bringing it in person so the confirmation email
   // reads correctly. Defaults: cash → in-person, check → by mail.
@@ -173,6 +187,30 @@ export default function PayInvoicePage(): React.ReactElement {
       return;
     }
     setAttemptRecorded(true);
+  }
+
+  async function resendReceipt() {
+    if (!invoice) return;
+    const to = receiptEmail.trim();
+    if (!to.includes('@')) {
+      setReceiptError('Please enter a valid email address.');
+      setReceiptStatus('error');
+      return;
+    }
+    setReceiptStatus('sending');
+    setReceiptError(null);
+    const res = await fetch(`/api/public/invoice/${encodeURIComponent(invoice.invoice_number)}/receipt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setReceiptError(json.error ?? 'We could not send the receipt. Please try again.');
+      setReceiptStatus('error');
+      return;
+    }
+    setReceiptStatus('sent');
   }
 
   return (
@@ -387,7 +425,64 @@ export default function PayInvoicePage(): React.ReactElement {
           {isPaid && (
             <article className="pay-card pay-card--paid" data-testid="pay-paid-card">
               <h2 className="pay-card__title">Paid in full ✓</h2>
-              <p>Thank you — your invoice is fully paid. A receipt was emailed when the payment cleared.</p>
+              <p>Thank you — your invoice is fully paid.</p>
+
+              {invoice.payments.length > 0 && (
+                <ul className="pay-paid__payments" data-testid="pay-paid-payments">
+                  {invoice.payments.map((p, i) => (
+                    <li key={i} className="pay-paid__payment">
+                      <div className="pay-paid__payment-method">
+                        <strong>{p.method_label}</strong>
+                        {p.external_id_tail && (
+                          <span className="pay-paid__payment-ref"> · ending {p.external_id_tail}</span>
+                        )}
+                      </div>
+                      <div className="pay-paid__payment-meta">
+                        {p.cleared_at && <span>{new Date(p.cleared_at).toLocaleDateString()}</span>}
+                        <span className="pay-paid__payment-amt">{formatDollars(p.amount_cents)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="pay-paid__receipt" data-testid="pay-paid-receipt">
+                <h3 className="pay-paid__receipt-title">Need another copy of your receipt?</h3>
+                <p className="pay-paid__receipt-hint">
+                  We'll email it to you (or your accountant). The original lands at the address we already have on file.
+                </p>
+                {receiptStatus === 'sent' ? (
+                  <p className="pay-paid__receipt-sent" data-testid="pay-paid-receipt-sent" role="status">
+                    Sent! Check your inbox at <strong>{receiptEmail}</strong>.
+                  </p>
+                ) : (
+                  <div className="pay-paid__receipt-row">
+                    <input
+                      type="email"
+                      className="pay-paid__receipt-input"
+                      placeholder="you@example.com"
+                      value={receiptEmail}
+                      onChange={(e) => setReceiptEmail(e.target.value)}
+                      data-testid="pay-paid-receipt-input"
+                      autoComplete="email"
+                    />
+                    <button
+                      type="button"
+                      className="pay-paid__receipt-submit"
+                      onClick={resendReceipt}
+                      disabled={receiptStatus === 'sending'}
+                      data-testid="pay-paid-receipt-submit"
+                    >
+                      {receiptStatus === 'sending' ? 'Sending…' : 'Email me a receipt'}
+                    </button>
+                  </div>
+                )}
+                {receiptError && (
+                  <p className="pay-paid__receipt-error" data-testid="pay-paid-receipt-error" role="alert">
+                    {receiptError}
+                  </p>
+                )}
+              </div>
             </article>
           )}
         </div>

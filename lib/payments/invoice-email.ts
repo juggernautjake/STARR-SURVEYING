@@ -229,6 +229,115 @@ export function buildPledgeConfirmationText(input: PledgeConfirmationInput): str
   return lines.join('\n');
 }
 
+/** P8 of payment-infrastructure-2026-06-18.md — re-send the
+ *  customer's receipt by email. Used by the "Email me a receipt"
+ *  button on the return-to-portal paid-card. PDF attachment ships
+ *  in P9; this slice keeps the email body itself self-contained. */
+export interface ReceiptResendInput {
+  invoice_number: string;
+  customer_name: string | null;
+  total_cents: number;
+  paid_cents: number;
+  payments: ReadonlyArray<{
+    amount_cents: number;
+    method_label: string;
+    cleared_at: string | null;
+    external_id_tail: string | null;
+  }>;
+  pay_link: string;
+}
+
+export function buildReceiptResendSubject(input: { invoice_number: string }): string {
+  return `Receipt — Invoice ${input.invoice_number}`;
+}
+
+function fmtClearedDate(iso: string | null): string {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleDateString(); } catch { return ''; }
+}
+
+export function buildReceiptResendHtml(input: ReceiptResendInput): string {
+  const greeting = input.customer_name ? `Hello ${escape(input.customer_name)},` : 'Hello,';
+  const rows = input.payments
+    .map((p) => {
+      const date = fmtClearedDate(p.cleared_at);
+      const ref = p.external_id_tail ? ` <span style="color:#6b7280;">(ending ${escape(p.external_id_tail)})</span>` : '';
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e4e7ee;">${escape(p.method_label)}${ref}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e4e7ee;color:#6b7280;white-space:nowrap;">${escape(date)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e4e7ee;text-align:right;white-space:nowrap;">${escape(formatDollars(p.amount_cents))}</td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8" /><title>Receipt — Invoice ${escape(input.invoice_number)}</title></head>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:Inter,Arial,sans-serif;color:#152050;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;padding:32px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;border:1px solid #e4e7ee;overflow:hidden;max-width:600px;width:100%;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#1f6d3c 0%,#152050 70%,#BD1218 100%);padding:32px 28px;color:#ffffff;">
+            <div style="font-size:13px;letter-spacing:0.1em;text-transform:uppercase;opacity:0.85;">Receipt</div>
+            <div style="font-family:'Sora','Inter',sans-serif;font-size:22px;font-weight:700;margin-top:6px;">Invoice ${escape(input.invoice_number)}</div>
+            <div style="margin-top:8px;font-size:14px;opacity:0.9;">Paid ${escape(formatDollars(input.paid_cents))} of ${escape(formatDollars(input.total_cents))}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px;">
+            <p style="margin:0 0 16px;font-size:16px;">${greeting}</p>
+            <p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">Here's your receipt for invoice ${escape(input.invoice_number)}.</p>
+
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;border-collapse:collapse;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:8px 12px;background:#f8f9fa;color:#152050;font-size:13px;letter-spacing:0.04em;text-transform:uppercase;">Method</th>
+                  <th style="text-align:left;padding:8px 12px;background:#f8f9fa;color:#152050;font-size:13px;letter-spacing:0.04em;text-transform:uppercase;">Date</th>
+                  <th style="text-align:right;padding:8px 12px;background:#f8f9fa;color:#152050;font-size:13px;letter-spacing:0.04em;text-transform:uppercase;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+
+            <div style="text-align:center;margin:28px 0 8px;">
+              <a href="${escape(input.pay_link)}" data-testid="receipt-link" style="display:inline-block;background:#1D3095;color:#ffffff;text-decoration:none;font-weight:700;font-family:'Sora','Inter',sans-serif;padding:12px 22px;border-radius:10px;font-size:15px;">View your invoice</a>
+            </div>
+
+            <p style="margin:24px 0 0;color:#4a5470;font-size:14px;line-height:1.55;">
+              Questions? Call us at <a href="tel:+19366620077" style="color:#BD1218;font-weight:700;">(936) 662-0077</a>.
+            </p>
+            <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— Starr Surveying</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+export function buildReceiptResendText(input: ReceiptResendInput): string {
+  const lines: string[] = [
+    `Receipt — Invoice ${input.invoice_number}`,
+    '',
+    input.customer_name ? `Hello ${input.customer_name},` : 'Hello,',
+    '',
+    `Paid ${formatDollars(input.paid_cents)} of ${formatDollars(input.total_cents)}.`,
+    '',
+    'Payments:',
+    ...input.payments.map((p) => {
+      const date = fmtClearedDate(p.cleared_at);
+      const ref = p.external_id_tail ? ` (ending ${p.external_id_tail})` : '';
+      return `  - ${p.method_label}${ref}  ${date}  ${formatDollars(p.amount_cents)}`;
+    }),
+    '',
+    `View your invoice: ${input.pay_link}`,
+    '',
+    'Questions? Call (936) 662-0077.',
+    '— Starr Surveying',
+  ];
+  return lines.join('\n');
+}
+
 /** Pure helper — plain-text fallback for the email client that
  *  doesn't render HTML. */
 export function buildInvoiceEmailText(input: InvoiceEmailInput): string {

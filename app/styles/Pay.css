@@ -406,11 +406,96 @@
 .pay-methods__pledge-delivery input[type="radio"] { accent-color: var(--brand-blue, #1D3095); }
 
 /* -------------------------------------------------------------------------
-   Paid state
+   Paid state — P8 extends with payment list + receipt resend
    ------------------------------------------------------------------------- */
 .pay-card--paid {
   border-top: 4px solid #1f6d3c;
   background: linear-gradient(135deg, #e2f5e8 0%, #ffffff 60%);
+}
+
+.pay-paid__payments {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  border-top: 1px solid rgba(31, 109, 60, 0.25);
+}
+.pay-paid__payment {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(31, 109, 60, 0.18);
+  font-size: 0.95rem;
+}
+.pay-paid__payment:last-child { border-bottom: 0; }
+.pay-paid__payment-method strong { font-family: 'Sora', 'Inter', sans-serif; color: var(--brand-dark, #152050); }
+.pay-paid__payment-ref { color: var(--text-muted, #6b7280); font-size: 0.85rem; }
+.pay-paid__payment-meta { display: flex; gap: 0.85rem; align-items: baseline; color: var(--text-muted, #6b7280); font-size: 0.85rem; }
+.pay-paid__payment-amt { font-family: 'Sora', sans-serif; color: #1f6d3c; font-weight: 700; font-size: 1rem; }
+
+.pay-paid__receipt {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 2px dashed rgba(31, 109, 60, 0.3);
+}
+.pay-paid__receipt-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand-dark, #152050);
+  margin: 0 0 0.35rem;
+}
+.pay-paid__receipt-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted, #6b7280);
+}
+.pay-paid__receipt-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.pay-paid__receipt-input {
+  flex: 1 1 220px;
+  min-width: 200px;
+  font: inherit;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #d6d9e3;
+  border-radius: 10px;
+  background: #ffffff;
+}
+.pay-paid__receipt-input:focus {
+  outline: 2px solid rgba(31, 109, 60, 0.25);
+  border-color: #1f6d3c;
+}
+.pay-paid__receipt-submit {
+  font: inherit;
+  font-weight: 700;
+  padding: 0.7rem 1.1rem;
+  border-radius: 10px;
+  border: none;
+  background: #1f6d3c;
+  color: #ffffff;
+  cursor: pointer;
+}
+.pay-paid__receipt-submit:hover:not(:disabled) { background: #185a30; }
+.pay-paid__receipt-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+.pay-paid__receipt-sent {
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  background: rgba(31, 109, 60, 0.1);
+  border-radius: 8px;
+  color: #1f6d3c;
+  font-size: 0.95rem;
+}
+.pay-paid__receipt-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  background: #fdecec;
+  color: #8a0e13;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
 }
 
 /* -------------------------------------------------------------------------
