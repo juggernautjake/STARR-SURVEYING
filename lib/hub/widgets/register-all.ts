@@ -92,3 +92,7 @@ import './money';
 // class-assignments + flashcards-due + recommended-lessons.
 // Legacy widgets stay registered.
 import './learning-stack';
+// Slice W9e — consolidated field-pulse widget. Absorbs
+// team-status + vehicles-status + equipment-out + low-consumables.
+// Legacy widgets stay registered.
+import './field-pulse';

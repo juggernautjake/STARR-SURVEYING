@@ -143,6 +143,9 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   // default (`showOpenLink`); register as `none` for the schema
   // test.
   'learning-stack':           { source: 'none' },
+  // Slice W9e — consolidated field-pulse. Single boolean default
+  // (`showOpenLink`); register as `none` for the schema test.
+  'field-pulse':              { source: 'none' },
   'crew-calendar':            { source: 'settings-form' },
   'drawings-in-progress':     { source: 'settings-form' },
   // consolidation Slice 4 (2026-05-30) — unified Drawings widget.
