@@ -23,10 +23,12 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { canSeeOthersPay } from '@/lib/employee-profile/pay-visibility';
 
-// Re-export so the existing source-lock test keeps the same
-// import path and so other routes don't need to find the lib
-// module if they're already reaching for this one.
-export { canSeeOthersPay };
+// NOTE: Next.js App Router only permits specific named exports
+// from a route file (GET, POST, PATCH, etc.). Re-exporting
+// `canSeeOthersPay` here would error at build time
+// ("'canSeeOthersPay' is not a valid Route export field") — any
+// downstream caller imports the predicate directly from
+// `@/lib/employee-profile/pay-visibility`.
 
 interface SalaryRow {
   id: string;

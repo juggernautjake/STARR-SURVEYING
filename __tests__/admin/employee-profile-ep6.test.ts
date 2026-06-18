@@ -43,9 +43,13 @@ describe('canSeeOthersPay (pure helper)', () => {
 describe('API /api/admin/profile/compensation (EP6)', () => {
   const SRC = read('app/api/admin/profile/compensation/route.ts');
 
-  it('re-exports the canSeeOthersPay predicate so tests + future routes share it', () => {
+  it('imports canSeeOthersPay from the shared lib (Next.js bans non-route re-exports from a route file)', () => {
     expect(SRC).toMatch(/import \{ canSeeOthersPay \} from '@\/lib\/employee-profile\/pay-visibility'/);
-    expect(SRC).toMatch(/export \{ canSeeOthersPay \}/);
+    // Per Next.js App Router rules, route.ts may only export
+    // HTTP-verb handlers. The route must NOT re-export the
+    // predicate — downstream callers import directly from the
+    // lib module.
+    expect(SRC).not.toMatch(/export\s*\{\s*canSeeOthersPay\s*\}/);
   });
 
   it("self always passes the gate; others need a payroll role OR admin", () => {
