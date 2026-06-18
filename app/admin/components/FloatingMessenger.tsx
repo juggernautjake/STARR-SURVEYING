@@ -13,6 +13,11 @@ import Link from 'next/link';
 import { useDraggable } from '@/lib/admin/use-draggable';
 // Slice MX5 — highlight + snippet helpers for the cross-conversation search.
 import { highlightSegments, snippetAroundMatch } from '@/lib/admin/messenger-search';
+// messenger-notify-fix-2026-06-18 — surface send errors via the global toast
+// system so the user knows when an API call failed (the previous silent
+// catch made the messenger feel "stuck") and pop a "💬 New message from
+// …" toast when the unread count rises between polls.
+import { useToast } from '@/app/admin/components/Toast';
 
 const MESSENGER_PANEL_WIDTH = 640;
 const MESSENGER_PANEL_HEIGHT = 600;
@@ -77,6 +82,12 @@ export default function FloatingMessenger() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const userEmail = session?.user?.email;
+  const { addToast } = useToast();
+  // messenger-notify-fix-2026-06-18 — track the previously-seen unread
+  // count so we can pop a toast when it grows between polls. Initialised
+  // lazily to 0 + only fires after the FIRST successful fetch (so we
+  // don't toast existing unread on mount).
+  const prevUnreadRef = useRef<number | null>(null);
 
   const [isOpen, setIsOpen] = useState(false);
   // Slice MX3 — draggable panel. Persists position to
@@ -138,11 +149,27 @@ export default function FloatingMessenger() {
       const res = await fetch('/api/admin/messages/read');
       if (res.ok) {
         const data = await res.json();
+        const nextTotal = data.unread_count || 0;
         setUnreadCounts(data.unread_by_conversation || {});
-        setTotalUnread(data.unread_count || 0);
+        setTotalUnread(nextTotal);
+        // messenger-notify-fix-2026-06-18 — when the unread total grows
+        // between polls AND the messenger is closed, surface a toast so
+        // the recipient sees an in-app cue (matches the "users are
+        // notified whenever they receive them" spec). The first
+        // successful poll just seeds the baseline so existing unread on
+        // mount doesn't trigger a stale toast.
+        const prev = prevUnreadRef.current;
+        if (prev !== null && nextTotal > prev && !isOpen) {
+          const delta = nextTotal - prev;
+          addToast(
+            delta === 1 ? '💬 New message' : `💬 ${delta} new messages`,
+            'info',
+          );
+        }
+        prevUnreadRef.current = nextTotal;
       }
     } catch { /* silent */ }
-  }, [userEmail]);
+  }, [userEmail, isOpen, addToast]);
 
   // Fetch messages for a conversation
   const fetchMessages = useCallback(async (convId: string) => {
@@ -320,8 +347,21 @@ export default function FloatingMessenger() {
         setShowEmoji(false);
         fetchMessages(activeConv.id);
         fetchConversations();
+      } else {
+        // messenger-notify-fix-2026-06-18 — surface a real error instead
+        // of silently swallowing the failure. Parses the API's `{ error }`
+        // payload when present; falls back to the HTTP status.
+        let detail = `HTTP ${res.status}`;
+        try {
+          const data = await res.json();
+          if (data?.error && typeof data.error === 'string') detail = data.error;
+        } catch { /* response wasn't JSON, keep the status */ }
+        addToast(`Couldn't send message — ${detail}`, 'error');
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'network error';
+      addToast(`Couldn't send message — ${detail}`, 'error');
+    }
     setSending(false);
   }
 
