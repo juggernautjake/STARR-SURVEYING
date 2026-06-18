@@ -156,9 +156,13 @@ describe('API /api/admin/schedule — visibility wiring (S2)', () => {
   });
 
   it("GET widens non-admin access via assigned_to OR visibility filter", () => {
-    expect(SRC).toMatch(/assigned_to\.eq\.\$\{email\}/);
+    // Slice widget-empty-vs-error-2026-06-17 — the email value is
+    // now wrapped in double quotes (PostgREST escape) so emails
+    // with `@` and `.` don't break the parser. The structure of
+    // the three-way OR is unchanged.
+    expect(SRC).toMatch(/assigned_to\.eq\.\$\{safe\}/);
     expect(SRC).toMatch(/visibility\.eq\.all_users/);
-    expect(SRC).toMatch(/and\(visibility\.eq\.specific_users,viewer_emails\.cs\.\{\$\{email\}\}\)/);
+    expect(SRC).toMatch(/and\(visibility\.eq\.specific_users,viewer_emails\.cs\.\{\$\{safe\}\}\)/);
   });
 
   it("POST rejects an unknown visibility value", () => {

@@ -19,17 +19,21 @@
    48 px IconRail uses navy gradient bg, so its child <a> icons must keep
    their own white-70%-opacity color or they vanish navy-on-navy). */
 /* Slice button-readability-2026-06-17 — user feedback: "the +New
- * Job button needs to have white text, not blue and black". The
- * jobs-page button variants paint their own foreground (`#fff`
- * on `--brand-navy` for primary; #374151 on subtle for
- * secondary), but the admin-layout `<a>` color rule above had
- * higher specificity than the button CSS, so it tinted the
- * primary button's text navy → invisible navy-on-navy. Excluding
- * `[class*="jobs-page__btn"]` lets the button CSS win. The same
- * exclusion catches any future page that adopts the
- * `*-page__btn--*` convention. */
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="jobs-page__btn"]) { color: var(--color-brand-navy, #1D3095); }
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="jobs-page__btn"]):hover { color: var(--color-brand-navy-d, #152050); }
+ * Job button needs to have white text, not blue and black".
+ *
+ * Slice button-readability-followup-2026-06-18 — user reported
+ * "there are still more blue buttons on the backend that also
+ * have blue text". The original fix only excluded
+ * `jobs-page__btn`; every other button variant rendered as an
+ * <a> (admin-btn--secondary, assign__btn--primary, um-btn,
+ * fw__btn, admin-search__btn, fb__new-btn, etc.) still got
+ * tinted navy-on-navy by this rule. Broadening the exclusion
+ * to `[class*="-btn"]` catches the whole family in one shot
+ * because every button-shaped anchor in the codebase carries a
+ * class ending in `-btn`. Inline link styling within paragraphs
+ * is unaffected since those anchors don't carry a `-btn` class. */
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="-btn"]) { color: var(--color-brand-navy, #1D3095); }
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="-btn"]):hover { color: var(--color-brand-navy-d, #152050); }
 
 /* === SIDEBAR === */
 .admin-sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; height:100dvh; background:linear-gradient(180deg,var(--color-brand-navy-d),var(--color-brand-navy)); display:flex; flex-direction:column; z-index:50; transition:transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }

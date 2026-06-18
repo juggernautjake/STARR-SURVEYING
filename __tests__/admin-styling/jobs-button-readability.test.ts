@@ -27,15 +27,15 @@ const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 describe('AdminLayout — jobs-page button class is excluded from the global anchor tint', () => {
   const CSS = read('app/admin/styles/AdminLayout.css');
 
-  it('the resting color rule excludes [class*="jobs-page__btn"]', () => {
+  it('the resting color rule excludes [class*="-btn"] (catches every button-shaped anchor in the admin)', () => {
     expect(CSS).toMatch(
-      /\.admin-layout a:not\(\.btn\)[\s\S]*?:not\(\[class\*="jobs-page__btn"\]\)\s*\{[\s\S]*?color:\s*var\(--color-brand-navy/,
+      /\.admin-layout a:not\(\.btn\)[\s\S]*?:not\(\[class\*="-btn"\]\)\s*\{[\s\S]*?color:\s*var\(--color-brand-navy/,
     );
   });
 
-  it('the hover color rule excludes [class*="jobs-page__btn"]', () => {
+  it('the hover color rule excludes [class*="-btn"]', () => {
     expect(CSS).toMatch(
-      /\.admin-layout a:not\(\.btn\)[\s\S]*?:not\(\[class\*="jobs-page__btn"\]\):hover\s*\{[\s\S]*?color:\s*var\(--color-brand-navy-d/,
+      /\.admin-layout a:not\(\.btn\)[\s\S]*?:not\(\[class\*="-btn"\]\):hover\s*\{[\s\S]*?color:\s*var\(--color-brand-navy-d/,
     );
   });
 });

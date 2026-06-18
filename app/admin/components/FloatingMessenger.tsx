@@ -7,6 +7,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
+// Slice MX1 — "Open in /admin/messages →" header link.
+import Link from 'next/link';
+// Slice MX3 — draggable panel via the shared useDraggable hook.
+import { useDraggable } from '@/lib/admin/use-draggable';
+// Slice MX5 — highlight + snippet helpers for the cross-conversation search.
+import { highlightSegments, snippetAroundMatch } from '@/lib/admin/messenger-search';
+
+const MESSENGER_PANEL_WIDTH = 640;
+const MESSENGER_PANEL_HEIGHT = 600;
+const MESSENGER_DRAG_STORAGE_KEY = 'admin/messenger/panel-position';
 // employee-pond Slice E9b — cross-surface recipient continuity.
 import {
   readActiveRecipient,
@@ -69,6 +79,20 @@ export default function FloatingMessenger() {
   const userEmail = session?.user?.email;
 
   const [isOpen, setIsOpen] = useState(false);
+  // Slice MX3 — draggable panel. Persists position to
+  // localStorage so the user keeps their preferred spot across
+  // page loads. Default placement is the bottom-right corner
+  // above the FAB pill (matches MX1's CSS contract).
+  const drag = useDraggable({
+    storageKey: MESSENGER_DRAG_STORAGE_KEY,
+    width: MESSENGER_PANEL_WIDTH,
+    height: MESSENGER_PANEL_HEIGHT,
+    enabled: isOpen,
+    defaultPlacement: ({ w, h }) => ({
+      x: Math.max(0, w - MESSENGER_PANEL_WIDTH - 24),
+      y: Math.max(0, h - MESSENGER_PANEL_HEIGHT - 88),
+    }),
+  });
   const [view, setView] = useState<PanelView>('list');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -86,6 +110,9 @@ export default function FloatingMessenger() {
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
   const [groupTitle, setGroupTitle] = useState('');
   const [convSearch, setConvSearch] = useState('');
+  // Slice MX5 — remember the active message-search query so we
+  // can highlight the matches + show "Results for 'foo'" copy.
+  const [msgSearchQuery, setMsgSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ content: string; sender_email: string; created_at: string; conversation_id: string }[]>([]);
   const [searching, setSearching] = useState(false);
 
@@ -408,33 +435,62 @@ export default function FloatingMessenger() {
         >
         <div
           className="messenger-panel"
+          data-testid="messenger-panel"
           onClick={(e) => e.stopPropagation()}
-          style={{
+          // Slice MX1 — defensive inline styles must match the
+          // updated CSS contract: the panel sits ABOVE the FAB pill
+          // (bottom: 5.5rem ≈ 88px clears the 56px FAB + a 32px
+          // breathing gap) and 1.5rem off the right edge so the
+          // shadow doesn't get clipped.
+          //
+          // Slice MX3 — once the drag hook has hydrated (mounted),
+          // switch from the bottom-right anchor to absolute
+          // left/top so the panel can be moved. Sized inline so
+          // the hook clamps against the right dimensions.
+          style={drag.mounted ? {
             position: 'fixed',
-            bottom: 0,
-            right: 0,
+            left: drag.position.x,
+            top: drag.position.y,
+            width: MESSENGER_PANEL_WIDTH,
+            height: MESSENGER_PANEL_HEIGHT,
+            zIndex: 9001,
+            background: '#FFFFFF',
+          } : {
+            position: 'fixed',
+            bottom: '5.5rem',
+            right: '1.5rem',
             zIndex: 9001,
             background: '#FFFFFF',
           }}>
-          {/* Header */}
-          <div className="messenger-panel__header">
+          {/* Header — drag handle. Anything with
+              `data-no-drag` (close, "Open in messages", back
+              button, search input, etc.) swallows the drag. */}
+          <div
+            className="messenger-panel__header"
+            data-testid="messenger-panel-drag-handle"
+            style={{ touchAction: 'none', cursor: drag.mounted ? 'move' : undefined }}
+            onPointerDown={drag.handlers.onPointerDown}
+            onPointerMove={drag.handlers.onPointerMove}
+            onPointerUp={drag.handlers.onPointerUp}
+            onPointerCancel={drag.handlers.onPointerCancel}
+          >
             {view === 'chat' && activeConv ? (
               <>
-                <button className="messenger-panel__back" onClick={() => { setView('list'); setActiveConv(null); setMessages([]); }}>
+                <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setActiveConv(null); setMessages([]); }}>
                   &#8592;
                 </button>
                 <span className="messenger-panel__conv-title">{getConvName(activeConv)}</span>
               </>
             ) : view === 'new' ? (
               <>
-                <button className="messenger-panel__back" onClick={() => { setView('list'); setSelectedContacts([]); setContactSearch(''); }}>
+                <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setSelectedContacts([]); setContactSearch(''); }}>
                   &#8592;
                 </button>
                 <span className="messenger-panel__conv-title">New Conversation</span>
               </>
             ) : view === 'search' ? (
               <>
-                <button className="messenger-panel__back" onClick={() => { setView('list'); setConvSearch(''); setSearchResults([]); }}>
+                <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setConvSearch(''); setSearchResults([]); }}>
                   &#8592;
                 </button>
                 <span className="messenger-panel__conv-title">Search Messages</span>
@@ -442,12 +498,33 @@ export default function FloatingMessenger() {
             ) : (
               <span className="messenger-panel__title">Messages</span>
             )}
-            <button className="messenger-panel__close" onClick={() => { setIsOpen(false); setView('list'); setActiveConv(null); }}>&#10005;</button>
+            {/* Slice MX1 — "Open in /admin/messages →" route to the
+                full-page messenger per the user's spec ("There also
+                needs to be a button that takes us to the main
+                messaging page"). The button closes the popup before
+                navigating so the dedicated page isn't fighting an
+                already-open modal. */}
+            <Link
+              href={view === 'chat' && activeConv ? `/admin/messages?conversation=${encodeURIComponent(activeConv.id)}` : '/admin/messages'}
+              className="messenger-panel__open-full"
+              data-testid="messenger-open-full"
+              onClick={() => { setIsOpen(false); }}
+              title="Open in the full messages page"
+            >
+              Open in messages →
+            </Link>
+            <button data-no-drag className="messenger-panel__close" onClick={() => { setIsOpen(false); setView('list'); setActiveConv(null); }}>&#10005;</button>
           </div>
 
-          {/* === LIST VIEW === */}
-          {view === 'list' && (
-            <>
+          {/* Slice MX2 — two-pane layout. Sidebar always renders
+              the conversation list (search + actions + rows) so
+              the user can switch conversations without backing
+              out into a separate view. Main pane shows the
+              active chat, the new-conversation flow, the search
+              results, or an empty-state prompt when no thread is
+              selected. */}
+          <div className="messenger-panel__body" data-testid="messenger-panel-body">
+          <aside className="messenger-panel__sidebar" data-testid="messenger-panel-sidebar">
               <div className="messenger-panel__actions">
                 <input
                   className="messenger-panel__search"
@@ -503,7 +580,23 @@ export default function FloatingMessenger() {
                   })
                 )}
               </div>
-            </>
+          </aside>
+
+          {/* Slice MX2 — main pane: chat / new / search / empty
+              prompt depending on `view`. */}
+          <section className="messenger-panel__main" data-testid="messenger-panel-main">
+          {view === 'list' && (
+            <div className="messenger-panel__main-empty" data-testid="messenger-panel-main-empty">
+              <span className="messenger-panel__main-empty-icon" aria-hidden>💬</span>
+              <p style={{ margin: 0 }}>Pick a conversation from the left.</p>
+              <button
+                type="button"
+                className="admin-btn admin-btn--primary admin-btn--sm"
+                onClick={() => { setView('new'); fetchContacts(); }}
+              >
+                Start a new chat
+              </button>
+            </div>
           )}
 
           {/* === NEW CONVERSATION VIEW === */}
@@ -573,36 +666,74 @@ export default function FloatingMessenger() {
 
           {/* === SEARCH VIEW === */}
           {view === 'search' && (
-            <div className="messenger-panel__search-view">
+            <div className="messenger-panel__search-view" data-testid="messenger-panel-search-view">
               <input
                 className="messenger-panel__contact-search"
                 placeholder="Search messages..."
                 autoFocus
+                value={msgSearchQuery}
                 onChange={e => {
                   const q = e.target.value;
+                  setMsgSearchQuery(q);
                   if (q.length >= 2) searchMessages(q);
                   else setSearchResults([]);
                 }}
               />
+              {/* Slice MX5 — results header so the user sees the
+                  result count + the query they're searching for,
+                  matching the dedicated /admin/messages page. */}
+              {msgSearchQuery.trim().length >= 2 && !searching && searchResults.length > 0 && (
+                <div
+                  className="messenger-panel__search-summary"
+                  data-testid="messenger-panel-search-summary"
+                  style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', color: '#6B7280' }}
+                >
+                  {searchResults.length} match{searchResults.length === 1 ? '' : 'es'} for
+                  {' '}
+                  <strong>&ldquo;{msgSearchQuery.trim()}&rdquo;</strong>
+                </div>
+              )}
               <div className="messenger-panel__search-results">
                 {searching && <p className="messenger-panel__loading">Searching...</p>}
                 {!searching && searchResults.length === 0 && (
-                  <p className="messenger-panel__no-results">Type to search messages across all conversations</p>
+                  <p className="messenger-panel__no-results">
+                    {msgSearchQuery.trim().length >= 2
+                      ? `No messages match "${msgSearchQuery.trim()}".`
+                      : 'Type at least 2 characters to search across every conversation.'}
+                  </p>
                 )}
-                {searchResults.map((r, i) => (
-                  <button
-                    key={i}
-                    className="messenger-panel__search-result"
-                    onClick={() => {
-                      const conv = conversations.find(c => c.id === r.conversation_id);
-                      if (conv) openConversation(conv);
-                    }}
-                  >
-                    <span className="messenger-panel__search-sender">{displayName(r.sender_email)}</span>
-                    <span className="messenger-panel__search-content">{r.content.slice(0, 80)}</span>
-                    <span className="messenger-panel__search-time">{formatTime(r.created_at)}</span>
-                  </button>
-                ))}
+                {searchResults.map((r, i) => {
+                  const conv = conversations.find(c => c.id === r.conversation_id);
+                  const snippet = snippetAroundMatch(r.content, msgSearchQuery, 120);
+                  const segments = highlightSegments(snippet, msgSearchQuery);
+                  return (
+                    <button
+                      key={i}
+                      className="messenger-panel__search-result"
+                      data-testid="messenger-panel-search-result"
+                      onClick={() => {
+                        if (conv) openConversation(conv);
+                      }}
+                    >
+                      <span className="messenger-panel__search-sender">
+                        {displayName(r.sender_email)}
+                        {conv && (
+                          <span style={{ color: '#6B7280', fontWeight: 400 }}>
+                            {' '}· {getConvName(conv)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="messenger-panel__search-content">
+                        {segments.map((seg, j) => (
+                          seg.match
+                            ? <mark key={j} style={{ background: '#FEF3C7', padding: '0 1px', borderRadius: '2px' }}>{seg.text}</mark>
+                            : <span key={j}>{seg.text}</span>
+                        ))}
+                      </span>
+                      <span className="messenger-panel__search-time">{formatTime(r.created_at)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -679,6 +810,8 @@ export default function FloatingMessenger() {
               </div>
             </>
           )}
+          </section>{/* /.messenger-panel__main */}
+          </div>{/* /.messenger-panel__body */}
         </div>
         </div>,
         document.body,

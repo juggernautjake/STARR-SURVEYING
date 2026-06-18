@@ -9,6 +9,13 @@ import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { PAGE_TITLES } from './AdminLayoutClient';
+// Slice MX4 — share the draggable hook with the messenger so
+// both popups behave the same way.
+import { useDraggable } from '@/lib/admin/use-draggable';
+
+const DISCUSSION_PANEL_WIDTH = 460;
+const DISCUSSION_PANEL_HEIGHT = 620;
+const DISCUSSION_DRAG_STORAGE_KEY = 'admin/discussion/panel-position';
 
 interface DiscussionThread {
   id: string;
@@ -84,6 +91,19 @@ export default function DiscussionThreadButton() {
   // The page the issue is about — defaults to the CURRENT page but the
   // reporter can pick any admin page from the selector.
   const [pagePath, setPagePath] = useState(pathname);
+  // Slice MX4 — draggable panel via the same hook the messenger
+  // uses. Position persists per-popup so users can park the two
+  // independently.
+  const drag = useDraggable({
+    storageKey: DISCUSSION_DRAG_STORAGE_KEY,
+    width: DISCUSSION_PANEL_WIDTH,
+    height: DISCUSSION_PANEL_HEIGHT,
+    enabled: isOpen,
+    defaultPlacement: ({ w, h }) => ({
+      x: Math.max(0, w - DISCUSSION_PANEL_WIDTH - 24),
+      y: Math.max(0, h - DISCUSSION_PANEL_HEIGHT - 88),
+    }),
+  });
 
   const userEmail = session?.user?.email;
   const pageContext = getPageContext(pathname);
@@ -205,31 +225,58 @@ export default function DiscussionThreadButton() {
         <div
           className="discussion-panel"
           ref={panelRef}
+          data-testid="discussion-panel"
           onClick={(e) => e.stopPropagation()}
-          style={{
+          // Slice MX1 — same FAB-clearing offset as the messenger
+          // panel so neither modal covers the green pill.
+          //
+          // Slice MX4 — once the drag hook has hydrated, switch
+          // to absolute left/top so the panel can move; until
+          // then the MX1 anchor renders so the SSR markup is
+          // stable.
+          style={drag.mounted ? {
             position: 'fixed',
-            bottom: 0,
-            right: 0,
+            left: drag.position.x,
+            top: drag.position.y,
+            width: DISCUSSION_PANEL_WIDTH,
+            height: DISCUSSION_PANEL_HEIGHT,
+            zIndex: 9001,
+            background: '#FFFFFF',
+          } : {
+            position: 'fixed',
+            bottom: '5.5rem',
+            right: '1.5rem',
             zIndex: 9001,
             background: '#FFFFFF',
           }}>
-          {/* Header */}
-          <div className="discussion-panel__header">
+          {/* Header — drag handle.
+              Interactive controls inside carry `data-no-drag`. */}
+          <div
+            className="discussion-panel__header"
+            data-testid="discussion-panel-drag-handle"
+            style={{ touchAction: 'none', cursor: drag.mounted ? 'move' : undefined }}
+            onPointerDown={drag.handlers.onPointerDown}
+            onPointerMove={drag.handlers.onPointerMove}
+            onPointerUp={drag.handlers.onPointerUp}
+            onPointerCancel={drag.handlers.onPointerCancel}
+          >
             <div className="discussion-panel__header-tabs">
               <button
+                data-no-drag
                 className={`discussion-panel__tab ${view === 'list' ? 'discussion-panel__tab--active' : ''}`}
                 onClick={() => setView('list')}
               >
                 Open Threads
               </button>
               <button
+                data-no-drag
                 className={`discussion-panel__tab ${view === 'create' ? 'discussion-panel__tab--active' : ''}`}
                 onClick={() => setView('create')}
               >
                 New Thread
               </button>
             </div>
-            <button className="discussion-panel__close" onClick={() => setIsOpen(false)}>✕</button>
+            <button data-no-drag className="discussion-panel__close" onClick={() => setIsOpen(false)}>✕</button>
           </div>
 
           {/* Current page context */}

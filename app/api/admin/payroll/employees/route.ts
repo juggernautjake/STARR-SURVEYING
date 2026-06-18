@@ -88,7 +88,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     if (targetEmail !== session.user.email) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    // Only allow bank info updates for non-admins
+    // Self-edit fields. EP1 adds the personal-info quartet (DOB,
+    // gender, pronouns, bio) alongside the existing bank-info +
+    // user-name fields the surveyor was already allowed to change.
     const allowed = {
       user_email: targetEmail,
       user_name: profileData.user_name,
@@ -96,6 +98,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       bank_routing_last4: profileData.bank_routing_last4,
       bank_account_last4: profileData.bank_account_last4,
       bank_account_type: profileData.bank_account_type,
+      // Slice EP1 — personal info. Strings are trimmed; an empty
+      // string lands as NULL so the column doesn't fill with
+      // whitespace placeholders.
+      date_of_birth: normalizeDob(profileData.date_of_birth),
+      gender: normalizeText(profileData.gender),
+      pronouns: normalizeText(profileData.pronouns),
+      bio: normalizeText(profileData.bio),
     };
 
     const { data, error } = await supabaseAdmin
@@ -163,3 +172,29 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ profile: data });
 }, { routeName: 'payroll/employees' });
+
+// ─── Slice EP1 helpers ──────────────────────────────────────────────
+//
+// Normalize a possibly-undefined free-form text value: trim, collapse
+// blanks to null, leave undefined alone (so we don't overwrite an
+// existing value when the caller didn't send the field). Exported via
+// the module so this stays close to the route that uses it.
+function normalizeText(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+// Accept either 'YYYY-MM-DD' or an ISO timestamp; bad input → null
+// so a typo doesn't crash the upsert. undefined is a no-op (keep
+// current value).
+function normalizeDob(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string') return null;
+  // Accept the bare date or a full timestamp; pull the date part.
+  const m = value.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
