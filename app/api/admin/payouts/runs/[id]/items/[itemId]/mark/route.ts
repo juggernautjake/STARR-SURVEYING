@@ -66,20 +66,41 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
+  // Fetch the current row so we know whether this is the FIRST
+  // non-pending transition (stamps attempted_at on the way out of
+  // pending; subsequent state shuffles don't re-stamp).
+  const { data: currentItem } = await supabaseAdmin
+    .from('payout_batch_items')
+    .select('attempted_at, status')
+    .eq('id', itemId)
+    .eq('batch_id', batchId)
+    .maybeSingle();
+  const nowIso = new Date().toISOString();
+
   const updates: Record<string, unknown> = {
     status: body.status,
   };
+  if (body.status === 'sent' || body.status === 'paid' || body.status === 'failed') {
+    // First non-pending transition stamps attempted_at — even if it
+    // was a failure. Subsequent changes preserve the original.
+    if (!currentItem?.attempted_at) {
+      updates.attempted_at = nowIso;
+    }
+  }
   if (body.status === 'sent' || body.status === 'paid') {
     updates.external_ref = body.external_ref?.slice(0, 200) ?? null;
     updates.failure_reason = null;
   }
   if (body.status === 'paid') {
-    updates.paid_at = new Date().toISOString();
+    updates.paid_at = nowIso;
   }
   if (body.status === 'pending') {
     updates.external_ref = null;
     updates.failure_reason = null;
     updates.paid_at = null;
+    // Re-opening to pending clears attempted_at so a successful
+    // retry stamps fresh.
+    updates.attempted_at = null;
   }
   if (body.status === 'failed') {
     updates.failure_reason = body.failure_reason?.slice(0, 500) ?? null;
