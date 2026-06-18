@@ -50,12 +50,16 @@ interface LeadReplyRow {
   sender_email: string;
   to_email: string;
   subject: string;
-  body_html: string;
+  body_html: string | null;
   body_text: string | null;
   attachments: Array<{ name: string; size: number }>;
   resend_id: string | null;
   send_error: string | null;
   sent_at: string;
+  // LR7 — inbound (customer) vs outbound (office) rows live in the
+  // same table; the UI styles them differently.
+  direction?: 'outbound' | 'inbound' | null;
+  from_email?: string | null;
 }
 
 function leadIdFromPath(req: NextRequest): string | null {
@@ -87,7 +91,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await supabaseAdmin
     .from('lead_replies')
-    .select('id, lead_id, sender_email, to_email, subject, body_html, body_text, attachments, resend_id, send_error, sent_at')
+    .select('id, lead_id, sender_email, to_email, subject, body_html, body_text, attachments, resend_id, send_error, sent_at, direction, from_email')
     .eq('lead_id', leadId)
     .order('sent_at', { ascending: false });
 

@@ -23,12 +23,16 @@ interface LeadReply {
   sender_email: string;
   to_email: string;
   subject: string;
-  body_html: string;
+  body_html: string | null;
   body_text: string | null;
   attachments: Array<{ name: string; size: number; storage_path?: string }>;
   resend_id: string | null;
   send_error: string | null;
   sent_at: string;
+  // LR7 — inbound (customer) vs outbound (office) rows live in the
+  // same table; render-time bubble styling forks on this.
+  direction?: 'outbound' | 'inbound' | null;
+  from_email?: string | null;
 }
 
 interface RepliesListProps {
@@ -143,11 +147,19 @@ export default function RepliesList({ leadId, refreshKey }: RepliesListProps) {
           {replies.map((r) => {
             const isOpen = expanded.has(r.id);
             const failed = r.send_error != null;
+            // LR7 — direction is null on existing pre-LR7 rows; treat
+            // null + 'outbound' identically so the legacy data still
+            // renders correctly.
+            const isInbound = r.direction === 'inbound';
+            const senderEmail = isInbound
+              ? (r.from_email ?? r.sender_email)
+              : r.sender_email;
             return (
               <li
                 key={r.id}
                 className="lead-detail__reply"
                 data-failed={failed ? 'true' : undefined}
+                data-direction={isInbound ? 'inbound' : 'outbound'}
                 data-testid="lead-replies-row"
               >
                 <button
@@ -157,8 +169,19 @@ export default function RepliesList({ leadId, refreshKey }: RepliesListProps) {
                   aria-expanded={isOpen}
                   data-testid="lead-replies-toggle"
                 >
+                  <span
+                    aria-hidden
+                    data-testid="lead-replies-direction-glyph"
+                    style={{
+                      fontSize: '0.95rem',
+                      color: isInbound ? '#047857' : '#1D3095',
+                    }}
+                    title={isInbound ? 'From customer' : 'From office'}
+                  >
+                    {isInbound ? '↘' : '↗'}
+                  </span>
                   <span className="lead-detail__reply-sender">
-                    {senderName(r.sender_email)}
+                    {senderName(senderEmail)}
                   </span>
                   <span className="lead-detail__reply-subject" title={r.subject}>
                     {r.subject}
@@ -194,14 +217,27 @@ export default function RepliesList({ leadId, refreshKey }: RepliesListProps) {
                         </span>
                       )}
                     </div>
-                    {/* The Reply composer wrote the body as fully-styled
-                        HTML. Render via dangerouslySetInnerHTML; the
-                        only writers are admin users via the gated
-                        POST route, so this is trust-boundary safe. */}
-                    <div
-                      className="lead-detail__reply-html"
-                      dangerouslySetInnerHTML={{ __html: r.body_html }}
-                    />
+                    {/* Outbound: the Reply composer wrote the body as
+                        fully-styled HTML; render via
+                        dangerouslySetInnerHTML (writers are
+                        admin-gated so the trust boundary is safe).
+                        Inbound: providers don't always carry HTML, so
+                        fall back to the text body wrapped in a
+                        pre-wrap div. */}
+                    {r.body_html ? (
+                      <div
+                        className="lead-detail__reply-html"
+                        dangerouslySetInnerHTML={{ __html: r.body_html }}
+                      />
+                    ) : r.body_text ? (
+                      <div
+                        className="lead-detail__reply-html"
+                        style={{ whiteSpace: 'pre-wrap' }}
+                        data-testid="lead-replies-text-fallback"
+                      >
+                        {r.body_text}
+                      </div>
+                    ) : null}
                     {r.attachments.length > 0 && (
                       <ul
                         className="lead-detail__reply-attachments"
@@ -267,10 +303,20 @@ export default function RepliesList({ leadId, refreshKey }: RepliesListProps) {
           border-color: #FCA5A5;
           background: #FEF2F2;
         }
+        /* LR7 — inbound rows get a soft green tint to distinguish
+           customer-from-office in the thread without a wall of
+           identical bubbles. */
+        .lead-detail__reply[data-direction="inbound"] {
+          border-color: color-mix(in srgb, #047857 28%, transparent);
+          background: color-mix(in srgb, #047857 5%, white);
+        }
         .lead-detail__reply-header {
           width: 100%;
           display: grid;
-          grid-template-columns: minmax(110px, auto) 1fr auto auto;
+          /* LR7 — grid gains a leading direction-glyph column. The
+             16px slot fits the ↗ / ↘ arrows without elbowing the
+             sender / subject columns. */
+          grid-template-columns: 16px minmax(110px, auto) 1fr auto auto;
           align-items: center;
           gap: 0.6rem;
           padding: 0.55rem 0.75rem;
