@@ -66,10 +66,12 @@ describe('/admin/leads/[id] — responsive detail page', () => {
   });
 
   it('uses an auto-fit grid that collapses to a single column on phone', () => {
-    // Hard contract: every column at least 280px wide before wrapping.
-    // 280 was picked so a 320-wide iPhone SE shows one column, an iPad
+    // Hard contract: every column at least 300px wide before wrapping.
+    // 300 was picked so a 320-wide iPhone SE shows one column, an iPad
     // shows two, a desktop shows three or four.
-    expect(SRC).toMatch(/gridTemplateColumns: 'repeat\(auto-fit, minmax\(280px, 1fr\)\)'/);
+    // lead-attachments-2026-06-18 — the grid moved into a <style jsx>
+    // block when the cards got their rounded-corner restyle.
+    expect(SRC).toMatch(/grid-template-columns:\s*repeat\(auto-fit, minmax\(300px, 1fr\)\)/);
   });
 
   it('renders the four detail sections (contact + property + pipeline + notes + audit)', () => {
@@ -95,9 +97,12 @@ describe('/admin/leads/[id] — responsive detail page', () => {
     expect(SRC).toMatch(/href=\{`tel:\$\{lead\.phone\}`\}/);
   });
 
-  it('shows the customer notes verbatim in a <pre> so newlines survive', () => {
+  it('shows the customer notes verbatim with white-space: pre-wrap so newlines survive', () => {
     expect(SRC).toMatch(/data-testid="lead-notes"/);
-    expect(SRC).toMatch(/whiteSpace: 'pre-wrap'/);
+    // lead-attachments-2026-06-18 — notes now render in a styled
+    // <div> with `white-space: pre-wrap` declared in the page's
+    // <style jsx> block (instead of inline pre styling).
+    expect(SRC).toMatch(/white-space:\s*pre-wrap/);
   });
 
   it('links to the converted job when present, "not yet" otherwise', () => {
