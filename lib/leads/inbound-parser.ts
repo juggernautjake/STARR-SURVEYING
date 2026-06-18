@@ -82,6 +82,45 @@ export function extractBodyHtml(payload: InboundPayload): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+/** LR9 QA pass — sanitize inbound email HTML before storing. The
+ *  RepliesList renders inbound bodies via dangerouslySetInnerHTML, so
+ *  a hostile customer email could otherwise inject a <script> tag or
+ *  an `onerror=` handler and run JS in the surveyor's session.
+ *
+ *  This is a conservative, regex-based pass — not a full DOM parser
+ *  (would require a heavy DOMPurify dep). It strips:
+ *    - <script> / <style> / <iframe> / <object> / <embed> blocks
+ *    - inline event handler attributes (on\w+=)
+ *    - javascript: URIs anywhere in attribute values
+ *    - data: URIs in src / href (covers data:text/html exfil)
+ *
+ *  Anything that gets past these patterns is bounded by the
+ *  contentEditable / dangerouslySetInnerHTML render surface, which
+ *  already prevents form submits + most exotic attack surfaces. Pure
+ *  + exported so vitest can lock the strip rules. */
+export function sanitizeInboundHtml(input: string | null | undefined): string | null {
+  if (!input) return null;
+  let s = String(input);
+
+  // Strip dangerous tag blocks (including their contents).
+  s = s.replace(/<(script|style|iframe|object|embed)\b[\s\S]*?<\/\1>/gi, '');
+  // Strip self-closing / opening-only variants too (e.g. <iframe />).
+  s = s.replace(/<\/?(script|style|iframe|object|embed)\b[^>]*>/gi, '');
+
+  // Strip inline event handlers on any tag: onerror=, onclick=, etc.
+  s = s.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+
+  // Strip javascript: URIs (with or without quotes around the value).
+  s = s.replace(/(href|src|action|formaction)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1="#"');
+  s = s.replace(/(href|src|action|formaction)\s*=\s*javascript:[^\s>]+/gi, '$1="#"');
+
+  // Strip data: URIs in src / href (covers data:text/html exfil and
+  // most other inline-document tricks).
+  s = s.replace(/(href|src)\s*=\s*(["'])\s*data:[^"']*\2/gi, '$1="#"');
+
+  return s.trim() || null;
+}
+
 /** Pure helper — find an SS-… reference number anywhere in the
  *  payload's subject or body. Returns null when none is present;
  *  the webhook drops the message in that case so we don't write
@@ -109,7 +148,10 @@ export function extractMessageId(payload: InboundPayload): string | null {
 }
 
 /** Full parse → ready to insert. Returns null when the payload is
- *  missing the must-have bits (a sender + a reference number). */
+ *  missing the must-have bits (a sender + a reference number).
+ *  LR9 QA pass — the body html is passed through `sanitizeInboundHtml`
+ *  before being returned so the row stored in `lead_replies` is
+ *  already safe for the RepliesList's dangerouslySetInnerHTML render. */
 export function parseInbound(payload: InboundPayload): ParsedInbound | null {
   const fromEmail = extractFromEmail(payload);
   const referenceNumber = extractReferenceNumber(payload);
@@ -118,7 +160,7 @@ export function parseInbound(payload: InboundPayload): ParsedInbound | null {
     fromEmail,
     subject: typeof payload.subject === 'string' ? payload.subject : '',
     bodyText: extractBodyText(payload),
-    bodyHtml: extractBodyHtml(payload),
+    bodyHtml: sanitizeInboundHtml(extractBodyHtml(payload)),
     messageId: extractMessageId(payload),
     referenceNumber,
   };

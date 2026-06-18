@@ -173,7 +173,10 @@ describe('ReplyDialog renders the Templates picker', () => {
   it("applyTemplate interpolates from leadVars + fills subject + body", () => {
     expect(SRC).toMatch(/const vars = leadVars \? buildTemplateVarsFromLead\(leadVars\) : \{\}/);
     expect(SRC).toMatch(/const nextSubject = interpolateTemplate\(t\.subject_template, vars\)/);
-    expect(SRC).toMatch(/const nextBody = interpolateTemplate\(t\.body_html_template, vars\)/);
+    // LR9 QA pass — body uses the HTML-safe variant so customer-
+    // supplied vars can't XSS the surveyor; subject still uses
+    // plain interpolateTemplate (plain text, no escape).
+    expect(SRC).toMatch(/const nextBody = interpolateTemplateHtml\(t\.body_html_template, vars\)/);
     expect(SRC).toMatch(/setSubject\(nextSubject\)/);
     expect(SRC).toMatch(/editorRef\.current\.innerHTML = nextBody/);
   });

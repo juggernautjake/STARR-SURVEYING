@@ -20,10 +20,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/admin/components/Toast';
-// LR4 — template picker + variable interpolation.
+// LR4 — template picker + variable interpolation. LR9 — the body
+// uses the HTML-safe variant so customer-supplied vars can't XSS the
+// surveyor when the body lands in the contentEditable editor.
 import {
   buildTemplateVarsFromLead,
   interpolateTemplate,
+  interpolateTemplateHtml,
   type LeadVarSource,
 } from '@/lib/leads/templates';
 
@@ -99,8 +102,12 @@ export default function ReplyDialog({
 
   function applyTemplate(t: ReplyTemplate) {
     const vars = leadVars ? buildTemplateVarsFromLead(leadVars) : {};
+    // LR9 QA pass — subject is plain text (no escape); body is HTML
+    // (HTML-escape every var value before substitution so a
+    // customer-supplied lead.name containing `<script>` can't
+    // execute when innerHTML lands).
     const nextSubject = interpolateTemplate(t.subject_template, vars);
-    const nextBody = interpolateTemplate(t.body_html_template, vars);
+    const nextBody = interpolateTemplateHtml(t.body_html_template, vars);
     setSubject(nextSubject);
     if (editorRef.current) editorRef.current.innerHTML = nextBody;
     setShowTemplates(false);
