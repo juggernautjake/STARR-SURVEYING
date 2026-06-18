@@ -28,6 +28,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import {
+  signLeadAttachmentUrls,
+  uploadLeadAttachments,
+} from '@/lib/leads/intake';
 
 interface ResendAttachment {
   filename: string;
@@ -88,7 +92,22 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .order('sent_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ replies: (data ?? []) as LeadReplyRow[] });
+
+  // LR2 — replace each reply's raw storage_path attachments with
+  // short-lived signed URLs so the history view can render a
+  // working download link without exposing the bucket. Failures fall
+  // through to metadata-only chips (existing UI contract).
+  const rows = (data ?? []) as LeadReplyRow[];
+  const replies = await Promise.all(
+    rows.map(async (r) => {
+      const signed = await signLeadAttachmentUrls(
+        supabaseAdmin.storage,
+        r.attachments ?? [],
+      );
+      return { ...r, attachments: signed };
+    }),
+  );
+  return NextResponse.json({ replies });
 }, { routeName: 'admin/leads/[id]/reply' });
 
 // ── POST ─────────────────────────────────────────────────────────────────────
@@ -107,6 +126,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   let toOverride: string | null = null;
   const files: ResendAttachment[] = [];
   const fileSummaries: Array<{ name: string; size: number }> = [];
+  // LR2 — carry raw bytes alongside the Resend-friendly base64 so the
+  // upload-after-insert step can push them to the lead-attachments
+  // bucket under `replies/<reply_id>/<uuid>-<name>`.
+  const uploadable: Array<{
+    name: string;
+    size: number;
+    bytes: Buffer;
+    contentType: string;
+  }> = [];
 
   const ct = req.headers.get('content-type') || '';
   if (ct.includes('application/json')) {
@@ -122,6 +150,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         const buf = Buffer.from(await value.arrayBuffer());
         fileSummaries.push({ name: value.name, size: buf.length });
         files.push({ filename: value.name, content: buf.toString('base64') });
+        uploadable.push({
+          name: value.name,
+          size: buf.length,
+          bytes: buf,
+          contentType: value.type || 'application/octet-stream',
+        });
       } else if (typeof value === 'string') {
         if (key === 'subject') subject = value.trim();
         else if (key === 'bodyHtml') bodyHtml = value.trim();
@@ -222,6 +256,33 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       },
       { status: 500 },
     );
+  }
+
+  // LR2 — once the reply row exists, push the bytes into the
+  // lead-attachments bucket under `replies/<reply_id>/...` and
+  // backfill the row's attachments JSONB with the storage_path so
+  // the history view's chips link to real downloads (via signed
+  // URLs from GET). Failures fall through silently — the Resend
+  // email is the legal record of what was sent.
+  if (uploadable.length > 0 && inserted?.id) {
+    try {
+      const uploaded = await uploadLeadAttachments(
+        supabaseAdmin.storage,
+        leadId,
+        uploadable,
+        undefined,
+        `replies/${inserted.id}`,
+      );
+      const { error: updateErr } = await supabaseAdmin
+        .from('lead_replies')
+        .update({ attachments: uploaded })
+        .eq('id', inserted.id);
+      if (updateErr) {
+        console.error('[lead-reply] attachment backfill failed:', updateErr.message);
+      }
+    } catch (e) {
+      console.error('[lead-reply] attachment upload threw:', e);
+    }
   }
 
   if (sendError) {
