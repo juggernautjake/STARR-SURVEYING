@@ -18,6 +18,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../../hooks/usePageError';
+// lead-reply-2026-06-18 — full email composer launched from the Reply
+// button in the header. The modal owns its own state + posts to the
+// /api/admin/leads/{id}/reply route; this page just opens it.
+import ReplyDialog from './ReplyDialog';
 
 interface LeadAttachment {
   name: string;
@@ -105,6 +109,8 @@ export default function LeadDetailPage() {
   const router = useRouter();
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
+  // lead-reply-2026-06-18 — Reply modal open / closed.
+  const [replyOpen, setReplyOpen] = useState(false);
   const isAdminUser = session?.user?.roles?.includes('admin') ?? false;
 
   const load = useCallback(async () => {
@@ -214,10 +220,29 @@ export default function LeadDetailPage() {
           </span>
         </div>
         <div className="lead-detail__actions">
+          {/* lead-reply-2026-06-18 — primary reply button. Opens the
+              composer modal that posts to /api/admin/leads/{id}/reply.
+              Disabled when the lead has no email on file so we can't
+              accidentally send to nowhere. */}
+          <button
+            type="button"
+            className="lead-detail__btn lead-detail__btn--primary"
+            data-action="reply"
+            data-testid="reply-button"
+            onClick={() => setReplyOpen(true)}
+            disabled={!lead.email}
+            title={
+              lead.email
+                ? `Reply to ${lead.email}`
+                : 'This lead has no email on file'
+            }
+          >
+            ✉️ Reply
+          </button>
           {lead.status === 'new' && (
             <button
               type="button"
-              className="lead-detail__btn lead-detail__btn--primary"
+              className="lead-detail__btn"
               data-action="mark-contacted"
               onClick={() => void changeStatus('contacted')}
               title="Mark as contacted + dismiss the new-query notification"
@@ -683,6 +708,23 @@ export default function LeadDetailPage() {
           color: #6B7280;
         }
       `}</style>
+
+      {/* lead-reply-2026-06-18 — mount the composer when the surveyor
+          clicks Reply. Stays unmounted (no fetches, no event handlers)
+          until then. `onSent` reloads the lead so the new reply
+          history shows up immediately (history rendering ships in a
+          follow-up slice; for now the row just lands in the DB so the
+          office has the audit trail). */}
+      {replyOpen && lead && lead.email && (
+        <ReplyDialog
+          leadId={lead.id}
+          leadName={lead.name}
+          defaultTo={lead.email}
+          defaultSubject={`Re: Your Starr Surveying request${lead.notes ? ` [${(lead.notes.match(/Ref:\s*(\S+)/) || [])[1] ?? ''}]` : ''}`}
+          onClose={() => setReplyOpen(false)}
+          onSent={() => { void load(); }}
+        />
+      )}
     </div>
   );
 }
