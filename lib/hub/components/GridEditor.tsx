@@ -637,7 +637,45 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                           // Fallback for browsers that need text/plain
                           // to enable drag (Firefox in some configs).
                           e.dataTransfer.setData('text/plain', w.id);
-                        } catch { /* setData can throw on weird shells */ }
+                          // grid-editor-polish-2026-06-18 — replace the
+                          // default chip-shaped drag ghost with one
+                          // sized to the widget's actual grid footprint
+                          // (defaultSize × cell px). Surveyor sees an
+                          // outlined preview the size the widget will
+                          // be once dropped, not a tiny chip. Falls
+                          // back silently to the default ghost when
+                          // we can't measure (grid hasn't laid out
+                          // yet, headless test envs, etc.).
+                          const gridEl = gridContainerRef.current;
+                          if (gridEl && typeof document !== 'undefined') {
+                            const rect = gridEl.getBoundingClientRect();
+                            const cellW = rect.width / GRID_EDITOR_COLS;
+                            const cellH = rect.height / GRID_EDITOR_ROWS;
+                            const ghostW = Math.max(80, Math.round(cellW * w.defaultSize.w));
+                            const ghostH = Math.max(60, Math.round(cellH * w.defaultSize.h));
+                            const ghost = document.createElement('div');
+                            ghost.textContent = `${w.label} · ${w.defaultSize.w}×${w.defaultSize.h}`;
+                            ghost.setAttribute('aria-hidden', 'true');
+                            ghost.style.cssText = [
+                              'position:fixed', 'top:-10000px', 'left:-10000px',
+                              `width:${ghostW}px`, `height:${ghostH}px`,
+                              'box-sizing:border-box',
+                              'border:2px dashed var(--theme-accent, #3b82f6)',
+                              'border-radius:10px',
+                              'background:color-mix(in srgb, var(--theme-accent, #3b82f6) 18%, transparent)',
+                              'color:var(--theme-fg-primary, #111827)',
+                              'font:600 0.85rem/1.2 ui-sans-serif, system-ui, sans-serif',
+                              'display:flex', 'align-items:center', 'justify-content:center',
+                              'padding:6px 10px', 'text-align:center',
+                              'pointer-events:none',
+                            ].join(';');
+                            document.body.appendChild(ghost);
+                            e.dataTransfer.setDragImage(ghost, Math.round(ghostW / 2), Math.round(ghostH / 2));
+                            // Clean up after the browser snapshots
+                            // the element (next tick is enough).
+                            setTimeout(() => { try { ghost.remove(); } catch { /* ignore */ } }, 0);
+                          }
+                        } catch { /* setData / setDragImage can throw on weird shells */ }
                         setSelectedType(w.id);
                       }}
                       onDragEnd={() => {
@@ -662,7 +700,13 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                       style={entryStyle}
                       data-widget-type={w.id}
                       data-testid={`grid-editor-palette-entry-${w.id}`}
-                      title={isPlaced ? `${w.label} is already on the grid` : `${w.label} — click to arm OR drag onto the grid`}
+                      // grid-editor-polish-2026-06-18 — palette hover
+                      // tooltip surfaces the widget's own description
+                      // (1-3 sentences) so the surveyor reads what the
+                      // tile does before placing it. Native `title`
+                      // shows on hover with no extra DOM cost. The
+                      // already-placed badge stays in the trailer.
+                      title={`${w.label} — ${w.description}${isPlaced ? '\n\n✓ Already on the grid' : ''}`}
                     >
                       <span style={paletteEntryLabelStyle}>
                         {isPlaced ? '✓ ' : ''}{w.label}
@@ -934,7 +978,18 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                     }}
                   >
                     <span style={placedLabelStyle}>{label}</span>
-                    <span style={placedSizeStyle}>{liveW}×{liveH}</span>
+                    {/* grid-editor-polish-2026-06-18 — the size badge
+                        (e.g. "4×3") used to render permanently next
+                        to the name, swallowing the label on short
+                        widgets. Only surface it while a gesture is
+                        actively in flight (resize or move) so the
+                        surveyor sees live feedback during the drag;
+                        at rest the name wins. */}
+                    {(isResizing || isMoving) && (
+                      <span style={placedSizeStyle} data-testid="grid-editor-placed-size">
+                        {liveW}×{liveH}
+                      </span>
+                    )}
                     {controlsVisible && (
                       <>
                         <button

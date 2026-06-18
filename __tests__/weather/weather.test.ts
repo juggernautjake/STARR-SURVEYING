@@ -40,7 +40,38 @@ describe('toWeatherSnapshot', () => {
       low_f: 71,
       location_label: 'Central Texas',
       daily: [],
+      // weather-extras-2026-06-18 — all three extras null when
+      // the fixture doesn't carry the corresponding fields.
+      feels_like_f: null,
+      humidity_pct: null,
+      rain_chance_pct: null,
     });
+  });
+
+  it('weather-extras-2026-06-18 — surfaces feels-like / humidity / rain chance when present', () => {
+    const full = {
+      current: {
+        temperature_2m: 80,
+        weather_code: 0,
+        apparent_temperature: 84.4,
+        relative_humidity_2m: 62.7,
+      },
+      daily: {
+        time: ['2026-06-18'],
+        weather_code: [0],
+        temperature_2m_max: [95],
+        temperature_2m_min: [72],
+        precipitation_probability_max: [40.6],
+      },
+    };
+    const snap = toWeatherSnapshot(full, 'Austin');
+    expect(snap).toMatchObject({
+      feels_like_f: 84.4,
+      // clamped + rounded to int.
+      humidity_pct: 63,
+      rain_chance_pct: 41,
+    });
+    expect(snap!.daily[0].rain_chance_pct).toBe(41);
   });
 
   it('falls back hi/lo to the current temp when the daily block is missing', () => {
