@@ -154,7 +154,7 @@ Each slice = its own commit + the three post-build checks.
 
 | Slice | What ships |
 |---|---|
-| **S1** | Personal/your tiles — `my-jobs`, `my-pay`, `pto-balance`, `hours-this-week`, `mileage-tracker`, `streak-counter`. Per-bucket variants per the table; minSize / maxSize tightened per the audit. |
+| **S1** | Personal/your tiles. First half (`mileage-tracker`, `streak-counter`): mileage gets period-switcher chips at medium+, "Log a trip" CTA + IRS rate hint at large+, avg-per-trip stat at xlarge. Streak gets a goal-progress bar at medium+ and a milestone-pip strip (one pip per goal-day) at large+. Pure helpers `mileageLayoutForBucket`, `periodChipLabel`, `streakGoalPct`, `streakLayoutForBucket` exported. ✅ shipped. Second half (`my-jobs`, `my-pay`, `pto-balance`, `hours-this-week`) — those already have rich per-bucket logic; verified against the audit, no work needed. |
 | **S2** | Work/team tiles — `crew-calendar`, plus the four legacy field-* widgets (team / vehicles / equipment / consumables) + `maintenance-due`. |
 | **S3** | Field-data + drawings legacy tiles — `field-data-pending`, `active-research-projects`, `recent-drawings`, `drawings-in-progress`, `pipeline-status`, `job-activity-feed`. |
 | **S4** | Comms legacy — `messages`, `mentions-inbox`, `open-discussions`, `recent-announcements`. |
