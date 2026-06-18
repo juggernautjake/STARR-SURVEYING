@@ -174,7 +174,7 @@ Each slice = its own commit + the three post-build checks.
 | Slice | What ships |
 |---|---|
 | **W1** | Type-level dedupe in `addWidget` + matching "already added" toast + `--placed` modifier on palette chips. Closes the duplication bug AND enforces the user spec ("never two of the same widget"). ✅ shipped |
-| **W2** | Drag-and-drop palette → grid via pointer events. Old click-to-arm + click-cell still works as a fallback. |
+| **W2** | Drag-and-drop palette → grid via HTML5 drag API. Old click-to-arm + click-cell still works as a fallback. ✅ shipped |
 | **W3** | Profile fallback ("No more information about …") on `/admin/employees/[email]` when every optional field is empty. |
 | **W4** | CAD-button bypass: remove the role gate on the `/admin/cad` nav entry + quick-action. Anyone can reach it. |
 | **W5** | Weather widget extended with a 5-day forecast strip at `large` / `xlarge`. API change + widget render branch + tests. Establishes the size-relative-content pattern for the rest of the fleet. |

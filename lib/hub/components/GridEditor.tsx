@@ -623,6 +623,31 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                       aria-selected={isSelected}
                       aria-disabled={isPlaced && !isSelected}
                       data-placed={isPlaced ? 'true' : undefined}
+                      // Slice W2 — drag-and-drop placement. The
+                      // chip becomes a native HTML5 drag source;
+                      // dragstart arms `selectedType` so the
+                      // existing preview lights up and dragover
+                      // tracks the cursor cell. Disabled when the
+                      // widget is already on the grid.
+                      draggable={!isPlaced}
+                      onDragStart={isPlaced ? undefined : (e) => {
+                        try {
+                          e.dataTransfer.effectAllowed = 'copy';
+                          e.dataTransfer.setData('application/x-hub-widget-type', w.id);
+                          // Fallback for browsers that need text/plain
+                          // to enable drag (Firefox in some configs).
+                          e.dataTransfer.setData('text/plain', w.id);
+                        } catch { /* setData can throw on weird shells */ }
+                        setSelectedType(w.id);
+                      }}
+                      onDragEnd={() => {
+                        // Clear arming after a failed drop (drop
+                        // outside the grid). A successful drop on
+                        // the grid already disarms via
+                        // handleCellPointerDown.
+                        setSelectedType((cur) => (cur === w.id ? null : cur));
+                        setPlaceHover(null);
+                      }}
                       onClick={() => {
                         if (isPlaced && !isSelected) {
                           if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
@@ -636,7 +661,8 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                       }}
                       style={entryStyle}
                       data-widget-type={w.id}
-                      title={isPlaced ? `${w.label} is already on the grid` : w.label}
+                      data-testid={`grid-editor-palette-entry-${w.id}`}
+                      title={isPlaced ? `${w.label} is already on the grid` : `${w.label} — click to arm OR drag onto the grid`}
                     >
                       <span style={paletteEntryLabelStyle}>
                         {isPlaced ? '✓ ' : ''}{w.label}
@@ -693,6 +719,78 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                 handleCellPointerDown(cell.x, cell.y);
               } : undefined}
               onPointerLeave={selected ? () => setPlaceHover(null) : undefined}
+              // Slice W2 — drag-and-drop placement. dragover
+              // updates the preview cell + signals a valid drop
+              // target via dropEffect; drop resolves to a
+              // placement at the cursor's cell via the existing
+              // handleCellPointerDown.
+              onDragOver={(ev) => {
+                if (!ev.dataTransfer.types.includes('application/x-hub-widget-type')) return;
+                ev.preventDefault();
+                ev.dataTransfer.dropEffect = 'copy';
+                const el = gridContainerRef.current;
+                if (!el) return;
+                const cell = cellUnderPointer(
+                  el.getBoundingClientRect(),
+                  ev.clientX,
+                  ev.clientY,
+                );
+                setPlaceHover((cur) =>
+                  cur && cur.x === cell.x && cur.y === cell.y ? cur : cell,
+                );
+              }}
+              onDrop={(ev) => {
+                const type = ev.dataTransfer.getData('application/x-hub-widget-type')
+                  || ev.dataTransfer.getData('text/plain');
+                if (!type) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                const el = gridContainerRef.current;
+                if (!el) return;
+                const cell = cellUnderPointer(
+                  el.getBoundingClientRect(),
+                  ev.clientX,
+                  ev.clientY,
+                );
+                // Resolve the widget definition from the catalog
+                // by the dropped type. This sidesteps `selected`
+                // (which reads stale via closure inside drop
+                // handlers) and goes straight to the placement
+                // math with everything we need.
+                const def = catalog.find((w) => w.id === type);
+                if (!def) return;
+                // Type-level dup guard: fire the toast + bail.
+                if ((draftWidgets ?? []).some((w) => w.type === type)) {
+                  if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+                    try {
+                      window.dispatchEvent(new CustomEvent('hub:duplicate-widget', { detail: { type } }));
+                    } catch { /* ignore */ }
+                  }
+                  setSelectedType(null);
+                  setPlaceHover(null);
+                  return;
+                }
+                const size = def.defaultSize;
+                const rect = clampRectToEnvelope({ x: cell.x, y: cell.y, w: size.w, h: size.h }, size, size);
+                if (overlapsAny(rect, draftWidgets ?? [])) {
+                  // Drop overlaps an existing widget — disarm + clear preview.
+                  setSelectedType(null);
+                  setPlaceHover(null);
+                  return;
+                }
+                addWidget({
+                  id: generatePlacementId(),
+                  type,
+                  x: rect.x,
+                  y: rect.y,
+                  w: rect.w,
+                  h: rect.h,
+                  customization: { content: def.defaultContent },
+                });
+                setSelectedType(null);
+                setPlaceHover(null);
+              }}
+              onDragLeave={() => setPlaceHover(null)}
             >
               {Array.from({ length: GRID_EDITOR_ROWS * GRID_EDITOR_COLS }).map((_, idx) => {
                 const x = idx % GRID_EDITOR_COLS;
