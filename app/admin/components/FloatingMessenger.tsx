@@ -104,6 +104,42 @@ export function makeOptimisticId(): string {
   return `optimistic:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** messenger-smoothing-pass2-2026-06-18 — pure dedupe helpers used by
+ *  the polled refresh so identical responses skip the setState call.
+ *  React then sees the same reference and stops re-rendering the
+ *  affected subtree entirely. */
+export function sameConversationSnapshot(
+  prev: ReadonlyArray<{ id: string; last_message_at?: string; last_message_preview?: string | null }>,
+  next: ReadonlyArray<{ id: string; last_message_at?: string; last_message_preview?: string | null }>,
+): boolean {
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i += 1) {
+    const a = prev[i];
+    const b = next[i];
+    if (
+      a.id !== b.id
+      || (a.last_message_at ?? '') !== (b.last_message_at ?? '')
+      || (a.last_message_preview ?? '') !== (b.last_message_preview ?? '')
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function sameCountMap(
+  prev: Record<string, number>,
+  next: Record<string, number>,
+): boolean {
+  const prevKeys = Object.keys(prev);
+  const nextKeys = Object.keys(next);
+  if (prevKeys.length !== nextKeys.length) return false;
+  for (const k of prevKeys) {
+    if (prev[k] !== next[k]) return false;
+  }
+  return true;
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -170,18 +206,27 @@ export default function FloatingMessenger() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch conversations
+  // messenger-smoothing-pass2-2026-06-18 — skip the setState call when
+  // the server response is the same shape as what we already render.
+  // Without this every 15-second poll re-renders the entire sidebar
+  // (each <button> row was being remounted because every conv object
+  // was a brand-new reference) which the user perceived as a flicker.
   const fetchConversations = useCallback(async () => {
     if (!userEmail) return;
     try {
       const res = await fetch('/api/admin/messages/conversations?archived=false');
       if (res.ok) {
         const data = await res.json();
-        setConversations(data.conversations || []);
+        const next: Conversation[] = data.conversations || [];
+        setConversations((prev) => sameConversationSnapshot(prev, next) ? prev : next);
       }
     } catch { /* silent */ }
   }, [userEmail]);
 
   // Fetch unread counts
+  // messenger-smoothing-pass2-2026-06-18 — guard the setState calls
+  // behind a deep-ish equality check so identical poll responses don't
+  // re-render the FAB badge or the per-row unread pills.
   const fetchUnread = useCallback(async () => {
     if (!userEmail) return;
     try {
@@ -189,8 +234,9 @@ export default function FloatingMessenger() {
       if (res.ok) {
         const data = await res.json();
         const nextTotal = data.unread_count || 0;
-        setUnreadCounts(data.unread_by_conversation || {});
-        setTotalUnread(nextTotal);
+        const nextByConv = (data.unread_by_conversation || {}) as Record<string, number>;
+        setUnreadCounts((prev) => sameCountMap(prev, nextByConv) ? prev : nextByConv);
+        setTotalUnread((prev) => prev === nextTotal ? prev : nextTotal);
         // messenger-notify-fix-2026-06-18 — when the unread total grows
         // between polls AND the messenger is closed, surface a toast so
         // the recipient sees an in-app cue (matches the "users are
@@ -912,10 +958,17 @@ export default function FloatingMessenger() {
                           <div className={`messenger-panel__msg-bubble ${isOwn ? 'messenger-panel__msg-bubble--own' : ''}`}>
                             {m.content}
                           </div>
+                          {/* messenger-smoothing-pass2-2026-06-18 —
+                              keep the time label the same width whether
+                              the row is optimistic or server-acked so
+                              the bubble doesn't reflow when the confirm
+                              arrives. The clock-face shows on both;
+                              optimistic adds a small ⏳ chip after it. */}
                           <span className="messenger-panel__msg-time">
-                            {m.id.startsWith('optimistic:')
-                              ? 'Sending…'
-                              : new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {m.id.startsWith('optimistic:') && (
+                              <span aria-label="Sending" title="Sending…" style={{ marginLeft: 4 }}>⏳</span>
+                            )}
                           </span>
                         </div>
                       </div>

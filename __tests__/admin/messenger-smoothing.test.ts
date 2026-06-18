@@ -18,6 +18,8 @@ import path from 'node:path';
 import {
   makeOptimisticId,
   mergeServerWithOptimistic,
+  sameConversationSnapshot,
+  sameCountMap,
   type Message,
 } from '@/app/admin/components/FloatingMessenger';
 
@@ -122,8 +124,62 @@ describe('FloatingMessenger smoothing contract (source-lock)', () => {
     expect(SRC).toMatch(/setMessages\(\(prev\) => prev\.filter\(\(m\) => m\.id !== optimisticMsg\.id\)\);[\s\S]{0,80}setNewMessage\(content\)/);
   });
 
-  it("flags optimistic bubbles via data-pending + 'Sending…' time label", () => {
+  it("flags optimistic bubbles via data-pending + 'Sending…' chip", () => {
     expect(SRC).toMatch(/data-pending=\{m\.id\.startsWith\('optimistic:'\) \? 'true' : undefined\}/);
-    expect(SRC).toMatch(/m\.id\.startsWith\('optimistic:'\)\s*\n\s*\? 'Sending…'/);
+    // messenger-smoothing-pass2-2026-06-18 — optimistic rows now share
+    // the same clock-face string as server-acked ones (so widths stay
+    // identical) plus a tiny ⏳ chip after the time.
+    expect(SRC).toMatch(/m\.id\.startsWith\('optimistic:'\) && \(/);
+    expect(SRC).toMatch(/aria-label="Sending"/);
+  });
+});
+
+describe('FloatingMessenger smoothing pass 2 (source-lock)', () => {
+  const SRC = read('app/admin/components/FloatingMessenger.tsx');
+
+  it('fetchConversations skips setState when the snapshot is identical', () => {
+    expect(SRC).toMatch(/sameConversationSnapshot\(prev, next\) \? prev : next/);
+  });
+
+  it('fetchUnread skips setState when counts are identical', () => {
+    expect(SRC).toMatch(/sameCountMap\(prev, nextByConv\) \? prev : nextByConv/);
+    expect(SRC).toMatch(/setTotalUnread\(\(prev\) => prev === nextTotal \? prev : nextTotal\)/);
+  });
+});
+
+describe('Smoothing pass 2 pure helpers (vitest)', () => {
+  it('sameConversationSnapshot returns true when ids + last_message stamps match', () => {
+    const prev = [
+      { id: 'c1', last_message_at: 't1', last_message_preview: 'hi' },
+      { id: 'c2', last_message_at: 't2', last_message_preview: 'hello' },
+    ];
+    const next = [
+      { id: 'c1', last_message_at: 't1', last_message_preview: 'hi' },
+      { id: 'c2', last_message_at: 't2', last_message_preview: 'hello' },
+    ];
+    expect(sameConversationSnapshot(prev, next)).toBe(true);
+  });
+
+  it("returns false when a conversation's last_message_at changes", () => {
+    const prev = [{ id: 'c1', last_message_at: 't1', last_message_preview: 'hi' }];
+    const next = [{ id: 'c1', last_message_at: 't2', last_message_preview: 'hi' }];
+    expect(sameConversationSnapshot(prev, next)).toBe(false);
+  });
+
+  it("returns false on a length change", () => {
+    expect(sameConversationSnapshot([], [{ id: 'c1' }])).toBe(false);
+  });
+
+  it('sameCountMap returns true for identical maps', () => {
+    expect(sameCountMap({ a: 1, b: 2 }, { a: 1, b: 2 })).toBe(true);
+  });
+
+  it("returns false when a count changes", () => {
+    expect(sameCountMap({ a: 1 }, { a: 2 })).toBe(false);
+  });
+
+  it("returns false when keys differ", () => {
+    expect(sameCountMap({ a: 1 }, { b: 1 })).toBe(false);
+    expect(sameCountMap({ a: 1 }, { a: 1, b: 1 })).toBe(false);
   });
 });
