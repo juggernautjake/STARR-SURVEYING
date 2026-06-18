@@ -195,6 +195,14 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
         ))}
       </section>
 
+      {(batch.status === 'approved' || batch.status === 'dispatched') && (
+        <div className="batch-page__dispatch-link">
+          <Link href={`/admin/payouts/runs/${batch.id}/dispatch`} data-testid="batch-open-dispatch" className="batch-btn batch-btn--dispatch">
+            Open dispatch →
+          </Link>
+        </div>
+      )}
+
       {(batch.status === 'draft' || batch.status === 'approved') && (
         <footer className="batch-page__actions">
           {batch.status === 'draft' && (
@@ -308,6 +316,9 @@ const styles = `
   .batch-btn--approve:hover:not(:disabled) { background: #185a30; }
   .batch-btn--void { background: transparent; color: #8a0e13; border: 1px solid #d8a4a4; }
   .batch-btn--void:hover:not(:disabled) { background: rgba(189, 18, 24, 0.06); }
+  .batch-btn--dispatch { background: #1D3095; color: #fff; text-decoration: none; display: inline-block; }
+  .batch-btn--dispatch:hover { background: #16266f; }
+  .batch-page__dispatch-link { max-width: 1100px; margin: 1rem auto; text-align: right; }
   .batch-btn--ghost { background: transparent; color: #4a5470; border: 1px solid #d6d9e3; }
   .batch-page__void-prompt {
     display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
