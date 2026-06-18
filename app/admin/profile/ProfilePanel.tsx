@@ -74,6 +74,13 @@ export default function ProfilePanel() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('info');
   const [hubLayout, setHubLayout] = useState<HubLayoutRow | null>(null);
+  // Slice EP3 — avatar upload state. `liveAvatarUrl` overrides
+  // `session.user.image` after a successful upload so the user
+  // sees their new photo without a full page reload; null falls
+  // through to the session value.
+  const [liveAvatarUrl, setLiveAvatarUrl] = useState<string | null>(null);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   // Slice EP1 — personal-info card edit state.
   const [personalEditing, setPersonalEditing] = useState(false);
   const [personalDraft, setPersonalDraft] = useState<{
@@ -189,16 +196,94 @@ export default function ProfilePanel() {
       {/* Header card */}
       <div className="admin-card" style={{ marginBottom: '1rem' }}>
         <div className="profile-page__header" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-          {image ? (
-            <Image src={image} alt={name || 'User'} width={40} height={40} unoptimized className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB' }} />
-          ) : (
-            <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-brand-red)', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
-              {(name || 'U').charAt(0)}
-            </div>
-          )}
+          {/* Slice EP3 — clickable avatar that triggers a file
+              picker. After a successful upload the new public
+              URL takes over via `liveAvatarUrl` so the user sees
+              the change immediately. */}
+          <label
+            data-testid="profile-avatar-change"
+            title="Change profile photo"
+            style={{ position: 'relative', display: 'inline-block', cursor: avatarSaving ? 'progress' : 'pointer' }}
+          >
+            {(liveAvatarUrl ?? image) ? (
+              <Image
+                src={(liveAvatarUrl ?? image) as string}
+                alt={name || 'User'}
+                width={64}
+                height={64}
+                unoptimized
+                className="profile-page__avatar"
+                style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB', objectFit: 'cover' }}
+              />
+            ) : (
+              <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-brand-red)', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
+                {(name || 'U').charAt(0)}
+              </div>
+            )}
+            <span
+              aria-hidden
+              style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '50%',
+                background: 'rgba(15, 23, 42, 0.45)',
+                color: '#FFFFFF',
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                opacity: 0,
+                transition: 'opacity 120ms ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+              }}
+              className="profile-page__avatar-hover"
+            >
+              {avatarSaving ? 'Saving…' : 'Change'}
+            </span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              data-testid="profile-avatar-input"
+              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                setAvatarError(null);
+                setAvatarSaving(true);
+                try {
+                  const dataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => reject(reader.error ?? new Error('Read failed'));
+                    reader.readAsDataURL(file);
+                  });
+                  const res = await fetch('/api/admin/profile/avatar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dataUrl }),
+                  });
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({})) as { error?: string };
+                    throw new Error(data.error ?? `HTTP ${res.status}`);
+                  }
+                  const data = await res.json() as { avatar_url: string };
+                  setLiveAvatarUrl(data.avatar_url);
+                } catch (err) {
+                  setAvatarError(err instanceof Error ? err.message : 'Could not upload.');
+                } finally {
+                  setAvatarSaving(false);
+                }
+              }}
+            />
+          </label>
           <div>
             <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.2rem', fontWeight: 700, color: '#0F1419' }}>{name}</div>
             <div style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280' }}>{email}</div>
+            {avatarError && (
+              <div role="alert" data-testid="profile-avatar-error" style={{ fontSize: '0.75rem', color: 'var(--color-error)' }}>{avatarError}</div>
+            )}
             <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
               {roles.map(r => (
                 <span key={r} className={`admin-topbar__role-badge admin-topbar__role-badge--${r}`} style={{ display: 'inline-flex' }}>{r.replace('_', ' ')}</span>
