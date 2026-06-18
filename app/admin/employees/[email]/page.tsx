@@ -16,6 +16,8 @@ import { notFound } from 'next/navigation';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { deriveAge } from '../../profile/ProfilePanel';
+// Slice EP7b — admin edit affordance for the personal-info card.
+import AdminPersonalInfoEditor from './AdminPersonalInfoEditor';
 
 interface Profile {
   user_email: string;
@@ -144,7 +146,25 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
       </div>
 
       <div className="admin-card" style={{ marginBottom: '1rem' }} data-testid="employee-profile-personal">
-        <h2 style={{ marginTop: 0, fontSize: '1rem', fontWeight: 600 }}>Personal info</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Personal info</h2>
+          {/* Slice EP7b — admin edit-on-behalf-of. The button +
+              inline form are rendered only when the viewer holds
+              the admin role; the existing payroll/employees POST
+              already accepts these four fields on any target
+              email when the caller is admin. */}
+          {viewerIsAdmin && !isSelf && (
+            <AdminPersonalInfoEditor
+              targetEmail={email}
+              initial={{
+                date_of_birth: profile.date_of_birth,
+                gender: profile.gender,
+                pronouns: profile.pronouns,
+                bio: profile.bio,
+              }}
+            />
+          )}
+        </div>
         <div className="emp-manage__field"><label>Pronouns</label><span>{profile.pronouns?.trim() || 'Not set'}</span></div>
         <div className="emp-manage__field"><label>Gender</label><span>{profile.gender?.trim() || 'Not set'}</span></div>
         <div className="emp-manage__field"><label>Date of birth</label><span>{fmtDate(profile.date_of_birth)}</span></div>

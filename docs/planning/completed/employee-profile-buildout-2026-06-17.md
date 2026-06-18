@@ -60,7 +60,7 @@ migration so the schema lands incrementally and reversibly.
 | **EP5** | New `/api/admin/profile/jobs?email=<email>` joins `job_team` with `jobs`, orders by latest assignment, and collapses repeat assignments per job. ProfilePanel renders a "Jobs I've worked on" card with each row linking to `/admin/jobs/<id>` + a "Crew lead" badge when the user led the crew. ✅ shipped |
 | **EP6** | New role-gated `/api/admin/profile/compensation?email=<email>` fans out 3 parallel reads (`employee_salary_history` + `employee_bonuses` capped at 50 + `employee_payouts` capped at 12). Self always passes; others need an admin / developer / tech_support role via the new pure `canSeeOthersPay` predicate. ProfilePanel renders a "Compensation" card with current rate, salary history, recent bonuses, and last few payouts. ✅ shipped |
 | **EP7a** | Basic per-user public profile at `/admin/employees/[email]`. Server component, view-only, surfaces the EP1 personal-info section + the EP2 contact methods + hire date / status / credentials. Pay (hourly_rate) gated to self or admin. ✅ shipped |
-| **EP7b** | Admin edit-on-behalf-of: full ProfilePanel-style editor at this same route when the viewer is an admin. (next slice) |
+| **EP7b** | New `AdminPersonalInfoEditor` client component mounts on `/admin/employees/[email]` ONLY when the viewer is an admin AND it isn't their own page. Toggle button reveals an inline form for the four personal-info fields; submit POSTs to the existing payroll/employees endpoint with the target email, then calls `router.refresh()` so the server component repaints with the new values. ✅ shipped |
 
 Each slice ships with the standard three post-build checks
 (typecheck, lint, vitest) per the user's standing ask.
