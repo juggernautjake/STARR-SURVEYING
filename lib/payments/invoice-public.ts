@@ -38,3 +38,28 @@ export function sumSucceededPayments(
 }
 
 export const PUBLIC_BLOCKED_STATUSES: ReadonlySet<string> = new Set(['draft', 'voided']);
+
+/** P6 — methods that produce a `payment_attempts` row through the
+ *  public `attempt` route. Deep-link platforms go to
+ *  `pending_confirmation`; cash + check go to `pledged`. Stripe is
+ *  intentionally absent — it has its own intent + webhook path. */
+const ATTEMPT_METHOD_STATUS: ReadonlyMap<string, 'pending_confirmation' | 'pledged'> = new Map([
+  ['venmo', 'pending_confirmation'],
+  ['cashapp', 'pending_confirmation'],
+  ['zelle', 'pending_confirmation'],
+  ['cash', 'pledged'],
+  ['check', 'pledged'],
+]);
+
+export function attemptStatusForMethod(method: string): 'pending_confirmation' | 'pledged' | null {
+  return ATTEMPT_METHOD_STATUS.get(method) ?? null;
+}
+
+/** P6 — clean the "I sent it" message the customer typed. Trim,
+ *  cap at 500 chars (the column is plain text, not JSONB, so this
+ *  is the bound). Returns null when the trimmed result is empty. */
+export function sanitizeAttemptMessage(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.replace(/\s+$/g, '').slice(0, 500);
+  return trimmed.trim().length === 0 ? null : trimmed;
+}

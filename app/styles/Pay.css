@@ -300,6 +300,73 @@
 }
 .pay-methods__toast a { color: var(--brand-red, #BD1218); font-weight: 700; }
 
+/* P6 — "I sent it" confirmation strip */
+.pay-methods__confirm {
+  margin-top: 1rem;
+  background: #F4F5F9;
+  border: 1px solid #d6d9e3;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+.pay-methods__confirm-lede { margin: 0 0 0.85rem; font-size: 1rem; color: var(--brand-dark, #152050); }
+.pay-methods__confirm-email {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #4a5470);
+  margin-bottom: 0.75rem;
+}
+.pay-methods__confirm-email input {
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d6d9e3;
+  border-radius: 8px;
+  background: #fff;
+}
+.pay-methods__confirm-email input:focus {
+  outline: 2px solid rgba(29, 48, 149, 0.25);
+  border-color: var(--brand-blue, #1D3095);
+}
+.pay-methods__confirm-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.pay-methods__confirm-yes,
+.pay-methods__confirm-cancel {
+  font: inherit;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 0.7rem 1.2rem;
+  cursor: pointer;
+  border: none;
+  flex: 1 1 50%;
+  min-width: 130px;
+}
+.pay-methods__confirm-yes { background: var(--brand-red, #BD1218); color: #ffffff; }
+.pay-methods__confirm-yes:hover:not(:disabled) { background: #9c0e13; }
+.pay-methods__confirm-cancel { background: transparent; color: var(--brand-blue, #1D3095); border: 1px solid var(--brand-blue, #1D3095); }
+.pay-methods__confirm-cancel:hover:not(:disabled) { background: rgba(29, 48, 149, 0.05); }
+.pay-methods__confirm-yes:disabled,
+.pay-methods__confirm-cancel:disabled { opacity: 0.6; cursor: not-allowed; }
+.pay-methods__confirm-error {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+  color: #8a0e13;
+  background: #fdecec;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+}
+
+.pay-methods__received {
+  margin-top: 1rem;
+  background: #e2f5e8;
+  border: 1px solid #b1d8bd;
+  color: #1f6d3c;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.pay-methods__received a { color: var(--brand-red, #BD1218); font-weight: 700; }
+
 /* -------------------------------------------------------------------------
    Paid state
    ------------------------------------------------------------------------- */
