@@ -172,7 +172,7 @@ describe('/admin/payouts/runs links to the tax report', () => {
 });
 
 describe('P16 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
   it("plan still references the tax reporting prep scope", () => {
     expect(PLAN).toMatch(/Tax reporting prep/);
   });

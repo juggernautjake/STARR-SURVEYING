@@ -249,7 +249,7 @@ describe('app/api/webhooks/stripe/route.ts — invoice routing', () => {
 });
 
 describe('P5 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the Stripe Elements integration scope", () => {
     expect(PLAN).toMatch(/Stripe Elements integration/);

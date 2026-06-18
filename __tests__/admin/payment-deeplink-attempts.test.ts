@@ -137,7 +137,7 @@ describe('app/pay/[invoice]/page.tsx — deep-link flow (P6)', () => {
 });
 
 describe('P6 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the deep-link payment options scope", () => {
     expect(PLAN).toMatch(/Deep-link payment options/);

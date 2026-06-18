@@ -263,7 +263,7 @@ describe('/admin/invoices/new composer — source-lock', () => {
 });
 
 describe('P3b plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan describes the create + send flow", () => {
     expect(PLAN).toMatch(/Create \+ send invoice/);

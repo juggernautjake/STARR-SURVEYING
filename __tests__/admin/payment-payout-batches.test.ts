@@ -220,7 +220,7 @@ describe('AdminSidebar wires the Payout Runs link', () => {
 });
 
 describe('P11 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the weekly payout batch UI scope", () => {
     expect(PLAN).toMatch(/Weekly payout batch UI/);

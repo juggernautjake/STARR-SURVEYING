@@ -211,7 +211,7 @@ describe('app/pay/[invoice]/page.tsx — P8 paid-card extras', () => {
 });
 
 describe('P8 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the return-to-portal status view scope", () => {
     expect(PLAN).toMatch(/Return-to-portal status view/);

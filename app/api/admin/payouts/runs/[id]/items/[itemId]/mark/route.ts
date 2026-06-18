@@ -71,7 +71,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // pending; subsequent state shuffles don't re-stamp).
   const { data: currentItem } = await supabaseAdmin
     .from('payout_batch_items')
-    .select('attempted_at, status')
+    .select('attempted_at, paid_at, status')
     .eq('id', itemId)
     .eq('batch_id', batchId)
     .maybeSingle();
@@ -92,7 +92,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     updates.failure_reason = null;
   }
   if (body.status === 'paid') {
-    updates.paid_at = nowIso;
+    // P22 QA — preserve the ORIGINAL paid_at on subsequent flips
+    // so the audit trail anchors to the first clear. The mark
+    // route can be called multiple times (e.g. office updates
+    // external_ref after the row is already paid).
+    if (!currentItem?.paid_at) {
+      updates.paid_at = nowIso;
+    }
   }
   if (body.status === 'pending') {
     updates.external_ref = null;

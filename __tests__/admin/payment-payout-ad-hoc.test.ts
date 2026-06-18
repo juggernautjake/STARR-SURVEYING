@@ -85,7 +85,7 @@ describe('existing /api/admin/payouts/runs already supports ad_hoc (no schema wo
 });
 
 describe('P15 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references one-time bonuses + reimbursements scope", () => {
     expect(PLAN).toMatch(/One-time bonuses \+ reimbursements/);

@@ -220,7 +220,7 @@ describe('app/pay/[invoice]/page.tsx — invoice detail + methods picker', () =>
 });
 
 describe('P4 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the /pay landing + invoice lookup scope", () => {
     expect(PLAN).toMatch(/`\/pay` landing \+ invoice lookup/);

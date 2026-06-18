@@ -82,6 +82,29 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     ? Math.max(0, Math.round(body.amount_cents))
     : attempt.intended_amount_cents;
 
+  // P22 QA — when the customer submits two attempts for the same
+  // Venmo / CashApp tx (rare but happens — e.g. they forgot they
+  // hit "I sent it" and submitted again), the office could
+  // accidentally clear both, double-counting the payment. Refuse
+  // a clear whose `external_ref` already matches a succeeded
+  // payments row on the same invoice.
+  const externalRef = body.external_ref?.trim();
+  if (externalRef) {
+    const { data: dupe } = await supabaseAdmin
+      .from('payments')
+      .select('id')
+      .eq('invoice_id', invoice.id)
+      .eq('external_id', externalRef)
+      .eq('status', 'succeeded')
+      .maybeSingle();
+    if (dupe) {
+      return NextResponse.json(
+        { error: `A payment with reference "${externalRef}" was already recorded on this invoice.` },
+        { status: 409 },
+      );
+    }
+  }
+
   const { data: existingPayments } = await supabaseAdmin
     .from('payments')
     .select('amount_cents, status')
@@ -102,7 +125,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       amount_cents: amount,
       method: attempt.method,
       status: 'succeeded',
-      external_id: body.external_ref?.slice(0, 200) ?? null,
+      external_id: externalRef?.slice(0, 200) ?? null,
       external_provider: attempt.method === 'cash' || attempt.method === 'check' ? 'manual' : attempt.method,
       payer_email: attempt.payer_email,
       reconciled_by: session.user.email ?? null,

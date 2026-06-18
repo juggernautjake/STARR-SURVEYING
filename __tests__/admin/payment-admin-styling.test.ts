@@ -86,7 +86,7 @@ describe('loading states publish aria-busy + aria-live', () => {
 });
 
 describe('P21 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
   it("plan still references the admin portal styling pass scope", () => {
     expect(PLAN).toMatch(/Admin portal styling pass/);
   });

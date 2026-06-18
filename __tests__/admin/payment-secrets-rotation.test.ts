@@ -205,7 +205,7 @@ describe('docs/security/payments-pci-scope.md', () => {
 });
 
 describe('P17 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
   it("plan still references secrets handling scope", () => {
     expect(PLAN).toMatch(/Secrets handling/);
   });

@@ -127,7 +127,7 @@ describe('seed 324 — RLS + idempotency', () => {
 });
 
 describe('P2 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still describes the encrypted-ACH posture", () => {
     expect(PLAN).toMatch(/Encrypted-at-rest handles for ACH/);

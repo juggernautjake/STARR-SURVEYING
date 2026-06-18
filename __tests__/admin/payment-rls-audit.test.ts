@@ -144,7 +144,7 @@ describe('PCI doc references the audit query', () => {
 });
 
 describe('P18 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
   it("plan still references the RLS audit scope", () => {
     expect(PLAN).toMatch(/RLS audit/);
   });

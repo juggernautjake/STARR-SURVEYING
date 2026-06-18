@@ -186,7 +186,7 @@ describe('seed 323 — RLS + triggers + idempotency', () => {
 describe('P1 plan annotation locks the slice', () => {
   // Smoke test the plan still describes what the seed actually ships,
   // so a future reviewer reading completed/ can trace back to scope.
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the five-table foundation", () => {
     expect(PLAN).toMatch(/invoices, payments, payment_intents, payment_attempts, payment_receipts/);

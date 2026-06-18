@@ -212,7 +212,7 @@ describe('P3 plan annotation locks the slice', () => {
   const fs = require('node:fs') as typeof import('node:fs');
   const path = require('node:path') as typeof import('node:path');
   const PLAN = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'docs/planning/in-progress/payment-infrastructure-2026-06-18.md'),
+    path.join(__dirname, '..', '..', 'docs/planning/completed/payment-infrastructure-2026-06-18.md'),
     'utf8',
   );
 

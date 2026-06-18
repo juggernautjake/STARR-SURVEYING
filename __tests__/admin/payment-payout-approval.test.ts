@@ -170,7 +170,7 @@ describe('history list links to detail', () => {
 });
 
 describe('P12 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the approval flow scope", () => {
     expect(PLAN).toMatch(/Approval flow/);

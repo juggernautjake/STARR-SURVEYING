@@ -161,7 +161,7 @@ describe('app/pay/[invoice]/page.tsx — P7 pledge UI', () => {
 });
 
 describe('P7 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the cash + check pledge scope", () => {
     expect(PLAN).toMatch(/Cash \/ check pledge/);

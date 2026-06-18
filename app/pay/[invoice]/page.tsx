@@ -134,7 +134,11 @@ export default function PayInvoicePage(): React.ReactElement {
 
   const status = describeInvoiceStatus(invoice.status);
   const dueDate = invoice.due_at ? new Date(invoice.due_at).toLocaleDateString() : null;
-  const isPaid = invoice.balance_cents === 0;
+  // P22 QA — a $0 invoice is not "paid", it's "no balance due".
+  // The Paid-in-full card is only rendered when there was real
+  // money to clear and a confirmed payment closed it.
+  const isPaid = invoice.balance_cents === 0 && invoice.total_cents > 0;
+  const isZeroDollar = invoice.total_cents === 0;
 
   function onMethodClick(method: typeof PAYMENT_METHODS[number]) {
     setAttemptError(null);
@@ -269,7 +273,17 @@ export default function PayInvoicePage(): React.ReactElement {
             </div>
           </article>
 
-          {!isPaid && (
+          {/* P22 QA — zero-dollar invoice gets its own card; the
+              method picker is hidden because there's nothing to
+              pay. */}
+          {isZeroDollar && (
+            <article className="pay-card" data-testid="pay-zero-dollar">
+              <h2 className="pay-card__title">No balance due</h2>
+              <p>This invoice has a $0 balance. Nothing to pay.</p>
+            </article>
+          )}
+
+          {!isPaid && !isZeroDollar && (
             <article className="pay-card pay-card--methods" data-testid="pay-methods">
               <h2 className="pay-card__title">How would you like to pay?</h2>
               <p className="pay-card__hint">

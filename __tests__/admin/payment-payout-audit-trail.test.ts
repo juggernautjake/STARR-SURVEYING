@@ -122,7 +122,7 @@ describe('employee profile page wires the payout history card', () => {
 });
 
 describe('P14 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the per-payout audit trail scope", () => {
     expect(PLAN).toMatch(/Per-payout audit trail/);

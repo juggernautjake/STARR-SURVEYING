@@ -131,7 +131,7 @@ describe('public receipt PDF route — source-lock', () => {
 });
 
 describe('P9 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the receipt PDF scope", () => {
     expect(PLAN).toMatch(/Receipt PDF/);

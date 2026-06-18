@@ -137,7 +137,7 @@ describe('AdminSidebar wires the inbox link', () => {
 });
 
 describe('P10 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
 
   it("plan still references the office close-out tool scope", () => {
     expect(PLAN).toMatch(/Office close-out tool/);

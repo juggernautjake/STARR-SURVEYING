@@ -89,7 +89,7 @@ describe('docs/security/saq-a-eligibility-checklist.md — P19 SAQ A audit', () 
 });
 
 describe('P19 plan annotation locks the slice', () => {
-  const PLAN = read('docs/planning/in-progress/payment-infrastructure-2026-06-18.md');
+  const PLAN = read('docs/planning/completed/payment-infrastructure-2026-06-18.md');
   it("plan still references the PCI scope review", () => {
     expect(PLAN).toMatch(/PCI scope review/);
   });
