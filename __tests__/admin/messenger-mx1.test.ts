@@ -88,8 +88,12 @@ describe("FloatingMessenger JSX — 'Open in /admin/messages →' link", () => {
 describe('DiscussionThreadButton JSX — defensive inline style matches new contract', () => {
   const SRC = read('app/admin/components/DiscussionThreadButton.tsx');
 
-  it("the inline style still anchors above the FAB (bottom: 5.5rem)", () => {
-    expect(SRC).toMatch(/className="discussion-panel"[\s\S]{0,400}bottom:\s*'5\.5rem'/);
-    expect(SRC).toMatch(/className="discussion-panel"[\s\S]{0,400}right:\s*'1\.5rem'/);
+  it("the SSR fallback (pre-drag-hydration) still anchors above the FAB (bottom: 5.5rem)", () => {
+    // MX4 made the discussion panel draggable too. Bottom/right
+    // are now the `else` branch of `drag.mounted ? {...} : {...}`,
+    // so we just assert the string is still present somewhere
+    // in the file rather than locking the position.
+    expect(SRC).toMatch(/bottom:\s*'5\.5rem'/);
+    expect(SRC).toMatch(/right:\s*'1\.5rem'/);
   });
 });
