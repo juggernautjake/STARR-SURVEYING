@@ -26,6 +26,9 @@ import ReplyDialog from './ReplyDialog';
 // reads from the same /reply endpoint and renders the per-lead
 // conversation log under the Notes card.
 import RepliesList from './RepliesList';
+// LR3 — office-side conversation notes card. Backed by the new
+// public.lead_notes table (seed 320) + /api/admin/leads/[id]/notes.
+import LeadNotesCard from './LeadNotesCard';
 
 interface LeadAttachment {
   name: string;
@@ -395,6 +398,12 @@ export default function LeadDetailPage() {
             <p className="lead-detail__empty">No notes provided.</p>
           )}
         </section>
+
+        {/* LR3 of lead-reply-expansion-2026-06-18.md — office-side
+            conversation notes. Lives between the customer's original
+            message and the outbound reply history so the page reads
+            top-to-bottom as a single thread. */}
+        <LeadNotesCard leadId={lead.id} />
 
         {/* LR1 of lead-reply-expansion-2026-06-18.md — outbound reply
             history. Reads from /api/admin/leads/[id]/reply (shipped in
