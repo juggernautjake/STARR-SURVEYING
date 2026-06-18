@@ -186,6 +186,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/employees',             label: 'Employees',        workspace: 'office', iconName: 'UsersRound',   description: 'Employee directory.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/employees/manage',      label: 'Manage Employee',  workspace: 'office', iconName: 'UserCog',      description: 'Edit an employee record.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/users',                 label: 'Manage Users',     workspace: 'office', iconName: 'KeyRound',     description: 'User accounts + roles.', roles: ['admin', 'tech_support'] },
+  // Slice W7 (hub-cad-roles-polish-2026-06-18) — role builder.
+  // Admin-only; surfaces alongside Manage Users in the Office
+  // workspace.
+  { href: '/admin/roles/custom',          label: 'Role Builder',     workspace: 'office', iconName: 'ShieldPlus',   description: 'Define new roles on top of the built-in role list.', roles: ['admin'], internalOnly: true, keywords: ['permissions', 'roles', 'custom'] },
   { href: '/admin/payroll',               label: 'Payroll',          workspace: 'office', iconName: 'BadgeDollarSign', description: 'Payroll runs.', roles: ['admin'], internalOnly: true, keywords: ['paychecks', 'wages'] },
   { href: '/admin/pay-progression',       label: 'Pay Progression',  workspace: 'office', iconName: 'TrendingUp',   description: 'Pay rate progression model.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raises', 'progression'] },
   { href: '/admin/payout-log',            label: 'Payout History',   workspace: 'office', iconName: 'ScrollText',   description: 'Historical payout log.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },

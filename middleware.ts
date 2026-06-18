@@ -26,6 +26,8 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
 
   // ── People / User Management ──
   { prefix: '/admin/users', roles: ['admin', 'tech_support'] },
+  // Slice W7 — role builder. Admin-only at the request level.
+  { prefix: '/admin/roles', roles: ['admin'] },
   { prefix: '/admin/employees', roles: ['admin', 'developer', 'tech_support'] },
 
   // ── Work (specific before general) ──
