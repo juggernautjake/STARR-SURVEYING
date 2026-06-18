@@ -53,12 +53,14 @@ migration so the schema lands incrementally and reversibly.
 | Slice | What ships |
 |---|---|
 | **EP1** | Migration 310 adds `date_of_birth DATE`, `gender TEXT`, `pronouns TEXT`, `bio TEXT` to `employee_profiles`. The existing POST `/api/admin/payroll/employees` allow-list grows to accept the four fields from the signed-in user. `ProfilePanel` gains a "Personal info" card with view + edit modes plus a derived "Age N" line from DOB (`deriveAge` is exported + tested). ✅ shipped |
-| **EP2** | New `public.employee_contact_methods` table (id, user_email, kind: 'phone' \| 'email' \| 'address', value, label, is_primary). Self-PATCH endpoint + ProfilePanel section to add / edit / delete; primary email is locked to the auth email for now. |
+| **EP2a** | Migration 311 + `lib/employee-profile/contact-methods.ts` pure helpers + new `/api/admin/profile/contact-methods` GET/POST/PATCH/DELETE. ✅ shipped |
+| **EP2b** | ProfilePanel "Contact" section that consumes the EP2a API: list per kind, add / edit / delete row, primary toggle. (next slice) |
 | **EP3** | Profile-pic upload via existing `user_files` infrastructure: client uploads image, server writes the row + sets `registered_users.avatar_url`. ProfilePanel surfaces a "Change photo" affordance on the existing avatar. |
 | **EP4** | "About me" image gallery — new `public.employee_images` table (user_email, file_id, caption, sort_order). Reuses the EP3 upload flow. Grid view on the profile. |
 | **EP5** | "Jobs I've worked on" tab — query `public.jobs` by `assigned_to` (or job-employees join when that lands) and render a chronological list with links to each job page. |
 | **EP6** | Salary + bonuses tab — surfaces `employee_salary_history` + `employee_bonuses` + `employee_payouts` with a role-gated guard (`if (isSelf || isPayrollAdmin) { … }`). |
-| **EP7** | Admin-facing read-only profile at `/admin/employees/[email]` that opens the same ProfilePanel pre-bound to that user's email; role-aware so non-admins see only what EP6's guard allows. |
+| **EP7a** | Basic per-user public profile at `/admin/employees/[email]`. Server component, view-only, surfaces the EP1 personal-info section + the EP2 contact methods + hire date / status / credentials. Pay (hourly_rate) gated to self or admin. ✅ shipped |
+| **EP7b** | Admin edit-on-behalf-of: full ProfilePanel-style editor at this same route when the viewer is an admin. (next slice) |
 
 Each slice ships with the standard three post-build checks
 (typecheck, lint, vitest) per the user's standing ask.

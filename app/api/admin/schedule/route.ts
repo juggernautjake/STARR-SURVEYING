@@ -50,11 +50,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // specific users, or all users, or keep it private."
   if (!isAdmin(session.user.roles)) {
     const email = session.user.email;
+    // Slice widget-empty-vs-error-2026-06-17 — PostgREST's `.or()`
+    // parser treats `@` and `.` as raw delimiters when the value
+    // sits bare, so the previous filter (S2 wiring) was returning
+    // 500s for any non-admin user and the today-schedule widget
+    // was showing "Couldn't load this widget" when the real
+    // intent was just "you have nothing scheduled." Wrap each
+    // value in double quotes per the PostgREST contract; the
+    // array literal for `viewer_emails.cs` quotes the value too.
+    const safe = `"${email}"`;
     query = query.or(
       [
-        `assigned_to.eq.${email}`,
+        `assigned_to.eq.${safe}`,
         `visibility.eq.all_users`,
-        `and(visibility.eq.specific_users,viewer_emails.cs.{${email}})`,
+        `and(visibility.eq.specific_users,viewer_emails.cs.{${safe}})`,
       ].join(','),
     );
   }

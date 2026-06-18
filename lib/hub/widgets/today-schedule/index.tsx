@@ -77,6 +77,7 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
   const view = resolveScheduleView(settings.defaultView, bucket);
 
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
+  const [errorMessage, setErrorMessage] = useState<string>("Couldn't load your schedule.");
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   // Slice 3 (doc 04) — inline "+ Add event" at medium+ sizes.
   const [adding, setAdding] = useState(false);
@@ -86,7 +87,30 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
     try {
       const { from, to } = scheduleWindow(view, settings.timeRange);
       const res = await fetch(`/api/admin/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Slice widget-empty-vs-error-2026-06-17 — user feedback:
+      //   "if there is simply nothing scheduled, it should just
+      //    say 'nothing is scheduled', not 'couldn't load this
+      //    widget'. That makes it seem like there was an error.
+      //    We need to know the difference between an error in
+      //    fetching information and there just not being any data."
+      //
+      // Auth failures (401/403) are NOT data errors — they mean the
+      // user isn't allowed to see schedules. Treat them as empty so
+      // the widget reads as "you have nothing here" rather than
+      // "something broke". Real server errors (5xx) and network
+      // failures still fall through to the error path with a
+      // message that names the cause.
+      if (res.status === 401 || res.status === 403) {
+        setEvents([]);
+        setStatus('empty');
+        return;
+      }
+      if (!res.ok) {
+        setEvents([]);
+        setErrorMessage(`Schedule service returned HTTP ${res.status}. Retry in a moment.`);
+        setStatus('error');
+        return;
+      }
       const data: { events?: ScheduleEvent[] } = await res.json();
       let list = data.events ?? [];
       if (!settings.showAllDay) list = list.filter((e) => !e.all_day);
@@ -94,7 +118,13 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
       list = sortByStart(list);
       setEvents(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
-    } catch {
+    } catch (err) {
+      // Network failure (offline, DNS, CORS, etc.) or JSON parse
+      // error. Distinct from a 2xx with no rows so the user knows
+      // it's worth retrying.
+      setEvents([]);
+      const reason = err instanceof Error ? err.message : 'unknown error';
+      setErrorMessage(`Couldn't reach the schedule service (${reason}). Check your connection.`);
       setStatus('error');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +140,7 @@ function TodayScheduleWidget({ size, content }: WidgetProps<TodayScheduleContent
   );
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
-  if (status === 'error')   return <WidgetError message="Couldn't load your schedule." onRetry={fetchEvents} />;
+  if (status === 'error')   return <WidgetError message={errorMessage} onRetry={fetchEvents} />;
 
   const today = datePart(new Date().toISOString());
   // The "+ Add event" affordance only shows where there's room (medium+).

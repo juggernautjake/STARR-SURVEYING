@@ -172,8 +172,24 @@
   letter-spacing: 0.01em;
   white-space: nowrap;
   /* bg + color are set inline from lib/admin/role-colors.ts so each
-   * role gets its own contrast-checked pair. */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+   * role gets its own contrast-checked pair.
+   *
+   * Slice role-pill-outline-2026-06-17 — user feedback: "the admin
+   * role is almost the same blue as the background on the hub …
+   * it should probably just be that none of the roles have the
+   * same color bubble as the background they are sitting on."
+   *
+   * Add a thin `currentColor` outer ring (via box-shadow so it
+   * doesn't change the pill size). Because the foreground is
+   * contrast-picked against the pill bg, it ALSO contrasts with
+   * any surrounding that matches the pill bg — exactly the
+   * admin-on-navy-hub case the user flagged. The translucent
+   * white halo on top widens the silhouette so the pill pops
+   * even against a non-matching dark background. */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 0 0 1.5px currentColor,
+    0 0 0 3px rgba(255, 255, 255, 0.35);
 }
 
 /* Slice 218 / 221 — Enter Work Mode CTA. Slice 221 swaps the flat
