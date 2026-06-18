@@ -22,6 +22,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { dispatch } from '@/lib/saas/notifications';
 import { registerAllEvents } from '@/lib/saas/notifications/events';
+import { paymentsAreLive } from '@/lib/payments/live';
+import {
+  extractInvoiceFromStripeEvent,
+  nextInvoiceStatusAfterPayment,
+  stripeEventIsUsd,
+} from '@/lib/payments/stripe';
+import type { StripeEventLike } from '@/lib/payments/stripe';
+import { sumSucceededPayments } from '@/lib/payments/invoice-public';
 
 // Idempotent — runs on first webhook hit then short-circuits.
 // The notifications service needs to know about its events before
@@ -319,8 +327,110 @@ async function handleCheckoutCompleted(session: Record<string, unknown>): Promis
 }
 
 async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknown>): Promise<void> {
-  // Payment intents are also fired for subscriptions — log for audit trail
+  // payment-infrastructure-2026-06-18 P5 — invoices created via the
+  // `/pay` portal stamp `metadata.invoice_id`. Route those to the
+  // invoice-clearance helper; everything else is the legacy
+  // subscription / wallet path and just gets logged.
+  const metadata = (paymentIntent.metadata as Record<string, unknown> | undefined) ?? {};
+  if (typeof metadata.invoice_id === 'string' && metadata.invoice_id.length > 0) {
+    if (!paymentsAreLive()) {
+      console.warn('[Webhook] invoice payment intent received but PAYMENTS_LIVE=false');
+      return;
+    }
+    await handleInvoicePaymentIntentSucceeded(paymentIntent);
+    return;
+  }
+  // Legacy / SaaS path — audit log only.
   console.log(`[Webhook] PaymentIntent succeeded: ${paymentIntent.id as string}`);
+}
+
+/** payment-infrastructure-2026-06-18 P5 — clear the invoice, write
+ *  the payment row, update the shadow row. Idempotent via dedupe on
+ *  `payments.external_id`. */
+async function handleInvoicePaymentIntentSucceeded(paymentIntent: Record<string, unknown>): Promise<void> {
+  const event: StripeEventLike = {
+    type: 'payment_intent.succeeded',
+    data: { object: paymentIntent as NonNullable<StripeEventLike['data']>['object'] },
+  };
+  if (!stripeEventIsUsd(event)) {
+    console.warn('[Webhook] non-USD invoice payment intent — skipping');
+    return;
+  }
+  const key = extractInvoiceFromStripeEvent(event);
+  if (!key.external_intent_id) return;
+
+  // Dedupe — Stripe can retry; we already wrote this payment if
+  // there's a row with external_id = intent.id.
+  const { data: existing } = await supabaseAdmin
+    .from('payments')
+    .select('id')
+    .eq('external_id', key.external_intent_id)
+    .eq('external_provider', 'stripe')
+    .maybeSingle();
+  if (existing) {
+    console.log(`[Webhook] invoice payment intent ${key.external_intent_id} already recorded`);
+    return;
+  }
+
+  // Find the invoice — metadata first, shadow row second.
+  let invoiceId = key.invoice_id;
+  if (!invoiceId) {
+    const { data: shadow } = await supabaseAdmin
+      .from('payment_intents')
+      .select('invoice_id')
+      .eq('external_intent_id', key.external_intent_id)
+      .maybeSingle();
+    invoiceId = shadow?.invoice_id ?? null;
+  }
+  if (!invoiceId) {
+    console.warn(`[Webhook] no invoice found for intent ${key.external_intent_id}`);
+    return;
+  }
+
+  const { data: invoice } = await supabaseAdmin
+    .from('invoices')
+    .select('id, total_cents, status')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (!invoice) return;
+
+  const { data: existingPayments } = await supabaseAdmin
+    .from('payments')
+    .select('amount_cents, status')
+    .eq('invoice_id', invoice.id);
+  const alreadyPaid = sumSucceededPayments(existingPayments ?? []);
+  const nextStatus = nextInvoiceStatusAfterPayment({
+    totalCents: invoice.total_cents ?? 0,
+    alreadyPaidCents: alreadyPaid,
+    newPaymentCents: key.amount_received,
+    currentStatus: invoice.status,
+  });
+
+  await supabaseAdmin.from('payments').insert({
+    invoice_id: invoice.id,
+    amount_cents: key.amount_received,
+    method: 'stripe',
+    status: 'succeeded',
+    external_id: key.external_intent_id,
+    external_provider: 'stripe',
+    payer_email: key.receipt_email,
+    cleared_at: new Date().toISOString(),
+  });
+
+  await supabaseAdmin
+    .from('invoices')
+    .update({
+      status: nextStatus,
+      paid_at: nextStatus === 'paid' ? new Date().toISOString() : null,
+    })
+    .eq('id', invoice.id);
+
+  await supabaseAdmin
+    .from('payment_intents')
+    .update({ status: 'succeeded' })
+    .eq('external_intent_id', key.external_intent_id);
+
+  console.log(`[Webhook] invoice ${invoice.id} → ${nextStatus} (intent ${key.external_intent_id})`);
 }
 
 async function handlePaymentFailed(paymentIntent: Record<string, unknown>): Promise<void> {
