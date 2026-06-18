@@ -15,6 +15,7 @@
 //   - Submits as `draft` — approval + dispatch land in later slices
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   batchItemTotalCents,
   batchTotalCents,
@@ -312,12 +313,12 @@ export default function PayoutRunsPage(): React.ReactElement {
           <ul className="payouts-history__list">
             {batches.map((b) => (
               <li className="payouts-history__row" key={b.id} data-testid={`payouts-history-${b.id}`}>
-                <div>
+                <Link href={`/admin/payouts/runs/${b.id}`} className="payouts-history__link">
                   <div className="payouts-history__label">{b.label}</div>
                   <div className="payouts-history__meta">
                     {b.kind} · created by {b.created_by} · {new Date(b.created_at).toLocaleDateString()}
                   </div>
-                </div>
+                </Link>
                 <div className="payouts-history__right">
                   <span className={`payouts-chip payouts-chip--${b.status}`}>{STATUS_LABEL[b.status]}</span>
                   <strong>{formatDollars(b.total_cents)}</strong>
@@ -437,6 +438,8 @@ const styles = `
   }
   .payouts-history__label { font-family: 'Sora', sans-serif; font-weight: 700; }
   .payouts-history__meta { font-size: 0.8rem; color: #6b7280; }
+  .payouts-history__link { text-decoration: none; color: inherit; flex: 1; min-width: 0; }
+  .payouts-history__link:hover .payouts-history__label { color: #1D3095; }
   .payouts-history__right { display: flex; gap: 0.85rem; align-items: center; }
   .payouts-chip {
     font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700;
