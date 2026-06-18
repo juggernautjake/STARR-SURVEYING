@@ -84,3 +84,7 @@ import './pending-bin';
 // drawings + drawings-in-progress + recent-drawings. Legacy
 // widgets stay registered.
 import './drawings-hub';
+// Slice W9c — consolidated money widget. Absorbs my-pay +
+// monthly-revenue + outstanding-invoices. Legacy widgets stay
+// registered.
+import './money';
