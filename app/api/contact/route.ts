@@ -24,10 +24,18 @@ interface ResendAttachment {
 // CONFIGURATION
 // =============================================================================
 
-// Email recipients - business notifications go to all of these
+// Email recipients - business notifications go to all of these.
+// hank-cc-2026-06-18 — Hank Maddux (RPLS) is the principal who needs
+// every inbound inquiry. The mail provider's forwarding rule on the
+// info@ mailbox handles "external" mail (anything a customer sends
+// directly to that address); this list governs the queries our OWN
+// system fires off when the contact form is submitted. Adding Hank
+// here guarantees a copy lands in his inbox even if the info@
+// forwarding rule is changed or paused later.
 const EMAIL_RECIPIENTS = [
   'info@starr-surveying.com',
   'starrsurveying@yahoo.com',
+  'hankmaddux@starr-surveying.com',
 ];
 
 // Company information

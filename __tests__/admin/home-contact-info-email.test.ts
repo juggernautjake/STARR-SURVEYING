@@ -32,6 +32,26 @@ describe('home page — info email callout', () => {
   it('reminds the customer attachments work over email too', () => {
     expect(SRC).toMatch(/attach any photos, deeds, or plats/);
   });
+
+  it("does NOT promise to reply from the same email address", () => {
+    // hank-cc-2026-06-18 — the user explicitly asked us not to make
+    // this promise; replies may come from any of the team's emails.
+    expect(SRC).not.toMatch(/respond from the same address/i);
+    expect(SRC).not.toMatch(/reply from the same/i);
+  });
+});
+
+describe('contact-route EMAIL_RECIPIENTS — Hank gets a copy', () => {
+  const SRC = read('app/api/contact/route.ts');
+
+  it('keeps the info@ + yahoo recipients', () => {
+    expect(SRC).toMatch(/'info@starr-surveying\.com'/);
+    expect(SRC).toMatch(/'starrsurveying@yahoo\.com'/);
+  });
+
+  it("adds hankmaddux@starr-surveying.com to EMAIL_RECIPIENTS", () => {
+    expect(SRC).toMatch(/const EMAIL_RECIPIENTS = \[[\s\S]{0,400}'hankmaddux@starr-surveying\.com'/);
+  });
 });
 
 describe('home contact CSS — direct-email callout styling', () => {
