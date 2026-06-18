@@ -37,7 +37,9 @@ interface Conversation {
   participants: { user_email: string; role: string }[];
 }
 
-interface Message {
+// messenger-smoothing-2026-06-18 — exported so vitest can lock the
+// optimistic-merge contract via the pure helpers below.
+export interface Message {
   id: string;
   sender_email: string;
   content: string;
@@ -63,6 +65,43 @@ function displayName(email: string): string {
     .split(' ')
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
+}
+
+/** messenger-smoothing-2026-06-18 — merge a fresh server response with
+ *  any optimistic messages already in local state. Pure + exported.
+ *
+ *  Rules:
+ *    1. If the server array is identical (same ids in the same order)
+ *       to what `prev` already shows, return `prev` so React skips the
+ *       re-render entirely.
+ *    2. Otherwise build the merged list as server-messages first, then
+ *       any optimistic rows whose content + sender don't already match
+ *       a server row (so the optimistic dissolves into the real row
+ *       once the server confirms).
+ */
+export function mergeServerWithOptimistic(
+  prev: Message[],
+  server: Message[],
+): Message[] {
+  const sameIds =
+    prev.length === server.length
+    && prev.every((m, i) => m.id === server[i]?.id);
+  if (sameIds) return prev;
+
+  const optimisticOnly = prev.filter((m) => m.id.startsWith('optimistic:'));
+  const survivors = optimisticOnly.filter((opt) =>
+    !server.some(
+      (s) => s.sender_email === opt.sender_email && s.content === opt.content,
+    ),
+  );
+  return [...server, ...survivors];
+}
+
+/** messenger-smoothing-2026-06-18 — local-only message id for the
+ *  optimistic insert so we can dedupe + replace once the server
+ *  confirms. Pure. */
+export function makeOptimisticId(): string {
+  return `optimistic:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function formatTime(iso: string): string {
@@ -171,14 +210,31 @@ export default function FloatingMessenger() {
     } catch { /* silent */ }
   }, [userEmail, isOpen, addToast]);
 
-  // Fetch messages for a conversation
-  const fetchMessages = useCallback(async (convId: string) => {
-    setLoadingMessages(true);
+  // Fetch messages for a conversation.
+  // messenger-smoothing-2026-06-18:
+  //   - `showSkeleton` only flips the loading state on a real
+  //     conversation-switch fetch; polled refreshes don't toggle it
+  //     (the "blip" the user complained about was this skeleton
+  //     replacing the rendered list every 15s).
+  //   - When the server response has the same message ids in the same
+  //     order as the current state, skip the setState call entirely so
+  //     React doesn't re-render or scroll-jump on every poll.
+  //   - Optimistic rows kept in local state (id starting with
+  //     `optimistic:`) survive the merge if the server hasn't echoed
+  //     them yet; once a server message arrives with matching sender +
+  //     content, the optimistic is dropped.
+  const fetchMessages = useCallback(async (
+    convId: string,
+    options: { showSkeleton?: boolean } = {},
+  ) => {
+    const showSkeleton = options.showSkeleton !== false;
+    if (showSkeleton) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/admin/messages/send?conversation_id=${convId}&limit=100`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        const serverMessages: Message[] = data.messages || [];
+        setMessages((prev) => mergeServerWithOptimistic(prev, serverMessages));
         fetch('/api/admin/messages/read', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -186,7 +242,7 @@ export default function FloatingMessenger() {
         });
       }
     } catch { /* silent */ }
-    setLoadingMessages(false);
+    if (showSkeleton) setLoadingMessages(false);
   }, []);
 
   // Fetch contacts
@@ -215,21 +271,32 @@ export default function FloatingMessenger() {
   }, []);
 
   // Initial load + polling
+  // messenger-smoothing-2026-06-18 — polled refreshes pass
+  // `showSkeleton: false` to fetchMessages so the chat history doesn't
+  // flicker every 15s; the merge helper short-circuits the setState
+  // call when nothing changed.
   useEffect(() => {
     fetchConversations();
     fetchUnread();
     const interval = setInterval(() => {
       fetchConversations();
       fetchUnread();
-      if (activeConv) fetchMessages(activeConv.id);
+      if (activeConv) fetchMessages(activeConv.id, { showSkeleton: false });
     }, 15000);
     return () => clearInterval(interval);
   }, [fetchConversations, fetchUnread, activeConv, fetchMessages]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when the message count grows.
+  // messenger-smoothing-2026-06-18 — only react to length deltas so a
+  // polled refresh that mutates the array reference but keeps the same
+  // ids doesn't trigger a smooth-scroll animation every cycle.
+  const lastMessageCountRef = useRef<number>(0);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length > lastMessageCountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    lastMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
   // employee-pond Slice E9b — persist the active recipient whenever
   // a direct conversation is opened so the dedicated /admin/messages
@@ -333,19 +400,38 @@ export default function FloatingMessenger() {
   }
 
   // Send message
+  // messenger-smoothing-2026-06-18 — the row now appears in the chat
+  // history instantly (optimistic insert) and the input clears the same
+  // tick. The server confirm runs in the background; once it returns we
+  // silently refetch (no skeleton) and the merge dedupes the optimistic
+  // row against the server-acked one.
   async function handleSend() {
-    if (!newMessage.trim() || !activeConv) return;
+    if (!newMessage.trim() || !activeConv || !userEmail) return;
+    const content = newMessage.trim();
+    const optimisticMsg: Message = {
+      id: makeOptimisticId(),
+      sender_email: userEmail,
+      content,
+      message_type: 'text',
+      created_at: new Date().toISOString(),
+      attachments: [],
+    };
+    // Optimistic insert + clear the input + collapse the emoji picker
+    // BEFORE the network round-trip so the chat reads as instant.
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setNewMessage('');
+    setShowEmoji(false);
     setSending(true);
     try {
       const res = await fetch('/api/admin/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: activeConv.id, content: newMessage.trim(), message_type: 'text' }),
+        body: JSON.stringify({ conversation_id: activeConv.id, content, message_type: 'text' }),
       });
       if (res.ok) {
-        setNewMessage('');
-        setShowEmoji(false);
-        fetchMessages(activeConv.id);
+        // Silent refetch so the optimistic row dissolves into the
+        // server-acked row + the merge helper avoids re-render churn.
+        fetchMessages(activeConv.id, { showSkeleton: false });
         fetchConversations();
       } else {
         // messenger-notify-fix-2026-06-18 — surface a real error instead
@@ -357,10 +443,16 @@ export default function FloatingMessenger() {
           if (data?.error && typeof data.error === 'string') detail = data.error;
         } catch { /* response wasn't JSON, keep the status */ }
         addToast(`Couldn't send message — ${detail}`, 'error');
+        // Roll the optimistic message back so the user sees the failure
+        // and can retry by re-typing.
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+        setNewMessage(content);
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'network error';
       addToast(`Couldn't send message — ${detail}`, 'error');
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+      setNewMessage(content);
     }
     setSending(false);
   }
@@ -800,7 +892,18 @@ export default function FloatingMessenger() {
                             <span>{new Date(m.created_at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
                           </div>
                         )}
-                        <div className={`messenger-panel__msg ${isOwn ? 'messenger-panel__msg--own' : ''}`}>
+                        {/* messenger-smoothing-2026-06-18 — optimistic
+                            rows get a faded opacity + a "Sending…" hint
+                            so the surveyor sees their message instantly
+                            AND knows it's still in flight. The bubble
+                            replaces itself with the server-acked one
+                            without a layout shift once fetchMessages
+                            merges. */}
+                        <div
+                          className={`messenger-panel__msg ${isOwn ? 'messenger-panel__msg--own' : ''}`}
+                          data-pending={m.id.startsWith('optimistic:') ? 'true' : undefined}
+                          style={m.id.startsWith('optimistic:') ? { opacity: 0.6 } : undefined}
+                        >
                           {showSender && (
                             <span className="messenger-panel__msg-sender">
                               {displayName(m.sender_email)}
@@ -810,7 +913,9 @@ export default function FloatingMessenger() {
                             {m.content}
                           </div>
                           <span className="messenger-panel__msg-time">
-                            {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {m.id.startsWith('optimistic:')
+                              ? 'Sending…'
+                              : new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                       </div>
