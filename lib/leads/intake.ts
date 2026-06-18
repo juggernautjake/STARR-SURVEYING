@@ -246,3 +246,147 @@ export async function insertLeadFromForm(
     return null;
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// lead-attachments-storage-2026-06-18 — file-bytes path
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Private Supabase Storage bucket created by seeds/318. */
+export const LEAD_ATTACHMENTS_BUCKET = 'lead-attachments';
+
+/** Update an existing lead row's `attachments` column. Used by the
+ *  contact route to backfill storage paths once the file upload to the
+ *  Supabase bucket finishes (the upload key needs the lead.id, so we
+ *  do this in two passes: INSERT first, then PATCH the attachments).
+ *  Errors are swallowed — failure here drops back to the
+ *  metadata-only attachments saved at insert time. */
+export async function updateLeadAttachments(
+  client: Pick<SupabaseClient, 'from'>,
+  leadId: string,
+  attachments: ReadonlyArray<{ name: string; size: number; storage_path?: string }>,
+): Promise<boolean> {
+  try {
+    const { error } = await client
+      .from('leads')
+      .update({ attachments })
+      .eq('id', leadId);
+    if (error) {
+      console.error('[leads.intake] updateLeadAttachments failed:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[leads.intake] updateLeadAttachments threw:', err);
+    return false;
+  }
+}
+
+/** Pure helper — slug-ify a customer-supplied filename so it's safe in a
+ *  storage path. Keeps the extension and the basic ASCII run; replaces
+ *  anything else with `_`. Empty / unparseable names fall back to
+ *  `attachment`. */
+export function sanitizeAttachmentFilename(name: string | null | undefined): string {
+  const raw = (name ?? '').trim();
+  if (raw.length === 0) return 'attachment';
+  // Strip directory traversal + control chars + reserved fs chars.
+  const safe = raw
+    .replace(/[\\/]+/g, '_')
+    .replace(/\.{2,}/g, '.')
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return safe.length === 0 ? 'attachment' : safe;
+}
+
+/** Pure helper — build the storage object path for a single attachment.
+ *  Pattern: `<leadId>/<uuid>-<safe-name>`. The UUID prefix prevents
+ *  collisions when the same customer sends two files with the same name. */
+export function buildAttachmentStoragePath(
+  leadId: string,
+  uuid: string,
+  filename: string,
+): string {
+  return `${leadId}/${uuid}-${sanitizeAttachmentFilename(filename)}`;
+}
+
+/** Minimal Storage surface — keeps the upload helper testable without
+ *  pulling the full SupabaseClient into vitest. */
+interface StorageBucketSurface {
+  upload: (
+    path: string,
+    data: ArrayBuffer | Buffer | Uint8Array,
+    options?: { contentType?: string; upsert?: boolean },
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+  createSignedUrl: (path: string, expiresInSeconds: number) =>
+    Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>;
+}
+
+interface StorageSurface {
+  from: (bucket: string) => StorageBucketSurface;
+}
+
+/** Upload every attachment in `files` to the lead-attachments bucket and
+ *  return a parallel array of `{name, size, storage_path}` summaries.
+ *  Errors are swallowed per-file: a failed upload omits its storage_path
+ *  but keeps the name/size so the admin page can still surface the
+ *  filename. */
+export async function uploadLeadAttachments(
+  storage: StorageSurface,
+  leadId: string,
+  files: ReadonlyArray<{ name: string; size: number; bytes: ArrayBuffer | Buffer | Uint8Array; contentType?: string }>,
+  makeUuid: () => string = () => crypto.randomUUID(),
+): Promise<Array<{ name: string; size: number; storage_path?: string }>> {
+  if (files.length === 0) return [];
+  const bucket = storage.from(LEAD_ATTACHMENTS_BUCKET);
+  const out: Array<{ name: string; size: number; storage_path?: string }> = [];
+  for (const f of files) {
+    const path = buildAttachmentStoragePath(leadId, makeUuid(), f.name);
+    try {
+      const { error } = await bucket.upload(path, f.bytes, {
+        contentType: f.contentType ?? 'application/octet-stream',
+        upsert: false,
+      });
+      if (error) {
+        console.error('[leads.intake] upload failed for', f.name, error);
+        out.push({ name: f.name, size: f.size });
+      } else {
+        out.push({ name: f.name, size: f.size, storage_path: path });
+      }
+    } catch (err) {
+      console.error('[leads.intake] upload threw for', f.name, err);
+      out.push({ name: f.name, size: f.size });
+    }
+  }
+  return out;
+}
+
+/** Sign each `storage_path` in `attachments` with a short-lived URL so
+ *  the admin page can render a download link without exposing the bucket.
+ *  Errors per-file: a failed sign drops `storage_path` so the page falls
+ *  back to the info-styled chip. Default expiry: 1 hour. */
+export async function signLeadAttachmentUrls(
+  storage: StorageSurface,
+  attachments: ReadonlyArray<{ name: string; size: number; storage_path?: string }>,
+  expiresInSeconds: number = 3600,
+): Promise<Array<{ name: string; size: number; storage_path?: string }>> {
+  const bucket = storage.from(LEAD_ATTACHMENTS_BUCKET);
+  const out: Array<{ name: string; size: number; storage_path?: string }> = [];
+  for (const a of attachments) {
+    if (!a.storage_path) {
+      out.push({ name: a.name, size: a.size });
+      continue;
+    }
+    try {
+      const { data, error } = await bucket.createSignedUrl(a.storage_path, expiresInSeconds);
+      if (error || !data?.signedUrl) {
+        console.error('[leads.intake] sign failed for', a.name, error);
+        out.push({ name: a.name, size: a.size });
+      } else {
+        out.push({ name: a.name, size: a.size, storage_path: data.signedUrl });
+      }
+    } catch (err) {
+      console.error('[leads.intake] sign threw for', a.name, err);
+      out.push({ name: a.name, size: a.size });
+    }
+  }
+  return out;
+}

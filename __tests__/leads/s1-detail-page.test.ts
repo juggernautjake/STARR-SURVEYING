@@ -28,7 +28,11 @@ describe('/api/admin/leads/[id] — single-lead GET endpoint', () => {
   it('returns 400 when id is missing, 404 when not found, 200 with the row otherwise', () => {
     expect(SRC).toMatch(/return NextResponse\.json\(\{ error: 'Missing lead id' \}, \{ status: 400 \}\)/);
     expect(SRC).toMatch(/return NextResponse\.json\(\{ error: 'Lead not found' \}, \{ status: 404 \}\)/);
-    expect(SRC).toMatch(/return NextResponse\.json\(\{ lead: data \}\);/);
+    // lead-attachments-storage-2026-06-18 — successful return now sends
+    // a `{ lead }` shape (attachments signed via the bucket before
+    // serialising), not the raw `{ lead: data }` shape from the
+    // original Slice S1 implementation.
+    expect(SRC).toMatch(/return NextResponse\.json\(\{ lead \}\);/);
   });
 
   it('fetches via .eq(id).maybeSingle() so a missing row returns null rather than throwing', () => {
