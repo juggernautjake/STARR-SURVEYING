@@ -10,9 +10,10 @@
 // employee with payment count + total + per-method breakdown.
 // Download button hits the same endpoint with ?format=csv.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
+import '../../payments-admin.css';
 
 interface EmployeeTaxRow {
   user_email: string;
@@ -52,7 +53,7 @@ export default function PayoutTaxReportPage(): React.ReactElement {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const url = `/api/admin/payouts/tax-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
@@ -64,8 +65,8 @@ export default function PayoutTaxReportPage(): React.ReactElement {
       return;
     }
     setReport((await res.json()) as ReportResponse);
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  }, [from, to]);
+  useEffect(() => { load(); }, [load]);
 
   function pinYear(y: number) {
     setFrom(isoDate(new Date(Date.UTC(y, 0, 1))));
@@ -80,7 +81,7 @@ export default function PayoutTaxReportPage(): React.ReactElement {
   const downloadUrl = `/api/admin/payouts/tax-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=csv`;
 
   return (
-    <main className="tax-page" data-testid="payouts-tax-report">
+    <main className="tax-page" data-payments-admin data-testid="payouts-tax-report">
       <header className="tax-page__header">
         <div>
           <Link href="/admin/payouts/runs" className="tax-page__back">← Payouts</Link>
@@ -125,7 +126,7 @@ export default function PayoutTaxReportPage(): React.ReactElement {
         </div>
       </section>
 
-      {error && <p className="tax-page__error" data-testid="tax-error">{error}</p>}
+      {error && <p className="tax-page__error" data-testid="tax-error" role="alert">{error}</p>}
 
       {report && (
         <section className="tax-page__table" data-testid="tax-table">

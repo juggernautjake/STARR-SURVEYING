@@ -24,6 +24,7 @@ import {
   snapToWeekStart,
 } from '@/lib/payouts/batch';
 import { formatDollars } from '@/lib/payments/live';
+import '../../payments-admin.css';
 
 interface BatchListRow {
   id: string;
@@ -175,7 +176,7 @@ export default function PayoutRunsPage(): React.ReactElement {
   }
 
   return (
-    <main className="payouts-page" data-testid="payouts-runs">
+    <main className="payouts-page" data-payments-admin data-testid="payouts-runs">
       <header className="payouts-page__header">
         <div>
           <h1 className="payouts-page__title">Weekly payouts</h1>
@@ -211,7 +212,7 @@ export default function PayoutRunsPage(): React.ReactElement {
         )}
       </header>
 
-      {error && <p className="payouts-page__error" data-testid="payouts-error">{error}</p>}
+      {error && <p className="payouts-page__error" data-testid="payouts-error" role="alert">{error}</p>}
 
       {wizardOpen && (
         <form className="payouts-wizard" onSubmit={submitBatch} data-testid="payouts-wizard">
@@ -322,7 +323,7 @@ export default function PayoutRunsPage(): React.ReactElement {
         {batches === null && <p>Loading…</p>}
         {batches && batches.length === 0 && (
           <p className="payouts-history__empty" data-testid="payouts-history-empty">
-            No batches yet. Click "New batch" to start the first one.
+            No batches yet. Click &ldquo;New batch&rdquo; to start the first one.
           </p>
         )}
         {batches && batches.length > 0 && (

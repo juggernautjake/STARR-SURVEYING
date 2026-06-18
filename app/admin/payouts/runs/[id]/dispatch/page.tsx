@@ -20,6 +20,7 @@ import {
   type PayoutMethod,
 } from '@/lib/payouts/dispatch';
 import { formatDollars } from '@/lib/payments/live';
+import '../../../../payments-admin.css';
 
 interface BatchHeader {
   id: string;
@@ -101,18 +102,24 @@ export default function PayoutDispatchPage(): React.ReactElement {
     load();
   }
 
-  if (loading) return <main className="dispatch-page"><p>Loading…</p></main>;
+  if (loading) {
+    return (
+      <main className="dispatch-page" data-payments-admin>
+        <p role="status" aria-busy="true" aria-live="polite">Loading…</p>
+      </main>
+    );
+  }
   if (!batch) {
     return (
-      <main className="dispatch-page">
-        <p data-testid="dispatch-error">{error ?? 'Batch not found.'}</p>
+      <main className="dispatch-page" data-payments-admin>
+        <p data-testid="dispatch-error" role="alert">{error ?? 'Batch not found.'}</p>
         <Link href="/admin/payouts/runs">← Back to payouts</Link>
       </main>
     );
   }
   if (batch.status === 'draft' || batch.status === 'voided') {
     return (
-      <main className="dispatch-page">
+      <main className="dispatch-page" data-payments-admin>
         <p data-testid="dispatch-blocked">
           This batch is <strong>{batch.status}</strong>. Dispatch is only available for approved or dispatched batches.
         </p>
@@ -122,7 +129,7 @@ export default function PayoutDispatchPage(): React.ReactElement {
   }
 
   return (
-    <main className="dispatch-page" data-testid="payouts-dispatch">
+    <main className="dispatch-page" data-payments-admin data-testid="payouts-dispatch">
       <header className="dispatch-page__header">
         <div>
           <Link href={`/admin/payouts/runs/${batch.id}`} className="dispatch-page__back">← {batch.label}</Link>
@@ -135,7 +142,7 @@ export default function PayoutDispatchPage(): React.ReactElement {
         </div>
       </header>
 
-      {error && <p className="dispatch-page__error" data-testid="dispatch-page-error">{error}</p>}
+      {error && <p className="dispatch-page__error" data-testid="dispatch-page-error" role="alert">{error}</p>}
 
       {buckets.filter((b) => b.rows.length > 0).map((bucket) => (
         <section className="dispatch-bucket" key={bucket.key} data-testid={`dispatch-bucket-${bucket.key}`}>

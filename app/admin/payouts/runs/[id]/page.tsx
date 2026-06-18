@@ -10,10 +10,11 @@
 // — for draft batches viewed by a designated payout admin — the
 // Approve button. Any admin can Void a draft / approved batch.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
+import '../../../payments-admin.css';
 
 interface BatchDetail {
   id: string;
@@ -73,7 +74,7 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
   const [voidReason, setVoidReason] = useState('');
   const [showVoidPrompt, setShowVoidPrompt] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
@@ -87,8 +88,8 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
     setBatch(json.batch);
     setItems(json.items);
     setLoading(false);
-  }
-  useEffect(() => { load(); }, [id]);
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   async function approve() {
     if (!batch) return;
@@ -123,19 +124,23 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
   }
 
   if (loading) {
-    return <main className="batch-page"><p>Loading…</p></main>;
+    return (
+      <main className="batch-page" data-payments-admin>
+        <p role="status" aria-busy="true" aria-live="polite">Loading…</p>
+      </main>
+    );
   }
   if (!batch) {
     return (
-      <main className="batch-page">
-        <p data-testid="batch-detail-error">{error ?? 'Batch not found.'}</p>
+      <main className="batch-page" data-payments-admin>
+        <p data-testid="batch-detail-error" role="alert">{error ?? 'Batch not found.'}</p>
         <Link href="/admin/payouts/runs">← Back to payouts</Link>
       </main>
     );
   }
 
   return (
-    <main className="batch-page" data-testid="batch-detail">
+    <main className="batch-page" data-payments-admin data-testid="batch-detail">
       <header className="batch-page__header">
         <div>
           <Link href="/admin/payouts/runs" className="batch-page__back">← Payouts</Link>
@@ -152,7 +157,7 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
         </div>
       </header>
 
-      {error && <p className="batch-page__error" data-testid="batch-detail-error">{error}</p>}
+      {error && <p className="batch-page__error" data-testid="batch-detail-error" role="alert">{error}</p>}
 
       {batch.status === 'approved' && (
         <div className="batch-page__sig" data-testid="batch-approval-sig">

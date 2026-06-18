@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { computeInvoiceTotals, lineItemTotal } from '@/lib/payments/invoice-number';
 import { formatDollars } from '@/lib/payments/live';
+import '../../payments-admin.css';
 
 interface LineItemDraft {
   description: string;
@@ -134,7 +135,7 @@ export default function NewInvoicePage(): React.ReactElement {
 
   if (success) {
     return (
-      <main className="invoice-page" data-testid="invoice-create-success">
+      <main className="invoice-page" data-payments-admin data-testid="invoice-create-success">
         <div className="invoice-page__card">
           <h1 className="invoice-page__title">Invoice {success.invoice_number} ready</h1>
           <p className="invoice-page__lede">
@@ -143,7 +144,7 @@ export default function NewInvoicePage(): React.ReactElement {
               : `Saved as ${success.invoice_number} — email send did not complete.`}
           </p>
           {success.send_error && (
-            <p className="invoice-page__error" data-testid="invoice-send-warning">
+            <p className="invoice-page__error" data-testid="invoice-send-warning" role="alert">
               Email warning: {success.send_error}
             </p>
           )}
@@ -172,7 +173,7 @@ export default function NewInvoicePage(): React.ReactElement {
   }
 
   return (
-    <main className="invoice-page" data-testid="invoice-create-page">
+    <main className="invoice-page" data-payments-admin data-testid="invoice-create-page">
       <form className="invoice-page__card" onSubmit={onCreateAndSend}>
         <h1 className="invoice-page__title">Create + send invoice</h1>
         <p className="invoice-page__lede">
@@ -329,7 +330,7 @@ export default function NewInvoicePage(): React.ReactElement {
           <div className="invoice-totals__total"><span>Total</span><strong>{formatDollars(totals.total_cents)}</strong></div>
         </section>
 
-        {error && <p className="invoice-page__error" data-testid="invoice-create-error">{error}</p>}
+        {error && <p className="invoice-page__error" data-testid="invoice-create-error" role="alert">{error}</p>}
 
         <div className="invoice-page__actions">
           <button

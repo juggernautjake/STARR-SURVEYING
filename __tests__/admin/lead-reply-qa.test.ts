@@ -171,7 +171,8 @@ describe('LR9 plan annotation locks the QA findings', () => {
   // Smoke test that the annotation note in the doc references both
   // bugs so a future reviewer reading the plan + completed/ sees the
   // diagnostic trail.
-  const PLAN = read('docs/planning/in-progress/lead-reply-expansion-2026-06-18.md');
+  // The plan was moved to completed/ at the end of the LR stream.
+  const PLAN = read('docs/planning/completed/lead-reply-expansion-2026-06-18.md');
 
   it("mentions the template-vars XSS fix", () => {
     expect(PLAN).toMatch(/interpolateTemplateHtml/);

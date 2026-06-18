@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
+import '../../payments-admin.css';
 
 type Kind = 'bonus' | 'reimbursement' | 'other';
 
@@ -99,7 +100,7 @@ export default function AdHocPayoutPage(): React.ReactElement {
   }
 
   return (
-    <main className="adhoc-page" data-testid="payouts-ad-hoc">
+    <main className="adhoc-page" data-payments-admin data-testid="payouts-ad-hoc">
       <header className="adhoc-page__header">
         <div>
           <Link href="/admin/payouts/runs" className="adhoc-page__back">← Payouts</Link>
@@ -123,7 +124,7 @@ export default function AdHocPayoutPage(): React.ReactElement {
           </label>
           <label>
             <input type="radio" name="kind" checked={form.kind === 'other'} onChange={() => set('kind', 'other')} />
-            <span><strong>Other</strong> — anything that doesn't fit above</span>
+            <span><strong>Other</strong> — anything that doesn&rsquo;t fit above</span>
           </label>
         </fieldset>
 
@@ -197,7 +198,7 @@ export default function AdHocPayoutPage(): React.ReactElement {
           />
         </label>
 
-        {error && <p className="adhoc-form__error" data-testid="adhoc-error">{error}</p>}
+        {error && <p className="adhoc-form__error" data-testid="adhoc-error" role="alert">{error}</p>}
 
         <div className="adhoc-form__footer">
           <div className="adhoc-form__preview">

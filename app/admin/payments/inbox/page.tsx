@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
+import '../../payments-admin.css';
 
 interface PendingAttempt {
   id: string;
@@ -92,20 +93,24 @@ export default function PaymentsInboxPage(): React.ReactElement {
   }
 
   return (
-    <main className="inbox-page" data-testid="payments-inbox">
+    <main className="inbox-page" data-payments-admin data-testid="payments-inbox">
       <header className="inbox-page__header">
         <div>
           <h1 className="inbox-page__title">Payments inbox</h1>
           <p className="inbox-page__lede">
-            Customer-initiated pledges + "I sent it" claims waiting on the office to close out.
+            Customer-initiated pledges + &ldquo;I sent it&rdquo; claims waiting on the office to close out.
           </p>
         </div>
         <Link href="/admin/invoices/new" className="inbox-page__new">+ New Invoice</Link>
       </header>
 
-      {error && <p className="inbox-page__error" data-testid="payments-inbox-error">{error}</p>}
+      {error && <p className="inbox-page__error" data-testid="payments-inbox-error" role="alert">{error}</p>}
 
-      {attempts === null && <p className="inbox-page__loading" data-testid="payments-inbox-loading">Loading…</p>}
+      {attempts === null && (
+        <p className="inbox-page__loading" data-testid="payments-inbox-loading" role="status" aria-busy="true" aria-live="polite">
+          Loading…
+        </p>
+      )}
 
       {attempts && attempts.length === 0 && (
         <p className="inbox-page__empty" data-testid="payments-inbox-empty">

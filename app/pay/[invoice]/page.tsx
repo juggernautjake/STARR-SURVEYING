@@ -273,7 +273,7 @@ export default function PayInvoicePage(): React.ReactElement {
             <article className="pay-card pay-card--methods" data-testid="pay-methods">
               <h2 className="pay-card__title">How would you like to pay?</h2>
               <p className="pay-card__hint">
-                Choose any method below. You'll get a receipt the moment the payment clears.
+                Choose any method below. You&rsquo;ll get a receipt the moment the payment clears.
               </p>
               <div className="pay-methods__grid">
                 {PAYMENT_METHODS.map((method) => {
@@ -324,7 +324,7 @@ export default function PayInvoicePage(): React.ReactElement {
                             checked={pledgeIsMailing}
                             onChange={() => setPledgeIsMailing(true)}
                           />
-                          <span>I'll mail it</span>
+                          <span>I&rsquo;ll mail it</span>
                         </label>
                         <label>
                           <input
@@ -333,7 +333,7 @@ export default function PayInvoicePage(): React.ReactElement {
                             checked={!pledgeIsMailing}
                             onChange={() => setPledgeIsMailing(false)}
                           />
-                          <span>I'll bring it in person</span>
+                          <span>I&rsquo;ll bring it in person</span>
                         </label>
                       </fieldset>
                     )}
@@ -388,11 +388,11 @@ export default function PayInvoicePage(): React.ReactElement {
                     <strong>Thank you!</strong>{' '}
                     {isPledge ? (
                       <>
-                        We've logged your <strong>{attemptMethod === 'check' ? 'check' : 'cash'}</strong> payment as pending.
+                        We&rsquo;ve logged your <strong>{attemptMethod === 'check' ? 'check' : 'cash'}</strong> payment as pending.
                         {pledgeIsMailing ? (
                           <> Please mail it to:</>
                         ) : (
-                          <> Drop by anytime — we'll log the payment when it arrives.</>
+                          <> Drop by anytime — we&rsquo;ll log the payment when it arrives.</>
                         )}
                         {pledgeIsMailing && (
                           <p className="pay-methods__received-addr" data-testid="pay-pledge-mailing-addr">
@@ -405,7 +405,7 @@ export default function PayInvoicePage(): React.ReactElement {
                       </>
                     ) : (
                       <>
-                        We've logged your payment as pending. Once we confirm it in {methodLabel},
+                        We&rsquo;ve logged your payment as pending. Once we confirm it in {methodLabel},
                         your receipt will arrive at the email you provided.
                       </>
                     )}{' '}

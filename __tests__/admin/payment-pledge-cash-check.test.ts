@@ -133,8 +133,10 @@ describe('app/pay/[invoice]/page.tsx — P7 pledge UI', () => {
 
   it("renders a delivery selector (mail vs in person)", () => {
     expect(SRC).toMatch(/data-testid="pay-pledge-delivery"/);
-    expect(SRC).toMatch(/I'll mail it/);
-    expect(SRC).toMatch(/I'll bring it in person/);
+    // After P21's react/no-unescaped-entities fix, the apostrophe
+    // is &rsquo; in JSX text.
+    expect(SRC).toMatch(/I&rsquo;ll mail it/);
+    expect(SRC).toMatch(/I&rsquo;ll bring it in person/);
   });
 
   it("submit POSTs is_mailing alongside method + intended_amount + payer_email", () => {

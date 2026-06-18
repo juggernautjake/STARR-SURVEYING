@@ -59,7 +59,7 @@ export default function PayLandingPage(): React.ReactElement {
           </h1>
           <p className="pay-hero__subtitle">
             Enter the invoice number printed on your paper invoice to see your balance
-            and choose how you'd like to pay.
+            and choose how you&rsquo;d like to pay.
           </p>
 
           <form className="pay-lookup" onSubmit={onSubmit} noValidate>
@@ -95,7 +95,7 @@ export default function PayLandingPage(): React.ReactElement {
           </form>
 
           <p className="pay-lookup__help">
-            Can't find your invoice number? Call us at{' '}
+            Can&rsquo;t find your invoice number? Call us at{' '}
             <a href="tel:+19366620077">(936) 662-0077</a>.
           </p>
         </div>
