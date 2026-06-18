@@ -670,7 +670,17 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                               'pointer-events:none',
                             ].join(';');
                             document.body.appendChild(ghost);
-                            e.dataTransfer.setDragImage(ghost, Math.round(ghostW / 2), Math.round(ghostH / 2));
+                            // drag-anchor-fix-2026-06-18 — anchor the
+                            // ghost to its TOP-LEFT so the widget
+                            // preview matches the cell where the
+                            // placed widget's top-left actually
+                            // lands. The previous (ghostW/2, ghostH/2)
+                            // anchor centered the ghost on the cursor,
+                            // but `cellUnderPointer` resolves the
+                            // cursor cell to the widget's top-left,
+                            // so the placed widget appeared shifted
+                            // down-right relative to the ghost.
+                            e.dataTransfer.setDragImage(ghost, 0, 0);
                             // Clean up after the browser snapshots
                             // the element (next tick is enough).
                             setTimeout(() => { try { ghost.remove(); } catch { /* ignore */ } }, 0);

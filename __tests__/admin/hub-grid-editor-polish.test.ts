@@ -34,6 +34,14 @@ describe('GridEditor polish (2026-06-18)', () => {
     expect(SRC).toMatch(/const cellH = rect\.height \/ GRID_EDITOR_ROWS/);
   });
 
+  it('drag-anchor-fix-2026-06-18 — ghost is anchored at (0,0) so the preview matches the placed widget', () => {
+    // The widget's placed cell is `cellUnderPointer` → widget top-left.
+    // The ghost has to share that anchor (top-left under the cursor)
+    // so the user drops where they see, not down-right of where they
+    // see.
+    expect(SRC).toMatch(/setDragImage\(ghost, 0, 0\)/);
+  });
+
   it('drag ghost is removed from the DOM on the next tick (no leak)', () => {
     expect(SRC).toMatch(/setTimeout\(\(\) => \{ try \{ ghost\.remove\(\)/);
   });
