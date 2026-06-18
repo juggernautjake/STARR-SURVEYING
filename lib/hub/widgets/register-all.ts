@@ -80,3 +80,7 @@ import './comms-inbox';
 // pending-receipts + pending-time-off + pending-hours +
 // assignments-due. Legacy widgets stay registered.
 import './pending-bin';
+// Slice W9b — consolidated drawings-hub widget. Absorbs
+// drawings + drawings-in-progress + recent-drawings. Legacy
+// widgets stay registered.
+import './drawings-hub';
