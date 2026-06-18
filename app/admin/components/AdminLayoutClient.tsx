@@ -33,6 +33,16 @@ import '../styles/AdminResponsive.css';
 // AdminFieldWork.css stays here because the Fieldbook is rendered by this
 // layout via FloatingActionMenu and is reachable from every admin page.
 import '../styles/AdminFieldWork.css';
+// floating-popup-styles-fix-2026-06-18 — the FloatingMessenger + the
+// DiscussionThreadButton (report-an-issue / open-threads popup) are
+// rendered by this layout, so they need their stylesheets loaded on
+// EVERY admin page, not just /admin/messages and /admin/discussions.
+// Without these imports the popups inherit only user-agent defaults
+// (no rounded corners, no padding, conversations laid out
+// horizontally) — see the screenshots the user shared on
+// 2026-06-18.
+import '../styles/AdminMessaging.css';
+import '../styles/AdminDiscussions.css';
 
 // Exported so the bug-report page selector (DiscussionThreadButton) can
 // offer the same admin route → label list the nav uses.

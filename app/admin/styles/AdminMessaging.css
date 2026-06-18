@@ -2068,16 +2068,16 @@
   }
 }
 
-/* Header */
-.messenger-panel__header { padding:.6rem 1rem; border-bottom:1px solid #E5E7EB; display:flex; align-items:center; gap:.5rem; background:var(--color-brand-navy); color:#FFF; border-top-left-radius:16px; }
-.messenger-panel__title { font-family:'Sora',sans-serif; font-size:.95rem; font-weight:600; flex:1; }
-.messenger-panel__conv-title { font-family:'Sora',sans-serif; font-size:.88rem; font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.messenger-panel__back { background:none; border:none; color:#FFF; font-size:1.1rem; cursor:pointer; padding:.2rem .4rem; border-radius:4px; }
-.messenger-panel__back:hover { background:rgba(255,255,255,.15); }
-.messenger-panel__expand { color:rgba(255,255,255,.8); text-decoration:none; font-size:1rem; padding:.2rem .4rem; border-radius:4px; }
-.messenger-panel__expand:hover { color:#FFF; background:rgba(255,255,255,.15); }
-.messenger-panel__close { background:none; border:none; color:rgba(255,255,255,.8); font-size:1.1rem; cursor:pointer; padding:.2rem; }
-.messenger-panel__close:hover { color:#FFF; }
+/* Conv-title carryover from the pre-MX1 header.
+ * floating-popup-styles-fix-2026-06-18 — the pre-MX1 .messenger-panel__header
+ * / __title / __back / __close rules that used to live here clashed with the
+ * MX1 polish block above (lines ~1933–2008). They were the OLD navy-bar header
+ * left over from before the Slice MX1 redesign; cascade put them after MX1
+ * so they re-skinned the header back to the dated look. Removed them; the
+ * MX1 styles now own these classes outright. .messenger-panel__conv-title
+ * (used for the back-view title) wasn't covered by MX1 and stays here.
+ */
+.messenger-panel__conv-title { font-family:'Sora',sans-serif; font-size:.88rem; font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#0F172A; }
 
 /* Tabs */
 .messenger-panel__tabs { display:flex; border-bottom:1px solid #E5E7EB; background:#F8F9FA; }
