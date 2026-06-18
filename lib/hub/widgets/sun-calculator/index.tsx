@@ -110,7 +110,7 @@ function SunCalculatorWidget({ size, content }: WidgetProps<SunCalculatorContent
   // pair won't fit alongside.
   if (bucket === 'tiny') {
     return (
-      <div style={tinyStatWrapStyle()}>
+      <div style={tinyStatWrapStyle()} data-testid="sun-calculator-tiny">
         <span style={statNumberStyle(bucket, 'var(--theme-warning)')}>
           {info.daylight_hours.toFixed(1)}h
         </span>
@@ -127,9 +127,21 @@ function SunCalculatorWidget({ size, content }: WidgetProps<SunCalculatorContent
     bucket === 'large'  ? '1.5rem' :
                            '1.75rem';
   const showLocation = bucket !== 'small';
+  // Slice S6 — at medium+ surface a "next event in …" countdown
+  // (next sunrise OR next sunset), and at large+ render a daylight
+  // progress bar showing how much of today's daylight is still
+  // ahead. Both are null-safe so a non-ISO time payload (offline
+  // fallback) keeps the rest of the widget rendering.
+  const showCountdown = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showDaylightBar = bucket === 'large' || bucket === 'xlarge';
+  const countdown = nextSunEvent(info.sunrise, info.sunset, Date.now());
+  const daylight = daylightProgress(info.sunrise, info.sunset, Date.now());
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+    <div
+      data-testid={`sun-calculator-${bucket}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, height: '100%' }}
+    >
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: pairFontSize, fontWeight: 600, color: 'var(--theme-warning)' }}>↑ {info.sunrise ? formatTime(info.sunrise, units) : '—'}</span>
         <span style={{ fontSize: pairFontSize, fontWeight: 600, color: 'var(--theme-accent)' }}>↓ {info.sunset ? formatTime(info.sunset, units) : '—'}</span>
@@ -138,6 +150,23 @@ function SunCalculatorWidget({ size, content }: WidgetProps<SunCalculatorContent
         {info.daylight_hours.toFixed(1)} hours daylight
         {showLocation && ` · ${info.location_label}`}
       </span>
+      {showCountdown && countdown && (
+        <span
+          data-testid="sun-calculator-countdown"
+          style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-primary)' }}
+        >
+          {countdown.kind === 'sunrise' ? '↑' : '↓'} Next {countdown.kind} in {formatCountdown(countdown.minutesFromNow)}
+        </span>
+      )}
+      {showDaylightBar && daylight && (
+        <div
+          data-testid="sun-calculator-daylight-bar"
+          aria-label={`Daylight progress ${daylight.percentComplete}%`}
+          style={daylightBarTrackStyle}
+        >
+          <span style={{ ...daylightBarFillStyle, width: `${daylight.percentComplete}%` }} />
+        </div>
+      )}
       {/* Slice 16 — twilight row hides at small bucket regardless of
           the toggle: the existing sunrise/sunset/location lines
           already saturate the vertical room at that size. The toggle
@@ -153,6 +182,72 @@ function SunCalculatorWidget({ size, content }: WidgetProps<SunCalculatorContent
     </div>
   );
 }
+
+/** Pick the next upcoming sun event from sunrise + sunset ISO
+ *  timestamps. Returns null when neither is parseable. Pure +
+ *  exported. */
+export function nextSunEvent(
+  sunriseIso: string | null | undefined,
+  sunsetIso: string | null | undefined,
+  nowMs: number,
+): { kind: 'sunrise' | 'sunset'; minutesFromNow: number } | null {
+  const sunrise = parseIsoFuture(sunriseIso, nowMs);
+  const sunset = parseIsoFuture(sunsetIso, nowMs);
+  if (sunrise === null && sunset === null) return null;
+  if (sunrise !== null && (sunset === null || sunrise <= sunset)) {
+    return { kind: 'sunrise', minutesFromNow: Math.max(0, Math.round(sunrise / 60_000)) };
+  }
+  return { kind: 'sunset', minutesFromNow: Math.max(0, Math.round((sunset ?? 0) / 60_000)) };
+}
+
+/** Returns the daylight-progress fraction (0–100) for today between
+ *  the two ISO timestamps. Returns null when either ISO is missing or
+ *  the day hasn't started / has fully ended. Pure + exported. */
+export function daylightProgress(
+  sunriseIso: string | null | undefined,
+  sunsetIso: string | null | undefined,
+  nowMs: number,
+): { percentComplete: number } | null {
+  if (!sunriseIso || !sunsetIso) return null;
+  const rise = Date.parse(sunriseIso);
+  const set = Date.parse(sunsetIso);
+  if (!Number.isFinite(rise) || !Number.isFinite(set) || set <= rise) return null;
+  if (nowMs <= rise) return { percentComplete: 0 };
+  if (nowMs >= set) return { percentComplete: 100 };
+  return { percentComplete: Math.round(((nowMs - rise) / (set - rise)) * 100) };
+}
+
+/** "1h 23m" / "5m" / "in <1m". Pure + exported. */
+export function formatCountdown(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes < 1) return '< 1m';
+  if (minutes < 60) return `${minutes}m`;
+  const hr = Math.floor(minutes / 60);
+  const min = minutes % 60;
+  return min === 0 ? `${hr}h` : `${hr}h ${min}m`;
+}
+
+function parseIsoFuture(iso: string | null | undefined, nowMs: number): number | null {
+  if (!iso || !ISO_RE.test(iso)) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const delta = t - nowMs;
+  // Sun events repeat daily — accept anything in the next 24h.
+  if (delta < 0 || delta > 24 * 3600 * 1000) return null;
+  return delta;
+}
+
+const daylightBarTrackStyle: React.CSSProperties = {
+  height: 4,
+  borderRadius: 2,
+  background: 'var(--theme-bg-elevated)',
+  overflow: 'hidden',
+  marginTop: 4,
+};
+const daylightBarFillStyle: React.CSSProperties = {
+  display: 'block',
+  height: '100%',
+  background: 'linear-gradient(90deg, var(--theme-warning), var(--theme-accent))',
+};
 
 defineWidget<SunCalculatorContent>({
   id: 'sun-calculator',
