@@ -20,7 +20,8 @@ export interface WeatherContent extends Record<string, unknown> {
 }
 const DEFAULTS: WeatherContent = { location: 'auto', zip: '' };
 
-interface WeatherSnapshot { temperature_f: number; description: string; icon: string; high_f: number; low_f: number; location_label: string; }
+interface WeatherDay { date: string; high_f: number; low_f: number; description: string; icon: string; }
+interface WeatherSnapshot { temperature_f: number; description: string; icon: string; high_f: number; low_f: number; location_label: string; daily?: WeatherDay[]; }
 
 function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
   const settings = { ...DEFAULTS, ...content };
@@ -65,14 +66,60 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
     );
   }
 
+  // Slice W5 — show the 5-day forecast strip at large/xlarge.
+  // Skip today's row inside the strip (the always-on "current"
+  // block above already covers it), so the strip reads as
+  // "next 4 days" without duplicating today's data.
+  const showForecast = (bucket === 'large' || bucket === 'xlarge') && (weather.daily?.length ?? 0) > 1;
+  const upcoming = showForecast ? (weather.daily ?? []).slice(1, 5) : [];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, height: '100%' }}>
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span aria-hidden style={{ fontSize: '2rem' }}>{weather.icon}</span>
         <span style={statNumberStyle(bucket)}>{Math.round(weather.temperature_f)}°</span>
       </span>
       <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{weather.description}</span>
       <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{weather.location_label} · H {Math.round(weather.high_f)}° / L {Math.round(weather.low_f)}°</span>
+      {showForecast && (
+        <ul
+          data-testid="weather-forecast-strip"
+          style={{
+            listStyle: 'none', margin: 0, padding: 0,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${upcoming.length}, minmax(0, 1fr))`,
+            gap: 4,
+            marginTop: 'auto',
+            paddingTop: 8,
+            borderTop: '1px solid var(--theme-border, #e5e7eb)',
+          }}
+        >
+          {upcoming.map((d) => (
+            <li
+              key={d.date}
+              data-date={d.date}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                padding: '4px 2px',
+                borderRadius: 6,
+                background: 'var(--theme-bg-elevated, transparent)',
+                fontSize: 'var(--hub-font-xs, 0.72rem)',
+                color: 'var(--theme-fg-secondary)',
+              }}
+            >
+              <span style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>
+                {new Date(d.date).toLocaleDateString(undefined, { weekday: 'short' })}
+              </span>
+              <span aria-hidden style={{ fontSize: '1.15rem', lineHeight: 1 }}>{d.icon}</span>
+              <span>
+                <strong style={{ color: 'var(--theme-fg-primary)' }}>{Math.round(d.high_f)}°</strong>
+                {' / '}
+                <span>{Math.round(d.low_f)}°</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

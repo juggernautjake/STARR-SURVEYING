@@ -177,7 +177,7 @@ Each slice = its own commit + the three post-build checks.
 | **W2** | Drag-and-drop palette → grid via HTML5 drag API. Old click-to-arm + click-cell still works as a fallback. ✅ shipped |
 | **W3** | Profile fallback ("No more information about …") on `/admin/employees/[email]` when every optional field is empty + always-on role pills row in the header per the user spec. ✅ shipped |
 | **W4** | CAD-button bypass: middleware + route-registry + sidebar + command-palette + quick-actions all widened so any signed-in user can reach `/admin/cad`. Annotated for restoration once W7 lands. ✅ shipped |
-| **W5** | Weather widget extended with a 5-day forecast strip at `large` / `xlarge`. API change + widget render branch + tests. Establishes the size-relative-content pattern for the rest of the fleet. |
+| **W5** | Weather widget extended with a 5-day forecast strip at `large` / `xlarge`. API requests `forecast_days=5` + `daily=weather_code`, the snapshot mapper folds the daily arrays through a new pure `buildDailyForecast`, and the widget slices today's row out so the strip reads as "next 4 days". Establishes the size-relative-content pattern for the rest of the fleet. ✅ shipped |
 | **W6** | Quick-actions catalog audit: every href verified against `route-registry.ts`; broken slugs swapped or flagged with a typed deprecation. |
 | **W7** | Role builder page at `/admin/roles/new`. Migration for `custom_roles` + minimal CRUD UI + admin-only gate. |
 | **W8** | Widget consolidation phase 1 — ship `comms-inbox` + `pending-bin` consolidated widgets. Legacy components stay registered for one release so existing layouts keep working. |

@@ -54,10 +54,15 @@ export const GET = withErrorHandler(async (req: Request) => {
   const zip = searchParams.get('zip') ?? '';
 
   const point = await resolveLocation(zip);
+  // Slice W5 — request 5 days of daily data + the daily
+  // weather_code so the widget's big-size mode can render a
+  // forecast strip. The snapshot mapper picks up the daily
+  // arrays via `buildDailyForecast`.
   const forecast = await fetchJson(
     `${FORECAST_URL}?latitude=${point.latitude}&longitude=${point.longitude}` +
-      '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min' +
-      '&temperature_unit=fahrenheit&forecast_days=1&timezone=auto',
+      '&current=temperature_2m,weather_code' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min' +
+      '&temperature_unit=fahrenheit&forecast_days=5&timezone=auto',
   );
 
   const snapshot = forecast ? toWeatherSnapshot(forecast as OpenMeteoForecast, point.label) : null;
