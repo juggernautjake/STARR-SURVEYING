@@ -77,6 +77,11 @@ export function cellColor(state: string | null | undefined): string {
   }
 }
 
+// Slice S2 of widget-size-responsive-content-2026-06-18.md —
+// per-bucket growth. medium+ gets day-of-week headers + a
+// "today" column marker; large+ adds a state legend strip;
+// xlarge adds an at-glance "X on shift today" summary line.
+
 function CrewCalendarWidget({ size, content }: WidgetProps<CrewCalendarContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
@@ -108,24 +113,161 @@ function CrewCalendarWidget({ size, content }: WidgetProps<CrewCalendarContent>)
   if (status === 'empty') return <WidgetEmpty icon="📅" title="No crew scheduled" description="Open crew calendar to assign shifts." />;
 
   const visibleUsers = users.slice(0, capForBucket(bucket));
-  const visibleDays = days.slice(0, bucket === 'tiny' ? 3 : 7);
+  const visibleDays = days.slice(0, dayCountForBucket(bucket));
+  const todayIso = isoDate(Date.now());
+
+  const showHeaders = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showLegend = bucket === 'large' || bucket === 'xlarge';
+  const showSummary = bucket === 'xlarge';
+
+  const onShiftToday = countOnShiftToday(users, todayIso);
 
   return (
-    <ul role="list" style={listStyle}>
-      {visibleUsers.map((u) => (
-        <li key={u.user_email} style={rowStyle}>
-          <span style={nameStyle}>{u.user_name ?? u.user_email}</span>
+    <div
+      data-testid={`crew-calendar-${bucket}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, height: '100%' }}
+    >
+      {showSummary && (
+        <span
+          data-testid="crew-calendar-summary"
+          style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}
+        >
+          {onShiftToday} on shift today · {users.length} total crew
+        </span>
+      )}
+
+      {showHeaders && visibleDays.length > 0 && (
+        <div
+          data-testid="crew-calendar-day-headers"
+          aria-hidden
+          style={dayHeaderRowStyle}
+        >
+          <span style={{ ...nameStyle, opacity: 0 }}>·</span>
           <span style={{ display: 'inline-flex', gap: 2 }}>
             {visibleDays.map((day) => {
-              const state = u.cells[day]?.state ?? 'open';
-              return <span key={day} title={`${day}: ${state}`} style={statusDot(state)} />;
+              const isToday = day === todayIso;
+              return (
+                <span
+                  key={day}
+                  style={{
+                    ...dayHeaderCellStyle,
+                    ...(isToday ? dayHeaderTodayStyle : null),
+                  }}
+                  title={day}
+                >
+                  {dayHeaderLabel(day)}
+                </span>
+              );
             })}
           </span>
-        </li>
-      ))}
-    </ul>
+        </div>
+      )}
+
+      <ul role="list" style={listStyle}>
+        {visibleUsers.map((u) => (
+          <li key={u.user_email} style={rowStyle}>
+            <span style={nameStyle}>{u.user_name ?? u.user_email}</span>
+            <span style={{ display: 'inline-flex', gap: 2 }}>
+              {visibleDays.map((day) => {
+                const state = u.cells[day]?.state ?? 'open';
+                const isToday = day === todayIso;
+                return (
+                  <span
+                    key={day}
+                    title={`${day}: ${state}`}
+                    style={{
+                      ...statusDot(state),
+                      ...(isToday ? { outline: '1.5px solid var(--theme-accent)', outlineOffset: 1 } : null),
+                    }}
+                  />
+                );
+              })}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {showLegend && (
+        <ul
+          data-testid="crew-calendar-legend"
+          aria-label="Cell state legend"
+          style={legendStripStyle}
+        >
+          {(['confirmed', 'proposed', 'unconfirmed_overdue', 'time_off', 'open'] as const).map((state) => (
+            <li key={state} style={legendItemStyle}>
+              <span style={{ ...statusDot(state) }} />
+              <span>{legendLabel(state)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
+
+/** How many day columns to surface per bucket. Pure + exported. */
+export function dayCountForBucket(bucket: SizeBucket): number {
+  switch (bucket) {
+    case 'tiny':   return 3;
+    case 'small':  return 5;
+    case 'medium': return 7;
+    case 'large':  return 7;
+    case 'xlarge': return 14;
+  }
+}
+
+/** Count how many users have a non-`open` (and non-`time_off`,
+ *  non-`unavailable`) state on the given ISO day. Pure + exported. */
+export function countOnShiftToday(users: CalendarUser[], todayIso: string): number {
+  return users.reduce((acc, u) => {
+    const state = u.cells[todayIso]?.state;
+    return state && state !== 'open' && state !== 'time_off' && state !== 'unavailable' ? acc + 1 : acc;
+  }, 0);
+}
+
+/** "Mon 6/18" → "Mon". Strips the date for the compact header chip. */
+function dayHeaderLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { weekday: 'short' });
+}
+
+/** Human label for the legend strip — exported for the spec lock. */
+export function legendLabel(state: 'confirmed' | 'proposed' | 'unconfirmed_overdue' | 'time_off' | 'open'): string {
+  switch (state) {
+    case 'confirmed': return 'Confirmed';
+    case 'proposed': return 'Proposed';
+    case 'unconfirmed_overdue': return 'Overdue';
+    case 'time_off': return 'Time off';
+    case 'open': return 'Open';
+  }
+}
+
+const dayHeaderRowStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+  padding: '0 12px',
+  fontSize: '0.65rem',
+  color: 'var(--theme-fg-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+};
+const dayHeaderCellStyle: React.CSSProperties = {
+  display: 'inline-block', width: 14, textAlign: 'center', fontWeight: 600,
+};
+const dayHeaderTodayStyle: React.CSSProperties = {
+  color: 'var(--theme-accent)',
+};
+const legendStripStyle: React.CSSProperties = {
+  listStyle: 'none', margin: '4px 0 0', padding: 0,
+  display: 'flex', flexWrap: 'wrap', gap: 8,
+  borderTop: '1px solid var(--theme-border)',
+  paddingTop: 6,
+};
+const legendItemStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  fontSize: '0.7rem',
+  color: 'var(--theme-fg-secondary)',
+};
 
 function CrewCalendarSettings({ value, onChange }: WidgetSettingsFormProps<CrewCalendarContent>) {
   const settings = { ...DEFAULTS, ...value };
