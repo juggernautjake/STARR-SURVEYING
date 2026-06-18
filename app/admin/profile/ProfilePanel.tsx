@@ -7,7 +7,7 @@
 // component until slice 2c lands the redirect to /admin/me?tab=profile.
 
 import { useSession } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { usePageError } from '../hooks/usePageError';
 import { ThemePicker } from './components/ThemePicker';
@@ -28,6 +28,19 @@ interface Profile {
 interface Cert { id: string; certification_name: string; certification_type: string; issued_date: string; expiry_date: string | null; pay_bump_amount: number; }
 interface ProfileChange { change_type: string; title: string; description: string; old_value: string; new_value: string; created_at: string; }
 interface LearningCredit { entity_label: string; points_earned: number; earned_at: string; }
+
+/** Slice EP2b — contact-method row served by
+ *  /api/admin/profile/contact-methods. */
+interface ContactMethod {
+  id: string;
+  user_email: string;
+  kind: 'phone' | 'email' | 'address';
+  value: string;
+  label: string | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString() : '—';
 const fmtCurrency = (n: number) => '$' + (n || 0).toFixed(2);
@@ -71,6 +84,36 @@ export default function ProfilePanel() {
   }>({ date_of_birth: '', gender: '', pronouns: '', bio: '' });
   const [personalSaving, setPersonalSaving] = useState(false);
   const [personalError, setPersonalError] = useState<string | null>(null);
+  // Slice EP2b — contact methods state. Loaded from
+  // /api/admin/profile/contact-methods on mount; CRUD via the
+  // inline add form + per-row delete + primary-toggle controls.
+  const [contacts, setContacts] = useState<ContactMethod[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [contactDraft, setContactDraft] = useState<{
+    kind: 'phone' | 'email' | 'address';
+    value: string;
+    label: string;
+    is_primary: boolean;
+  }>({ kind: 'phone', value: '', label: '', is_primary: false });
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+
+  const fetchContacts = useCallback(async () => {
+    if (!email) return;
+    setContactsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/profile/contact-methods?email=${encodeURIComponent(email)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { contacts: ContactMethod[] };
+      setContacts(data.contacts ?? []);
+    } catch {
+      /* swallow — section just renders empty + the add form still works */
+    } finally {
+      setContactsLoading(false);
+    }
+  }, [email]);
+
+  useEffect(() => { void fetchContacts(); }, [fetchContacts]);
 
   useEffect(() => {
     if (!email) return;
@@ -352,6 +395,177 @@ export default function ProfilePanel() {
               </div>
             </form>
           )}
+        </div>
+
+        {/* Slice EP2b — Contact methods card. Lists existing
+            phones / emails / addresses + lets the user add new
+            rows + delete + mark a primary per kind. Editing in
+            place is deferred to a follow-up; delete + re-add
+            covers the same need today. */}
+        <div className="admin-card" data-testid="profile-contact-methods" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <strong>Contact methods</strong>
+            {contactsLoading && (
+              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+            )}
+          </div>
+          {(['phone', 'email', 'address'] as const).map((kind) => {
+            const rows = contacts.filter((c) => c.kind === kind);
+            const label = kind === 'phone' ? 'Phones' : kind === 'email' ? 'Other emails' : 'Addresses';
+            return (
+              <div
+                key={kind}
+                className="emp-manage__field"
+                data-testid={`profile-contact-group-${kind}`}
+                style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}
+              >
+                <label>{label}</label>
+                {rows.length === 0 ? (
+                  <span style={{ color: '#6B7280' }}>None added.</span>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: '1rem', width: '100%' }}>
+                    {rows.map((c) => (
+                      <li
+                        key={c.id}
+                        data-testid={`profile-contact-row-${c.id}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}
+                      >
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{c.value}</span>
+                        {c.label && <span style={{ color: '#6B7280' }}>· {c.label}</span>}
+                        {c.is_primary && (
+                          <span style={{ color: 'var(--color-brand-navy)', fontWeight: 600 }}>(primary)</span>
+                        )}
+                        {!c.is_primary && (
+                          <button
+                            type="button"
+                            className="admin-btn admin-btn--secondary admin-btn--sm"
+                            data-testid={`profile-contact-primary-${c.id}`}
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('/api/admin/profile/contact-methods', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ id: c.id, is_primary: true }),
+                                });
+                                if (res.ok) void fetchContacts();
+                              } catch { /* ignore */ }
+                            }}
+                          >
+                            Set primary
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="admin-btn admin-btn--secondary admin-btn--sm"
+                          data-testid={`profile-contact-delete-${c.id}`}
+                          onClick={async () => {
+                            if (!window.confirm('Delete this contact method?')) return;
+                            try {
+                              const res = await fetch(`/api/admin/profile/contact-methods?id=${encodeURIComponent(c.id)}`, {
+                                method: 'DELETE',
+                              });
+                              if (res.ok) void fetchContacts();
+                            } catch { /* ignore */ }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Add new contact form */}
+          <form
+            data-testid="profile-contact-add-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setContactSaving(true);
+              setContactError(null);
+              try {
+                const res = await fetch('/api/admin/profile/contact-methods', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    kind: contactDraft.kind,
+                    value: contactDraft.value,
+                    label: contactDraft.label || null,
+                    is_primary: contactDraft.is_primary,
+                  }),
+                });
+                if (!res.ok) {
+                  const data = await res.json().catch(() => ({})) as { error?: string };
+                  throw new Error(data.error ?? `HTTP ${res.status}`);
+                }
+                setContactDraft({ kind: contactDraft.kind, value: '', label: '', is_primary: false });
+                void fetchContacts();
+              } catch (err) {
+                setContactError(err instanceof Error ? err.message : 'Could not save.');
+              } finally {
+                setContactSaving(false);
+              }
+            }}
+            style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px dashed #E5E7EB', paddingTop: '0.75rem' }}
+          >
+            <strong style={{ fontSize: '0.85rem' }}>Add new</strong>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <select
+                value={contactDraft.kind}
+                aria-label="Kind"
+                data-testid="profile-contact-add-kind"
+                onChange={(e) => setContactDraft((d) => ({ ...d, kind: e.target.value as 'phone' | 'email' | 'address' }))}
+                style={{ flex: '0 0 auto' }}
+              >
+                <option value="phone">Phone</option>
+                <option value="email">Email</option>
+                <option value="address">Address</option>
+              </select>
+              <input
+                type="text"
+                placeholder={contactDraft.kind === 'phone' ? '+1 (555) 123-4567' : contactDraft.kind === 'email' ? 'alice@example.com' : '101 Maple St…'}
+                value={contactDraft.value}
+                aria-label="Value"
+                data-testid="profile-contact-add-value"
+                onChange={(e) => setContactDraft((d) => ({ ...d, value: e.target.value }))}
+                style={{ flex: 1, minWidth: 200 }}
+              />
+              <input
+                type="text"
+                placeholder="Label (Mobile, Work…)"
+                value={contactDraft.label}
+                aria-label="Label"
+                data-testid="profile-contact-add-label"
+                onChange={(e) => setContactDraft((d) => ({ ...d, label: e.target.value }))}
+                style={{ flex: '0 1 180px' }}
+              />
+            </div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: '#374151' }}>
+              <input
+                type="checkbox"
+                checked={contactDraft.is_primary}
+                onChange={(e) => setContactDraft((d) => ({ ...d, is_primary: e.target.checked }))}
+              />
+              Make this my primary {contactDraft.kind}
+            </label>
+            {contactError && (
+              <p role="alert" style={{ color: 'var(--color-error)', fontSize: '0.78rem', margin: 0 }}>
+                {contactError}
+              </p>
+            )}
+            <div>
+              <button
+                type="submit"
+                className="admin-btn admin-btn--primary admin-btn--sm"
+                disabled={contactSaving || !contactDraft.value.trim()}
+                data-testid="profile-contact-add-submit"
+              >
+                {contactSaving ? 'Saving…' : 'Add contact'}
+              </button>
+            </div>
+          </form>
         </div>
         </>
       )}

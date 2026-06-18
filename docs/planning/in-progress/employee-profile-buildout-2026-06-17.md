@@ -54,7 +54,7 @@ migration so the schema lands incrementally and reversibly.
 |---|---|
 | **EP1** | Migration 310 adds `date_of_birth DATE`, `gender TEXT`, `pronouns TEXT`, `bio TEXT` to `employee_profiles`. The existing POST `/api/admin/payroll/employees` allow-list grows to accept the four fields from the signed-in user. `ProfilePanel` gains a "Personal info" card with view + edit modes plus a derived "Age N" line from DOB (`deriveAge` is exported + tested). ✅ shipped |
 | **EP2a** | Migration 311 + `lib/employee-profile/contact-methods.ts` pure helpers + new `/api/admin/profile/contact-methods` GET/POST/PATCH/DELETE. ✅ shipped |
-| **EP2b** | ProfilePanel "Contact" section that consumes the EP2a API: list per kind, add / edit / delete row, primary toggle. (next slice) |
+| **EP2b** | ProfilePanel "Contact methods" card that consumes the EP2a API: groups per kind, "Set primary" / Delete per row, inline Add form (kind / value / label / primary). Edit-in-place deferred — delete + re-add covers the same need today. ✅ shipped |
 | **EP3** | Profile-pic upload via existing `user_files` infrastructure: client uploads image, server writes the row + sets `registered_users.avatar_url`. ProfilePanel surfaces a "Change photo" affordance on the existing avatar. |
 | **EP4** | "About me" image gallery — new `public.employee_images` table (user_email, file_id, caption, sort_order). Reuses the EP3 upload flow. Grid view on the profile. |
 | **EP5** | "Jobs I've worked on" tab — query `public.jobs` by `assigned_to` (or job-employees join when that lands) and render a chronological list with links to each job page. |
