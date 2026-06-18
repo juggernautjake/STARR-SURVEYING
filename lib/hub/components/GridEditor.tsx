@@ -80,6 +80,29 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  // Slice W1 — "already added" alert. The store fires a
+  // `hub:duplicate-widget` event when addWidget rejects a
+  // type-level duplicate; the editor listens and surfaces a
+  // small toast.
+  const [duplicateToast, setDuplicateToast] = useState<string | null>(null);
+  useEffect(() => {
+    function onDup(e: Event) {
+      const detail = (e as CustomEvent<{ type?: string }>).detail;
+      const type = detail?.type;
+      if (!type) return;
+      const def = catalog.find((w) => w.id === type);
+      setDuplicateToast(def ? `${def.label} is already on the grid.` : 'Widget already on the grid.');
+    }
+    window.addEventListener('hub:duplicate-widget', onDup);
+    return () => window.removeEventListener('hub:duplicate-widget', onDup);
+    // catalog never changes per mount; safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!duplicateToast) return;
+    const t = setTimeout(() => setDuplicateToast(null), 2400);
+    return () => clearTimeout(t);
+  }, [duplicateToast]);
   // Slice P2 — single-click placement: `placeHover` is the cell the
   // pointer is currently over while a widget type is armed; it drives
   // the live preview footprint. Null when not hovering / not armed.
@@ -257,6 +280,22 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
     const size = selected.defaultSize;
     const rect = clampRectToEnvelope({ x, y, w: size.w, h: size.h }, size, size);
     if (overlapsAny(rect, draftWidgets ?? [])) return; // blocked → no-op
+    // Slice W1 — type-level guard at the call site too, so the
+    // duplicate toast fires immediately and we don't even
+    // attempt the addWidget (the store ALSO guards but firing
+    // here keeps the UX snappier + handles the case where the
+    // user smashes the placement before the React render has
+    // cleared `selected`).
+    if ((draftWidgets ?? []).some((w) => w.type === selected.id)) {
+      if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+        try {
+          window.dispatchEvent(new CustomEvent('hub:duplicate-widget', { detail: { type: selected.id } }));
+        } catch { /* ignore */ }
+      }
+      setSelectedType(null);
+      setPlaceHover(null);
+      return;
+    }
     addWidget({
       id: generatePlacementId(),
       type: selected.id,
@@ -518,6 +557,18 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
       data-testid="grid-editor"
       style={overlayStyle}
     >
+      {/* Slice W1 — duplicate-widget toast. Sits inside the
+          overlay so it's visible from any pane. Auto-dismisses
+          after 2.4s. */}
+      {duplicateToast && (
+        <div
+          role="alert"
+          data-testid="grid-editor-duplicate-toast"
+          style={duplicateToastStyle}
+        >
+          {duplicateToast}
+        </div>
+      )}
       <div style={modalStyle}>
         <header style={headerStyle}>
           <div>
@@ -555,17 +606,41 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
               )}
               {filtered.map((w) => {
                 const isSelected = w.id === selectedType;
+                // Slice W1 — paint a "✓ placed" indicator on
+                // palette chips whose widget type is already on
+                // the grid. The store rejects duplicate-type
+                // placements; this is the visual signal so the
+                // user knows BEFORE they try.
+                const isPlaced = (draftWidgets ?? []).some((dw) => dw.type === w.id);
+                const entryStyle = isSelected
+                  ? paletteEntryActiveStyle
+                  : (isPlaced ? paletteEntryPlacedStyle : paletteEntryStyle);
                 return (
                   <li key={w.id}>
                     <button
                       type="button"
                       role="option"
                       aria-selected={isSelected}
-                      onClick={() => setSelectedType(isSelected ? null : w.id)}
-                      style={isSelected ? paletteEntryActiveStyle : paletteEntryStyle}
+                      aria-disabled={isPlaced && !isSelected}
+                      data-placed={isPlaced ? 'true' : undefined}
+                      onClick={() => {
+                        if (isPlaced && !isSelected) {
+                          if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+                            try {
+                              window.dispatchEvent(new CustomEvent('hub:duplicate-widget', { detail: { type: w.id } }));
+                            } catch { /* ignore */ }
+                          }
+                          return;
+                        }
+                        setSelectedType(isSelected ? null : w.id);
+                      }}
+                      style={entryStyle}
                       data-widget-type={w.id}
+                      title={isPlaced ? `${w.label} is already on the grid` : w.label}
                     >
-                      <span style={paletteEntryLabelStyle}>{w.label}</span>
+                      <span style={paletteEntryLabelStyle}>
+                        {isPlaced ? '✓ ' : ''}{w.label}
+                      </span>
                       <span style={paletteEntryHintStyle}>
                         {w.defaultSize.w}×{w.defaultSize.h}
                       </span>
@@ -1135,6 +1210,37 @@ const paletteEntryActiveStyle: React.CSSProperties = {
   background: 'var(--theme-accent, #3b82f6)',
   color: 'var(--theme-accent-fg, #ffffff)',
   borderColor: 'var(--theme-accent, #3b82f6)',
+};
+
+// Slice W1 — palette entry style for widgets already on the
+// grid. Soft green hue + a green outline so the user can see at
+// a glance which widgets are in use without losing affordance
+// (the chip is still clickable; the click fires the
+// "already added" alert).
+const paletteEntryPlacedStyle: React.CSSProperties = {
+  ...paletteEntryStyle,
+  background: 'color-mix(in srgb, #10B981 12%, transparent)',
+  borderColor: '#10B981',
+  color: 'var(--theme-fg-secondary, #4b5563)',
+  cursor: 'not-allowed',
+};
+
+// Slice W1 — duplicate-widget toast pinned to the top of the
+// editor overlay so the user sees the "already added" message
+// even if they're scrolled inside the grid.
+const duplicateToastStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 'var(--hub-spc-4, 16px)',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 1100,
+  padding: '8px 14px',
+  borderRadius: 8,
+  background: '#0f1419',
+  color: '#ffffff',
+  fontSize: '0.85rem',
+  fontWeight: 600,
+  boxShadow: '0 10px 28px rgba(15, 23, 42, 0.35)',
 };
 
 const paletteEntryLabelStyle: React.CSSProperties = {

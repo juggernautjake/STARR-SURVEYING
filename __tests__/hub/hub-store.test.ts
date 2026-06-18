@@ -129,7 +129,9 @@ describe('hub store — patch helpers', () => {
   it('addWidget appends only while editing + marks dirty', () => {
     useHubStore.getState().hydrate({ widgets: [makeWidget('w1')] });
     useHubStore.getState().enterEditMode();
-    useHubStore.getState().addWidget(makeWidget('w2'));
+    // Slice W1 — addWidget now rejects type duplicates, so the
+    // second widget needs a distinct type from w1's default.
+    useHubStore.getState().addWidget(makeWidget('w2', 'bookmarks'));
     const draft = useHubStore.getState().draftWidgets!;
     expect(draft.map((w) => w.id)).toEqual(['w1', 'w2']);
     expect(useHubStore.getState().isDirty).toBe(true);
@@ -184,7 +186,9 @@ describe('hub store — saveDraft', () => {
       activePersona: 'admin',
     });
     useHubStore.getState().enterEditMode();
-    useHubStore.getState().addWidget(makeWidget('w2'));
+    // Slice W1 — addWidget now rejects type duplicates, so the
+    // second widget needs a distinct type from w1's default.
+    useHubStore.getState().addWidget(makeWidget('w2', 'bookmarks'));
 
     await useHubStore.getState().saveDraft();
 
@@ -216,7 +220,9 @@ describe('hub store — saveDraft', () => {
 
     useHubStore.getState().hydrate({ widgets: [makeWidget('w1')] });
     useHubStore.getState().enterEditMode();
-    useHubStore.getState().addWidget(makeWidget('w2'));
+    // Slice W1 — addWidget now rejects type duplicates, so the
+    // second widget needs a distinct type from w1's default.
+    useHubStore.getState().addWidget(makeWidget('w2', 'bookmarks'));
 
     await useHubStore.getState().saveDraft();
 
@@ -234,7 +240,9 @@ describe('hub store — saveDraft', () => {
 
     useHubStore.getState().hydrate({ widgets: [makeWidget('w1')] });
     useHubStore.getState().enterEditMode();
-    useHubStore.getState().addWidget(makeWidget('w2'));
+    // Slice W1 — addWidget now rejects type duplicates, so the
+    // second widget needs a distinct type from w1's default.
+    useHubStore.getState().addWidget(makeWidget('w2', 'bookmarks'));
 
     await useHubStore.getState().saveDraft();
     const s = useHubStore.getState();

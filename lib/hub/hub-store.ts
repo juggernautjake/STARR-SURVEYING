@@ -212,6 +212,25 @@ export const useHubStore = create<HubStore>((set, get) => ({
       }
       return;
     }
+    // Slice W1 (hub-cad-roles-polish-2026-06-18) — type-level
+    // uniqueness. User spec: "We should never have the same
+    // widget twice on the grid at any time." Enforced as a store
+    // invariant so every caller (click-to-place, drag-and-drop,
+    // future programmatic seeds) gets the same guarantee. The
+    // store also fires a global `hub:duplicate-widget` event so
+    // the UI can surface a "already added" alert without
+    // tightly coupling the editor to the store.
+    if (draftWidgets.some((w) => w.type === widget.type)) {
+      if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {
+        try {
+          window.dispatchEvent(new CustomEvent('hub:duplicate-widget', { detail: { type: widget.type } }));
+        } catch { /* ignore */ }
+      }
+      if (typeof console !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        console.warn(`[hub-store] addWidget refused — widget type "${widget.type}" is already on the grid`);
+      }
+      return;
+    }
     set({ draftWidgets: [...draftWidgets, widget], isDirty: true });
   },
 
