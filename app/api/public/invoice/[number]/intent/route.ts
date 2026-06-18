@@ -86,8 +86,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   };
 
   // Pin to the same apiVersion the rest of the app uses (see
-  // app/api/admin/research/document-access/route.ts).
-  const stripe = new Stripe(secret, { apiVersion: '2025-02-24.acacia' });
+  // app/api/admin/research/document-access/route.ts). The cast is
+  // necessary because the @types/stripe shipped with prod pins
+  // LatestApiVersion to '2023-10-16'; the runtime SDK accepts newer
+  // strings just fine.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stripe = new Stripe(secret, { apiVersion: '2025-02-24.acacia' as any });
   const params = buildPaymentIntentParams(intentInput);
   const intent = await stripe.paymentIntents.create(params as unknown as Stripe.PaymentIntentCreateParams);
 

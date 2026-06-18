@@ -449,8 +449,17 @@ export default function PayInvoicePage(): React.ReactElement {
               <div className="pay-paid__receipt" data-testid="pay-paid-receipt">
                 <h3 className="pay-paid__receipt-title">Need another copy of your receipt?</h3>
                 <p className="pay-paid__receipt-hint">
-                  We'll email it to you (or your accountant). The original lands at the address we already have on file.
+                  Download it as a PDF, or email it to yourself (or your accountant).
                 </p>
+                <a
+                  href={`/api/public/invoice/${encodeURIComponent(invoice.invoice_number)}/receipt/pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="pay-paid__receipt-download"
+                  data-testid="pay-paid-receipt-pdf"
+                >
+                  Download receipt (PDF)
+                </a>
                 {receiptStatus === 'sent' ? (
                   <p className="pay-paid__receipt-sent" data-testid="pay-paid-receipt-sent" role="status">
                     Sent! Check your inbox at <strong>{receiptEmail}</strong>.

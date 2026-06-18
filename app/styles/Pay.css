@@ -497,6 +497,19 @@
   padding: 0.55rem 0.75rem;
   border-radius: 8px;
 }
+.pay-paid__receipt-download {
+  display: inline-block;
+  margin: 0.5rem 0 0.85rem;
+  padding: 0.6rem 0.95rem;
+  background: #ffffff;
+  border: 2px solid #1f6d3c;
+  color: #1f6d3c;
+  text-decoration: none;
+  font-weight: 700;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+.pay-paid__receipt-download:hover { background: rgba(31, 109, 60, 0.06); }
 
 /* -------------------------------------------------------------------------
    Tablet+ — spread payment methods to two columns
