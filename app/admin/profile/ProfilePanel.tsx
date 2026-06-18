@@ -45,6 +45,16 @@ interface ContactMethod {
 const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString() : '—';
 const fmtCurrency = (n: number) => '$' + (n || 0).toFixed(2);
 
+/** Slice EP6 — convert a bigint-cents value to a `$X,XXX.XX`
+ *  string. Returns "—" when the value is null/undefined so an
+ *  empty bonus row doesn't blow the UI with NaN. Pure +
+ *  exported for the test suite. */
+export function fmtCents(cents: number | null | undefined): string {
+  if (cents == null || !Number.isFinite(cents)) return '—';
+  const dollars = cents / 100;
+  return dollars.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
 /** Slice EP1 — derive age from a DOB string (`YYYY-MM-DD` or full
  *  ISO). Returns null when the input is missing or unparseable. The
  *  365.25 factor handles leap years; we floor so a birthday in the
@@ -127,6 +137,53 @@ export default function ProfilePanel() {
     assigned_from: string | null;
   }>>([]);
   const [workedJobsLoading, setWorkedJobsLoading] = useState(false);
+  // Slice EP6 — compensation panel: current rate + history +
+  // bonuses + recent payouts. Surfaced on the signed-in user's
+  // own profile (or by admins / payroll roles when they're
+  // viewing someone else later — EP7b).
+  const [compensation, setCompensation] = useState<{
+    salary_history: Array<{
+      id: string;
+      base_hourly_rate_cents: number | null;
+      base_annual_salary_cents: number | null;
+      effective_from: string;
+      effective_to: string | null;
+      change_reason: string | null;
+    }>;
+    bonuses: Array<{
+      id: string;
+      amount_cents: number;
+      reason: string;
+      awarded_at: string;
+    }>;
+    payouts: Array<{
+      id: string;
+      period_start: string;
+      period_end: string;
+      gross_cents: number;
+      net_cents: number;
+      paid_at: string;
+      method: string;
+    }>;
+  }>({ salary_history: [], bonuses: [], payouts: [] });
+  const [compensationLoading, setCompensationLoading] = useState(false);
+
+  const fetchCompensation = useCallback(async () => {
+    if (!email) return;
+    setCompensationLoading(true);
+    try {
+      const res = await fetch(`/api/admin/profile/compensation?email=${encodeURIComponent(email)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as typeof compensation;
+      setCompensation(data);
+    } catch {
+      /* swallow — the card just renders the empty state */
+    } finally {
+      setCompensationLoading(false);
+    }
+  }, [email]);
+
+  useEffect(() => { void fetchCompensation(); }, [fetchCompensation]);
 
   const fetchWorkedJobs = useCallback(async () => {
     if (!email) return;
@@ -877,6 +934,112 @@ export default function ProfilePanel() {
               ))}
             </ul>
           )}
+        </div>
+
+        {/* Slice EP6 — Compensation card. The API is role-gated;
+            non-self viewers without a payroll role get a 403,
+            so the card simply renders the empty state for them.
+            For the surveyor themself it surfaces the current
+            rate, recent salary history, bonuses, and last few
+            payouts. */}
+        <div className="admin-card" data-testid="profile-compensation" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <strong>Compensation</strong>
+            {compensationLoading && (
+              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+            )}
+          </div>
+
+          {(() => {
+            const currentSalary = compensation.salary_history.find((s) => s.effective_to == null)
+              ?? compensation.salary_history[0]
+              ?? null;
+            return (
+              <>
+                <div className="emp-manage__field" data-testid="profile-compensation-current">
+                  <label>Current rate</label>
+                  <span>
+                    {currentSalary?.base_hourly_rate_cents != null
+                      ? `${fmtCents(currentSalary.base_hourly_rate_cents)} / hr`
+                      : currentSalary?.base_annual_salary_cents != null
+                      ? `${fmtCents(currentSalary.base_annual_salary_cents)} / yr`
+                      : 'Not on file'}
+                  </span>
+                </div>
+                {currentSalary?.effective_from && (
+                  <div className="emp-manage__field">
+                    <label>Effective from</label>
+                    <span>{fmtDate(currentSalary.effective_from)}</span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {compensation.salary_history.length > 1 && (
+            <div
+              className="emp-manage__field"
+              data-testid="profile-compensation-history"
+              style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}
+            >
+              <label>Salary history</label>
+              <ul style={{ margin: 0, paddingLeft: '1rem', width: '100%' }}>
+                {compensation.salary_history.slice(1, 6).map((s) => (
+                  <li key={s.id}>
+                    {fmtDate(s.effective_from)}
+                    {' — '}
+                    {s.base_hourly_rate_cents != null
+                      ? `${fmtCents(s.base_hourly_rate_cents)}/hr`
+                      : s.base_annual_salary_cents != null
+                      ? `${fmtCents(s.base_annual_salary_cents)}/yr`
+                      : '—'}
+                    {s.change_reason && <span style={{ color: '#6B7280' }}> · {s.change_reason}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div
+            className="emp-manage__field"
+            data-testid="profile-compensation-bonuses"
+            style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}
+          >
+            <label>Bonuses</label>
+            {compensation.bonuses.length === 0 ? (
+              <span style={{ color: '#6B7280' }}>None on file.</span>
+            ) : (
+              <ul style={{ margin: 0, paddingLeft: '1rem', width: '100%' }}>
+                {compensation.bonuses.slice(0, 5).map((b) => (
+                  <li key={b.id}>
+                    {fmtDate(b.awarded_at)} — <strong>{fmtCents(b.amount_cents)}</strong>
+                    <span style={{ color: '#6B7280' }}> · {b.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div
+            className="emp-manage__field"
+            data-testid="profile-compensation-payouts"
+            style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}
+          >
+            <label>Recent payouts</label>
+            {compensation.payouts.length === 0 ? (
+              <span style={{ color: '#6B7280' }}>No payouts logged yet.</span>
+            ) : (
+              <ul style={{ margin: 0, paddingLeft: '1rem', width: '100%' }}>
+                {compensation.payouts.slice(0, 4).map((p) => (
+                  <li key={p.id}>
+                    {fmtDate(p.paid_at)} — <strong>{fmtCents(p.net_cents)}</strong> net
+                    <span style={{ color: '#6B7280' }}> · gross {fmtCents(p.gross_cents)}</span>
+                    <span style={{ color: '#6B7280' }}> · {p.method}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
         </>
       )}
