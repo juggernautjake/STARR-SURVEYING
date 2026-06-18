@@ -120,6 +120,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', roles: ['admin'], internalOnly: true },
       { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/invoices/new', label: 'New Invoice', icon: '🧾', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/payments/inbox', label: 'Payments Inbox', icon: '📥', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       { href: '/admin/time-off', label: 'Time Off', icon: '🌴' },
       { href: '/admin/team', label: 'Field Team', icon: '🛰️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
