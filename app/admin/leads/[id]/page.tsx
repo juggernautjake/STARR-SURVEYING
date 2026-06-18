@@ -743,6 +743,15 @@ export default function LeadDetailPage() {
           leadName={lead.name}
           defaultTo={lead.email}
           defaultSubject={`Re: Your Starr Surveying request${lead.notes ? ` [${(lead.notes.match(/Ref:\s*(\S+)/) || [])[1] ?? ''}]` : ''}`}
+          /* LR4 — pass the lead context so the templates picker can
+             interpolate {{first_name}} / {{ref_number}} / etc. when
+             the surveyor chooses a template. */
+          leadVars={{
+            name: lead.name,
+            notes: lead.notes,
+            survey_type: lead.survey_type,
+            quote_amount: lead.quote_amount,
+          }}
           onClose={() => setReplyOpen(false)}
           onSent={() => {
             // LR1 — bump the refresh key so the RepliesList refetches

@@ -20,17 +20,37 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/admin/components/Toast';
+// LR4 — template picker + variable interpolation.
+import {
+  buildTemplateVarsFromLead,
+  interpolateTemplate,
+  type LeadVarSource,
+} from '@/lib/leads/templates';
 
 const QUICK_EMOJIS = [
   '👍', '✅', '🙏', '🎉', '📋', '📐', '📷', '📎',
   '🗺️', '🏠', '⚡', '⭐', '💬', '📞', '✉️', '🔧',
 ];
 
+interface ReplyTemplate {
+  id: string;
+  name: string;
+  category: string;
+  subject_template: string;
+  body_html_template: string;
+  is_org_default: boolean;
+}
+
 interface ReplyDialogProps {
   leadId: string;
   leadName: string;
   defaultTo: string;
   defaultSubject: string;
+  /** LR4 — lead context used to interpolate {{var}} tokens in chosen
+   *  templates. Optional so older callers that haven't been updated
+   *  yet still mount the composer; templates with un-substitutable
+   *  vars just leave the token literal. */
+  leadVars?: LeadVarSource;
   onClose: () => void;
   onSent: () => void;
 }
@@ -40,6 +60,7 @@ export default function ReplyDialog({
   leadName,
   defaultTo,
   defaultSubject,
+  leadVars,
   onClose,
   onSent,
 }: ReplyDialogProps) {
@@ -50,6 +71,33 @@ export default function ReplyDialog({
   const [attachments, setAttachments] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  // LR4 — templates picker state.
+  const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  // LR4 — fetch the catalog once on mount. Failure is silent; the
+  // picker just stays empty + the surveyor composes from scratch.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/reply-templates');
+        if (!res.ok) return;
+        const data = (await res.json()) as { templates?: ReplyTemplate[] };
+        if (alive) setTemplates(data.templates ?? []);
+      } catch { /* silent */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  function applyTemplate(t: ReplyTemplate) {
+    const vars = leadVars ? buildTemplateVarsFromLead(leadVars) : {};
+    const nextSubject = interpolateTemplate(t.subject_template, vars);
+    const nextBody = interpolateTemplate(t.body_html_template, vars);
+    setSubject(nextSubject);
+    if (editorRef.current) editorRef.current.innerHTML = nextBody;
+    setShowTemplates(false);
+  }
 
   // Seed the editor with a friendly greeting so the surveyor isn't
   // staring at an empty box.
@@ -194,6 +242,42 @@ export default function ReplyDialog({
             />
           </label>
         </div>
+
+        {/* LR4 — templates picker sits ABOVE the formatting toolbar so
+            it reads as a separate action (pick a starting point) from
+            the in-editor formatting controls. */}
+        {templates.length > 0 && (
+          <div style={templatesRowStyle} data-testid="reply-templates-row">
+            <button
+              type="button"
+              onClick={() => setShowTemplates((v) => !v)}
+              style={templatesToggleStyle}
+              aria-expanded={showTemplates}
+              data-testid="reply-templates-toggle"
+            >
+              📋 Templates ▾
+            </button>
+            {showTemplates && (
+              <ul style={templatesListStyle} data-testid="reply-templates-list">
+                {templates.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      style={templateBtnStyle}
+                      onClick={() => applyTemplate(t)}
+                      data-testid="reply-template-pick"
+                    >
+                      <span style={{ fontWeight: 600 }}>{t.name}</span>
+                      <span style={{ color: '#6B7280', fontSize: '0.72rem' }}>
+                        {t.category}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Formatting toolbar */}
         <div style={toolbarStyle} role="toolbar" aria-label="Formatting">
@@ -538,6 +622,60 @@ const footerStyle: React.CSSProperties = {
   borderTop: '1px solid #E5E7EB',
   background: '#FAFBFF',
 };
+const templatesRowStyle: React.CSSProperties = {
+  position: 'relative',
+  padding: '0.5rem 1rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  borderTop: '1px solid #F1F5F9',
+  background: '#FAFBFF',
+};
+const templatesToggleStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 6,
+  border: '1px solid #E5E7EB',
+  background: 'white',
+  fontSize: '0.82rem',
+  fontWeight: 600,
+  color: '#1F2937',
+  cursor: 'pointer',
+};
+const templatesListStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '110%',
+  left: '1rem',
+  zIndex: 9101,
+  background: 'white',
+  border: '1px solid #E5E7EB',
+  borderRadius: 8,
+  boxShadow: '0 8px 24px rgba(15, 23, 42, 0.18)',
+  padding: 4,
+  margin: 0,
+  listStyle: 'none',
+  minWidth: 220,
+  maxHeight: 320,
+  overflow: 'auto',
+};
+const templateBtnStyle: React.CSSProperties = {
+  display: 'flex',
+  width: '100%',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '7px 10px',
+  borderRadius: 6,
+  border: 0,
+  background: 'transparent',
+  color: '#1F2937',
+  fontSize: '0.85rem',
+  cursor: 'pointer',
+  textAlign: 'left' as const,
+};
+
 const cancelBtnStyle: React.CSSProperties = {
   padding: '8px 14px',
   borderRadius: 8,
