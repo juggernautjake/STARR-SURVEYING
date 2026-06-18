@@ -62,21 +62,114 @@ function PipelineStatusWidget({ size, content }: WidgetProps<PipelineStatusConte
 
   const showStarted = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
   const cap = bucket === 'small' ? 4 : bucket === 'medium' ? 6 : bucket === 'large' ? 12 : 24;
+  // Slice S3 — status-breakdown chip strip at medium+
+  // (e.g. "3 running · 5 success · 2 failed · 1 queued") plus an
+  // xlarge-only "failures" detail row pinned at the bottom of the
+  // tile so an at-a-glance health check surfaces the actionable
+  // failures without leaving the hub.
+  const showStatusChips = bucket === 'medium' || bucket === 'large' || bucket === 'xlarge';
+  const showFailureFooter = bucket === 'xlarge';
+  const counts = countByStatus(runs);
+  const recentFailures = runs.filter((r) => r.status === 'failed').slice(0, 3);
   return (
-    <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
-      {runs.slice(0, cap).map((r) => (
-        <li key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
-          <span aria-label={r.status} style={{ width: 8, height: 8, borderRadius: 8, background: pipelineColor(r.status), flexShrink: 0 }} />
-          <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-          {showStarted && r.started_at && (
-            <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', flexShrink: 0 }}>{formatStarted(r.started_at)}</span>
-          )}
-          <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', flexShrink: 0 }}>{r.status}</span>
-        </li>
-      ))}
-    </ul>
+    <div
+      data-testid={`pipeline-status-${bucket}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, height: '100%' }}
+    >
+      {showStatusChips && (
+        <ul
+          data-testid="pipeline-status-status-chips"
+          aria-label="Runs by status"
+          style={chipStripStyle}
+        >
+          <li style={{ ...chipStyle, color: 'var(--theme-accent)' }} title="Running">
+            <span style={{ ...statusDot, background: 'var(--theme-accent)' }} />
+            <span><strong>{counts.running}</strong>&nbsp;running</span>
+          </li>
+          <li style={{ ...chipStyle, color: 'var(--theme-success)' }} title="Success">
+            <span style={{ ...statusDot, background: 'var(--theme-success)' }} />
+            <span><strong>{counts.success}</strong>&nbsp;success</span>
+          </li>
+          <li style={{ ...chipStyle, color: 'var(--theme-danger)' }} title="Failed">
+            <span style={{ ...statusDot, background: 'var(--theme-danger)' }} />
+            <span><strong>{counts.failed}</strong>&nbsp;failed</span>
+          </li>
+          <li style={{ ...chipStyle, color: 'var(--theme-fg-secondary)' }} title="Queued">
+            <span style={{ ...statusDot, background: 'var(--theme-fg-muted)' }} />
+            <span><strong>{counts.queued}</strong>&nbsp;queued</span>
+          </li>
+        </ul>
+      )}
+
+      <ul role="list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-2, 8px)' }}>
+        {runs.slice(0, cap).map((r) => (
+          <li key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--theme-bg-elevated)' }}>
+            <span aria-label={r.status} style={{ width: 8, height: 8, borderRadius: 8, background: pipelineColor(r.status), flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+            {showStarted && r.started_at && (
+              <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', flexShrink: 0 }}>{formatStarted(r.started_at)}</span>
+            )}
+            <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', flexShrink: 0 }}>{r.status}</span>
+          </li>
+        ))}
+      </ul>
+
+      {showFailureFooter && recentFailures.length > 0 && (
+        <div
+          data-testid="pipeline-status-failure-footer"
+          style={failureFooterStyle}
+        >
+          <span style={{ fontSize: '0.7rem', color: 'var(--theme-danger)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            Recent failures
+          </span>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {recentFailures.map((r) => (
+              <li key={r.id} style={{ fontSize: '0.72rem', color: 'var(--theme-fg-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <strong style={{ color: 'var(--theme-fg-primary)' }}>{r.name}</strong>
+                {r.started_at && <> · {formatStarted(r.started_at)}</>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
+
+/** Bucket runs into the four canonical statuses. Pure + exported. */
+export function countByStatus(runs: PipelineRun[]): {
+  running: number; success: number; failed: number; queued: number;
+} {
+  const out = { running: 0, success: 0, failed: 0, queued: 0 };
+  for (const r of runs) {
+    if (r.status === 'running' || r.status === 'success' || r.status === 'failed' || r.status === 'queued') {
+      out[r.status] += 1;
+    }
+  }
+  return out;
+}
+
+const statusDot: React.CSSProperties = { width: 6, height: 6, borderRadius: '50%' };
+const chipStripStyle: React.CSSProperties = {
+  listStyle: 'none', margin: 0, padding: 0,
+  display: 'flex', flexWrap: 'wrap', gap: 6,
+};
+const chipStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  padding: '2px 8px',
+  borderRadius: 999,
+  background: 'var(--theme-bg-elevated)',
+  fontSize: '0.72rem',
+  whiteSpace: 'nowrap',
+};
+const failureFooterStyle: React.CSSProperties = {
+  marginTop: 'auto',
+  paddingTop: 6,
+  borderTop: '1px solid var(--theme-border)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+};
 
 /** Short relative start time. Exported for testing. */
 export function formatStarted(iso: string, nowMs: number = Date.now()): string {
