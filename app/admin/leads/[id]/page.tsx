@@ -22,6 +22,10 @@ import { usePageError } from '../../hooks/usePageError';
 // button in the header. The modal owns its own state + posts to the
 // /api/admin/leads/{id}/reply route; this page just opens it.
 import ReplyDialog from './ReplyDialog';
+// LR1 of lead-reply-expansion-2026-06-18.md — reply history card that
+// reads from the same /reply endpoint and renders the per-lead
+// conversation log under the Notes card.
+import RepliesList from './RepliesList';
 
 interface LeadAttachment {
   name: string;
@@ -111,6 +115,9 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   // lead-reply-2026-06-18 — Reply modal open / closed.
   const [replyOpen, setReplyOpen] = useState(false);
+  // LR1 — bumping this forces the RepliesList component to refetch
+  // (used by onSent to surface a fresh row immediately).
+  const [repliesRefreshKey, setRepliesRefreshKey] = useState(0);
   const isAdminUser = session?.user?.roles?.includes('admin') ?? false;
 
   const load = useCallback(async () => {
@@ -388,6 +395,12 @@ export default function LeadDetailPage() {
             <p className="lead-detail__empty">No notes provided.</p>
           )}
         </section>
+
+        {/* LR1 of lead-reply-expansion-2026-06-18.md — outbound reply
+            history. Reads from /api/admin/leads/[id]/reply (shipped in
+            edfdc2c) and refreshes whenever the ReplyDialog fires
+            onSent (via the refreshKey bump). */}
+        <RepliesList leadId={lead.id} refreshKey={repliesRefreshKey} />
 
         {/* lead-attachments-2026-06-18 — render whatever files the
             customer sent via the public form. Each chip is a button-
@@ -722,7 +735,15 @@ export default function LeadDetailPage() {
           defaultTo={lead.email}
           defaultSubject={`Re: Your Starr Surveying request${lead.notes ? ` [${(lead.notes.match(/Ref:\s*(\S+)/) || [])[1] ?? ''}]` : ''}`}
           onClose={() => setReplyOpen(false)}
-          onSent={() => { void load(); }}
+          onSent={() => {
+            // LR1 — bump the refresh key so the RepliesList refetches
+            // and the freshly-sent reply appears at the top of the
+            // history immediately. `load()` also re-pulls the lead
+            // row so the attachments column reflects any signed-URL
+            // updates from the reply pipeline.
+            setRepliesRefreshKey((k) => k + 1);
+            void load();
+          }}
         />
       )}
     </div>
