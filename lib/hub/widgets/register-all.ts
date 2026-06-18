@@ -76,3 +76,7 @@ import './contacts';
 // Legacy widgets stay registered so saved layouts keep
 // rendering until users replace them.
 import './comms-inbox';
+// Slice W9a — consolidated pending-bin widget. Absorbs
+// pending-receipts + pending-time-off + pending-hours +
+// assignments-due. Legacy widgets stay registered.
+import './pending-bin';

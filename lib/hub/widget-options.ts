@@ -129,6 +129,9 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   // single `showOpenLink` boolean in its defaults); register
   // it as `none` so the schema test stays clean.
   'comms-inbox':              { source: 'none' },
+  // Slice W9a — consolidated pending-bin. Same `none` story as
+  // comms-inbox (single boolean default).
+  'pending-bin':              { source: 'none' },
   'crew-calendar':            { source: 'settings-form' },
   'drawings-in-progress':     { source: 'settings-form' },
   // consolidation Slice 4 (2026-05-30) — unified Drawings widget.

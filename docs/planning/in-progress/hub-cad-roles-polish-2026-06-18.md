@@ -181,7 +181,11 @@ Each slice = its own commit + the three post-build checks.
 | **W6** | Quick-actions catalog audit: `clock-in-out` converted from a placeholder action to a real link (`/admin/me?tab=hours`). New pure `findBrokenQuickActionHrefs(catalog, registry)` + `hrefPath` helpers in `lib/hub/quick-actions-validator.ts`, locked by a test that asserts every catalog link path lives in `ADMIN_ROUTES`. ✅ shipped |
 | **W7** | Role builder page at `/admin/roles/custom`. Migration 313 creates `public.custom_roles` (key / label / description / permissions JSONB), new pure helpers (`slugifyRoleKey`, `validateRoleKey`, `normalizeLabel`), admin-only GET/POST endpoint, server-rendered page + client form, nav + middleware gate. ✅ shipped |
 | **W8** | Widget consolidation phase 1 — ship `comms-inbox` (absorbs messages + mentions-inbox + open-discussions). Size-relative layout per W5: tiny=count, small=DMs, medium=DMs+mentions, large/xlarge=3 columns. Legacy components stay registered. Pure helpers `totalCommsCount` + `commsLayoutForBucket` exported for testing. `pending-bin` follows in W9. ✅ shipped |
-| **W9** | Widget consolidation phase 2 — `drawings-hub`, `money`, `learning-stack`, `field-pulse`. |
+| **W9a** | Consolidated `pending-bin` widget — absorbs pending-receipts + pending-time-off + pending-hours + assignments-due. Size-relative variants: tiny / small / medium / 3-col (large) / 4-col (xlarge, adds time-off). Pure helpers `totalPendingCount` + `pendingLayoutForBucket` exported. ✅ shipped |
+| **W9b** | Consolidated `drawings-hub` widget — absorbs drawings + drawings-in-progress + recent-drawings. (next slice) |
+| **W9c** | Consolidated `money` widget — absorbs my-pay + monthly-revenue + outstanding-invoices. |
+| **W9d** | Consolidated `learning-stack` widget — absorbs class-assignments + flashcards-due + recommended-lessons. |
+| **W9e** | Consolidated `field-pulse` widget — absorbs team-status + vehicles-status + equipment-out + low-consumables. |
 | **W10** | CAD area-measuring tool revamp: sticky toolbar, live readout, snap / undo / close. |
 | **W11** | CAD free-hand drawing tool: stroke color / opacity / weight / dash style picker; smooth-curve fitting. |
 
