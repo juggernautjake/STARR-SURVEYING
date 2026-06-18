@@ -36,7 +36,16 @@ export const resolveShowName    = (c: RoadmapProgressContent): boolean => resolv
 export const resolveShowCurrent = (c: RoadmapProgressContent): boolean => resolveBool(c.showCurrent, true);
 export const resolveShowBar     = (c: RoadmapProgressContent): boolean => resolveBool(c.showBar,     true);
 
-interface Roadmap { id: string; name: string; percent_complete: number; current_module?: string | null; }
+interface RoadmapModule { title: string; percent: number }
+interface Roadmap {
+  id: string;
+  name: string;
+  percent_complete: number;
+  current_module?: string | null;
+  // Slice S5 — keep the per-module list so large+ buckets can
+  // render a mini module-progress strip.
+  modules: RoadmapModule[];
+}
 
 // hub-widget-excellence-13 R1 — the roadmap GET returns
 // `{ modules, milestones, overall_progress: { percentage } }`, NOT a
@@ -63,6 +72,14 @@ export function toRoadmap(data: RoadmapApiResponse): Roadmap | null {
     name: 'Learning Roadmap',
     percent_complete: percent,
     current_module: current?.title ?? null,
+    modules: modules
+      .filter((m): m is RoadmapApiModule & { title: string } => typeof m.title === 'string' && m.title.length > 0)
+      .map((m) => ({
+        title: m.title,
+        percent: typeof m.percentage === 'number' && Number.isFinite(m.percentage)
+          ? Math.max(0, Math.min(100, Math.round(m.percentage)))
+          : 0,
+      })),
   };
 }
 
@@ -103,15 +120,23 @@ function RoadmapProgressWidget({ size, content }: WidgetProps<RoadmapProgressCon
 
   if (bucket === 'tiny') {
     return (
-      <div style={tinyStatWrapStyle()}>
+      <div style={tinyStatWrapStyle()} data-testid="roadmap-progress-tiny">
         <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{roadmap.percent_complete}%</span>
         <span style={tinyStatLabelStyle()}>roadmap</span>
       </div>
     );
   }
 
+  // Slice S5 — surface a per-module mini-progress strip at large+
+  // (xlarge keeps a longer list). Each row shows the module title +
+  // a slim per-module bar so the surveyor sees which pieces remain.
+  const showModuleList = bucket === 'large' || bucket === 'xlarge';
+  const moduleCap = moduleCapForBucket(bucket);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+    <div
+      data-testid={`roadmap-progress-${bucket}`}
+      style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, height: '100%' }}
+    >
       <span style={statNumberStyle(bucket, 'var(--theme-accent)')}>{roadmap.percent_complete}%</span>
       {showName && (
         <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{roadmap.name}</span>
@@ -124,9 +149,80 @@ function RoadmapProgressWidget({ size, content }: WidgetProps<RoadmapProgressCon
           <div style={{ width: `${roadmap.percent_complete}%`, height: '100%', background: 'var(--theme-accent)' }} />
         </div>
       )}
+      {showModuleList && roadmap.modules.length > 0 && (
+        <ul
+          data-testid="roadmap-progress-modules"
+          aria-label="Modules"
+          style={modulesListStyle}
+        >
+          {roadmap.modules.slice(0, moduleCap).map((m) => (
+            <li key={m.title} style={moduleRowStyle}>
+              <span style={moduleTitleStyle} title={m.title}>{m.title}</span>
+              <span style={modulePctStyle}>{m.percent}%</span>
+              <span aria-hidden style={moduleBarTrackStyle}>
+                <span
+                  style={{
+                    display: 'block',
+                    width: `${m.percent}%`,
+                    height: '100%',
+                    background: m.percent >= 100 ? 'var(--theme-success)' : 'var(--theme-accent)',
+                  }}
+                />
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
+
+/** How many modules to surface at the large+ bucket. Pure + exported. */
+export function moduleCapForBucket(bucket: ReturnType<typeof sizeBucket>): number {
+  switch (bucket) {
+    case 'tiny':
+    case 'small':
+    case 'medium':
+      return 0;
+    case 'large':
+      return 4;
+    case 'xlarge':
+      return 8;
+  }
+}
+
+const modulesListStyle: React.CSSProperties = {
+  listStyle: 'none', margin: '4px 0 0', padding: 0,
+  display: 'flex', flexDirection: 'column', gap: 6,
+  borderTop: '1px solid var(--theme-border)',
+  paddingTop: 6,
+};
+const moduleRowStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr auto',
+  gridTemplateRows: 'auto auto',
+  columnGap: 8,
+  rowGap: 2,
+  alignItems: 'center',
+};
+const moduleTitleStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-primary)',
+  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+};
+const modulePctStyle: React.CSSProperties = {
+  fontSize: 'var(--hub-font-xs, 0.7rem)',
+  color: 'var(--theme-fg-secondary)',
+  fontVariantNumeric: 'tabular-nums',
+};
+const moduleBarTrackStyle: React.CSSProperties = {
+  display: 'block',
+  gridColumn: '1 / -1',
+  height: 4,
+  borderRadius: 2,
+  background: 'var(--theme-bg-elevated)',
+  overflow: 'hidden',
+};
 
 defineWidget<RoadmapProgressContent>({
   id: 'roadmap-progress',

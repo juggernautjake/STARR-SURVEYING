@@ -25,7 +25,18 @@ describe('toRoadmap (R1: derive rollup from modules + overall_progress)', () => 
       overall_progress: { percentage: 47 },
     })!;
     expect(r).toEqual({
-      id: 'overall', name: 'Learning Roadmap', percent_complete: 47, current_module: 'Traverse Math',
+      id: 'overall',
+      name: 'Learning Roadmap',
+      percent_complete: 47,
+      current_module: 'Traverse Math',
+      // Slice S5 — module list now flows through so large+ buckets
+      // can render a per-module mini-progress strip. Percent is
+      // clamped to int per module.
+      modules: [
+        { title: 'Boundary Basics', percent: 100 },
+        { title: 'Traverse Math', percent: 40 },
+        { title: 'Geodesy', percent: 0 },
+      ],
     });
   });
 
