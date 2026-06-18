@@ -117,11 +117,36 @@ export default function JobOriginatingLead({ jobId }: JobOriginatingLeadProps) {
 
       <Link
         href={`/admin/leads/${encodeURIComponent(lead.id)}`}
+        className="job-detail__originating-lead-link"
         style={linkStyle}
         data-testid="job-originating-lead-link"
       >
         View full conversation →
       </Link>
+
+      {/* LR8 styling pass — hover lift + focus ring on the primary
+          link button. Inline styles can't express :hover, so we
+          use a scoped jsx block. */}
+      <style jsx>{`
+        .job-detail__originating-lead-link {
+          transition: transform 120ms ease, box-shadow 120ms ease;
+        }
+        .job-detail__originating-lead-link:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 18px rgba(29, 48, 149, 0.32);
+        }
+        .job-detail__originating-lead-link:focus-visible {
+          outline: none;
+          box-shadow:
+            0 0 0 3px color-mix(in srgb, #1D3095 35%, transparent),
+            0 4px 12px rgba(29, 48, 149, 0.18);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .job-detail__originating-lead-link {
+            transition: none !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }

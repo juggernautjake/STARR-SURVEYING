@@ -281,9 +281,15 @@ export default function LeadNotesCard({ leadId }: LeadNotesCardProps) {
           resize: vertical;
           min-height: 56px;
         }
+        .office-notes__textarea {
+          transition: border-color 120ms ease, box-shadow 120ms ease;
+        }
         .office-notes__textarea:focus {
           outline: none;
           border-color: #1D3095;
+          /* LR8 styling pass — focus ring so keyboard users can see
+             where they are while typing. */
+          box-shadow: 0 0 0 3px color-mix(in srgb, #1D3095 18%, transparent);
         }
         .office-notes__composer-actions {
           display: flex;
@@ -366,6 +372,31 @@ export default function LeadNotesCard({ leadId }: LeadNotesCardProps) {
         .office-notes__icon-btn:hover {
           background: #F1F5F9;
           color: #0F172A;
+        }
+        .office-notes__icon-btn:focus-visible {
+          outline: none;
+          background: #EEF2FF;
+          color: #1D3095;
+          box-shadow: 0 0 0 2px color-mix(in srgb, #1D3095 35%, transparent);
+        }
+        .office-notes__save {
+          transition: transform 120ms ease, box-shadow 120ms ease;
+        }
+        .office-notes__save:not(:disabled):hover {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 14px rgba(29, 48, 149, 0.3);
+        }
+        .office-notes__save:focus-visible {
+          outline: none;
+          box-shadow:
+            0 0 0 3px color-mix(in srgb, #1D3095 35%, transparent),
+            0 2px 6px rgba(29, 48, 149, 0.2);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .office-notes__textarea,
+          .office-notes__save {
+            transition: none !important;
+          }
         }
         .office-notes__item-body {
           margin: 0;

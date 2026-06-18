@@ -329,6 +329,32 @@ export default function RepliesList({ leadId, refreshKey }: RepliesListProps) {
         .lead-detail__reply-header:hover {
           background: #F8FAFC;
         }
+        /* LR8 styling pass — keyboard focus ring (focus-visible
+           keeps the ring off mouse clicks). */
+        .lead-detail__reply-header:focus-visible {
+          outline: none;
+          background: #EEF2FF;
+          box-shadow: inset 0 0 0 2px color-mix(in srgb, #1D3095 28%, transparent);
+          border-radius: 6px;
+        }
+        /* LR8 — under 520px the header collapses the time + chevron
+           onto a second row so the sender + subject get their own
+           line and don't crush together on a phone. */
+        @media (max-width: 520px) {
+          .lead-detail__reply-header {
+            grid-template-columns: 16px 1fr auto;
+            grid-template-areas:
+              'glyph sender chevron'
+              'glyph subject subject'
+              '. time time';
+            row-gap: 2px;
+          }
+          .lead-detail__reply-header > :nth-child(1) { grid-area: glyph; }
+          .lead-detail__reply-header > :nth-child(2) { grid-area: sender; }
+          .lead-detail__reply-header > :nth-child(3) { grid-area: subject; white-space: normal; }
+          .lead-detail__reply-header > :nth-child(4) { grid-area: time; }
+          .lead-detail__reply-header > :nth-child(5) { grid-area: chevron; justify-self: end; }
+        }
         .lead-detail__reply-sender {
           font-size: 0.85rem;
           font-weight: 600;

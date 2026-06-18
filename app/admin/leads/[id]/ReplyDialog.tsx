@@ -496,6 +496,50 @@ export default function ReplyDialog({
             {sending ? 'Sending…' : '📨 Send reply'}
           </button>
         </footer>
+
+        {/* LR8 styling pass — focus rings + hover transitions in a
+            scoped style block. The dialog uses inline styles for
+            layout (easier in flight), but interactive states
+            (:hover, :focus-visible, :disabled) need real CSS. */}
+        <style jsx>{`
+          input[data-testid='reply-to'],
+          input[data-testid='reply-subject'] {
+            transition: border-color 120ms ease, box-shadow 120ms ease;
+          }
+          input[data-testid='reply-to']:focus,
+          input[data-testid='reply-subject']:focus {
+            outline: none;
+            border-color: #1D3095;
+            box-shadow: 0 0 0 3px color-mix(in srgb, #1D3095 18%, transparent);
+          }
+          [role='textbox'][data-testid='reply-editor']:focus {
+            box-shadow: inset 0 0 0 2px color-mix(in srgb, #1D3095 18%, transparent);
+            border-radius: 8px;
+          }
+          button[data-testid='reply-templates-toggle']:hover,
+          button[data-testid='reply-ai-toggle']:hover,
+          button[data-testid='reply-emoji-toggle']:hover {
+            background: color-mix(in srgb, #1D3095 8%, white);
+          }
+          button[data-testid='reply-template-pick']:hover {
+            background: color-mix(in srgb, #1D3095 10%, white);
+          }
+          button[data-testid='reply-send']:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(29, 48, 149, 0.35);
+          }
+          button[data-testid='reply-send']:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            button[data-testid='reply-send'],
+            input[data-testid='reply-to'],
+            input[data-testid='reply-subject'] {
+              transition: none !important;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
