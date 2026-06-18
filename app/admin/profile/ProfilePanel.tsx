@@ -113,6 +113,37 @@ export default function ProfilePanel() {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageCaption, setImageCaption] = useState('');
+  // Slice EP5 — "Jobs I've worked on" state. Sourced from
+  // /api/admin/profile/jobs which collapses job_team rows by
+  // job_id and orders by most-recent assignment first.
+  const [workedJobs, setWorkedJobs] = useState<Array<{
+    job_id: string;
+    job_name: string | null;
+    job_number: string | null;
+    stage: string | null;
+    address: string | null;
+    is_crew_lead: boolean;
+    state: string | null;
+    assigned_from: string | null;
+  }>>([]);
+  const [workedJobsLoading, setWorkedJobsLoading] = useState(false);
+
+  const fetchWorkedJobs = useCallback(async () => {
+    if (!email) return;
+    setWorkedJobsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/profile/jobs?email=${encodeURIComponent(email)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { jobs: typeof workedJobs };
+      setWorkedJobs(data.jobs ?? []);
+    } catch {
+      /* swallow — card just shows the empty state */
+    } finally {
+      setWorkedJobsLoading(false);
+    }
+  }, [email]);
+
+  useEffect(() => { void fetchWorkedJobs(); }, [fetchWorkedJobs]);
 
   const fetchImages = useCallback(async () => {
     if (!email) return;
@@ -798,6 +829,54 @@ export default function ProfilePanel() {
               <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: 0 }}>Uploading…</p>
             )}
           </div>
+        </div>
+
+        {/* Slice EP5 — Jobs I've worked on. Sourced from
+            /api/admin/profile/jobs (joins job_team + jobs).
+            Sorted by latest assignment first; each row links
+            to the job's dedicated page. */}
+        <div className="admin-card" data-testid="profile-worked-jobs" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <strong>Jobs I&apos;ve worked on</strong>
+            {workedJobsLoading && (
+              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+            )}
+          </div>
+          {workedJobs.length === 0 ? (
+            <p style={{ color: '#6B7280', margin: 0 }}>You haven&apos;t been assigned to any jobs yet.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {workedJobs.map((j) => (
+                <li
+                  key={j.job_id}
+                  data-testid={`profile-worked-job-${j.job_id}`}
+                  style={{ borderBottom: '1px solid #F1F5F9', padding: '0.4rem 0' }}
+                >
+                  <a
+                    href={`/admin/jobs/${j.job_id}`}
+                    style={{ color: 'var(--color-brand-navy)', fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    {j.job_number ? `${j.job_number} — ` : ''}{j.job_name ?? 'Untitled job'}
+                  </a>
+                  {j.is_crew_lead && (
+                    <span
+                      data-testid={`profile-worked-job-${j.job_id}-lead`}
+                      style={{ marginLeft: '0.4rem', color: 'var(--color-brand-navy)', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                    >
+                      · Crew lead
+                    </span>
+                  )}
+                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', color: '#6B7280', fontSize: '0.78rem', marginTop: '0.15rem' }}>
+                    {j.stage && <span>{j.stage}</span>}
+                    {j.address && <span>· {j.address}</span>}
+                    {j.assigned_from && (
+                      <span>· Since {new Date(j.assigned_from).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         </>
       )}
