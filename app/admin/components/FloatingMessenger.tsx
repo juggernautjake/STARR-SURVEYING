@@ -11,6 +11,8 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 // Slice MX3 — draggable panel via the shared useDraggable hook.
 import { useDraggable } from '@/lib/admin/use-draggable';
+// Slice MX5 — highlight + snippet helpers for the cross-conversation search.
+import { highlightSegments, snippetAroundMatch } from '@/lib/admin/messenger-search';
 
 const MESSENGER_PANEL_WIDTH = 640;
 const MESSENGER_PANEL_HEIGHT = 600;
@@ -108,6 +110,9 @@ export default function FloatingMessenger() {
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
   const [groupTitle, setGroupTitle] = useState('');
   const [convSearch, setConvSearch] = useState('');
+  // Slice MX5 — remember the active message-search query so we
+  // can highlight the matches + show "Results for 'foo'" copy.
+  const [msgSearchQuery, setMsgSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ content: string; sender_email: string; created_at: string; conversation_id: string }[]>([]);
   const [searching, setSearching] = useState(false);
 
@@ -661,36 +666,74 @@ export default function FloatingMessenger() {
 
           {/* === SEARCH VIEW === */}
           {view === 'search' && (
-            <div className="messenger-panel__search-view">
+            <div className="messenger-panel__search-view" data-testid="messenger-panel-search-view">
               <input
                 className="messenger-panel__contact-search"
                 placeholder="Search messages..."
                 autoFocus
+                value={msgSearchQuery}
                 onChange={e => {
                   const q = e.target.value;
+                  setMsgSearchQuery(q);
                   if (q.length >= 2) searchMessages(q);
                   else setSearchResults([]);
                 }}
               />
+              {/* Slice MX5 — results header so the user sees the
+                  result count + the query they're searching for,
+                  matching the dedicated /admin/messages page. */}
+              {msgSearchQuery.trim().length >= 2 && !searching && searchResults.length > 0 && (
+                <div
+                  className="messenger-panel__search-summary"
+                  data-testid="messenger-panel-search-summary"
+                  style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', color: '#6B7280' }}
+                >
+                  {searchResults.length} match{searchResults.length === 1 ? '' : 'es'} for
+                  {' '}
+                  <strong>&ldquo;{msgSearchQuery.trim()}&rdquo;</strong>
+                </div>
+              )}
               <div className="messenger-panel__search-results">
                 {searching && <p className="messenger-panel__loading">Searching...</p>}
                 {!searching && searchResults.length === 0 && (
-                  <p className="messenger-panel__no-results">Type to search messages across all conversations</p>
+                  <p className="messenger-panel__no-results">
+                    {msgSearchQuery.trim().length >= 2
+                      ? `No messages match "${msgSearchQuery.trim()}".`
+                      : 'Type at least 2 characters to search across every conversation.'}
+                  </p>
                 )}
-                {searchResults.map((r, i) => (
-                  <button
-                    key={i}
-                    className="messenger-panel__search-result"
-                    onClick={() => {
-                      const conv = conversations.find(c => c.id === r.conversation_id);
-                      if (conv) openConversation(conv);
-                    }}
-                  >
-                    <span className="messenger-panel__search-sender">{displayName(r.sender_email)}</span>
-                    <span className="messenger-panel__search-content">{r.content.slice(0, 80)}</span>
-                    <span className="messenger-panel__search-time">{formatTime(r.created_at)}</span>
-                  </button>
-                ))}
+                {searchResults.map((r, i) => {
+                  const conv = conversations.find(c => c.id === r.conversation_id);
+                  const snippet = snippetAroundMatch(r.content, msgSearchQuery, 120);
+                  const segments = highlightSegments(snippet, msgSearchQuery);
+                  return (
+                    <button
+                      key={i}
+                      className="messenger-panel__search-result"
+                      data-testid="messenger-panel-search-result"
+                      onClick={() => {
+                        if (conv) openConversation(conv);
+                      }}
+                    >
+                      <span className="messenger-panel__search-sender">
+                        {displayName(r.sender_email)}
+                        {conv && (
+                          <span style={{ color: '#6B7280', fontWeight: 400 }}>
+                            {' '}· {getConvName(conv)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="messenger-panel__search-content">
+                        {segments.map((seg, j) => (
+                          seg.match
+                            ? <mark key={j} style={{ background: '#FEF3C7', padding: '0 1px', borderRadius: '2px' }}>{seg.text}</mark>
+                            : <span key={j}>{seg.text}</span>
+                        ))}
+                      </span>
+                      <span className="messenger-panel__search-time">{formatTime(r.created_at)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
