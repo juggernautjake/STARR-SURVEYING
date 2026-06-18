@@ -732,6 +732,31 @@
   color: var(--text-secondary);
 }
 
+/* home-contact-info-email-2026-06-18 — direct-email callout under the
+ * subtitle. Reads as a soft callout (light brand tint + accent border)
+ * so it nudges the customer toward email-with-attachments without
+ * competing with the primary "fill out the form" CTA. */
+.home-contact__direct-email {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.9rem;
+  background: color-mix(in srgb, var(--brand-blue, #1D3095) 6%, transparent);
+  border-left: 3px solid var(--brand-blue, #1D3095);
+  border-radius: 4px;
+  line-height: 1.5;
+}
+.home-contact__direct-email-link {
+  color: var(--brand-blue, #1D3095);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.home-contact__direct-email-link:hover {
+  text-decoration: underline;
+}
+
 .home-contact__form {
   background: var(--brand-light);
   border-radius: 10px;

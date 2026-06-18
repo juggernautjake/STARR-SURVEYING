@@ -455,6 +455,17 @@ export default function HomePage(): React.ReactElement {
             <p className="home-contact__subtitle">
               Fill out the form below and we will get back to you within 24 business hours.
             </p>
+            {/* home-contact-info-email-2026-06-18 — surface the canonical
+                business email so customers know where to write directly
+                if they'd rather not use the form. Matches the contact
+                info column already on /contact. */}
+            <p className="home-contact__direct-email">
+              Prefer email? Write us at{' '}
+              <a href="mailto:info@starr-surveying.com" className="home-contact__direct-email-link">
+                info@starr-surveying.com
+              </a>
+              {' '}— attach any photos, deeds, or plats and we&apos;ll respond from the same address.
+            </p>
           </div>
 
           <Link href="/pricing" className="home-contact__calc-banner">
