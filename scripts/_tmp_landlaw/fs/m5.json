@@ -1,623 +1,1286 @@
 {
-  "module_number": 5,
-  "title": "Areas, Volumes and Curves",
-  "description": "Compute parcel areas (coordinate/shoelace and DMD methods, plus trapezoidal and Simpson's rule from field offsets), earthwork volumes by average-end-area and the prismoidal formula, and the full geometry of horizontal and vertical curves — all with NCEES-approved calculator keystrokes.",
-  "week_range": "Weeks 10-12",
-  "exam_weight_percent": 15,
-  "icon": "📊",
-  "xp_reward": 600,
-  "prerequisite_module": 4,
-  "key_topics": [
-    "Area by coordinates (shoelace) and the DMD/DPD method",
-    "Area from field offsets: trapezoidal rule and Simpson's 1/3 rule",
-    "Partitioning and converting between ft², acres, and hectares",
-    "Earthwork volume by average end area (V = L·(A₁+A₂)/2)",
-    "Earthwork volume by the prismoidal formula (V = L·(A₁+4Aₘ+A₂)/6)",
-    "Cubic-yard conversion (÷27) and shrinkage/swell",
-    "Horizontal curve elements: T, L, R, D (degree of curve), M, E, LC",
-    "Curve stationing: PC = PI − T, PT = PC + L, and deflection angles",
-    "Vertical (parabolic) curve elevations on the curve and on the tangents",
-    "High/low point of a vertical curve and rate of grade change"
-  ],
-  "key_formulas": [
-    {"name": "Area by coordinates (shoelace)", "formula": "A = ½·|Σ Xᵢ(Y_{i+1} − Y_{i−1})|"},
-    {"name": "Acres from square feet", "formula": "acres = A(ft²) / 43,560"},
-    {"name": "Trapezoidal rule", "formula": "A = w·[(h₁ + hₙ)/2 + h₂ + h₃ + … + hₙ₋₁]"},
-    {"name": "Simpson's 1/3 rule", "formula": "A = (w/3)·[h₁ + hₙ + 4·Σ(odd-index h) + 2·Σ(even-index h)]"},
-    {"name": "Average end area volume", "formula": "V = L·(A₁ + A₂)/2"},
-    {"name": "Prismoidal formula", "formula": "V = L·(A₁ + 4·Aₘ + A₂)/6"},
-    {"name": "Cubic yards", "formula": "V(yd³) = V(ft³) / 27"},
-    {"name": "Degree of curve (arc def.)", "formula": "D = 5,729.58 / R   →   R = 5,729.58 / D"},
-    {"name": "Tangent distance", "formula": "T = R·tan(I/2)"},
-    {"name": "Curve length", "formula": "L = R·I·(π/180) = (I/D)·100"},
-    {"name": "Long chord", "formula": "LC = 2R·sin(I/2)"},
-    {"name": "Middle ordinate", "formula": "M = R·[1 − cos(I/2)]"},
-    {"name": "External distance", "formula": "E = R·[1/cos(I/2) − 1] = R·[sec(I/2) − 1]"},
-    {"name": "Curve stationing", "formula": "PC = PI − T;   PT = PC + L"},
-    {"name": "Vertical curve elevation", "formula": "Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x²"},
-    {"name": "Rate of grade change", "formula": "r = (g₂ − g₁)/L"},
-    {"name": "High/low point station", "formula": "x_m = −g₁·L/(g₂ − g₁)"}
-  ],
-  "content_sections": [
+ "module_number": 5,
+ "title": "Areas, Volumes and Curves",
+ "description": "Compute parcel areas (coordinate/shoelace and DMD methods, plus trapezoidal and Simpson's rule from field offsets), earthwork volumes by average-end-area and the prismoidal formula, and the full geometry of horizontal and vertical curves — all with NCEES-approved calculator keystrokes.",
+ "week_range": "Weeks 10-12",
+ "exam_weight_percent": 15,
+ "icon": "📊",
+ "xp_reward": 600,
+ "prerequisite_module": 4,
+ "key_topics": [
+  "Area by coordinates (shoelace) and the DMD/DPD method",
+  "Area from field offsets: trapezoidal rule and Simpson's 1/3 rule",
+  "Partitioning and converting between ft², acres, and hectares",
+  "Earthwork volume by average end area (V = L·(A₁+A₂)/2)",
+  "Earthwork volume by the prismoidal formula (V = L·(A₁+4Aₘ+A₂)/6)",
+  "Cubic-yard conversion (÷27) and shrinkage/swell",
+  "Horizontal curve elements: T, L, R, D (degree of curve), M, E, LC",
+  "Curve stationing: PC = PI − T, PT = PC + L, and deflection angles",
+  "Vertical (parabolic) curve elevations on the curve and on the tangents",
+  "High/low point of a vertical curve and rate of grade change"
+ ],
+ "key_formulas": [
+  {
+   "name": "Area by coordinates (shoelace)",
+   "formula": "A = ½·|Σ Xᵢ(Y_{i+1} − Y_{i−1})|"
+  },
+  {
+   "name": "Acres from square feet",
+   "formula": "acres = A(ft²) / 43,560"
+  },
+  {
+   "name": "Trapezoidal rule",
+   "formula": "A = w·[(h₁ + hₙ)/2 + h₂ + h₃ + … + hₙ₋₁]"
+  },
+  {
+   "name": "Simpson's 1/3 rule",
+   "formula": "A = (w/3)·[h₁ + hₙ + 4·Σ(odd-index h) + 2·Σ(even-index h)]"
+  },
+  {
+   "name": "Average end area volume",
+   "formula": "V = L·(A₁ + A₂)/2"
+  },
+  {
+   "name": "Prismoidal formula",
+   "formula": "V = L·(A₁ + 4·Aₘ + A₂)/6"
+  },
+  {
+   "name": "Cubic yards",
+   "formula": "V(yd³) = V(ft³) / 27"
+  },
+  {
+   "name": "Degree of curve (arc def.)",
+   "formula": "D = 5,729.58 / R   →   R = 5,729.58 / D"
+  },
+  {
+   "name": "Tangent distance",
+   "formula": "T = R·tan(I/2)"
+  },
+  {
+   "name": "Curve length",
+   "formula": "L = R·I·(π/180) = (I/D)·100"
+  },
+  {
+   "name": "Long chord",
+   "formula": "LC = 2R·sin(I/2)"
+  },
+  {
+   "name": "Middle ordinate",
+   "formula": "M = R·[1 − cos(I/2)]"
+  },
+  {
+   "name": "External distance",
+   "formula": "E = R·[1/cos(I/2) − 1] = R·[sec(I/2) − 1]"
+  },
+  {
+   "name": "Curve stationing",
+   "formula": "PC = PI − T;   PT = PC + L"
+  },
+  {
+   "name": "Vertical curve elevation",
+   "formula": "Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x²"
+  },
+  {
+   "name": "Rate of grade change",
+   "formula": "r = (g₂ − g₁)/L"
+  },
+  {
+   "name": "High/low point station",
+   "formula": "x_m = −g₁·L/(g₂ − g₁)"
+  }
+ ],
+ "content_sections": [
+  {
+   "type": "overview",
+   "title": "Module Overview",
+   "content": "## Closing the loop: from coordinates to acreage, dirt, and alignment\n\nModule 4 turned bearings and distances into coordinates and closed traverses. This module puts those coordinates to work on the three remaining staples of the **Survey Computations** area (17–26 of the 110 FS questions): **areas**, **volumes**, and **curves**. Together they account for a large, very learnable share of the computational points on the exam.\n\n**Area** is what most boundary and subdivision work ultimately reports. You will compute it two ways: from **coordinates** (the shoelace / coordinate method, equivalent to the legacy double-meridian-distance approach) when every corner is known, and from a series of **field offsets** along a baseline (the **trapezoidal** and **Simpson's 1/3** rules) when the boundary is an irregular line — a stream bank, a road edge, a tract front. You will also **partition** parcels and move fluently between **square feet, acres, and hectares**.\n\n**Volume** is the heart of construction-survey earthwork. Cross-sectional **end areas** taken at regular stations are combined by the **average-end-area** formula (and refined by the **prismoidal** formula), then divided by **27** to report **cubic yards** for cut/fill and haul.\n\n**Curves** — both **horizontal** (circular) and **vertical** (parabolic) — define route alignments. For horizontal curves you will compute the interlocking elements **T, L, R, D, M, E, LC**, lay out stationing (**PC = PI − T**, **PT = PC + L**), and set points by **deflection angle**. For vertical curves you will compute **elevations** anywhere on an equal-tangent parabola and locate its **high or low point**.\n\n**Every formula matches the NCEES FS Reference Handbook v2.5** (Area formulas, Earthwork, Horizontal circular curves, Vertical curves), so the on-screen exam reference will look exactly like what you drill here."
+  },
+  {
+   "type": "concepts",
+   "title": "Key Concepts",
+   "content": "## Area by coordinates (shoelace)\n\nWhen every corner of a parcel has coordinates (Northing, Easting), the enclosed area for vertices numbered **in order** around the polygon is:\n\n`A = ½·|Σ Xᵢ(Y_{i+1} − Y_{i−1})|`  (handbook form), equivalently the cross-product form `A = ½·|Σ (Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|`.\n\nUse **X = Easting, Y = Northing**, close the polygon (the last vertex connects back to the first), and take the **absolute value** — a clockwise vertex order makes the signed sum negative. Divide ft² by **43,560** for acres. This is the modern equivalent of the legacy **DMD (double meridian distance)** method, which sums each course's DMD × latitude and gives the same answer; the FS may name either.\n\n## Area from field offsets — irregular boundaries\n\nWhen one side of a parcel is an irregular line, you run a straight **baseline** and measure **perpendicular offsets** hᵢ to the boundary at a **constant interval w**. Two integration rules then give the area between the baseline and the boundary:\n\n- **Trapezoidal rule** (any number of offsets): treats the boundary as straight between offsets.\n  `A = w·[(h₁ + hₙ)/2 + h₂ + h₃ + … + hₙ₋₁]`\n- **Simpson's 1/3 rule** (needs an **odd number of offsets / even number of intervals**): fits parabolas through successive triples, more accurate for curving boundaries.\n  `A = (w/3)·[h₁ + hₙ + 4·(sum of odd-position offsets) + 2·(sum of even-position offsets)]`\n  where, counting offsets 1…n, the **interior odd-position** offsets (2nd, 4th, …) get the **×4** weight and the **interior even-position** offsets (3rd, 5th, …) get the **×2** weight. (If n is even, apply Simpson to the first n−1 offsets and add the last strip as a trapezoid.)\n\n## Partitioning and unit conversions\n\n- 1 acre = 43,560 ft² = 10 square chains; 1 acre = 0.404687 hectare; 1 hectare = 10,000 m².\n- **Partition** problems split a parcel along a line of given direction or through a given point so the pieces have target areas — you set the area equation equal to the target and solve for the unknown dimension.\n\n## Earthwork volumes\n\nCross-sections are cut at regular stations; each has a **cut or fill end area** A (ft²). Between two adjacent sections a distance **L** apart:\n\n- **Average end area:** `V = L·(A₁ + A₂)/2` — the workhorse; slightly **over**estimates when sections taper.\n- **Prismoidal formula:** `V = L·(A₁ + 4·Aₘ + A₂)/6`, where **Aₘ is the area of the section midway between** (computed from the *mid dimensions*, **not** the average of A₁ and A₂). More accurate; the difference is the **prismoidal correction**.\n- **Cubic yards:** divide ft³ by **27**. Apply **shrinkage** (compacted fill needs more bank volume) or **swell** (excavated rock bulks up) factors when the problem gives them.\n\n## Horizontal (circular) curves\n\nA simple circular curve connects two tangents that meet at the **PI** (point of intersection) with **deflection/central angle I (or Δ)**. Key points: **PC** (point of curvature, where the curve begins), **PT** (point of tangency, where it ends), radius **R**. The interlocking elements:\n\n- **Degree of curve (arc def.):** `D = 5,729.58/R` — the central angle subtending a 100-ft arc.\n- **Tangent:** `T = R·tan(I/2)` (PI to PC = PI to PT).\n- **Length:** `L = R·I·(π/180) = (I/D)·100` (along the arc).\n- **Long chord:** `LC = 2R·sin(I/2)`; **Middle ordinate:** `M = R·(1 − cos(I/2))`; **External:** `E = R·(sec(I/2) − 1)`.\n- **Stationing:** `PC = PI − T`, then `PT = PC + L` (note PT is found by adding the *arc length*, never by adding T twice).\n- **Deflection angle** to any point on the curve = half the central angle subtended from the PC: for an arc length ℓ, deflection δ = (ℓ/L)·(I/2); the total deflection from PC to PT is exactly I/2.\n\n## Vertical (parabolic) curves\n\nAn **equal-tangent parabola** joins a back grade **g₁** to a forward grade **g₂** over horizontal length **L**, beginning at the **PVC** and ending at the **PVT**, with the grades meeting at the **PVI**. Grades are decimals (e.g. +2% = +0.02). Measuring **x horizontally from the PVC**:\n\n- **Elevation on the curve:** `Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x²`\n- **Tangent (grade-line) elevation:** `Y_PVC + g₁·x`; the **tangent offset** is `y = [(g₂−g₁)/(2L)]·x²`.\n- **Rate of grade change:** `r = (g₂−g₁)/L` (per station or per foot, matching x's units).\n- **High/low point:** where the curve grade is zero, at `x_m = −g₁/r = −g₁·L/(g₂−g₁)` from the PVC. A **crest** (high point) occurs when g₁ > g₂; a **sag** (low point) when g₁ < g₂. The high/low point exists on the curve only when g₁ and g₂ have **opposite signs**."
+  },
+  {
+   "type": "formulas",
+   "title": "Essential Formulas",
+   "content": "## Area\n\n| Method | Formula | Notes |\n|---|---|---|\n| Coordinates (shoelace) | `A = ½·|Σ (Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|` | X = E, Y = N; close the polygon; take \\|·\\| |\n| Handbook form | `A = ½·|Σ Xᵢ(Y_{i+1} − Y_{i−1})|` | identical result |\n| DMD method | `2A = Σ (DMDᵢ · Latᵢ)` | DMDᵢ = DMDᵢ₋₁ + Depᵢ₋₁ + Depᵢ; first DMD = first Dep |\n| Trapezoidal rule | `A = w·[(h₁ + hₙ)/2 + Σ(interior h)]` | w = offset interval |\n| Simpson's 1/3 rule | `A = (w/3)·[h₁ + hₙ + 4·Σ(h_odd) + 2·Σ(h_even)]` | needs odd # of offsets |\n\n**Conversions:** 1 acre = 43,560 ft²; acres = ft²/43,560; 1 hectare = 10,000 m² = 2.47105 acres.\n\n## Earthwork volume\n\n| Method | Formula |\n|---|---|\n| Average end area | `V = L·(A₁ + A₂)/2` |\n| Prismoidal | `V = L·(A₁ + 4·Aₘ + A₂)/6` |\n| Pyramid / cone | `V = L·A/3` (one end area zero) |\n| Cubic yards | `V(yd³) = V(ft³)/27` |\n\n(L = distance between sections, ft; A = end area, ft²; Aₘ = mid-section area from mid dimensions.)\n\n## Horizontal circular curve\n\nGiven any two of {R, D, I} plus stationing, everything follows:\n\n| Element | Formula |\n|---|---|\n| Degree of curve (arc) | `D = 5,729.58/R` ; `R = 5,729.58/D` |\n| Tangent | `T = R·tan(I/2)` |\n| Length | `L = R·I·(π/180) = (I/D)·100` |\n| Long chord | `LC = 2R·sin(I/2)` |\n| Middle ordinate | `M = R·(1 − cos(I/2))` |\n| External | `E = R·(sec(I/2) − 1) = R·(1/cos(I/2) − 1)` |\n| Stationing | `PC = PI − T` ; `PT = PC + L` |\n| Deflection to a point | `δ = (ℓ/L)·(I/2)` (total PC→PT deflection = I/2) |\n\n(I in degrees; convert to radians for the length formula: L = R·toRad(I).)\n\n## Vertical (equal-tangent parabolic) curve\n\n| Quantity | Formula |\n|---|---|\n| Elevation on curve | `Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x²` |\n| Tangent (grade) elevation | `Y_PVC + g₁·x` |\n| Tangent offset | `y = [(g₂−g₁)/(2L)]·x²` ; at PVI: `E = [(g₂−g₁)/(2L)]·(L/2)²` |\n| Rate of grade change | `r = (g₂ − g₁)/L` |\n| High/low point from PVC | `x_m = −g₁/r = −g₁·L/(g₂ − g₁)` |\n\n(Grades as decimals: +2% → +0.02. x and L in the same horizontal unit — feet, or stations.)"
+  },
+  {
+   "type": "examples",
+   "title": "Worked Examples",
+   "content": "## A labeled horizontal circular curve\n\nThe figure shows a simple circular curve: the back tangent and forward tangent meet at **PI** with deflection angle **I**; the curve runs from **PC** to **PT** with radius **R** and tangent length **T**.\n\n<svg width=\"500\" height=\"360\" viewBox=\"0 0 500 360\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background:#fff;border:1px solid #ccc\">\n  <!-- tangents meeting at PI (top) -->\n  <line x1=\"60\" y1=\"300\" x2=\"260\" y2=\"60\" stroke=\"#333\" stroke-width=\"2\"/>\n  <line x1=\"260\" y1=\"60\" x2=\"460\" y2=\"300\" stroke=\"#333\" stroke-width=\"2\"/>\n  <!-- the curve arc from PC to PT, center O below PI -->\n  <path d=\"M 130 215 A 210 210 0 0 1 390 215\" fill=\"none\" stroke=\"#1c4e80\" stroke-width=\"3\"/>\n  <!-- radii from center O to PC and PT -->\n  <line x1=\"260\" y1=\"335\" x2=\"130\" y2=\"215\" stroke=\"#1a5\" stroke-width=\"1.3\" stroke-dasharray=\"5,4\"/>\n  <line x1=\"260\" y1=\"335\" x2=\"390\" y2=\"215\" stroke=\"#1a5\" stroke-width=\"1.3\" stroke-dasharray=\"5,4\"/>\n  <!-- long chord PC-PT -->\n  <line x1=\"130\" y1=\"215\" x2=\"390\" y2=\"215\" stroke=\"#c0392b\" stroke-width=\"1.2\" stroke-dasharray=\"3,3\"/>\n  <!-- points -->\n  <circle cx=\"260\" cy=\"60\" r=\"4\" fill=\"#c0392b\"/>\n  <circle cx=\"130\" cy=\"215\" r=\"4\" fill=\"#c0392b\"/>\n  <circle cx=\"390\" cy=\"215\" r=\"4\" fill=\"#c0392b\"/>\n  <circle cx=\"260\" cy=\"335\" r=\"4\" fill=\"#1a5\"/>\n  <text x=\"268\" y=\"58\" font-size=\"14\" font-weight=\"bold\">PI</text>\n  <text x=\"96\" y=\"212\" font-size=\"14\" font-weight=\"bold\">PC</text>\n  <text x=\"398\" y=\"212\" font-size=\"14\" font-weight=\"bold\">PT</text>\n  <text x=\"268\" y=\"345\" font-size=\"13\" fill=\"#1a5\">O (center)</text>\n  <!-- labels -->\n  <text x=\"150\" y=\"140\" font-size=\"13\" fill=\"#333\">T (tangent)</text>\n  <text x=\"330\" y=\"140\" font-size=\"13\" fill=\"#333\">T</text>\n  <text x=\"180\" y=\"285\" font-size=\"13\" fill=\"#1a5\">R</text>\n  <text x=\"330\" y=\"285\" font-size=\"13\" fill=\"#1a5\">R</text>\n  <text x=\"246\" y=\"205\" font-size=\"13\" fill=\"#c0392b\">LC</text>\n  <text x=\"238\" y=\"95\" font-size=\"13\" fill=\"#333\">I = Δ</text>\n  <text x=\"150\" y=\"175\" font-size=\"12\" fill=\"#1c4e80\">curve (arc length L)</text>\n</svg>\n\n---\n\n## Example 1 — Full horizontal curve from R and I\n\nGiven **R = 1,145.92 ft**, deflection **I = 24°00′00″**, and **PI at station 42+50.00**. Find D, T, L, LC, M, E, and the stationing of PC and PT.\n\n1. **Degree of curve:** `D = 5,729.58/R = 5,729.58/1,145.92 = 5.0000°` (a 5° curve).\n2. **Tangent:** `T = R·tan(I/2) = 1,145.92·tan(12°) = 1,145.92·0.21256 = 243.57 ft`.\n3. **Length:** `L = R·I·(π/180) = 1,145.92·(24·π/180) = 1,145.92·0.418879 = 480.00 ft` (check: (I/D)·100 = (24/5)·100 = 480.00 ✓).\n4. **Long chord:** `LC = 2R·sin(I/2) = 2·1,145.92·sin12° = 2,291.84·0.20791 = 476.50 ft`.\n5. **Middle ordinate:** `M = R·(1 − cos12°) = 1,145.92·(1 − 0.97815) = 25.04 ft`.\n6. **External:** `E = R·(sec12° − 1) = 1,145.92·(1.02234 − 1) = 25.60 ft`.\n7. **Stationing:** `PC = PI − T = (42+50.00) − 243.57 = station 40+06.43`. `PT = PC + L = (40+06.43) + 480.00 = station 44+86.43`.\n\n**Calculator (TI-36X Pro):** DEGREE mode. `1145.92 × tan( 12 ) =` → 243.57. For L either `1145.92 × 24 × π ÷ 180 =` or simply `(24 ÷ 5) × 100`. For E: `1145.92 × ( 1 ÷ cos(12) − 1 ) =`. **Casio fx-991:** identical keystrokes; the `×10ˣ`/`Ans` keys help chain. **HP-35S (RPN):** `12 TAN 1145.92 × ` gives T; enter I as 24, `→RAD`, `× R` for L.\n\n---\n\n## Example 2 — Deflection angle for staking the curve\n\nUsing the curve above (L = 480.00 ft, I = 24°), find the **deflection angle from the PC** to the curve point at the half-station **42+00**, and the chord from PC to it.\n\n1. Arc from PC to 42+00: `ℓ = (42+00) − (40+06.43) = 193.57 ft`.\n2. **Deflection:** `δ = (ℓ/L)·(I/2) = (193.57/480.00)·12° = 0.40327·12° = 4.839° = 4°50′21″`.\n3. **Chord (from PC):** `c = 2R·sin(δ) = 2·1,145.92·sin(4.839°) = 2,291.84·0.08436 = 193.34 ft` (slightly less than the arc, as expected).\n\n**Check:** the deflection from PC all the way to PT must be **I/2 = 12°00′00″** — a built-in field check. **Calculator:** compute δ in decimal degrees, then `▸DMS` for the field book.\n\n---\n\n## Example 3 — Vertical curve elevation and low point\n\nA sag vertical curve has back grade **g₁ = −3.00%**, forward grade **g₂ = +2.00%**, length **L = 600.00 ft**, with **PVC at station 25+00, elevation 842.00 ft**. Find the elevation at station 28+00 and the station/elevation of the low point.\n\n1. Grades as decimals: g₁ = −0.03, g₂ = +0.02. `x` at 28+00 = (28+00) − (25+00) = **300.00 ft**.\n2. **Elevation on curve:** `Y = 842.00 + (−0.03)(300) + [(0.02 − (−0.03))/(2·600)]·300²`\n   = 842.00 − 9.00 + [0.05/1200]·90,000 = 842.00 − 9.00 + 3.75 = **836.75 ft**.\n3. **Low point from PVC:** `x_m = −g₁·L/(g₂ − g₁) = −(−0.03)(600)/(0.05) = 18/0.05 = 360.00 ft` → station **28+60**.\n4. **Low-point elevation:** `Y = 842.00 + (−0.03)(360) + [0.05/1200]·360² = 842.00 − 10.80 + 5.40 = 836.60 ft`.\n\n**Calculator:** store `a = (g₂−g₁)/(2L) = 0.05/1200 = 4.1667e−5` in memory, then `Y = 842 + (−0.03)x + a·x²` for any x. **Casio fx-991:** use the table (TABLE) mode with f(x) = 842 − 0.03x + 4.1667e−5·x² to print elevations at each station automatically.\n\n---\n\n## Example 4 — Area by coordinates (quad → acres)\n\nA four-corner lot, vertices in order: A(N 1,000.00, E 1,000.00), B(N 1,000.00, E 1,400.00), C(N 1,300.00, E 1,400.00), D(N 1,300.00, E 1,000.00). Find the area in acres (X = E, Y = N).\n\n| i | Xᵢ (E) | Yᵢ (N) | X_{i+1} | Y_{i+1} | Xᵢ·Y_{i+1} | X_{i+1}·Yᵢ |\n|---|---|---|---|---|---|---|\n| A | 1000 | 1000 | 1400 | 1000 | 1,400,000 | 1,400,000 |\n| B | 1400 | 1000 | 1400 | 1300 | 1,820,000 | 1,400,000 |\n| C | 1400 | 1300 | 1000 | 1300 | 1,820,000 | 1,300,000 |\n| D | 1000 | 1300 | 1000 | 1000 | 1,000,000 | 1,300,000 |\n\nΣ(Xᵢ·Y_{i+1}) = 6,040,000; Σ(X_{i+1}·Yᵢ) = 5,400,000. Difference = 640,000.\n`A = ½·|640,000| = 120,000 ft²` → **÷ 43,560 = 2.755 acres** (a 400 × 300 rectangle, as a sanity check).\n\n---\n\n## Example 5 — Average end area earthwork volume\n\nTwo adjacent cross-sections, 100.00 ft apart (one full station), have cut end areas **A₁ = 120.0 ft²** and **A₂ = 180.0 ft²**. Find the cut volume in cubic yards.\n\n1. **Average end area:** `V = L·(A₁ + A₂)/2 = 100·(120 + 180)/2 = 100·150 = 15,000 ft³`.\n2. **Cubic yards:** `V = 15,000 / 27 = 555.6 yd³`.\n\nIf the mid-section area were measured (say Aₘ = 148.0 ft²), the **prismoidal** volume would be `V = 100·(120 + 4·148 + 180)/6 = 100·892/6 = 14,866.7 ft³ = 550.6 yd³` — the **prismoidal correction** of about 5 yd³ less. **Calculator:** `100 × (120 + 180) ÷ 2 ÷ 27 =` → 555.6. Always divide ft³ by 27 last to report yards."
+  },
+  {
+   "type": "tips",
+   "title": "Exam Tips & Calculator Strategy",
+   "content": "## Strategy for areas, volumes, and curves\n\n- **These are high-yield, formula-lookup points.** Every formula you need is in the handbook (Area formulas, Earthwork, Horizontal circular curves, Vertical curves). Know *where* each lives so you confirm rather than derive. Curves alone reliably appear several times.\n- **Pace:** a single curve element (T, L, M, E) or one average-end-area volume is a sub-minute calculation; a full curve layout with stationing is a flag-and-return item. Bank the one-formula questions first.\n- **Sketch the curve.** A quick PI–PC–PT sketch with I marked prevents the classic error of adding T (a straight distance) instead of L (the arc) when stationing the PT.\n\n## Approved-calculator tricks (TI-36X Pro / Casio fx-991 / HP-35S)\n\n- **Confirm DEGREE mode** before any curve trig. Then I/2 is just `I ÷ 2`; feed it straight into tan/cos/sin.\n- **External and middle ordinate** both use I/2: `E = R(1/cos(I/2) − 1)`, `M = R(1 − cos(I/2))`. There is no `sec` key — type `1/cos(...)`.\n- **Curve length two ways:** `L = R·toRad(I)` (radians) OR the cleaner `(I/D)·100`. Use the second when D is given — it avoids π entirely.\n- **Vertical curves:** put grades in as **decimals** (+2% → 0.02). Store the constant `a = (g₂−g₁)/(2L)` once; then any elevation is `Y_PVC + g₁x + a·x²`. The Casio **TABLE** mode and TI **table** print a full elevation column in one setup.\n- **Stationing arithmetic:** a station is just feet (42+50 = 4,250 ft). Do the math in feet, then re-split into stations (÷100 for the station number, remainder for the plus).\n- **Volume:** keep everything in ft² and ft, then **÷27 at the very end** for cubic yards. Mixing the /27 in early is a common slip.\n- **Area by offsets:** Simpson needs an **odd number of offsets**; if you're given an even number, Simpson the first n−1 and add the last strip as a trapezoid, or just use the trapezoidal rule.\n\n## Common traps\n\n- **PT = PC + L, not PC + 2T or PI + T.** The curve length is the arc; T is a straight tangent distance. This is the single most common curve blunder.\n- **Degree of curve uses 5,729.58, not 5,730.** Arc definition. R = 5,729.58/D.\n- **Prismoidal Aₘ** is computed from the **mid-section's own dimensions**, *not* the average (A₁+A₂)/2 — using the average just reproduces the end-area answer.\n- **High/low point only exists when g₁ and g₂ have opposite signs.** A grade that goes −1% to −3% (both negative) has no turning point on the curve.\n- **Average end area slightly over-estimates** volume for tapering sections; the prismoidal value is smaller (the correction). Know which the question wants.\n- **Acres vs. square feet:** divide by **43,560**. Hectares: 1 ha = 10,000 m² = 2.47105 acres — watch SI vs. USCS.\n- **Simpson weighting:** ends ×1, interior **odd-position** offsets ×4, interior **even-position** ×2 — miscounting the weights is the usual error.\n\n## How the handbook helps\n\nThe NCEES FS Reference Handbook v2.5 gives the **horizontal circular curve** set (D, T, L, LC, M, E, stationing), the **vertical curve** parabola (elevation, tangent offset, rate r, high/low x_m), the **area formulas** (coordinates, trapezoidal, Simpson's 1/3), and **earthwork** (average end area, prismoidal) verbatim. Practice pulling each up by name so that on exam day the formula is a confirmation, not a recall test."
+  }
+ ],
+ "questions": [
+  {
+   "question_text": "The area of a closed parcel whose every corner is known by coordinates is most directly computed by:",
+   "question_type": "multiple_choice",
+   "options": [
+    "the coordinate (shoelace) method",
+    "the trapezoidal rule",
+    "Simpson's 1/3 rule",
+    "the prismoidal formula"
+   ],
+   "correct_answer": "the coordinate (shoelace) method",
+   "explanation": "With all corners reduced to coordinates, the shoelace/coordinate method (equivalent to the DMD method) gives the planar area directly. Trapezoidal and Simpson's rules are for irregular boundaries defined by offsets; the prismoidal formula is a volume method.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "A parcel computes to 130,680 ft² by coordinates. Its area in acres is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "3.00 acres",
+    "1.50 acres",
+    "6.00 acres",
+    "0.30 acres"
+   ],
+   "correct_answer": "3.00 acres",
+   "explanation": "1 acre = 43,560 ft². 130,680 / 43,560 = 3.00 acres.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Offsets of 12.0, 15.0, 18.0, 14.0, and 10.0 ft are taken at a constant 25.0-ft interval. By the trapezoidal rule, the area between the baseline and the boundary is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "1,450 ft²",
+    "1,725 ft²",
+    "1,375 ft²",
+    "1,500 ft²"
+   ],
+   "correct_answer": "1,450 ft²",
+   "explanation": "A = w·[(h₁+hₙ)/2 + Σinterior] = 25·[(12+10)/2 + 15+18+14] = 25·[11 + 47] = 25·58 = 1,450 ft².",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Simpson's 1/3 rule for area from offsets requires:",
+   "question_type": "multiple_choice",
+   "options": [
+    "an odd number of offsets (even number of intervals)",
+    "an even number of offsets",
+    "exactly three offsets",
+    "offsets at unequal intervals"
+   ],
+   "correct_answer": "an odd number of offsets (even number of intervals)",
+   "explanation": "Simpson's 1/3 rule fits a parabola through each successive group of three offsets, so it needs an even number of equal intervals, i.e., an odd number of offsets. For an even count, apply Simpson to all but the last strip and add that strip as a trapezoid.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "In the average-end-area method, the volume between two cross-sections of end areas A₁ and A₂ a distance L apart is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "V = L·(A₁ + A₂)/2",
+    "V = L·(A₁ + A₂)",
+    "V = (A₁ + A₂)/(2L)",
+    "V = L·(A₁ + 4Aₘ + A₂)/6"
+   ],
+   "correct_answer": "V = L·(A₁ + A₂)/2",
+   "explanation": "Average end area multiplies the mean of the two end areas by the distance between them: V = L·(A₁+A₂)/2. The last option is the prismoidal formula, which requires the mid-section area Aₘ.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "A cut volume computes to 13,500 ft³. Expressed in cubic yards it is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "500 yd³",
+    "1,500 yd³",
+    "4,500 yd³",
+    "364,500 yd³"
+   ],
+   "correct_answer": "500 yd³",
+   "explanation": "1 yd³ = 27 ft³. 13,500 / 27 = 500 yd³.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Two cross-sections 100 ft apart have end areas of 150 ft² and 210 ft². The average-end-area volume in cubic yards is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "667 yd³",
+    "555 yd³",
+    "778 yd³",
+    "18,000 yd³"
+   ],
+   "correct_answer": "667 yd³",
+   "explanation": "V = L·(A₁+A₂)/2 = 100·(150+210)/2 = 100·180 = 18,000 ft³. 18,000/27 = 666.7 ≈ 667 yd³.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Compared with the average-end-area method for a tapering section, the prismoidal formula generally gives a volume that is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "slightly smaller",
+    "slightly larger",
+    "exactly equal",
+    "twice as large"
+   ],
+   "correct_answer": "slightly smaller",
+   "explanation": "Average end area slightly over-estimates volume when sections taper; the prismoidal formula (using the true mid-section area) is more accurate and the difference, the prismoidal correction, makes the prismoidal volume slightly smaller.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The degree of curve (arc definition) for a curve of radius 1,432.40 ft is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "4°00′",
+    "2°00′",
+    "5°00′",
+    "8°00′"
+   ],
+   "correct_answer": "4°00′",
+   "explanation": "D = 5,729.58/R = 5,729.58/1,432.40 = 4.000° = 4°00′. The degree of curve is the central angle subtending a 100-ft arc.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A circular curve has R = 600.00 ft and deflection angle I = 30°00′. Its tangent distance T is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "160.77 ft",
+    "300.00 ft",
+    "321.54 ft",
+    "155.29 ft"
+   ],
+   "correct_answer": "160.77 ft",
+   "explanation": "T = R·tan(I/2) = 600·tan15° = 600·0.26795 = 160.77 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "For a curve with R = 600.00 ft and I = 30°00′, the curve length L is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "314.16 ft",
+    "300.00 ft",
+    "321.54 ft",
+    "180.00 ft"
+   ],
+   "correct_answer": "314.16 ft",
+   "explanation": "L = R·I·(π/180) = 600·(30·π/180) = 600·0.523599 = 314.16 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "If the PI of a curve is at station 50+00.00 and the tangent distance T = 240.00 ft, the station of the PC is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "47+60.00",
+    "52+40.00",
+    "50+24.00",
+    "47+76.00"
+   ],
+   "correct_answer": "47+60.00",
+   "explanation": "PC = PI − T = (50+00 = 5,000 ft) − 240 = 4,760 ft = station 47+60.00. The PC always precedes the PI by the tangent distance.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A curve has PC at station 47+60.00 and length L = 314.16 ft. The station of the PT is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "50+74.16",
+    "50+00.00",
+    "44+45.84",
+    "47+91.42"
+   ],
+   "correct_answer": "50+74.16",
+   "explanation": "PT = PC + L = 4,760 + 314.16 = 5,074.16 ft = station 50+74.16. The PT is found by adding the arc length L (not the tangent T) to the PC.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The external distance E of a circular curve is given by:",
+   "question_type": "multiple_choice",
+   "options": [
+    "E = R·(sec(I/2) − 1)",
+    "E = R·(1 − cos(I/2))",
+    "E = 2R·sin(I/2)",
+    "E = R·tan(I/2)"
+   ],
+   "correct_answer": "E = R·(sec(I/2) − 1)",
+   "explanation": "The external distance (PI to the midpoint of the curve) is E = R·(sec(I/2) − 1) = R·(1/cos(I/2) − 1). The second option is the middle ordinate M, the third is the long chord LC, the fourth is the tangent T.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The total deflection angle from the PC to the PT of a simple circular curve equals:",
+   "question_type": "multiple_choice",
+   "options": [
+    "I/2",
+    "I",
+    "2I",
+    "90° − I"
+   ],
+   "correct_answer": "I/2",
+   "explanation": "By the inscribed-angle property, the deflection angle from the tangent at the PC to any chord is half the subtended central angle; from PC to PT the subtended angle is the full I, so the total deflection is I/2. This is a standard field check.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "An equal-tangent vertical curve has g₁ = +2.0% and g₂ = −3.0% over L = 500 ft. The rate of change of grade r per foot is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "−0.0001 per ft",
+    "+0.0001 per ft",
+    "−0.01 per ft",
+    "−0.05 per ft"
+   ],
+   "correct_answer": "−0.0001 per ft",
+   "explanation": "r = (g₂ − g₁)/L = (−0.03 − 0.02)/500 = −0.05/500 = −0.0001 per ft (a crest curve, since the grade decreases).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A vertical curve has g₁ = −2.0% and g₂ = +4.0%, L = 400 ft, with PVC at elevation 500.00 ft. The elevation on the curve 200 ft from the PVC is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "499.00 ft",
+    "496.00 ft",
+    "504.00 ft",
+    "503.00 ft"
+   ],
+   "correct_answer": "499.00 ft",
+   "explanation": "Y = Y_PVC + g₁x + [(g₂−g₁)/(2L)]x² = 500 + (−0.02)(200) + [0.06/(2·400)]·200² = 500 − 4.00 + (0.06/800)·40,000 = 500 − 4.00 + 3.00 = 499.00 ft.",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "A vertical curve with g₁ = −3.0% and g₂ = +2.0% over L = 600 ft has its low point at what distance from the PVC?",
+   "question_type": "multiple_choice",
+   "options": [
+    "360 ft",
+    "240 ft",
+    "300 ft",
+    "600 ft"
+   ],
+   "correct_answer": "360 ft",
+   "explanation": "x_m = −g₁·L/(g₂ − g₁) = −(−0.03)(600)/(0.02 − (−0.03)) = 18/0.05 = 360 ft. Because g₁ and g₂ have opposite signs (sag curve), the low point lies on the curve.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "On a vertical curve, a true high or low point exists on the curve only when:",
+   "question_type": "multiple_choice",
+   "options": [
+    "g₁ and g₂ have opposite signs",
+    "g₁ and g₂ have the same sign",
+    "g₁ equals g₂",
+    "the curve is longer than 500 ft"
+   ],
+   "correct_answer": "g₁ and g₂ have opposite signs",
+   "explanation": "The turning point is where the curve grade passes through zero; this happens within the curve only if the grade changes sign, i.e., g₁ and g₂ have opposite signs. If both grades are the same sign, the high/low point falls outside the curve.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The long chord of a circular curve with R = 800.00 ft and I = 40°00′ is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "547.23 ft",
+    "291.13 ft",
+    "558.46 ft",
+    "279.23 ft"
+   ],
+   "correct_answer": "547.23 ft",
+   "explanation": "LC = 2R·sin(I/2) = 2·800·sin20° = 1,600·0.34202 = 547.23 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The middle ordinate M of a curve with R = 500.00 ft and I = 60°00′ is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "66.99 ft",
+    "433.01 ft",
+    "288.68 ft",
+    "77.35 ft"
+   ],
+   "correct_answer": "66.99 ft",
+   "explanation": "M = R·(1 − cos(I/2)) = 500·(1 − cos30°) = 500·(1 − 0.86603) = 500·0.13397 = 66.99 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "True or False: In the prismoidal formula V = L·(A₁ + 4Aₘ + A₂)/6, the term Aₘ is the average of the two end areas, (A₁ + A₂)/2.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "False",
+   "explanation": "False. Aₘ is the area of the section taken midway between the two ends, computed from that section's own (mid) dimensions. Substituting the average (A₁+A₂)/2 merely reproduces the average-end-area result and defeats the purpose of the prismoidal correction.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A 4.0-acre tract equals how many square feet?",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "174240",
+   "explanation": "4.0 acres × 43,560 ft²/acre = 174,240 ft².",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "A circular curve is to have a curve length L = 600.00 ft for a deflection angle I = 24°00′. The required radius R is most nearly:",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "1432.39",
+   "explanation": "L = R·I·(π/180) → R = L/(I·π/180) = 600/(24·π/180) = 600/0.418879 = 1,432.39 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "True or False: The station of the PT of a simple curve is obtained by adding the tangent distance T to the PC station.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "False",
+   "explanation": "False. PT = PC + L, where L is the arc (curve) length. Adding the tangent distance T instead is a common and serious stationing error.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Five offsets 0, 8.0, 11.0, 9.0, and 0 ft are measured at a 20.0-ft interval. By Simpson's 1/3 rule the area is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "600 ft²",
+    "560 ft²",
+    "1,120 ft²",
+    "287 ft²"
+   ],
+   "correct_answer": "600 ft²",
+   "explanation": "A = (w/3)·[h₁ + h₅ + 4(h₂ + h₄) + 2(h₃)] = (20/3)·[0 + 0 + 4(8+9) + 2(11)] = (20/3)·[68 + 22] = (20/3)·90 = 600 ft². Ends ×1, interior odd-position offsets (2nd, 4th) ×4, interior even-position offset (3rd) ×2.",
+   "difficulty": "hard"
+  }
+ ],
+ "problem_templates": [
+  {
+   "name": "Area by coordinates (quadrilateral) → acres",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Area",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A four-corner parcel has corners, in order, A (N {{nA:f2}}, E {{eA:f2}}), B (N {{nB:f2}}, E {{eB:f2}}), C (N {{nC:f2}}, E {{eC:f2}}), and D (N {{nD:f2}}, E {{eD:f2}}). Compute the enclosed area by coordinates (shoelace) and report it in ACRES.",
+   "parameters": [
     {
-      "type": "overview",
-      "title": "Module Overview",
-      "content": "## Closing the loop: from coordinates to acreage, dirt, and alignment\n\nModule 4 turned bearings and distances into coordinates and closed traverses. This module puts those coordinates to work on the three remaining staples of the **Survey Computations** area (17–26 of the 110 FS questions): **areas**, **volumes**, and **curves**. Together they account for a large, very learnable share of the computational points on the exam.\n\n**Area** is what most boundary and subdivision work ultimately reports. You will compute it two ways: from **coordinates** (the shoelace / coordinate method, equivalent to the legacy double-meridian-distance approach) when every corner is known, and from a series of **field offsets** along a baseline (the **trapezoidal** and **Simpson's 1/3** rules) when the boundary is an irregular line — a stream bank, a road edge, a tract front. You will also **partition** parcels and move fluently between **square feet, acres, and hectares**.\n\n**Volume** is the heart of construction-survey earthwork. Cross-sectional **end areas** taken at regular stations are combined by the **average-end-area** formula (and refined by the **prismoidal** formula), then divided by **27** to report **cubic yards** for cut/fill and haul.\n\n**Curves** — both **horizontal** (circular) and **vertical** (parabolic) — define route alignments. For horizontal curves you will compute the interlocking elements **T, L, R, D, M, E, LC**, lay out stationing (**PC = PI − T**, **PT = PC + L**), and set points by **deflection angle**. For vertical curves you will compute **elevations** anywhere on an equal-tangent parabola and locate its **high or low point**.\n\n**Every formula matches the NCEES FS Reference Handbook v2.5** (Area formulas, Earthwork, Horizontal circular curves, Vertical curves), so the on-screen exam reference will look exactly like what you drill here."
+     "name": "nA",
+     "type": "float",
+     "min": 1000,
+     "max": 1100,
+     "decimals": 2
     },
     {
-      "type": "concepts",
-      "title": "Key Concepts",
-      "content": "## Area by coordinates (shoelace)\n\nWhen every corner of a parcel has coordinates (Northing, Easting), the enclosed area for vertices numbered **in order** around the polygon is:\n\n`A = ½·|Σ Xᵢ(Y_{i+1} − Y_{i−1})|`  (handbook form), equivalently the cross-product form `A = ½·|Σ (Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|`.\n\nUse **X = Easting, Y = Northing**, close the polygon (the last vertex connects back to the first), and take the **absolute value** — a clockwise vertex order makes the signed sum negative. Divide ft² by **43,560** for acres. This is the modern equivalent of the legacy **DMD (double meridian distance)** method, which sums each course's DMD × latitude and gives the same answer; the FS may name either.\n\n## Area from field offsets — irregular boundaries\n\nWhen one side of a parcel is an irregular line, you run a straight **baseline** and measure **perpendicular offsets** hᵢ to the boundary at a **constant interval w**. Two integration rules then give the area between the baseline and the boundary:\n\n- **Trapezoidal rule** (any number of offsets): treats the boundary as straight between offsets.\n  `A = w·[(h₁ + hₙ)/2 + h₂ + h₃ + … + hₙ₋₁]`\n- **Simpson's 1/3 rule** (needs an **odd number of offsets / even number of intervals**): fits parabolas through successive triples, more accurate for curving boundaries.\n  `A = (w/3)·[h₁ + hₙ + 4·(sum of odd-position offsets) + 2·(sum of even-position offsets)]`\n  where, counting offsets 1…n, the **interior odd-position** offsets (2nd, 4th, …) get the **×4** weight and the **interior even-position** offsets (3rd, 5th, …) get the **×2** weight. (If n is even, apply Simpson to the first n−1 offsets and add the last strip as a trapezoid.)\n\n## Partitioning and unit conversions\n\n- 1 acre = 43,560 ft² = 10 square chains; 1 acre = 0.404687 hectare; 1 hectare = 10,000 m².\n- **Partition** problems split a parcel along a line of given direction or through a given point so the pieces have target areas — you set the area equation equal to the target and solve for the unknown dimension.\n\n## Earthwork volumes\n\nCross-sections are cut at regular stations; each has a **cut or fill end area** A (ft²). Between two adjacent sections a distance **L** apart:\n\n- **Average end area:** `V = L·(A₁ + A₂)/2` — the workhorse; slightly **over**estimates when sections taper.\n- **Prismoidal formula:** `V = L·(A₁ + 4·Aₘ + A₂)/6`, where **Aₘ is the area of the section midway between** (computed from the *mid dimensions*, **not** the average of A₁ and A₂). More accurate; the difference is the **prismoidal correction**.\n- **Cubic yards:** divide ft³ by **27**. Apply **shrinkage** (compacted fill needs more bank volume) or **swell** (excavated rock bulks up) factors when the problem gives them.\n\n## Horizontal (circular) curves\n\nA simple circular curve connects two tangents that meet at the **PI** (point of intersection) with **deflection/central angle I (or Δ)**. Key points: **PC** (point of curvature, where the curve begins), **PT** (point of tangency, where it ends), radius **R**. The interlocking elements:\n\n- **Degree of curve (arc def.):** `D = 5,729.58/R` — the central angle subtending a 100-ft arc.\n- **Tangent:** `T = R·tan(I/2)` (PI to PC = PI to PT).\n- **Length:** `L = R·I·(π/180) = (I/D)·100` (along the arc).\n- **Long chord:** `LC = 2R·sin(I/2)`; **Middle ordinate:** `M = R·(1 − cos(I/2))`; **External:** `E = R·(sec(I/2) − 1)`.\n- **Stationing:** `PC = PI − T`, then `PT = PC + L` (note PT is found by adding the *arc length*, never by adding T twice).\n- **Deflection angle** to any point on the curve = half the central angle subtended from the PC: for an arc length ℓ, deflection δ = (ℓ/L)·(I/2); the total deflection from PC to PT is exactly I/2.\n\n## Vertical (parabolic) curves\n\nAn **equal-tangent parabola** joins a back grade **g₁** to a forward grade **g₂** over horizontal length **L**, beginning at the **PVC** and ending at the **PVT**, with the grades meeting at the **PVI**. Grades are decimals (e.g. +2% = +0.02). Measuring **x horizontally from the PVC**:\n\n- **Elevation on the curve:** `Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x²`\n- **Tangent (grade-line) elevation:** `Y_PVC + g₁·x`; the **tangent offset** is `y = [(g₂−g₁)/(2L)]·x²`.\n- **Rate of grade change:** `r = (g₂−g₁)/L` (per station or per foot, matching x's units).\n- **High/low point:** where the curve grade is zero, at `x_m = −g₁/r = −g₁·L/(g₂−g₁)` from the PVC. A **crest** (high point) occurs when g₁ > g₂; a **sag** (low point) when g₁ < g₂. The high/low point exists on the curve only when g₁ and g₂ have **opposite signs**."
+     "name": "eA",
+     "type": "float",
+     "min": 1000,
+     "max": 1100,
+     "decimals": 2
     },
     {
-      "type": "formulas",
-      "title": "Essential Formulas",
-      "content": "## Area\n\n| Method | Formula | Notes |\n|---|---|---|\n| Coordinates (shoelace) | `A = ½·|Σ (Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|` | X = E, Y = N; close the polygon; take \\|·\\| |\n| Handbook form | `A = ½·|Σ Xᵢ(Y_{i+1} − Y_{i−1})|` | identical result |\n| DMD method | `2A = Σ (DMDᵢ · Latᵢ)` | DMDᵢ = DMDᵢ₋₁ + Depᵢ₋₁ + Depᵢ; first DMD = first Dep |\n| Trapezoidal rule | `A = w·[(h₁ + hₙ)/2 + Σ(interior h)]` | w = offset interval |\n| Simpson's 1/3 rule | `A = (w/3)·[h₁ + hₙ + 4·Σ(h_odd) + 2·Σ(h_even)]` | needs odd # of offsets |\n\n**Conversions:** 1 acre = 43,560 ft²; acres = ft²/43,560; 1 hectare = 10,000 m² = 2.47105 acres.\n\n## Earthwork volume\n\n| Method | Formula |\n|---|---|\n| Average end area | `V = L·(A₁ + A₂)/2` |\n| Prismoidal | `V = L·(A₁ + 4·Aₘ + A₂)/6` |\n| Pyramid / cone | `V = L·A/3` (one end area zero) |\n| Cubic yards | `V(yd³) = V(ft³)/27` |\n\n(L = distance between sections, ft; A = end area, ft²; Aₘ = mid-section area from mid dimensions.)\n\n## Horizontal circular curve\n\nGiven any two of {R, D, I} plus stationing, everything follows:\n\n| Element | Formula |\n|---|---|\n| Degree of curve (arc) | `D = 5,729.58/R` ; `R = 5,729.58/D` |\n| Tangent | `T = R·tan(I/2)` |\n| Length | `L = R·I·(π/180) = (I/D)·100` |\n| Long chord | `LC = 2R·sin(I/2)` |\n| Middle ordinate | `M = R·(1 − cos(I/2))` |\n| External | `E = R·(sec(I/2) − 1) = R·(1/cos(I/2) − 1)` |\n| Stationing | `PC = PI − T` ; `PT = PC + L` |\n| Deflection to a point | `δ = (ℓ/L)·(I/2)` (total PC→PT deflection = I/2) |\n\n(I in degrees; convert to radians for the length formula: L = R·toRad(I).)\n\n## Vertical (equal-tangent parabolic) curve\n\n| Quantity | Formula |\n|---|---|\n| Elevation on curve | `Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x²` |\n| Tangent (grade) elevation | `Y_PVC + g₁·x` |\n| Tangent offset | `y = [(g₂−g₁)/(2L)]·x²` ; at PVI: `E = [(g₂−g₁)/(2L)]·(L/2)²` |\n| Rate of grade change | `r = (g₂ − g₁)/L` |\n| High/low point from PVC | `x_m = −g₁/r = −g₁·L/(g₂ − g₁)` |\n\n(Grades as decimals: +2% → +0.02. x and L in the same horizontal unit — feet, or stations.)"
+     "name": "w",
+     "type": "float",
+     "min": 300,
+     "max": 700,
+     "decimals": 2
     },
     {
-      "type": "examples",
-      "title": "Worked Examples",
-      "content": "## A labeled horizontal circular curve\n\nThe figure shows a simple circular curve: the back tangent and forward tangent meet at **PI** with deflection angle **I**; the curve runs from **PC** to **PT** with radius **R** and tangent length **T**.\n\n<svg width=\"500\" height=\"360\" viewBox=\"0 0 500 360\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background:#fff;border:1px solid #ccc\">\n  <!-- tangents meeting at PI (top) -->\n  <line x1=\"60\" y1=\"300\" x2=\"260\" y2=\"60\" stroke=\"#333\" stroke-width=\"2\"/>\n  <line x1=\"260\" y1=\"60\" x2=\"460\" y2=\"300\" stroke=\"#333\" stroke-width=\"2\"/>\n  <!-- the curve arc from PC to PT, center O below PI -->\n  <path d=\"M 130 215 A 210 210 0 0 1 390 215\" fill=\"none\" stroke=\"#1c4e80\" stroke-width=\"3\"/>\n  <!-- radii from center O to PC and PT -->\n  <line x1=\"260\" y1=\"335\" x2=\"130\" y2=\"215\" stroke=\"#1a5\" stroke-width=\"1.3\" stroke-dasharray=\"5,4\"/>\n  <line x1=\"260\" y1=\"335\" x2=\"390\" y2=\"215\" stroke=\"#1a5\" stroke-width=\"1.3\" stroke-dasharray=\"5,4\"/>\n  <!-- long chord PC-PT -->\n  <line x1=\"130\" y1=\"215\" x2=\"390\" y2=\"215\" stroke=\"#c0392b\" stroke-width=\"1.2\" stroke-dasharray=\"3,3\"/>\n  <!-- points -->\n  <circle cx=\"260\" cy=\"60\" r=\"4\" fill=\"#c0392b\"/>\n  <circle cx=\"130\" cy=\"215\" r=\"4\" fill=\"#c0392b\"/>\n  <circle cx=\"390\" cy=\"215\" r=\"4\" fill=\"#c0392b\"/>\n  <circle cx=\"260\" cy=\"335\" r=\"4\" fill=\"#1a5\"/>\n  <text x=\"268\" y=\"58\" font-size=\"14\" font-weight=\"bold\">PI</text>\n  <text x=\"96\" y=\"212\" font-size=\"14\" font-weight=\"bold\">PC</text>\n  <text x=\"398\" y=\"212\" font-size=\"14\" font-weight=\"bold\">PT</text>\n  <text x=\"268\" y=\"345\" font-size=\"13\" fill=\"#1a5\">O (center)</text>\n  <!-- labels -->\n  <text x=\"150\" y=\"140\" font-size=\"13\" fill=\"#333\">T (tangent)</text>\n  <text x=\"330\" y=\"140\" font-size=\"13\" fill=\"#333\">T</text>\n  <text x=\"180\" y=\"285\" font-size=\"13\" fill=\"#1a5\">R</text>\n  <text x=\"330\" y=\"285\" font-size=\"13\" fill=\"#1a5\">R</text>\n  <text x=\"246\" y=\"205\" font-size=\"13\" fill=\"#c0392b\">LC</text>\n  <text x=\"238\" y=\"95\" font-size=\"13\" fill=\"#333\">I = Δ</text>\n  <text x=\"150\" y=\"175\" font-size=\"12\" fill=\"#1c4e80\">curve (arc length L)</text>\n</svg>\n\n---\n\n## Example 1 — Full horizontal curve from R and I\n\nGiven **R = 1,145.92 ft**, deflection **I = 24°00′00″**, and **PI at station 42+50.00**. Find D, T, L, LC, M, E, and the stationing of PC and PT.\n\n1. **Degree of curve:** `D = 5,729.58/R = 5,729.58/1,145.92 = 5.0000°` (a 5° curve).\n2. **Tangent:** `T = R·tan(I/2) = 1,145.92·tan(12°) = 1,145.92·0.21256 = 243.57 ft`.\n3. **Length:** `L = R·I·(π/180) = 1,145.92·(24·π/180) = 1,145.92·0.418879 = 480.00 ft` (check: (I/D)·100 = (24/5)·100 = 480.00 ✓).\n4. **Long chord:** `LC = 2R·sin(I/2) = 2·1,145.92·sin12° = 2,291.84·0.20791 = 476.50 ft`.\n5. **Middle ordinate:** `M = R·(1 − cos12°) = 1,145.92·(1 − 0.97815) = 25.04 ft`.\n6. **External:** `E = R·(sec12° − 1) = 1,145.92·(1.02234 − 1) = 25.60 ft`.\n7. **Stationing:** `PC = PI − T = (42+50.00) − 243.57 = station 40+06.43`. `PT = PC + L = (40+06.43) + 480.00 = station 44+86.43`.\n\n**Calculator (TI-36X Pro):** DEGREE mode. `1145.92 × tan( 12 ) =` → 243.57. For L either `1145.92 × 24 × π ÷ 180 =` or simply `(24 ÷ 5) × 100`. For E: `1145.92 × ( 1 ÷ cos(12) − 1 ) =`. **Casio fx-991:** identical keystrokes; the `×10ˣ`/`Ans` keys help chain. **HP-35S (RPN):** `12 TAN 1145.92 × ` gives T; enter I as 24, `→RAD`, `× R` for L.\n\n---\n\n## Example 2 — Deflection angle for staking the curve\n\nUsing the curve above (L = 480.00 ft, I = 24°), find the **deflection angle from the PC** to the curve point at the half-station **42+00**, and the chord from PC to it.\n\n1. Arc from PC to 42+00: `ℓ = (42+00) − (40+06.43) = 193.57 ft`.\n2. **Deflection:** `δ = (ℓ/L)·(I/2) = (193.57/480.00)·12° = 0.40327·12° = 4.839° = 4°50′21″`.\n3. **Chord (from PC):** `c = 2R·sin(δ) = 2·1,145.92·sin(4.839°) = 2,291.84·0.08436 = 193.34 ft` (slightly less than the arc, as expected).\n\n**Check:** the deflection from PC all the way to PT must be **I/2 = 12°00′00″** — a built-in field check. **Calculator:** compute δ in decimal degrees, then `▸DMS` for the field book.\n\n---\n\n## Example 3 — Vertical curve elevation and low point\n\nA sag vertical curve has back grade **g₁ = −3.00%**, forward grade **g₂ = +2.00%**, length **L = 600.00 ft**, with **PVC at station 25+00, elevation 842.00 ft**. Find the elevation at station 28+00 and the station/elevation of the low point.\n\n1. Grades as decimals: g₁ = −0.03, g₂ = +0.02. `x` at 28+00 = (28+00) − (25+00) = **300.00 ft**.\n2. **Elevation on curve:** `Y = 842.00 + (−0.03)(300) + [(0.02 − (−0.03))/(2·600)]·300²`\n   = 842.00 − 9.00 + [0.05/1200]·90,000 = 842.00 − 9.00 + 3.75 = **836.75 ft**.\n3. **Low point from PVC:** `x_m = −g₁·L/(g₂ − g₁) = −(−0.03)(600)/(0.05) = 18/0.05 = 360.00 ft` → station **28+60**.\n4. **Low-point elevation:** `Y = 842.00 + (−0.03)(360) + [0.05/1200]·360² = 842.00 − 10.80 + 5.40 = 836.60 ft`.\n\n**Calculator:** store `a = (g₂−g₁)/(2L) = 0.05/1200 = 4.1667e−5` in memory, then `Y = 842 + (−0.03)x + a·x²` for any x. **Casio fx-991:** use the table (TABLE) mode with f(x) = 842 − 0.03x + 4.1667e−5·x² to print elevations at each station automatically.\n\n---\n\n## Example 4 — Area by coordinates (quad → acres)\n\nA four-corner lot, vertices in order: A(N 1,000.00, E 1,000.00), B(N 1,000.00, E 1,400.00), C(N 1,300.00, E 1,400.00), D(N 1,300.00, E 1,000.00). Find the area in acres (X = E, Y = N).\n\n| i | Xᵢ (E) | Yᵢ (N) | X_{i+1} | Y_{i+1} | Xᵢ·Y_{i+1} | X_{i+1}·Yᵢ |\n|---|---|---|---|---|---|---|\n| A | 1000 | 1000 | 1400 | 1000 | 1,400,000 | 1,400,000 |\n| B | 1400 | 1000 | 1400 | 1300 | 1,820,000 | 1,400,000 |\n| C | 1400 | 1300 | 1000 | 1300 | 1,820,000 | 1,300,000 |\n| D | 1000 | 1300 | 1000 | 1000 | 1,000,000 | 1,300,000 |\n\nΣ(Xᵢ·Y_{i+1}) = 6,040,000; Σ(X_{i+1}·Yᵢ) = 5,400,000. Difference = 640,000.\n`A = ½·|640,000| = 120,000 ft²` → **÷ 43,560 = 2.755 acres** (a 400 × 300 rectangle, as a sanity check).\n\n---\n\n## Example 5 — Average end area earthwork volume\n\nTwo adjacent cross-sections, 100.00 ft apart (one full station), have cut end areas **A₁ = 120.0 ft²** and **A₂ = 180.0 ft²**. Find the cut volume in cubic yards.\n\n1. **Average end area:** `V = L·(A₁ + A₂)/2 = 100·(120 + 180)/2 = 100·150 = 15,000 ft³`.\n2. **Cubic yards:** `V = 15,000 / 27 = 555.6 yd³`.\n\nIf the mid-section area were measured (say Aₘ = 148.0 ft²), the **prismoidal** volume would be `V = 100·(120 + 4·148 + 180)/6 = 100·892/6 = 14,866.7 ft³ = 550.6 yd³` — the **prismoidal correction** of about 5 yd³ less. **Calculator:** `100 × (120 + 180) ÷ 2 ÷ 27 =` → 555.6. Always divide ft³ by 27 last to report yards."
-    },
-    {
-      "type": "tips",
-      "title": "Exam Tips & Calculator Strategy",
-      "content": "## Strategy for areas, volumes, and curves\n\n- **These are high-yield, formula-lookup points.** Every formula you need is in the handbook (Area formulas, Earthwork, Horizontal circular curves, Vertical curves). Know *where* each lives so you confirm rather than derive. Curves alone reliably appear several times.\n- **Pace:** a single curve element (T, L, M, E) or one average-end-area volume is a sub-minute calculation; a full curve layout with stationing is a flag-and-return item. Bank the one-formula questions first.\n- **Sketch the curve.** A quick PI–PC–PT sketch with I marked prevents the classic error of adding T (a straight distance) instead of L (the arc) when stationing the PT.\n\n## Approved-calculator tricks (TI-36X Pro / Casio fx-991 / HP-35S)\n\n- **Confirm DEGREE mode** before any curve trig. Then I/2 is just `I ÷ 2`; feed it straight into tan/cos/sin.\n- **External and middle ordinate** both use I/2: `E = R(1/cos(I/2) − 1)`, `M = R(1 − cos(I/2))`. There is no `sec` key — type `1/cos(...)`.\n- **Curve length two ways:** `L = R·toRad(I)` (radians) OR the cleaner `(I/D)·100`. Use the second when D is given — it avoids π entirely.\n- **Vertical curves:** put grades in as **decimals** (+2% → 0.02). Store the constant `a = (g₂−g₁)/(2L)` once; then any elevation is `Y_PVC + g₁x + a·x²`. The Casio **TABLE** mode and TI **table** print a full elevation column in one setup.\n- **Stationing arithmetic:** a station is just feet (42+50 = 4,250 ft). Do the math in feet, then re-split into stations (÷100 for the station number, remainder for the plus).\n- **Volume:** keep everything in ft² and ft, then **÷27 at the very end** for cubic yards. Mixing the /27 in early is a common slip.\n- **Area by offsets:** Simpson needs an **odd number of offsets**; if you're given an even number, Simpson the first n−1 and add the last strip as a trapezoid, or just use the trapezoidal rule.\n\n## Common traps\n\n- **PT = PC + L, not PC + 2T or PI + T.** The curve length is the arc; T is a straight tangent distance. This is the single most common curve blunder.\n- **Degree of curve uses 5,729.58, not 5,730.** Arc definition. R = 5,729.58/D.\n- **Prismoidal Aₘ** is computed from the **mid-section's own dimensions**, *not* the average (A₁+A₂)/2 — using the average just reproduces the end-area answer.\n- **High/low point only exists when g₁ and g₂ have opposite signs.** A grade that goes −1% to −3% (both negative) has no turning point on the curve.\n- **Average end area slightly over-estimates** volume for tapering sections; the prismoidal value is smaller (the correction). Know which the question wants.\n- **Acres vs. square feet:** divide by **43,560**. Hectares: 1 ha = 10,000 m² = 2.47105 acres — watch SI vs. USCS.\n- **Simpson weighting:** ends ×1, interior **odd-position** offsets ×4, interior **even-position** ×2 — miscounting the weights is the usual error.\n\n## How the handbook helps\n\nThe NCEES FS Reference Handbook v2.5 gives the **horizontal circular curve** set (D, T, L, LC, M, E, stationing), the **vertical curve** parabola (elevation, tangent offset, rate r, high/low x_m), the **area formulas** (coordinates, trapezoidal, Simpson's 1/3), and **earthwork** (average end area, prismoidal) verbatim. Practice pulling each up by name so that on exam day the formula is a confirmation, not a recall test."
+     "name": "h",
+     "type": "float",
+     "min": 300,
+     "max": 700,
+     "decimals": 2
     }
-  ],
-  "questions": [
+   ],
+   "computed_vars": [
     {
-      "question_text": "The area of a closed parcel whose every corner is known by coordinates is most directly computed by:",
-      "question_type": "multiple_choice",
-      "options": ["the coordinate (shoelace) method", "the trapezoidal rule", "Simpson's 1/3 rule", "the prismoidal formula"],
-      "correct_answer": "the coordinate (shoelace) method",
-      "explanation": "With all corners reduced to coordinates, the shoelace/coordinate method (equivalent to the DMD method) gives the planar area directly. Trapezoidal and Simpson's rules are for irregular boundaries defined by offsets; the prismoidal formula is a volume method.",
-      "difficulty": "easy"
+     "name": "eB",
+     "formula": "eA+w"
     },
     {
-      "question_text": "A parcel computes to 130,680 ft² by coordinates. Its area in acres is:",
-      "question_type": "multiple_choice",
-      "options": ["3.00 acres", "1.50 acres", "6.00 acres", "0.30 acres"],
-      "correct_answer": "3.00 acres",
-      "explanation": "1 acre = 43,560 ft². 130,680 / 43,560 = 3.00 acres.",
-      "difficulty": "easy"
+     "name": "nB",
+     "formula": "nA"
     },
     {
-      "question_text": "Offsets of 12.0, 15.0, 18.0, 14.0, and 10.0 ft are taken at a constant 25.0-ft interval. By the trapezoidal rule, the area between the baseline and the boundary is:",
-      "question_type": "multiple_choice",
-      "options": ["1,450 ft²", "1,725 ft²", "1,375 ft²", "1,500 ft²"],
-      "correct_answer": "1,450 ft²",
-      "explanation": "A = w·[(h₁+hₙ)/2 + Σinterior] = 25·[(12+10)/2 + 15+18+14] = 25·[11 + 47] = 25·58 = 1,450 ft².",
-      "difficulty": "medium"
+     "name": "eC",
+     "formula": "eA+w"
     },
     {
-      "question_text": "Simpson's 1/3 rule for area from offsets requires:",
-      "question_type": "multiple_choice",
-      "options": ["an odd number of offsets (even number of intervals)", "an even number of offsets", "exactly three offsets", "offsets at unequal intervals"],
-      "correct_answer": "an odd number of offsets (even number of intervals)",
-      "explanation": "Simpson's 1/3 rule fits a parabola through each successive group of three offsets, so it needs an even number of equal intervals, i.e., an odd number of offsets. For an even count, apply Simpson to all but the last strip and add that strip as a trapezoid.",
-      "difficulty": "medium"
+     "name": "nC",
+     "formula": "nA+h"
     },
     {
-      "question_text": "In the average-end-area method, the volume between two cross-sections of end areas A₁ and A₂ a distance L apart is:",
-      "question_type": "multiple_choice",
-      "options": ["V = L·(A₁ + A₂)/2", "V = L·(A₁ + A₂)", "V = (A₁ + A₂)/(2L)", "V = L·(A₁ + 4Aₘ + A₂)/6"],
-      "correct_answer": "V = L·(A₁ + A₂)/2",
-      "explanation": "Average end area multiplies the mean of the two end areas by the distance between them: V = L·(A₁+A₂)/2. The last option is the prismoidal formula, which requires the mid-section area Aₘ.",
-      "difficulty": "easy"
+     "name": "eD",
+     "formula": "eA"
     },
     {
-      "question_text": "A cut volume computes to 13,500 ft³. Expressed in cubic yards it is:",
-      "question_type": "multiple_choice",
-      "options": ["500 yd³", "1,500 yd³", "4,500 yd³", "364,500 yd³"],
-      "correct_answer": "500 yd³",
-      "explanation": "1 yd³ = 27 ft³. 13,500 / 27 = 500 yd³.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "Two cross-sections 100 ft apart have end areas of 150 ft² and 210 ft². The average-end-area volume in cubic yards is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["667 yd³", "555 yd³", "778 yd³", "18,000 yd³"],
-      "correct_answer": "667 yd³",
-      "explanation": "V = L·(A₁+A₂)/2 = 100·(150+210)/2 = 100·180 = 18,000 ft³. 18,000/27 = 666.7 ≈ 667 yd³.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "Compared with the average-end-area method for a tapering section, the prismoidal formula generally gives a volume that is:",
-      "question_type": "multiple_choice",
-      "options": ["slightly smaller", "slightly larger", "exactly equal", "twice as large"],
-      "correct_answer": "slightly smaller",
-      "explanation": "Average end area slightly over-estimates volume when sections taper; the prismoidal formula (using the true mid-section area) is more accurate and the difference, the prismoidal correction, makes the prismoidal volume slightly smaller.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "The degree of curve (arc definition) for a curve of radius 1,432.40 ft is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["4°00′", "2°00′", "5°00′", "8°00′"],
-      "correct_answer": "4°00′",
-      "explanation": "D = 5,729.58/R = 5,729.58/1,432.40 = 4.000° = 4°00′. The degree of curve is the central angle subtending a 100-ft arc.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A circular curve has R = 600.00 ft and deflection angle I = 30°00′. Its tangent distance T is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["160.77 ft", "300.00 ft", "321.54 ft", "155.29 ft"],
-      "correct_answer": "160.77 ft",
-      "explanation": "T = R·tan(I/2) = 600·tan15° = 600·0.26795 = 160.77 ft.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "For a curve with R = 600.00 ft and I = 30°00′, the curve length L is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["314.16 ft", "300.00 ft", "321.54 ft", "180.00 ft"],
-      "correct_answer": "314.16 ft",
-      "explanation": "L = R·I·(π/180) = 600·(30·π/180) = 600·0.523599 = 314.16 ft.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "If the PI of a curve is at station 50+00.00 and the tangent distance T = 240.00 ft, the station of the PC is:",
-      "question_type": "multiple_choice",
-      "options": ["47+60.00", "52+40.00", "50+24.00", "47+76.00"],
-      "correct_answer": "47+60.00",
-      "explanation": "PC = PI − T = (50+00 = 5,000 ft) − 240 = 4,760 ft = station 47+60.00. The PC always precedes the PI by the tangent distance.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A curve has PC at station 47+60.00 and length L = 314.16 ft. The station of the PT is:",
-      "question_type": "multiple_choice",
-      "options": ["50+74.16", "50+00.00", "44+45.84", "47+91.42"],
-      "correct_answer": "50+74.16",
-      "explanation": "PT = PC + L = 4,760 + 314.16 = 5,074.16 ft = station 50+74.16. The PT is found by adding the arc length L (not the tangent T) to the PC.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "The external distance E of a circular curve is given by:",
-      "question_type": "multiple_choice",
-      "options": ["E = R·(sec(I/2) − 1)", "E = R·(1 − cos(I/2))", "E = 2R·sin(I/2)", "E = R·tan(I/2)"],
-      "correct_answer": "E = R·(sec(I/2) − 1)",
-      "explanation": "The external distance (PI to the midpoint of the curve) is E = R·(sec(I/2) − 1) = R·(1/cos(I/2) − 1). The second option is the middle ordinate M, the third is the long chord LC, the fourth is the tangent T.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "The total deflection angle from the PC to the PT of a simple circular curve equals:",
-      "question_type": "multiple_choice",
-      "options": ["I/2", "I", "2I", "90° − I"],
-      "correct_answer": "I/2",
-      "explanation": "By the inscribed-angle property, the deflection angle from the tangent at the PC to any chord is half the subtended central angle; from PC to PT the subtended angle is the full I, so the total deflection is I/2. This is a standard field check.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "An equal-tangent vertical curve has g₁ = +2.0% and g₂ = −3.0% over L = 500 ft. The rate of change of grade r per foot is:",
-      "question_type": "multiple_choice",
-      "options": ["−0.0001 per ft", "+0.0001 per ft", "−0.01 per ft", "−0.05 per ft"],
-      "correct_answer": "−0.0001 per ft",
-      "explanation": "r = (g₂ − g₁)/L = (−0.03 − 0.02)/500 = −0.05/500 = −0.0001 per ft (a crest curve, since the grade decreases).",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A vertical curve has g₁ = −2.0% and g₂ = +4.0%, L = 400 ft, with PVC at elevation 500.00 ft. The elevation on the curve 200 ft from the PVC is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["499.00 ft", "496.00 ft", "504.00 ft", "503.00 ft"],
-      "correct_answer": "499.00 ft",
-      "explanation": "Y = Y_PVC + g₁x + [(g₂−g₁)/(2L)]x² = 500 + (−0.02)(200) + [0.06/(2·400)]·200² = 500 − 4.00 + (0.06/800)·40,000 = 500 − 4.00 + 3.00 = 499.00 ft.",
-      "difficulty": "hard"
-    },
-    {
-      "question_text": "A vertical curve with g₁ = −3.0% and g₂ = +2.0% over L = 600 ft has its low point at what distance from the PVC?",
-      "question_type": "multiple_choice",
-      "options": ["360 ft", "240 ft", "300 ft", "600 ft"],
-      "correct_answer": "360 ft",
-      "explanation": "x_m = −g₁·L/(g₂ − g₁) = −(−0.03)(600)/(0.02 − (−0.03)) = 18/0.05 = 360 ft. Because g₁ and g₂ have opposite signs (sag curve), the low point lies on the curve.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "On a vertical curve, a true high or low point exists on the curve only when:",
-      "question_type": "multiple_choice",
-      "options": ["g₁ and g₂ have opposite signs", "g₁ and g₂ have the same sign", "g₁ equals g₂", "the curve is longer than 500 ft"],
-      "correct_answer": "g₁ and g₂ have opposite signs",
-      "explanation": "The turning point is where the curve grade passes through zero; this happens within the curve only if the grade changes sign, i.e., g₁ and g₂ have opposite signs. If both grades are the same sign, the high/low point falls outside the curve.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "The long chord of a circular curve with R = 800.00 ft and I = 40°00′ is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["547.23 ft", "291.13 ft", "558.46 ft", "279.23 ft"],
-      "correct_answer": "547.23 ft",
-      "explanation": "LC = 2R·sin(I/2) = 2·800·sin20° = 1,600·0.34202 = 547.23 ft.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "The middle ordinate M of a curve with R = 500.00 ft and I = 60°00′ is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["66.99 ft", "433.01 ft", "288.68 ft", "77.35 ft"],
-      "correct_answer": "66.99 ft",
-      "explanation": "M = R·(1 − cos(I/2)) = 500·(1 − cos30°) = 500·(1 − 0.86603) = 500·0.13397 = 66.99 ft.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "True or False: In the prismoidal formula V = L·(A₁ + 4Aₘ + A₂)/6, the term Aₘ is the average of the two end areas, (A₁ + A₂)/2.",
-      "question_type": "true_false",
-      "options": ["True", "False"],
-      "correct_answer": "False",
-      "explanation": "False. Aₘ is the area of the section taken midway between the two ends, computed from that section's own (mid) dimensions. Substituting the average (A₁+A₂)/2 merely reproduces the average-end-area result and defeats the purpose of the prismoidal correction.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A 4.0-acre tract equals how many square feet?",
-      "question_type": "numeric_input",
-      "options": [],
-      "correct_answer": "174240",
-      "explanation": "4.0 acres × 43,560 ft²/acre = 174,240 ft².",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "A circular curve is to have a curve length L = 600.00 ft for a deflection angle I = 24°00′. The required radius R is most nearly:",
-      "question_type": "numeric_input",
-      "options": [],
-      "correct_answer": "1432.39",
-      "explanation": "L = R·I·(π/180) → R = L/(I·π/180) = 600/(24·π/180) = 600/0.418879 = 1,432.39 ft.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "True or False: The station of the PT of a simple curve is obtained by adding the tangent distance T to the PC station.",
-      "question_type": "true_false",
-      "options": ["True", "False"],
-      "correct_answer": "False",
-      "explanation": "False. PT = PC + L, where L is the arc (curve) length. Adding the tangent distance T instead is a common and serious stationing error.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "Five offsets 0, 8.0, 11.0, 9.0, and 0 ft are measured at a 20.0-ft interval. By Simpson's 1/3 rule the area is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["600 ft²", "560 ft²", "1,120 ft²", "287 ft²"],
-      "correct_answer": "600 ft²",
-      "explanation": "A = (w/3)·[h₁ + h₅ + 4(h₂ + h₄) + 2(h₃)] = (20/3)·[0 + 0 + 4(8+9) + 2(11)] = (20/3)·[68 + 22] = (20/3)·90 = 600 ft². Ends ×1, interior odd-position offsets (2nd, 4th) ×4, interior even-position offset (3rd) ×2.",
-      "difficulty": "hard"
+     "name": "nD",
+     "formula": "nA+h"
     }
-  ],
-  "problem_templates": [
+   ],
+   "answer_formula": "abs((eA*nB-eB*nA)+(eB*nC-eC*nB)+(eC*nD-eD*nC)+(eD*nA-eA*nD))/2/43560",
+   "answer_format": {
+    "decimals": 3,
+    "unit": "acres",
+    "tolerance": 0.01
+   },
+   "solution_steps_template": [
     {
-      "name": "Area by coordinates (quadrilateral) → acres",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Area",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A four-corner parcel has corners, in order, A (N {{nA:f2}}, E {{eA:f2}}), B (N {{nB:f2}}, E {{eB:f2}}), C (N {{nC:f2}}, E {{eC:f2}}), and D (N {{nD:f2}}, E {{eD:f2}}). Compute the enclosed area by coordinates (shoelace) and report it in ACRES.",
-      "parameters": [
-        {"name": "nA", "type": "float", "min": 1000, "max": 1100, "decimals": 2},
-        {"name": "eA", "type": "float", "min": 1000, "max": 1100, "decimals": 2},
-        {"name": "w", "type": "float", "min": 300, "max": 700, "decimals": 2},
-        {"name": "h", "type": "float", "min": 300, "max": 700, "decimals": 2}
-      ],
-      "computed_vars": [
-        {"name": "eB", "formula": "eA+w"},
-        {"name": "nB", "formula": "nA"},
-        {"name": "eC", "formula": "eA+w"},
-        {"name": "nC", "formula": "nA+h"},
-        {"name": "eD", "formula": "eA"},
-        {"name": "nD", "formula": "nA+h"}
-      ],
-      "answer_formula": "abs((eA*nB-eB*nA)+(eB*nC-eC*nB)+(eC*nD-eD*nC)+(eD*nA-eA*nD))/2/43560",
-      "answer_format": {"decimals": 3, "unit": "acres", "tolerance": 0.01},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Use X = Easting, Y = Northing", "calculation_template": "A({{eA:f2}},{{nA:f2}}), B({{eB:f2}},{{nB:f2}}), C({{eC:f2}},{{nC:f2}}), D({{eD:f2}},{{nD:f2}})"},
-        {"step_number": 2, "title": "Shoelace sum, halved, absolute value", "formula": "A = ½|Σ(Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|", "calculation_template": "Sum the four cross-products, halve the absolute value → ft²"},
-        {"step_number": 3, "title": "Convert to acres", "result_template": "{{_answer}} acres (= ft² ÷ 43,560)"}
-      ],
-      "explanation_template": "Apply the shoelace formula with X = Easting, Y = Northing, vertices in order A→B→C→D, take the absolute value, then divide by 43,560 ft²/acre. Area = {{_answer}} acres.",
-      "options_generator": {"method": "none"}
+     "step_number": 1,
+     "title": "Use X = Easting, Y = Northing",
+     "calculation_template": "A({{eA:f2}},{{nA:f2}}), B({{eB:f2}},{{nB:f2}}), C({{eC:f2}},{{nC:f2}}), D({{eD:f2}},{{nD:f2}})"
     },
     {
-      "name": "Area from field offsets (trapezoidal rule)",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Area",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "Perpendicular offsets from a straight baseline to an irregular boundary are measured at a constant interval of {{w:f1}} ft: h₁={{h1:f1}}, h₂={{h2:f1}}, h₃={{h3:f1}}, h₄={{h4:f1}}, h₅={{h5:f1}} ft. Using the TRAPEZOIDAL rule, compute the area (ft²) between the baseline and the boundary.",
-      "parameters": [
-        {"name": "w", "type": "float", "min": 20, "max": 60, "decimals": 1},
-        {"name": "h1", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h2", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h3", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h4", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h5", "type": "float", "min": 5, "max": 25, "decimals": 1}
-      ],
-      "computed_vars": [],
-      "answer_formula": "w*((h1+h5)/2 + h2 + h3 + h4)",
-      "answer_format": {"decimals": 1, "unit": "ft²", "tolerance": 0.5},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Trapezoidal rule", "formula": "A = w·[(h₁+hₙ)/2 + Σ interior]", "calculation_template": "{{w:f1}}·[({{h1:f1}}+{{h5:f1}})/2 + {{h2:f1}} + {{h3:f1}} + {{h4:f1}}]"},
-        {"step_number": 2, "title": "Result", "result_template": "A = {{_answer}} ft²"}
-      ],
-      "explanation_template": "The trapezoidal rule averages the two end offsets and adds the interior offsets, all times the interval: A = w·[(h₁+hₙ)/2 + Σinterior] = {{w:f1}}·[({{h1:f1}}+{{h5:f1}})/2 + {{h2:f1}}+{{h3:f1}}+{{h4:f1}}] = {{_answer}} ft².",
-      "options_generator": {"method": "none"}
+     "step_number": 2,
+     "title": "Shoelace sum, halved, absolute value",
+     "formula": "A = ½|Σ(Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|",
+     "calculation_template": "Sum the four cross-products, halve the absolute value → ft²"
     },
     {
-      "name": "Area from field offsets (Simpson's 1/3 rule)",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Area",
-      "difficulty": "hard",
-      "question_type": "numeric_input",
-      "question_template": "Five offsets at a constant interval of {{w:f1}} ft are h₁={{h1:f1}}, h₂={{h2:f1}}, h₃={{h3:f1}}, h₄={{h4:f1}}, h₅={{h5:f1}} ft. Using SIMPSON'S 1/3 rule, compute the area (ft²) between the baseline and the boundary.",
-      "parameters": [
-        {"name": "w", "type": "float", "min": 20, "max": 50, "decimals": 1},
-        {"name": "h1", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h2", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h3", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h4", "type": "float", "min": 5, "max": 25, "decimals": 1},
-        {"name": "h5", "type": "float", "min": 5, "max": 25, "decimals": 1}
-      ],
-      "computed_vars": [],
-      "answer_formula": "(w/3)*(h1 + h5 + 4*(h2+h4) + 2*h3)",
-      "answer_format": {"decimals": 1, "unit": "ft²", "tolerance": 0.5},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Simpson's 1/3 rule (5 offsets, even intervals)", "formula": "A = (w/3)·[h₁ + hₙ + 4·Σodd + 2·Σeven]", "calculation_template": "(w/3)·[{{h1:f1}} + {{h5:f1}} + 4({{h2:f1}}+{{h4:f1}}) + 2({{h3:f1}})]"},
-        {"step_number": 2, "title": "Result", "result_template": "A = {{_answer}} ft²"}
-      ],
-      "explanation_template": "Simpson's 1/3 rule weights the ends ×1, the interior odd-position offsets (2nd, 4th) ×4, and the interior even-position offset (3rd) ×2, all times w/3: A = ({{w:f1}}/3)·[{{h1:f1}}+{{h5:f1}} + 4({{h2:f1}}+{{h4:f1}}) + 2({{h3:f1}})] = {{_answer}} ft².",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Average-end-area volume → cubic yards",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Volume",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "Two adjacent cross-sections {{L:f1}} ft apart have end areas A₁ = {{a1:f1}} ft² and A₂ = {{a2:f1}} ft². Using the average-end-area method, compute the earthwork volume in CUBIC YARDS.",
-      "parameters": [
-        {"name": "L", "type": "float", "min": 50, "max": 150, "decimals": 1},
-        {"name": "a1", "type": "float", "min": 60, "max": 300, "decimals": 1},
-        {"name": "a2", "type": "float", "min": 60, "max": 300, "decimals": 1}
-      ],
-      "computed_vars": [
-        {"name": "vft3", "formula": "L*(a1+a2)/2"}
-      ],
-      "answer_formula": "L*(a1+a2)/2/27",
-      "answer_format": {"decimals": 1, "unit": "yd³", "tolerance": 0.5},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Average end area", "formula": "V = L·(A₁+A₂)/2", "calculation_template": "{{L:f1}}·({{a1:f1}}+{{a2:f1}})/2 = {{vft3:f1}} ft³"},
-        {"step_number": 2, "title": "Convert to cubic yards (÷27)", "result_template": "{{_answer}} yd³"}
-      ],
-      "explanation_template": "Average end area: V = L·(A₁+A₂)/2 = {{L:f1}}·({{a1:f1}}+{{a2:f1}})/2 = {{vft3:f1}} ft³. Divide by 27 ft³/yd³ → {{_answer}} yd³.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Horizontal curve tangent distance T",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Horizontal Curves",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A simple circular curve has radius R = {{R:f2}} ft and deflection (central) angle I = {{I:f2}}°. Compute the tangent distance T (ft).",
-      "parameters": [
-        {"name": "R", "type": "float", "min": 400, "max": 2000, "decimals": 2},
-        {"name": "I", "type": "float", "min": 8, "max": 75, "decimals": 2}
-      ],
-      "computed_vars": [],
-      "answer_formula": "R*tan(toRad(I/2))",
-      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.1},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Tangent = R·tan(I/2)", "formula": "T = R·tan(I/2)", "calculation_template": "{{R:f2}}·tan({{I:f2}}/2°)"},
-        {"step_number": 2, "title": "Result", "result_template": "T = {{_answer}} ft"}
-      ],
-      "explanation_template": "The tangent distance from the PI to the PC (and to the PT) is T = R·tan(I/2) = {{R:f2}}·tan({{I:f2}}°/2) = {{_answer}} ft. Set the calculator to DEGREE mode and use I/2.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Horizontal curve length L",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Horizontal Curves",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A circular curve has radius R = {{R:f2}} ft and deflection angle I = {{I:f2}}°. Compute the curve (arc) length L (ft).",
-      "parameters": [
-        {"name": "R", "type": "float", "min": 400, "max": 2000, "decimals": 2},
-        {"name": "I", "type": "float", "min": 8, "max": 75, "decimals": 2}
-      ],
-      "computed_vars": [],
-      "answer_formula": "R*toRad(I)",
-      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.1},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Length = R·I (radians)", "formula": "L = R·I·(π/180)", "calculation_template": "{{R:f2}}·({{I:f2}}°·π/180)"},
-        {"step_number": 2, "title": "Result", "result_template": "L = {{_answer}} ft"}
-      ],
-      "explanation_template": "The arc length is L = R·I·(π/180) = {{R:f2}}·toRad({{I:f2}}°) = {{_answer}} ft. Equivalently, L = (I/D)·100 if the degree of curve D is known.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Degree of curve from radius",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Horizontal Curves",
-      "difficulty": "easy",
-      "question_type": "numeric_input",
-      "question_template": "A circular curve has radius R = {{R:f2}} ft. Compute the degree of curve D (arc definition), in decimal degrees.",
-      "parameters": [
-        {"name": "R", "type": "float", "min": 500, "max": 3000, "decimals": 2}
-      ],
-      "computed_vars": [],
-      "answer_formula": "5729.58/R",
-      "answer_format": {"decimals": 3, "unit": "°", "tolerance": 0.01},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Degree of curve (arc def.)", "formula": "D = 5,729.58 / R", "calculation_template": "5,729.58 / {{R:f2}}"},
-        {"step_number": 2, "title": "Result", "result_template": "D = {{_answer}}°"}
-      ],
-      "explanation_template": "The arc-definition degree of curve is D = 5,729.58/R = 5,729.58/{{R:f2}} = {{_answer}}°. It is the central angle that subtends a 100-ft arc.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Horizontal curve external distance E",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Horizontal Curves",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A circular curve has radius R = {{R:f2}} ft and deflection angle I = {{I:f2}}°. Compute the external distance E (ft) from the PI to the midpoint of the curve.",
-      "parameters": [
-        {"name": "R", "type": "float", "min": 400, "max": 2000, "decimals": 2},
-        {"name": "I", "type": "float", "min": 8, "max": 75, "decimals": 2}
-      ],
-      "computed_vars": [],
-      "answer_formula": "R*(1/cos(toRad(I/2))-1)",
-      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.1},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "External = R·(sec(I/2) − 1)", "formula": "E = R·(1/cos(I/2) − 1)", "calculation_template": "{{R:f2}}·(1/cos({{I:f2}}°/2) − 1)"},
-        {"step_number": 2, "title": "Result", "result_template": "E = {{_answer}} ft"}
-      ],
-      "explanation_template": "The external distance is E = R·(sec(I/2) − 1) = R·(1/cos(I/2) − 1) = {{R:f2}}·(1/cos({{I:f2}}°/2) − 1) = {{_answer}} ft. There is no sec key — type 1/cos(I/2).",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Vertical curve elevation",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Vertical Curves",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "An equal-tangent vertical curve of length L = {{L:f1}} ft has back grade g₁ = {{g1:f2}}% and forward grade g₂ = {{g2:f2}}%. The PVC is at elevation {{ypvc:f2}} ft. Compute the elevation on the curve at a distance x = {{x:f1}} ft from the PVC (ft).",
-      "parameters": [
-        {"name": "L", "type": "float", "min": 300, "max": 800, "decimals": 1},
-        {"name": "g1", "type": "float", "min": -5, "max": 5, "decimals": 2},
-        {"name": "g2", "type": "float", "min": -5, "max": 5, "decimals": 2},
-        {"name": "ypvc", "type": "float", "min": 500, "max": 1200, "decimals": 2},
-        {"name": "x", "type": "float", "min": 50, "max": 300, "decimals": 1}
-      ],
-      "computed_vars": [
-        {"name": "a", "formula": "(g2/100-g1/100)/(2*L)"}
-      ],
-      "answer_formula": "ypvc + (g1/100)*x + ((g2/100-g1/100)/(2*L))*x*x",
-      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.02},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Grades to decimals; parabola constant", "formula": "a = (g₂−g₁)/(2L)", "calculation_template": "g₁={{g1:f2}}%→{{g1:f2}}/100; g₂={{g2:f2}}%→{{g2:f2}}/100; a = {{a}}"},
-        {"step_number": 2, "title": "Curve elevation", "formula": "Y = Y_PVC + g₁·x + a·x²", "calculation_template": "{{ypvc:f2}} + (g₁)({{x:f1}}) + a·({{x:f1}})²"},
-        {"step_number": 3, "title": "Result", "result_template": "Y = {{_answer}} ft"}
-      ],
-      "explanation_template": "Convert grades to decimals, then Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x². With g₁={{g1:f2}}%, g₂={{g2:f2}}%, L={{L:f1}} ft, x={{x:f1}} ft: Y = {{_answer}} ft.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Vertical curve high/low point station",
-      "category": "FS — Plane Survey Computations",
-      "subcategory": "Vertical Curves",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "An equal-tangent vertical curve of length L = {{L:f1}} ft has back grade g₁ = {{g1:f2}}% and forward grade g₂ = {{g2:f2}}% (opposite signs, so a turning point exists). Compute the distance x from the PVC to the high/low point (ft).",
-      "parameters": [
-        {"name": "L", "type": "float", "min": 300, "max": 800, "decimals": 1},
-        {"name": "g1", "type": "float", "min": -4, "max": -1, "decimals": 2},
-        {"name": "g2", "type": "float", "min": 1, "max": 4, "decimals": 2}
-      ],
-      "computed_vars": [],
-      "answer_formula": "(-g1)*L/(g2-g1)",
-      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.1},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Turning point from PVC", "formula": "x_m = −g₁·L/(g₂ − g₁)", "calculation_template": "−({{g1:f2}})·{{L:f1}} / ({{g2:f2}} − {{g1:f2}})"},
-        {"step_number": 2, "title": "Result", "result_template": "x_m = {{_answer}} ft from the PVC"}
-      ],
-      "explanation_template": "The high/low point is where the curve grade is zero: x_m = −g₁·L/(g₂ − g₁). The percent signs cancel in the ratio, so x_m = −({{g1:f2}})·{{L:f1}}/({{g2:f2}} − {{g1:f2}}) = {{_answer}} ft from the PVC.",
-      "options_generator": {"method": "none"}
+     "step_number": 3,
+     "title": "Convert to acres",
+     "result_template": "{{_answer}} acres (= ft² ÷ 43,560)"
     }
-  ],
-  "mock_questions": [
+   ],
+   "explanation_template": "Apply the shoelace formula with X = Easting, Y = Northing, vertices in order A→B→C→D, take the absolute value, then divide by 43,560 ft²/acre. Area = {{_answer}} acres.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "triangle",
+    "vertices": [
+     {
+      "nVar": "nA",
+      "eVar": "eA",
+      "label": "A"
+     },
+     {
+      "nVar": "nB",
+      "eVar": "eB",
+      "label": "B"
+     },
+     {
+      "nVar": "nC",
+      "eVar": "eC",
+      "label": "C"
+     },
+     {
+      "nVar": "nD",
+      "eVar": "eD",
+      "label": "D"
+     }
+    ],
+    "title": "Parcel by coordinates"
+   }
+  },
+  {
+   "name": "Area from field offsets (trapezoidal rule)",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Area",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "Perpendicular offsets from a straight baseline to an irregular boundary are measured at a constant interval of {{w:f1}} ft: h₁={{h1:f1}}, h₂={{h2:f1}}, h₃={{h3:f1}}, h₄={{h4:f1}}, h₅={{h5:f1}} ft. Using the TRAPEZOIDAL rule, compute the area (ft²) between the baseline and the boundary.",
+   "parameters": [
     {
-      "question_text": "A rectangular parcel is 660.0 ft by 330.0 ft. Its area is most nearly:",
-      "options": ["5.00 acres", "2.50 acres", "10.00 acres", "0.50 acres"],
-      "correct_answer": "5.00 acres",
-      "explanation": "Area = 660 × 330 = 217,800 ft². 217,800 / 43,560 = 5.00 acres (660 ft = 10 chains, 330 ft = 5 chains → 50 sq chains = 5 acres).",
-      "difficulty": "easy",
-      "area": "computations"
+     "name": "w",
+     "type": "float",
+     "min": 20,
+     "max": 60,
+     "decimals": 1
     },
     {
-      "question_text": "Offsets 6.0, 9.0, 12.0, 10.0, 7.0 ft are taken at a 30.0-ft interval. By the trapezoidal rule the area is most nearly:",
-      "options": ["1,125 ft²", "1,050 ft²", "1,320 ft²", "990 ft²"],
-      "correct_answer": "1,125 ft²",
-      "explanation": "A = 30·[(6+7)/2 + 9+12+10] = 30·[6.5 + 31] = 30·37.5 = 1,125 ft².",
-      "difficulty": "medium",
-      "area": "computations"
+     "name": "h1",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
     },
     {
-      "question_text": "Two cross-sections 100 ft apart have cut end areas of 90 ft² and 150 ft². The volume between them in cubic yards is most nearly:",
-      "options": ["444 yd³", "555 yd³", "333 yd³", "12,000 yd³"],
-      "correct_answer": "444 yd³",
-      "explanation": "V = 100·(90+150)/2 = 100·120 = 12,000 ft³; 12,000/27 = 444.4 ≈ 444 yd³.",
-      "difficulty": "medium",
-      "area": "computations"
+     "name": "h2",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
     },
     {
-      "question_text": "A circular curve has R = 1,000.00 ft and I = 36°00′. Its tangent distance T is most nearly:",
-      "options": ["324.92 ft", "300.00 ft", "618.03 ft", "293.89 ft"],
-      "correct_answer": "324.92 ft",
-      "explanation": "T = R·tan(I/2) = 1,000·tan18° = 1,000·0.32492 = 324.92 ft.",
-      "difficulty": "medium",
-      "area": "computations"
+     "name": "h3",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
     },
     {
-      "question_text": "For a curve with R = 1,000.00 ft and I = 36°00′, the curve length L is most nearly:",
-      "options": ["628.32 ft", "600.00 ft", "649.84 ft", "314.16 ft"],
-      "correct_answer": "628.32 ft",
-      "explanation": "L = R·I·(π/180) = 1,000·(36·π/180) = 1,000·0.628319 = 628.32 ft.",
-      "difficulty": "medium",
-      "area": "computations"
+     "name": "h4",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
     },
     {
-      "question_text": "The PI of a curve is at station 80+00.00 and T = 324.92 ft. The PC station and (with L = 628.32 ft) the PT station are:",
-      "options": ["PC 76+75.08, PT 83+03.40", "PC 83+24.92, PT 89+53.24", "PC 76+75.08, PT 80+00.00", "PC 80+00.00, PT 86+28.32"],
-      "correct_answer": "PC 76+75.08, PT 83+03.40",
-      "explanation": "PC = PI − T = 8,000 − 324.92 = 7,675.08 = 76+75.08. PT = PC + L = 7,675.08 + 628.32 = 8,303.40 = 83+03.40 (add the arc length, not T).",
-      "difficulty": "hard",
-      "area": "computations"
-    },
-    {
-      "question_text": "The degree of curve (arc definition) of a 2,864.79-ft radius curve is most nearly:",
-      "options": ["2°00′", "4°00′", "1°00′", "5°00′"],
-      "correct_answer": "2°00′",
-      "explanation": "D = 5,729.58/R = 5,729.58/2,864.79 = 2.000° = 2°00′.",
-      "difficulty": "medium",
-      "area": "computations"
-    },
-    {
-      "question_text": "An equal-tangent vertical curve has g₁ = +1.50%, g₂ = −2.50%, L = 800 ft, PVC elevation 1,000.00 ft. The elevation 400 ft from the PVC (the PVI station) on the curve is most nearly:",
-      "options": ["1,002.00 ft", "1,006.00 ft", "1,000.00 ft", "1,004.00 ft"],
-      "correct_answer": "1,002.00 ft",
-      "explanation": "Y = 1000 + 0.015·400 + [(−0.025 − 0.015)/(2·800)]·400² = 1000 + 6.00 + (−0.04/1600)·160,000 = 1000 + 6.00 − 4.00 = 1,002.00 ft.",
-      "difficulty": "hard",
-      "area": "computations"
-    },
-    {
-      "question_text": "A sag vertical curve has g₁ = −2.0% and g₂ = +1.0% over L = 600 ft. The low point lies how far from the PVC?",
-      "options": ["400 ft", "200 ft", "300 ft", "600 ft"],
-      "correct_answer": "400 ft",
-      "explanation": "x_m = −g₁·L/(g₂ − g₁) = −(−0.02)(600)/(0.01 − (−0.02)) = 12/0.03 = 400 ft.",
-      "difficulty": "medium",
-      "area": "computations"
-    },
-    {
-      "question_text": "Which formula gives the most accurate earthwork volume between two cross-sections when the mid-section area is measured?",
-      "options": ["Prismoidal: V = L·(A₁ + 4Aₘ + A₂)/6", "Average end area: V = L·(A₁ + A₂)/2", "V = L·Aₘ", "V = (A₁ + A₂)/(2L)"],
-      "correct_answer": "Prismoidal: V = L·(A₁ + 4Aₘ + A₂)/6",
-      "explanation": "The prismoidal formula uses the true mid-section area Aₘ and models the solid as a prismoid, giving a more accurate volume than the average-end-area approximation.",
-      "difficulty": "medium",
-      "area": "computations"
-    },
-    {
-      "question_text": "A surveyor must lay out the midpoint of a circular curve in the field. The deflection angle from the PC to the curve's midpoint equals:",
-      "options": ["I/4", "I/2", "I", "90° − I/2"],
-      "correct_answer": "I/4",
-      "explanation": "The total PC-to-PT deflection is I/2; the midpoint of the curve is half of that arc, so its deflection from the PC is (I/2)/2 = I/4.",
-      "difficulty": "medium",
-      "area": "computations"
-    },
-    {
-      "question_text": "A subdivision plat reports a lot as 1.250 acres. Converted to square feet this is:",
-      "options": ["54,450 ft²", "43,560 ft²", "62,500 ft²", "27,225 ft²"],
-      "correct_answer": "54,450 ft²",
-      "explanation": "1.250 × 43,560 = 54,450 ft². Acreage-to-square-foot conversion uses the exact 43,560 ft²/acre.",
-      "difficulty": "easy",
-      "area": "mapping"
-    },
-    {
-      "question_text": "Cut end areas at three cross-sections spaced 100 ft apart are 120, 160, and 200 ft². The total cut volume between sections 1 and 3 by the average-end-area method is most nearly:",
-      "options": ["1,185 yd³", "1,000 yd³", "1,333 yd³", "32,000 yd³"],
-      "correct_answer": "1,185 yd³",
-      "explanation": "Section 1→2: 100·(120+160)/2 = 14,000 ft³. Section 2→3: 100·(160+200)/2 = 18,000 ft³. Total = 32,000 ft³ ÷ 27 = 1,185.2 ≈ 1,185 yd³.",
-      "difficulty": "hard",
-      "area": "computations"
+     "name": "h5",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
     }
-  ]
+   ],
+   "computed_vars": [],
+   "answer_formula": "w*((h1+h5)/2 + h2 + h3 + h4)",
+   "answer_format": {
+    "decimals": 1,
+    "unit": "ft²",
+    "tolerance": 0.5
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Trapezoidal rule",
+     "formula": "A = w·[(h₁+hₙ)/2 + Σ interior]",
+     "calculation_template": "{{w:f1}}·[({{h1:f1}}+{{h5:f1}})/2 + {{h2:f1}} + {{h3:f1}} + {{h4:f1}}]"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "A = {{_answer}} ft²"
+    }
+   ],
+   "explanation_template": "The trapezoidal rule averages the two end offsets and adds the interior offsets, all times the interval: A = w·[(h₁+hₙ)/2 + Σinterior] = {{w:f1}}·[({{h1:f1}}+{{h5:f1}})/2 + {{h2:f1}}+{{h3:f1}}+{{h4:f1}}] = {{_answer}} ft².",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Area from field offsets (Simpson's 1/3 rule)",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Area",
+   "difficulty": "hard",
+   "question_type": "numeric_input",
+   "question_template": "Five offsets at a constant interval of {{w:f1}} ft are h₁={{h1:f1}}, h₂={{h2:f1}}, h₃={{h3:f1}}, h₄={{h4:f1}}, h₅={{h5:f1}} ft. Using SIMPSON'S 1/3 rule, compute the area (ft²) between the baseline and the boundary.",
+   "parameters": [
+    {
+     "name": "w",
+     "type": "float",
+     "min": 20,
+     "max": 50,
+     "decimals": 1
+    },
+    {
+     "name": "h1",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
+    },
+    {
+     "name": "h2",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
+    },
+    {
+     "name": "h3",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
+    },
+    {
+     "name": "h4",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
+    },
+    {
+     "name": "h5",
+     "type": "float",
+     "min": 5,
+     "max": 25,
+     "decimals": 1
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "(w/3)*(h1 + h5 + 4*(h2+h4) + 2*h3)",
+   "answer_format": {
+    "decimals": 1,
+    "unit": "ft²",
+    "tolerance": 0.5
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Simpson's 1/3 rule (5 offsets, even intervals)",
+     "formula": "A = (w/3)·[h₁ + hₙ + 4·Σodd + 2·Σeven]",
+     "calculation_template": "(w/3)·[{{h1:f1}} + {{h5:f1}} + 4({{h2:f1}}+{{h4:f1}}) + 2({{h3:f1}})]"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "A = {{_answer}} ft²"
+    }
+   ],
+   "explanation_template": "Simpson's 1/3 rule weights the ends ×1, the interior odd-position offsets (2nd, 4th) ×4, and the interior even-position offset (3rd) ×2, all times w/3: A = ({{w:f1}}/3)·[{{h1:f1}}+{{h5:f1}} + 4({{h2:f1}}+{{h4:f1}}) + 2({{h3:f1}})] = {{_answer}} ft².",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Average-end-area volume → cubic yards",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Volume",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "Two adjacent cross-sections {{L:f1}} ft apart have end areas A₁ = {{a1:f1}} ft² and A₂ = {{a2:f1}} ft². Using the average-end-area method, compute the earthwork volume in CUBIC YARDS.",
+   "parameters": [
+    {
+     "name": "L",
+     "type": "float",
+     "min": 50,
+     "max": 150,
+     "decimals": 1
+    },
+    {
+     "name": "a1",
+     "type": "float",
+     "min": 60,
+     "max": 300,
+     "decimals": 1
+    },
+    {
+     "name": "a2",
+     "type": "float",
+     "min": 60,
+     "max": 300,
+     "decimals": 1
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "vft3",
+     "formula": "L*(a1+a2)/2"
+    }
+   ],
+   "answer_formula": "L*(a1+a2)/2/27",
+   "answer_format": {
+    "decimals": 1,
+    "unit": "yd³",
+    "tolerance": 0.5
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Average end area",
+     "formula": "V = L·(A₁+A₂)/2",
+     "calculation_template": "{{L:f1}}·({{a1:f1}}+{{a2:f1}})/2 = {{vft3:f1}} ft³"
+    },
+    {
+     "step_number": 2,
+     "title": "Convert to cubic yards (÷27)",
+     "result_template": "{{_answer}} yd³"
+    }
+   ],
+   "explanation_template": "Average end area: V = L·(A₁+A₂)/2 = {{L:f1}}·({{a1:f1}}+{{a2:f1}})/2 = {{vft3:f1}} ft³. Divide by 27 ft³/yd³ → {{_answer}} yd³.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Horizontal curve tangent distance T",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Horizontal Curves",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A simple circular curve has radius R = {{R:f2}} ft and deflection (central) angle I = {{I:f2}}°. Compute the tangent distance T (ft).",
+   "parameters": [
+    {
+     "name": "R",
+     "type": "float",
+     "min": 400,
+     "max": 2000,
+     "decimals": 2
+    },
+    {
+     "name": "I",
+     "type": "float",
+     "min": 8,
+     "max": 75,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "R*tan(toRad(I/2))",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Tangent = R·tan(I/2)",
+     "formula": "T = R·tan(I/2)",
+     "calculation_template": "{{R:f2}}·tan({{I:f2}}/2°)"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "T = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "The tangent distance from the PI to the PC (and to the PT) is T = R·tan(I/2) = {{R:f2}}·tan({{I:f2}}°/2) = {{_answer}} ft. Set the calculator to DEGREE mode and use I/2.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "curve",
+    "rVar": "R",
+    "iVar": "I",
+    "title": "Horizontal curve: tangent T"
+   }
+  },
+  {
+   "name": "Horizontal curve length L",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Horizontal Curves",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A circular curve has radius R = {{R:f2}} ft and deflection angle I = {{I:f2}}°. Compute the curve (arc) length L (ft).",
+   "parameters": [
+    {
+     "name": "R",
+     "type": "float",
+     "min": 400,
+     "max": 2000,
+     "decimals": 2
+    },
+    {
+     "name": "I",
+     "type": "float",
+     "min": 8,
+     "max": 75,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "R*toRad(I)",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Length = R·I (radians)",
+     "formula": "L = R·I·(π/180)",
+     "calculation_template": "{{R:f2}}·({{I:f2}}°·π/180)"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "L = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "The arc length is L = R·I·(π/180) = {{R:f2}}·toRad({{I:f2}}°) = {{_answer}} ft. Equivalently, L = (I/D)·100 if the degree of curve D is known.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "curve",
+    "rVar": "R",
+    "iVar": "I",
+    "title": "Horizontal curve: length L"
+   }
+  },
+  {
+   "name": "Degree of curve from radius",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Horizontal Curves",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "A circular curve has radius R = {{R:f2}} ft. Compute the degree of curve D (arc definition), in decimal degrees.",
+   "parameters": [
+    {
+     "name": "R",
+     "type": "float",
+     "min": 500,
+     "max": 3000,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "5729.58/R",
+   "answer_format": {
+    "decimals": 3,
+    "unit": "°",
+    "tolerance": 0.01
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Degree of curve (arc def.)",
+     "formula": "D = 5,729.58 / R",
+     "calculation_template": "5,729.58 / {{R:f2}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "D = {{_answer}}°"
+    }
+   ],
+   "explanation_template": "The arc-definition degree of curve is D = 5,729.58/R = 5,729.58/{{R:f2}} = {{_answer}}°. It is the central angle that subtends a 100-ft arc.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Horizontal curve external distance E",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Horizontal Curves",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A circular curve has radius R = {{R:f2}} ft and deflection angle I = {{I:f2}}°. Compute the external distance E (ft) from the PI to the midpoint of the curve.",
+   "parameters": [
+    {
+     "name": "R",
+     "type": "float",
+     "min": 400,
+     "max": 2000,
+     "decimals": 2
+    },
+    {
+     "name": "I",
+     "type": "float",
+     "min": 8,
+     "max": 75,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "R*(1/cos(toRad(I/2))-1)",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "External = R·(sec(I/2) − 1)",
+     "formula": "E = R·(1/cos(I/2) − 1)",
+     "calculation_template": "{{R:f2}}·(1/cos({{I:f2}}°/2) − 1)"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "E = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "The external distance is E = R·(sec(I/2) − 1) = R·(1/cos(I/2) − 1) = {{R:f2}}·(1/cos({{I:f2}}°/2) − 1) = {{_answer}} ft. There is no sec key — type 1/cos(I/2).",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "curve",
+    "rVar": "R",
+    "iVar": "I",
+    "title": "Horizontal curve: external E"
+   }
+  },
+  {
+   "name": "Vertical curve elevation",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Vertical Curves",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "An equal-tangent vertical curve of length L = {{L:f1}} ft has back grade g₁ = {{g1:f2}}% and forward grade g₂ = {{g2:f2}}%. The PVC is at elevation {{ypvc:f2}} ft. Compute the elevation on the curve at a distance x = {{x:f1}} ft from the PVC (ft).",
+   "parameters": [
+    {
+     "name": "L",
+     "type": "float",
+     "min": 300,
+     "max": 800,
+     "decimals": 1
+    },
+    {
+     "name": "g1",
+     "type": "float",
+     "min": -5,
+     "max": 5,
+     "decimals": 2
+    },
+    {
+     "name": "g2",
+     "type": "float",
+     "min": -5,
+     "max": 5,
+     "decimals": 2
+    },
+    {
+     "name": "ypvc",
+     "type": "float",
+     "min": 500,
+     "max": 1200,
+     "decimals": 2
+    },
+    {
+     "name": "x",
+     "type": "float",
+     "min": 50,
+     "max": 300,
+     "decimals": 1
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "a",
+     "formula": "(g2/100-g1/100)/(2*L)"
+    }
+   ],
+   "answer_formula": "ypvc + (g1/100)*x + ((g2/100-g1/100)/(2*L))*x*x",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.02
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Grades to decimals; parabola constant",
+     "formula": "a = (g₂−g₁)/(2L)",
+     "calculation_template": "g₁={{g1:f2}}%→{{g1:f2}}/100; g₂={{g2:f2}}%→{{g2:f2}}/100; a = {{a}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Curve elevation",
+     "formula": "Y = Y_PVC + g₁·x + a·x²",
+     "calculation_template": "{{ypvc:f2}} + (g₁)({{x:f1}}) + a·({{x:f1}})²"
+    },
+    {
+     "step_number": 3,
+     "title": "Result",
+     "result_template": "Y = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "Convert grades to decimals, then Y = Y_PVC + g₁·x + [(g₂−g₁)/(2L)]·x². With g₁={{g1:f2}}%, g₂={{g2:f2}}%, L={{L:f1}} ft, x={{x:f1}} ft: Y = {{_answer}} ft.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Vertical curve high/low point station",
+   "category": "FS — Plane Survey Computations",
+   "subcategory": "Vertical Curves",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "An equal-tangent vertical curve of length L = {{L:f1}} ft has back grade g₁ = {{g1:f2}}% and forward grade g₂ = {{g2:f2}}% (opposite signs, so a turning point exists). Compute the distance x from the PVC to the high/low point (ft).",
+   "parameters": [
+    {
+     "name": "L",
+     "type": "float",
+     "min": 300,
+     "max": 800,
+     "decimals": 1
+    },
+    {
+     "name": "g1",
+     "type": "float",
+     "min": -4,
+     "max": -1,
+     "decimals": 2
+    },
+    {
+     "name": "g2",
+     "type": "float",
+     "min": 1,
+     "max": 4,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "(-g1)*L/(g2-g1)",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Turning point from PVC",
+     "formula": "x_m = −g₁·L/(g₂ − g₁)",
+     "calculation_template": "−({{g1:f2}})·{{L:f1}} / ({{g2:f2}} − {{g1:f2}})"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "x_m = {{_answer}} ft from the PVC"
+    }
+   ],
+   "explanation_template": "The high/low point is where the curve grade is zero: x_m = −g₁·L/(g₂ − g₁). The percent signs cancel in the ratio, so x_m = −({{g1:f2}})·{{L:f1}}/({{g2:f2}} − {{g1:f2}}) = {{_answer}} ft from the PVC.",
+   "options_generator": {
+    "method": "none"
+   }
+  }
+ ],
+ "mock_questions": [
+  {
+   "question_text": "A rectangular parcel is 660.0 ft by 330.0 ft. Its area is most nearly:",
+   "options": [
+    "5.00 acres",
+    "2.50 acres",
+    "10.00 acres",
+    "0.50 acres"
+   ],
+   "correct_answer": "5.00 acres",
+   "explanation": "Area = 660 × 330 = 217,800 ft². 217,800 / 43,560 = 5.00 acres (660 ft = 10 chains, 330 ft = 5 chains → 50 sq chains = 5 acres).",
+   "difficulty": "easy",
+   "area": "computations"
+  },
+  {
+   "question_text": "Offsets 6.0, 9.0, 12.0, 10.0, 7.0 ft are taken at a 30.0-ft interval. By the trapezoidal rule the area is most nearly:",
+   "options": [
+    "1,125 ft²",
+    "1,050 ft²",
+    "1,320 ft²",
+    "990 ft²"
+   ],
+   "correct_answer": "1,125 ft²",
+   "explanation": "A = 30·[(6+7)/2 + 9+12+10] = 30·[6.5 + 31] = 30·37.5 = 1,125 ft².",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "Two cross-sections 100 ft apart have cut end areas of 90 ft² and 150 ft². The volume between them in cubic yards is most nearly:",
+   "options": [
+    "444 yd³",
+    "555 yd³",
+    "333 yd³",
+    "12,000 yd³"
+   ],
+   "correct_answer": "444 yd³",
+   "explanation": "V = 100·(90+150)/2 = 100·120 = 12,000 ft³; 12,000/27 = 444.4 ≈ 444 yd³.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "A circular curve has R = 1,000.00 ft and I = 36°00′. Its tangent distance T is most nearly:",
+   "options": [
+    "324.92 ft",
+    "300.00 ft",
+    "618.03 ft",
+    "293.89 ft"
+   ],
+   "correct_answer": "324.92 ft",
+   "explanation": "T = R·tan(I/2) = 1,000·tan18° = 1,000·0.32492 = 324.92 ft.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "For a curve with R = 1,000.00 ft and I = 36°00′, the curve length L is most nearly:",
+   "options": [
+    "628.32 ft",
+    "600.00 ft",
+    "649.84 ft",
+    "314.16 ft"
+   ],
+   "correct_answer": "628.32 ft",
+   "explanation": "L = R·I·(π/180) = 1,000·(36·π/180) = 1,000·0.628319 = 628.32 ft.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "The PI of a curve is at station 80+00.00 and T = 324.92 ft. The PC station and (with L = 628.32 ft) the PT station are:",
+   "options": [
+    "PC 76+75.08, PT 83+03.40",
+    "PC 83+24.92, PT 89+53.24",
+    "PC 76+75.08, PT 80+00.00",
+    "PC 80+00.00, PT 86+28.32"
+   ],
+   "correct_answer": "PC 76+75.08, PT 83+03.40",
+   "explanation": "PC = PI − T = 8,000 − 324.92 = 7,675.08 = 76+75.08. PT = PC + L = 7,675.08 + 628.32 = 8,303.40 = 83+03.40 (add the arc length, not T).",
+   "difficulty": "hard",
+   "area": "computations"
+  },
+  {
+   "question_text": "The degree of curve (arc definition) of a 2,864.79-ft radius curve is most nearly:",
+   "options": [
+    "2°00′",
+    "4°00′",
+    "1°00′",
+    "5°00′"
+   ],
+   "correct_answer": "2°00′",
+   "explanation": "D = 5,729.58/R = 5,729.58/2,864.79 = 2.000° = 2°00′.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "An equal-tangent vertical curve has g₁ = +1.50%, g₂ = −2.50%, L = 800 ft, PVC elevation 1,000.00 ft. The elevation 400 ft from the PVC (the PVI station) on the curve is most nearly:",
+   "options": [
+    "1,002.00 ft",
+    "1,006.00 ft",
+    "1,000.00 ft",
+    "1,004.00 ft"
+   ],
+   "correct_answer": "1,002.00 ft",
+   "explanation": "Y = 1000 + 0.015·400 + [(−0.025 − 0.015)/(2·800)]·400² = 1000 + 6.00 + (−0.04/1600)·160,000 = 1000 + 6.00 − 4.00 = 1,002.00 ft.",
+   "difficulty": "hard",
+   "area": "computations"
+  },
+  {
+   "question_text": "A sag vertical curve has g₁ = −2.0% and g₂ = +1.0% over L = 600 ft. The low point lies how far from the PVC?",
+   "options": [
+    "400 ft",
+    "200 ft",
+    "300 ft",
+    "600 ft"
+   ],
+   "correct_answer": "400 ft",
+   "explanation": "x_m = −g₁·L/(g₂ − g₁) = −(−0.02)(600)/(0.01 − (−0.02)) = 12/0.03 = 400 ft.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "Which formula gives the most accurate earthwork volume between two cross-sections when the mid-section area is measured?",
+   "options": [
+    "Prismoidal: V = L·(A₁ + 4Aₘ + A₂)/6",
+    "Average end area: V = L·(A₁ + A₂)/2",
+    "V = L·Aₘ",
+    "V = (A₁ + A₂)/(2L)"
+   ],
+   "correct_answer": "Prismoidal: V = L·(A₁ + 4Aₘ + A₂)/6",
+   "explanation": "The prismoidal formula uses the true mid-section area Aₘ and models the solid as a prismoid, giving a more accurate volume than the average-end-area approximation.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "A surveyor must lay out the midpoint of a circular curve in the field. The deflection angle from the PC to the curve's midpoint equals:",
+   "options": [
+    "I/4",
+    "I/2",
+    "I",
+    "90° − I/2"
+   ],
+   "correct_answer": "I/4",
+   "explanation": "The total PC-to-PT deflection is I/2; the midpoint of the curve is half of that arc, so its deflection from the PC is (I/2)/2 = I/4.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "A subdivision plat reports a lot as 1.250 acres. Converted to square feet this is:",
+   "options": [
+    "54,450 ft²",
+    "43,560 ft²",
+    "62,500 ft²",
+    "27,225 ft²"
+   ],
+   "correct_answer": "54,450 ft²",
+   "explanation": "1.250 × 43,560 = 54,450 ft². Acreage-to-square-foot conversion uses the exact 43,560 ft²/acre.",
+   "difficulty": "easy",
+   "area": "mapping"
+  },
+  {
+   "question_text": "Cut end areas at three cross-sections spaced 100 ft apart are 120, 160, and 200 ft². The total cut volume between sections 1 and 3 by the average-end-area method is most nearly:",
+   "options": [
+    "1,185 yd³",
+    "1,000 yd³",
+    "1,333 yd³",
+    "32,000 yd³"
+   ],
+   "correct_answer": "1,185 yd³",
+   "explanation": "Section 1→2: 100·(120+160)/2 = 14,000 ft³. Section 2→3: 100·(160+200)/2 = 18,000 ft³. Total = 32,000 ft³ ÷ 27 = 1,185.2 ≈ 1,185 yd³.",
+   "difficulty": "hard",
+   "area": "computations"
+  }
+ ]
 }

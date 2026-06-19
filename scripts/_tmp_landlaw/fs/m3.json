@@ -1,564 +1,1009 @@
 {
-  "module_number": 3,
-  "title": "Distance and Angle Measurement",
-  "description": "Field acquisition of linear and angular data: taping with all standard corrections, EDM and total-station distance measurement, horizontal/vertical/zenith angles, direct-and-reverse observation, bearings vs azimuths, DMS arithmetic, magnetic declination, and the slope-to-horizontal reduction.",
-  "week_range": "Weeks 5-6",
-  "exam_weight_percent": 15,
-  "icon": "📐",
-  "xp_reward": 400,
-  "prerequisite_module": 2,
-  "key_topics": [
-    "Taping corrections (temperature, tension/pull, sag, slope, standardization)",
-    "EDM principles and instrument-constant + ppm error",
-    "Total stations and robotic/reflectorless measurement",
-    "Horizontal, vertical, and zenith angles",
-    "Direct and reverse (face-left/face-right) observation",
-    "Bearings vs azimuths and quadrant conversion",
-    "Back-azimuth and back-bearing",
-    "DMS arithmetic and DMS↔decimal-degree conversion",
-    "Magnetic declination and the magnetic-to-true correction",
-    "Slope distance to horizontal distance (H = S·sin Z)"
-  ],
-  "key_formulas": [
-    {"name": "Temperature (thermal) tape correction", "formula": "Ct = 0.00000645 · (T − 68) · L"},
-    {"name": "Slope (grade) tape correction", "formula": "Ch ≈ −h² / (2L)  (subtract from slope length)"},
-    {"name": "Sag correction", "formula": "Cs = −w²·L³ / (24·P²)"},
-    {"name": "Tension (pull) correction", "formula": "Cp = (P − P0)·L / (A·E)"},
-    {"name": "Horizontal distance from zenith angle", "formula": "H = S · sin(Z)"},
-    {"name": "Horizontal distance from vertical angle", "formula": "H = S · cos(α)"},
-    {"name": "EDM error (constant + ppm)", "formula": "e = a_mm + b_ppm · D(km) · 1000   (mm)"},
-    {"name": "DMS to decimal degrees", "formula": "dd = D + M/60 + S/3600"},
-    {"name": "Back-azimuth", "formula": "Back-Az = Az ± 180°"},
-    {"name": "True from magnetic (east declination)", "formula": "True bearing = Magnetic bearing + East declination"}
-  ],
-  "content_sections": [
+ "module_number": 3,
+ "title": "Distance and Angle Measurement",
+ "description": "Field acquisition of linear and angular data: taping with all standard corrections, EDM and total-station distance measurement, horizontal/vertical/zenith angles, direct-and-reverse observation, bearings vs azimuths, DMS arithmetic, magnetic declination, and the slope-to-horizontal reduction.",
+ "week_range": "Weeks 5-6",
+ "exam_weight_percent": 15,
+ "icon": "📐",
+ "xp_reward": 400,
+ "prerequisite_module": 2,
+ "key_topics": [
+  "Taping corrections (temperature, tension/pull, sag, slope, standardization)",
+  "EDM principles and instrument-constant + ppm error",
+  "Total stations and robotic/reflectorless measurement",
+  "Horizontal, vertical, and zenith angles",
+  "Direct and reverse (face-left/face-right) observation",
+  "Bearings vs azimuths and quadrant conversion",
+  "Back-azimuth and back-bearing",
+  "DMS arithmetic and DMS↔decimal-degree conversion",
+  "Magnetic declination and the magnetic-to-true correction",
+  "Slope distance to horizontal distance (H = S·sin Z)"
+ ],
+ "key_formulas": [
+  {
+   "name": "Temperature (thermal) tape correction",
+   "formula": "Ct = 0.00000645 · (T − 68) · L"
+  },
+  {
+   "name": "Slope (grade) tape correction",
+   "formula": "Ch ≈ −h² / (2L)  (subtract from slope length)"
+  },
+  {
+   "name": "Sag correction",
+   "formula": "Cs = −w²·L³ / (24·P²)"
+  },
+  {
+   "name": "Tension (pull) correction",
+   "formula": "Cp = (P − P0)·L / (A·E)"
+  },
+  {
+   "name": "Horizontal distance from zenith angle",
+   "formula": "H = S · sin(Z)"
+  },
+  {
+   "name": "Horizontal distance from vertical angle",
+   "formula": "H = S · cos(α)"
+  },
+  {
+   "name": "EDM error (constant + ppm)",
+   "formula": "e = a_mm + b_ppm · D(km) · 1000   (mm)"
+  },
+  {
+   "name": "DMS to decimal degrees",
+   "formula": "dd = D + M/60 + S/3600"
+  },
+  {
+   "name": "Back-azimuth",
+   "formula": "Back-Az = Az ± 180°"
+  },
+  {
+   "name": "True from magnetic (east declination)",
+   "formula": "True bearing = Magnetic bearing + East declination"
+  }
+ ],
+ "content_sections": [
+  {
+   "type": "overview",
+   "title": "Module Overview",
+   "content": "## Field Data Acquisition: Distances and Angles\n\nEvery coordinate, traverse, and boundary computation on the FS exam ultimately rests on two raw field observations: a **distance** and a **direction (angle)**. This module covers how those observations are actually made and, more importantly for the exam, how they are **corrected and reduced** into the clean numbers you later feed into COGO.\n\nYou will work through three eras of distance measurement that the exam still tests:\n\n1. **Taping (chaining)** — and its five systematic corrections: temperature, tension/pull, sag, slope, and standardization. The exam loves a tape-correction problem because it isolates one concept and rewards careful sign handling.\n2. **EDM (electronic distance measurement)** — the phase/pulse principle, the **instrument (additive) constant**, and the **atmospheric ppm** correction tied to temperature and pressure.\n3. **Total stations** — which marry an EDM to an electronic theodolite, plus robotic and reflectorless variants.\n\nOn the angular side you will master **horizontal angles, vertical angles, and zenith angles**, the **direct-and-reverse** (face-left/face-right) procedure that cancels instrumental error, and the conversions that trip up examinees under time pressure: **DMS↔decimal degrees**, **azimuth↔bearing**, **back-azimuth**, and the **magnetic declination** correction for historical (record) bearings.\n\nFinally you will reduce a **slope distance to a horizontal distance** using the zenith angle — the single most common reduction in trigonometric field work: **H = S·sin(Z)**.\n\nBecause the NCEES calculator (TI-36X Pro / Casio fx-991) does DMS entry, DMS arithmetic, and rectangular↔polar conversion natively, this module pairs every worked example with the exact keystrokes so the conversions become reflexive on exam day."
+  },
+  {
+   "type": "concepts",
+   "title": "Key Concepts",
+   "content": "## 1. Taping and its corrections\n\nA steel tape is standardized (calibrated) at a known **temperature (68°F / 20°C)**, a known **tension (pull)**, and a known **support condition** (fully supported on a flat surface, or supported only at the ends). When field conditions differ, the measured length is systematically wrong and must be corrected. The five standard corrections:\n\n- **Temperature** — steel expands when warm. `Ct = α·(T − Ts)·L` with the coefficient of thermal expansion for steel **α = 0.00000645 / °F** (i.e. 6.45×10⁻⁶ per °F) and standard temperature **Ts = 68°F**. Hot tape reads short (so the correction is positive when T > 68°F for a measured distance).\n- **Tension / pull** — pulling harder than standard stretches the tape: `Cp = (P − P0)·L / (A·E)`, where A = cross-sectional area, E = modulus of elasticity (≈29,000,000 psi for steel).\n- **Sag** — an unsupported tape hangs in a catenary and reads **long**, so the correction is always **negative**: `Cs = −w²·L³ / (24·P²)`, w = weight per foot, P = applied tension.\n- **Slope** — a tape stretched along a slope measures the slope distance, not the horizontal. The reduction `Ch ≈ −h²/(2L)` (h = elevation difference) or exactly `H = S·cos(vertical angle)`.\n- **Standardization** — the tape's true length differs from its nominal length (e.g. a \"100 ft\" tape is actually 100.012 ft). Add the per-tape-length error proportionally.\n\n**Sign discipline is everything.** Decide whether you are (a) *measuring a distance in the field* or (b) *laying out a distance to set a point* — the sign of every correction flips between the two cases.\n\n## 2. EDM and total stations\n\nAn **EDM** transmits a modulated light/IR wave to a prism (or directly to a surface, *reflectorless*) and infers distance from the phase shift (or pulse time-of-flight). Two errors dominate exam problems:\n\n- **Instrument (additive/zero) constant** — a fixed offset `a` in mm, independent of distance.\n- **Scale / ppm error** — proportional to distance, expressed in **parts per million**. Atmospheric conditions matter: roughly a **10°C** temperature change **or** a **1 in Hg (≈25 mm Hg)** pressure change is about **10 ppm**. Total stated EDM precision is written as **±(a mm + b ppm)**.\n\nA **total station** combines an EDM with an electronic (digital) theodolite and an onboard processor, outputting horizontal angle, zenith angle, and slope distance — and computing H, V, and coordinates internally. **Robotic** total stations track a prism for one-person crews; **reflectorless** units measure to a surface without a prism.\n\n## 3. Angles: horizontal, vertical, zenith\n\n- **Horizontal angle** — measured in the horizontal plane between two directions; the basis of traverse turning angles and angles-to-the-right.\n- **Vertical angle (α)** — measured **up (+) or down (−) from the horizontal** (0° = level).\n- **Zenith angle (Z)** — measured **down from the upward vertical** (zenith). A level sight = **90°**. Relationship: **Z = 90° − α**. Most modern total stations read **zenith** angles.\n\n## 4. Direct and reverse (D&R)\n\nObserving an angle in both telescope positions — **direct (face left / face I)** and **reverse (face right / face II, telescope plunged)** — and **meaning** the two cancels instrumental errors (collimation, horizontal-axis tilt, vertical-circle index). The mean of D&R is the accepted angle; the **2C** (direct + reverse − 360°) checks collimation.\n\n## 5. Directions: azimuths, bearings, declination\n\n- **Azimuth** — clockwise angle from a reference meridian (usually north), **0°–360°**.\n- **Bearing** — acute angle (0°–90°) from north OR south, toward east or west, written as a quadrant call (e.g. **N42°15′E**, **S08°40′W**).\n- **Back-azimuth** = Az ± 180° (use + if Az < 180°, − if Az ≥ 180°). **Back-bearing** = same angle, opposite quadrant letters.\n- **Magnetic declination** — the angle between magnetic north and true (geodetic) north at a place and date. **East declination is added** to a magnetic bearing to get true; **west declination is subtracted**. Converting old magnetic deed calls to true direction (and accounting for *secular change* in declination between two dates) is a classic boundary/retracement question."
+  },
+  {
+   "type": "formulas",
+   "title": "Essential Formulas",
+   "content": "## Taping corrections (apply to a measured length L)\n\n**Temperature (thermal):**\n\n`Ct = 0.00000645 · (T − 68) · L`   (L, Ct in ft; T in °F; α_steel = 6.45×10⁻⁶/°F)\n\nMetric form: `Ct = 0.0000116 · (T − 20) · L` (T in °C, α = 11.6×10⁻⁶/°C).\n\n**Tension / pull:**\n\n`Cp = (P − P0)·L / (A·E)`   (P, P0 in lb; A in in²; E ≈ 29,000,000 psi for steel)\n\n**Sag (always negative — tape reads long):**\n\n`Cs = − w²·L³ / (24·P²)`   (w = weight per ft; or `Cs = −W²·L/(24·P²)` with total weight W)\n\n**Slope reduction (slope length S → horizontal H):**\n\n`H = S · cos(α)`   (α = vertical angle)  •  `H = S · sin(Z)`   (Z = zenith angle)\n\nApproximate correction: `Ch ≈ − h² / (2L)`   (h = elevation difference over length L)\n\n**Standardization:** `Cstd = (actual tape length − nominal) · (measured / nominal)`\n\n**Corrected length:** `L_corrected = L_measured + Ct + Cp + Cs + Ch + Cstd`\n\n## EDM\n\n**Combined stated error / correction:**\n\n`e(mm) = a_mm + b_ppm · D_km · 1000`   ⇒ for D in km, ppm term in mm = `b · D_km`\n\nEquivalently, for D in meters: `e(mm) = a + b·(D/1,000,000)·... ` — simplest: ppm error (mm) = `b · D(km)`.\n\nAtmospheric rule of thumb: ≈ **10 ppm per 10°C** or per **1 in Hg** pressure difference.\n\n## Angles\n\n`Z = 90° − α`   (zenith ↔ vertical angle)\n\n`2C = (Direct + Reverse) − 360°`   (collimation check; mean angle = (D + (R−180°))/2)\n\n## DMS ↔ decimal degrees\n\n`dd = D + M/60 + S/3600`\n\n`D = trunc(dd)` ; `M = trunc((dd − D)·60)` ; `S = (((dd − D)·60) − M)·60`\n\nTotal seconds: `total\" = D·3600 + M·60 + S`\n\n## Azimuth ↔ bearing (by quadrant of the azimuth)\n\n| Quadrant | Azimuth range | Bearing | Az→Brg | Brg→Az |\n|---|---|---|---|---|\n| I — NE | 0°–90° | N (Az) E | brg = Az | Az = brg |\n| II — SE | 90°–180° | S (180−Az) E | brg = 180 − Az | Az = 180 − brg |\n| III — SW | 180°–270° | S (Az−180) W | brg = Az − 180 | Az = 180 + brg |\n| IV — NW | 270°–360° | N (360−Az) W | brg = 360 − Az | Az = 360 − brg |\n\n**Back-azimuth:** `Back-Az = Az + 180°` (if Az < 180°) or `Az − 180°` (if Az ≥ 180°).\n\n## Magnetic declination\n\n`True = Magnetic + East_declination`  •  `True = Magnetic − West_declination`\n\nSecular change between dates: apply the *difference* in declination to convert an old magnetic call to a present-day true (or current magnetic) direction."
+  },
+  {
+   "type": "examples",
+   "title": "Worked Examples",
+   "content": "## Example 1 — Temperature tape correction\n\nA line is measured with a steel tape standardized at 68°F as **measured length = 842.60 ft**. The field temperature was **96°F**. What is the corrected horizontal length (tape fully supported, standard tension)?\n\n**Solution.** Use `Ct = 0.00000645·(T − 68)·L`:\n\n`Ct = 0.00000645 × (96 − 68) × 842.60 = 0.00000645 × 28 × 842.60 = +0.152 ft`\n\nThe tape was hot, so it read short; the true distance is longer:\n\n`L_corrected = 842.60 + 0.152 = 842.75 ft`\n\n**TI-36X Pro keystrokes:** `0.00000645 × ( 96 − 68 ) × 842.60 =` → 0.15225. Then `842.60 + 0.15225 =`. (Enter 6.45E-6 with the `×10ⁿ` / `EE` key: `6.45` `×10ⁿ` `(-) 6`.)\n\n**Casio fx-991:** identical; use the `×10ˣ` key for the exponent: `6.45` `×10ˣ` `(−)6`.\n\n---\n\n## Example 2 — Slope distance → horizontal distance (zenith angle)\n\nA total station reads a **slope distance S = 415.270 ft** to a prism with a **zenith angle Z = 87°12′30″**. What is the horizontal distance?\n\n**Solution.** `H = S · sin(Z)`. First get Z into the calculator in DMS:\n\nEnter `87°12′30″` using the DMS key, then `H = 415.270 × sin(Z)`.\n\n`sin(87°12′30″) = sin(87.20833°) = 0.998813`\n\n`H = 415.270 × 0.998813 = 414.777 ft`\n\n**TI-36X Pro keystrokes:** put calc in **DEG** mode. `415.270 × sin( 87 [°’”] 12 [°’”] 30 [°’”] ) =` → 414.777. The `[°’”]` key is `2nd` `[matrix/angle]` → `°’”` (the DMS template). You may also type 87 `°’”` 12 `°’”` 30 `°’”`.\n\n**Casio fx-991:** `415.270 × sin( 87 [°’’’] 12 [°’’’] 30 [°’’’] ) =`. The `°’’’` key enters and displays sexagesimal directly; pressing `=` then `°’’’` toggles a result between decimal and DMS.\n\n*Check with the vertical angle:* α = 90° − 87°12′30″ = 2°47′30″, and `H = S·cos(α) = 415.270 × cos(2.79167°) = 414.777 ft`. ✓\n\n---\n\n## Example 3 — DMS arithmetic and DMS↔decimal\n\n**(a)** Convert **218°43′52″** to decimal degrees.\n\n`dd = 218 + 43/60 + 52/3600 = 218 + 0.716667 + 0.014444 = 218.731111°`\n\n**(b)** Add two angles: **47°38′45″ + 22°51′30″**.\n\nSeconds: 45 + 30 = 75″ → 1′15″. Minutes: 38 + 51 + 1 = 90′ → 1°30′. Degrees: 47 + 22 + 1 = 70°. Result = **70°30′15″**.\n\n**TI-36X Pro:** `47 °’” 38 °’” 45 °’” + 22 °’” 51 °’” 30 °’” =` displays **70°30′15″** directly (the calculator carries the base-60 arithmetic). Press `2nd` `[°’”]` (the `▸DMS`/`▸DD` toggle) to flip the answer to decimal.\n\n**Casio fx-991:** `47°’’’38°’’’45°’’’ + 22°’’’51°’’’30°’’’ =` → `70°30′15″`. Press `°’’’` again to read 70.50416667°.\n\n---\n\n## Example 4 — Azimuth ↔ bearing and back-azimuth\n\nA line has **azimuth 218°43′52″**. Find its bearing and its back-azimuth.\n\n**Bearing:** azimuth is in **Quadrant III (180°–270°, SW)**, so `bearing = Az − 180° = 218°43′52″ − 180° = 38°43′52″`, written **S 38°43′52″ W**.\n\n**Back-azimuth:** Az ≥ 180°, so `Back-Az = 218°43′52″ − 180° = 38°43′52″`.\n\n*(Sanity check: the back-azimuth's bearing is N 38°43′52″ E — the exact reverse quadrant of S 38°43′52″ W. ✓)*\n\n---\n\n## Example 5 — EDM constant + ppm error\n\nAn EDM is rated **±(2 mm + 2 ppm)**. For a measured distance **D = 1,850 m**, what is the worst-case standard error in mm?\n\n**Solution.** ppm term = `b · D(km) = 2 × 1.850 = 3.70 mm`. Constant term = 2 mm.\n\n`e = a + b·D(km) = 2 + 2(1.850) = 2 + 3.70 = 5.70 mm`\n\nSo the line is good to about **±5.7 mm** (≈ ±0.006 m).\n\n**Calculator:** trivial — `2 + 2 × 1.850 =`. The trap is unit handling: convert D to **km** before multiplying by the ppm figure (2 ppm of 1,850,000 mm = 3.7 mm).\n\n---\n\n## Example 6 — Magnetic declination (retracement)\n\nAn 1885 deed calls a line **N 12°30′ E (magnetic)**. The magnetic declination at that place and date was **8°15′ East**. What is the **true** bearing of the line?\n\n**Solution.** East declination is **added** to a magnetic bearing measured toward the east:\n\n`True = N (12°30′ + 8°15′) E = N 20°45′ E`\n\nIf you then needed to re-run the line today with a compass, you would apply the *present-day* declination (and its sign) instead, accounting for secular change."
+  },
+  {
+   "type": "tips",
+   "title": "Exam Tips & Calculator Strategy",
+   "content": "## Exam strategy for distance & angle items\n\n- **Read for the reduction asked.** Many problems give a slope distance and a zenith angle and ask for *horizontal distance* — that is just `H = S·sin(Z)`. Don't over-build it.\n- **Sign of every correction.** Decide first: am I *measuring* (correcting a field reading) or *laying out* (setting a point)? Sag is **always negative**; temperature follows the sign of (T − 68); slope reduction always *shortens* slope to horizontal.\n- **Zenith vs vertical angle.** A level sight is **Z = 90°** and **α = 0°**. If a problem gives a \"vertical angle\" near 0° use `cos`; if it gives a \"zenith angle\" near 90° use `sin`. Mixing them is the #1 trap. `Z = 90° − α`.\n- **EDM ppm needs km.** Convert the distance to kilometers before multiplying by the ppm rating (2 ppm × 1.85 km = 3.7 mm). 10 ppm ≈ 10°C or 1 in Hg of atmosphere.\n- **Quadrant before conversion.** For azimuth↔bearing, identify the quadrant from the azimuth first, then apply the matching rule (NE: same; SE: 180−; SW: −180; NW: 360−). Back-azimuth is ±180°.\n- **Declination direction.** \"East is least, west is best\" is backwards for *magnetic→true*: for a true-from-magnetic conversion, **add east declination, subtract west**. Watch whether the problem wants magnetic→true or true→magnetic (the sign flips).\n\n## Approved-calculator tricks (TI-36X Pro / Casio fx-991)\n\n- **DMS entry & arithmetic:** Use the **°’”** (TI) / **°’’’** (Casio) key to enter angles directly as D°M'S\". The calculator does base-60 add/subtract/multiply for you — never convert to decimal by hand on the exam unless asked. Toggle a result between DMS and decimal with `2nd °’”` (TI) or by pressing `°’’’` again (Casio).\n- **DEG mode:** confirm the calculator is in **degrees** (not RAD/GRAD) before any trig — a wrong angle mode silently corrupts every answer.\n- **R▸P / P▸R (rectangular↔polar):** for inverse-type and forward-coordinate work, `R▸P` converts (ΔE, ΔN) → (distance, azimuth) in one step, and `P▸R` converts (distance, azimuth) → (ΔE, ΔN). On the TI-36X Pro these live under `2nd` `[R▸P]`/`[P▸R]`; on the Casio fx-991 use `Pol(` and `Rec(`. This is the fastest path for slope/azimuth bookkeeping and carries straight into the next module's COGO.\n- **HP-33S/35S (RPN, if used):** `→POL`/`→REC` and `→HMS`/`→HR` give the same conversions; enter DMS as `D.MMSSss` and use `→HR` to decimalize.\n- **Store-and-recall:** stash a standardized-tape length or a declination value in memory so you don't re-key it across a multi-part problem.\n\n## How the handbook helps\n\nThe NCEES FS Reference Handbook gives you the EDM relationship (V = c/n, λ = V/f), the curvature-&-refraction constants, the azimuth/bearing quadrant constants (C = 0/180/180/360), and the inverse/forward direction formulas verbatim. Know *where* taping corrections and the slope reduction live so you can confirm a coefficient under time pressure instead of trusting memory. Practice every conversion on the actual handbook PDF before exam day."
+  }
+ ],
+ "questions": [
+  {
+   "question_text": "A steel tape is standardized at 68°F. The coefficient of thermal expansion for steel used on the FS is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "0.00000645 per °F",
+    "0.0000645 per °F",
+    "0.00000116 per °F",
+    "0.0000116 per °F"
+   ],
+   "correct_answer": "0.00000645 per °F",
+   "explanation": "For steel, α ≈ 6.45×10⁻⁶ per °F (the value 11.6×10⁻⁶ is the per-°C coefficient). The temperature correction is Ct = 0.00000645·(T − 68)·L.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "A 100.00-ft measured distance is taped at 103°F with a tape standardized at 68°F. The temperature correction is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "+0.023 ft",
+    "+0.045 ft",
+    "+0.090 ft",
+    "−0.023 ft"
+   ],
+   "correct_answer": "+0.023 ft",
+   "explanation": "Ct = 0.00000645·(103 − 68)·100.00 = 0.00000645·35·100 = +0.0226 ft. Positive because the warm tape reads short.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The sag correction applied to a tape suspended only at its ends is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Always negative (the tape reads long)",
+    "Always positive (the tape reads short)",
+    "Zero if tension equals the standard pull",
+    "Equal in magnitude to the slope correction"
+   ],
+   "correct_answer": "Always negative (the tape reads long)",
+   "explanation": "An unsupported tape hangs as a catenary, so the measured distance is longer than the true horizontal chord; the correction Cs = −w²L³/(24P²) is always subtractive.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A slope distance of 250.00 ft is measured along a grade with a zenith angle of 92°00′00″. The horizontal distance is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "249.85 ft",
+    "250.15 ft",
+    "248.48 ft",
+    "250.00 ft"
+   ],
+   "correct_answer": "249.85 ft",
+   "explanation": "H = S·sin(Z) = 250.00·sin(92°) = 250.00·0.999391 = 249.85 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A zenith angle of 90°00′00″ corresponds to a vertical angle of:",
+   "question_type": "multiple_choice",
+   "options": [
+    "0°00′00″",
+    "90°00′00″",
+    "180°00′00″",
+    "45°00′00″"
+   ],
+   "correct_answer": "0°00′00″",
+   "explanation": "Z = 90° − α, so a level sight (Z = 90°) is a vertical angle of 0°.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Which best describes the purpose of observing an angle in both direct and reverse (face-left and face-right) positions?",
+   "question_type": "multiple_choice",
+   "options": [
+    "It cancels instrumental errors such as collimation and horizontal-axis tilt",
+    "It eliminates the need for a back-azimuth",
+    "It corrects for magnetic declination",
+    "It reduces a slope distance to horizontal"
+   ],
+   "correct_answer": "It cancels instrumental errors such as collimation and horizontal-axis tilt",
+   "explanation": "Meaning the direct and reverse observations cancels systematic instrumental errors (collimation, trunnion-axis tilt, vertical-circle index). It has nothing to do with declination or slope reduction.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "An EDM is rated ±(3 mm + 2 ppm). For a 2,000-m line, the standard error is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "7 mm",
+    "5 mm",
+    "3 mm",
+    "23 mm"
+   ],
+   "correct_answer": "7 mm",
+   "explanation": "ppm term = 2 ppm × 2.000 km = 4 mm; total e = 3 + 4 = 7 mm. (2 ppm of 2,000,000 mm = 4 mm.)",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Approximately what change in conditions produces a 10-ppm atmospheric correction to an EDM distance?",
+   "question_type": "multiple_choice",
+   "options": [
+    "A 10°C temperature change or a 1 in Hg pressure change",
+    "A 1°C temperature change or a 10 in Hg pressure change",
+    "A 100°C temperature change",
+    "Any change in the prism constant"
+   ],
+   "correct_answer": "A 10°C temperature change or a 1 in Hg pressure change",
+   "explanation": "As a rule of thumb, roughly a 10°C temperature difference, or a 1 in Hg (≈25 mm Hg) pressure difference, corresponds to about 10 ppm of distance correction.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Convert the azimuth 312°20′00″ to a bearing.",
+   "question_type": "multiple_choice",
+   "options": [
+    "N 47°40′00″ W",
+    "S 47°40′00″ W",
+    "N 47°40′00″ E",
+    "S 47°40′00″ E"
+   ],
+   "correct_answer": "N 47°40′00″ W",
+   "explanation": "312° is in Quadrant IV (270°–360°, NW), so bearing = 360° − Az = 360° − 312°20′ = 47°40′, written N 47°40′00″ W.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Convert the bearing S 23°15′00″ E to an azimuth.",
+   "question_type": "multiple_choice",
+   "options": [
+    "156°45′00″",
+    "203°15′00″",
+    "23°15′00″",
+    "336°45′00″"
+   ],
+   "correct_answer": "156°45′00″",
+   "explanation": "SE quadrant: Az = 180° − bearing = 180° − 23°15′ = 156°45′00″.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The azimuth of a line is 73°10′00″. Its back-azimuth is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "253°10′00″",
+    "106°50′00″",
+    "286°50′00″",
+    "163°10′00″"
+   ],
+   "correct_answer": "253°10′00″",
+   "explanation": "Az < 180°, so Back-Az = Az + 180° = 73°10′ + 180° = 253°10′00″.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Convert 41°27′36″ to decimal degrees.",
+   "question_type": "multiple_choice",
+   "options": [
+    "41.4600°",
+    "41.2736°",
+    "41.4536°",
+    "41.4760°"
+   ],
+   "correct_answer": "41.4600°",
+   "explanation": "dd = 41 + 27/60 + 36/3600 = 41 + 0.45 + 0.01 = 41.4600°.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Add the angles 38°52′40″ + 16°19′35″. The sum is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "55°12′15″",
+    "55°11′75″",
+    "54°12′15″",
+    "55°12′05″"
+   ],
+   "correct_answer": "55°12′15″",
+   "explanation": "Seconds: 40+35=75″ = 1′15″. Minutes: 52+19+1 = 72′ = 1°12′. Degrees: 38+16+1 = 55°. Sum = 55°12′15″.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "An old deed calls a line N 18°00′ W (magnetic) where the declination was 6°30′ West at the time of the survey. The true bearing is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "N 24°30′ W",
+    "N 11°30′ W",
+    "N 18°00′ W",
+    "S 24°30′ E"
+   ],
+   "correct_answer": "N 24°30′ W",
+   "explanation": "For a NW-quadrant magnetic bearing, west declination rotates the magnetic meridian west of true, so the true bearing swings further from north: N (18°00′ + 6°30′) W = N 24°30′ W. (Carefully reason the geometry; a west declination is subtracted for an east bearing but increases a west bearing.)",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "A total station outputs which set of raw values directly?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Horizontal angle, zenith angle, and slope distance",
+    "Latitude, departure, and area",
+    "Northing, easting, and elevation only",
+    "Magnetic bearing and declination"
+   ],
+   "correct_answer": "Horizontal angle, zenith angle, and slope distance",
+   "explanation": "A total station marries an electronic theodolite (horizontal + zenith angles) to an EDM (slope distance); it then computes H, V, and coordinates internally.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "A reflectorless total station differs from a conventional total station primarily in that it:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Measures distance to a surface without a prism",
+    "Cannot measure vertical angles",
+    "Requires two operators",
+    "Uses a steel tape for backup"
+   ],
+   "correct_answer": "Measures distance to a surface without a prism",
+   "explanation": "Reflectorless EDM returns the signal from the target surface itself, eliminating the prism for points that are hard or unsafe to occupy.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "The instrument (additive) constant of an EDM is best described as:",
+   "question_type": "multiple_choice",
+   "options": [
+    "A fixed offset, in mm, independent of the distance measured",
+    "An error proportional to the distance",
+    "The atmospheric ppm correction",
+    "The prism height above the point"
+   ],
+   "correct_answer": "A fixed offset, in mm, independent of the distance measured",
+   "explanation": "The additive/zero constant is a constant offset (in mm) regardless of distance; the ppm/scale term is the distance-proportional part.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A line is taped down a uniform 8% grade as a slope length of 300.00 ft. The horizontal distance is most nearly (use the approximate slope correction Ch ≈ −h²/2L):",
+   "question_type": "multiple_choice",
+   "options": [
+    "299.04 ft",
+    "300.96 ft",
+    "298.10 ft",
+    "300.00 ft"
+   ],
+   "correct_answer": "299.04 ft",
+   "explanation": "h = 0.08·300 = 24.0 ft. Ch ≈ −h²/(2L) = −(24²)/(2·300) = −576/600 = −0.96 ft. H ≈ 300.00 − 0.96 = 299.04 ft.",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "Which calculator function most directly converts a distance and azimuth into a latitude (ΔN) and departure (ΔE)?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Polar-to-rectangular (P▸R / Rec)",
+    "Rectangular-to-polar (R▸P / Pol)",
+    "DMS-to-decimal (▸DD)",
+    "Reciprocal (1/x)"
+   ],
+   "correct_answer": "Polar-to-rectangular (P▸R / Rec)",
+   "explanation": "P▸R converts (distance, azimuth) into the rectangular components (ΔE, ΔN). R▸P does the inverse (components → distance and azimuth).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "True or False: A vertical angle is measured up or down from the horizontal plane, while a zenith angle is measured down from the upward vertical.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "True",
+   "explanation": "Correct. Vertical angle α = 0° at the horizon; zenith angle Z = 0° straight up and 90° at the horizon, so Z = 90° − α.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "True or False: The temperature correction Ct = 0.00000645·(T − 68)·L is negative when the tape is colder than 68°F.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "True",
+   "explanation": "When T < 68°F, (T − 68) is negative, so Ct is negative — a cold tape has contracted and reads long, so the true measured distance is slightly shorter.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A slope distance of 180.00 ft is observed with a vertical angle of +3°30′00″. The horizontal distance is most nearly:",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "179.67",
+   "explanation": "H = S·cos(α) = 180.00·cos(3.5°) = 180.00·0.998135 = 179.66 ≈ 179.67 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Express 218°43′52″ in total seconds of arc.",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "787432",
+   "explanation": "Total seconds = 218·3600 + 43·60 + 52 = 784,800 + 2,580 + 52 = 787,432″.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "The '2C' value used as a collimation check is computed as:",
+   "question_type": "multiple_choice",
+   "options": [
+    "(Direct + Reverse) − 360°",
+    "(Direct − Reverse) / 2",
+    "Direct + Reverse",
+    "90° − vertical angle"
+   ],
+   "correct_answer": "(Direct + Reverse) − 360°",
+   "explanation": "For a pointing, the reverse reading should differ from the direct by 180°; 2C = (Direct + Reverse) − 360° gives twice the collimation error and should be small and consistent.",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "For the most accurate EDM measurement over a long line on a hot day, the surveyor should primarily:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Record temperature and pressure to apply the atmospheric (ppm) correction",
+    "Replace the tripod",
+    "Use an umbrella to shade the instrument battery",
+    "Avoid measuring near power lines"
+   ],
+   "correct_answer": "Record temperature and pressure to apply the atmospheric (ppm) correction",
+   "explanation": "The dominant variable error over a long EDM line is the atmospheric (ppm) correction, which depends on temperature and pressure; recording them lets you apply the correct ppm.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A line measured with an EDM reads 1,402.118 m. The instrument's additive (prism) constant is −0.030 m. The corrected distance is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "1,402.088 m",
+    "1,402.148 m",
+    "1,402.118 m",
+    "1,372.118 m"
+   ],
+   "correct_answer": "1,402.088 m",
+   "explanation": "Apply the additive constant: 1,402.118 + (−0.030) = 1,402.088 m.",
+   "difficulty": "medium"
+  }
+ ],
+ "problem_templates": [
+  {
+   "name": "DMS to decimal degrees",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "Angles",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "Convert the angle {{D}}°{{M}}′{{S}}″ to decimal degrees.",
+   "parameters": [
     {
-      "type": "overview",
-      "title": "Module Overview",
-      "content": "## Field Data Acquisition: Distances and Angles\n\nEvery coordinate, traverse, and boundary computation on the FS exam ultimately rests on two raw field observations: a **distance** and a **direction (angle)**. This module covers how those observations are actually made and, more importantly for the exam, how they are **corrected and reduced** into the clean numbers you later feed into COGO.\n\nYou will work through three eras of distance measurement that the exam still tests:\n\n1. **Taping (chaining)** — and its five systematic corrections: temperature, tension/pull, sag, slope, and standardization. The exam loves a tape-correction problem because it isolates one concept and rewards careful sign handling.\n2. **EDM (electronic distance measurement)** — the phase/pulse principle, the **instrument (additive) constant**, and the **atmospheric ppm** correction tied to temperature and pressure.\n3. **Total stations** — which marry an EDM to an electronic theodolite, plus robotic and reflectorless variants.\n\nOn the angular side you will master **horizontal angles, vertical angles, and zenith angles**, the **direct-and-reverse** (face-left/face-right) procedure that cancels instrumental error, and the conversions that trip up examinees under time pressure: **DMS↔decimal degrees**, **azimuth↔bearing**, **back-azimuth**, and the **magnetic declination** correction for historical (record) bearings.\n\nFinally you will reduce a **slope distance to a horizontal distance** using the zenith angle — the single most common reduction in trigonometric field work: **H = S·sin(Z)**.\n\nBecause the NCEES calculator (TI-36X Pro / Casio fx-991) does DMS entry, DMS arithmetic, and rectangular↔polar conversion natively, this module pairs every worked example with the exact keystrokes so the conversions become reflexive on exam day."
+     "name": "D",
+     "type": "integer",
+     "min": 1,
+     "max": 359
     },
     {
-      "type": "concepts",
-      "title": "Key Concepts",
-      "content": "## 1. Taping and its corrections\n\nA steel tape is standardized (calibrated) at a known **temperature (68°F / 20°C)**, a known **tension (pull)**, and a known **support condition** (fully supported on a flat surface, or supported only at the ends). When field conditions differ, the measured length is systematically wrong and must be corrected. The five standard corrections:\n\n- **Temperature** — steel expands when warm. `Ct = α·(T − Ts)·L` with the coefficient of thermal expansion for steel **α = 0.00000645 / °F** (i.e. 6.45×10⁻⁶ per °F) and standard temperature **Ts = 68°F**. Hot tape reads short (so the correction is positive when T > 68°F for a measured distance).\n- **Tension / pull** — pulling harder than standard stretches the tape: `Cp = (P − P0)·L / (A·E)`, where A = cross-sectional area, E = modulus of elasticity (≈29,000,000 psi for steel).\n- **Sag** — an unsupported tape hangs in a catenary and reads **long**, so the correction is always **negative**: `Cs = −w²·L³ / (24·P²)`, w = weight per foot, P = applied tension.\n- **Slope** — a tape stretched along a slope measures the slope distance, not the horizontal. The reduction `Ch ≈ −h²/(2L)` (h = elevation difference) or exactly `H = S·cos(vertical angle)`.\n- **Standardization** — the tape's true length differs from its nominal length (e.g. a \"100 ft\" tape is actually 100.012 ft). Add the per-tape-length error proportionally.\n\n**Sign discipline is everything.** Decide whether you are (a) *measuring a distance in the field* or (b) *laying out a distance to set a point* — the sign of every correction flips between the two cases.\n\n## 2. EDM and total stations\n\nAn **EDM** transmits a modulated light/IR wave to a prism (or directly to a surface, *reflectorless*) and infers distance from the phase shift (or pulse time-of-flight). Two errors dominate exam problems:\n\n- **Instrument (additive/zero) constant** — a fixed offset `a` in mm, independent of distance.\n- **Scale / ppm error** — proportional to distance, expressed in **parts per million**. Atmospheric conditions matter: roughly a **10°C** temperature change **or** a **1 in Hg (≈25 mm Hg)** pressure change is about **10 ppm**. Total stated EDM precision is written as **±(a mm + b ppm)**.\n\nA **total station** combines an EDM with an electronic (digital) theodolite and an onboard processor, outputting horizontal angle, zenith angle, and slope distance — and computing H, V, and coordinates internally. **Robotic** total stations track a prism for one-person crews; **reflectorless** units measure to a surface without a prism.\n\n## 3. Angles: horizontal, vertical, zenith\n\n- **Horizontal angle** — measured in the horizontal plane between two directions; the basis of traverse turning angles and angles-to-the-right.\n- **Vertical angle (α)** — measured **up (+) or down (−) from the horizontal** (0° = level).\n- **Zenith angle (Z)** — measured **down from the upward vertical** (zenith). A level sight = **90°**. Relationship: **Z = 90° − α**. Most modern total stations read **zenith** angles.\n\n## 4. Direct and reverse (D&R)\n\nObserving an angle in both telescope positions — **direct (face left / face I)** and **reverse (face right / face II, telescope plunged)** — and **meaning** the two cancels instrumental errors (collimation, horizontal-axis tilt, vertical-circle index). The mean of D&R is the accepted angle; the **2C** (direct + reverse − 360°) checks collimation.\n\n## 5. Directions: azimuths, bearings, declination\n\n- **Azimuth** — clockwise angle from a reference meridian (usually north), **0°–360°**.\n- **Bearing** — acute angle (0°–90°) from north OR south, toward east or west, written as a quadrant call (e.g. **N42°15′E**, **S08°40′W**).\n- **Back-azimuth** = Az ± 180° (use + if Az < 180°, − if Az ≥ 180°). **Back-bearing** = same angle, opposite quadrant letters.\n- **Magnetic declination** — the angle between magnetic north and true (geodetic) north at a place and date. **East declination is added** to a magnetic bearing to get true; **west declination is subtracted**. Converting old magnetic deed calls to true direction (and accounting for *secular change* in declination between two dates) is a classic boundary/retracement question."
+     "name": "M",
+     "type": "integer",
+     "min": 0,
+     "max": 59
     },
     {
-      "type": "formulas",
-      "title": "Essential Formulas",
-      "content": "## Taping corrections (apply to a measured length L)\n\n**Temperature (thermal):**\n\n`Ct = 0.00000645 · (T − 68) · L`   (L, Ct in ft; T in °F; α_steel = 6.45×10⁻⁶/°F)\n\nMetric form: `Ct = 0.0000116 · (T − 20) · L` (T in °C, α = 11.6×10⁻⁶/°C).\n\n**Tension / pull:**\n\n`Cp = (P − P0)·L / (A·E)`   (P, P0 in lb; A in in²; E ≈ 29,000,000 psi for steel)\n\n**Sag (always negative — tape reads long):**\n\n`Cs = − w²·L³ / (24·P²)`   (w = weight per ft; or `Cs = −W²·L/(24·P²)` with total weight W)\n\n**Slope reduction (slope length S → horizontal H):**\n\n`H = S · cos(α)`   (α = vertical angle)  •  `H = S · sin(Z)`   (Z = zenith angle)\n\nApproximate correction: `Ch ≈ − h² / (2L)`   (h = elevation difference over length L)\n\n**Standardization:** `Cstd = (actual tape length − nominal) · (measured / nominal)`\n\n**Corrected length:** `L_corrected = L_measured + Ct + Cp + Cs + Ch + Cstd`\n\n## EDM\n\n**Combined stated error / correction:**\n\n`e(mm) = a_mm + b_ppm · D_km · 1000`   ⇒ for D in km, ppm term in mm = `b · D_km`\n\nEquivalently, for D in meters: `e(mm) = a + b·(D/1,000,000)·... ` — simplest: ppm error (mm) = `b · D(km)`.\n\nAtmospheric rule of thumb: ≈ **10 ppm per 10°C** or per **1 in Hg** pressure difference.\n\n## Angles\n\n`Z = 90° − α`   (zenith ↔ vertical angle)\n\n`2C = (Direct + Reverse) − 360°`   (collimation check; mean angle = (D + (R−180°))/2)\n\n## DMS ↔ decimal degrees\n\n`dd = D + M/60 + S/3600`\n\n`D = trunc(dd)` ; `M = trunc((dd − D)·60)` ; `S = (((dd − D)·60) − M)·60`\n\nTotal seconds: `total\" = D·3600 + M·60 + S`\n\n## Azimuth ↔ bearing (by quadrant of the azimuth)\n\n| Quadrant | Azimuth range | Bearing | Az→Brg | Brg→Az |\n|---|---|---|---|---|\n| I — NE | 0°–90° | N (Az) E | brg = Az | Az = brg |\n| II — SE | 90°–180° | S (180−Az) E | brg = 180 − Az | Az = 180 − brg |\n| III — SW | 180°–270° | S (Az−180) W | brg = Az − 180 | Az = 180 + brg |\n| IV — NW | 270°–360° | N (360−Az) W | brg = 360 − Az | Az = 360 − brg |\n\n**Back-azimuth:** `Back-Az = Az + 180°` (if Az < 180°) or `Az − 180°` (if Az ≥ 180°).\n\n## Magnetic declination\n\n`True = Magnetic + East_declination`  •  `True = Magnetic − West_declination`\n\nSecular change between dates: apply the *difference* in declination to convert an old magnetic call to a present-day true (or current magnetic) direction."
-    },
-    {
-      "type": "examples",
-      "title": "Worked Examples",
-      "content": "## Example 1 — Temperature tape correction\n\nA line is measured with a steel tape standardized at 68°F as **measured length = 842.60 ft**. The field temperature was **96°F**. What is the corrected horizontal length (tape fully supported, standard tension)?\n\n**Solution.** Use `Ct = 0.00000645·(T − 68)·L`:\n\n`Ct = 0.00000645 × (96 − 68) × 842.60 = 0.00000645 × 28 × 842.60 = +0.152 ft`\n\nThe tape was hot, so it read short; the true distance is longer:\n\n`L_corrected = 842.60 + 0.152 = 842.75 ft`\n\n**TI-36X Pro keystrokes:** `0.00000645 × ( 96 − 68 ) × 842.60 =` → 0.15225. Then `842.60 + 0.15225 =`. (Enter 6.45E-6 with the `×10ⁿ` / `EE` key: `6.45` `×10ⁿ` `(-) 6`.)\n\n**Casio fx-991:** identical; use the `×10ˣ` key for the exponent: `6.45` `×10ˣ` `(−)6`.\n\n---\n\n## Example 2 — Slope distance → horizontal distance (zenith angle)\n\nA total station reads a **slope distance S = 415.270 ft** to a prism with a **zenith angle Z = 87°12′30″**. What is the horizontal distance?\n\n**Solution.** `H = S · sin(Z)`. First get Z into the calculator in DMS:\n\nEnter `87°12′30″` using the DMS key, then `H = 415.270 × sin(Z)`.\n\n`sin(87°12′30″) = sin(87.20833°) = 0.998813`\n\n`H = 415.270 × 0.998813 = 414.777 ft`\n\n**TI-36X Pro keystrokes:** put calc in **DEG** mode. `415.270 × sin( 87 [°’”] 12 [°’”] 30 [°’”] ) =` → 414.777. The `[°’”]` key is `2nd` `[matrix/angle]` → `°’”` (the DMS template). You may also type 87 `°’”` 12 `°’”` 30 `°’”`.\n\n**Casio fx-991:** `415.270 × sin( 87 [°’’’] 12 [°’’’] 30 [°’’’] ) =`. The `°’’’` key enters and displays sexagesimal directly; pressing `=` then `°’’’` toggles a result between decimal and DMS.\n\n*Check with the vertical angle:* α = 90° − 87°12′30″ = 2°47′30″, and `H = S·cos(α) = 415.270 × cos(2.79167°) = 414.777 ft`. ✓\n\n---\n\n## Example 3 — DMS arithmetic and DMS↔decimal\n\n**(a)** Convert **218°43′52″** to decimal degrees.\n\n`dd = 218 + 43/60 + 52/3600 = 218 + 0.716667 + 0.014444 = 218.731111°`\n\n**(b)** Add two angles: **47°38′45″ + 22°51′30″**.\n\nSeconds: 45 + 30 = 75″ → 1′15″. Minutes: 38 + 51 + 1 = 90′ → 1°30′. Degrees: 47 + 22 + 1 = 70°. Result = **70°30′15″**.\n\n**TI-36X Pro:** `47 °’” 38 °’” 45 °’” + 22 °’” 51 °’” 30 °’” =` displays **70°30′15″** directly (the calculator carries the base-60 arithmetic). Press `2nd` `[°’”]` (the `▸DMS`/`▸DD` toggle) to flip the answer to decimal.\n\n**Casio fx-991:** `47°’’’38°’’’45°’’’ + 22°’’’51°’’’30°’’’ =` → `70°30′15″`. Press `°’’’` again to read 70.50416667°.\n\n---\n\n## Example 4 — Azimuth ↔ bearing and back-azimuth\n\nA line has **azimuth 218°43′52″**. Find its bearing and its back-azimuth.\n\n**Bearing:** azimuth is in **Quadrant III (180°–270°, SW)**, so `bearing = Az − 180° = 218°43′52″ − 180° = 38°43′52″`, written **S 38°43′52″ W**.\n\n**Back-azimuth:** Az ≥ 180°, so `Back-Az = 218°43′52″ − 180° = 38°43′52″`.\n\n*(Sanity check: the back-azimuth's bearing is N 38°43′52″ E — the exact reverse quadrant of S 38°43′52″ W. ✓)*\n\n---\n\n## Example 5 — EDM constant + ppm error\n\nAn EDM is rated **±(2 mm + 2 ppm)**. For a measured distance **D = 1,850 m**, what is the worst-case standard error in mm?\n\n**Solution.** ppm term = `b · D(km) = 2 × 1.850 = 3.70 mm`. Constant term = 2 mm.\n\n`e = a + b·D(km) = 2 + 2(1.850) = 2 + 3.70 = 5.70 mm`\n\nSo the line is good to about **±5.7 mm** (≈ ±0.006 m).\n\n**Calculator:** trivial — `2 + 2 × 1.850 =`. The trap is unit handling: convert D to **km** before multiplying by the ppm figure (2 ppm of 1,850,000 mm = 3.7 mm).\n\n---\n\n## Example 6 — Magnetic declination (retracement)\n\nAn 1885 deed calls a line **N 12°30′ E (magnetic)**. The magnetic declination at that place and date was **8°15′ East**. What is the **true** bearing of the line?\n\n**Solution.** East declination is **added** to a magnetic bearing measured toward the east:\n\n`True = N (12°30′ + 8°15′) E = N 20°45′ E`\n\nIf you then needed to re-run the line today with a compass, you would apply the *present-day* declination (and its sign) instead, accounting for secular change."
-    },
-    {
-      "type": "tips",
-      "title": "Exam Tips & Calculator Strategy",
-      "content": "## Exam strategy for distance & angle items\n\n- **Read for the reduction asked.** Many problems give a slope distance and a zenith angle and ask for *horizontal distance* — that is just `H = S·sin(Z)`. Don't over-build it.\n- **Sign of every correction.** Decide first: am I *measuring* (correcting a field reading) or *laying out* (setting a point)? Sag is **always negative**; temperature follows the sign of (T − 68); slope reduction always *shortens* slope to horizontal.\n- **Zenith vs vertical angle.** A level sight is **Z = 90°** and **α = 0°**. If a problem gives a \"vertical angle\" near 0° use `cos`; if it gives a \"zenith angle\" near 90° use `sin`. Mixing them is the #1 trap. `Z = 90° − α`.\n- **EDM ppm needs km.** Convert the distance to kilometers before multiplying by the ppm rating (2 ppm × 1.85 km = 3.7 mm). 10 ppm ≈ 10°C or 1 in Hg of atmosphere.\n- **Quadrant before conversion.** For azimuth↔bearing, identify the quadrant from the azimuth first, then apply the matching rule (NE: same; SE: 180−; SW: −180; NW: 360−). Back-azimuth is ±180°.\n- **Declination direction.** \"East is least, west is best\" is backwards for *magnetic→true*: for a true-from-magnetic conversion, **add east declination, subtract west**. Watch whether the problem wants magnetic→true or true→magnetic (the sign flips).\n\n## Approved-calculator tricks (TI-36X Pro / Casio fx-991)\n\n- **DMS entry & arithmetic:** Use the **°’”** (TI) / **°’’’** (Casio) key to enter angles directly as D°M'S\". The calculator does base-60 add/subtract/multiply for you — never convert to decimal by hand on the exam unless asked. Toggle a result between DMS and decimal with `2nd °’”` (TI) or by pressing `°’’’` again (Casio).\n- **DEG mode:** confirm the calculator is in **degrees** (not RAD/GRAD) before any trig — a wrong angle mode silently corrupts every answer.\n- **R▸P / P▸R (rectangular↔polar):** for inverse-type and forward-coordinate work, `R▸P` converts (ΔE, ΔN) → (distance, azimuth) in one step, and `P▸R` converts (distance, azimuth) → (ΔE, ΔN). On the TI-36X Pro these live under `2nd` `[R▸P]`/`[P▸R]`; on the Casio fx-991 use `Pol(` and `Rec(`. This is the fastest path for slope/azimuth bookkeeping and carries straight into the next module's COGO.\n- **HP-33S/35S (RPN, if used):** `→POL`/`→REC` and `→HMS`/`→HR` give the same conversions; enter DMS as `D.MMSSss` and use `→HR` to decimalize.\n- **Store-and-recall:** stash a standardized-tape length or a declination value in memory so you don't re-key it across a multi-part problem.\n\n## How the handbook helps\n\nThe NCEES FS Reference Handbook gives you the EDM relationship (V = c/n, λ = V/f), the curvature-&-refraction constants, the azimuth/bearing quadrant constants (C = 0/180/180/360), and the inverse/forward direction formulas verbatim. Know *where* taping corrections and the slope reduction live so you can confirm a coefficient under time pressure instead of trusting memory. Practice every conversion on the actual handbook PDF before exam day."
+     "name": "S",
+     "type": "integer",
+     "min": 0,
+     "max": 59
     }
-  ],
-  "questions": [
+   ],
+   "computed_vars": [],
+   "answer_formula": "D + M/60 + S/3600",
+   "answer_format": {
+    "decimals": 4,
+    "unit": "°",
+    "tolerance": 0.001
+   },
+   "solution_steps_template": [
     {
-      "question_text": "A steel tape is standardized at 68°F. The coefficient of thermal expansion for steel used on the FS is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["0.00000645 per °F", "0.0000645 per °F", "0.00000116 per °F", "0.0000116 per °F"],
-      "correct_answer": "0.00000645 per °F",
-      "explanation": "For steel, α ≈ 6.45×10⁻⁶ per °F (the value 11.6×10⁻⁶ is the per-°C coefficient). The temperature correction is Ct = 0.00000645·(T − 68)·L.",
-      "difficulty": "easy"
+     "step_number": 1,
+     "title": "Apply dd = D + M/60 + S/3600",
+     "calculation_template": "{{D}} + {{M}}/60 + {{S}}/3600"
     },
     {
-      "question_text": "A 100.00-ft measured distance is taped at 103°F with a tape standardized at 68°F. The temperature correction is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["+0.023 ft", "+0.045 ft", "+0.090 ft", "−0.023 ft"],
-      "correct_answer": "+0.023 ft",
-      "explanation": "Ct = 0.00000645·(103 − 68)·100.00 = 0.00000645·35·100 = +0.0226 ft. Positive because the warm tape reads short.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "The sag correction applied to a tape suspended only at its ends is:",
-      "question_type": "multiple_choice",
-      "options": ["Always negative (the tape reads long)", "Always positive (the tape reads short)", "Zero if tension equals the standard pull", "Equal in magnitude to the slope correction"],
-      "correct_answer": "Always negative (the tape reads long)",
-      "explanation": "An unsupported tape hangs as a catenary, so the measured distance is longer than the true horizontal chord; the correction Cs = −w²L³/(24P²) is always subtractive.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A slope distance of 250.00 ft is measured along a grade with a zenith angle of 92°00′00″. The horizontal distance is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["249.85 ft", "250.15 ft", "248.48 ft", "250.00 ft"],
-      "correct_answer": "249.85 ft",
-      "explanation": "H = S·sin(Z) = 250.00·sin(92°) = 250.00·0.999391 = 249.85 ft.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A zenith angle of 90°00′00″ corresponds to a vertical angle of:",
-      "question_type": "multiple_choice",
-      "options": ["0°00′00″", "90°00′00″", "180°00′00″", "45°00′00″"],
-      "correct_answer": "0°00′00″",
-      "explanation": "Z = 90° − α, so a level sight (Z = 90°) is a vertical angle of 0°.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "Which best describes the purpose of observing an angle in both direct and reverse (face-left and face-right) positions?",
-      "question_type": "multiple_choice",
-      "options": ["It cancels instrumental errors such as collimation and horizontal-axis tilt", "It eliminates the need for a back-azimuth", "It corrects for magnetic declination", "It reduces a slope distance to horizontal"],
-      "correct_answer": "It cancels instrumental errors such as collimation and horizontal-axis tilt",
-      "explanation": "Meaning the direct and reverse observations cancels systematic instrumental errors (collimation, trunnion-axis tilt, vertical-circle index). It has nothing to do with declination or slope reduction.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "An EDM is rated ±(3 mm + 2 ppm). For a 2,000-m line, the standard error is most nearly:",
-      "question_type": "multiple_choice",
-      "options": ["7 mm", "5 mm", "3 mm", "23 mm"],
-      "correct_answer": "7 mm",
-      "explanation": "ppm term = 2 ppm × 2.000 km = 4 mm; total e = 3 + 4 = 7 mm. (2 ppm of 2,000,000 mm = 4 mm.)",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "Approximately what change in conditions produces a 10-ppm atmospheric correction to an EDM distance?",
-      "question_type": "multiple_choice",
-      "options": ["A 10°C temperature change or a 1 in Hg pressure change", "A 1°C temperature change or a 10 in Hg pressure change", "A 100°C temperature change", "Any change in the prism constant"],
-      "correct_answer": "A 10°C temperature change or a 1 in Hg pressure change",
-      "explanation": "As a rule of thumb, roughly a 10°C temperature difference, or a 1 in Hg (≈25 mm Hg) pressure difference, corresponds to about 10 ppm of distance correction.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "Convert the azimuth 312°20′00″ to a bearing.",
-      "question_type": "multiple_choice",
-      "options": ["N 47°40′00″ W", "S 47°40′00″ W", "N 47°40′00″ E", "S 47°40′00″ E"],
-      "correct_answer": "N 47°40′00″ W",
-      "explanation": "312° is in Quadrant IV (270°–360°, NW), so bearing = 360° − Az = 360° − 312°20′ = 47°40′, written N 47°40′00″ W.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "Convert the bearing S 23°15′00″ E to an azimuth.",
-      "question_type": "multiple_choice",
-      "options": ["156°45′00″", "203°15′00″", "23°15′00″", "336°45′00″"],
-      "correct_answer": "156°45′00″",
-      "explanation": "SE quadrant: Az = 180° − bearing = 180° − 23°15′ = 156°45′00″.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "The azimuth of a line is 73°10′00″. Its back-azimuth is:",
-      "question_type": "multiple_choice",
-      "options": ["253°10′00″", "106°50′00″", "286°50′00″", "163°10′00″"],
-      "correct_answer": "253°10′00″",
-      "explanation": "Az < 180°, so Back-Az = Az + 180° = 73°10′ + 180° = 253°10′00″.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "Convert 41°27′36″ to decimal degrees.",
-      "question_type": "multiple_choice",
-      "options": ["41.4600°", "41.2736°", "41.4536°", "41.4760°"],
-      "correct_answer": "41.4600°",
-      "explanation": "dd = 41 + 27/60 + 36/3600 = 41 + 0.45 + 0.01 = 41.4600°.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "Add the angles 38°52′40″ + 16°19′35″. The sum is:",
-      "question_type": "multiple_choice",
-      "options": ["55°12′15″", "55°11′75″", "54°12′15″", "55°12′05″"],
-      "correct_answer": "55°12′15″",
-      "explanation": "Seconds: 40+35=75″ = 1′15″. Minutes: 52+19+1 = 72′ = 1°12′. Degrees: 38+16+1 = 55°. Sum = 55°12′15″.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "An old deed calls a line N 18°00′ W (magnetic) where the declination was 6°30′ West at the time of the survey. The true bearing is:",
-      "question_type": "multiple_choice",
-      "options": ["N 24°30′ W", "N 11°30′ W", "N 18°00′ W", "S 24°30′ E"],
-      "correct_answer": "N 24°30′ W",
-      "explanation": "For a NW-quadrant magnetic bearing, west declination rotates the magnetic meridian west of true, so the true bearing swings further from north: N (18°00′ + 6°30′) W = N 24°30′ W. (Carefully reason the geometry; a west declination is subtracted for an east bearing but increases a west bearing.)",
-      "difficulty": "hard"
-    },
-    {
-      "question_text": "A total station outputs which set of raw values directly?",
-      "question_type": "multiple_choice",
-      "options": ["Horizontal angle, zenith angle, and slope distance", "Latitude, departure, and area", "Northing, easting, and elevation only", "Magnetic bearing and declination"],
-      "correct_answer": "Horizontal angle, zenith angle, and slope distance",
-      "explanation": "A total station marries an electronic theodolite (horizontal + zenith angles) to an EDM (slope distance); it then computes H, V, and coordinates internally.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "A reflectorless total station differs from a conventional total station primarily in that it:",
-      "question_type": "multiple_choice",
-      "options": ["Measures distance to a surface without a prism", "Cannot measure vertical angles", "Requires two operators", "Uses a steel tape for backup"],
-      "correct_answer": "Measures distance to a surface without a prism",
-      "explanation": "Reflectorless EDM returns the signal from the target surface itself, eliminating the prism for points that are hard or unsafe to occupy.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "The instrument (additive) constant of an EDM is best described as:",
-      "question_type": "multiple_choice",
-      "options": ["A fixed offset, in mm, independent of the distance measured", "An error proportional to the distance", "The atmospheric ppm correction", "The prism height above the point"],
-      "correct_answer": "A fixed offset, in mm, independent of the distance measured",
-      "explanation": "The additive/zero constant is a constant offset (in mm) regardless of distance; the ppm/scale term is the distance-proportional part.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A line is taped down a uniform 8% grade as a slope length of 300.00 ft. The horizontal distance is most nearly (use the approximate slope correction Ch ≈ −h²/2L):",
-      "question_type": "multiple_choice",
-      "options": ["299.04 ft", "300.96 ft", "298.10 ft", "300.00 ft"],
-      "correct_answer": "299.04 ft",
-      "explanation": "h = 0.08·300 = 24.0 ft. Ch ≈ −h²/(2L) = −(24²)/(2·300) = −576/600 = −0.96 ft. H ≈ 300.00 − 0.96 = 299.04 ft.",
-      "difficulty": "hard"
-    },
-    {
-      "question_text": "Which calculator function most directly converts a distance and azimuth into a latitude (ΔN) and departure (ΔE)?",
-      "question_type": "multiple_choice",
-      "options": ["Polar-to-rectangular (P▸R / Rec)", "Rectangular-to-polar (R▸P / Pol)", "DMS-to-decimal (▸DD)", "Reciprocal (1/x)"],
-      "correct_answer": "Polar-to-rectangular (P▸R / Rec)",
-      "explanation": "P▸R converts (distance, azimuth) into the rectangular components (ΔE, ΔN). R▸P does the inverse (components → distance and azimuth).",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "True or False: A vertical angle is measured up or down from the horizontal plane, while a zenith angle is measured down from the upward vertical.",
-      "question_type": "true_false",
-      "options": ["True", "False"],
-      "correct_answer": "True",
-      "explanation": "Correct. Vertical angle α = 0° at the horizon; zenith angle Z = 0° straight up and 90° at the horizon, so Z = 90° − α.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "True or False: The temperature correction Ct = 0.00000645·(T − 68)·L is negative when the tape is colder than 68°F.",
-      "question_type": "true_false",
-      "options": ["True", "False"],
-      "correct_answer": "True",
-      "explanation": "When T < 68°F, (T − 68) is negative, so Ct is negative — a cold tape has contracted and reads long, so the true measured distance is slightly shorter.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A slope distance of 180.00 ft is observed with a vertical angle of +3°30′00″. The horizontal distance is most nearly:",
-      "question_type": "numeric_input",
-      "options": [],
-      "correct_answer": "179.67",
-      "explanation": "H = S·cos(α) = 180.00·cos(3.5°) = 180.00·0.998135 = 179.66 ≈ 179.67 ft.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "Express 218°43′52″ in total seconds of arc.",
-      "question_type": "numeric_input",
-      "options": [],
-      "correct_answer": "787432",
-      "explanation": "Total seconds = 218·3600 + 43·60 + 52 = 784,800 + 2,580 + 52 = 787,432″.",
-      "difficulty": "easy"
-    },
-    {
-      "question_text": "The '2C' value used as a collimation check is computed as:",
-      "question_type": "multiple_choice",
-      "options": ["(Direct + Reverse) − 360°", "(Direct − Reverse) / 2", "Direct + Reverse", "90° − vertical angle"],
-      "correct_answer": "(Direct + Reverse) − 360°",
-      "explanation": "For a pointing, the reverse reading should differ from the direct by 180°; 2C = (Direct + Reverse) − 360° gives twice the collimation error and should be small and consistent.",
-      "difficulty": "hard"
-    },
-    {
-      "question_text": "For the most accurate EDM measurement over a long line on a hot day, the surveyor should primarily:",
-      "question_type": "multiple_choice",
-      "options": ["Record temperature and pressure to apply the atmospheric (ppm) correction", "Replace the tripod", "Use an umbrella to shade the instrument battery", "Avoid measuring near power lines"],
-      "correct_answer": "Record temperature and pressure to apply the atmospheric (ppm) correction",
-      "explanation": "The dominant variable error over a long EDM line is the atmospheric (ppm) correction, which depends on temperature and pressure; recording them lets you apply the correct ppm.",
-      "difficulty": "medium"
-    },
-    {
-      "question_text": "A line measured with an EDM reads 1,402.118 m. The instrument's additive (prism) constant is −0.030 m. The corrected distance is:",
-      "question_type": "multiple_choice",
-      "options": ["1,402.088 m", "1,402.148 m", "1,402.118 m", "1,372.118 m"],
-      "correct_answer": "1,402.088 m",
-      "explanation": "Apply the additive constant: 1,402.118 + (−0.030) = 1,402.088 m.",
-      "difficulty": "medium"
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "{{_answer}}°"
     }
-  ],
-  "problem_templates": [
+   ],
+   "explanation_template": "Decimal degrees = {{D}} + {{M}}/60 + {{S}}/3600 = {{_answer}}°. On the TI-36X Pro enter the angle with the °’” key and toggle to decimal with 2nd °’”.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "DMS to total seconds of arc",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "Angles",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "Express the angle {{D}}°{{M}}′{{S}}″ in total seconds of arc.",
+   "parameters": [
     {
-      "name": "DMS to decimal degrees",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "Angles",
-      "difficulty": "easy",
-      "question_type": "numeric_input",
-      "question_template": "Convert the angle {{D}}°{{M}}′{{S}}″ to decimal degrees.",
-      "parameters": [
-        {"name": "D", "type": "integer", "min": 1, "max": 359},
-        {"name": "M", "type": "integer", "min": 0, "max": 59},
-        {"name": "S", "type": "integer", "min": 0, "max": 59}
-      ],
-      "computed_vars": [],
-      "answer_formula": "D + M/60 + S/3600",
-      "answer_format": {"decimals": 4, "unit": "°", "tolerance": 0.001},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Apply dd = D + M/60 + S/3600", "calculation_template": "{{D}} + {{M}}/60 + {{S}}/3600"},
-        {"step_number": 2, "title": "Result", "result_template": "{{_answer}}°"}
-      ],
-      "explanation_template": "Decimal degrees = {{D}} + {{M}}/60 + {{S}}/3600 = {{_answer}}°. On the TI-36X Pro enter the angle with the °’” key and toggle to decimal with 2nd °’”.",
-      "options_generator": {"method": "none"}
+     "name": "D",
+     "type": "integer",
+     "min": 1,
+     "max": 359
     },
     {
-      "name": "DMS to total seconds of arc",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "Angles",
-      "difficulty": "easy",
-      "question_type": "numeric_input",
-      "question_template": "Express the angle {{D}}°{{M}}′{{S}}″ in total seconds of arc.",
-      "parameters": [
-        {"name": "D", "type": "integer", "min": 1, "max": 359},
-        {"name": "M", "type": "integer", "min": 0, "max": 59},
-        {"name": "S", "type": "integer", "min": 0, "max": 59}
-      ],
-      "computed_vars": [],
-      "answer_formula": "D*3600 + M*60 + S",
-      "answer_format": {"decimals": 0, "unit": "\"", "tolerance": 1},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Convert each part to seconds", "calculation_template": "{{D}}·3600 + {{M}}·60 + {{S}}"},
-        {"step_number": 2, "title": "Sum", "result_template": "{{_answer}}″"}
-      ],
-      "explanation_template": "Total seconds = {{D}}·3600 + {{M}}·60 + {{S}} = {{_answer}}″.",
-      "options_generator": {"method": "none"}
+     "name": "M",
+     "type": "integer",
+     "min": 0,
+     "max": 59
     },
     {
-      "name": "Azimuth to bearing",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "Directions",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A line has azimuth {{az:f4}}°, which lies in the SW quadrant. Give the bearing angle (degrees from south, toward west).",
-      "parameters": [
-        {"name": "az", "type": "float", "min": 180.5, "max": 269.5, "decimals": 4}
-      ],
-      "computed_vars": [],
-      "answer_formula": "az - 180",
-      "answer_format": {"decimals": 4, "unit": "°", "tolerance": 0.001},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Identify quadrant", "calculation_template": "Az = {{az:f4}}° is between 180° and 270° → Quadrant III (SW)"},
-        {"step_number": 2, "title": "Bearing = Az − 180°", "result_template": "S {{_answer}}° W"}
-      ],
-      "explanation_template": "For an azimuth in the SW quadrant (180°–270°), bearing = Az − 180° = {{az:f4}} − 180 = {{_answer}}°, written S {{_answer}}° W.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Bearing to azimuth (NW quadrant)",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "Directions",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A line bears N {{brg:f4}}° W. Compute its azimuth (clockwise from north, 0°–360°).",
-      "parameters": [
-        {"name": "brg", "type": "float", "min": 1, "max": 89, "decimals": 4}
-      ],
-      "computed_vars": [],
-      "answer_formula": "360 - brg",
-      "answer_format": {"decimals": 4, "unit": "°", "tolerance": 0.001},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Identify quadrant", "calculation_template": "N __ W → Quadrant IV (NW)"},
-        {"step_number": 2, "title": "Azimuth = 360° − bearing", "result_template": "{{_answer}}°"}
-      ],
-      "explanation_template": "For a NW-quadrant bearing, azimuth = 360° − bearing = 360 − {{brg:f4}} = {{_answer}}°.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Back-azimuth",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "Directions",
-      "difficulty": "easy",
-      "question_type": "numeric_input",
-      "question_template": "The forward azimuth of a line is {{az:f4}}°. Compute its back-azimuth (0°–360°).",
-      "parameters": [
-        {"name": "az", "type": "float", "min": 0.5, "max": 359.5, "decimals": 4}
-      ],
-      "computed_vars": [],
-      "answer_formula": "az + 180 - 360*floor((az+180)/360)",
-      "answer_format": {"decimals": 4, "unit": "°", "tolerance": 0.001},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Apply ±180° rule", "calculation_template": "If Az < 180°, add 180°; if Az ≥ 180°, subtract 180°"},
-        {"step_number": 2, "title": "Back-azimuth", "result_template": "{{_answer}}°"}
-      ],
-      "explanation_template": "Back-azimuth = Az ± 180° = {{_answer}}° (add 180° when Az < 180°, subtract 180° when Az ≥ 180°).",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Temperature tape correction",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "Taping",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A distance of {{L:f2}} ft is measured with a steel tape standardized at 68°F. The field temperature is {{T}}°F. Compute the corrected length (ft). Use Ct = 0.00000645·(T − 68)·L.",
-      "parameters": [
-        {"name": "L", "type": "float", "min": 200, "max": 1500, "decimals": 2},
-        {"name": "T", "type": "integer", "min": 20, "max": 110}
-      ],
-      "computed_vars": [
-        {"name": "Ct", "formula": "0.00000645*(T-68)*L"}
-      ],
-      "answer_formula": "L + 0.00000645*(T-68)*L",
-      "answer_format": {"decimals": 3, "unit": "ft", "tolerance": 0.01},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Temperature correction", "calculation_template": "Ct = 0.00000645·({{T}} − 68)·{{L:f2}} = {{Ct:f3}} ft"},
-        {"step_number": 2, "title": "Corrected length", "result_template": "{{L:f2}} + {{Ct:f3}} = {{_answer}} ft"}
-      ],
-      "explanation_template": "Ct = 0.00000645·({{T}}−68)·{{L:f2}} = {{Ct:f3}} ft; corrected length = {{L:f2}} + {{Ct:f3}} = {{_answer}} ft. The correction is positive when T > 68°F (hot tape reads short).",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "Horizontal distance from slope distance and zenith angle",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "Slope reduction",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "A total station measures a slope distance of {{S:f3}} ft with a zenith angle of {{Zd}}°{{Zm}}′{{Zs}}″. Compute the horizontal distance (ft). Use H = S·sin(Z).",
-      "parameters": [
-        {"name": "S", "type": "float", "min": 150, "max": 900, "decimals": 3},
-        {"name": "Zd", "type": "integer", "min": 80, "max": 99},
-        {"name": "Zm", "type": "integer", "min": 0, "max": 59},
-        {"name": "Zs", "type": "integer", "min": 0, "max": 59}
-      ],
-      "computed_vars": [
-        {"name": "Zdd", "formula": "Zd + Zm/60 + Zs/3600"}
-      ],
-      "answer_formula": "S*sin(toRad(Zd + Zm/60 + Zs/3600))",
-      "answer_format": {"decimals": 3, "unit": "ft", "tolerance": 0.02},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "Zenith angle to decimal degrees", "calculation_template": "Z = {{Zd}} + {{Zm}}/60 + {{Zs}}/3600 = {{Zdd:f4}}°"},
-        {"step_number": 2, "title": "Horizontal distance", "result_template": "H = {{S:f3}}·sin({{Zdd:f4}}°) = {{_answer}} ft"}
-      ],
-      "explanation_template": "Convert the zenith angle to {{Zdd:f4}}°, then H = S·sin(Z) = {{S:f3}}·sin({{Zdd:f4}}°) = {{_answer}} ft. Enter the angle in DMS and keep the calculator in DEG mode.",
-      "options_generator": {"method": "none"}
-    },
-    {
-      "name": "EDM constant + ppm error",
-      "category": "FS — Field Data Acquisition",
-      "subcategory": "EDM",
-      "difficulty": "medium",
-      "question_type": "numeric_input",
-      "question_template": "An EDM is rated ±({{a}} mm + {{b}} ppm). For a measured distance of {{Dm}} m, compute the worst-case standard error (mm).",
-      "parameters": [
-        {"name": "a", "type": "integer", "min": 1, "max": 5},
-        {"name": "b", "type": "integer", "min": 1, "max": 5},
-        {"name": "Dm", "type": "integer", "min": 500, "max": 5000}
-      ],
-      "computed_vars": [
-        {"name": "Dkm", "formula": "Dm/1000"},
-        {"name": "ppmTerm", "formula": "b*Dm/1000"}
-      ],
-      "answer_formula": "a + b*Dm/1000",
-      "answer_format": {"decimals": 2, "unit": "mm", "tolerance": 0.05},
-      "solution_steps_template": [
-        {"step_number": 1, "title": "ppm term (convert D to km)", "calculation_template": "{{b}} ppm × {{Dkm:f3}} km = {{ppmTerm:f2}} mm"},
-        {"step_number": 2, "title": "Add the constant term", "result_template": "e = {{a}} + {{ppmTerm:f2}} = {{_answer}} mm"}
-      ],
-      "explanation_template": "ppm error (mm) = b·D(km) = {{b}}·{{Dkm:f3}} = {{ppmTerm:f2}} mm; total e = a + ppm term = {{a}} + {{ppmTerm:f2}} = {{_answer}} mm. Always convert the distance to km before multiplying by the ppm rating.",
-      "options_generator": {"method": "none"}
+     "name": "S",
+     "type": "integer",
+     "min": 0,
+     "max": 59
     }
-  ],
-  "mock_questions": [
+   ],
+   "computed_vars": [],
+   "answer_formula": "D*3600 + M*60 + S",
+   "answer_format": {
+    "decimals": 0,
+    "unit": "\"",
+    "tolerance": 1
+   },
+   "solution_steps_template": [
     {
-      "question_text": "A 500.00-ft distance is taped at 38°F with a steel tape standardized at 68°F. Using Ct = 0.00000645·(T−68)·L, the corrected length is most nearly:",
-      "options": ["499.90 ft", "500.10 ft", "499.97 ft", "500.03 ft"],
-      "correct_answer": "499.90 ft",
-      "explanation": "Ct = 0.00000645·(38−68)·500 = 0.00000645·(−30)·500 = −0.097 ft. Corrected = 500.00 − 0.097 ≈ 499.90 ft (cold tape contracts and reads long).",
-      "difficulty": "medium",
-      "area": "computations"
+     "step_number": 1,
+     "title": "Convert each part to seconds",
+     "calculation_template": "{{D}}·3600 + {{M}}·60 + {{S}}"
     },
     {
-      "question_text": "A slope distance of 326.40 ft is measured with a zenith angle of 85°30′00″. The horizontal distance is most nearly:",
-      "options": ["325.44 ft", "326.40 ft", "324.20 ft", "326.00 ft"],
-      "correct_answer": "325.44 ft",
-      "explanation": "H = S·sin(Z) = 326.40·sin(85°30′) = 326.40·0.997045 = 325.44 ft.",
-      "difficulty": "medium",
-      "area": "computations"
-    },
-    {
-      "question_text": "The azimuth 248°15′00″ expressed as a bearing is:",
-      "options": ["S 68°15′00″ W", "N 68°15′00″ W", "S 68°15′00″ E", "N 68°15′00″ E"],
-      "correct_answer": "S 68°15′00″ W",
-      "explanation": "248° is in Quadrant III (SW); bearing = Az − 180° = 68°15′, written S 68°15′00″ W.",
-      "difficulty": "medium",
-      "area": "computations"
-    },
-    {
-      "question_text": "An EDM rated ±(2 mm + 3 ppm) measures a 1,500-m line. The expected standard error is most nearly:",
-      "options": ["6.5 mm", "4.5 mm", "2.0 mm", "11.0 mm"],
-      "correct_answer": "6.5 mm",
-      "explanation": "ppm term = 3 × 1.500 km = 4.5 mm; total = 2 + 4.5 = 6.5 mm.",
-      "difficulty": "medium",
-      "area": "computations"
-    },
-    {
-      "question_text": "Observing a horizontal angle in both face-left and face-right and meaning the results primarily serves to:",
-      "options": ["Cancel instrumental (collimation, axis) errors", "Reduce slope distance to horizontal", "Convert magnetic bearings to true", "Eliminate atmospheric ppm error"],
-      "correct_answer": "Cancel instrumental (collimation, axis) errors",
-      "explanation": "Direct-and-reverse observation cancels systematic instrumental errors; it does nothing for slope, declination, or atmospheric corrections.",
-      "difficulty": "medium",
-      "area": "principles"
-    },
-    {
-      "question_text": "A zenith angle is measured from the upward vertical. The corresponding vertical angle for a zenith reading of 96°00′00″ is:",
-      "options": ["−6°00′00″", "+6°00′00″", "+96°00′00″", "−96°00′00″"],
-      "correct_answer": "−6°00′00″",
-      "explanation": "α = 90° − Z = 90° − 96° = −6° (a depression angle, sighting downhill).",
-      "difficulty": "medium",
-      "area": "principles"
-    },
-    {
-      "question_text": "Which instrument directly combines an electronic theodolite and an EDM with onboard computation of coordinates?",
-      "options": ["Total station", "Automatic level", "Plane table", "Magnetic compass"],
-      "correct_answer": "Total station",
-      "explanation": "A total station integrates an electronic theodolite (angles) and EDM (distance) with a processor that computes H, V, and coordinates.",
-      "difficulty": "easy",
-      "area": "principles"
-    },
-    {
-      "question_text": "An 1870 deed line reads N 30°00′ E (magnetic); the declination then was 5°00′ East. The true bearing is:",
-      "options": ["N 35°00′ E", "N 25°00′ E", "S 35°00′ W", "N 30°00′ E"],
-      "correct_answer": "N 35°00′ E",
-      "explanation": "For an east-quadrant bearing, east declination is added: N (30°00′ + 5°00′) E = N 35°00′ E.",
-      "difficulty": "medium",
-      "area": "principles"
-    },
-    {
-      "question_text": "The sag correction for a tape supported only at its ends is:",
-      "options": ["Negative (the unsupported tape reads long)", "Positive (the tape reads short)", "Zero regardless of tension", "Equal to the temperature correction"],
-      "correct_answer": "Negative (the unsupported tape reads long)",
-      "explanation": "The catenary sag makes the measured chord longer than the true horizontal distance, so the correction Cs = −w²L³/(24P²) is subtractive.",
-      "difficulty": "medium",
-      "area": "principles"
-    },
-    {
-      "question_text": "Convert 127°36′18″ to decimal degrees (most nearly):",
-      "options": ["127.6050°", "127.3618°", "127.6018°", "127.6500°"],
-      "correct_answer": "127.6050°",
-      "explanation": "127 + 36/60 + 18/3600 = 127 + 0.6 + 0.005 = 127.6050°.",
-      "difficulty": "easy",
-      "area": "math"
-    },
-    {
-      "question_text": "The sum of 64°48′50″ and 25°22′40″ is:",
-      "options": ["90°11′30″", "90°10′90″", "89°11′30″", "90°11′90″"],
-      "correct_answer": "90°11′30″",
-      "explanation": "Seconds: 50+40=90″=1′30″. Minutes: 48+22+1=71′=1°11′. Degrees: 64+25+1=90°. Sum = 90°11′30″.",
-      "difficulty": "medium",
-      "area": "math"
-    },
-    {
-      "question_text": "The most direct way to reduce a slope distance S to a horizontal distance H given the vertical angle α is:",
-      "options": ["H = S·cos(α)", "H = S·sin(α)", "H = S·tan(α)", "H = S/cos(α)"],
-      "correct_answer": "H = S·cos(α)",
-      "explanation": "With the vertical angle measured from horizontal, the horizontal component is H = S·cos(α). (Using the zenith angle Z it is H = S·sin(Z).)",
-      "difficulty": "easy",
-      "area": "computations"
-    },
-    {
-      "question_text": "For best long-line EDM accuracy, the field crew should mainly record:",
-      "options": ["Temperature and barometric pressure", "The battery voltage", "Wind speed and humidity only", "Tripod leg length"],
-      "correct_answer": "Temperature and barometric pressure",
-      "explanation": "The atmospheric (ppm) correction depends on temperature and pressure; recording them lets the crew apply the correct first-velocity correction.",
-      "difficulty": "medium",
-      "area": "processes"
-    },
-    {
-      "question_text": "The back-azimuth of a line whose forward azimuth is 200°00′00″ is:",
-      "options": ["20°00′00″", "380°00′00″", "160°00′00″", "20°00′00″ S"],
-      "correct_answer": "20°00′00″",
-      "explanation": "Az ≥ 180°, so back-azimuth = 200° − 180° = 20°00′00″.",
-      "difficulty": "easy",
-      "area": "computations"
+     "step_number": 2,
+     "title": "Sum",
+     "result_template": "{{_answer}}″"
     }
-  ]
+   ],
+   "explanation_template": "Total seconds = {{D}}·3600 + {{M}}·60 + {{S}} = {{_answer}}″.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Azimuth to bearing",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "Directions",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A line has azimuth {{az:f4}}°, which lies in the SW quadrant. Give the bearing angle (degrees from south, toward west).",
+   "parameters": [
+    {
+     "name": "az",
+     "type": "float",
+     "min": 180.5,
+     "max": 269.5,
+     "decimals": 4
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "az - 180",
+   "answer_format": {
+    "decimals": 4,
+    "unit": "°",
+    "tolerance": 0.001
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Identify quadrant",
+     "calculation_template": "Az = {{az:f4}}° is between 180° and 270° → Quadrant III (SW)"
+    },
+    {
+     "step_number": 2,
+     "title": "Bearing = Az − 180°",
+     "result_template": "S {{_answer}}° W"
+    }
+   ],
+   "explanation_template": "For an azimuth in the SW quadrant (180°–270°), bearing = Az − 180° = {{az:f4}} − 180 = {{_answer}}°, written S {{_answer}}° W.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "compass",
+    "azVar": "az",
+    "title": "Azimuth → bearing"
+   }
+  },
+  {
+   "name": "Bearing to azimuth (NW quadrant)",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "Directions",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A line bears N {{brg:f4}}° W. Compute its azimuth (clockwise from north, 0°–360°).",
+   "parameters": [
+    {
+     "name": "brg",
+     "type": "float",
+     "min": 1,
+     "max": 89,
+     "decimals": 4
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "360 - brg",
+   "answer_format": {
+    "decimals": 4,
+    "unit": "°",
+    "tolerance": 0.001
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Identify quadrant",
+     "calculation_template": "N __ W → Quadrant IV (NW)"
+    },
+    {
+     "step_number": 2,
+     "title": "Azimuth = 360° − bearing",
+     "result_template": "{{_answer}}°"
+    }
+   ],
+   "explanation_template": "For a NW-quadrant bearing, azimuth = 360° − bearing = 360 − {{brg:f4}} = {{_answer}}°.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Back-azimuth",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "Directions",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "The forward azimuth of a line is {{az:f4}}°. Compute its back-azimuth (0°–360°).",
+   "parameters": [
+    {
+     "name": "az",
+     "type": "float",
+     "min": 0.5,
+     "max": 359.5,
+     "decimals": 4
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "az + 180 - 360*floor((az+180)/360)",
+   "answer_format": {
+    "decimals": 4,
+    "unit": "°",
+    "tolerance": 0.001
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Apply ±180° rule",
+     "calculation_template": "If Az < 180°, add 180°; if Az ≥ 180°, subtract 180°"
+    },
+    {
+     "step_number": 2,
+     "title": "Back-azimuth",
+     "result_template": "{{_answer}}°"
+    }
+   ],
+   "explanation_template": "Back-azimuth = Az ± 180° = {{_answer}}° (add 180° when Az < 180°, subtract 180° when Az ≥ 180°).",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "compass",
+    "azVar": "az",
+    "title": "Forward azimuth"
+   }
+  },
+  {
+   "name": "Temperature tape correction",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "Taping",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A distance of {{L:f2}} ft is measured with a steel tape standardized at 68°F. The field temperature is {{T}}°F. Compute the corrected length (ft). Use Ct = 0.00000645·(T − 68)·L.",
+   "parameters": [
+    {
+     "name": "L",
+     "type": "float",
+     "min": 200,
+     "max": 1500,
+     "decimals": 2
+    },
+    {
+     "name": "T",
+     "type": "integer",
+     "min": 20,
+     "max": 110
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "Ct",
+     "formula": "0.00000645*(T-68)*L"
+    }
+   ],
+   "answer_formula": "L + 0.00000645*(T-68)*L",
+   "answer_format": {
+    "decimals": 3,
+    "unit": "ft",
+    "tolerance": 0.01
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Temperature correction",
+     "calculation_template": "Ct = 0.00000645·({{T}} − 68)·{{L:f2}} = {{Ct:f3}} ft"
+    },
+    {
+     "step_number": 2,
+     "title": "Corrected length",
+     "result_template": "{{L:f2}} + {{Ct:f3}} = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "Ct = 0.00000645·({{T}}−68)·{{L:f2}} = {{Ct:f3}} ft; corrected length = {{L:f2}} + {{Ct:f3}} = {{_answer}} ft. The correction is positive when T > 68°F (hot tape reads short).",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Horizontal distance from slope distance and zenith angle",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "Slope reduction",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A total station measures a slope distance of {{S:f3}} ft with a zenith angle of {{Zd}}°{{Zm}}′{{Zs}}″. Compute the horizontal distance (ft). Use H = S·sin(Z).",
+   "parameters": [
+    {
+     "name": "S",
+     "type": "float",
+     "min": 150,
+     "max": 900,
+     "decimals": 3
+    },
+    {
+     "name": "Zd",
+     "type": "integer",
+     "min": 80,
+     "max": 99
+    },
+    {
+     "name": "Zm",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    },
+    {
+     "name": "Zs",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "Zdd",
+     "formula": "Zd + Zm/60 + Zs/3600"
+    }
+   ],
+   "answer_formula": "S*sin(toRad(Zd + Zm/60 + Zs/3600))",
+   "answer_format": {
+    "decimals": 3,
+    "unit": "ft",
+    "tolerance": 0.02
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Zenith angle to decimal degrees",
+     "calculation_template": "Z = {{Zd}} + {{Zm}}/60 + {{Zs}}/3600 = {{Zdd:f4}}°"
+    },
+    {
+     "step_number": 2,
+     "title": "Horizontal distance",
+     "result_template": "H = {{S:f3}}·sin({{Zdd:f4}}°) = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "Convert the zenith angle to {{Zdd:f4}}°, then H = S·sin(Z) = {{S:f3}}·sin({{Zdd:f4}}°) = {{_answer}} ft. Enter the angle in DMS and keep the calculator in DEG mode.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "EDM constant + ppm error",
+   "category": "FS — Field Data Acquisition",
+   "subcategory": "EDM",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "An EDM is rated ±({{a}} mm + {{b}} ppm). For a measured distance of {{Dm}} m, compute the worst-case standard error (mm).",
+   "parameters": [
+    {
+     "name": "a",
+     "type": "integer",
+     "min": 1,
+     "max": 5
+    },
+    {
+     "name": "b",
+     "type": "integer",
+     "min": 1,
+     "max": 5
+    },
+    {
+     "name": "Dm",
+     "type": "integer",
+     "min": 500,
+     "max": 5000
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "Dkm",
+     "formula": "Dm/1000"
+    },
+    {
+     "name": "ppmTerm",
+     "formula": "b*Dm/1000"
+    }
+   ],
+   "answer_formula": "a + b*Dm/1000",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "mm",
+    "tolerance": 0.05
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "ppm term (convert D to km)",
+     "calculation_template": "{{b}} ppm × {{Dkm:f3}} km = {{ppmTerm:f2}} mm"
+    },
+    {
+     "step_number": 2,
+     "title": "Add the constant term",
+     "result_template": "e = {{a}} + {{ppmTerm:f2}} = {{_answer}} mm"
+    }
+   ],
+   "explanation_template": "ppm error (mm) = b·D(km) = {{b}}·{{Dkm:f3}} = {{ppmTerm:f2}} mm; total e = a + ppm term = {{a}} + {{ppmTerm:f2}} = {{_answer}} mm. Always convert the distance to km before multiplying by the ppm rating.",
+   "options_generator": {
+    "method": "none"
+   }
+  }
+ ],
+ "mock_questions": [
+  {
+   "question_text": "A 500.00-ft distance is taped at 38°F with a steel tape standardized at 68°F. Using Ct = 0.00000645·(T−68)·L, the corrected length is most nearly:",
+   "options": [
+    "499.90 ft",
+    "500.10 ft",
+    "499.97 ft",
+    "500.03 ft"
+   ],
+   "correct_answer": "499.90 ft",
+   "explanation": "Ct = 0.00000645·(38−68)·500 = 0.00000645·(−30)·500 = −0.097 ft. Corrected = 500.00 − 0.097 ≈ 499.90 ft (cold tape contracts and reads long).",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "A slope distance of 326.40 ft is measured with a zenith angle of 85°30′00″. The horizontal distance is most nearly:",
+   "options": [
+    "325.44 ft",
+    "326.40 ft",
+    "324.20 ft",
+    "326.00 ft"
+   ],
+   "correct_answer": "325.44 ft",
+   "explanation": "H = S·sin(Z) = 326.40·sin(85°30′) = 326.40·0.997045 = 325.44 ft.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "The azimuth 248°15′00″ expressed as a bearing is:",
+   "options": [
+    "S 68°15′00″ W",
+    "N 68°15′00″ W",
+    "S 68°15′00″ E",
+    "N 68°15′00″ E"
+   ],
+   "correct_answer": "S 68°15′00″ W",
+   "explanation": "248° is in Quadrant III (SW); bearing = Az − 180° = 68°15′, written S 68°15′00″ W.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "An EDM rated ±(2 mm + 3 ppm) measures a 1,500-m line. The expected standard error is most nearly:",
+   "options": [
+    "6.5 mm",
+    "4.5 mm",
+    "2.0 mm",
+    "11.0 mm"
+   ],
+   "correct_answer": "6.5 mm",
+   "explanation": "ppm term = 3 × 1.500 km = 4.5 mm; total = 2 + 4.5 = 6.5 mm.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "Observing a horizontal angle in both face-left and face-right and meaning the results primarily serves to:",
+   "options": [
+    "Cancel instrumental (collimation, axis) errors",
+    "Reduce slope distance to horizontal",
+    "Convert magnetic bearings to true",
+    "Eliminate atmospheric ppm error"
+   ],
+   "correct_answer": "Cancel instrumental (collimation, axis) errors",
+   "explanation": "Direct-and-reverse observation cancels systematic instrumental errors; it does nothing for slope, declination, or atmospheric corrections.",
+   "difficulty": "medium",
+   "area": "principles"
+  },
+  {
+   "question_text": "A zenith angle is measured from the upward vertical. The corresponding vertical angle for a zenith reading of 96°00′00″ is:",
+   "options": [
+    "−6°00′00″",
+    "+6°00′00″",
+    "+96°00′00″",
+    "−96°00′00″"
+   ],
+   "correct_answer": "−6°00′00″",
+   "explanation": "α = 90° − Z = 90° − 96° = −6° (a depression angle, sighting downhill).",
+   "difficulty": "medium",
+   "area": "principles"
+  },
+  {
+   "question_text": "Which instrument directly combines an electronic theodolite and an EDM with onboard computation of coordinates?",
+   "options": [
+    "Total station",
+    "Automatic level",
+    "Plane table",
+    "Magnetic compass"
+   ],
+   "correct_answer": "Total station",
+   "explanation": "A total station integrates an electronic theodolite (angles) and EDM (distance) with a processor that computes H, V, and coordinates.",
+   "difficulty": "easy",
+   "area": "principles"
+  },
+  {
+   "question_text": "An 1870 deed line reads N 30°00′ E (magnetic); the declination then was 5°00′ East. The true bearing is:",
+   "options": [
+    "N 35°00′ E",
+    "N 25°00′ E",
+    "S 35°00′ W",
+    "N 30°00′ E"
+   ],
+   "correct_answer": "N 35°00′ E",
+   "explanation": "For an east-quadrant bearing, east declination is added: N (30°00′ + 5°00′) E = N 35°00′ E.",
+   "difficulty": "medium",
+   "area": "principles"
+  },
+  {
+   "question_text": "The sag correction for a tape supported only at its ends is:",
+   "options": [
+    "Negative (the unsupported tape reads long)",
+    "Positive (the tape reads short)",
+    "Zero regardless of tension",
+    "Equal to the temperature correction"
+   ],
+   "correct_answer": "Negative (the unsupported tape reads long)",
+   "explanation": "The catenary sag makes the measured chord longer than the true horizontal distance, so the correction Cs = −w²L³/(24P²) is subtractive.",
+   "difficulty": "medium",
+   "area": "principles"
+  },
+  {
+   "question_text": "Convert 127°36′18″ to decimal degrees (most nearly):",
+   "options": [
+    "127.6050°",
+    "127.3618°",
+    "127.6018°",
+    "127.6500°"
+   ],
+   "correct_answer": "127.6050°",
+   "explanation": "127 + 36/60 + 18/3600 = 127 + 0.6 + 0.005 = 127.6050°.",
+   "difficulty": "easy",
+   "area": "math"
+  },
+  {
+   "question_text": "The sum of 64°48′50″ and 25°22′40″ is:",
+   "options": [
+    "90°11′30″",
+    "90°10′90″",
+    "89°11′30″",
+    "90°11′90″"
+   ],
+   "correct_answer": "90°11′30″",
+   "explanation": "Seconds: 50+40=90″=1′30″. Minutes: 48+22+1=71′=1°11′. Degrees: 64+25+1=90°. Sum = 90°11′30″.",
+   "difficulty": "medium",
+   "area": "math"
+  },
+  {
+   "question_text": "The most direct way to reduce a slope distance S to a horizontal distance H given the vertical angle α is:",
+   "options": [
+    "H = S·cos(α)",
+    "H = S·sin(α)",
+    "H = S·tan(α)",
+    "H = S/cos(α)"
+   ],
+   "correct_answer": "H = S·cos(α)",
+   "explanation": "With the vertical angle measured from horizontal, the horizontal component is H = S·cos(α). (Using the zenith angle Z it is H = S·sin(Z).)",
+   "difficulty": "easy",
+   "area": "computations"
+  },
+  {
+   "question_text": "For best long-line EDM accuracy, the field crew should mainly record:",
+   "options": [
+    "Temperature and barometric pressure",
+    "The battery voltage",
+    "Wind speed and humidity only",
+    "Tripod leg length"
+   ],
+   "correct_answer": "Temperature and barometric pressure",
+   "explanation": "The atmospheric (ppm) correction depends on temperature and pressure; recording them lets the crew apply the correct first-velocity correction.",
+   "difficulty": "medium",
+   "area": "processes"
+  },
+  {
+   "question_text": "The back-azimuth of a line whose forward azimuth is 200°00′00″ is:",
+   "options": [
+    "20°00′00″",
+    "380°00′00″",
+    "160°00′00″",
+    "20°00′00″ S"
+   ],
+   "correct_answer": "20°00′00″",
+   "explanation": "Az ≥ 180°, so back-azimuth = 200° − 180° = 20°00′00″.",
+   "difficulty": "easy",
+   "area": "computations"
+  }
+ ]
 }

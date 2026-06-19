@@ -14,6 +14,7 @@ export interface GeneratedProblem {
   subcategory: string;
   tags: string[];
   explanation: string;
+  diagram?: string; // optional inline SVG figure that matches the generated numbers
 }
 
 export interface SolutionStep {

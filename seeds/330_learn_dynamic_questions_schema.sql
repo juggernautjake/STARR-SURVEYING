@@ -44,6 +44,12 @@ END $$;
 CREATE INDEX IF NOT EXISTS question_bank_template_id_idx
   ON question_bank (template_id) WHERE template_id IS NOT NULL;
 
+-- ── problem_templates: optional diagram spec ────────────────────────────────
+-- Carries a small JSON spec (type + parameter-name references) that the engine
+-- (lib/diagrams/survey-diagram.ts) resolves against the freshly-generated values
+-- to render an inline SVG figure matching the randomized problem.
+ALTER TABLE problem_templates ADD COLUMN IF NOT EXISTS diagram jsonb;
+
 -- ── lesson_blocks: align block_type CHECK with the actual renderer ──────────
 -- The renderer (app/admin/learn/modules/[id]/[lessonId]/page.tsx) supports far
 -- more block types than the original CHECK allowed (it only permitted

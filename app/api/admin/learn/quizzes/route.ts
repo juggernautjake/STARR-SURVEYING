@@ -304,6 +304,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
           _generated_answer: generated.correct_answer,
           _solution_steps: generated.solution_steps,
           _tolerance: template.answer_format?.tolerance || q.tolerance || 0.01,
+          _diagram: generated.diagram,
         };
       }
     }

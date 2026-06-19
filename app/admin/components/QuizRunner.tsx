@@ -24,6 +24,7 @@ interface Question {
   _generated_answer?: string;
   _solution_steps?: unknown[];
   _tolerance?: number;
+  _diagram?: string; // inline SVG figure matching this generated problem
 }
 
 interface StudyReference {
@@ -444,6 +445,11 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                 {q.question_type === 'essay' && <span className="quiz__question-type-badge">AI-Graded Essay</span>}
               </div>
             </div>
+
+            {/* Generated figure that matches this problem's numbers */}
+            {q._diagram && (
+              <div className="quiz__diagram" style={{ margin: '0.75rem 0', maxWidth: 540 }} dangerouslySetInnerHTML={{ __html: q._diagram }} />
+            )}
 
             {/* Multiple Choice / True-False */}
             {(q.question_type === 'multiple_choice' || q.question_type === 'true_false') && (

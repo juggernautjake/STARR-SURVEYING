@@ -9,9 +9,10 @@ import {
   type SolutionStep,
   type ProblemTypeInfo,
 } from './problemGenerators';
+import { buildDiagramFromSpec, type DiagramSpec } from './diagrams/survey-diagram';
 
 // Re-export types that consumers need
-export type { GeneratedProblem, SolutionStep, ProblemTypeInfo };
+export type { GeneratedProblem, SolutionStep, ProblemTypeInfo, DiagramSpec };
 
 // ============================================================================
 // TYPES
@@ -81,6 +82,7 @@ export interface ProblemTemplate {
   tags: string[];
   study_references?: { type: string; id: string; label: string }[];
   generator_id?: string; // Links to hardcoded generator
+  diagram?: DiagramSpec; // optional spec for a generated SVG figure (vars resolved at gen time)
   is_active: boolean;
 }
 
@@ -338,6 +340,12 @@ export function generateFromTemplate(template: ProblemTemplate): GeneratedProble
   // Build the problem
   const tolerance = template.answer_format?.tolerance ?? 0.01;
 
+  // Generate a matching figure from the SAME random values, if the template
+  // carries a diagram spec. Pure + fast; returns undefined on any issue.
+  const diagram = template.diagram
+    ? (buildDiagramFromSpec(template.diagram, vars) || undefined)
+    : undefined;
+
   return {
     id: generateId(),
     question_text: questionText,
@@ -351,6 +359,7 @@ export function generateFromTemplate(template: ProblemTemplate): GeneratedProble
     subcategory: template.subcategory || '',
     tags: template.tags || [],
     explanation,
+    diagram,
   };
 }
 
@@ -652,6 +661,7 @@ export function generateDynamicQuestion(
   options: string[];
   solution_steps: SolutionStep[];
   explanation: string;
+  diagram?: string;
   _generated_vars?: Record<string, number | string>;
 } | null {
   // If there's a linked template, generate from it
@@ -663,6 +673,7 @@ export function generateDynamicQuestion(
       options: problem.options || [],
       solution_steps: problem.solution_steps,
       explanation: problem.explanation,
+      diagram: problem.diagram,
     };
   }
 
@@ -752,6 +763,7 @@ export function dbRowToTemplate(row: Record<string, unknown>): ProblemTemplate {
       ? row.study_references as { type: string; id: string; label: string }[]
       : [],
     generator_id: row.generator_id ? String(row.generator_id) : undefined,
+    diagram: (row.diagram && typeof row.diagram === 'object') ? row.diagram as DiagramSpec : undefined,
     is_active: row.is_active !== false,
   };
 }
