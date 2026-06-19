@@ -41,26 +41,36 @@ build → apply to live DB → verify → typecheck/lint → commit → push →
 throughout (gradient boundary, dignity of calls, Texas adverse-possession tracks,
 pure-notice recording, 22 TAC Ch. 138, vara, GLO). Applied + verified live.
 
-### Slice 2 — Playwright QA of SUR 292  ⏳
-- [ ] Course appears under ACC Academic Courses; modules in order.
-- [ ] A lesson renders all block types (text, table, callout, key_takeaways,
-      equation, accordion, link_reference) without errors.
-- [ ] A module quiz loads, a static MC question grades correctly.
-- [ ] A randomized/dynamic question generates concrete numbers and grades within
-      tolerance (round-trip of `_generated_answer`). Fix the quiz client if it drops
-      the hidden dynamic fields.
-- [ ] Flashcards load for a module. Practice shows the new template categories.
+### Slice 2 — Verification of SUR 292 ✅ (code + engine + DB; live visual pass deferred)
+- [x] Renderer (`…/[lessonId]/page.tsx`) confirmed to handle every seeded block
+      type (text, table, callout, key_takeaways, equation, accordion, link_reference).
+- [x] **Fixed a real grading bug:** QuizRunner dropped the per-attempt dynamic
+      fields on submit, so every randomized question graded against the placeholder
+      answer and was always wrong. Now echoes `_generated_answer/_tolerance/…`.
+      (commit) Typechecks clean.
+- [x] Engine verification: all 18 SUR 292 problem templates generate randomized
+      instances that self-grade correct within tolerance with no unsubstituted
+      variables (`scripts/_tmp_landlaw/verify_engine.ts`, 18/18).
+- [x] DB counts verified live (8 modules / 47 lessons / 315 blocks / 201 Q (18
+      dynamic) / 190 flashcards / 18 templates).
+- [ ] **Live visual pass (needs the user's session):** open the course under ACC
+      Academic Courses, walk a lesson, take a quiz incl. a randomized question.
+      Auth.js v5 uses encrypted session cookies; left for the user to click through.
 
 ### Slices 3+ — Flesh out existing empty modules (college-level)
 321 empty lessons across 36 modules. One module per slice via the same
 agent→JSON→`gen_seed`-style pipeline (new generator keyed by existing module IDs;
 upsert lessons by deterministic IDs, fill blocks/flashcards/questions/templates).
+Pipeline built: `scripts/_tmp_landlaw/existing/{SCHEMA_EXISTING.md,fetch_module.js,gen_existing.js}`.
+Each module slice is namespaced by a `buildout` tag + `created_by='buildout:m<n>'`
+so it never clobbers pre-existing company rows. Verified per batch with
+`verify_buildout.ts`.
 Priority order (most foundational / boundary-law-adjacent first):
-- [ ] 13 Boundary Law Principles
-- [ ] 14 Metes and Bounds Descriptions
-- [ ] 15 Texas Land Titles and Records
-- [ ] 16 Boundary Retracement and Resolution
-- [ ] 24 Texas Surveying Law and Regulations
+- [x] 13 Boundary Law Principles — seed 332 (8 lessons, 61 blocks, 30 cards, 23 Q, 2 tmpl)
+- [x] 14 Metes and Bounds Descriptions — seed 333 (7/45/23/20/4)
+- [x] 15 Texas Land Titles and Records — seed 334 (8/62/29/23/2)
+- [x] 16 Boundary Retracement and Resolution — seed 335 (8/55/31/23/4)
+- [x] 24 Texas Surveying Law and Regulations — seed 336 (8/59/26/25/2)
 - [ ] 2 Mathematics for Surveyors
 - [ ] 3 Surveying Measurements & Error Theory
 - [ ] 8 Traverse Computations

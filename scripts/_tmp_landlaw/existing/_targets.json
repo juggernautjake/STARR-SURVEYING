@@ -1,0 +1,278 @@
+[
+ {
+  "module": {
+   "id": "c100000d-0000-0000-0000-00000000000d",
+   "order_index": 13,
+   "title": "Boundary Law Principles",
+   "description": "Legal principles of boundary determination including riparian rights, adverse possession, and rules of construction.",
+   "tags": [
+    "boundary",
+    "legal",
+    "law",
+    "property"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "7609d69d-4e47-41af-ba52-4fb43c7bd30b",
+    "title": "Introduction to Property Law",
+    "order_index": 1
+   },
+   {
+    "id": "d9dce125-bcb4-4b45-ba8d-9b158330f19a",
+    "title": "Types of Property (Real vs. Personal)",
+    "order_index": 2
+   },
+   {
+    "id": "2f9cc34d-ae8a-4d64-85d8-fa127e99c3af",
+    "title": "Estates and Interests in Land",
+    "order_index": 3
+   },
+   {
+    "id": "adab54df-2ed0-4b42-84a3-b5dc747ee7ab",
+    "title": "Legal Descriptions Overview",
+    "order_index": 4
+   },
+   {
+    "id": "b6e53f76-c210-49f5-bc00-e863acdb4a26",
+    "title": "Rules of Construction for Deeds",
+    "order_index": 5
+   },
+   {
+    "id": "62544af0-961b-47ed-be48-62be4f3c7721",
+    "title": "Riparian and Littoral Rights",
+    "order_index": 6
+   },
+   {
+    "id": "7d2f4cce-bb4a-48ab-b9c4-61cd49b2951a",
+    "title": "Adverse Possession and Acquiescence",
+    "order_index": 7
+   },
+   {
+    "id": "149f728d-c46e-4060-80b4-442d34c58bc6",
+    "title": "Easements and Rights-of-Way",
+    "order_index": 8
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c100000e-0000-0000-0000-00000000000e",
+   "order_index": 14,
+   "title": "Metes and Bounds Descriptions",
+   "description": "Writing and interpreting metes and bounds legal descriptions, understanding calls, and resolving conflicts.",
+   "tags": [
+    "boundary",
+    "metes-bounds",
+    "descriptions",
+    "legal"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "ac63566a-d49c-47db-97c5-cc9186fdee08",
+    "title": "Components of a Metes and Bounds Description",
+    "order_index": 1
+   },
+   {
+    "id": "5c4cda74-f4e2-45d8-bfdd-373702f28d14",
+    "title": "Beginning Points and Monuments",
+    "order_index": 2
+   },
+   {
+    "id": "89312e01-b753-4286-ac10-c7096c77357e",
+    "title": "Course and Distance Calls",
+    "order_index": 3
+   },
+   {
+    "id": "da65db00-054e-419d-9988-24d97953ca1e",
+    "title": "Natural and Artificial Monuments",
+    "order_index": 4
+   },
+   {
+    "id": "9fc9e9f1-25b9-4c57-b4f2-e6e3b3a4de29",
+    "title": "Senior vs. Junior Rights",
+    "order_index": 5
+   },
+   {
+    "id": "42792d8e-0f3a-46d9-95c4-2add696124cf",
+    "title": "Resolving Conflicting Calls",
+    "order_index": 6
+   },
+   {
+    "id": "1112f7a8-b60d-43db-aac0-c02cc1ce39cf",
+    "title": "Writing Legal Descriptions",
+    "order_index": 7
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c100000f-0000-0000-0000-00000000000f",
+   "order_index": 15,
+   "title": "Texas Land Titles and Records",
+   "description": "Texas land title history from Spanish grants through present, abstract of title, and county records research.",
+   "tags": [
+    "boundary",
+    "texas",
+    "titles",
+    "records",
+    "history"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "6dc25256-cb35-42e0-b8ec-90b29f6c7085",
+    "title": "History of Texas Land Grants",
+    "order_index": 1
+   },
+   {
+    "id": "5ea5e4f0-f3c6-48af-a855-054e9110356e",
+    "title": "Spanish and Mexican Land Grants",
+    "order_index": 2
+   },
+   {
+    "id": "184ab3e2-3b90-48ae-b9a1-be10d4e85a55",
+    "title": "Republic of Texas Grants",
+    "order_index": 3
+   },
+   {
+    "id": "e5580ef9-dc1d-436a-80df-6e83e08e5a71",
+    "title": "Texas General Land Office (GLO)",
+    "order_index": 4
+   },
+   {
+    "id": "f0ebedbb-846c-4687-bac9-e799499718b8",
+    "title": "Abstract of Title and Title Insurance",
+    "order_index": 5
+   },
+   {
+    "id": "a1904e23-948b-4673-8fc9-cf711ada59a0",
+    "title": "County Clerk Records Research",
+    "order_index": 6
+   },
+   {
+    "id": "768c4969-7fca-4dfe-a552-3a375e926869",
+    "title": "Deed Interpretation",
+    "order_index": 7
+   },
+   {
+    "id": "d12cd2e7-2324-47e0-b1f5-ae908b7963e2",
+    "title": "Texas Land Title Practice Exercises",
+    "order_index": 8
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c1000010-0000-0000-0000-000000000010",
+   "order_index": 16,
+   "title": "Boundary Retracement and Resolution",
+   "description": "Procedures for retracing existing boundaries, resolving discrepancies, and re-establishing lost or obliterated corners.",
+   "tags": [
+    "boundary",
+    "retracement",
+    "resolution",
+    "field"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "88e2e8b2-1b43-44cb-9f84-69b4287c1bd5",
+    "title": "Retracement Survey Principles",
+    "order_index": 1
+   },
+   {
+    "id": "0e44ee50-808d-40e0-9fac-d92394584cb5",
+    "title": "Original Survey vs. Retracement",
+    "order_index": 2
+   },
+   {
+    "id": "b5bf81bd-43fb-4104-bf00-21500875b87d",
+    "title": "Evidence Collection and Analysis",
+    "order_index": 3
+   },
+   {
+    "id": "3557faa5-147f-430a-bc6b-57c4260d5653",
+    "title": "Lost and Obliterated Corners",
+    "order_index": 4
+   },
+   {
+    "id": "5dfc9628-8f23-417d-97b6-192f68ce2c10",
+    "title": "Proportionate Measurement",
+    "order_index": 5
+   },
+   {
+    "id": "30169341-4a73-4d9b-84e7-0700156b62af",
+    "title": "Agreement Lines and Boundary Agreements",
+    "order_index": 6
+   },
+   {
+    "id": "20950896-59ec-45d2-9dbc-eb3e020232b6",
+    "title": "Expert Witness and Court Procedures",
+    "order_index": 7
+   },
+   {
+    "id": "bf1c4700-19c2-40c1-8477-19d8a2150348",
+    "title": "Boundary Retracement Case Studies",
+    "order_index": 8
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c1000018-0000-0000-0000-000000000018",
+   "order_index": 24,
+   "title": "Texas Surveying Law and Regulations",
+   "description": "Texas-specific laws, TBPELS rules, Standards and Specifications, and regulatory compliance for surveyors.",
+   "tags": [
+    "professional",
+    "texas-law",
+    "regulations",
+    "TBPELS"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "4ee6b9bd-40a2-4a27-9bf5-e2a25d4195ca",
+    "title": "Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
+    "order_index": 1
+   },
+   {
+    "id": "16f6fb48-114c-4670-8be8-bb211da888a8",
+    "title": "Texas Professional Land Surveying Practices Act",
+    "order_index": 2
+   },
+   {
+    "id": "8a8a6ec2-fee2-48a5-9676-71e947c1e640",
+    "title": "TBPELS Rules and Regulations",
+    "order_index": 3
+   },
+   {
+    "id": "aea6fe59-0955-42ca-87cd-a20323dd7c45",
+    "title": "Texas Standards and Specifications for Land Surveying",
+    "order_index": 4
+   },
+   {
+    "id": "4cf7696b-094d-47d1-bc5b-a68c9bb7f21b",
+    "title": "Texas Natural Resources Code — Surveying Sections",
+    "order_index": 5
+   },
+   {
+    "id": "5d0e6d5b-5066-449e-80a8-5c48cb705009",
+    "title": "Texas Property Code — Relevant Sections",
+    "order_index": 6
+   },
+   {
+    "id": "d254ce3d-221e-465e-a28a-d04e6429193b",
+    "title": "Ethics Complaints and Disciplinary Process",
+    "order_index": 7
+   },
+   {
+    "id": "947241dc-10a7-4ace-b235-6451665b5d16",
+    "title": "Regulatory Compliance Case Studies",
+    "order_index": 8
+   }
+  ]
+ }
+]

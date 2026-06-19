@@ -1,0 +1,976 @@
+{
+  "order_index": 14,
+  "module_id": "c100000e-0000-0000-0000-00000000000e",
+  "title": "Metes and Bounds Descriptions",
+  "lessons": [
+    {
+      "lesson_id": "ac63566a-d49c-47db-97c5-cc9186fdee08",
+      "title": "Components of a Metes and Bounds Description",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify the standard components of a metes-and-bounds description in order: caption, point of commencement/beginning, body of courses, monument and closing calls, area, and certification.",
+        "Explain why a description must close to form a single, unambiguous parcel.",
+        "Recognize Texas-specific caption conventions (original GLO survey + abstract number) and the governing standard in 22 TAC §138.91."
+      ],
+      "key_takeaways": [
+        "A metes-and-bounds description traces the perimeter of one closed parcel: caption -> POC/POB -> body of courses -> monuments -> closing call -> area -> certification.",
+        "'Metes' are the measured courses (bearing + distance); 'bounds' are the monuments/adjoiners that limit the tract.",
+        "In Texas the caption recites the original GLO survey and abstract number because there is no PLSS grid.",
+        "A description that does not mathematically close is legally defective."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What a metes-and-bounds description is</h3><p>A <strong>metes-and-bounds description</strong> is a written, mathematical walk around the perimeter of a single parcel of land. <em>Metes</em> means the measured courses &mdash; a <strong>bearing and a distance</strong> for each line. <em>Bounds</em> means the limits set by <strong>monuments and adjoiners</strong> &mdash; rivers, roads, marked corners, and neighboring tracts that the lines run to or along. Unlike the federal Public Land Survey System (PLSS), which locates land by township, range, and section, a metes-and-bounds description follows the actual shape of the ground, line by line, until it returns to where it started.</p><p>Texas, the original thirteen colonies, and a handful of other states use metes and bounds because their land was never part of the federal rectangular survey. Every Texas parcel is therefore described by its own irregular perimeter, anchored to an <strong>original land-grant survey and abstract number</strong> rather than to a sectional grid. A complete description must do one thing above all: identify <strong>one</strong> parcel so clearly that a competent surveyor, years later, could relocate every corner on the ground.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The anatomy, in order</h3><p>A well-formed description is read top to bottom and assembled in a fixed sequence:</p><ul><li><strong>Caption / heading</strong> &mdash; the county, the original GLO survey and abstract number, the parent tract, and the acreage.</li><li><strong>Point of Commencement (POC)</strong> &mdash; an optional, well-known reference point (often an original survey corner) used to reach the parcel.</li><li><strong>Point of Beginning (POB)</strong> &mdash; the corner where the perimeter run actually starts and ends.</li><li><strong>Body of courses</strong> &mdash; the sequential bearing-and-distance calls, with monument and adjoiner calls, that trace each boundary line.</li><li><strong>Closing call</strong> &mdash; the final course returning to the POB.</li><li><strong>Area / quantity</strong> &mdash; the computed acreage (or square feet; historically varas/labors/leagues).</li><li><strong>Certification</strong> &mdash; the surveyor's signed, sealed statement.</li></ul><p>Drop or garble any one of these and the description may be ambiguous, void for uncertainty, or impossible to retrace.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Component", "Purpose", "Example phrasing"],
+            "rows": [
+              ["Caption", "Locate the tract within the original survey", "BEING a 2.50-acre tract in the John Doe Survey, Abstract No. 123, Travis County, Texas"],
+              ["POC", "Reach the parcel from a known corner", "COMMENCING at the NW corner of said Doe Survey"],
+              ["POB", "Start/end of the perimeter run", "THENCE ... to the POINT OF BEGINNING"],
+              ["Course call", "One boundary line", "THENCE N 12 deg 30' E, 210.50 ft to a 1/2\" iron rod set"],
+              ["Closing call", "Return to POB", "THENCE ... to the POINT OF BEGINNING and place of beginning"],
+              ["Area", "Quantity check", "containing 2.50 acres of land, more or less"],
+              ["Certification", "Surveyor's seal/signature", "I hereby certify ... (RPLS No. ____)"]
+            ]
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Annotated metes-and-bounds parcel showing caption tie, POC, POB, numbered courses, monuments, and closing call",
+            "caption": "Figure: Anatomy of a metes-and-bounds description, from the caption tie through the closing call back to the POB.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Captions almost always recite the original GLO survey and abstract number (e.g., 'the H. & T.C.R.R. Co. Survey, Abstract No. 45'). Texas land was never federal public domain, so there is NO PLSS township-range grid to cite. 22 TAC Sec. 138.91 governs the written description and requires a definite, unambiguous identification of the boundaries."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Closure is the non-negotiable test: the calls must mathematically return to the POB, forming a closed figure with no gap or overlap. A description that fails to close is legally defective and may be void for uncertainty."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Order matters: caption -> POC -> POB -> body of courses -> closing call -> area -> certification.",
+              "'Metes' = measured courses (bearing + distance); 'bounds' = monuments/adjoiners.",
+              "Texas captions cite the original GLO survey + abstract number; there is no PLSS grid.",
+              "22 TAC Sec. 138.91 requires a definite, unambiguous, closed description.",
+              "Stated area is the weakest element &mdash; a check, not a control."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Metes and bounds",
+          "definition": "A method of describing land by tracing the perimeter as a sequence of measured courses (metes = bearing + distance) bounded by monuments and adjoiners (bounds), returning to the point of beginning.",
+          "hint_1": "Perimeter walk, not a grid."
+        },
+        {
+          "term": "Caption (of a description)",
+          "definition": "The heading that locates the tract: county, original GLO survey and abstract number, parent tract reference, and acreage.",
+          "hint_1": "Texas always cites the abstract number."
+        },
+        {
+          "term": "Closure",
+          "definition": "The requirement that the body of courses mathematically return to the point of beginning, forming a closed figure with no gap or overlap; failure to close is a legal defect."
+        }
+      ]
+    },
+    {
+      "lesson_id": "5c4cda74-f4e2-45d8-bfdd-373702f28d14",
+      "title": "Beginning Points and Monuments",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Distinguish the Point of Commencement (POC) from the Point of Beginning (POB) and explain when each is used.",
+        "Explain why the POB is tied back to a corner of the original GLO survey/abstract in Texas practice.",
+        "Describe how monuments at the POB are established or referenced under 22 TAC Sec. 138.87 (Monumentation)."
+      ],
+      "key_takeaways": [
+        "The POB is the corner where the perimeter run begins and ends; the POC is an optional well-known reference used to reach the POB.",
+        "By Texas convention the POB ties to an original GLO survey corner so the parcel can be relocated independently of the surveyor's own work.",
+        "Monuments are set or found at the POB and documented under 22 TAC Sec. 138.87."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Commencement versus beginning</h3><p>Students routinely confuse the two opening points. The <strong>Point of Commencement (POC)</strong> is a well-known, independently locatable reference &mdash; very often an <strong>original survey corner</strong> or a found government monument &mdash; from which the writer runs one or more <em>tie courses</em> to reach the parcel. The POC is <strong>not</strong> part of the parcel boundary; it is scaffolding. The <strong>Point of Beginning (POB)</strong> is the corner where the actual perimeter run starts, and it is also where the perimeter must end (the closing call returns to it).</p><p>A description may have no POC at all (it begins directly at a monumented POB), or it may commence at a distant corner and tie in. The value of a POC is that it anchors the whole figure to something a future surveyor can find even if the parcel's own corners are later disturbed. Always read carefully: the word <strong>COMMENCING</strong> introduces a tie that you do <em>not</em> include in area or closure; the word <strong>BEGINNING</strong> (or 'POINT OF BEGINNING') marks the first true boundary corner.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Tying the POB to the original survey</h3><p>In Texas, good practice <strong>ties the POB and at least one controlling corner back to a corner of the original GLO survey/abstract</strong>. Because Texas land is organized by original land grants rather than a rectangular grid, the original-survey corner is the most durable, record-dignified anchor available. Tying to it lets a retracing surveyor relocate the parcel from the GLO record and the original surveyor's footsteps &mdash; independently of the field work of whoever wrote the current description.</p><p>A robust POB call therefore does two things: it <strong>identifies a physical monument</strong> at or near the point (a found iron rod, a fence corner, a concrete monument), and it <strong>states the geometric tie</strong> (bearing and distance) from a recoverable reference such as the original survey corner. If the monument at the POB is later destroyed, the recorded tie still permits reconstruction.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Read the verbs: COMMENCING introduces a tie course that is NOT part of the parcel and is excluded from closure and area; BEGINNING marks the first actual boundary corner of the parcel."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Monuments at the beginning point</h3><p>Under <strong>22 TAC Sec. 138.87 (Monumentation)</strong>, a surveyor must 'set, or leave as found, an adequate quantity of monuments of a stable and reasonably permanent nature to represent or reference the property or boundary corners.' Set monuments must be of sufficient size and depth to withstand the deteriorating forces of nature and must be <strong>marked in a way traceable to the responsible registrant</strong> (typically a cap stamped with the RPLS number). The description must state which monuments at the POB were <strong>found</strong> (pre-existing, of record dignity) and which were <strong>placed</strong> by the surveyor &mdash; a distinction that becomes decisive when calls later conflict, because a found original monument outranks a freshly set one.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram showing an original survey corner as POC, a tie course, and the POB monument on the parcel",
+            "caption": "Figure: A Point of Commencement at an original GLO survey corner, a tie course, and the monumented Point of Beginning.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "POC = scaffolding reference (COMMENCING); POB = first/last boundary corner (BEGINNING).",
+              "Tie the POB to an original GLO survey corner so the parcel is relocatable from the record.",
+              "22 TAC Sec. 138.87 governs monument size, permanence, and traceable marking.",
+              "Always state which POB monuments were found versus set."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Point of Commencement (POC)",
+          "definition": "A well-known reference point (often an original survey corner) from which a tie course is run to reach the parcel; introduced by 'COMMENCING' and not part of the boundary or area.",
+          "hint_1": "Scaffolding, not boundary."
+        },
+        {
+          "term": "Point of Beginning (POB)",
+          "definition": "The corner where the perimeter run starts and where the closing call returns; the first true boundary corner of the parcel, introduced by 'BEGINNING.'"
+        },
+        {
+          "term": "22 TAC Sec. 138.87",
+          "definition": "The TBPELS monumentation rule requiring stable, permanent monuments traceable to the responsible registrant, with found and set monuments documented."
+        }
+      ]
+    },
+    {
+      "lesson_id": "89312e01-b753-4286-ac10-c7096c77357e",
+      "title": "Course and Distance Calls",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Read and write a course call as a quadrant bearing plus a distance, with a stated basis of bearing.",
+        "Convert between bearings, azimuths, and back-azimuths.",
+        "Compute the latitude and departure of a course and use them to check closure.",
+        "Convert vara distances to feet for historical Texas field notes."
+      ],
+      "key_takeaways": [
+        "A course = direction (bearing) + length (distance); bearings must reference a stated basis of bearing.",
+        "Azimuth is measured clockwise from north 0-360 deg; a quadrant bearing is 0-90 deg off the N-S line; back-azimuth = azimuth +/- 180 deg.",
+        "Latitude = distance x cos(bearing angle); Departure = distance x sin(bearing angle).",
+        "1 vara = 33 1/3 in = 2.7778 ft (multiply varas by 2.7778, or divide by 0.36)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Anatomy of a course call</h3><p>The body of a description is a chain of <strong>course calls</strong>, each giving a <strong>direction</strong> and a <strong>length</strong>: 'THENCE N 12&deg;30&prime; E, 210.50 ft.' The direction is normally written as a <strong>quadrant bearing</strong> &mdash; an acute angle, between 0&deg; and 90&deg;, measured from the north or south meridian toward the east or west. So <strong>N 12&deg;30&prime; E</strong> means 12&deg;30&prime; east of due north. Every bearing must rest on a stated <strong>basis of bearing</strong> (22 TAC Sec. 138.91(c)): an identifiable, monumented line or an established geodetic datum such as the Texas State Plane Coordinate System (NAD83) by zone. Without a basis of bearing, the directions float and the figure cannot be reliably oriented.</p><p>Historic Texas descriptions often used <strong>magnetic or assumed</strong> bearings, which is a common source of whole-figure rotation when retracing &mdash; modern grid bearings and old magnetic bearings differ by the magnetic declination of the original survey's era and place.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Bearings, azimuths, and back-azimuths</h3><p>An <strong>azimuth</strong> is a direction measured <strong>clockwise from north</strong>, from 0&deg; to 360&deg;. Surveyors convert freely between quadrant bearings and azimuths because instruments read azimuths while deeds read bearings. The quadrant determines the formula:</p><ul><li><strong>NE</strong> quadrant: azimuth = bearing angle.</li><li><strong>SE</strong> quadrant: azimuth = 180&deg; &minus; bearing angle.</li><li><strong>SW</strong> quadrant: azimuth = 180&deg; + bearing angle.</li><li><strong>NW</strong> quadrant: azimuth = 360&deg; &minus; bearing angle.</li></ul><p>The <strong>back-azimuth</strong> is the direction looking back along the same line &mdash; exactly 180&deg; opposite. Compute it by <strong>adding 180&deg; if the azimuth is less than 180&deg;, or subtracting 180&deg; if it is 180&deg; or more</strong>, so the result stays within 0&deg;&ndash;360&deg;. The back-bearing is simply the forward bearing with both letters reversed (N&harr;S, E&harr;W): the back-bearing of N 12&deg;30&prime; E is S 12&deg;30&prime; W.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{Lat} = d\\cos\\alpha, \\qquad \\text{Dep} = d\\sin\\alpha",
+            "label": "Latitude and departure of a course (alpha = quadrant bearing angle, d = distance)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Latitude and departure</h3><p>To carry a course into coordinates, decompose it into a north-south component (<strong>latitude</strong>) and an east-west component (<strong>departure</strong>). Using the quadrant bearing angle &alpha;: <strong>Lat = d&middot;cos&alpha;</strong> and <strong>Dep = d&middot;sin&alpha;</strong>. The <em>signs</em> follow the quadrant: latitude is + for N and &minus; for S; departure is + for E and &minus; for W. Summing all latitudes and all departures around a perfectly closed traverse should give zero in each; the small leftover amounts are the closure errors, used in the next lesson. Computing latitudes and departures is the bridge between the words of a deed and a coordinate geometry (COGO) check of whether it closes.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Many original field notes are in VARAS. Texas fixed the vara at exactly 33 1/3 in = 2.7778 ft (Art. 5730, Rev. Civ. Stat., 1919). Convert varas to feet (x 2.7778, or divide by 0.36) before computing latitudes/departures. Example: 'S 45 deg E, 950 vrs' = 950 x 2.7778 = 2,638.9 ft. Do not apply a non-Texas vara value to a Texas grant."
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Quadrant", "Azimuth from bearing angle a", "Back-bearing"],
+            "rows": [
+              ["N a E (NE)", "a", "S a W"],
+              ["S a E (SE)", "180 - a", "N a W"],
+              ["S a W (SW)", "180 + a", "N a E"],
+              ["N a W (NW)", "360 - a", "S a E"]
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "A course = quadrant bearing + distance, on a stated basis of bearing (22 TAC Sec. 138.91(c)).",
+              "Azimuth is clockwise from north (0-360 deg); convert per quadrant.",
+              "Back-azimuth = azimuth +/- 180 deg; back-bearing reverses both letters.",
+              "Lat = d cos(a), Dep = d sin(a); signs follow the quadrant.",
+              "Convert varas to feet (x 2.7778) before any computation."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Azimuth",
+          "definition": "A horizontal direction measured clockwise from north, ranging 0 to 360 degrees.",
+          "hint_1": "Clockwise from north."
+        },
+        {
+          "term": "Back-azimuth",
+          "definition": "The direction looking back along a line, equal to the forward azimuth plus or minus 180 degrees (kept within 0-360)."
+        },
+        {
+          "term": "Latitude and departure",
+          "definition": "The north-south (latitude = d cos a) and east-west (departure = d sin a) components of a course, signed by quadrant; used to convert courses to coordinates and check closure."
+        },
+        {
+          "term": "Vara",
+          "definition": "The Texas surveying unit fixed by statute at exactly 33 1/3 inches (2.7778 ft); common in original GLO field notes.",
+          "hint_1": "Multiply varas by 2.7778 for feet."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da65db00-054e-419d-9988-24d97953ca1e",
+      "title": "Natural and Artificial Monuments",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Distinguish natural monuments from artificial monuments and give Texas examples of each.",
+        "Explain why monuments control over course and distance in a boundary conflict.",
+        "Apply 22 TAC Sec. 138.91(e) requirements to document found versus placed monuments."
+      ],
+      "key_takeaways": [
+        "Natural monuments are permanent natural features (rivers, creeks, ridgelines, established trees); artificial monuments are surveyor-made (iron rods, pipes, concrete monuments, fences).",
+        "Monuments outrank course and distance because they are more reliable evidence of where the line was actually run.",
+        "22 TAC Sec. 138.91(e) requires stating which monuments were found and which were placed, plus other record-dignity monuments relied upon."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Two kinds of bounds</h3><p>The 'bounds' half of metes and bounds is supplied by <strong>monuments</strong> &mdash; physical objects that mark or limit the boundary. They come in two classes. <strong>Natural monuments</strong> are permanent features of the landscape that existed independent of the survey: rivers, creeks, lakes, ridgelines, rock outcrops, and well-established trees. <strong>Artificial monuments</strong> are objects placed or adopted by people to mark corners and lines: iron rods and pipes, concrete monuments, stone mounds, marked (blazed) trees, fences, and road right-of-way lines. A call that runs 'to the centerline of Bull Creek' is a natural-monument call; 'to a 1/2&Prime; iron rod set' is an artificial-monument call.</p><p>Monuments matter because they are <strong>evidence of where the original line was actually located on the ground</strong>. A bearing and distance describe where a line <em>should</em> go; a found monument shows where the original surveyor <em>did</em> put it. When those disagree, the law prefers the harder, more reliable evidence.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why monuments control</h3><p>In the dignity-of-calls hierarchy (treated fully in the conflicts lesson), <strong>natural monuments outrank artificial monuments, and both outrank course and distance</strong>. The reasoning is reliability: a river or a marked original corner is far less likely to be mis-recorded or mis-measured than a bearing read from a compass or a distance chained over rough ground. The seminal Texas case, <em>Stafford v. King</em>, 30 Tex. 257 (1867), put it directly: 'course and distance are the most unreliable calls,' and they 'yield to natural objects.' Consequently, when a deed says 'N 80&deg; E, 400 ft to an iron rod set in the east bank of the creek' and the rod is found 412 ft out, the <strong>monument (the found rod at the creek) controls</strong> and the distance is corrected to fit.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: A found, identifiable original monument controls over conflicting field-note calls, consistent with the 'footsteps of the original surveyor' doctrine from Stafford v. King. Course and distance are guides to the monuments, not the other way around."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Documenting monuments</h3><p>Documentation is a regulatory duty, not just good form. <strong>22 TAC Sec. 138.91(e)</strong> requires the surveyor to state in the description and on the drawing <strong>which monuments were found and which were placed</strong>, and to identify 'other monuments of record dignity relied upon.' This found-versus-set distinction is decisive in retracement: a <strong>found</strong> monument that can be tied to the original survey carries high dignity, while a monument the current surveyor merely <strong>set</strong> is only as good as the work that positioned it. Calling out monuments precisely (size, material, cap stamping, condition, and what they reference) is what lets the next surveyor decide which evidence to trust.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Side-by-side examples of natural monuments (creek, ridgeline, tree) and artificial monuments (iron rod, concrete monument, fence)",
+            "caption": "Figure: Natural monuments versus artificial monuments and how a course call ties to each.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Natural monuments (rivers, creeks, ridgelines, trees) outrank artificial monuments (rods, pipes, concrete, fences).",
+              "Both monument classes outrank course and distance because they show where the line was actually run.",
+              "Stafford v. King: course and distance are the most unreliable calls and yield to monuments.",
+              "22 TAC Sec. 138.91(e) requires documenting found versus placed monuments and record-dignity monuments relied upon."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Natural monument",
+          "definition": "A permanent natural feature used as a boundary call, such as a river, creek, lake, ridgeline, rock outcrop, or established tree; the highest-dignity class of call.",
+          "hint_1": "Existed before the survey."
+        },
+        {
+          "term": "Artificial monument",
+          "definition": "A human-made object marking a corner or line, such as an iron rod, pipe, concrete monument, stone mound, blazed tree, or fence; ranks below natural monuments but above course and distance."
+        },
+        {
+          "term": "Found versus set monument",
+          "definition": "A found monument pre-existed the current survey (often original, high dignity); a set monument is placed by the current surveyor. 22 TAC Sec. 138.91(e) requires documenting which is which."
+        }
+      ]
+    },
+    {
+      "lesson_id": "9fc9e9f1-25b9-4c57-b4f2-e6e3b3a4de29",
+      "title": "Senior vs. Junior Rights",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "State the senior/junior rights doctrine and apply it to sequential conveyances.",
+        "Distinguish sequential conveyances (senior/junior governs) from simultaneous conveyances (apportionment governs).",
+        "Recognize how the Texas GLO patent system creates senior titles against which later subdivisions are junior."
+      ],
+      "key_takeaways": [
+        "In sequential conveyances the earlier (senior) deed takes the full measure of its description; the later (junior) deed takes only the remainder.",
+        "A grantor cannot convey land already conveyed to a senior grantee.",
+        "Sequential conveyances -> senior/junior rights; simultaneous (plat) conveyances -> proportionate apportionment, no lot is senior.",
+        "Texas GLO patents create senior titles against which later carve-outs and subdivisions are junior."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The senior-rights principle</h3><p>When a single grantor conveys parcels <strong>one after another over time</strong>, the conveyances are <em>sequential</em>, and a basic priority rule governs any overlap or gap: the <strong>earlier (senior) conveyance takes the full measure of what its description grants</strong>, and the <strong>later (junior) conveyance takes only what is left</strong>. The logic is simple &mdash; a grantor cannot give away land he has already given to someone else. So if a 100-acre tract is first deeded as '50 acres off the west end' and later the 'remainder' is deeded to a second buyer, any surplus or shortage discovered on resurvey lands entirely on the <strong>junior</strong>: the senior is made whole at the full 50 acres first.</p><p>Crucially, seniority <strong>resolves conflicts</strong>; it does not <strong>expand</strong> a grant. The senior deed never gets more than its own description calls for. Senior rights only decide who wins where two descriptions overlap, or who absorbs an excess/deficiency where they leave a gap.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Sequential versus simultaneous</h3><p>The doctrine you apply depends on how the parcels were created. <strong>Sequential</strong> conveyances are carved out at different times (typical metes-and-bounds splits from a larger ranch); <strong>senior/junior rights govern</strong>, and excess or deficiency is <em>not</em> prorated &mdash; it falls on the junior. <strong>Simultaneous</strong> conveyances are created at a single instant from a common scheme &mdash; classically, the lots of a recorded subdivision plat. There, <strong>no lot is senior to another</strong>, and any excess or deficiency between controlling monuments is <strong>apportioned proportionately</strong> among the affected lots. The order in which the platted lots later <em>sold</em> is irrelevant to seniority among them, because they were all created together by the plat.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["", "Sequential conveyances", "Simultaneous conveyances"],
+            "rows": [
+              ["Creation", "Carved out over time", "Created at one instant (plat)"],
+              ["Priority", "Senior/junior rights", "All equal dignity"],
+              ["Excess/deficiency", "Falls on the junior", "Apportioned proportionately"],
+              ["Typical example", "Metes-and-bounds splits from a ranch", "Recorded subdivision lots"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas overlay: The GLO patent system creates the senior title in any chain &mdash; the original land-grant patent is senior, and later carve-outs and subdivisions are junior to it. TBPELS rules (22 TAC Ch. 138) direct surveyors to respect junior/senior rights and the record chain in retracement."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Reading seniority from the record</h3><p>To apply the doctrine you must read the <strong>order of conveyance</strong> from the title chain, not the order of recording alone and not the order in which lots happened to sell. Look for language that signals juniority &mdash; 'the remainder of,' 'save and except,' 'less and except,' or a call that ties to an adjoiner 'as described in' an earlier-dated deed. When a junior description calls for an adjoinder to a senior tract, the <strong>senior boundary controls</strong> the shared line; the junior simply fits up against it. This is why careful surveyors retrace the senior tract first, then close the junior to it.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Senior deed gets the full measure of its description; the junior takes the remainder.",
+              "A grantor cannot convey what he has already conveyed.",
+              "Sequential -> senior/junior rights (no proration); simultaneous -> proportionate apportionment.",
+              "GLO patents are senior; later carve-outs are junior. 22 TAC Ch. 138 requires honoring the record chain.",
+              "Retrace the senior tract first, then fit the junior to it."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Senior/junior rights",
+          "definition": "In sequential conveyances, the earlier (senior) deed takes the full measure of its description and the later (junior) deed takes only the remainder; excess/deficiency falls on the junior.",
+          "hint_1": "First in time, full measure."
+        },
+        {
+          "term": "Sequential vs. simultaneous conveyance",
+          "definition": "Sequential parcels are carved out over time (senior/junior rights govern); simultaneous parcels are created at one instant by a plat (all equal dignity, excess/deficiency apportioned proportionately)."
+        },
+        {
+          "term": "Adjoinder call",
+          "definition": "A call that runs to or along an already-established adjacent boundary; when a junior tract calls for adjoinder to a senior tract, the senior boundary controls the shared line."
+        }
+      ]
+    },
+    {
+      "lesson_id": "42792d8e-0f3a-46d9-95c4-2add696124cf",
+      "title": "Resolving Conflicting Calls",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "State the dignity-of-calls hierarchy and apply it to resolve conflicting calls in a description.",
+        "Explain that the hierarchy is a rule of construction subordinate to intent and to the footsteps of the original surveyor.",
+        "Identify common defects in descriptions and how each is treated in retracement."
+      ],
+      "key_takeaways": [
+        "Dignity of calls (highest to lowest): natural monuments > artificial monuments > adjoinder > course (bearing) > distance > quantity/area.",
+        "The hierarchy is a rebuttable rule of construction that always yields to the parties' intent and the footsteps of the original surveyor.",
+        "Stafford v. King (1867) is the seminal Texas authority for both the hierarchy and the footsteps doctrine.",
+        "Common defects include failure to close, ambiguous calls, missing basis of bearing, and gaps/overlaps with adjoiners."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The dignity of calls</h3><p>When the calls within one description conflict &mdash; the bearing says one thing, the found monument another &mdash; the law ranks them by <strong>relative reliability</strong>, called the <em>dignity of calls</em>. From highest to lowest: <strong>(1) calls for natural monuments</strong> (rivers, creeks, ridgelines); <strong>(2) calls for artificial monuments</strong> (iron rods, concrete, fences); <strong>(3) calls for adjoinder</strong> (an already-established adjacent survey line); <strong>(4) course</strong> (bearing/direction); <strong>(5) distance</strong>; and <strong>(6) quantity/area</strong> (the weakest). A higher-dignity call controls a lower one. So a found original monument beats a conflicting distance; a distance beats a conflicting acreage; and stated area &mdash; 'more or less' &mdash; almost never controls anything.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Rank", "Call", "Why it ranks here"],
+            "rows": [
+              ["1", "Natural monuments", "Permanent, hard to mis-record"],
+              ["2", "Artificial monuments", "Physical evidence of the original line"],
+              ["3", "Adjoinder", "Ties to an established neighboring line"],
+              ["4", "Course (bearing)", "Reproducible but instrument/declination error"],
+              ["5", "Distance", "Chaining/measurement error more likely"],
+              ["6", "Quantity / area", "A computed check, least reliable"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The hierarchy bows to intent and footsteps</h3><p>The hierarchy is only a <strong>rule of construction</strong> &mdash; a set of rebuttable presumptions used to <em>find</em> the parties' intent. It is <strong>not</strong> a mechanical formula that overrides everything else. Two principles always sit above it. First, the <strong>intent of the parties</strong>, taken from the four corners of the instrument read in light of the surrounding circumstances, is paramount; a lower-dignity call can prevail when the instrument and circumstances show that was intended. Second, the <strong>footsteps of the original surveyor</strong> control: a retracing surveyor must locate the lines <em>where they were actually run</em>, even against later, more 'accurate' measurements. <em>Stafford v. King</em>, 30 Tex. 257 (1867), states both: 'the footsteps of the surveyor upon the ground should always be followed.'</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs in emphasis: Texas is a strong 'footsteps' jurisdiction. Because titles flow from original GLO surveys rather than a uniform PLSS grid, retracing the original surveyor's actual monuments and footsteps is the dominant methodology; the dignity-of-calls hierarchy is a fallback used only when the footsteps cannot be retraced."
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Common defect: failure to close",
+                "content": "<p>The calls do not return to the POB. Check by summing latitudes and departures; if the misclosure exceeds tolerance, look for a transposed digit, a dropped course, a wrong quadrant letter, or a vara-to-feet error before condemning the description.</p>",
+                "open": false
+              },
+              {
+                "title": "Common defect: ambiguous or conflicting calls",
+                "content": "<p>A monument call disagrees with a bearing/distance. Resolve by dignity of calls, subordinated to intent and footsteps &mdash; the found original monument usually controls.</p>",
+                "open": false
+              },
+              {
+                "title": "Common defect: missing basis of bearing",
+                "content": "<p>Bearings have no stated reference (22 TAC Sec. 138.91(c)). The figure can rotate relative to the ground; historic magnetic/assumed bearings must be reconciled to a modern datum.</p>",
+                "open": false
+              },
+              {
+                "title": "Common defect: gap or overlap with an adjoiner",
+                "content": "<p>The description does not fit the senior neighbor. Apply senior/junior rights (sequential) or apportionment (simultaneous) and call for the senior adjoinder.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Dignity order: natural > artificial > adjoinder > course > distance > quantity/area.",
+              "The hierarchy is a rebuttable rule of construction, subordinate to intent and footsteps.",
+              "Stafford v. King (1867) anchors both the hierarchy and the footsteps doctrine in Texas.",
+              "Texas leans on footsteps/original monuments first; the hierarchy is a fallback.",
+              "Diagnose defects (no closure, ambiguity, missing basis of bearing, gaps/overlaps) before discarding a description."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Dignity of calls",
+          "definition": "The reliability hierarchy used to resolve conflicting calls: natural monuments > artificial monuments > adjoinder > course > distance > quantity/area.",
+          "hint_1": "Monuments beat measurements; measurements beat acreage."
+        },
+        {
+          "term": "Footsteps doctrine",
+          "definition": "The cardinal Texas retracement rule that a surveyor must follow the original surveyor's actual lines and corners on the ground, even against later, more accurate measurements; from Stafford v. King (1867)."
+        },
+        {
+          "term": "Stafford v. King",
+          "definition": "30 Tex. 257 (1867); the seminal Texas case stating both the dignity-of-calls hierarchy and the footsteps doctrine, and that course and distance are the most unreliable calls."
+        }
+      ]
+    },
+    {
+      "lesson_id": "1112f7a8-b60d-43db-aac0-c02cc1ce39cf",
+      "title": "Writing Legal Descriptions",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Assemble a complete, closed metes-and-bounds description meeting 22 TAC Sec. 138.91 requirements.",
+        "Verify closure using linear misclosure and report precision per 22 TAC Sec. 138.83.",
+        "Explain who may seal a description and the role of the RPLS under Occupations Code Ch. 1071."
+      ],
+      "key_takeaways": [
+        "Write the description in order with explicit ties, a stated basis of bearing, and documented monuments; it must close.",
+        "Linear misclosure = hypot(sum of latitudes, sum of departures); precision = perimeter / misclosure, expressed as 1:N.",
+        "Only an RPLS (or LSLS for state land) may prepare and seal a metes-and-bounds description; Occupations Code Ch. 1071 governs licensure and sealing.",
+        "Standards live in 22 TAC Ch. 138 (Subchapter E), not the repealed Ch. 663."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Assembling the description</h3><p>Writing a legal description is disciplined assembly. Start with a <strong>caption</strong> that places the tract in its original GLO survey and abstract, county, parent tract, and acreage. State the <strong>basis of bearing</strong> explicitly. If needed, <strong>COMMENCE</strong> at an original survey corner and tie to the <strong>POB</strong>. Then run the perimeter as a sequence of <strong>THENCE</strong> course calls &mdash; each with bearing, distance, and a monument or adjoiner call &mdash; all the way around and back to the POINT OF BEGINNING via the <strong>closing call</strong>. State the <strong>area</strong> ('containing X acres, more or less') and finish with the <strong>certification</strong>. Every monument is described as found or set, with size, material, and cap stamping. The governing rule is <strong>22 TAC Sec. 138.91</strong>: the description must give a definite and unambiguous identification of the boundaries and describe all monuments found or placed.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Verifying closure and precision</h3><p>Before a description leaves the office it must be <strong>checked for closure</strong> by COGO. Compute each course's latitude and departure, sum them, and form the <strong>linear misclosure</strong> as the hypotenuse of the two sums: misclosure = &radic;((&Sigma;Lat)&sup2; + (&Sigma;Dep)&sup2;). Divide the traverse <strong>perimeter</strong> by the misclosure to get the <strong>precision ratio</strong>, reported as 1:N (e.g., 1:15,000). A larger N is better. Traverse and positional tolerances are set in <strong>22 TAC Sec. 138.83 (Precision and Accuracy)</strong> and the TSPS Manual of Practice; for a Category 1A land-title survey a separate <strong>closure report</strong> is submitted. If the misclosure is too large, hunt for a transposed digit, a missing course, a wrong quadrant, or an unconverted vara before re-running field work.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{Misclosure} = \\sqrt{(\\sum \\text{Lat})^2 + (\\sum \\text{Dep})^2}, \\qquad \\text{Precision} = \\frac{\\text{Perimeter}}{\\text{Misclosure}}",
+            "label": "Linear misclosure and precision ratio",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas standards: The professional and technical standards are in 22 TAC Ch. 138, Subchapter E (Sec. 138.81 et seq.). The old 22 TAC Ch. 663 was REPEALED after HB 1523 (2019) merged the boards into TBPELS. Citing Sec. 663 is outdated for 2026 &mdash; use Ch. 138."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Who may seal it</h3><p>A metes-and-bounds description is a regulated professional work product. Under <strong>Occupations Code Chapter 1071</strong>, the Professional Land Surveying Practices Act, only a <strong>Registered Professional Land Surveyor (RPLS)</strong> &mdash; or a <strong>Licensed State Land Surveyor (LSLS)</strong> for land in which the State or Permanent School Fund has an interest &mdash; may prepare, sign, and <strong>seal</strong> a metes-and-bounds description and the boundary survey behind it. The seal is the surveyor's certification of professional responsibility for the work. Preparing or sealing such a description without a license is the unlicensed practice of surveying. Original surveys of state land and corrections to original grant boundaries require the higher LSLS credential, reflecting Texas's GLO-centered land system.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Worked example of a closed four-sided metes-and-bounds description with latitudes, departures, misclosure, and precision",
+            "caption": "Figure: A closed four-course parcel with its latitude/departure table, linear misclosure, and 1:N precision.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Assemble in order with explicit ties, a stated basis of bearing, and documented found/set monuments; it must close.",
+              "Misclosure = hypot(sum Lat, sum Dep); precision = perimeter / misclosure, reported 1:N.",
+              "Tolerances are in 22 TAC Sec. 138.83; standards live in Ch. 138 Subchapter E, not repealed Ch. 663.",
+              "Only an RPLS (LSLS for state land) may prepare and seal a description; Occupations Code Ch. 1071 governs.",
+              "Diagnose misclosure (digit transposition, missing course, wrong quadrant, vara error) before re-surveying."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Linear misclosure",
+          "definition": "The straight-line distance by which a traverse fails to close, equal to hypot(sum of latitudes, sum of departures); ideally zero.",
+          "hint_1": "Hypotenuse of the leftover Lat and Dep."
+        },
+        {
+          "term": "Precision ratio",
+          "definition": "Perimeter divided by linear misclosure, expressed as 1:N (e.g., 1:15,000); a larger N indicates a more precise traverse."
+        },
+        {
+          "term": "RPLS sealing authority",
+          "definition": "Under Occupations Code Ch. 1071, only a Registered Professional Land Surveyor (or LSLS for state land) may prepare, sign, and seal a metes-and-bounds description and boundary survey."
+        },
+        {
+          "term": "22 TAC Ch. 138 (vs. repealed 663)",
+          "definition": "The current TBPELS professional/technical standards for surveyors (Subchapter E, Sec. 138.81 et seq.); the former Ch. 663 was repealed after the 2019 board merger."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "ac63566a-d49c-47db-97c5-cc9186fdee08",
+      "question_text": "In a metes-and-bounds description, what do the 'metes' refer to?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The measured courses (bearing and distance) of each line",
+        "The monuments and adjoiners that limit the tract",
+        "The county and abstract number in the caption",
+        "The acreage stated at the end of the description"
+      ],
+      "correct_answer": "The measured courses (bearing and distance) of each line",
+      "explanation": "'Metes' are the measured courses (bearing + distance); 'bounds' are the monuments and adjoiners. The caption and acreage are separate components.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "ac63566a-d49c-47db-97c5-cc9186fdee08",
+      "question_text": "Why does a Texas metes-and-bounds caption almost always recite an original GLO survey and abstract number?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Because Texas land was never federal public domain and has no PLSS township-range grid",
+        "Because the abstract number is required by the federal BLM",
+        "Because Texas uses the PLSS section/township/range system",
+        "Because the abstract number replaces the need for a basis of bearing"
+      ],
+      "correct_answer": "Because Texas land was never federal public domain and has no PLSS township-range grid",
+      "explanation": "Texas retained its public lands and organizes land by original land-grant surveys (GLO abstracts), not the federal rectangular PLSS grid. The BLM/PLSS are not used in Texas; an abstract is not a basis of bearing.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "ac63566a-d49c-47db-97c5-cc9186fdee08",
+      "question_text": "A metes-and-bounds description that does not mathematically return to the point of beginning is legally defective.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Closure is mandatory; a description that does not close forms no definite parcel and may be void for uncertainty.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "5c4cda74-f4e2-45d8-bfdd-373702f28d14",
+      "question_text": "Which statement correctly distinguishes a Point of Commencement from a Point of Beginning?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The POC is a reference used to reach the parcel and is not part of the boundary; the POB is the first/last boundary corner",
+        "The POC is the first boundary corner; the POB is only a reference",
+        "They are interchangeable terms for the same corner",
+        "The POB must always be an original GLO survey corner, while the POC is a set iron rod"
+      ],
+      "correct_answer": "The POC is a reference used to reach the parcel and is not part of the boundary; the POB is the first/last boundary corner",
+      "explanation": "COMMENCING introduces a tie course (scaffolding) excluded from area/closure; BEGINNING marks the first true boundary corner.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "5c4cda74-f4e2-45d8-bfdd-373702f28d14",
+      "question_text": "Under 22 TAC Sec. 138.87, a set monument must be marked in a way that is traceable to which party?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The responsible registrant (RPLS)",
+        "The county clerk",
+        "The General Land Office commissioner",
+        "The landowner of record"
+      ],
+      "correct_answer": "The responsible registrant (RPLS)",
+      "explanation": "Sec. 138.87 requires set monuments to be marked traceable to the responsible registrant or associated employer (e.g., a cap stamped with the RPLS number).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "89312e01-b753-4286-ac10-c7096c77357e",
+      "question_text": "The quadrant bearing N 35 deg 00' E corresponds to what azimuth measured clockwise from north?",
+      "question_type": "multiple_choice",
+      "options": ["35 deg", "145 deg", "215 deg", "325 deg"],
+      "correct_answer": "35 deg",
+      "explanation": "In the NE quadrant, azimuth equals the bearing angle, so N 35 deg E = 35 deg azimuth.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "89312e01-b753-4286-ac10-c7096c77357e",
+      "question_text": "A course has a forward azimuth of 110 deg. What is its back-azimuth?",
+      "question_type": "multiple_choice",
+      "options": ["290 deg", "250 deg", "70 deg", "200 deg"],
+      "correct_answer": "290 deg",
+      "explanation": "Since 110 deg is less than 180 deg, add 180 deg: 110 + 180 = 290 deg.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "89312e01-b753-4286-ac10-c7096c77357e",
+      "question_text": "For a course S 45 deg E with a length of 950 varas, the distance in feet is approximately:",
+      "question_type": "multiple_choice",
+      "options": ["2,638.9 ft", "950 ft", "3,135 ft", "342 ft"],
+      "correct_answer": "2,638.9 ft",
+      "explanation": "1 vara = 2.7778 ft (33 1/3 in), so 950 x 2.7778 = 2,638.9 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "89312e01-b753-4286-ac10-c7096c77357e",
+      "question_text": "Which formulas give the latitude and departure of a course, where alpha is the quadrant bearing angle and d is the distance?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Lat = d cos(alpha); Dep = d sin(alpha)",
+        "Lat = d sin(alpha); Dep = d cos(alpha)",
+        "Lat = d tan(alpha); Dep = d / cos(alpha)",
+        "Lat = d / sin(alpha); Dep = d / cos(alpha)"
+      ],
+      "correct_answer": "Lat = d cos(alpha); Dep = d sin(alpha)",
+      "explanation": "Latitude is the north-south component (d cos alpha); departure is the east-west component (d sin alpha), with signs set by the quadrant.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da65db00-054e-419d-9988-24d97953ca1e",
+      "question_text": "Which of the following is a NATURAL monument?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The centerline of a creek",
+        "A 1/2-inch iron rod set",
+        "A concrete right-of-way monument",
+        "A barbed-wire fence corner"
+      ],
+      "correct_answer": "The centerline of a creek",
+      "explanation": "A creek is a permanent natural feature (natural monument). Iron rods, concrete monuments, and fences are artificial monuments.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da65db00-054e-419d-9988-24d97953ca1e",
+      "question_text": "A deed call reads 'N 80 deg E, 400 ft to a 1/2\" iron rod set in the east bank of the creek.' On the ground the rod is found at the creek bank 412 ft away. Which controls?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The monument (the found rod at the creek), and the distance is corrected to 412 ft",
+        "The 400 ft distance, and the rod is presumed misplaced",
+        "The midpoint between 400 ft and 412 ft",
+        "Neither; the call is void for ambiguity"
+      ],
+      "correct_answer": "The monument (the found rod at the creek), and the distance is corrected to 412 ft",
+      "explanation": "Monuments outrank distance in the dignity of calls (Stafford v. King). The found monument shows where the line was actually run; the distance yields.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "9fc9e9f1-25b9-4c57-b4f2-e6e3b3a4de29",
+      "question_text": "A grantor deeds '50 acres off the west end' of a 100-acre tract, then later deeds 'the remainder.' A resurvey finds the whole tract is actually 103 acres. How is the 3-acre surplus allocated?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Entirely to the junior (remainder) tract; the senior keeps a full 50 acres",
+        "Entirely to the senior tract",
+        "Split 1.5 acres to each tract",
+        "Returned to the original grantor"
+      ],
+      "correct_answer": "Entirely to the junior (remainder) tract; the senior keeps a full 50 acres",
+      "explanation": "These are sequential conveyances, so senior/junior rights govern. The senior takes the full measure (50 acres); the junior absorbs the surplus (becoming ~53 acres). Surplus is not prorated.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "9fc9e9f1-25b9-4c57-b4f2-e6e3b3a4de29",
+      "question_text": "In a recorded subdivision plat, an excess found between controlling monuments is distributed proportionately among the lots rather than dumped on one lot.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Plat lots are simultaneous conveyances of equal dignity, so excess/deficiency is apportioned proportionately; no lot is senior.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "9fc9e9f1-25b9-4c57-b4f2-e6e3b3a4de29",
+      "question_text": "Define 'senior rights' in one or two sentences as applied to sequential conveyances.",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "The earlier (senior) conveyance takes the full measure of what its description grants; the later (junior) conveyance takes only the remainder, absorbing any excess or deficiency.",
+      "explanation": "Seniority resolves overlaps/gaps in the senior's favor; a grantor cannot convey what was already conveyed. It does not expand the senior grant beyond its own description.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "42792d8e-0f3a-46d9-95c4-2add696124cf",
+      "question_text": "Which ordering correctly states the dignity of calls from highest to lowest?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Natural monuments > artificial monuments > adjoinder > course > distance > quantity",
+        "Quantity > distance > course > adjoinder > artificial monuments > natural monuments",
+        "Course > distance > natural monuments > artificial monuments > quantity > adjoinder",
+        "Artificial monuments > natural monuments > distance > course > adjoinder > quantity"
+      ],
+      "correct_answer": "Natural monuments > artificial monuments > adjoinder > course > distance > quantity",
+      "explanation": "The hierarchy ranks calls by reliability: natural monuments are most reliable, quantity/area least.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "42792d8e-0f3a-46d9-95c4-2add696124cf",
+      "question_text": "What two principles sit ABOVE the dignity-of-calls hierarchy in Texas boundary construction?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The intent of the parties and the footsteps of the original surveyor",
+        "The acreage stated and the basis of bearing",
+        "The recording date and the tax certificate",
+        "The PLSS section grid and the BLM Manual"
+      ],
+      "correct_answer": "The intent of the parties and the footsteps of the original surveyor",
+      "explanation": "The hierarchy is a rebuttable rule of construction; it yields to the parties' intent and to the original surveyor's footsteps (Stafford v. King).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "42792d8e-0f3a-46d9-95c4-2add696124cf",
+      "question_text": "Which seminal Texas case established both the dignity-of-calls hierarchy and the footsteps doctrine?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Stafford v. King (1867)",
+        "Luttes v. State (1959)",
+        "Motl v. Boyd (1926)",
+        "Madison v. Gordon (2001)"
+      ],
+      "correct_answer": "Stafford v. King (1867)",
+      "explanation": "Stafford v. King, 30 Tex. 257 (1867), is the foundational Texas authority for the hierarchy and the footsteps doctrine. The other cases concern coastal datums, gradient boundaries, and BFP/possession.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "1112f7a8-b60d-43db-aac0-c02cc1ce39cf",
+      "question_text": "Which Texas administrative chapter now contains the professional and technical standards for surveyors (replacing the repealed Ch. 663)?",
+      "question_type": "multiple_choice",
+      "options": [
+        "22 TAC Chapter 138",
+        "22 TAC Chapter 663",
+        "22 TAC Chapter 212",
+        "Natural Resources Code Chapter 21"
+      ],
+      "correct_answer": "22 TAC Chapter 138",
+      "explanation": "After HB 1523 (2019) merged the boards into TBPELS, standards moved to 22 TAC Ch. 138 (Subchapter E). Ch. 663 was repealed; Ch. 212 is subdivision platting; Nat. Res. Code Ch. 21 covers public-land surveys.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "1112f7a8-b60d-43db-aac0-c02cc1ce39cf",
+      "question_text": "Under Occupations Code Ch. 1071, who may prepare and seal a metes-and-bounds description?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Only a Registered Professional Land Surveyor (or an LSLS for state land)",
+        "Any licensed real estate agent",
+        "The county clerk who records the deed",
+        "Any person, as long as the description closes mathematically"
+      ],
+      "correct_answer": "Only a Registered Professional Land Surveyor (or an LSLS for state land)",
+      "explanation": "The Professional Land Surveying Practices Act (Occupations Code Ch. 1071) reserves preparing and sealing boundary descriptions to an RPLS (LSLS for land in which the State/PSF has an interest).",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "1112f7a8-b60d-43db-aac0-c02cc1ce39cf",
+      "question_text": "A closed traverse has a perimeter of 1,200 ft and a linear misclosure of 0.08 ft. What is the precision ratio (round N to the nearest hundred)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "15000",
+      "explanation": "Precision = perimeter / misclosure = 1200 / 0.08 = 15,000, i.e., 1:15,000.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Bearing to azimuth and back-azimuth",
+      "category": "Metes and Bounds — Directions",
+      "subcategory": "Bearings and azimuths",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A course has the quadrant bearing S {{ang:f0}} deg E. Express its forward azimuth (clockwise from north, in degrees), then report its BACK-azimuth in degrees.",
+      "parameters": [
+        {"name": "ang", "type": "integer", "min": 10, "max": 80}
+      ],
+      "computed_vars": [
+        {"name": "fwdAz", "formula": "180 - ang"}
+      ],
+      "answer_formula": "(180 - ang) + 180",
+      "answer_format": {"decimals": 0, "unit": "deg", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Forward azimuth (SE quadrant)", "formula": "180 - bearing angle", "calculation_template": "180 - {{ang:f0}} = {{fwdAz:f0}} deg"},
+        {"step_number": 2, "title": "Back-azimuth", "formula": "azimuth + 180 (since < 180)", "result_template": "{{fwdAz:f0}} + 180 = {{_answer}} deg"}
+      ],
+      "explanation_template": "S {{ang:f0}} deg E is in the SE quadrant, so forward azimuth = 180 - {{ang:f0}} = {{fwdAz:f0}} deg. Since that is below 180 deg, the back-azimuth = {{fwdAz:f0}} + 180 = {{_answer}} deg.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Latitude and departure of a course",
+      "category": "Metes and Bounds — Course geometry",
+      "subcategory": "Latitude and departure",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A course runs N {{ang:f0}} deg E for a distance of {{dist:f2}} ft. Compute the DEPARTURE (east-west component) of this course in feet.",
+      "parameters": [
+        {"name": "ang", "type": "integer", "min": 15, "max": 75},
+        {"name": "dist", "type": "float", "min": 150, "max": 600, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "lat", "formula": "dist*cos(toRad(ang))"}
+      ],
+      "answer_formula": "dist*sin(toRad(ang))",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Departure formula", "formula": "Dep = d sin(alpha)", "calculation_template": "{{dist:f2}} x sin({{ang:f0}} deg)"},
+        {"step_number": 2, "title": "Compute", "result_template": "Departure = {{_answer}} ft (east, positive)"}
+      ],
+      "explanation_template": "Departure = d sin(alpha) = {{dist:f2}} x sin({{ang:f0}} deg) = {{_answer}} ft. (The latitude, d cos(alpha), would be {{lat:f2}} ft north.)",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Linear misclosure of a traverse",
+      "category": "Metes and Bounds — Closure",
+      "subcategory": "Misclosure",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "After summing all courses of a closed-loop traverse, the latitudes total {{sumLat:f3}} ft and the departures total {{sumDep:f3}} ft. Compute the LINEAR MISCLOSURE (ft).",
+      "parameters": [
+        {"name": "sumLat", "type": "float", "min": -0.20, "max": 0.20, "decimals": 3},
+        {"name": "sumDep", "type": "float", "min": -0.20, "max": 0.20, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "hypot(sumLat, sumDep)",
+      "answer_format": {"decimals": 3, "unit": "ft", "tolerance": 0.002},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Misclosure formula", "formula": "sqrt(sumLat^2 + sumDep^2)", "calculation_template": "sqrt(({{sumLat:f3}})^2 + ({{sumDep:f3}})^2)"},
+        {"step_number": 2, "title": "Compute", "result_template": "Linear misclosure = {{_answer}} ft"}
+      ],
+      "explanation_template": "Linear misclosure is the hypotenuse of the latitude and departure misclosures: hypot({{sumLat:f3}}, {{sumDep:f3}}) = {{_answer}} ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Parcel area in acres from square feet",
+      "category": "Metes and Bounds — Area",
+      "subcategory": "Area conversion",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A rectangular parcel measures {{a:f2}} ft by {{b:f2}} ft. Compute its area in ACRES (1 acre = 43,560 sq ft).",
+      "parameters": [
+        {"name": "a", "type": "float", "min": 120, "max": 400, "decimals": 2},
+        {"name": "b", "type": "float", "min": 150, "max": 500, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "sf", "formula": "a*b"}
+      ],
+      "answer_formula": "(a*b)/43560",
+      "answer_format": {"decimals": 3, "unit": "acres", "tolerance": 0.005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Area in square feet", "formula": "length x width", "calculation_template": "{{a:f2}} x {{b:f2}} = {{sf:f2}} sq ft"},
+        {"step_number": 2, "title": "Convert to acres", "formula": "sq ft / 43560", "result_template": "{{sf:f2}} / 43560 = {{_answer}} acres"}
+      ],
+      "explanation_template": "Area = {{a:f2}} x {{b:f2}} = {{sf:f2}} sq ft; dividing by 43,560 sq ft/acre gives {{_answer}} acres.",
+      "options_generator": {"method": "none"}
+    }
+  ]
+}

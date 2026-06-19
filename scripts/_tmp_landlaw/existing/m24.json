@@ -1,0 +1,1137 @@
+{
+  "order_index": 24,
+  "module_id": "c1000018-0000-0000-0000-000000000018",
+  "title": "Texas Surveying Law and Regulations",
+  "lessons": [
+    {
+      "lesson_id": "4ee6b9bd-40a2-4a27-9bf5-e2a25d4195ca",
+      "title": "Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Identify TBPELS as the agency that licenses and regulates land surveyors in Texas and describe how it was created.",
+        "Explain the 2019 consolidation of the engineering and surveying boards under HB 1523.",
+        "Locate the Board's enabling statute and administrative rules within the Texas codes.",
+        "Distinguish the roles of TBPELS and the General Land Office (GLO) in Texas surveying."
+      ],
+      "key_takeaways": [
+        "TBPELS is the single state agency that licenses and disciplines both engineers and land surveyors in Texas.",
+        "The Board was created by HB 1523 (86th Leg., 2019), merging the former separate engineering and surveying boards.",
+        "Surveyor licensing flows from Occupations Code Ch. 1071; the Board's rules live in 22 TAC Part 6 (Chs. 134, 136, 138).",
+        "TBPELS regulates surveyor conduct; the GLO administers the state's original land-grant records and patents."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The agency that licenses Texas surveyors</h3><p>In Texas, the practice of professional land surveying is a <strong>licensed</strong> profession, and the agency that issues, renews, and disciplines those licenses is the <strong>Texas Board of Professional Engineers and Land Surveyors (TBPELS)</strong>. No person may hold themselves out as a surveyor, prepare a boundary survey, or seal a metes-and-bounds description in Texas without the appropriate TBPELS license. The Board exists to protect the public: surveying decisions fix the legal location of property lines, so the state regulates who may make them and to what standard.</p><p>TBPELS is a relatively new name for an old function. For most of the twentieth century, Texas regulated engineers and surveyors through <em>two separate</em> state boards. In 2019 the Legislature combined them. Understanding that consolidation matters for an intern (SIT), because older textbooks, statutes, and rule citations still reference the prior board names and the now-repealed rule chapters.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How TBPELS was created: HB 1523 (2019)</h3><p>The current board was created by <strong>House Bill 1523, 86th Legislature (2019)</strong>, which merged the former Texas Board of Professional Engineers and the former Texas Board of Professional Land Surveying into one combined agency, the <strong>Texas Board of Professional Engineers and Land Surveyors</strong>. The merger took effect during the 2019&ndash;2021 transition, and the consolidated administrative rules were re-codified by 2021.</p><p>The practical consequences for surveyors are administrative, not substantive: the qualifications to become a surveyor, the duty to follow the original surveyor's footsteps, and the standards for monumentation did not change merely because two boards combined. What changed is <em>where</em> the rules live. The Board now sits within <strong>Title 22 (Examining Boards), Part 6</strong> of the Texas Administrative Code, and the surveying standards moved into <strong>Chapter 138</strong>. Citations to the old surveying rule chapters (661/663) are outdated.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Many states keep a separate, standalone surveying board. Since 2019, Texas regulates engineers and surveyors through a single combined board (TBPELS). If a source refers to the \"Texas Board of Professional Land Surveying\" as a separate agency, it predates the 2019 merger."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Statute vs. rules: where the law lives</h3><p>Two layers of law govern Texas surveying. The <strong>enabling statute</strong> &mdash; passed by the Legislature &mdash; is <strong>Occupations Code Chapter 1071</strong>, the Professional Land Surveying Practices Act. It creates the licensing requirement, defines who is a Registered Professional Land Surveyor (RPLS) and a Licensed State Land Surveyor (LSLS), and authorizes discipline. The <strong>administrative rules</strong> &mdash; adopted by TBPELS under that statutory authority &mdash; are in the <strong>Texas Administrative Code (TAC), Title 22, Part 6</strong>.</p><p>The three rule chapters an SIT should know:</p><ul><li><strong>Ch. 134</strong> &mdash; licensing (applications, exams, qualifications, renewal).</li><li><strong>Ch. 136</strong> &mdash; firm/business registration.</li><li><strong>Ch. 138</strong> &mdash; \"Compliance and Professionalism for Surveyors,\" including the professional and technical standards of practice (Subchapter E).</li></ul><p>A statute is enacted by the Legislature; an administrative rule is adopted by the agency to implement the statute. Both have the force of law, but a rule cannot exceed the authority the statute grants.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Body", "What it is", "What it governs"],
+            "rows": [
+              ["TBPELS", "State examining board (Occupations Code Chs. 1071 & 1001)", "Licenses and disciplines surveyors and engineers; adopts 22 TAC rules"],
+              ["GLO (General Land Office)", "State land agency (Nat. Res. Code Chs. 31, 21)", "Custodian of original land-grant records; issues patents; oversees state-land surveys"],
+              ["TSPS", "Texas Society of Professional Surveyors (private professional society)", "Publishes the Manual of Practice (survey categories) and a code of ethics; advocacy"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>TBPELS vs. the GLO</h3><p>Students often confuse the two state bodies that touch surveying. They have different jobs. <strong>TBPELS</strong> regulates the <em>person</em> &mdash; it licenses surveyors, sets standards of practice and conduct (22 TAC Ch. 138), and disciplines violations. The <strong>General Land Office (GLO)</strong> regulates and archives the <em>land</em> &mdash; it holds the state's original grant records, field notes, and maps, issues patents that sever land from the sovereign, and manages surveys of land in which the State or the Permanent School Fund has an interest.</p><p>The two intersect in the <strong>Licensed State Land Surveyor (LSLS)</strong>, a credential required to survey original state-land boundaries and to file field notes in the GLO. An LSLS is licensed through the TBPELS framework but works within the GLO's land-grant system. We cover the GLO in depth in a later lesson; for now, remember: <em>TBPELS licenses people; the GLO keeps the land records.</em></p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "TBPELS is the Texas agency that licenses and disciplines land surveyors (and engineers).",
+              "It was created by HB 1523 (86th Leg., 2019), merging two prior boards into one.",
+              "The enabling statute is Occupations Code Ch. 1071; the rules are in 22 TAC Part 6 (Chs. 134, 136, 138).",
+              "TBPELS regulates surveyors; the GLO administers Texas's original land-grant records and patents."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "TBPELS",
+          "definition": "Texas Board of Professional Engineers and Land Surveyors — the state agency that licenses, regulates, and disciplines both professional engineers and land surveyors in Texas.",
+          "hint_1": "It is a single, combined board."
+        },
+        {
+          "term": "HB 1523 (86th Leg., 2019)",
+          "definition": "The bill that merged the former Texas Board of Professional Engineers and the former Texas Board of Professional Land Surveying into the single combined board, TBPELS."
+        },
+        {
+          "term": "22 TAC Part 6",
+          "definition": "The location in the Texas Administrative Code (Title 22, Examining Boards) of the TBPELS rules — Ch. 134 (licensing), Ch. 136 (firm registration), and Ch. 138 (compliance and professional standards for surveyors)."
+        }
+      ]
+    },
+    {
+      "lesson_id": "16f6fb48-114c-4670-8be8-bb211da888a8",
+      "title": "Texas Professional Land Surveying Practices Act",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify Occupations Code Ch. 1071 as the Professional Land Surveying Practices Act and describe its purpose.",
+        "Define \"professional surveying,\" RPLS, LSLS, and \"state land surveying\" as used in the Act.",
+        "Explain the licensure pathway: Surveyor-in-Training (SIT) to RPLS, and the additional LSLS credential.",
+        "Recognize that the Act, not the agency rules, is the source of the licensing requirement and discipline authority."
+      ],
+      "key_takeaways": [
+        "Occupations Code Ch. 1071 is the Professional Land Surveying Practices Act — the statute behind Texas surveyor licensing.",
+        "§1071.002 defines professional surveying, RPLS, LSLS, and state land surveying.",
+        "A license is required to practice (§1071.251); qualifications appear at §§1071.254 (RPLS) and §1071.255 (LSLS).",
+        "The Act authorizes discipline of licensees (§§1071.401–.405)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The statute behind the license</h3><p>The legal foundation for Texas land surveying is <strong>Occupations Code Chapter 1071</strong>, which may be cited as the <strong>Professional Land Surveying Practices Act</strong>. Where TBPELS is the agency, Ch. 1071 is the <em>law that creates and empowers it</em> with respect to surveyors. Everything else &mdash; the rules in 22 TAC Ch. 138, the exams, the seal requirement, the disciplinary process &mdash; ultimately traces back to authority granted by this Act.</p><p>The Act answers three core questions: (1) <em>What is surveying?</em> (its definitions), (2) <em>Who may do it?</em> (licensure), and (3) <em>What happens when a licensee violates the law?</em> (discipline). An SIT should be able to point to the chapter for each. This lesson walks through the definitions and the licensing ladder; later lessons cover the rules and the disciplinary process in detail.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Key definitions (§1071.002)</h3><p>The Act's definition section, <strong>§1071.002</strong>, supplies the vocabulary used throughout Texas surveying regulation:</p><ul><li><strong>Professional surveying</strong> &mdash; the practice of determining and describing the location of boundaries and improvements, preparing legal descriptions, and the related professional services that, by law, only a licensee may perform.</li><li><strong>Registered Professional Land Surveyor (RPLS)</strong> &mdash; a person licensed by TBPELS to engage in professional surveying.</li><li><strong>Licensed State Land Surveyor (LSLS)</strong> &mdash; a person licensed to survey land in which the State or the Permanent School Fund has an interest.</li><li><strong>State land surveying</strong> &mdash; includes \"determining by survey the location or relocation of original land grant boundaries and corners\" and \"filing field notes in the General Land Office.\"</li></ul><p>These definitions are not academic. The phrase \"original land grant boundaries\" reflects Texas's history: titles trace to a sovereign grant administered by the GLO, not to a federal PLSS grid. Re-establishing those grant corners is reserved to the LSLS.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The licensure ladder: SIT → RPLS → LSLS</h3><p>Texas surveying licensure is tiered. The typical path:</p><ul><li><strong>Surveyor-in-Training (SIT)</strong> &mdash; the entry credential. A candidate earns it by meeting the education requirement and passing the <em>Fundamentals of Surveying (FS)</em> exam. An SIT works under the responsible charge of an RPLS and accumulates qualifying experience.</li><li><strong>Registered Professional Land Surveyor (RPLS)</strong> &mdash; the full license. After the required experience under an RPLS and passing the <em>Principles and Practice of Surveying (PS)</em> exam plus the Texas-specific examination, the SIT becomes an RPLS and may practice independently, seal surveys, and prepare metes-and-bounds descriptions.</li><li><strong>Licensed State Land Surveyor (LSLS)</strong> &mdash; an additional, higher credential for surveying original state-land boundaries and filing field notes with the GLO. An LSLS must already be an RPLS and pass a separate examination.</li></ul><p>The statutory qualifications appear at <strong>§1071.254 (RPLS)</strong> and <strong>§1071.255 (LSLS)</strong>; the requirement that a license be held before practicing is in <strong>§1071.251</strong>, with the application process in <strong>§1071.252</strong>.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Credential", "What it allows", "Typical gate"],
+            "rows": [
+              ["SIT (Surveyor-in-Training)", "Work under an RPLS; accrue experience", "Education + Fundamentals of Surveying (FS) exam"],
+              ["RPLS", "Practice independently; seal surveys; prepare metes-and-bounds descriptions", "Experience under an RPLS + PS exam + Texas exam"],
+              ["LSLS", "Survey/relocate original land-grant boundaries; file field notes in the GLO", "Already an RPLS + separate state-land exam"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: The LSLS is a Texas-specific credential. It exists because Texas retained its public lands at annexation and surveys them through the GLO rather than the federal PLSS/BLM system. Most states have no equivalent of an LSLS."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Statutory authority for discipline</h3><p>Because surveying is licensed to protect the public, the Act also gives TBPELS the power to discipline. <strong>Sections 1071.401&ndash;1071.405</strong> authorize the Board to investigate complaints and impose sanctions &mdash; reprimand, conditions, suspension, or revocation of a license &mdash; for violations such as negligence, fraud, or practicing without a license. The detailed <em>procedure</em> for handling complaints is fleshed out in the 22 TAC rules and is the subject of a later lesson, but the <em>authority</em> to discipline originates in the statute.</p><p>The takeaway for an SIT: when you read a rule in 22 TAC Ch. 138 or face a question about who may do what, the answer ultimately rests on Occupations Code Ch. 1071. The statute defines the practice, requires the license, sets the qualifications, and authorizes the consequences.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Occupations Code Ch. 1071 is the Professional Land Surveying Practices Act — the statutory basis for surveyor licensing.",
+              "§1071.002 defines professional surveying, RPLS, LSLS, and state land surveying.",
+              "Licensure ladder: SIT → RPLS → (optionally) LSLS, with qualifications at §§1071.254 and .255.",
+              "The Act authorizes discipline (§§1071.401–.405); the rules implement the details."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Professional Land Surveying Practices Act",
+          "definition": "Texas Occupations Code Chapter 1071 — the statute that defines professional surveying, requires licensure, and authorizes discipline of land surveyors in Texas."
+        },
+        {
+          "term": "RPLS",
+          "definition": "Registered Professional Land Surveyor — a person licensed by TBPELS to practice professional surveying independently, seal surveys, and prepare legal descriptions (qualifications at Occupations Code §1071.254)."
+        },
+        {
+          "term": "LSLS",
+          "definition": "Licensed State Land Surveyor — an RPLS holding an additional credential to survey land in which the State or Permanent School Fund has an interest, including relocating original land-grant boundaries and filing field notes with the GLO (§1071.255)."
+        },
+        {
+          "term": "Surveyor-in-Training (SIT)",
+          "definition": "The entry-level surveying credential, earned by meeting the education requirement and passing the Fundamentals of Surveying exam; an SIT works under the responsible charge of an RPLS while gaining experience toward full licensure."
+        }
+      ]
+    },
+    {
+      "lesson_id": "8a8a6ec2-fee2-48a5-9676-71e947c1e640",
+      "title": "TBPELS Rules and Regulations",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Locate the TBPELS rules within 22 TAC Part 6 and identify Chapters 134, 136, and 138.",
+        "Explain that the old 22 TAC Chapter 663 surveying standards were repealed and superseded by Chapter 138.",
+        "Summarize the General Rules of Procedures and Practices the Board adopts to implement the statute.",
+        "Identify the role of continuing education and firm registration in the rules."
+      ],
+      "key_takeaways": [
+        "TBPELS rules are in 22 TAC Part 6: Ch. 134 (licensing), Ch. 136 (firms), Ch. 138 (compliance/standards).",
+        "The former 22 TAC Ch. 663 (and Ch. 661) surveying rules were REPEALED and re-codified into Ch. 138 — do not cite §663 in 2026.",
+        "Rules implement the Act: they govern procedure, conduct, continuing education, and firm registration.",
+        "Continuing education is a condition of license renewal under the rules."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From statute to rulebook</h3><p>The Professional Land Surveying Practices Act (Occupations Code Ch. 1071) authorizes TBPELS to adopt rules. Those rules &mdash; the day-to-day operating law of Texas surveying &mdash; live in the <strong>Texas Administrative Code, Title 22 (Examining Boards), Part 6</strong>. They are sometimes described collectively as the Board's <strong>General Rules of Procedures and Practices</strong> together with the professional and technical standards. Whereas the statute is broad, the rules are specific: how to apply, how to renew, how surveys must be performed, and how complaints are handled.</p><p>For a Texas SIT, fluency in <em>where</em> things are in 22 TAC is a practical skill. Examiners and supervisors expect you to find the governing rule, and clients and attorneys may ask which standard you applied. This lesson maps the chapters and flags an important historical change in the citations.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Chapter (22 TAC Part 6)", "Subject", "Examples of what it covers"],
+            "rows": [
+              ["Ch. 134", "Licensing", "Applications, examinations, qualifications, license renewal, continuing education"],
+              ["Ch. 136", "Firm registration", "Registration of surveying business entities/firms"],
+              ["Ch. 138", "Compliance & Professionalism for Surveyors", "Standards of practice (Subch. E), professional conduct, monumentation, descriptions"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs / currency alert: The former surveying rule chapters — 22 TAC Ch. 663 (professional standards) and Ch. 661 — were REPEALED and re-codified into Chapter 138 after the 2019 board merger (re-codification effective 2021). Citing “22 TAC §663” in 2026 is outdated. The standards of practice now live in 22 TAC Ch. 138, Subchapter E (§§138.81 et seq.)."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The repeal of §663: why citations changed</h3><p>Before 2019, the surveying board's professional and technical standards were codified in <strong>22 TAC Chapter 663</strong>. When HB 1523 merged the engineering and surveying boards, the consolidated agency repealed the old surveying chapters and moved the surveying standards into the new <strong>Chapter 138, “Compliance and Professionalism for Surveyors.”</strong> The substance carried over &mdash; categories of surveys, monumentation, written descriptions, precision and accuracy &mdash; but the section numbers changed.</p><p>This matters because much existing literature, exam-prep material, and even some recorded plats reference the old §663 rules. As an SIT you should treat §663 as <em>superseded</em>: read it only for historical context, and always confirm the current requirement in Ch. 138. The same caution applies to old Ch. 661.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What the rules actually do</h3><p>The TBPELS rules implement the Act across several functions:</p><ul><li><strong>Procedure (General Rules of Procedures and Practices).</strong> How the Board operates, how applications and exams are administered, how renewals work, and how the Board processes complaints and conducts contested cases.</li><li><strong>Professional conduct and ethics.</strong> Ch. 138 sets standards for competence, honesty, and care, and prohibits negligence, misrepresentation, and unlicensed practice.</li><li><strong>Technical standards of practice.</strong> Ch. 138, Subchapter E, sets the categories of surveys, monumentation, precision/accuracy, and the requirements for survey drawings and written descriptions (covered in the next lesson).</li><li><strong>Firm registration.</strong> Ch. 136 requires the business entity offering surveying services to be registered, not just the individual surveyor.</li></ul>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Continuing education and renewal</h3><p>A Texas surveying license is not permanent; it must be <strong>renewed</strong>, and renewal is conditioned on <strong>continuing education (CE)</strong>. The Board's rules (in the Ch. 134 licensing chapter) require an RPLS to complete a set number of continuing-education hours per renewal period, including hours devoted to professional/ethics and Texas-rules content. The goal is to keep practitioners current on changing law, technology, and standards.</p><p>CE is a compliance obligation with teeth: failure to complete and document the required hours can hold up or jeopardize a renewal. SITs should build the habit early of tracking CE, because once you are an RPLS the responsibility is yours to maintain. (The exact hour totals and category breakdowns are set by Board rule and adjusted from time to time &mdash; always confirm the current requirement before relying on a specific number.)</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "TBPELS rules are in 22 TAC Part 6: Ch. 134 (licensing/CE), Ch. 136 (firms), Ch. 138 (standards/conduct).",
+              "The old 22 TAC Ch. 663 (and 661) surveying rules were repealed/superseded by Ch. 138; do not cite §663 today.",
+              "The rules implement the Act — covering procedure, conduct, technical standards, and firm registration.",
+              "Continuing education is required for license renewal under the licensing rules."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "22 TAC Chapter 138",
+          "definition": "“Compliance and Professionalism for Surveyors” — the current TBPELS administrative rule chapter containing the professional conduct rules and technical standards of practice (Subchapter E) for Texas land surveyors."
+        },
+        {
+          "term": "Repeal of 22 TAC §663",
+          "definition": "The former surveying standards chapter (22 TAC Ch. 663) was repealed and its content re-codified into 22 TAC Ch. 138 after the 2019 board merger; §663 citations are outdated as of 2026."
+        },
+        {
+          "term": "Continuing education (CE)",
+          "definition": "Mandatory professional-development hours, set by TBPELS rule (Ch. 134), that an RPLS must complete each renewal period — including ethics/professional and Texas-rules content — as a condition of license renewal."
+        }
+      ]
+    },
+    {
+      "lesson_id": "aea6fe59-0955-42ca-87cd-a20323dd7c45",
+      "title": "Texas Standards and Specifications for Land Surveying",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Identify the professional and technical standards in 22 TAC Ch. 138, Subchapter E and describe their scope.",
+        "Explain the categories-of-surveys framework, including the Category 1A land-title/boundary survey.",
+        "State the monumentation, precision/accuracy, and written-description requirements in the standards.",
+        "Describe how the TSPS Manual of Practice and seals/signatures fit into the standards."
+      ],
+      "key_takeaways": [
+        "The technical standards live in 22 TAC Ch. 138, Subchapter E (§§138.81 et seq.) — not the repealed §663.",
+        "Category 1A is the highest-standard boundary/land-title survey; categories are defined via the TSPS Manual of Practice.",
+        "Standards govern monumentation (§138.87), precision/accuracy (§138.83), and survey drawings/descriptions (§138.91).",
+        "Monuments control over bearings and distances in a conflict; found vs. set monuments must be documented."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The standards of practice</h3><p>The technical heart of Texas surveying regulation is <strong>22 TAC Chapter 138, Subchapter E</strong> &mdash; the <strong>Professional and Technical Standards</strong> (§§138.81 et seq.). These rules state the minimum quality a Texas survey must meet. The general/applicability rule, <strong>§138.81</strong>, provides that professional surveying “shall meet or exceed” the standards and applies to any survey delineating, segregating, or partitioning a real-property interest (with subdivision plats handled separately under §138.93).</p><p>An important point of currency: these are the standards that replaced the repealed 22 TAC Ch. 663. When a Texas surveyor certifies that a survey was performed “in accordance with the current standards,” the reference is to Ch. 138, Subchapter E, together with the incorporated TSPS Manual of Practice.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs / currency: The professional standards are now in 22 TAC Ch. 138, Subchapter E (§§138.81+). The earlier 22 TAC §663 standards were repealed and superseded — do not certify or cite to §663."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Categories of surveys and the TSPS Manual</h3><p>Texas formally <strong>tiers</strong> surveys into categories by purpose and required rigor. The most familiar is the <strong>Category 1A land-title / boundary survey</strong> &mdash; the highest-standard boundary survey, used for title insurance and significant transactions. The categories themselves are defined by the <strong>Texas Society of Professional Surveyors (TSPS) Manual of Practice</strong>, which the TBPELS rules incorporate by reference.</p><p>So the standards work in two layers: the <em>administrative rule</em> (Ch. 138) sets the legal minimums and points to the <em>professional manual</em> (TSPS) for the detailed category specifications. A Category 1A plat must bear a certification of substantial compliance with the current TSPS Manual requirements for a Category 1A Land Title Survey, and a separate <strong>closure report</strong> is required. Texas surveyors often perform an ALTA/NSPS Land Title Survey in a way that <em>also</em> satisfies Texas Category 1A.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Using a private professional society's manual (the TSPS Manual of Practice) — incorporated by reference into the administrative code — to define survey categories is a distinctive Texas regulatory mechanism. The national ALTA/NSPS standard is separate, though a survey can be designed to satisfy both."
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Rule (22 TAC)", "Topic", "Core requirement"],
+            "rows": [
+              ["§138.81", "General / applicability", "Surveying must “meet or exceed” the standards; applies to property-interest surveys"],
+              ["§138.83", "Precision and Accuracy", "Traverse/positional tolerances; closure of the survey"],
+              ["§138.87", "Monumentation", "Set/leave adequate, stable, traceable monuments at corners"],
+              ["§138.91", "Survey Drawing / Written Description / Report", "Unambiguous boundary description; document found vs. set monuments; basis of bearing"],
+              ["§138.93", "Subdivision Plat", "Standards specific to subdivision plats"],
+              ["§138.95", "Descriptions for Political Subdivisions", "Standards for descriptions prepared for governmental entities"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Monumentation (§138.87)</h3><p>A monument is the physical evidence of a corner on the ground, and the standards take it seriously. Under <strong>§138.87</strong>, a surveyor must “set, or leave as found, an adequate quantity of monuments of a stable and reasonably permanent nature to represent or reference the property or boundary corners.” Set monuments must be “set at sufficient depth to retain a stable and distinctive location” and “be of sufficient size to withstand the deteriorating forces of nature,” and they must be <strong>marked in a way that is traceable to the responsible registrant</strong> (typically a cap identifying the surveyor or firm).</p><p>The survey must also document <strong>which monuments were found and which were set</strong> (§§138.87, 138.91(e)), plus other monuments of record dignity relied upon. This documentation is essential to retracement: a future surveyor following the footsteps must know exactly what physical evidence the original surveyor encountered versus created.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Written descriptions, basis of bearing, and seals (§138.91)</h3><p>The drawing/description rule, <strong>§138.91</strong>, requires that “every description … shall provide a definite and unambiguous identification of the location of such boundaries and shall describe all monuments found or placed” (§138.91(b)). Reports must “delineate the relationship between record monuments and the location of the boundaries surveyed” (§138.91(a)), and <strong>courses must be referenced to an identifiable and monumented line or an established geodetic system</strong> (§138.91(c)) &mdash; in modern practice, a stated basis of bearing such as the Texas State Plane Coordinate System (NAD83).</p><p>In any conflict, <strong>monuments control over bearings and distances</strong>, and stated area is the least reliable element &mdash; consistent with the dignity-of-calls hierarchy. Finally, the completed survey and description must be <strong>sealed and signed</strong> by the responsible RPLS. The seal is the surveyor's certification that the work meets the standards; only a licensed RPLS (or LSLS for state land) may seal a survey or metes-and-bounds description.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Example Category 1A survey plat showing point of beginning, bearings and distances, found and set monuments, basis of bearing note, abstract caption, and the surveyor's seal block",
+            "caption": "Figure: Anatomy of a Texas Category 1A boundary survey plat — caption with original survey/abstract, POB, calls, found vs. set monuments, basis of bearing, closure, and the RPLS seal block.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Technical standards live in 22 TAC Ch. 138, Subchapter E (§§138.81+); §663 is repealed.",
+              "Category 1A is the highest-standard boundary/land-title survey; categories come from the TSPS Manual of Practice.",
+              "Key rules: §138.83 (precision/accuracy), §138.87 (monumentation), §138.91 (drawing/description).",
+              "Monuments must be stable and traceable; found vs. set must be documented; monuments control over course/distance; only an RPLS may seal."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Category 1A survey",
+          "definition": "The highest-standard Texas boundary / land-title survey, defined by the TSPS Manual of Practice (incorporated by reference into the TBPELS rules); requires certification of substantial compliance with the Manual and a separate closure report."
+        },
+        {
+          "term": "22 TAC §138.87 (Monumentation)",
+          "definition": "The rule requiring a surveyor to set or leave adequate, stable, reasonably permanent monuments at boundary corners, marked traceably to the responsible registrant, and to document found versus set monuments."
+        },
+        {
+          "term": "Basis of bearing",
+          "definition": "The reference framework to which a survey's bearings are tied — under 22 TAC §138.91(c) an identifiable monumented line or an established geodetic system (e.g., the Texas State Plane Coordinate System, NAD83); it must be stated on the survey."
+        },
+        {
+          "term": "TSPS Manual of Practice",
+          "definition": "The Texas Society of Professional Surveyors publication that defines survey categories (e.g., Category 1A) and is incorporated by reference into the TBPELS rules to supply detailed technical specifications."
+        }
+      ]
+    },
+    {
+      "lesson_id": "4cf7696b-094d-47d1-bc5b-a68c9bb7f21b",
+      "title": "Texas Natural Resources Code — Surveying Sections",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify the General Land Office (GLO) and its statutory basis in the Natural Resources Code.",
+        "Explain the GLO's role in custody of original land-grant records and issuance of patents.",
+        "Describe the navigable-stream definition (§21.001) and its boundary consequences.",
+        "Connect the LSLS credential to state-land surveying and the filing of field notes in the GLO."
+      ],
+      "key_takeaways": [
+        "The GLO is established under Nat. Res. Code Ch. 31 (§31.001 defines the Land Office); it administers Texas public lands.",
+        "Surveys and field notes of public land, once accepted by the GLO, are legally presumed correct.",
+        "Nat. Res. Code Ch. 21 governs surveys/field notes; §21.001(3) defines a navigable stream by the 30-foot rule.",
+        "Surveying or relocating original land-grant boundaries and filing GLO field notes requires an LSLS."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why surveyors read the Natural Resources Code</h3><p>The <strong>Texas Natural Resources Code</strong> governs the State's public lands &mdash; the land Texas retained when it entered the Union in 1845. Because every Texas title traces back to a sovereign grant administered by the State, surveyors regularly work within this code when retracing original surveys, locating navigable-stream boundaries, or surveying state land. The two chapters most relevant to surveyors are <strong>Ch. 31 (General Land Office)</strong> and <strong>Ch. 21 (Surveys and Field Notes)</strong>.</p><p>This is a defining Texas difference. In federal public-land states, original title flowed from the United States and the federal government administered disposal. Texas land was <em>never federal public domain</em>; the State kept its public lands and administers them through its own General Land Office.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Texas land was never federal public domain. It was retained by the State at annexation (1845) and is administered by the Texas General Land Office — there is no PLSS township-range grid. Most states have no comparable state land office; their grants came from the federal government."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The General Land Office (Nat. Res. Code Ch. 31)</h3><p>The <strong>General Land Office (GLO)</strong> is the oldest existing Texas state agency, founded in 1836. It is established and defined under <strong>Natural Resources Code Chapter 31</strong>; <strong>§31.001</strong> defines the “Land Office” as the GLO. The GLO maintains the State's land records, produces official maps and surveys, manages state lands and minerals, and <strong>issues patents</strong> &mdash; the instruments that finally sever land from the sovereign.</p><p>Its archive is vast: roughly <strong>35.5 million land-grant records dating back to 1720</strong> and about <strong>80,000 maps</strong>, including the Spanish Collection (the depository for thousands of Spanish/Mexican grants). For a retracing surveyor, the GLO is the primary research source for original field notes, sketches, and patents needed to follow the original surveyor's footsteps.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Surveys and field notes (Nat. Res. Code Ch. 21)</h3><p><strong>Chapter 21</strong> governs surveys and field notes of public land. A key principle for surveyors: once a survey and its field notes are <strong>accepted by the GLO</strong>, they are <strong>legally presumed correct</strong>. This presumption gives the GLO record real weight in retracement and boundary disputes &mdash; the original accepted survey is the benchmark against which later work is measured.</p><p>Chapter 21 also supplies the Texas test for whether a stream is <strong>navigable</strong>, which determines who owns the bed. Under <strong>§21.001(3)</strong>, a “navigable stream” is one “which retains an average width of 30 feet from its mouth up.” The 30 feet is measured across the entire bed (between banks), not the water flowing on a given day. If a stream meets the test, it is public and the <em>State owns the bed</em>; private title runs only to the gradient boundary.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: The federal/common-law navigability test turns on usability for commerce. Texas adds a bright-line geometric test — an average bed width of 30 feet (Nat. Res. Code §21.001(3)) — found in essentially no other state. A small, non-commercial Texas creek can be legally “navigable” and therefore public."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>State-land surveying and the LSLS</h3><p>Surveying land in which the State or the Permanent School Fund has an interest is reserved to the <strong>Licensed State Land Surveyor (LSLS)</strong>. Tying the codes together: Occupations Code <strong>§1071.002</strong> defines “state land surveying” to include “determining by survey the location or relocation of original land grant boundaries and corners” and “filing field notes in the General Land Office.”</p><p>So an ordinary RPLS performs private boundary surveys, but when the work involves <em>original grant boundaries</em> or <em>state-owned/PSF land</em> &mdash; for example, establishing a vacancy or correcting an original survey &mdash; an LSLS is required, and the resulting field notes are filed with and accepted by the GLO. This is the bridge between the licensing statute (Occupations Code) and the public-lands code (Natural Resources Code).</p>"
+          }
+        },
+        {
+          "block_type": "link_reference",
+          "content": {
+            "links": [
+              {
+                "url": "https://statutes.capitol.texas.gov/Docs/NR/htm/NR.21.htm",
+                "title": "Tex. Nat. Res. Code Ch. 21 (Surveys and Field Notes) — §21.001",
+                "type": "website",
+                "description": "Defines a navigable stream as one retaining an average width of 30 feet from the mouth up."
+              },
+              {
+                "url": "https://statutes.capitol.texas.gov/Docs/NR/htm/NR.31.htm",
+                "title": "Tex. Nat. Res. Code Ch. 31 (General Land Office) — §31.001",
+                "type": "website",
+                "description": "Establishes/defines the Texas General Land Office (“Land Office”)."
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The GLO is established under Nat. Res. Code Ch. 31 and is custodian of Texas's original land-grant records; it issues patents.",
+              "GLO-accepted surveys and field notes are legally presumed correct (Ch. 21).",
+              "A navigable stream is defined by the 30-foot average-bed-width rule (§21.001(3)); the State owns the bed of a navigable stream.",
+              "Surveying original land-grant boundaries and filing GLO field notes requires an LSLS."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "General Land Office (GLO)",
+          "definition": "The oldest Texas state agency (est. 1836), established under Nat. Res. Code Ch. 31; custodian of the State's original land-grant records and maps, issuer of patents, and administrator of state lands and minerals."
+        },
+        {
+          "term": "Navigable stream (§21.001(3))",
+          "definition": "Under the Texas Natural Resources Code, a stream that “retains an average width of 30 feet from its mouth up,” measured across the entire bed; the State owns the bed of a navigable stream."
+        },
+        {
+          "term": "GLO-accepted field notes",
+          "definition": "Field notes of a public-land survey that, once accepted by the General Land Office (Nat. Res. Code Ch. 21), are legally presumed correct — giving the original GLO record controlling weight in retracement."
+        }
+      ]
+    },
+    {
+      "lesson_id": "5d0e6d5b-5066-449e-80a8-5c48cb705009",
+      "title": "Texas Property Code — Relevant Sections",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify the Property Code provisions surveyors most often encounter (recording, conveyances, plats).",
+        "Explain Texas's pure-notice recording act and the bona fide purchaser doctrine.",
+        "Describe the plat-recording requirement and the county-clerk gatekeeping under Ch. 12.",
+        "Relate the surveyor's work product (descriptions, plats) to the recording and platting statutes."
+      ],
+      "key_takeaways": [
+        "Texas is a pure-notice recording jurisdiction (Prop. Code §§13.001–.002); record in the county where the land lies (§11.001).",
+        "Recording gives constructive notice; a BFP without notice can prevail even if it records second or never.",
+        "Subdivision plats are recorded under Prop. Code Ch. 12; §12.002 bars recording an unapproved plat or one with delinquent taxes.",
+        "Conveyances may use metes-and-bounds, but subdividing triggers platting under Local Government Code Ch. 212."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Where the surveyor meets the Property Code</h3><p>The <strong>Texas Property Code</strong> governs estates, conveyances, recording, and plats &mdash; the legal machinery that turns a surveyor's field work into recorded title. A surveyor rarely litigates these sections, but the survey, the metes-and-bounds description, and the plat all flow into this system, so an SIT should understand the framework: how instruments are recorded, what recording does, and how subdivision plats reach the county records.</p><p>Two themes dominate: the <strong>recording act</strong> (which protects purchasers who rely on the public record) and the <strong>plat/recording requirements</strong> (which gatekeep how subdivided land is documented). Both shape what a surveyor produces and how carefully it must be done.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Texas is a pure-notice recording state</h3><p>Texas follows a <strong>pure “notice”</strong> recording regime. Under <strong>Property Code §13.001</strong>, an unrecorded conveyance is “void as to a creditor or to a subsequent purchaser for a valuable consideration without notice” unless acknowledged and filed for record &mdash; though it remains binding between the parties. Under <strong>§13.002</strong>, a properly recorded instrument is <strong>“notice to all persons”</strong> (constructive notice). Instruments are recorded in the <strong>county where the land lies</strong> (§11.001).</p><p>The defining feature of a notice state: a later <em>bona fide purchaser</em> (BFP) &mdash; one who paid value without actual or constructive notice of a prior unrecorded claim &mdash; <strong>prevails even if the prior grantee recorded first, or the BFP never records at all</strong>. Recording is not a race; it is about notice.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Of the three recording regimes (race, notice, race-notice), Texas is pure notice. A Texas BFP without notice beats a prior unrecorded grantee even though the BFP records second or never — unlike a race-notice state (e.g., California), where that same purchaser would lose by failing to win the race to record."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Bona fide purchaser and constructive notice</h3><p>The BFP doctrine has three elements: (1) <strong>valuable consideration</strong> (not nominal), (2) <strong>good faith</strong>, and (3) <strong>without notice</strong> &mdash; neither actual nor constructive. Constructive notice arises from the <em>records</em> (§13.002) and from <strong>visible possession</strong> of the land. Texas's possession test is strict: in <em>Madison v. Gordon</em>, 39 S.W.3d 604 (Tex. 2001), the Supreme Court held that possession charges a purchaser with constructive notice only if it is <strong>“visible, open, exclusive, and unequivocal.”</strong></p><p>Why this matters to surveyors: a survey often reveals occupation evidence &mdash; fences, improvements, encroachments &mdash; that bears on possession and notice. Accurately documenting what is on the ground is part of how a survey supports (or undermines) a party's claim that they did, or did not, have notice of a competing right.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Plats and the county clerk (Property Code Ch. 12)</h3><p>Subdivision <strong>plats</strong> are recorded under <strong>Property Code Chapter 12</strong>. Section <strong>12.002</strong> (“Subdivision Plat; Penalty”) bars a county clerk from recording a plat or replat unless it has been <strong>approved as required by law</strong> by the appropriate authority and is accompanied by the documents required by the Local Government Code &mdash; including an <strong>original tax certificate</strong> from each taxing unit showing no delinquent ad valorem taxes. General recording of instruments affecting real property is governed by Property Code Title 3, Ch. 12.</p><p>This is gatekeeping at the courthouse: an unapproved or tax-delinquent plat cannot be recorded, no matter how technically perfect the survey. A surveyor preparing a plat must therefore coordinate with the platting authority's approval process, not just the geometry.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Metes-and-bounds conveyance vs. the platting requirement</h3><p>Texas permits conveyance of land by a <strong>metes-and-bounds description</strong> in a deed &mdash; but it does not let that method dodge subdivision control. <strong>Local Government Code §212.004</strong> requires a plat when an owner divides a tract within a municipality or its extraterritorial jurisdiction into two or more parts to lay out a subdivision, and expressly states that a division “includes a division … made by using a metes and bounds description in a deed of conveyance.” (A common exception covers divisions into parts greater than five acres with access and no dedicated public improvement.)</p><p>So a standalone metes-and-bounds deed for a large rural tract is recorded under Property Code Ch. 12 without a plat; subdividing within a regulated area triggers the Ch. 212 plat/approval/recording chain. The surveyor must know which path applies before preparing the description.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Texas explicitly subjects metes-and-bounds divisions to the platting requirement (Local Gov't Code §212.004) to prevent metes-and-bounds circumvention of subdivision control — and adds county-clerk gatekeeping (tax certificate, governmental approval) under Property Code §12.002."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Texas is a pure-notice recording state (Prop. Code §§13.001–.002); record where the land lies (§11.001).",
+              "Recording gives constructive notice; a BFP without notice can win even recording second or never.",
+              "Possession imparts notice only if visible, open, exclusive, and unequivocal (Madison v. Gordon).",
+              "Plats record under Prop. Code Ch. 12 (§12.002 gatekeeping); subdividing triggers platting under Local Gov't Code §212.004."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Pure-notice recording act",
+          "definition": "Texas's recording regime (Prop. Code §§13.001–.002): a subsequent purchaser for value without notice of a prior unrecorded conveyance takes free of it — and prevails even if it records second or never; recording order is irrelevant for the BFP."
+        },
+        {
+          "term": "Constructive notice (§13.002)",
+          "definition": "Notice imputed by law from the public records — a properly recorded instrument is “notice to all persons” — and, separately, from visible, open, exclusive, and unequivocal possession of the land."
+        },
+        {
+          "term": "Property Code §12.002",
+          "definition": "The provision barring a county clerk from recording a subdivision plat unless it is approved as required by law and accompanied by required documents, including a tax certificate showing no delinquent ad valorem taxes."
+        }
+      ]
+    },
+    {
+      "lesson_id": "d254ce3d-221e-465e-a28a-d04e6429193b",
+      "title": "Ethics Complaints and Disciplinary Process",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Describe the professional ethics expected of Texas surveyors and where they are stated.",
+        "Explain the role of seals/signatures as a certification and the duty not to seal others' work improperly.",
+        "Outline the TBPELS complaint-and-disciplinary process and the available sanctions.",
+        "Identify the statute of limitations for suits against surveyors and the role of continuing education in ethics."
+      ],
+      "key_takeaways": [
+        "Surveyors owe duties of competence, honesty, and care; ethics rules are in 22 TAC Ch. 138 and the TSPS code.",
+        "A seal/signature certifies the work meets the standards; sealing work not done under your responsible charge is misconduct.",
+        "TBPELS authority to discipline comes from Occupations Code §§1071.401–.405; sanctions range from reprimand to revocation.",
+        "Suits against surveyors have a limitations period under Civ. Prac. & Rem. Code §16.011."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why ethics is regulated, not just encouraged</h3><p>Surveying is a licensed profession because its work product &mdash; the legal location of boundaries &mdash; affects property rights and public safety. That is why ethics in Texas surveying is not merely aspirational; it is <strong>codified and enforceable</strong>. The professional-conduct standards live in <strong>22 TAC Chapter 138</strong>, and the <strong>Texas Society of Professional Surveyors (TSPS)</strong> maintains a complementary code of ethics for its members. A licensee who breaches these duties can face real consequences imposed by TBPELS.</p><p>The core duties are familiar across the professions: <strong>competence</strong> (work within your qualifications and to the standard of care), <strong>honesty</strong> (no misrepresentation or fraud, including on a survey or in dealings with the Board), <strong>independence/objectivity</strong> (avoid conflicts that compromise judgment), and <strong>diligence</strong> (do the research and field work the situation requires).</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The seal and signature as a certification</h3><p>When an RPLS <strong>seals and signs</strong> a survey or description, that act is a professional certification: it represents that the work was performed under the surveyor's <strong>responsible charge</strong> and meets the applicable standards (22 TAC Ch. 138). The seal carries legal weight &mdash; recording authorities, title companies, courts, and the public rely on it.</p><p>Because of that reliance, sealing carries strict duties. It is misconduct to seal work that was <strong>not performed by you or under your responsible charge</strong> (so-called “plan stamping”), to seal incomplete or substandard work, or to misuse or allow another to misuse your seal. An SIT cannot seal a survey at all; only the licensed RPLS (or LSLS for state land) responsible for the work may do so. Treat the seal as your professional signature on the accuracy of the result.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Only a licensed RPLS (or LSLS for state-land work) may seal and sign a survey or metes-and-bounds description in Texas. Sealing work not done under your responsible charge, or allowing your seal to be misused, is a disciplinable ethics violation under the TBPELS rules."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The complaint and disciplinary process</h3><p>TBPELS's authority to discipline surveyors comes from <strong>Occupations Code §§1071.401–.405</strong>, and the detailed procedure is in the Board's 22 TAC rules. The typical flow:</p><ul><li><strong>Complaint.</strong> Anyone may file a complaint (often a landowner, another surveyor, or a title company). The Board may also act on its own information.</li><li><strong>Investigation.</strong> Staff investigates whether a violation — negligence, incompetence, fraud, unlicensed practice, seal misuse — occurred.</li><li><strong>Resolution / contested case.</strong> Matters may resolve by agreed/consent order, or proceed to a contested-case hearing (administrative due process) before sanctions are imposed.</li><li><strong>Sanctions.</strong> The Board may issue a reprimand, impose conditions or remedial education, levy administrative penalties, or <strong>suspend or revoke</strong> the license.</li></ul><p>Discipline protects the public and the integrity of the profession; it is not primarily punitive. Remedial measures (additional CE, supervised practice) are common for negligence-type findings, with revocation reserved for serious or repeated violations.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Stage", "What happens", "Authority"],
+            "rows": [
+              ["Complaint filed", "Allegation submitted to TBPELS (or Board-initiated)", "TBPELS rules (22 TAC)"],
+              ["Investigation", "Staff reviews facts; gathers evidence", "Occ. Code §§1071.401–.405; 22 TAC"],
+              ["Contested case / settlement", "Agreed order or administrative hearing", "22 TAC; Gov't Code APA"],
+              ["Sanction", "Reprimand, conditions/CE, penalty, suspension, revocation", "Occ. Code §§1071.401–.405"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Civil liability and the limitations period</h3><p>Board discipline is separate from <strong>civil liability</strong>. A surveyor whose error harms a client or third party may be sued for negligence. Texas sets a specific limitations period for such suits in the <strong>Civil Practice &amp; Remedies Code §16.011</strong> (suits against registered/licensed surveyors). The existence of a dedicated limitations statute underscores that surveyors are held to a professional standard of care and that claims are time-bounded.</p><p>The ethics tie-in: maintaining competence through <strong>continuing education</strong> &mdash; including required ethics and Texas-rules hours &mdash; is itself part of the standard of care. Staying current reduces both disciplinary exposure and civil liability. For an SIT, the lesson is cultural: careful research, honest documentation, and respect for the seal are not formalities; they are the substance of the profession.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Texas surveyors owe enforceable duties of competence, honesty, objectivity, and diligence (22 TAC Ch. 138; TSPS code).",
+              "Sealing certifies the work; sealing work not under your responsible charge is misconduct — only an RPLS/LSLS may seal.",
+              "TBPELS discipline (Occ. Code §§1071.401–.405) runs complaint → investigation → hearing/settlement → sanction (up to revocation).",
+              "Civil suits against surveyors have a limitations period (Civ. Prac. & Rem. Code §16.011); CE supports the standard of care."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Responsible charge",
+          "definition": "Direct professional control and personal supervision of surveying work; an RPLS may seal only work performed by or under their responsible charge, and sealing other work is an ethics violation."
+        },
+        {
+          "term": "Disciplinary sanctions (Occ. Code §§1071.401–.405)",
+          "definition": "The range of penalties TBPELS may impose on a surveyor for violations — reprimand, conditions/remedial education, administrative penalties, and suspension or revocation of the license."
+        },
+        {
+          "term": "Civ. Prac. & Rem. Code §16.011",
+          "definition": "The Texas statute setting the limitations period for suits against a registered or licensed land surveyor — confirming surveyors are held to a professional standard of care."
+        }
+      ]
+    },
+    {
+      "lesson_id": "947241dc-10a7-4ace-b235-6451665b5d16",
+      "title": "Regulatory Compliance Case Studies",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Apply the TBPELS standards (22 TAC Ch. 138) and the licensing statute to realistic compliance scenarios.",
+        "Diagnose common compliance failures: outdated citations, improper sealing, inadequate monumentation, missing platting.",
+        "Distinguish when an RPLS suffices and when an LSLS or platting process is required.",
+        "Synthesize the module: relate standards, recording, ethics, and the GLO to practical decisions."
+      ],
+      "key_takeaways": [
+        "Compliance means applying the CURRENT rules — 22 TAC Ch. 138, not the repealed §663.",
+        "Sealing requires responsible charge; monumentation and documentation of found vs. set are mandatory.",
+        "Original land-grant/state-land work requires an LSLS; subdividing requires platting (Local Gov't Code Ch. 212).",
+        "Most violations trace to skipped research, outdated standards, or shortcuts in monumentation/description."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From rules to judgment</h3><p>Knowing the citations is necessary but not sufficient; compliance is about <strong>applying</strong> them under pressure. This lesson works through short, realistic scenarios that test whether you can spot the governing rule and the correct action. As you read each, ask the four diagnostic questions: <em>Which standard applies? Who is authorized to do this work? What must be documented? Is the citation current?</em></p><p>These scenarios synthesize the whole module &mdash; the standards of practice, recording and platting, ethics and sealing, and the GLO/state-land framework. They mirror the kinds of judgment calls a new RPLS faces and the issues that generate TBPELS complaints.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Scenario 1: The outdated certification",
+                "content": "<p>A reviewer notices a Texas plat certifying that the survey “meets the standards of 22 TAC §663.” <strong>Issue:</strong> Chapter 663 was repealed and superseded after the 2019 board merger; the current standards are in <strong>22 TAC Ch. 138, Subchapter E</strong>. <strong>Correct action:</strong> certify to the current Ch. 138 standards (and, for a Category 1A, substantial compliance with the current TSPS Manual of Practice). Citing a repealed rule is a red flag for an out-of-date workflow and can undermine reliance on the certification.</p>",
+                "open": false
+              },
+              {
+                "title": "Scenario 2: Who may seal?",
+                "content": "<p>An SIT completes the field work and drafts a metes-and-bounds description; the firm asks the SIT to seal it because the RPLS is on vacation. <strong>Issue:</strong> Only a licensed RPLS (or LSLS for state land) may seal, and only for work under their responsible charge. <strong>Correct action:</strong> the SIT must not seal; the responsible RPLS reviews and seals. Sealing by an unlicensed person — or an RPLS sealing work not under their responsible charge — is a disciplinable ethics violation (Occ. Code §§1071.401–.405; 22 TAC Ch. 138).</p>",
+                "open": false
+              },
+              {
+                "title": "Scenario 3: Monumentation shortcut",
+                "content": "<p>To save time, a crew sets a single small unmarked pin at one corner and notes “corners as occupied” for the rest. <strong>Issue:</strong> 22 TAC §138.87 requires setting or leaving an adequate quantity of stable, reasonably permanent monuments, marked traceably to the responsible registrant, and documenting found vs. set. <strong>Correct action:</strong> set/leave proper monuments at the corners, cap them to identify the surveyor, and record on the survey which monuments were found and which were set (§§138.87, 138.91(e)).</p>",
+                "open": false
+              },
+              {
+                "title": "Scenario 4: Metes-and-bounds split without a plat",
+                "content": "<p>An owner inside a city’s ETJ asks a surveyor to write three metes-and-bounds deeds carving a tract into three half-acre lots, to avoid “all that platting.” <strong>Issue:</strong> Local Gov’t Code §212.004 expressly includes metes-and-bounds divisions in the platting requirement; this division needs a plat, approval, and recording (Prop. Code Ch. 12, §12.002). <strong>Correct action:</strong> advise that a plat and approval are required; a metes-and-bounds deed cannot be used to circumvent subdivision control here.</p>",
+                "open": false
+              },
+              {
+                "title": "Scenario 5: Original grant corner — RPLS or LSLS?",
+                "content": "<p>A dispute requires relocating an original Spanish-grant corner on land where the Permanent School Fund claims an interest, and filing field notes with the GLO. <strong>Issue:</strong> “State land surveying” — relocating original land-grant boundaries/corners and filing GLO field notes — is reserved to a <strong>Licensed State Land Surveyor (LSLS)</strong> (Occ. Code §1071.002). <strong>Correct action:</strong> an RPLS alone is not authorized; an LSLS must perform/oversee the original-grant work and the GLO filing.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Patterns behind the violations</h3><p>Across these scenarios, the same root causes recur. <strong>Outdated standards</strong> (citing §663, using a superseded TSPS edition) signal a workflow that has not kept up &mdash; a continuing-education problem as much as a technical one. <strong>Improper sealing</strong> reflects a misunderstanding of responsible charge. <strong>Monumentation and documentation shortcuts</strong> defeat the survey's core purpose: enabling future retracement. <strong>Authority errors</strong> (RPLS doing LSLS work, deeds dodging platting) come from not asking <em>who is allowed to do this and by what process</em>.</p><p>A reliable compliance habit: before signing off, run the diagnostic checklist below. Most TBPELS complaints would never arise if the surveyor confirmed the current rule, confirmed authority, and documented the physical evidence.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Check", "Question to ask", "Governing source"],
+            "rows": [
+              ["Current standard", "Am I citing Ch. 138 (not repealed §663) and the current TSPS edition?", "22 TAC Ch. 138; TSPS Manual"],
+              ["Authority to seal", "Is the work under the RPLS's responsible charge? RPLS/LSLS sealing?", "Occ. Code §1071; 22 TAC Ch. 138"],
+              ["Monumentation", "Stable, traceable monuments set/left and found-vs-set documented?", "22 TAC §§138.87, 138.91(e)"],
+              ["State land?", "Does this involve original grant corners or PSF/state land (LSLS)?", "Occ. Code §1071.002; Nat. Res. Code"],
+              ["Platting/recording", "Does the division require a plat and approval before recording?", "Local Gov't Code §212.004; Prop. Code §12.002"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "success",
+            "text": "Compliance shortcut: confirm the current rule (Ch. 138, current TSPS), confirm authority (RPLS vs. LSLS, responsible charge), and document the physical evidence (found vs. set monuments, basis of bearing). Those three habits prevent the large majority of compliance failures."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Always certify to current standards — 22 TAC Ch. 138 and the current TSPS Manual, never the repealed §663.",
+              "Only an RPLS (or LSLS for state land) may seal, and only work under responsible charge.",
+              "Monumentation and found-vs-set documentation are mandatory (§§138.87, 138.91).",
+              "Original-grant/state-land work needs an LSLS; subdividing needs platting (Local Gov't Code §212.004; Prop. Code §12.002)."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Plan/seal stamping",
+          "definition": "Improperly sealing surveying work that was not performed by or under the responsible charge of the sealing surveyor — a prohibited and disciplinable misuse of the professional seal."
+        },
+        {
+          "term": "Compliance diagnostic (four questions)",
+          "definition": "Before signing a Texas survey, confirm: (1) which current standard applies (Ch. 138/TSPS), (2) who is authorized (RPLS vs. LSLS, responsible charge), (3) what must be documented (found vs. set monuments, basis of bearing), and (4) whether platting is required."
+        },
+        {
+          "term": "When an LSLS is required",
+          "definition": "When the work involves relocating original land-grant boundaries/corners or surveying land in which the State or Permanent School Fund has an interest, and filing field notes with the GLO — an RPLS alone is not authorized."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "4ee6b9bd-40a2-4a27-9bf5-e2a25d4195ca",
+      "question_text": "Which agency licenses and disciplines professional land surveyors in Texas?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The Texas General Land Office (GLO)",
+        "The Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
+        "The Texas Society of Professional Surveyors (TSPS)",
+        "The Texas Commission on Environmental Quality (TCEQ)"
+      ],
+      "correct_answer": "The Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
+      "explanation": "TBPELS is the state examining board that licenses and disciplines surveyors (and engineers). The GLO administers land-grant records; TSPS is a private professional society; TCEQ handles water/environmental permits.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "4ee6b9bd-40a2-4a27-9bf5-e2a25d4195ca",
+      "question_text": "What did HB 1523 (86th Legislature, 2019) accomplish?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It repealed the Professional Land Surveying Practices Act",
+        "It created the Permanent School Fund",
+        "It merged the separate engineering and surveying boards into the combined TBPELS",
+        "It transferred surveyor licensing to the General Land Office"
+      ],
+      "correct_answer": "It merged the separate engineering and surveying boards into the combined TBPELS",
+      "explanation": "HB 1523 combined the former Texas Board of Professional Engineers and the former Texas Board of Professional Land Surveying into TBPELS. It did not repeal Ch. 1071 or move licensing to the GLO.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "4ee6b9bd-40a2-4a27-9bf5-e2a25d4195ca",
+      "question_text": "TBPELS regulates surveyors, while the General Land Office (GLO) maintains the state's original land-grant records and issues patents.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Correct. The two state bodies have distinct roles: TBPELS licenses/disciplines the person; the GLO administers the land records and issues patents.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "16f6fb48-114c-4670-8be8-bb211da888a8",
+      "question_text": "Which statute is the Professional Land Surveying Practices Act?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Texas Occupations Code Chapter 1071",
+        "Texas Property Code Chapter 12",
+        "22 Texas Administrative Code Chapter 138",
+        "Texas Natural Resources Code Chapter 21"
+      ],
+      "correct_answer": "Texas Occupations Code Chapter 1071",
+      "explanation": "Occupations Code Ch. 1071 is the Professional Land Surveying Practices Act. Ch. 138 is the agency rules; Property Code Ch. 12 is recording/plats; Nat. Res. Code Ch. 21 is surveys/field notes of public land.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "16f6fb48-114c-4670-8be8-bb211da888a8",
+      "question_text": "Which credential is required to survey land in which the State or the Permanent School Fund has an interest and to file field notes with the GLO?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Surveyor-in-Training (SIT)",
+        "Registered Professional Land Surveyor (RPLS) only",
+        "Licensed State Land Surveyor (LSLS)",
+        "Professional Engineer (PE)"
+      ],
+      "correct_answer": "Licensed State Land Surveyor (LSLS)",
+      "explanation": "Per Occupations Code §1071.002, state land surveying — including relocating original grant boundaries and filing GLO field notes — is reserved to an LSLS. An RPLS alone is not authorized for that work.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "16f6fb48-114c-4670-8be8-bb211da888a8",
+      "question_text": "Put the typical Texas surveying licensure path in the correct order.",
+      "question_type": "multiple_choice",
+      "options": [
+        "RPLS → SIT → LSLS",
+        "SIT → RPLS → LSLS",
+        "LSLS → RPLS → SIT",
+        "SIT → LSLS → RPLS"
+      ],
+      "correct_answer": "SIT → RPLS → LSLS",
+      "explanation": "A candidate becomes a Surveyor-in-Training, gains experience and passes exams to become an RPLS, and may then earn the additional LSLS credential for state-land work.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "16f6fb48-114c-4670-8be8-bb211da888a8",
+      "question_text": "An SIT may independently prepare and seal a metes-and-bounds description in Texas.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "An SIT works under the responsible charge of an RPLS and may not seal surveys or descriptions. Only a licensed RPLS (or LSLS for state land) may seal.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "8a8a6ec2-fee2-48a5-9676-71e947c1e640",
+      "question_text": "Where do the current TBPELS rules reside in the Texas Administrative Code?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Title 22, Part 6 (Chs. 134, 136, 138)",
+        "Title 16, Part 4",
+        "Title 30 (TCEQ)",
+        "Title 43 (Transportation)"
+      ],
+      "correct_answer": "Title 22, Part 6 (Chs. 134, 136, 138)",
+      "explanation": "TBPELS rules are in 22 TAC, Part 6: Ch. 134 (licensing), Ch. 136 (firm registration), and Ch. 138 (compliance/standards).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "8a8a6ec2-fee2-48a5-9676-71e947c1e640",
+      "question_text": "A 2026 survey certifies compliance with \"22 TAC §663.\" Why is this a problem?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Section 663 governs engineers, not surveyors",
+        "Chapter 663 was repealed and its surveying standards re-codified into Chapter 138",
+        "Section 663 applies only to subdivision plats",
+        "Chapter 663 is a federal regulation, not a Texas rule"
+      ],
+      "correct_answer": "Chapter 663 was repealed and its surveying standards re-codified into Chapter 138",
+      "explanation": "After the 2019 board merger, the former surveying standards in 22 TAC Ch. 663 were repealed and superseded by Ch. 138. Citing §663 in 2026 is outdated.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "8a8a6ec2-fee2-48a5-9676-71e947c1e640",
+      "question_text": "Continuing education is a condition of renewing a Texas RPLS license.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "TBPELS rules (in the Ch. 134 licensing chapter) require continuing-education hours each renewal period, including ethics/professional and Texas-rules content.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "aea6fe59-0955-42ca-87cd-a20323dd7c45",
+      "question_text": "What is a Category 1A survey in Texas?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A topographic survey of public land",
+        "The highest-standard boundary / land-title survey, defined by the TSPS Manual of Practice",
+        "A survey performed only by a Licensed State Land Surveyor",
+        "A construction-staking survey for a political subdivision"
+      ],
+      "correct_answer": "The highest-standard boundary / land-title survey, defined by the TSPS Manual of Practice",
+      "explanation": "Category 1A is the highest-standard boundary/land-title survey; its specifications come from the TSPS Manual of Practice, incorporated by reference into the TBPELS rules, and it requires a closure report.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "aea6fe59-0955-42ca-87cd-a20323dd7c45",
+      "question_text": "Under 22 TAC §138.87, what must be true of monuments a surveyor sets?",
+      "question_type": "multiple_choice",
+      "options": [
+        "They may be any temporary marker as long as photographed",
+        "They must be stable, reasonably permanent, and marked traceably to the responsible registrant",
+        "They must be set only by an SIT",
+        "They must be made of wood to avoid magnetic interference"
+      ],
+      "correct_answer": "They must be stable, reasonably permanent, and marked traceably to the responsible registrant",
+      "explanation": "Section 138.87 requires adequate, stable, reasonably permanent monuments set at sufficient depth/size and marked traceably to the responsible registrant; found vs. set must be documented.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "aea6fe59-0955-42ca-87cd-a20323dd7c45",
+      "question_text": "In a Texas survey, when a found monument conflicts with the record bearing and distance, which controls?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The stated area/acreage",
+        "The record distance",
+        "The found monument",
+        "The record bearing"
+      ],
+      "correct_answer": "The found monument",
+      "explanation": "Consistent with the dignity-of-calls hierarchy, monuments control over course and distance, which control over quantity/area (the least reliable element).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "aea6fe59-0955-42ca-87cd-a20323dd7c45",
+      "question_text": "Under 22 TAC §138.91(c), a survey's courses should be referenced to an identifiable monumented line or an established geodetic system (a stated basis of bearing).",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Section 138.91(c) requires courses to be referenced to an identifiable and monumented line or an established geodetic system, such as the Texas State Plane Coordinate System (NAD83).",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "4cf7696b-094d-47d1-bc5b-a68c9bb7f21b",
+      "question_text": "Under Texas Natural Resources Code §21.001(3), a stream is \"navigable\" if it:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Is used in fact for interstate commerce",
+        "Retains an average width of 30 feet from its mouth up",
+        "Has water flowing year-round",
+        "Appears on a USGS topographic map"
+      ],
+      "correct_answer": "Retains an average width of 30 feet from its mouth up",
+      "explanation": "Texas uses a bright-line geometric test: an average bed width of 30 feet (measured between banks). A sometimes-dry channel can still be navigable, and the State owns the bed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "4cf7696b-094d-47d1-bc5b-a68c9bb7f21b",
+      "question_text": "Why is there no PLSS township-range grid in Texas?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Texas adopted the PLSS but later abolished it",
+        "Texas land was never federal public domain; the State retained its public lands and surveys them through the GLO",
+        "The GLO converted all grants to township-range in 1845",
+        "Texas uses only the State Plane Coordinate System instead of any grant system"
+      ],
+      "correct_answer": "Texas land was never federal public domain; the State retained its public lands and surveys them through the GLO",
+      "explanation": "Texas kept its public lands at annexation, so original title flows from the State (via the GLO) using metes-and-bounds keyed to original surveys/abstracts, not the federal PLSS grid.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "4cf7696b-094d-47d1-bc5b-a68c9bb7f21b",
+      "question_text": "Once a public-land survey and its field notes are accepted by the GLO, they are legally presumed correct.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Under the Natural Resources Code (Ch. 21), GLO-accepted surveys and field notes carry a legal presumption of correctness, giving the original record controlling weight in retracement.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "5d0e6d5b-5066-449e-80a8-5c48cb705009",
+      "question_text": "Which best describes Texas's recording act?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Race — first to record wins, even with notice",
+        "Race-notice — a later purchaser without notice wins only if it records first",
+        "Pure notice — a later purchaser for value without notice prevails even if it records second or never",
+        "First in time, first in right, with no recording statute"
+      ],
+      "correct_answer": "Pure notice — a later purchaser for value without notice prevails even if it records second or never",
+      "explanation": "Texas is a pure-notice jurisdiction (Prop. Code §§13.001–.002): the BFP without notice wins regardless of recording order. Race and race-notice describe other states' regimes.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "5d0e6d5b-5066-449e-80a8-5c48cb705009",
+      "question_text": "Under Madison v. Gordon, possession imparts constructive notice to a purchaser only if it is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Merely open and notorious",
+        "Visible, open, exclusive, and unequivocal",
+        "Recorded with the county clerk",
+        "Continuous for at least ten years"
+      ],
+      "correct_answer": "Visible, open, exclusive, and unequivocal",
+      "explanation": "Madison v. Gordon (Tex. 2001) set the four-adjective test — visible, open, exclusive, and unequivocal. Ambiguous or shared possession does not impart constructive notice.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "5d0e6d5b-5066-449e-80a8-5c48cb705009",
+      "question_text": "An owner divides a tract within a city's ETJ into three lots using metes-and-bounds deeds. Is a plat required?",
+      "question_type": "multiple_choice",
+      "options": [
+        "No — metes-and-bounds deeds are exempt from platting",
+        "No — platting applies only inside city limits, never the ETJ",
+        "Yes — Local Gov't Code §212.004 includes metes-and-bounds divisions in the platting requirement",
+        "Only if the lots are larger than five acres"
+      ],
+      "correct_answer": "Yes — Local Gov't Code §212.004 includes metes-and-bounds divisions in the platting requirement",
+      "explanation": "Section 212.004 expressly covers divisions made by metes-and-bounds, preventing circumvention of subdivision control. (The greater-than-five-acre exception, with access and no dedicated improvement, would not apply to half-acre lots.)",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "d254ce3d-221e-465e-a28a-d04e6429193b",
+      "question_text": "An RPLS seals a survey performed entirely by another firm that the RPLS never supervised or reviewed. This is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Acceptable, because the RPLS holds a valid license",
+        "A disciplinable ethics violation — sealing work not under the RPLS's responsible charge",
+        "Required whenever the original surveyor is unavailable",
+        "Permitted if the client consents in writing"
+      ],
+      "correct_answer": "A disciplinable ethics violation — sealing work not under the RPLS's responsible charge",
+      "explanation": "Sealing certifies work performed by or under the surveyor's responsible charge. Sealing unsupervised outside work (plan stamping) violates the TBPELS conduct rules and is disciplinable under Occ. Code §§1071.401–.405.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "d254ce3d-221e-465e-a28a-d04e6429193b",
+      "question_text": "From which statute does TBPELS derive its authority to discipline a land surveyor?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Property Code §12.002",
+        "Occupations Code §§1071.401–.405",
+        "Natural Resources Code §31.001",
+        "Local Government Code §212.004"
+      ],
+      "correct_answer": "Occupations Code §§1071.401–.405",
+      "explanation": "The disciplinary authority is in the Professional Land Surveying Practices Act, Occ. Code §§1071.401–.405, with detailed procedure supplied by the 22 TAC rules.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "d254ce3d-221e-465e-a28a-d04e6429193b",
+      "question_text": "Name one possible TBPELS disciplinary sanction against a surveyor.",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "Revocation of the license (also acceptable: reprimand, conditions/remedial education, administrative penalty, or suspension)",
+      "explanation": "Under Occ. Code §§1071.401–.405, sanctions range from a reprimand or conditions (including additional CE) to administrative penalties and suspension or revocation of the license.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "947241dc-10a7-4ace-b235-6451665b5d16",
+      "question_text": "A dispute requires relocating an original Spanish-grant corner on land in which the Permanent School Fund has an interest, and filing field notes with the GLO. Who must do this work?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Any RPLS",
+        "A Surveyor-in-Training under remote supervision",
+        "A Licensed State Land Surveyor (LSLS)",
+        "A Professional Engineer (PE)"
+      ],
+      "correct_answer": "A Licensed State Land Surveyor (LSLS)",
+      "explanation": "Relocating original land-grant boundaries/corners and filing GLO field notes is \"state land surveying\" reserved to an LSLS (Occ. Code §1071.002). An ordinary RPLS is not authorized.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "947241dc-10a7-4ace-b235-6451665b5d16",
+      "question_text": "Which is the best first step before signing off on a Texas boundary survey for compliance?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Confirm you are citing the current standards (Ch. 138 and current TSPS), not the repealed §663",
+        "Certify under whichever standard the client prefers",
+        "Use the 22 TAC §663 standard for consistency with older plats",
+        "Skip the basis of bearing if monuments were found"
+      ],
+      "correct_answer": "Confirm you are citing the current standards (Ch. 138 and current TSPS), not the repealed §663",
+      "explanation": "Compliance starts with applying the current rules — 22 TAC Ch. 138 and the current TSPS Manual. Citing the repealed §663 or omitting the basis of bearing are common failures.",
+      "difficulty": "easy"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "RPLS continuing-education hours remaining for renewal",
+      "category": "Texas Surveying Law — Licensing",
+      "subcategory": "Continuing Education",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A Texas RPLS must complete {{required}} continuing-education hours during the renewal period. With {{months}} months left in the period, the surveyor has so far logged {{completed}} hours. How many more CE hours are still needed to meet the requirement?",
+      "parameters": [
+        {"name": "required", "type": "integer", "min": 12, "max": 16},
+        {"name": "completed", "type": "integer", "min": 2, "max": 10},
+        {"name": "months", "type": "integer", "min": 1, "max": 9}
+      ],
+      "computed_vars": [],
+      "answer_formula": "required - completed",
+      "answer_format": {"decimals": 0, "unit": "hours", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Identify requirement", "calculation_template": "Required hours = {{required}}"},
+        {"step_number": 2, "title": "Subtract completed", "result_template": "{{required}} − {{completed}} = {{_answer}} hours"}
+      ],
+      "explanation_template": "CE is a renewal condition: subtract logged hours ({{completed}}) from the required hours ({{required}}) to get {{_answer}} hours still needed.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Convert a vara distance from an original Texas field note to feet",
+      "category": "Texas Surveying Law — Historical Units",
+      "subcategory": "Vara Conversion",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "An original GLO field note records a course length of {{vrs}} varas. Using the Texas statutory vara (1 vara = 33⅓ in = 2.7778 ft), what is the length in feet?",
+      "parameters": [
+        {"name": "vrs", "type": "float", "min": 100, "max": 1200, "decimals": 1}
+      ],
+      "computed_vars": [],
+      "answer_formula": "vrs * 2.7778",
+      "answer_format": {"decimals": 1, "unit": "ft", "tolerance": 1.0},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Vara-to-feet factor", "calculation_template": "1 vara = 2.7778 ft"},
+        {"step_number": 2, "title": "Multiply", "result_template": "{{vrs:f1}} × 2.7778 = {{_answer}} ft"}
+      ],
+      "explanation_template": "Texas fixes the vara at 33⅓ in = 2.7778 ft, so {{vrs:f1}} varas × 2.7778 = {{_answer}} ft. Do not apply a non-Texas vara value to a Texas grant.",
+      "options_generator": {"method": "none"}
+    }
+  ]
+}

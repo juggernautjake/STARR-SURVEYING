@@ -1,0 +1,1168 @@
+{
+  "order_index": 15,
+  "module_id": "c100000f-0000-0000-0000-00000000000f",
+  "title": "Texas Land Titles and Records",
+  "lessons": [
+    {
+      "lesson_id": "6dc25256-cb35-42e0-b8ec-90b29f6c7085",
+      "title": "History of Texas Land Grants",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Identify the four sovereigns of the soil in Texas and the order in which they granted land.",
+        "Explain why Texas has no federal Public Land Survey System (PLSS) across most of the state.",
+        "Distinguish a sovereign 'title' or 'patent' from later private deeds in the chain of title."
+      ],
+      "key_takeaways": [
+        "Every Texas title traces back to one of four sovereigns: Spain, Mexico, the Republic of Texas, or the State of Texas.",
+        "Texas retained its public domain at annexation, so its land was never federal public domain and has no township-range PLSS grid.",
+        "The sovereign grant (Spanish/Mexican 'title' or Republic/State 'patent') is the instrument that severs land from the sovereign."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Four sovereigns of the soil</h3><p>Land in Texas does not begin with a private owner; it begins with a <strong>sovereign</strong>. Every valid Texas title can, in principle, be traced backward through successive deeds until it reaches an original grant from one of four governments that exercised sovereignty over Texas soil. In chronological order these are <strong>Spain</strong> (1716&ndash;1821), <strong>Mexico</strong> (1821&ndash;1836), the <strong>Republic of Texas</strong> (1836&ndash;1845), and the <strong>State of Texas</strong> (1845&ndash;present). This is why surveyors and title professionals speak of the &ldquo;four sovereigns of the soil.&rdquo;</p><p>The single idea that explains almost everything distinctive about Texas land law is that <strong>the State of Texas&mdash;not the United States&mdash;was the source of original land grants.</strong> When Texas joined the Union in 1845 it kept its own public lands. As a result, Texas land was <em>never</em> federal public domain, and the rules, records, and units of measure that govern Texas titles grew out of a Spanish/Mexican and Republic-era heritage rather than the federal system used across most of the West.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Sovereign", "Era", "Granting instrument"],
+            "rows": [
+              ["Spain", "1716–1821", "Title (porciones, town lots, livestock grants)"],
+              ["Mexico", "1821–1836", "Title (empresario/colonization grants; leagues & labors)"],
+              ["Republic of Texas", "1836–1845", "Patent / headright certificates"],
+              ["State of Texas", "1845–present", "Patent"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Title, patent, and the severance from sovereignty</h3><p>A Spanish or Mexican <strong>title</strong> and a Republic or State <strong>patent</strong> serve the same legal function: each is the instrument that <strong>severs land from the sovereign</strong> and places it in private hands for the first time. Everything that follows&mdash;every warranty deed, mortgage, and partition&mdash;runs <em>from</em> that first grantee. A surveyor retracing a Texas boundary is ultimately retracing the original sovereign grant.</p><p>Two practical consequences follow. First, <strong>perfected Spanish and Mexican titles remain valid today</strong>; the United States agreed to honor valid Mexican-era titles in the <strong>Treaty of Guadalupe Hidalgo (1848)</strong>, and the Republic of Texas honored valid Spanish and Mexican grants in its 1836 Constitution. Second, because sovereignty was already severed by those grants, <strong>land once conveyed by a valid Spanish/Mexican title cannot later be re-patented</strong> by the State&mdash;there is nothing left for the State to grant. A surveyor who finds a chain bottoming out in a Mexican-era league-and-labor grant is looking at the very root of that title.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: In federal public-land states, original title flows from the United States (federal GLO, Homestead Act, PLSS). In Texas it flows from the State. Texas land was never federal public domain, so there is no township-range PLSS grid—Texas grants are metes-and-bounds keyed to an original survey name and abstract number."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Timeline of the four sovereigns of Texas soil from Spain through the State of Texas",
+            "caption": "Figure: Timeline of the four sovereigns of the soil and the instruments by which each severed land from sovereignty.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why this matters to a surveyor</h3><p>The four-sovereign history is not trivia&mdash;it dictates how Texas boundaries are described, located, and litigated. Because Texas retained and surveyed its <strong>own</strong> public domain, the locational anchor for any tract is the <strong>original land-grant survey and abstract number</strong> (for example, &ldquo;the John Doe Survey, Abstract No. 123&rdquo;), not a section-township-range corner. Coastal and riparian boundary rules even change depending on <em>which sovereign</em> issued the original grant. Before choosing a tidal datum, a boundary rule, or a unit of measure, the surveyor must first ask: which sovereign granted this land, and when?</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Four sovereigns granted Texas land in order: Spain, Mexico, the Republic, and the State of Texas.",
+              "A Spanish/Mexican 'title' and a Republic/State 'patent' both sever land from the sovereign; all later deeds run from that grant.",
+              "Texas retained its public lands at annexation, so most Texas land has no federal PLSS grid.",
+              "Valid Spanish/Mexican grants survive today (Treaty of Guadalupe Hidalgo, 1848) and cannot be re-patented."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Four sovereigns of the soil",
+          "definition": "The four governments from which every Texas land title originates: Spain (1716–1821), Mexico (1821–1836), the Republic of Texas (1836–1845), and the State of Texas (1845–present).",
+          "hint_1": "Two foreign nations, one independent republic, one U.S. state."
+        },
+        {
+          "term": "Severance from the sovereign",
+          "definition": "The moment a sovereign grant (Spanish/Mexican title or Republic/State patent) first conveys land out of public ownership into private hands; all subsequent deeds in the chain run from that grant."
+        },
+        {
+          "term": "Treaty of Guadalupe Hidalgo (1848)",
+          "definition": "The treaty ending the U.S.-Mexican War in which the United States agreed to recognize valid Mexican-era land titles, preserving the validity of perfected Spanish and Mexican grants in Texas."
+        }
+      ]
+    },
+    {
+      "lesson_id": "5ea5e4f0-f3c6-48af-a855-054e9110356e",
+      "title": "Spanish and Mexican Land Grants",
+      "estimated_minutes": 32,
+      "learning_objectives": [
+        "Describe the empresario/colonization system used in Mexican Texas and its conditions on settlers.",
+        "Convert among the vara, labor, and league units used in Spanish and Mexican grants.",
+        "Explain why many South and Central Texas chains of title bottom out in a Mexican-era grant."
+      ],
+      "key_takeaways": [
+        "Mexican Texas was settled through empresario contracts that granted land in exchange for bringing in families, subject to religion, allegiance, and residency conditions.",
+        "Spanish and Mexican grants are sized in varas, labors, and leagues—not feet and acres directly.",
+        "Many South/Central Texas titles still trace to a Mexican-era league-and-labor grant held in the GLO Spanish Collection."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The empresario / colonization system</h3><p>Under Mexican rule (1821&ndash;1836), Texas was settled through the <strong>empresario</strong> system&mdash;a civil-law colonization mechanism with no English common-law equivalent. An <strong>empresario</strong> was a land agent who contracted with the government to settle a fixed number of families in a defined area, in exchange for which both the settlers and the empresario received land. The framework came from the <strong>Mexican National Colonization Law of August 18, 1824</strong> and, for nearly all Texas contracts, the <strong>State Colonization Law of Coahuila y Tejas (March 1825)</strong>.</p><p>Settlers under these contracts accepted public-law conditions that a private market sale would never impose: they had to <strong>convert to Catholicism</strong> and <strong>swear allegiance to Mexico</strong>, and they had to actually reside on and improve the land. <strong>Stephen F. Austin</strong> inherited his father&rsquo;s 1821 contract&mdash;the famous <strong>&ldquo;Old Three Hundred&rdquo;</strong> families&mdash;and ultimately settled more than 1,500 families. About <strong>forty-one empresario grants</strong> were made between 1821 and 1835. A rough sizing rule under the colonization laws gave an empresario roughly <strong>five leagues plus five labors per 100 families</strong> settled.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: The empresario system is a civil-law (Spanish/Mexican) device with no common-law analog. Land was distributed by a state-licensed contractor under conditions of religion, allegiance, and residency—not by private-market conveyance or the Anglo headright/homestead model."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How grants were sized: use determined acreage</h3><p>Grant size under the 1824/1825 colonization laws keyed to the intended <strong>use</strong> of the land. A settler who intended to <strong>farm</strong> received at least <strong>one labor</strong> of arable land; one who intended to <strong>raise stock</strong> received <strong>one league</strong> (a <em>sitio</em>) of grazing land; and one who intended to do both received <strong>one labor plus one league</strong> together&mdash;the standard married-head-of-family grant of roughly 4,605 acres. A single man received <strong>one-third of a league</strong>, about 1,476 acres. These are not arbitrary numbers: they are exact multiples of square varas that a surveyor can still reconstruct today.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Unit", "Definition", "Approx. acres", "Typical use"],
+            "rows": [
+              ["Vara", "33⅓ in = 2.7778 ft (linear)", "—", "Linear field-note unit"],
+              ["Labor", "1,000,000 sq varas (1,000 varas square)", "≈ 177.1", "Farmland"],
+              ["League / sitio (legua)", "25,000,000 sq varas (5,000 varas square) = 25 labors", "≈ 4,428.4", "Grazing land"],
+              ["League + labor", "26,000,000 sq varas", "≈ 4,605.5", "Married head-of-family grant"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The vara and historical variation</h3><p>The <strong>vara</strong> is the linear unit of the Spanish/Mexican system. Texas later fixed it by statute at exactly <strong>33&#8531; inches</strong> (about 2.7778 ft) in <strong>Article 5730 of the Revised Civil Statutes (Acts of 1919)</strong>, and the General Land Office still uses varas in its archived grant field notes. A useful check: <strong>36 varas equals exactly 100 feet</strong>, so feet-to-varas multiplies by 0.36 and varas-to-feet multiplies by 2.7778.</p><p>Be cautious with very old grants. Historical varas varied&mdash;the Spanish <em>vara de Burgos</em> was about 32.9 in and the Mexican vara about 32.99 in&mdash;so an original surveyed acreage may differ slightly from a modern recomputation using the statutory 33&#8531;-in vara. Do not blindly apply a non-Texas vara value to a Texas grant; reconcile the historic field notes to the modern datum carefully.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "These grants survived the change in sovereignty. Many South and Central Texas chains of title bottom out in a Mexican-era league-and-labor grant preserved in the GLO Spanish Collection (about 4,200 Spanish/Mexican grants, roughly 26 million acres)."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram comparing the size of a labor, a league, and a league-plus-labor grant in square varas and acres",
+            "caption": "Figure: Relative sizes of a labor (≈177 ac), a league/sitio (≈4,428 ac), and the standard league-plus-labor grant (≈4,605 ac).",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Empresarios contracted to settle families under public-law conditions (Catholicism, allegiance, residency); ~41 grants were made 1821–1835.",
+              "Grant size keyed to use: farming → labor; stock-raising → league; both → league + labor.",
+              "1 vara = 33⅓ in = 2.7778 ft; 1 labor ≈ 177.1 ac; 1 league ≈ 4,428.4 ac; 36 varas = 100 ft exactly.",
+              "Valid Mexican-era grants survive today and anchor many South/Central Texas titles."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Empresario",
+          "definition": "A land agent under Mexican law who contracted to settle a set number of families in a defined area of Texas in exchange for land grants to the settlers and to himself (e.g., Stephen F. Austin's 'Old Three Hundred').",
+          "hint_1": "A licensed colonization contractor, not a private seller."
+        },
+        {
+          "term": "League (sitio / legua)",
+          "definition": "A Spanish/Mexican grazing-land unit of 25,000,000 square varas (5,000 varas on a side), equal to 25 labors and about 4,428 acres."
+        },
+        {
+          "term": "Labor",
+          "definition": "A Spanish/Mexican farmland unit of 1,000,000 square varas (1,000 varas on a side), about 177.1 acres."
+        },
+        {
+          "term": "Vara",
+          "definition": "The Spanish/Mexican linear unit fixed by Texas statute (Art. 5730, 1919) at exactly 33⅓ inches = 2.7778 ft; 36 varas equal exactly 100 ft."
+        }
+      ]
+    },
+    {
+      "lesson_id": "184ab3e2-3b90-48ae-b9a1-be10d4e85a55",
+      "title": "Republic of Texas Grants",
+      "estimated_minutes": 28,
+      "learning_objectives": [
+        "Explain the headright certificate system used by the Republic of Texas.",
+        "Describe how Texas retained its public lands at annexation in 1845.",
+        "Relate Republic-era land distribution to the Permanent School Fund."
+      ],
+      "key_takeaways": [
+        "The Republic of Texas distributed huge acreage through headright certificates redeemed for patents.",
+        "On annexation in 1845, Texas retained all of its vacant and unappropriated public lands—the federal government did not take the public domain.",
+        "Texas dedicated public-land revenue to the Permanent School Fund."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Headrights: land for settlement</h3><p>The <strong>Republic of Texas (1836&ndash;1845)</strong> was an independent nation, and like the Mexican government before it, it used land&mdash;its most abundant asset&mdash;to attract and reward settlers. The principal device was the <strong>headright certificate</strong>: a certificate granting a settler the right to a quantity of public land, which was later <strong>located, surveyed, and redeemed for a patent.</strong> The amount depended on when the settler arrived and on family status.</p><p>A <strong>first-class headright</strong>&mdash;given to a head of family who was a resident before <strong>March 2, 1836</strong> (Texas Independence)&mdash;granted <strong>one league and one labor, roughly 4,605.5 acres.</strong> Later headright classes granted smaller amounts to settlers who arrived after independence. Because the certificate had to be located on <em>vacant</em> land and surveyed before a patent issued, the headright system generated an enormous volume of original surveys&mdash;the very surveys whose names and abstract numbers still anchor Texas legal descriptions today.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "A 'certificate' is the right to land; a 'patent' is the completed grant. A headright certificate had to be located on vacant land, surveyed, and returned to the land office before a patent severed the tract from the sovereign."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Annexation 1845: Texas keeps its public lands</h3><p>The most consequential event in Texas land history is the <strong>1845 annexation</strong>. When Texas joined the United States, it did <strong>not</strong> hand its public domain to the federal government. The <strong>Joint Resolution for Annexing Texas (March 1, 1845), &sect;2</strong> provided that Texas &ldquo;shall also retain all the vacant and unappropriated lands lying within its limits.&rdquo; Texas kept well over <strong>200 million acres</strong> of public land&mdash;and also kept responsibility for its own debts, which were not to become a charge on the United States.</p><p>This single fact explains why Texas, almost uniquely among the western states, has very little federally owned land and no federal Public Land Survey System across most of its territory. The original grant in any Texas chain of title is a <strong>State (or pre-statehood) grant&mdash;never a federal patent.</strong></p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: This is the single most consequential difference from other western states. Elsewhere the United States was the original grantor and the federal GLO/BLM administered disposal, leaving much land federally owned. In Texas the sovereign source is the State, administered through the General Land Office."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Public lands and the Permanent School Fund</h3><p>Having retained an empire of public land, Texas put it to work funding public education. The <strong>Texas Constitution of 1845</strong> carried the public domain into statehood and established the <strong>Permanent School Fund (PSF)</strong>, to which the State dedicated land and the revenue from selling and leasing it (later the Permanent University Fund as well). The General Land Office still manages PSF lands and mineral interests. For a surveyor, this means that once a survey of state land and its field notes are accepted by the GLO, they carry a legal presumption of correctness, and that state-owned tracts and minerals sit behind much of the Texas land record.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Map concept showing Texas retaining its public domain at 1845 annexation while other western states held federal land",
+            "caption": "Figure: At annexation Texas retained its vacant and unappropriated public lands, unlike federal public-land states.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Republic-era headright certificates were located, surveyed, and redeemed for patents.",
+              "A first-class headright (resident before March 2, 1836) granted a league and a labor, ~4,605.5 acres.",
+              "The 1845 Joint Resolution let Texas retain all vacant and unappropriated public lands.",
+              "Public-land revenue funds the Permanent School Fund, managed through the GLO."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Headright certificate",
+          "definition": "A Republic of Texas certificate granting a settler the right to a quantity of public land, later located, surveyed, and redeemed for a patent; amount varied by arrival date and family status.",
+          "hint_1": "Right to land first, patent later."
+        },
+        {
+          "term": "First-class headright",
+          "definition": "A headright granted to a head of family resident in Texas before March 2, 1836, conveying one league and one labor (~4,605.5 acres)."
+        },
+        {
+          "term": "Joint Resolution for Annexing Texas (1845)",
+          "definition": "The 1845 measure under which Texas joined the Union and retained all vacant and unappropriated public lands within its limits, keeping its public domain out of federal hands."
+        },
+        {
+          "term": "Permanent School Fund (PSF)",
+          "definition": "The fund established by the 1845 Texas Constitution and supported by public-land sales and leases, managed in part through the General Land Office to support public education."
+        }
+      ]
+    },
+    {
+      "lesson_id": "e5580ef9-dc1d-436a-80df-6e83e08e5a71",
+      "title": "Texas General Land Office (GLO)",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Describe the role and history of the Texas General Land Office.",
+        "Explain how the GLO archive supports retracement of original land-grant surveys.",
+        "Identify the GLO's continuing function of issuing patents and the LSLS credential for state-land work."
+      ],
+      "key_takeaways": [
+        "The GLO, founded in 1836, is the oldest existing Texas state agency and the custodian of the State's original land-grant records.",
+        "The GLO archive (the Spanish Collection, field notes, sketches, maps) is the starting point for retracing original Texas surveys.",
+        "The GLO still issues patents and administers state lands; state-land surveys require a Licensed State Land Surveyor (LSLS)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The oldest Texas agency</h3><p>The <strong>Texas General Land Office (GLO)</strong> was founded on <strong>December 22, 1836</strong> by the First Congress of the Republic, making it the <strong>oldest existing Texas state agency.</strong> It exists because Texas&mdash;unlike federal public-land states&mdash;administers its own sovereign land. The GLO maintains the State&rsquo;s land records, produces official maps and surveys, manages state lands and minerals, and continues to <strong>issue patents</strong> for unappropriated land. The Texas Natural Resources Code (&sect;31.001) defines the &ldquo;Land Office&rdquo; as the GLO and places the agency&rsquo;s functions in <strong>Chapter 31</strong> of that code.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Most states have no comparable state land office holding sovereign-origin grant archives—their original grants came from the federal government and live in BLM / National Archives records. The Texas GLO is both the archival custodian of sovereign-era grants and an active agency that still issues patents and manages state lands and minerals."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The archive: where retracement begins</h3><p>For a surveyor, the GLO is first and foremost an <strong>archive.</strong> It holds roughly <strong>35.5 million land-grant records reaching back to 1720</strong> and about <strong>80,000 maps.</strong> The <strong>Spanish Collection</strong> is the depository for approximately <strong>4,200 Spanish and Mexican grants</strong> covering some 26 million acres. The <strong>Sketch Files</strong> contain surveyor reports, original field notes, and plats. When you must retrace an original survey, you do not start in the field&mdash;you start in the GLO record, where you locate the <strong>original grant boundaries and corners</strong> so you can then follow the original surveyor&rsquo;s footsteps on the ground.</p><p>South Texas presents a special wrinkle. Spanish and Mexican grants there underwent a legislative <strong>confirmation/validation</strong> process (roughly 1850&ndash;1852), after which the GLO issued confirming patents. A clean chain in that region may therefore include both an original civil-law title <em>and</em> a later State confirmation.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "What a surveyor pulls from the GLO",
+                "content": "<p>Typical GLO research products include the <strong>original patent</strong>, the <strong>original field notes</strong> (often in varas, with magnetic or assumed bearings), <strong>sketch/connection maps</strong> showing how a survey ties to its neighbors, and the <strong>abstract number</strong> assigned to the original survey. These records establish the senior grant against which later subdivisions are junior, and they fix the calls a retracing surveyor must reconcile to modern measurements.</p>",
+                "open": false
+              },
+              {
+                "title": "Patents and the state's continuing role",
+                "content": "<p>A <strong>patent</strong> is the final step of a grant&mdash;the instrument that severs land from sovereignty. The GLO still issues patents today (for example, to clear title to certain vacant land) under the Natural Resources Code. Patent-conclusiveness and vacancy provisions are technical and should be pulled directly from the statute before relying on them in practice.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>State-land surveying and the LSLS</h3><p>Ordinary boundary work is performed by a <strong>Registered Professional Land Surveyor (RPLS).</strong> But surveying land in which the State or the Permanent School Fund has an interest&mdash;and determining or relocating <strong>original land-grant boundaries and corners</strong> for the State&mdash;requires a higher, GLO-recognized credential: the <strong>Licensed State Land Surveyor (LSLS).</strong> Under Occupations Code &sect;1071.002, &ldquo;state land surveying&rdquo; includes locating or relocating original land-grant boundaries and corners and filing field notes in the General Land Office. The LSLS is a Texas-specific credential that has no parallel in PLSS states, where the federal BLM keeps the rectangular-survey records.</p>"
+          }
+        },
+        {
+          "block_type": "link_reference",
+          "content": {
+            "links": [
+              {
+                "url": "https://statutes.capitol.texas.gov/Docs/NR/htm/NR.31.htm",
+                "title": "Tex. Nat. Res. Code Ch. 31 (General Land Office)",
+                "type": "website",
+                "description": "Establishes the GLO; §31.001 defines the 'Land Office.'"
+              },
+              {
+                "url": "https://www.glo.texas.gov/",
+                "title": "Texas General Land Office",
+                "type": "website",
+                "description": "Official GLO site; land-grant archive search and history."
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The GLO (founded Dec. 22, 1836) is the oldest Texas state agency and custodian of sovereign-origin land records.",
+              "Its archive—~35.5 million records, the Spanish Collection (~4,200 grants), field notes, and sketches—is where retracement begins.",
+              "The GLO still issues patents and manages state lands and minerals.",
+              "State-land surveys and relocation of original grant corners require a Licensed State Land Surveyor (LSLS)."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "General Land Office (GLO)",
+          "definition": "The Texas state agency (founded Dec. 22, 1836; oldest in Texas) that maintains the State's original land-grant records, produces official maps/surveys, manages state lands and minerals, and issues patents.",
+          "hint_1": "Texas's own land office—no federal BLM equivalent here."
+        },
+        {
+          "term": "Spanish Collection",
+          "definition": "The GLO depository of roughly 4,200 Spanish and Mexican land grants (about 26 million acres), a primary source for retracing original civil-law grants."
+        },
+        {
+          "term": "Licensed State Land Surveyor (LSLS)",
+          "definition": "A Texas-specific credential, above RPLS, required to survey land in which the State or PSF has an interest and to determine or relocate original land-grant boundaries and corners and file field notes with the GLO."
+        }
+      ]
+    },
+    {
+      "lesson_id": "f0ebedbb-846c-4687-bac9-e799499718b8",
+      "title": "Abstract of Title and Title Insurance",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Define the abstract of title and the chain of title.",
+        "Explain the role of title insurance in Texas and how it differs from an abstract.",
+        "Distinguish marketable title from a defective or clouded title."
+      ],
+      "key_takeaways": [
+        "The chain of title is the sequence of conveyances from the sovereign to the present owner; the abstract is the documented summary of that history.",
+        "Title insurance indemnifies against covered title defects; it does not certify a clean chain the way an attorney's opinion or abstract examination does.",
+        "Surveyors interact with the abstract through the original survey/abstract number and through survey exceptions on a title commitment."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Chain of title and the abstract</h3><p>The <strong>chain of title</strong> is the unbroken sequence of conveyances by which ownership of a tract passes from the original <strong>sovereign grant</strong> down to the present owner&mdash;patent to first grantee, then deed to deed, plus mortgages, liens, easements, probate, and every other instrument that affects the land. An <strong>abstract of title</strong> is a condensed, chronological <em>summary</em> of all recorded instruments affecting the property, compiled from the public records. It is the documentary backbone a title examiner uses to decide whether title is good.</p><p>Do not confuse the surveying term <strong>&ldquo;abstract number&rdquo;</strong> (the GLO identifier of an original land-grant survey, as in &ldquo;Abstract No. 123&rdquo;) with the title term <strong>&ldquo;abstract of title&rdquo;</strong> (the summary of the chain). Both appear constantly in Texas land work, but they are different concepts that happen to share a word.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Vocabulary trap: An 'abstract number' is the GLO survey identifier on a legal description; an 'abstract of title' is a summary of the chain of title. Keep them straight—a Texas title commitment and a metes-and-bounds caption may use both on the same page."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Marketable title, clouds, and defects</h3><p>A title examiner is looking for <strong>marketable title</strong>&mdash;title a reasonable, well-informed buyer would accept and a court would force a buyer to accept, free of reasonable doubt. Anything that casts doubt is a <strong>cloud</strong> or <strong>defect</strong>: a missing or defective link in the chain, an unreleased lien, a gap where an heir never conveyed, a prior unrecorded deed, a conflicting boundary call, or an undisclosed easement. Surveying defects&mdash;overlaps, gaps, encroachments, and conflicting calls&mdash;are common title clouds, which is exactly why a current survey is so often required before closing.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Tool", "What it does", "What it does NOT do"],
+            "rows": [
+              ["Abstract of title", "Summarizes every recorded instrument in the chain", "Does not itself guarantee or insure title"],
+              ["Attorney's title opinion", "Lawyer's professional opinion that title is good/marketable", "Does not pay your loss if the opinion is wrong (malpractice aside)"],
+              ["Title insurance policy", "Indemnifies the insured against covered, listed title risks", "Does not cover matters excepted on the policy (e.g., survey matters)"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Title insurance in Texas</h3><p>In modern Texas practice, most transactions close with <strong>title insurance</strong> rather than a stand-alone abstract examination by the buyer. A title insurer searches the records, issues a <strong>title commitment</strong> listing the requirements and exceptions, and then issues a <strong>policy</strong> that <em>indemnifies</em> the insured&mdash;owner or lender&mdash;against loss from <strong>covered title defects</strong> that existed but were not excepted. Title insurance is a contract of indemnity for the past; it does not predict the future and it does not certify a flawless chain the way an abstract examination produces an opinion. Critically for surveyors, a standard policy contains a <strong>survey exception</strong> for matters an accurate survey would disclose&mdash;encroachments, boundary conflicts, shortages in area. A current, acceptable survey is what allows that exception to be <strong>amended or deleted</strong>, giving the buyer real protection against boundary problems.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Why surveyors matter to title: deleting the 'survey exception' on a Texas title commitment typically requires a current, acceptable survey (often a TSPS Category 1A land-title survey). No survey, no boundary coverage."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram of a chain of title from sovereign patent through successive deeds to the current owner, with an abstract summarizing each link",
+            "caption": "Figure: The chain of title from sovereign patent to current owner, summarized by the abstract of title.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Chain of title = sovereign grant to present owner; abstract of title = documented summary of that chain.",
+              "Don't confuse the GLO 'abstract number' with the title 'abstract of title.'",
+              "Title insurance indemnifies against covered, listed defects—it does not certify a clean chain.",
+              "A current survey lets the title company amend/delete the survey exception, giving real boundary protection."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Chain of title",
+          "definition": "The unbroken sequence of recorded conveyances by which ownership passes from the original sovereign grant to the present owner.",
+          "hint_1": "Starts at the patent, ends at today's owner."
+        },
+        {
+          "term": "Abstract of title",
+          "definition": "A condensed, chronological summary of all recorded instruments affecting a parcel, compiled from the public records and used to examine title."
+        },
+        {
+          "term": "Marketable title",
+          "definition": "Title free of reasonable doubt that a well-informed buyer would accept and a court would compel acceptance of; the absence of clouds or material defects."
+        },
+        {
+          "term": "Survey exception",
+          "definition": "A standard exclusion on a title commitment/policy for matters an accurate survey would reveal (encroachments, boundary conflicts, area shortages), typically deleted only upon receipt of a current, acceptable survey."
+        }
+      ]
+    },
+    {
+      "lesson_id": "a1904e23-948b-4673-8fc9-cf711ada59a0",
+      "title": "County Clerk Records Research",
+      "estimated_minutes": 32,
+      "learning_objectives": [
+        "Explain where and how real-property instruments are recorded in Texas (Property Code Ch. 11–13).",
+        "Apply the Texas notice-recording rule and identify a bona fide purchaser.",
+        "Use the county deed records and GLO records to research a chain of title."
+      ],
+      "key_takeaways": [
+        "Texas records instruments in the county where the land lies; recording gives constructive notice to all persons.",
+        "Texas is a pure 'notice' state: a later purchaser for value without notice prevails over a prior unrecorded grantee even without winning the race to record.",
+        "Constructive notice arises from the records (§13.002) and from visible, open, exclusive, and unequivocal possession."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Where and how Texas records land instruments</h3><p>Texas real-property records live with the <strong>county clerk</strong> of the county where the land lies. The governing statutes are in the <strong>Texas Property Code</strong>: <strong>&sect;11.001</strong> requires recording in the county where the land is located; <strong>&sect;13.001</strong> addresses the validity of an unrecorded instrument; and <strong>&sect;13.002</strong> provides that a properly recorded instrument is <strong>&ldquo;notice to all persons&rdquo;</strong>&mdash;constructive notice. A researcher works the <strong>grantor/grantee indexes</strong> (and, increasingly, online record systems) to walk the chain backward from the current owner toward the sovereign grant, pulling each deed, lien, easement, plat, and release along the way.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Texas is a pure 'notice' state</h3><p>Texas follows a <strong>pure &ldquo;notice&rdquo;</strong> recording rule. Under <strong>&sect;13.001</strong>, an unrecorded conveyance, mortgage, or deed of trust is <strong>void as to a creditor or a subsequent purchaser for valuable consideration without notice</strong>&mdash;but it remains binding on the parties, their heirs, and any purchaser who does <em>not</em> pay value or who <em>has</em> notice. The decisive feature of a notice jurisdiction is that the later good-faith purchaser <strong>prevails even if the prior grantee records first, or even if the good-faith purchaser never records at all.</strong> Recording by the protected purchaser is not a condition of winning&mdash;there is no &ldquo;race to the courthouse&rdquo; requirement in the statute.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Of the three recording regimes—race, notice, and race-notice—Texas is pure NOTICE. A Texas bona fide purchaser without notice beats a prior unrecorded grantee even though the purchaser records second (or never). In a race-notice state (e.g., California) that same purchaser would lose without recording first."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The bona fide purchaser (BFP)</h3><p>The purchaser the recording statute protects is the <strong>bona fide purchaser.</strong> Three elements are required: (1) <strong>valuable consideration</strong> (not nominal&mdash;a gift taker or a quitclaim-only taker generally fails); (2) <strong>good faith</strong>; and (3) <strong>without notice</strong>, neither actual nor constructive. <strong>Constructive notice</strong> arises both from the public records (&sect;13.002) and from <strong>possession</strong> of the land. The leading Texas case on possession is <em>Madison v. Gordon</em>, 39 S.W.3d 604 (Tex. 2001): possession charges a purchaser with constructive notice <strong>only if it is &ldquo;visible, open, exclusive, and unequivocal.&rdquo;</strong> A tenant occupying one unit of a fourplex was not exclusive or unequivocal, so it imparted no notice and the purchaser prevailed.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Case: Madison v. Gordon (Tex. 2001)",
+                "content": "<p>The Texas Supreme Court held that for possession to impart constructive notice, the possession must be <strong>visible, open, exclusive, and unequivocal</strong>. Ambiguous or shared possession—tenants, multi-unit buildings—often fails this four-adjective test, so it does not defeat BFP status. This is a stricter, more defined standard than the looser 'open and notorious' test used in many states.</p>",
+                "open": false
+              },
+              {
+                "title": "Quitclaim and BFP status",
+                "content": "<p>A quitclaim grantee is traditionally NOT a bona fide purchaser—the quitclaim is treated as notice that the grantor's title may be defective. <strong>Note the 2021 change:</strong> Property Code §13.006 (eff. Sept. 1, 2021) provides that after the <strong>fourth anniversary</strong> of recording, a quitclaim deed no longer affects the good faith of a subsequent purchaser and is not notice of unrecorded conveyances. So for quitclaims recorded on/after Sept. 1, 2021 there is now a four-year cleansing window for downstream purchasers, even though the classic rule still binds the immediate grantee and the first four years.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Two record systems: county and GLO</h3><p>A complete Texas title search usually touches <strong>two</strong> record systems. The <strong>county clerk&rsquo;s real-property records</strong> hold the private chain&mdash;deeds, deeds of trust, liens, easements, plats, and releases&mdash;indexed by grantor and grantee. The <strong>General Land Office</strong> holds the <strong>sovereign root</strong>&mdash;the original patent, field notes, and abstract number for the original survey. To resolve a boundary question you often have to bridge the two: identify the original GLO survey and abstract from the legal description, pull the original field notes, and then trace the county deeds that carved the present parcel out of that original grant.</p>"
+          }
+        },
+        {
+          "block_type": "link_reference",
+          "content": {
+            "links": [
+              {
+                "url": "https://statutes.capitol.texas.gov/Docs/PR/htm/PR.13.htm",
+                "title": "Tex. Prop. Code Ch. 13 (Effects of Recording)",
+                "type": "website",
+                "description": "§13.001 validity of unrecorded instrument; §13.002 recording is notice to all persons; §13.006 recorded quitclaim."
+              },
+              {
+                "url": "https://statutes.capitol.texas.gov/Docs/PR/htm/PR.11.htm",
+                "title": "Tex. Prop. Code Ch. 11 (§11.001 Place of Recording)",
+                "type": "website",
+                "description": "Record an instrument in the county where the land lies."
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Record in the county where the land lies (§11.001); a recorded instrument is notice to all persons (§13.002).",
+              "Texas is a pure notice state: a BFP for value without notice beats a prior unrecorded grantee even without recording first (§13.001).",
+              "A BFP needs valuable consideration, good faith, and no actual or constructive notice.",
+              "Possession imparts constructive notice only if visible, open, exclusive, and unequivocal (Madison v. Gordon).",
+              "A full search bridges county deed records and GLO sovereign-grant records."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Notice recording statute",
+          "definition": "A recording regime—Texas's—in which a later purchaser for value without notice of a prior unrecorded interest takes free of it and prevails regardless of recording order (no race-to-record requirement).",
+          "hint_1": "Contrast with 'race' and 'race-notice.'"
+        },
+        {
+          "term": "Bona fide purchaser (BFP)",
+          "definition": "A purchaser who takes for valuable consideration, in good faith, and without actual or constructive notice of a prior interest; protected by the Texas notice statute (Prop. Code §13.001)."
+        },
+        {
+          "term": "Constructive notice",
+          "definition": "Notice the law charges a purchaser with regardless of actual knowledge, arising from the public records (Prop. Code §13.002) and from visible, open, exclusive, and unequivocal possession of the land."
+        },
+        {
+          "term": "Tex. Prop. Code §13.002",
+          "definition": "Provides that a properly recorded instrument is notice to all persons of its existence and contents (constructive notice)."
+        }
+      ]
+    },
+    {
+      "lesson_id": "768c4969-7fca-4dfe-a552-3a375e926869",
+      "title": "Deed Interpretation",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Distinguish the principal Texas deed types and the warranties each carries.",
+        "State the controlling rule of construction (intent within the four corners) and the dignity-of-calls hierarchy.",
+        "Explain why a Texas quitclaim grantee is generally not a bona fide purchaser, and how §13.006 (2021) softened the rule."
+      ],
+      "key_takeaways": [
+        "General warranty, special warranty, and quitclaim deeds differ in the scope of title protection they convey.",
+        "Texas construes a deed by the parties' intent within the four corners; the dignity-of-calls hierarchy is a subordinate aid.",
+        "A quitclaim conveys only the grantor's interest 'if any' and is not a muniment of title; its grantee is generally not a BFP, subject to the 2021 four-year window."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Reading a deed: intent within the four corners</h3><p>The cardinal rule of Texas deed construction is that the court gives effect to the <strong>intent of the parties as expressed within the four corners</strong> of the instrument, read in light of the surrounding circumstances, and harmonizes all parts so that none is rejected if they can be reconciled (<em>Bass v. Harper</em>, 441 S.W.2d 825 (Tex. 1969)). The familiar <strong>dignity-of-calls hierarchy</strong>&mdash;natural monuments over artificial monuments over course (bearing) over distance over quantity/area&mdash;is a set of <em>reliability presumptions</em> that help <em>find</em> intent when calls conflict. It is subordinate to intent and to the <strong>footsteps of the original surveyor</strong> where they can be traced (<em>Stafford v. King</em>, 30 Tex. 257 (1867)).</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The principal Texas deed types</h3><p>Three deed types do most of the work in Texas conveyancing. A <strong>general warranty deed</strong> warrants title against <strong>all</strong> defects, back through the entire chain&mdash;the grantor promises to &ldquo;warrant and forever defend&rdquo; against every person lawfully claiming. A <strong>special warranty deed</strong> warrants only against defects arising <strong>&ldquo;by, through, or under&rdquo; the grantor</strong>&mdash;not against defects that predate the grantor&rsquo;s ownership. A <strong>quitclaim deed</strong> conveys only <strong>whatever interest, if any, the grantor has</strong>, with no warranty; it is <strong>not a muniment of title.</strong></p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Deed type", "Scope of warranty", "Typical use"],
+            "rows": [
+              ["General warranty", "Against all defects, through the entire chain", "Most arm's-length sales"],
+              ["Special warranty", "Only defects 'by, through, or under' the grantor", "Estates, fiduciaries, commercial sales"],
+              ["Quitclaim", "None—conveys only the grantor's interest 'if any'", "Clearing clouds, resolving heirship gaps"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Implied covenants are narrow in Texas</h3><p>Texas narrows the covenants implied by the operative words of grant. Under <strong>Property Code &sect;5.023</strong>, using &ldquo;grant&rdquo; or &ldquo;convey&rdquo; implies <strong>only</strong> that (1) the grantor has not previously conveyed the same estate to another, and (2) the estate is <strong>free from encumbrances.</strong> The statutory warranty-deed form is in <strong>&sect;5.022</strong> (&ldquo;grant, sold, and conveyed&rdquo;; &ldquo;warrant and forever defend &hellip; against every person whomsoever lawfully claiming&rdquo;), and &sect;5.022(b) confirms a warranty is not required to make a valid deed. The broad <strong>general warranty</strong> in Texas comes from that express &ldquo;warrant and forever defend&rdquo; language, not from the word &ldquo;grant&rdquo; alone.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: At common law, 'grant' implied a broad covenant of seisin (that the grantor actually owns the estate). Texas §5.023 deliberately narrows the implied covenant to no-prior-conveyance plus no-encumbrances—it does NOT imply that the grantor actually owns the property. Real protection comes from the express warranty language of §5.022."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The quitclaim peculiarity</h3><p>Because a quitclaim conveys only the grantor&rsquo;s interest &ldquo;if any,&rdquo; Texas treats it as a flag. The classic rule&mdash;<em>Woodward v. Ortiz</em>, 237 S.W.2d 286 (Tex. 1951); <em>Houston Oil Co. of Texas v. Niles</em>, 255 S.W. 604 (Tex. Comm&rsquo;n App. 1923)&mdash;is that a quitclaim grantee (and successors) is <strong>generally NOT a bona fide purchaser:</strong> the quitclaim is treated as <em>notice</em> that the title may be defective, so the grantee takes <strong>subject to</strong> prior outstanding claims even if value was paid without actual notice. The label is not conclusive, though; courts examine the whole granting language (<em>Geodyne Energy v. Newton</em>, 161 S.W.3d 482 (Tex. 2005): &ldquo;A warranty deed to land conveys property; a quitclaim deed conveys the grantor&rsquo;s rights in that property, if any&rdquo;).</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "2021 update—teach both rules together: Property Code §13.006 (eff. Sept. 1, 2021) provides that after the FOURTH anniversary of recording, a quitclaim deed does not affect the good faith of a subsequent purchaser and is not notice of an unrecorded conveyance or encumbrance. For quitclaims recorded on/after Sept. 1, 2021 there is now a four-year cleansing window—but the classic 'no BFP' rule still binds the immediate grantee and the first four years."
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Case: Geodyne Energy Income v. Newton (Tex. 2005)",
+                "content": "<p>The Texas Supreme Court reaffirmed that classification of a deed turns on the <strong>granting language taken as a whole</strong>, not the label: a warranty deed conveys the <em>property</em>, while a quitclaim conveys only the grantor's <em>rights in that property, if any</em>. See also <em>Rogers v. Ricane Enterprises</em>, 884 S.W.2d 763 (Tex. 1994): a quitclaim 'is not a conveyance or a muniment of title.'</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Construe a deed by the parties' intent within the four corners; dignity-of-calls is a subordinate aid (Bass v. Harper; Stafford v. King).",
+              "General warranty defends against all defects; special warranty only 'by, through, or under' the grantor; quitclaim warrants nothing.",
+              "Texas §5.023 implies only no-prior-conveyance + no-encumbrances; the broad warranty comes from §5.022's express language.",
+              "A quitclaim conveys only the grantor's interest 'if any' and is not a muniment of title; its grantee is generally not a BFP—subject to the 2021 four-year §13.006 window."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "General warranty deed",
+          "definition": "A deed warranting title against all defects back through the entire chain; the grantor agrees to 'warrant and forever defend' against every person lawfully claiming (Tex. Prop. Code §5.022).",
+          "hint_1": "Broadest protection for the grantee."
+        },
+        {
+          "term": "Special warranty deed",
+          "definition": "A deed warranting title only against defects arising 'by, through, or under' the grantor—not against defects predating the grantor's ownership."
+        },
+        {
+          "term": "Quitclaim deed",
+          "definition": "An instrument conveying only whatever interest, if any, the grantor has, with no warranty; it is not a muniment of title and its grantee is generally not a bona fide purchaser (subject to the 2021 §13.006 four-year window)."
+        },
+        {
+          "term": "Tex. Prop. Code §5.023",
+          "definition": "Provides that using 'grant' or 'convey' implies only that the grantor has not previously conveyed the estate and that the estate is free from encumbrances—not that the grantor owns the property."
+        }
+      ]
+    },
+    {
+      "lesson_id": "d12cd2e7-2324-47e0-b1f5-ae908b7963e2",
+      "title": "Texas Land Title Practice Exercises",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Convert vara-based grant dimensions to feet and back using the statutory vara.",
+        "Compute the acreage of a labor or league from square varas.",
+        "Apply chain-of-title and recording rules to a realistic Texas research scenario."
+      ],
+      "key_takeaways": [
+        "Vara-to-feet conversions and labor/league acreage calculations are routine when retracing original Texas grants.",
+        "1 vara = 33⅓ in = 2.7778 ft; 36 varas = 100 ft exactly; 1 acre = 43,560 sq ft.",
+        "A practical title search combines GLO sovereign records with county deed records and the Texas notice rule."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Putting it together</h3><p>This lesson applies the module&rsquo;s history, units, and records rules to the kind of problems a Texas surveyor actually solves. Two skills recur. First, <strong>unit conversion:</strong> original field notes are in <strong>varas</strong>, and acreage of <strong>labors</strong> and <strong>leagues</strong> is computed from square varas, so you must move fluently between varas, feet, square varas, and acres. Second, <strong>records reasoning:</strong> resolving a boundary or ownership question means walking the chain of title across both GLO sovereign records and county deed records, and applying the Texas pure-notice rule to decide who prevails.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{feet} = \\text{varas} \\times 2.7778 \\qquad \\text{varas} = \\text{feet} \\times 0.36",
+            "label": "Vara ↔ feet (statutory vara = 33⅓ in)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "A_{\\text{acres}} = \\frac{(\\text{sq varas}) \\times (2.7778)^2}{43{,}560}",
+            "label": "Square varas → acres",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Worked example 1 — vara call to feet",
+                "content": "<p>An original field note reads <strong>S 45° E, 950 vrs</strong>. Convert the distance to feet: 950 × 2.7778 ≈ <strong>2,638.9 ft</strong>. (Check: 950 ÷ 0.36 = 2,638.9 ft.) A retracing surveyor would then reconcile the historic bearing—often magnetic or assumed—to a modern grid datum before staking.</p>",
+                "open": false
+              },
+              {
+                "title": "Worked example 2 — acreage of a labor",
+                "content": "<p>A labor is a square 1,000 varas on a side = 1,000,000 sq varas. In feet, each side is 1,000 × 2.7778 = 2,777.8 ft, so area = 2,777.8² = 7,716,049 sq ft. Acres = 7,716,049 ÷ 43,560 ≈ <strong>177.1 acres</strong>—matching the standard labor value.</p>",
+                "open": false
+              },
+              {
+                "title": "Worked example 3 — records scenario",
+                "content": "<p>Owner A conveys Blackacre to B by unrecorded deed in January. In March, A conveys the same tract to C, who pays full value, has no actual knowledge of B, and finds nothing of record and no one in visible, exclusive possession. Under Tex. Prop. Code §13.001, the unrecorded deed to B is void as to C, a bona fide purchaser for value without notice—so <strong>C prevails over B</strong>, even though C may record after B finally does. (If B had been in visible, open, exclusive, and unequivocal possession, C would have had constructive notice and would lose—Madison v. Gordon.)</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Quick constants: 1 vara = 33⅓ in = 2.7778 ft; 36 varas = 100 ft exactly; 1 acre = 43,560 sq ft; 1 labor ≈ 177.1 ac; 1 league ≈ 4,428.4 ac; 1 league + 1 labor ≈ 4,605.5 ac."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How to attack a Texas chain</h3><p>A reliable workflow: (1) read the current deed&rsquo;s legal description and note the <strong>original survey name and abstract number</strong>; (2) pull the <strong>GLO patent and field notes</strong> for that original survey to fix the sovereign root and original corners; (3) walk the <strong>county grantor/grantee indexes</strong> backward to confirm an unbroken chain into the parent tract; (4) flag any <strong>clouds</strong>&mdash;missing links, unreleased liens, quitclaims, conflicting calls&mdash;and apply the <strong>notice rule</strong> and BFP analysis; and (5) reconcile historic <strong>vara/bearing</strong> calls to modern units and datum before locating the boundary on the ground. The practice problems in this module&rsquo;s problem set drill the conversion and acreage steps that recur in step (5).</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Flow diagram of a Texas title research workflow from legal description to GLO records to county records to boundary location",
+            "caption": "Figure: A practical Texas title-research workflow bridging GLO sovereign records and county deed records.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Convert vara calls with ×2.7778 (varas→ft) or ×0.36 (ft→varas); 36 varas = 100 ft exactly.",
+              "Compute labor/league acreage from square varas: (sq varas × 2.7778²) ÷ 43,560.",
+              "Resolve ownership disputes with the Texas pure-notice rule and BFP analysis.",
+              "A full chain bridges the GLO sovereign root (abstract number, field notes) and county deed records."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Vara-to-feet factor",
+          "definition": "Multiply varas by 2.7778 to get feet (statutory vara = 33⅓ in); multiply feet by 0.36 to get varas. 36 varas = 100 ft exactly.",
+          "hint_1": "Reciprocals: 2.7778 and 0.36."
+        },
+        {
+          "term": "Acre",
+          "definition": "43,560 square feet; the standard area unit for reporting Texas acreage after converting from square varas."
+        },
+        {
+          "term": "Title-research workflow",
+          "definition": "Read the description for survey/abstract → pull GLO patent and field notes → walk county grantor/grantee indexes → flag clouds and apply notice/BFP rules → reconcile vara/bearing calls to modern datum."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "6dc25256-cb35-42e0-b8ec-90b29f6c7085",
+      "question_text": "Which list correctly names the four sovereigns of the soil in Texas, in chronological order?",
+      "question_type": "multiple_choice",
+      "options": [
+        "United States, Republic of Texas, Mexico, State of Texas",
+        "Spain, Mexico, Republic of Texas, State of Texas",
+        "France, Spain, Mexico, United States",
+        "Mexico, Spain, State of Texas, Republic of Texas"
+      ],
+      "correct_answer": "Spain, Mexico, Republic of Texas, State of Texas",
+      "explanation": "The four sovereigns in order are Spain (1716–1821), Mexico (1821–1836), the Republic of Texas (1836–1845), and the State of Texas (1845–present). The United States was never an original grantor of Texas land, which is why options naming it are wrong.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "6dc25256-cb35-42e0-b8ec-90b29f6c7085",
+      "question_text": "Why does most Texas land have no federal Public Land Survey System (township-range) grid?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Texas adopted the PLSS but only in a few counties",
+        "Texas retained its public lands at annexation, so its land was never federal public domain",
+        "The federal government surveyed Texas but lost the records",
+        "Texas uses the PLSS but calls the sections 'abstracts'"
+      ],
+      "correct_answer": "Texas retained its public lands at annexation, so its land was never federal public domain",
+      "explanation": "At annexation in 1845 Texas kept its vacant and unappropriated public lands. Because the land was never federal public domain, the federal GLO/BLM never imposed the PLSS grid; Texas grants are metes-and-bounds keyed to an original survey and abstract number.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "6dc25256-cb35-42e0-b8ec-90b29f6c7085",
+      "question_text": "A perfected Spanish-era title to a tract can later be re-patented by the State of Texas.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "A valid Spanish/Mexican title already severed the land from the sovereign, so there is nothing left for the State to grant; the land cannot be re-patented. Such titles survive (Treaty of Guadalupe Hidalgo, 1848).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "5ea5e4f0-f3c6-48af-a855-054e9110356e",
+      "question_text": "Under the Mexican empresario system, what was an empresario?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A Spanish military officer who patrolled the colonies",
+        "A land agent who contracted to settle a set number of families in exchange for land",
+        "A surveyor licensed only to survey league grants",
+        "A tax collector for the Permanent School Fund"
+      ],
+      "correct_answer": "A land agent who contracted to settle a set number of families in exchange for land",
+      "explanation": "Empresarios were colonization contractors who agreed to bring in a fixed number of families (e.g., Austin's 'Old Three Hundred') and received land in return. Settlers had to convert to Catholicism, swear allegiance to Mexico, and reside on the land.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "5ea5e4f0-f3c6-48af-a855-054e9110356e",
+      "question_text": "Approximately how many acres is one labor?",
+      "question_type": "multiple_choice",
+      "options": ["About 177 acres", "About 640 acres", "About 4,428 acres", "About 4,605 acres"],
+      "correct_answer": "About 177 acres",
+      "explanation": "A labor is 1,000,000 square varas (1,000 varas on a side), about 177.1 acres. About 4,428 acres is a league; about 4,605 acres is a league plus a labor; 640 acres is a PLSS section, which Texas does not use.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "5ea5e4f0-f3c6-48af-a855-054e9110356e",
+      "question_text": "Under the colonization laws, a settler who intended both to farm and to raise stock typically received which grant?",
+      "question_type": "multiple_choice",
+      "options": [
+        "One labor only",
+        "One league only",
+        "One labor plus one league",
+        "One-third of a league"
+      ],
+      "correct_answer": "One labor plus one league",
+      "explanation": "Grant size keyed to use: farming → at least one labor; stock-raising → one league; both → one labor plus one league (the standard married-head-of-family grant, ~4,605 acres). A single man received one-third of a league.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "184ab3e2-3b90-48ae-b9a1-be10d4e85a55",
+      "question_text": "A first-class headright (head of family resident before March 2, 1836) granted approximately how much land?",
+      "question_type": "multiple_choice",
+      "options": [
+        "One labor (~177 acres)",
+        "One-third of a league (~1,476 acres)",
+        "One league and one labor (~4,605 acres)",
+        "One section (640 acres)"
+      ],
+      "correct_answer": "One league and one labor (~4,605 acres)",
+      "explanation": "A first-class headright to a head of family resident before independence granted one league and one labor, about 4,605.5 acres. Later headright classes granted less to settlers who arrived after March 2, 1836.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "184ab3e2-3b90-48ae-b9a1-be10d4e85a55",
+      "question_text": "What did the Republic of Texas do with its public lands upon annexation to the United States in 1845?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Ceded all public lands to the federal government",
+        "Retained all vacant and unappropriated public lands within its limits",
+        "Sold all public lands to railroad companies",
+        "Returned the land to Mexico under treaty"
+      ],
+      "correct_answer": "Retained all vacant and unappropriated public lands within its limits",
+      "explanation": "The Joint Resolution for Annexing Texas (March 1, 1845), §2, let Texas retain its vacant and unappropriated lands (and keep its own debts). This is why Texas, unlike most western states, has very little federal land and no PLSS.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "184ab3e2-3b90-48ae-b9a1-be10d4e85a55",
+      "question_text": "In the Republic-era system, what is the difference between a 'certificate' and a 'patent'?",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "A certificate is the right to locate a quantity of public land; a patent is the completed grant that, after the land is located and surveyed, severs the tract from the sovereign.",
+      "explanation": "A headright certificate granted the right to land; it had to be located on vacant land, surveyed, and returned before a patent issued. The patent is the instrument that actually conveys title out of the sovereign.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "e5580ef9-dc1d-436a-80df-6e83e08e5a71",
+      "question_text": "Which statement best describes the Texas General Land Office (GLO)?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A federal agency that administers the PLSS in Texas",
+        "The oldest existing Texas state agency, custodian of sovereign-origin land records, which still issues patents",
+        "A private title-insurance company chartered in 1836",
+        "A county office that records deeds where the land lies"
+      ],
+      "correct_answer": "The oldest existing Texas state agency, custodian of sovereign-origin land records, which still issues patents",
+      "explanation": "The GLO was founded December 22, 1836 (oldest Texas state agency), maintains the State's original land-grant archive (including the Spanish Collection), produces official maps/surveys, manages state lands and minerals, and still issues patents. It is a state, not federal, body.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "e5580ef9-dc1d-436a-80df-6e83e08e5a71",
+      "question_text": "Surveying land in which the State or the Permanent School Fund has an interest, and relocating original land-grant corners, requires which credential in Texas?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Registered Professional Land Surveyor (RPLS) only",
+        "Licensed State Land Surveyor (LSLS)",
+        "A federal BLM cadastral surveyor",
+        "A Professional Engineer (PE)"
+      ],
+      "correct_answer": "Licensed State Land Surveyor (LSLS)",
+      "explanation": "Per Occupations Code §1071.002, 'state land surveying'—including determining or relocating original land-grant boundaries and corners and filing field notes with the GLO—requires a Licensed State Land Surveyor, a credential above the RPLS.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "e5580ef9-dc1d-436a-80df-6e83e08e5a71",
+      "question_text": "The GLO Spanish Collection is the depository for original Spanish and Mexican grants used in retracing civil-law titles.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "The Spanish Collection holds roughly 4,200 Spanish/Mexican grants (about 26 million acres) and is a primary source for retracing the original civil-law grants at the root of many South/Central Texas titles.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "f0ebedbb-846c-4687-bac9-e799499718b8",
+      "question_text": "What is an 'abstract of title' (as opposed to an 'abstract number')?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The GLO identifier of an original land-grant survey",
+        "A condensed, chronological summary of all recorded instruments affecting a parcel",
+        "An insurance policy that guarantees the boundary",
+        "The point of beginning of a metes-and-bounds description"
+      ],
+      "correct_answer": "A condensed, chronological summary of all recorded instruments affecting a parcel",
+      "explanation": "An abstract of title summarizes the chain of title from the public records. The GLO 'abstract number' is a different concept—the identifier of an original survey (e.g., 'Abstract No. 123'). Both appear in Texas land work but mean different things.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "f0ebedbb-846c-4687-bac9-e799499718b8",
+      "question_text": "Which statement about title insurance in Texas is most accurate?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It guarantees a flawless chain of title and predicts future defects",
+        "It indemnifies the insured against covered, listed title defects; a current survey is typically needed to delete the survey exception",
+        "It replaces the need to record deeds with the county clerk",
+        "It is issued by the GLO as part of every patent"
+      ],
+      "correct_answer": "It indemnifies the insured against covered, listed title defects; a current survey is typically needed to delete the survey exception",
+      "explanation": "Title insurance is a contract of indemnity for past, covered defects, not a guarantee of a clean chain or a prediction of the future. A standard policy excepts matters a survey would reveal; a current acceptable survey lets the company amend/delete that exception.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "a1904e23-948b-4673-8fc9-cf711ada59a0",
+      "question_text": "Texas is which type of recording jurisdiction?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Pure race (first to record wins, even with notice)",
+        "Pure notice (later BFP without notice wins, recording order irrelevant)",
+        "Race-notice (later BFP wins only if without notice and records first)",
+        "No recording statute at all"
+      ],
+      "correct_answer": "Pure notice (later BFP without notice wins, recording order irrelevant)",
+      "explanation": "Under Prop. Code §13.001 a later purchaser for value without notice takes free of a prior unrecorded interest and prevails even if the prior grantee records first, or the BFP never records. There is no race-to-record requirement, distinguishing Texas from race-notice states.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "a1904e23-948b-4673-8fc9-cf711ada59a0",
+      "question_text": "Under Madison v. Gordon, possession of land imparts constructive notice to a purchaser only if the possession is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Merely 'open and notorious'",
+        "Visible, open, exclusive, and unequivocal",
+        "Recorded with the county clerk",
+        "Longer than ten years"
+      ],
+      "correct_answer": "Visible, open, exclusive, and unequivocal",
+      "explanation": "Madison v. Gordon (Tex. 2001) requires that possession be 'visible, open, exclusive, and unequivocal' to charge a purchaser with constructive notice. Ambiguous or shared possession (e.g., a tenant in a fourplex) fails this stricter four-adjective test.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "a1904e23-948b-4673-8fc9-cf711ada59a0",
+      "question_text": "Where must a deed to Texas land be recorded to give constructive notice?",
+      "question_type": "multiple_choice",
+      "options": [
+        "With the General Land Office in Austin",
+        "With the county clerk of the county where the land lies",
+        "With the Texas Secretary of State",
+        "Anywhere in Texas, since records are statewide"
+      ],
+      "correct_answer": "With the county clerk of the county where the land lies",
+      "explanation": "Prop. Code §11.001 requires recording in the county where the land is located; §13.002 then makes the properly recorded instrument notice to all persons. The GLO holds sovereign-grant records, not the private county deed chain.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "768c4969-7fca-4dfe-a552-3a375e926869",
+      "question_text": "A special warranty deed warrants title against which defects?",
+      "question_type": "multiple_choice",
+      "options": [
+        "All defects through the entire chain of title",
+        "Only defects arising 'by, through, or under' the grantor",
+        "No defects whatsoever",
+        "Only defects discovered by a survey"
+      ],
+      "correct_answer": "Only defects arising 'by, through, or under' the grantor",
+      "explanation": "A special warranty warrants only against defects created during the grantor's ownership ('by, through, or under' the grantor). A general warranty covers all defects through the whole chain; a quitclaim warrants nothing.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "768c4969-7fca-4dfe-a552-3a375e926869",
+      "question_text": "Under the classic Texas rule, a grantee taking under a quitclaim deed is generally not a bona fide purchaser. How did Property Code §13.006 (eff. Sept. 1, 2021) change this?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It abolished quitclaim deeds entirely",
+        "After the fourth anniversary of recording, the quitclaim no longer affects good faith or gives notice for downstream purchasers",
+        "It made every quitclaim grantee an automatic BFP immediately",
+        "It moved quitclaim deeds to the Natural Resources Code"
+      ],
+      "correct_answer": "After the fourth anniversary of recording, the quitclaim no longer affects good faith or gives notice for downstream purchasers",
+      "explanation": "§13.006 created a four-year cleansing window for quitclaims recorded on/after Sept. 1, 2021: after four years the quitclaim no longer affects a subsequent purchaser's good faith and is not notice of unrecorded interests. The classic 'no BFP' rule still binds the immediate grantee and the first four years—teach both together.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "768c4969-7fca-4dfe-a552-3a375e926869",
+      "question_text": "In Texas, using the word 'grant' or 'convey' in a deed implies that the grantor actually owns the property (a broad covenant of seisin).",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Prop. Code §5.023 narrows the implied covenants to (1) no prior conveyance of the estate and (2) freedom from encumbrances—it does NOT imply that the grantor owns the property. Real protection comes from the express 'warrant and forever defend' language of §5.022.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "768c4969-7fca-4dfe-a552-3a375e926869",
+      "question_text": "When deed calls conflict, which is the paramount rule of construction in Texas?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Distance always controls over course",
+        "The stated acreage always controls",
+        "The intent of the parties as expressed within the four corners, with the dignity-of-calls hierarchy as a subordinate aid",
+        "Whichever call was recorded first controls"
+      ],
+      "correct_answer": "The intent of the parties as expressed within the four corners, with the dignity-of-calls hierarchy as a subordinate aid",
+      "explanation": "Texas construes a deed to give effect to the parties' intent within the four corners (Bass v. Harper). The dignity-of-calls hierarchy (natural > artificial > course > distance > quantity) is a subordinate set of reliability presumptions, and all of it yields to the footsteps of the original surveyor (Stafford v. King).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "d12cd2e7-2324-47e0-b1f5-ae908b7963e2",
+      "question_text": "An original field note calls a distance of 500 varas. Using the statutory vara, what is this in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "1388.9",
+      "explanation": "Multiply varas by 2.7778 ft/vara: 500 × 2.7778 ≈ 1,388.9 ft. (Equivalently, 500 ÷ 0.36 = 1,388.9 ft.)",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "d12cd2e7-2324-47e0-b1f5-ae908b7963e2",
+      "question_text": "An owner conveys a tract to B by an unrecorded deed, then later conveys the same tract to C, who pays full value, has no actual or constructive notice of B, and finds no one in visible exclusive possession. Under Texas law, who prevails and why?",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "C prevails, because Texas is a pure-notice state: under Prop. Code §13.001 the prior unrecorded deed is void as to C, a bona fide purchaser for value without notice, even if C records after B.",
+      "explanation": "Texas's pure-notice rule protects a later BFP for value without notice regardless of recording order. Because C had no actual or constructive notice (no record and no visible/exclusive possession per Madison v. Gordon), C takes free of B's unrecorded deed.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Vara-to-feet conversion of a grant dimension",
+      "category": "Texas Land Titles — Historical Units",
+      "subcategory": "Vara conversion",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "An original Texas field note for a grant boundary calls a distance of {{vrs}} varas. Using the statutory Texas vara (33⅓ in = 2.7778 ft), what is this distance in feet?",
+      "parameters": [
+        {"name": "vrs", "type": "integer", "min": 150, "max": 2500}
+      ],
+      "computed_vars": [],
+      "answer_formula": "vrs * 2.7778",
+      "answer_format": {"decimals": 1, "unit": "ft", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Identify the conversion factor", "calculation_template": "1 vara = 33⅓ in = 2.7778 ft"},
+        {"step_number": 2, "title": "Multiply varas by the factor", "result_template": "{{vrs}} × 2.7778 = {{_answer}} ft"}
+      ],
+      "explanation_template": "The statutory Texas vara is 33⅓ in = 2.7778 ft, so {{vrs}} varas × 2.7778 = {{_answer}} ft. (Equivalently {{vrs}} ÷ 0.36.)",
+      "options_generator": {"method": "none"},
+      "images_needed": [
+        {"slug": "m15-vara-to-feet", "caption": "A vara field-note call converted to feet on a grant boundary line", "kind": "diagram"}
+      ]
+    },
+    {
+      "name": "Acreage of a square Spanish/Mexican grant from a vara dimension",
+      "category": "Texas Land Titles — Historical Units",
+      "subcategory": "Grant acreage",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A square portion of an original Spanish/Mexican grant measures {{side}} varas on each side. Using the statutory vara (2.7778 ft/vara) and 43,560 sq ft per acre, what is the area of this square tract in acres?",
+      "parameters": [
+        {"name": "side", "type": "integer", "min": 500, "max": 5000}
+      ],
+      "computed_vars": [
+        {"name": "sideFt", "formula": "side * 2.7778"},
+        {"name": "areaSqFt", "formula": "pow(side * 2.7778, 2)"}
+      ],
+      "answer_formula": "pow(side * 2.7778, 2) / 43560",
+      "answer_format": {"decimals": 1, "unit": "acres", "tolerance": 1.0},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Convert the side to feet", "calculation_template": "{{side}} × 2.7778 = {{sideFt:f1}} ft"},
+        {"step_number": 2, "title": "Square the side for area in sq ft", "calculation_template": "{{sideFt:f1}}² = {{areaSqFt:f0}} sq ft"},
+        {"step_number": 3, "title": "Convert to acres", "result_template": "{{areaSqFt:f0}} ÷ 43,560 = {{_answer}} acres"}
+      ],
+      "explanation_template": "A square {{side}} varas on a side is {{sideFt:f1}} ft on a side; its area is {{areaSqFt:f0}} sq ft, which is {{_answer}} acres. (A 1,000-vara square is a labor ≈ 177 ac; a 5,000-vara square is a league ≈ 4,428 ac.)",
+      "options_generator": {"method": "none"},
+      "images_needed": [
+        {"slug": "m15-grant-acreage", "caption": "A square league/labor grant with side length in varas and resulting acreage", "kind": "diagram"}
+      ]
+    }
+  ]
+}
