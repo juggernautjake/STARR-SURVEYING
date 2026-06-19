@@ -1,241 +1,250 @@
 [
  {
   "module": {
-   "id": "c1000013-0000-0000-0000-000000000013",
-   "order_index": 19,
-   "title": "Topographic and Mapping Surveys",
-   "description": "Topographic survey methods, contour mapping, digital terrain models, and integration with GIS.",
+   "id": "c1000019-0000-0000-0000-000000000019",
+   "order_index": 25,
+   "title": "SIT Exam Review — Fundamentals",
+   "description": "Comprehensive review of fundamental surveying concepts tested on the Texas Surveyor Intern Test (SIT).",
    "tags": [
-    "topographic",
-    "mapping",
-    "contours",
-    "GIS"
+    "exam-prep",
+    "SIT",
+    "fundamentals",
+    "review"
    ]
   },
   "lessons": [
    {
-    "id": "f154fdbd-1aec-4c41-a6a8-a7f67b40a53a",
-    "title": "Topographic Survey Methods",
+    "id": "153e57a7-df0b-4b30-a4e8-cbfe125785ec",
+    "title": "SIT Exam Format and Study Strategy",
     "order_index": 1
    },
    {
-    "id": "99ca2a92-e87b-493f-bb7c-1cae6d4dd950",
-    "title": "Contour Lines and Mapping",
+    "id": "74470d18-37e1-4928-a697-46927b811835",
+    "title": "Mathematics Review for SIT",
     "order_index": 2
    },
    {
-    "id": "09a9602d-40c0-42c4-a2ad-bba213dcc715",
-    "title": "Digital Terrain Models (DTM/DEM)",
+    "id": "fb89ec38-209b-4125-9acf-7de4d88465bc",
+    "title": "Measurement and Error Theory Review",
     "order_index": 3
    },
    {
-    "id": "384ced07-ed6b-46b9-88b7-b262a9524398",
-    "title": "Feature Collection and Coding",
+    "id": "6e515c6d-3835-4681-84ca-7ce2215b7c28",
+    "title": "Distance and Angle Measurement Review",
     "order_index": 4
    },
    {
-    "id": "be27f689-8827-43fc-8fdd-f015d2d8b369",
-    "title": "Map Standards and Symbology",
+    "id": "b546fea7-83b5-4940-a51b-f02529e30b46",
+    "title": "Leveling Review",
     "order_index": 5
    },
    {
-    "id": "4c291d33-27fd-44ec-aa26-a2af9ed63b8b",
-    "title": "GIS Integration for Surveyors",
+    "id": "0fe093eb-d7ed-43a7-9511-fdaf7f6b0f12",
+    "title": "Coordinate Systems Review",
     "order_index": 6
+   },
+   {
+    "id": "abf146f7-f77e-4d6c-a065-6de160ac604b",
+    "title": "Traverse Computations Review",
+    "order_index": 7
+   },
+   {
+    "id": "e079ffe6-6bd0-499c-a406-a86b351ad5c2",
+    "title": "Area and Volume Review",
+    "order_index": 8
+   },
+   {
+    "id": "249bd04d-b9d0-455d-b416-023af3efc6b4",
+    "title": "GPS/GNSS Concepts Review",
+    "order_index": 9
+   },
+   {
+    "id": "cd8225a2-c6f3-4e3c-a8df-5b8278d6cf97",
+    "title": "SIT Practice Problems — Set 1",
+    "order_index": 10
    }
   ]
  },
  {
   "module": {
-   "id": "c1000014-0000-0000-0000-000000000014",
-   "order_index": 20,
-   "title": "Geodetic and Control Surveying",
-   "description": "High-precision control networks, geodetic computations, and national geodetic survey standards.",
+   "id": "c100001a-0000-0000-0000-00000000001a",
+   "order_index": 26,
+   "title": "SIT Exam Review — Advanced Topics",
+   "description": "Advanced topics and practice for the SIT exam including boundary law, legal descriptions, and construction surveying.",
    "tags": [
-    "geodetic",
-    "control",
-    "networks",
-    "precision"
+    "exam-prep",
+    "SIT",
+    "advanced",
+    "review"
    ]
   },
   "lessons": [
    {
-    "id": "8652bc9b-f476-4bb5-8c6b-ff3115c9e1bd",
-    "title": "Geodetic Survey Concepts",
+    "id": "a3c8c160-0a68-4aa4-9155-4ddcd1183a53",
+    "title": "Boundary Law Principles Review",
     "order_index": 1
    },
    {
-    "id": "69ba0fb0-8d53-4f11-851e-bbebdb463c9d",
-    "title": "Horizontal Control Networks",
+    "id": "00e59f6c-81a9-46d7-8e06-9e98efec29a8",
+    "title": "Legal Descriptions Review",
     "order_index": 2
    },
    {
-    "id": "96d52571-8a69-4dfc-b47b-59359e7d7006",
-    "title": "Vertical Control Networks",
+    "id": "c3bca439-c78e-42ce-9416-f7313d08680e",
+    "title": "Texas Land Records Review",
     "order_index": 3
    },
    {
-    "id": "4476d8e4-a0c0-4db6-bf06-87d7a5f606b8",
-    "title": "Geodetic Computations on the Ellipsoid",
+    "id": "6c0db991-2c1f-469c-83d2-4c3eb7f8f5de",
+    "title": "Construction Surveying Review",
     "order_index": 4
    },
    {
-    "id": "b3d6d0b7-f004-4e46-a866-f6dac0100dfb",
-    "title": "Geoid Models and Orthometric Heights",
+    "id": "3a122889-17da-40cf-bf70-4e9fca9f0f31",
+    "title": "Topographic Surveying Review",
     "order_index": 5
    },
    {
-    "id": "6b6461d5-b98e-4c1a-8b2b-24be1885df04",
-    "title": "NGS Standards and Specifications",
+    "id": "d9587b1a-eff4-4db8-88be-f3175623aa03",
+    "title": "Professional Practice Review",
     "order_index": 6
    },
    {
-    "id": "b7aff6de-674b-458a-82e7-04f87a658a96",
-    "title": "CORS and OPUS",
+    "id": "beb9522e-1bab-425c-9d43-4c4d0696d9d3",
+    "title": "Texas Law and Regulations Review",
     "order_index": 7
    },
    {
-    "id": "7ab732c3-dbd7-4cea-8b37-6df092933dce",
-    "title": "Control Network Design and Adjustment",
+    "id": "7487b90f-db5e-4144-ae61-de244ccc6ef1",
+    "title": "SIT Practice Problems — Set 2",
+    "order_index": 8
+   },
+   {
+    "id": "cc4a39c2-d573-4a23-be15-0b43ebd31774",
+    "title": "SIT Full-Length Practice Exam Tips",
+    "order_index": 9
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c100001b-0000-0000-0000-00000000001b",
+   "order_index": 27,
+   "title": "RPLS Exam Review — Texas Jurisprudence",
+   "description": "In-depth review of Texas land law, title history, and jurisprudence topics tested on the RPLS exam.",
+   "tags": [
+    "exam-prep",
+    "RPLS",
+    "jurisprudence",
+    "texas-law"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "1052e7fe-064f-403d-84b4-7e24ae80d40d",
+    "title": "RPLS Exam Format and Study Strategy",
+    "order_index": 1
+   },
+   {
+    "id": "52180e80-d9ea-49a2-b1b2-a61b50c8bdaa",
+    "title": "Texas Land Grant History — Deep Review",
+    "order_index": 2
+   },
+   {
+    "id": "99060678-cdfc-4ba4-b275-97290a274ce9",
+    "title": "Property Law and Estates Review",
+    "order_index": 3
+   },
+   {
+    "id": "34aa0a43-89e1-4f66-9a3e-e4cafba0b02e",
+    "title": "Boundary Retracement and Resolution Review",
+    "order_index": 4
+   },
+   {
+    "id": "070eff40-b441-4f1d-b3c8-c7204f7e71d4",
+    "title": "Riparian and Water Rights Review",
+    "order_index": 5
+   },
+   {
+    "id": "19f2d785-c19e-417e-8674-6cf19964ed34",
+    "title": "Texas Surveying Statutes — Deep Review",
+    "order_index": 6
+   },
+   {
+    "id": "765a3fcb-bb30-46cf-a47d-9a9ff3673879",
+    "title": "RPLS Practice Problems — Jurisprudence",
+    "order_index": 7
+   },
+   {
+    "id": "b9fc342a-0136-47aa-9f15-5dd8fcdac51b",
+    "title": "RPLS Jurisprudence Practice Exam Tips",
     "order_index": 8
    }
   ]
  },
  {
   "module": {
-   "id": "c1000015-0000-0000-0000-000000000015",
-   "order_index": 21,
-   "title": "Hydrographic and Coastal Surveying",
-   "description": "Surveying water boundaries, tidal datums, bathymetric surveys, and coastal zone management.",
+   "id": "c100001c-0000-0000-0000-00000000001c",
+   "order_index": 28,
+   "title": "RPLS Exam Review — Practical Surveying",
+   "description": "Practical surveying review and problem-solving for the RPLS exam including computation-heavy topics.",
    "tags": [
-    "hydrographic",
-    "coastal",
-    "water",
-    "boundaries"
+    "exam-prep",
+    "RPLS",
+    "practical",
+    "review"
    ]
   },
   "lessons": [
    {
-    "id": "cd6e08f5-2b80-471a-83f6-c8772f984e59",
-    "title": "Hydrographic Survey Fundamentals",
+    "id": "0c8c3b20-547c-40ac-9a95-f3864a116b2b",
+    "title": "Advanced Coordinate Computations",
     "order_index": 1
    },
    {
-    "id": "8efb96e2-80b3-4ac3-9ab6-2aaf48ad7a46",
-    "title": "Tidal Datums and Water Level Measurement",
+    "id": "ca5cbe08-3766-4389-be5b-513e17479be8",
+    "title": "Geodetic Concepts for RPLS",
     "order_index": 2
    },
    {
-    "id": "6ca85832-a702-4401-bd79-f70b989ddd1e",
-    "title": "Bathymetric Survey Methods",
+    "id": "2aa90c7c-c09a-4dc0-9c2c-bd14f4f9c365",
+    "title": "Boundary Analysis and Evidence Evaluation",
     "order_index": 3
    },
    {
-    "id": "823b0a39-0438-4e0b-9544-e5782e6e7a8a",
-    "title": "Coastal Boundary Determination",
+    "id": "f3aa8c68-5638-4f0c-9fb7-aed7fb503220",
+    "title": "Complex Traverse Problems",
     "order_index": 4
    },
    {
-    "id": "52f79f9d-0221-4ca2-a4b0-8748463e791e",
-    "title": "Navigable Waterways and Riparian Surveys",
+    "id": "370abca8-6a2f-4e77-8c73-9615d592af9a",
+    "title": "Area Computation and Land Division",
     "order_index": 5
    },
    {
-    "id": "7829ced8-18ca-452d-9a24-dcf687354ea7",
-    "title": "Environmental and Regulatory Considerations",
-    "order_index": 6
-   }
-  ]
- },
- {
-  "module": {
-   "id": "c1000016-0000-0000-0000-000000000016",
-   "order_index": 22,
-   "title": "Mining and Industrial Surveying",
-   "description": "Specialized surveying techniques for mining, tunneling, and industrial measurement applications.",
-   "tags": [
-    "mining",
-    "industrial",
-    "specialized",
-    "underground"
-   ]
-  },
-  "lessons": [
-   {
-    "id": "7a245639-e051-4c8c-9bf3-24aaea257ab1",
-    "title": "Mine Surveying Fundamentals",
-    "order_index": 1
-   },
-   {
-    "id": "5068d3ab-7f1e-41d8-ba6e-cbc1864c54e3",
-    "title": "Underground Survey Methods",
-    "order_index": 2
-   },
-   {
-    "id": "2a2f13a3-eaf6-424f-a469-c84dfae6951b",
-    "title": "Surface and Subsidence Monitoring",
-    "order_index": 3
-   },
-   {
-    "id": "1842b5e3-a8d9-43d7-9972-5b585eff182c",
-    "title": "Industrial and Optical Alignment",
-    "order_index": 4
-   },
-   {
-    "id": "da502306-8208-4fd7-9910-5bbf852044ba",
-    "title": "Deformation Monitoring Techniques",
-    "order_index": 5
-   }
-  ]
- },
- {
-  "module": {
-   "id": "c1000017-0000-0000-0000-000000000017",
-   "order_index": 23,
-   "title": "Survey Business and Professional Practice",
-   "description": "Business management, client relations, project management, and professional standards for surveying firms.",
-   "tags": [
-    "professional",
-    "business",
-    "practice",
-    "management"
-   ]
-  },
-  "lessons": [
-   {
-    "id": "792b860f-091e-4501-8941-addcebb7b0ea",
-    "title": "Starting and Running a Survey Business",
-    "order_index": 1
-   },
-   {
-    "id": "838bbaf5-e775-4e91-bbc1-46981bd9818b",
-    "title": "Project Management for Surveyors",
-    "order_index": 2
-   },
-   {
-    "id": "07ba0d76-807c-48fe-86c0-f9137439a19a",
-    "title": "Client Relations and Communication",
-    "order_index": 3
-   },
-   {
-    "id": "93eba08c-7e61-4f50-8d26-2f5f6fc96083",
-    "title": "Proposal Writing and Fee Estimation",
-    "order_index": 4
-   },
-   {
-    "id": "4d77040e-7139-4ba1-8eba-dc939ce32306",
-    "title": "Insurance and Liability",
-    "order_index": 5
-   },
-   {
-    "id": "853d5851-55d4-4f6e-8e8c-afbca633727a",
-    "title": "Quality Assurance and Quality Control",
+    "id": "da06cbbe-3ed2-42aa-9e15-14807265501c",
+    "title": "Construction Layout and Design Problems",
     "order_index": 6
    },
    {
-    "id": "2e7fcc24-6072-455f-a161-927c628d4514",
-    "title": "Professional Development and Continuing Education",
+    "id": "42f97e15-6fd1-44a9-aedb-9e67438340eb",
+    "title": "GPS Integration and Modern Methods",
     "order_index": 7
+   },
+   {
+    "id": "366b16ac-30f6-4400-b7c7-051edd5bf873",
+    "title": "Survey Standards Compliance",
+    "order_index": 8
+   },
+   {
+    "id": "7c610f13-f9d4-454f-b989-9103f108ef0a",
+    "title": "RPLS Practice Problems — Practical",
+    "order_index": 9
+   },
+   {
+    "id": "2a4b0b8a-b0d9-4ccb-a718-ef836cee7547",
+    "title": "RPLS Full-Length Practice Exam Tips",
+    "order_index": 10
    }
   ]
  }

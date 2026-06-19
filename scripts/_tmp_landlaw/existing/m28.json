@@ -1,0 +1,1488 @@
+{
+  "order_index": 28,
+  "module_id": "c100001c-0000-0000-0000-00000000001c",
+  "title": "RPLS Exam Review — Practical Surveying",
+  "lessons": [
+    {
+      "lesson_id": "0c8c3b20-547c-40ac-9a95-f3864a116b2b",
+      "title": "Advanced Coordinate Computations",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Convert between bearings/azimuths and latitude/departure for any quadrant.",
+        "Compute the inverse (distance and azimuth) and the forward (coordinate) problem from rectangular coordinates.",
+        "Carry latitude/departure bookkeeping through a multi-course traverse to find a closing coordinate."
+      ],
+      "key_takeaways": [
+        "Latitude = d·cos(bearing), Departure = d·sin(bearing); signs follow the quadrant (N+/S-, E+/W-).",
+        "Inverse: distance = hypot(dE, dN); azimuth = atan2(dE, dN) reduced to 0-360 deg.",
+        "Forward (coordinate) problem: N2 = N1 + d·cos(Az), E2 = E1 + d·sin(Az)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why coordinate geometry dominates the practical exam</h3><p>The practical portion of the RPLS exam is built on <strong>coordinate geometry (COGO)</strong>. Almost every problem — closure, area, curve, partition, conflict resolution — reduces to converting directions and distances into <strong>rectangular coordinates (northings and eastings)</strong> and back again. Master the four basic operations and most of the exam becomes bookkeeping rather than insight. The four operations are: (1) reduce a bearing or azimuth and distance into a <strong>latitude</strong> (north-south component) and <strong>departure</strong> (east-west component); (2) accumulate latitudes and departures to step from one coordinate to the next (the <strong>forward problem</strong>); (3) recover the distance and direction between two known coordinates (the <strong>inverse problem</strong>); and (4) sum the closing components to evaluate misclosure. Texas land descriptions are almost always metes-and-bounds, so fluency in bearing-to-coordinate conversion is non-negotiable.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Latitude and departure from a direction</h3><p>For a course of length <em>d</em> at bearing angle <em>&alpha;</em> measured from the meridian, the <strong>latitude</strong> is the projection onto the north-south axis and the <strong>departure</strong> is the projection onto the east-west axis. Working from the <em>acute</em> bearing angle keeps the trig simple, and you assign signs by quadrant:</p><ul><li><strong>NE quadrant:</strong> Lat = +d&middot;cos&alpha;, Dep = +d&middot;sin&alpha;</li><li><strong>SE quadrant:</strong> Lat = -d&middot;cos&alpha;, Dep = +d&middot;sin&alpha;</li><li><strong>SW quadrant:</strong> Lat = -d&middot;cos&alpha;, Dep = -d&middot;sin&alpha;</li><li><strong>NW quadrant:</strong> Lat = +d&middot;cos&alpha;, Dep = -d&middot;sin&alpha;</li></ul><p>If you convert the bearing to a full <strong>azimuth</strong> (0-360 deg from north), the signs take care of themselves: Lat = d&middot;cos(Az), Dep = d&middot;sin(Az). On the exam, decide once which convention you will use and stay consistent for the whole problem to avoid sign errors, which are the single most common cause of lost points.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{Lat} = d\\cos\\alpha, \\qquad \\text{Dep} = d\\sin\\alpha",
+            "label": "Latitude and departure of a course from its bearing angle alpha",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The inverse and forward problems</h3><p>The <strong>inverse problem</strong> recovers the length and direction of the line between two known points. Given point 1 (N1, E1) and point 2 (N2, E2), compute the differences dN = N2 - N1 and dE = E2 - E1. Then the distance is the hypotenuse, <em>d = hypot(dE, dN)</em>, and the azimuth is <em>Az = atan2(dE, dN)</em> reduced to the 0-360 deg range (add 360 deg if negative). Note the argument order: with azimuth measured clockwise from north, the <em>departure (dE)</em> is the numerator and the <em>latitude (dN)</em> is the denominator. The <strong>forward problem</strong> is the reverse: from a known point, a measured distance, and an azimuth, compute the new coordinate as N2 = N1 + d&middot;cos(Az) and E2 = E1 + d&middot;sin(Az). Chaining the forward problem course-by-course is exactly how you walk a metes-and-bounds description around a parcel.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "d = \\sqrt{(\\Delta E)^2 + (\\Delta N)^2}, \\qquad Az = \\operatorname{atan2}(\\Delta E,\\ \\Delta N)",
+            "label": "Inverse problem: distance and azimuth from coordinate differences",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Operation", "Given", "Compute", "Formula"],
+            "rows": [
+              ["Lat / Dep", "bearing + distance", "components", "Lat = d cos, Dep = d sin"],
+              ["Forward", "point + Az + distance", "new point", "N2=N1+d cos Az, E2=E1+d sin Az"],
+              ["Inverse", "two points", "distance + Az", "d=hypot(dE,dN), Az=atan2(dE,dN)"],
+              ["Closure", "all courses", "misclosure", "hypot(sumLat, sumDep)"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Exam tip: Set your calculator to DEGREES and double-check the quadrant of every bearing before trusting a sign. A reversed sign on a single departure can throw an entire closure or area calculation off — examiners deliberately include courses in all four quadrants to catch this."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Coordinate axes showing a course resolved into latitude and departure with quadrant signs",
+            "caption": "Figure: A course resolved into latitude (N-S) and departure (E-W) with quadrant sign conventions.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Lat = d cos(bearing), Dep = d sin(bearing); sign by quadrant (N+/S-, E+/W-).",
+              "Forward problem: N2 = N1 + d cos(Az), E2 = E1 + d sin(Az).",
+              "Inverse problem: d = hypot(dE, dN), Az = atan2(dE, dN) reduced to 0-360 deg.",
+              "Choose one convention (acute-angle-with-signs or full azimuth) and stay consistent to avoid sign errors."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Latitude (of a course)",
+          "definition": "The north-south component of a course: Lat = d cos(bearing angle). Positive to the north, negative to the south.",
+          "hint_1": "d cos(bearing)"
+        },
+        {
+          "term": "Departure (of a course)",
+          "definition": "The east-west component of a course: Dep = d sin(bearing angle). Positive to the east, negative to the west.",
+          "hint_1": "d sin(bearing)"
+        },
+        {
+          "term": "Inverse problem",
+          "definition": "Given two coordinate pairs, compute the distance d = hypot(dE, dN) and azimuth Az = atan2(dE, dN) between them.",
+          "hint_1": "Two points -> distance + direction"
+        },
+        {
+          "term": "Forward (coordinate) problem",
+          "definition": "Given a point, an azimuth, and a distance, compute the new point: N2 = N1 + d cos(Az), E2 = E1 + d sin(Az)."
+        }
+      ]
+    },
+    {
+      "lesson_id": "ca5cbe08-3766-4389-be5b-513e17479be8",
+      "title": "Geodetic Concepts for RPLS",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Apply the combined scale factor to convert between ground and grid distances on the Texas State Plane system.",
+        "Distinguish grid azimuth from geodetic azimuth using the convergence angle.",
+        "Convert ellipsoidal heights to orthometric heights with the geoid relationship."
+      ],
+      "key_takeaways": [
+        "Grid = Ground x CSF; Ground = Grid / CSF, where CSF = grid scale factor x elevation factor.",
+        "Geodetic azimuth = grid azimuth + convergence (gamma); the second-term (t-T) correction is usually negligible for short lines.",
+        "H = h - N converts a GNSS ellipsoidal height to an orthometric elevation."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Grid versus ground on the practical exam</h3><p>Texas boundary work is computed on the <strong>Texas State Plane Coordinate System (TSPCS)</strong>, a Lambert Conformal Conic grid. The exam will hand you distances that are either <strong>ground</strong> (what you measured) or <strong>grid</strong> (what the projection reports) and expect you to convert correctly. The bridge is the <strong>combined scale factor (CSF)</strong>, the product of the <strong>grid scale factor (k)</strong> — projection distortion — and the <strong>elevation factor</strong> — the reduction of a distance at elevation down to the ellipsoid. To go from ground to grid you multiply; to go from grid to ground you divide. Because much of Texas sits at appreciable elevation (the High Plains exceed 3,000 ft), the elevation factor is meaningfully less than one and cannot be ignored. Every TSPCS deliverable must state whether a reported distance is grid or ground.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "CSF = k \\times \\frac{R}{R+h}, \\qquad D_{grid} = D_{ground}\\times CSF",
+            "label": "Combined scale factor and ground-to-grid distance (R = mean Earth radius)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Convergence and grid versus geodetic azimuth</h3><p>On a State Plane projection, grid north and true (geodetic) north are not the same except along the projection's central meridian. The angular difference at a point is the <strong>convergence angle</strong> (mapping angle), commonly denoted &gamma; or theta. To convert between directions you apply convergence: <strong>geodetic azimuth = grid azimuth + convergence</strong> (with sign depending on which side of the central meridian you are on). For high-precision work over long lines a small <strong>second-term, or (t-T), correction</strong> accounts for the curvature of the geodesic on the grid, but for ordinary boundary courses it is negligible and the exam usually lets you ignore it. The practical skill is recognizing when a problem gives a <em>grid</em> bearing that must be turned into a <em>geodetic</em> bearing (or vice versa) before it can be compared to a record call.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\alpha_{geodetic} = \\alpha_{grid} + \\gamma",
+            "label": "Geodetic azimuth from grid azimuth and convergence angle gamma",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Heights: ellipsoidal versus orthometric</h3><p>GNSS returns an <strong>ellipsoidal height (h)</strong>, but plans, benchmarks, and flood studies require an <strong>orthometric height (H)</strong> — elevation above the geoid. They differ by the <strong>geoid height (N)</strong>, supplied by a geoid model (GEOID18 today; NAPGD2022 soon). The relationship is <em>H = h - N</em>. Across the contiguous U.S. N is negative (roughly -8 m to -53 m), so subtracting it raises the elevation. On the exam, do not mix height types: if a problem gives a GNSS height and asks for an elevation, you must apply N. The companion rule is to keep the <em>elevation</em> used in the CSF as the orthometric height plus the geoid undulation when high precision is demanded, though exam problems typically supply a single usable elevation.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Conversion", "Direction", "Operation"],
+            "rows": [
+              ["Ground -> Grid distance", "remove ground length", "multiply by CSF"],
+              ["Grid -> Ground distance", "restore ground length", "divide by CSF"],
+              ["Grid -> Geodetic azimuth", "remove grid orientation", "add convergence gamma"],
+              ["Ellipsoidal -> Orthometric height", "GNSS to elevation", "H = h - N"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs in scale: West Texas project elevations make the elevation factor noticeably less than 1, so the combined scale factor materially shrinks ground distances when reduced to grid. Always label a TSPCS distance as grid or ground, and state the surface (zone) used."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "CSF = grid scale factor x elevation factor; Grid = Ground x CSF, Ground = Grid / CSF.",
+              "Geodetic azimuth = grid azimuth + convergence; the (t-T) second term is usually negligible for short lines.",
+              "H = h - N converts a GNSS ellipsoidal height to an orthometric elevation.",
+              "Texas elevations make the elevation factor noticeably < 1; always label distances grid vs ground."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Combined scale factor (CSF)",
+          "definition": "The product of the grid scale factor and the elevation (sea-level) factor, used to convert between ground and grid distances: Grid = Ground x CSF.",
+          "hint_1": "k x R/(R+h)"
+        },
+        {
+          "term": "Convergence angle",
+          "definition": "The angle between grid north and geodetic (true) north at a point on a map projection; used to convert grid azimuths to geodetic azimuths.",
+          "hint_1": "Geodetic = grid + gamma"
+        },
+        {
+          "term": "Elevation factor",
+          "definition": "The ratio R/(R+h) that reduces a ground distance at elevation h to the ellipsoid; a component of the combined scale factor.",
+          "hint_1": "Less than 1 at elevation"
+        },
+        {
+          "term": "Orthometric height (H)",
+          "definition": "Elevation above the geoid, obtained from a GNSS ellipsoidal height by H = h - N, where N is the geoid height."
+        }
+      ]
+    },
+    {
+      "lesson_id": "2aa90c7c-c09a-4dc0-9c2c-bd14f4f9c365",
+      "title": "Boundary Analysis and Evidence Evaluation",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Rank conflicting boundary evidence using the priority of calls.",
+        "Apply the rule that a controlling monument overrides a record distance, and compute the corrected distance accordingly.",
+        "Explain footsteps/retracement doctrine and the role of original-survey evidence in Texas."
+      ],
+      "key_takeaways": [
+        "Priority of calls: senior rights > written intent > calls for monuments (natural then artificial) > courses (bearings) > distances > area.",
+        "When a found original monument controls, hold the monument and prorate or adjust the record distance to it.",
+        "A retracement surveyor follows the footsteps of the original surveyor; the goal is to find where the lines were, not where they should have been."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The priority of conflicting calls</h3><p>When the elements of a description disagree, the law does not average them — it ranks them. The classic <strong>priority (dignity) of calls</strong>, affirmed in Texas by <em>Stafford v. King</em>, is: (1) <strong>senior rights</strong> of an adjoining grant; (2) <strong>the written intentions of the parties</strong>; (3) <strong>calls for monuments</strong>, natural monuments outranking artificial ones; (4) <strong>calls for course (bearing/direction)</strong>; (5) <strong>calls for distance</strong>; and (6) <strong>calls for quantity (area)</strong>. The principle is that the more certain and less easily mistaken element controls the more easily mistaken one. A monument is a physical object that can be re-found; a distance is just a number copied from a worn field book and is the most error-prone of all. This hierarchy is the backbone of nearly every boundary-conflict question on the exam — when two calls fight, hold the one with higher dignity and adjust the lower one.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Rank", "Call type", "Why it controls"],
+            "rows": [
+              ["1", "Senior rights", "First-conveyed parcel keeps its full area"],
+              ["2", "Intent of the parties", "The whole purpose of the conveyance"],
+              ["3", "Natural monuments", "Rivers, trees, ridges; hard to mistake"],
+              ["4", "Artificial monuments", "Set stones, rods, fences; found on the ground"],
+              ["5", "Course (bearing)", "Direction; copyable but error-prone"],
+              ["6", "Distance", "A measured number; easily mistranscribed"],
+              ["7", "Quantity (area)", "Least reliable; a byproduct of the other calls"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Monument over distance: the controlling-monument rule</h3><p>A direct consequence of the priority of calls is that a <strong>found original monument controls over a record distance</strong>. Suppose a deed calls to run 300.00 ft to an iron rod, but the original iron rod is found at 298.50 ft. The monument is held: the true line goes to the rod at 298.50 ft, and the record 300.00 ft yields to it. If a single interior corner must be placed between two controlling monuments and the record total does not equal the measured total, the deficiency or excess is distributed by <strong>proportionate measurement</strong> (covered in the area/division and practice-problem lessons). The exam loves the simple version: 'the deed says X but the monument is found at Y — what distance do you hold?' The answer is the monument's measured distance, not the deed call.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas: A monument must be genuine to control. An undisturbed original monument (or one whose position is proven by acceptable evidence) holds; a monument known to be disturbed, set in error, or not part of the original survey does not. Stafford v. King establishes the dignity-of-calls order Texas courts apply."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Retracement: following the footsteps</h3><p>A boundary retracement is not an original survey. The retracing surveyor must <strong>follow the footsteps of the original surveyor</strong> — locating the lines and corners as they were actually run and marked, even if the original work was sloppy. The question is never 'where should the line be?' but 'where did the original surveyor put it?' Best available evidence is weighed in order: original monuments, then the testimony of the original survey (field notes, the plat), then natural and artificial monuments called for, then long-established occupation and reputation, and only last the record bearings and distances re-computed mathematically. This is why a competent retracement begins with a thorough search for original corner evidence before any computation. On the exam, a question that pits 'recompute from the deed' against 'honor the found original corner' is testing whether you understand footsteps doctrine: honor the corner.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram contrasting a record distance call with a found original monument that controls the corner",
+            "caption": "Figure: A found original monument controls over the record distance; the line is held to the monument.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Dignity of calls (Stafford v. King): senior rights > intent > natural monuments > artificial monuments > course > distance > area.",
+              "A found original monument controls over a record distance; hold the monument and yield the number.",
+              "Retracement means following the footsteps of the original surveyor — find where the line was, not where it 'should' be.",
+              "Search for and weigh original corner evidence before recomputing from the deed."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Priority (dignity) of calls",
+          "definition": "The legal hierarchy for resolving conflicting deed elements: senior rights, intent, natural monuments, artificial monuments, course, distance, then area. Affirmed in Texas by Stafford v. King.",
+          "hint_1": "Monuments beat distances"
+        },
+        {
+          "term": "Controlling-monument rule",
+          "definition": "A found, genuine original monument controls over a conflicting record distance; the boundary is held to the monument and the recorded distance yields.",
+          "hint_1": "Hold the rod, not the number"
+        },
+        {
+          "term": "Following the footsteps",
+          "definition": "The retracement principle that a surveyor must locate boundaries where the original surveyor actually established them, using best available evidence, not where a fresh computation would place them."
+        },
+        {
+          "term": "Stafford v. King",
+          "definition": "The leading Texas case stating the priority/dignity of calls used to resolve conflicts in a metes-and-bounds description."
+        }
+      ]
+    },
+    {
+      "lesson_id": "f3aa8c68-5638-4f0c-9fb7-aed7fb503220",
+      "title": "Complex Traverse Problems",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Balance angular misclosure and compute corrected azimuths around a closed traverse.",
+        "Compute latitudes/departures, linear misclosure, and the precision ratio of a closed traverse.",
+        "Adjust a traverse by the compass (Bowditch) rule and confirm the closure."
+      ],
+      "key_takeaways": [
+        "Angular misclosure for a closed polygon: sum of interior angles should equal (n-2)*180 deg; distribute the misclosure equally.",
+        "Linear misclosure = hypot(sum of latitudes, sum of departures); precision = perimeter / linear misclosure.",
+        "Compass rule correction to a course is proportional to its length: correction = -(misclosure) x (course length / perimeter)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The full traverse workflow</h3><p>A complete closed-traverse problem is the most common multi-step item on the practical exam. The workflow is fixed, and points are earned by executing it cleanly: (1) <strong>check angular closure</strong> — the interior angles of a closed polygon should sum to (n-2)&middot;180 deg; (2) <strong>balance the angles</strong> by distributing the angular misclosure; (3) <strong>compute azimuths/bearings</strong> of each course from a starting direction and the balanced angles; (4) <strong>compute latitudes and departures</strong> for each course; (5) <strong>find the linear misclosure</strong> and the <strong>precision ratio</strong>; (6) if within tolerance, <strong>adjust</strong> the coordinates (compass rule); and (7) compute the <strong>area</strong> from the adjusted coordinates. Each stage feeds the next, so an early error propagates — which is why examiners award partial credit for a correctly executed method even when one number is off.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\sum \\theta_{interior} = (n-2)\\times 180^\\circ",
+            "label": "Sum of interior angles of a closed n-sided traverse",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Angular and linear misclosure</h3><p>After measuring all interior angles, compare their sum to the geometric requirement (n-2)&middot;180 deg. The difference is the <strong>angular misclosure</strong>; if it is within the allowable (often a few seconds times the square root of the number of angles), distribute it — usually equally — among the angles, then carry the corrected angles forward to compute azimuths. Next, resolve each course into latitude and departure. For a closed loop the latitudes must sum to zero and the departures must sum to zero; in practice they total small residuals. The <strong>linear misclosure</strong> is the hypotenuse of those two residuals, <em>hypot(sumLat, sumDep)</em>. Dividing the <strong>perimeter by the linear misclosure</strong> gives the <strong>precision (relative accuracy) ratio</strong>, e.g. 1:14,500, the headline number for traverse quality.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{Linear misclosure} = \\sqrt{(\\textstyle\\sum \\text{Lat})^2 + (\\sum \\text{Dep})^2}, \\quad \\text{Precision} = \\frac{\\text{Perimeter}}{\\text{Linear misclosure}}",
+            "label": "Linear misclosure and precision ratio of a closed traverse",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The compass (Bowditch) rule</h3><p>The <strong>compass rule</strong> (Bowditch adjustment) distributes the closure error in proportion to course length, on the assumption that errors in angle and distance are of comparable size. The correction to a course's latitude is the total latitude misclosure scaled by that course's length over the perimeter (and likewise for departure), applied with the opposite sign so the corrections cancel the misclosure:</p><ul><li>Lat correction = -(sum of latitudes) &times; (course length / perimeter)</li><li>Dep correction = -(sum of departures) &times; (course length / perimeter)</li></ul><p>After adjustment the corrected latitudes and departures sum exactly to zero and the traverse closes. The compass rule is the exam default; the <strong>transit rule</strong> and a rigorous <strong>least-squares adjustment</strong> exist but are rarely required unless the problem names them. Always state which rule you used.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Step", "Quantity", "Check / formula"],
+            "rows": [
+              ["Angular closure", "sum of interior angles", "should = (n-2)*180 deg"],
+              ["Balance angles", "corrected angles", "distribute misclosure (usually equally)"],
+              ["Lat/Dep", "components per course", "Lat = d cos(Az), Dep = d sin(Az)"],
+              ["Linear misclosure", "closing error", "hypot(sumLat, sumDep)"],
+              ["Precision", "relative accuracy", "perimeter / linear misclosure"],
+              ["Adjust", "compass rule", "correction proportional to course length"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Exam tip: tabulate. Lay the traverse out in columns (course, bearing, distance, lat, dep, corrections, adjusted lat/dep, coordinates). A clean table makes the bookkeeping self-checking and lets graders follow your method even if one cell is wrong."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Closed-loop traverse with stations, interior angles, and a small closing misclosure vector",
+            "caption": "Figure: A closed traverse showing interior angles and the closing misclosure that the compass rule distributes.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Interior angles of a closed traverse sum to (n-2)*180 deg; distribute the angular misclosure before computing azimuths.",
+              "Linear misclosure = hypot(sumLat, sumDep); precision = perimeter / linear misclosure.",
+              "Compass rule: each course correction is proportional to its length over the perimeter.",
+              "Work the traverse as a table so the bookkeeping is self-checking."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Angular misclosure",
+          "definition": "The difference between the measured sum of a closed traverse's interior angles and the geometric requirement (n-2)*180 deg; distributed among the angles before computing directions.",
+          "hint_1": "(n-2) x 180"
+        },
+        {
+          "term": "Precision (relative accuracy) ratio",
+          "definition": "Perimeter divided by linear misclosure, expressed as 1:n; the headline measure of a closed traverse's quality.",
+          "hint_1": "Perimeter / misclosure"
+        },
+        {
+          "term": "Compass (Bowditch) rule",
+          "definition": "A traverse adjustment that distributes the latitude and departure misclosure to each course in proportion to that course's length relative to the perimeter."
+        },
+        {
+          "term": "Linear misclosure",
+          "definition": "The closing error of a traverse, computed as the hypotenuse of the summed latitude and departure residuals: hypot(sumLat, sumDep)."
+        }
+      ]
+    },
+    {
+      "lesson_id": "370abca8-6a2f-4e77-8c73-9615d592af9a",
+      "title": "Area Computation and Land Division",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Compute parcel area from coordinates using the shoelace (coordinate) method.",
+        "Apply single and double proportionate measurement to distribute excess or deficiency.",
+        "Divide a parcel into specified areas and convert between square feet and acres."
+      ],
+      "key_takeaways": [
+        "Shoelace area = 1/2 |sum of (x_i*y_{i+1} - x_{i+1}*y_i)|; close the polygon back to the first point.",
+        "Single proportion distributes excess/deficiency along one line; double proportion locates an interior corner from four controlling monuments.",
+        "1 acre = 43,560 sq ft; carry enough decimals so the rounded acreage is correct."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Area by coordinates (the shoelace method)</h3><p>Once a parcel's corners are expressed as coordinates, its area follows immediately from the <strong>coordinate (shoelace) method</strong>, the workhorse of the exam. List the corners in order around the boundary, repeat the first point at the end, and form the cross-products: area equals one-half the absolute value of the sum of (x_i&middot;y_{i+1} - x_{i+1}&middot;y_i). The sign of the unsigned sum tells you the direction of travel (clockwise vs counterclockwise), but area is reported as the absolute value. The method is exact for any closed polygon and is far less error-prone than the older double-meridian-distance (DMD) bookkeeping. Because adjusted traverse coordinates are usually already in hand from the closure step, computing area is often the final, quick step of a traverse problem.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "A = \\frac{1}{2}\\left|\\sum_{i=1}^{n}\\left(x_i\\,y_{i+1} - x_{i+1}\\,y_i\\right)\\right|",
+            "label": "Shoelace (coordinate) area; indices wrap so point n+1 = point 1",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Single proportionate measurement</h3><p>When a block or line was originally laid out in several record segments and a resurvey finds the <em>total</em> measured length between the two controlling original monuments differs from the record total, the <strong>excess or deficiency is distributed proportionally</strong>. In <strong>single proportionate measurement</strong>, each segment is scaled by the same factor (measured total / record total). For equal record lots the corrected frontage of each is simply the measured total divided by the number of lots. To locate an <em>interior</em> corner, you accumulate the proportioned segments from a controlling monument: the corrected distance to the k-th corner equals (record distance to that corner / record total) &times; measured total. This is the GLO/BLM single-proportion rule and the everyday method for platted subdivisions with surplus or shortage.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "D_{corrected} = \\frac{D_{record}}{\\sum D_{record}} \\times D_{measured\\ total}",
+            "label": "Single proportionate distance to an interior corner",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Double proportionate measurement and land division</h3><p><strong>Double proportionate measurement</strong> is the rule for restoring a <em>lost interior corner</em> controlled in both directions: the corner is set by proportioning measured-to-record distances independently along the north-south line (between the controlling monuments north and south) and along the east-west line (between the controlling monuments east and west), then intersecting the two proportioned positions. It is the standard BLM method for lost section corners. Separately, <strong>land division</strong> problems ask you to cut a parcel into pieces of specified area — for example, splitting a tract so a child receives exactly 5.000 acres along a given line. These reduce to solving for the dimension that yields the target area (often a simple length = area / width, or a triangle/trapezoid area equation), then writing the new dividing-line call. Remember 1 acre = 43,560 sq ft and carry enough precision that the final rounded acreage is exact.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Method", "Use when", "Distributes / finds"],
+            "rows": [
+              ["Shoelace (coordinate) area", "corners known as coordinates", "polygon area"],
+              ["Single proportion", "one record line, total surplus/shortage", "interior corner along a line"],
+              ["Double proportion", "lost interior corner, 4 controlling monuments", "corner by N-S and E-W proportion"],
+              ["Area division", "cut a parcel to a target area", "dividing-line dimension/call"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Order of operations: proportionate measurement only applies after you have exhausted the search for the original monument. A found genuine corner controls; you prorate only when the corner is truly lost or obliterated. Holding a found monument and also prorating is a classic exam trap."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Block of equal lots with record versus measured total showing single proportionate distribution of surplus",
+            "caption": "Figure: A platted block in which a measured surplus is distributed by single proportionate measurement.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Shoelace area = 1/2 |sum (x_i y_{i+1} - x_{i+1} y_i)|; wrap the last point back to the first.",
+              "Single proportion scales every segment by measured total / record total; corrected distance to a corner = (record/recordTotal) x measured.",
+              "Double proportion restores a lost interior corner by proportioning independently N-S and E-W, then intersecting.",
+              "Prorate only when the original corner is lost; a found genuine monument controls. 1 acre = 43,560 sq ft."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Shoelace (coordinate) area method",
+          "definition": "Computes polygon area from corner coordinates: A = 1/2 |sum (x_i y_{i+1} - x_{i+1} y_i)|, with the first point repeated at the end.",
+          "hint_1": "Cross-products of coordinates"
+        },
+        {
+          "term": "Single proportionate measurement",
+          "definition": "Distributes record-to-measured excess or deficiency along a single line by scaling every segment by the same factor (measured total / record total).",
+          "hint_1": "One direction"
+        },
+        {
+          "term": "Double proportionate measurement",
+          "definition": "Restores a lost interior corner by proportioning measured-to-record distances independently in the N-S and E-W directions between four controlling monuments and intersecting the results.",
+          "hint_1": "Two directions"
+        },
+        {
+          "term": "Acre",
+          "definition": "A unit of area equal to 43,560 square feet (or 10 square chains). Used to report parcel quantity in U.S. land descriptions."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da06cbbe-3ed2-42aa-9e15-14807265501c",
+      "title": "Construction Layout and Design Problems",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Compute the principal parts of a simple horizontal curve (T, L, LC, M, E) from R and I.",
+        "Compute design elevations on a tangent grade and cut/fill at grade stakes.",
+        "Estimate earthwork volume by the average-end-area method."
+      ],
+      "key_takeaways": [
+        "Curve parts: T = R tan(I/2), L = R*I (I in radians) = pi*R*I/180, LC = 2R sin(I/2).",
+        "Tangent-grade elevation = start + grade% x distance / 100; cut/fill = design - ground.",
+        "Average-end-area volume = L/2 x (A1 + A2); divide by 27 for cubic yards."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Simple horizontal curve geometry</h3><p>Construction and route-survey questions hinge on the <strong>simple circular curve</strong>, defined by its radius <em>R</em> and intersection (central) angle <em>I</em>. From these two values every part follows. The <strong>tangent length T = R&middot;tan(I/2)</strong> runs from the point of curvature (PC) to the point of intersection (PI). The <strong>arc (curve) length L = R&middot;I</strong> with I in radians, equivalently L = &pi;RI/180 with I in degrees. The <strong>long chord LC = 2R&middot;sin(I/2)</strong>. The <strong>middle ordinate M = R(1 - cos(I/2))</strong> and the <strong>external distance E = R(sec(I/2) - 1)</strong>. Stationing flows from these: the PT (point of tangency) station equals the PC station plus L, and the PC station equals the PI station minus T. Curves appear in nearly every practical exam, so memorize T, L, and LC at minimum.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "T = R\\tan\\tfrac{I}{2}, \\quad L = \\frac{\\pi R I}{180}, \\quad LC = 2R\\sin\\tfrac{I}{2}",
+            "label": "Principal parts of a simple horizontal curve (I in degrees)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Grades, profile elevations, and cut/fill</h3><p>Vertical layout starts with a <strong>tangent grade</strong>: from a known elevation, the design elevation a distance <em>d</em> ahead is start + (grade% &times; d / 100), where a positive grade rises and a negative grade falls. At any stake the <strong>cut or fill</strong> is the design elevation minus the existing ground elevation; by the common sign convention a <em>negative</em> result is a cut (remove material) and a <em>positive</em> result is a fill (add material). For sag and crest curves a parabolic vertical curve smooths the grade change, with the elevation offset from the tangent proportional to the square of the distance from the BVC; the exam may ask for the elevation at a station or the location and elevation of the high/low point. Keep grade percentages and distances in consistent units and watch the sign of the grade.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Earthwork by average end areas</h3><p>Earthwork <strong>volume</strong> between two cross-sections is most commonly estimated by the <strong>average-end-area method</strong>: V = (L/2)(A1 + A2), where A1 and A2 are the cross-sectional areas (sq ft) of cut or fill at the two stations and L is the distance between them. Because earthwork is usually reported in <strong>cubic yards</strong>, divide the cubic-foot result by 27. The method slightly overestimates volume for sections that taper (a true prismoidal formula is more exact), but it is the standard exam approach unless the prismoidal correction is specifically requested. Watch for problems that mix cut and fill sections — you cannot net them in a single average-end-area pass; compute cut and fill volumes separately and report each.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "V = \\frac{L}{2}\\left(A_1 + A_2\\right), \\qquad V_{cy} = \\frac{V_{cf}}{27}",
+            "label": "Average-end-area volume and conversion to cubic yards",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Quantity", "Formula", "Notes"],
+            "rows": [
+              ["Tangent length T", "R tan(I/2)", "PC to PI"],
+              ["Arc length L", "pi R I / 180", "I in degrees"],
+              ["Long chord LC", "2 R sin(I/2)", "PC to PT straight line"],
+              ["Tangent-grade elevation", "start + grade% x d / 100", "watch grade sign"],
+              ["Cut/fill", "design - ground", "neg = cut, pos = fill"],
+              ["Volume (avg end area)", "(L/2)(A1 + A2)", "/27 for cubic yards"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Exam tip: for curve work, set the calculator to degrees and use I/2 inside the trig (half the central angle) for T, LC, M, and E, but use the full I in radians for the arc length L. Mixing those up is the most frequent curve error."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Simple horizontal curve labeled with PC, PI, PT, T, L, LC, M, and E for radius R and central angle I",
+            "caption": "Figure: Principal parts of a simple horizontal curve.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Curve: T = R tan(I/2); L = pi R I/180 (I degrees); LC = 2R sin(I/2); M = R(1-cos(I/2)); E = R(sec(I/2)-1).",
+              "Tangent-grade elevation = start + grade% x distance/100; cut/fill = design - ground (neg = cut).",
+              "Average-end-area volume = (L/2)(A1 + A2); divide cubic feet by 27 for cubic yards.",
+              "Use I/2 for T/LC/M/E but the full I (in radians) for arc length L."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Tangent length (T)",
+          "definition": "The distance from the PC (or PT) to the PI of a simple curve: T = R tan(I/2).",
+          "hint_1": "R tan(I/2)"
+        },
+        {
+          "term": "Long chord (LC)",
+          "definition": "The straight-line distance from the PC to the PT of a simple curve: LC = 2R sin(I/2)."
+        },
+        {
+          "term": "Average-end-area method",
+          "definition": "An earthwork volume estimate: V = (L/2)(A1 + A2), the mean of two end cross-section areas times the distance between them; /27 to convert cubic feet to cubic yards.",
+          "hint_1": "Mean area x length"
+        },
+        {
+          "term": "Cut and fill",
+          "definition": "The vertical difference between design and existing-ground elevation at a stake; by convention negative is a cut (excavate) and positive is a fill (embankment)."
+        }
+      ]
+    },
+    {
+      "lesson_id": "42f97e15-6fd1-44a9-aedb-9e67438340eb",
+      "title": "GPS Integration and Modern Methods",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Distinguish RTK, static, and network-RTK (RTN) GNSS methods and their accuracies.",
+        "Localize/calibrate GNSS to a local coordinate system and apply the ground-to-grid relationship.",
+        "Identify error sources (multipath, PDOP, ionosphere) and quality indicators in GNSS work."
+      ],
+      "key_takeaways": [
+        "RTK gives cm-level positions in real time from a base-rover pair; static is most accurate; RTN uses a network of CORS-like stations.",
+        "A site calibration (localization) fits GNSS positions to local control via a horizontal best-fit and a vertical (inclined plane) fit.",
+        "Low PDOP, redundant occupations, and multipath-free sites give the most reliable GNSS positions."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>GNSS methods and their accuracies</h3><p>Modern practical work blends conventional and satellite methods. <strong>Static GNSS</strong> occupies points for long sessions and post-processes baselines for the highest accuracy (used for control). <strong>Real-time kinematic (RTK)</strong> uses a base receiver broadcasting corrections to a roving receiver, giving <strong>centimeter-level positions in real time</strong> — the everyday tool for topo and stakeout. <strong>Network RTK (RTN)</strong>, such as a state real-time network, replaces a single base with a network of reference stations that model atmospheric errors over a region, extending reliable cm accuracy without owning a base. Each trades setup effort against accuracy and range. The exam expects you to match the method to the task: static for control, RTK/RTN for production, and to know that GNSS gives ellipsoidal heights that need a geoid model to become elevations.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Method", "Typical accuracy", "Best use"],
+            "rows": [
+              ["Static (post-processed)", "mm to ~1 cm", "High-order control"],
+              ["RTK (single base)", "1-3 cm horizontal", "Topo, stakeout, production"],
+              ["Network RTK (RTN)", "2-4 cm", "Wide-area production without a base"],
+              ["Autonomous (no correction)", "meters", "Navigation only, not surveying"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Localization and ground-to-grid</h3><p>GNSS natively yields geodetic and State Plane <strong>grid</strong> coordinates, but a project often needs to fit an existing local coordinate system or work at <strong>ground</strong> scale. A <strong>site calibration (localization)</strong> observes several known local control points with GNSS, then computes a best-fit transformation: a horizontal fit (translation, rotation, and scale) and a vertical fit (an inclined-plane or geoid-based model) so that GNSS positions agree with the local control. Equivalently, the surveyor may apply a single <strong>combined scale factor</strong> to work in surface (ground) coordinates and a rotation to align to a project basis of bearing. Either way, the core relationship is the same one from the geodetic lesson: <em>Ground = Grid / CSF</em>. The exam may give GNSS grid values and ask for ground distances, or vice versa.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Error sources and quality control</h3><p>GNSS accuracy is limited by several error sources the surveyor must manage: <strong>multipath</strong> (signals reflecting off nearby surfaces), <strong>poor satellite geometry</strong> measured by <strong>PDOP</strong> (lower is better; avoid high PDOP windows), <strong>ionospheric and tropospheric delay</strong> (mitigated by dual-frequency receivers and short baselines), <strong>cycle slips</strong>, and <strong>antenna phase-center and height errors</strong>. Quality control means low PDOP, a fixed (not float) integer ambiguity solution, redundant occupations compared against each other, and ties to published control. On the exam, recognize that a position with a high PDOP, a float solution, or a single non-redundant observation is suspect, and that the cure for systematic GNSS error is independent re-observation, not simply averaging more epochs from one bad geometry.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Do not mix height types. GNSS gives ellipsoidal height (h); plans and benchmarks use orthometric height (H). Convert with H = h - N using the correct geoid model; ignoring N can introduce tens of meters of vertical error."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Base and rover RTK setup with correction link, plus a network RTK cell of reference stations",
+            "caption": "Figure: RTK (base-rover) and network RTK (RTN) real-time GNSS configurations.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Static = most accurate (control); RTK = cm-level real time (production); RTN extends RTK over a region.",
+              "Localization fits GNSS to local control (horizontal + vertical); core relation Ground = Grid / CSF.",
+              "Manage multipath, PDOP, atmospheric delay; require a fixed solution and redundant occupations.",
+              "GNSS heights are ellipsoidal; apply H = h - N to get elevations."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "RTK (real-time kinematic)",
+          "definition": "A GNSS method using a base receiver broadcasting corrections to a rover to obtain centimeter-level positions in real time.",
+          "hint_1": "Base + rover, cm, real time"
+        },
+        {
+          "term": "Network RTK (RTN)",
+          "definition": "Real-time GNSS positioning that uses a network of reference stations to model regional atmospheric errors, providing cm accuracy without the user's own base."
+        },
+        {
+          "term": "Site calibration (localization)",
+          "definition": "A best-fit transformation computed from GNSS observations of known local control points, so GNSS positions agree with a local coordinate system (horizontal and vertical)."
+        },
+        {
+          "term": "PDOP",
+          "definition": "Position Dilution of Precision: a unitless measure of satellite geometry's effect on position accuracy; lower values indicate stronger geometry.",
+          "hint_1": "Lower is better"
+        }
+      ]
+    },
+    {
+      "lesson_id": "366b16ac-30f6-4400-b7c7-051edd5bf873",
+      "title": "Survey Standards Compliance",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Identify the TBPELS rules and TSPS Manual of Practice categories that govern Texas land surveys.",
+        "Apply relative-accuracy and positional-tolerance standards to a survey result.",
+        "List the mandatory elements and certification requirements of a Texas land-survey plat."
+      ],
+      "key_takeaways": [
+        "TBPELS (the Texas Board) licenses RPLSs and adopts the rules; the TSPS Manual of Practice sets survey categories and condition tiers.",
+        "Relative accuracy ratio = baseline / positional error; categories specify minimum ratios and positional tolerances.",
+        "A compliant plat shows basis of bearing, monuments found/set, the surveyor's seal/signature/date, and a proper legal description."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Who sets the standards in Texas</h3><p>The practical exam tests not just computation but compliance. In Texas the <strong>Texas Board of Professional Engineers and Land Surveyors (TBPELS)</strong> licenses surveyors and adopts the rules of professional practice (in the Texas Administrative Code). The <strong>Texas Society of Professional Surveyors (TSPS) Manual of Practice for Land Surveying</strong> provides the widely used <strong>categories and conditions</strong> that define minimum standards for different survey products — for example, a Category 1A boundary survey for land-title purposes carries the highest standard. These TSPS categories are administered alongside the TBPELS rules. A well-prepared candidate knows which category a given task falls under, the minimum accuracy that category demands, and that performing or sealing a survey below the applicable standard is a rules violation, not merely a quality issue.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Texas practice: TSPS Manual categories (e.g., Category 1A land-title survey) tier surveys by purpose and required rigor; TBPELS administrative rules give them regulatory force. Federal FGCS orders of geodetic control are complementary but distinct from the TSPS categories."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Accuracy standards and tolerances</h3><p>Standards are expressed in two complementary ways. The classic <strong>relative accuracy ratio</strong> (1:n) equals the baseline length divided by the relative positional error between two points — a longer line or a smaller error gives a larger, better denominator. Modern standards also state <strong>positional tolerance</strong> directly (e.g., a corner located to within a stated number of hundredths of a foot at a confidence level). On the exam you may be asked to compute a relative accuracy from a length and an error, or to judge whether a result meets a category's minimum. Know the direction of the relationship: for a fixed error, accuracy <em>improves</em> with length; for a fixed length, accuracy <em>improves</em> as error shrinks. A traverse that closes 1:14,000 may pass a lower category but fail a high one.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{Relative accuracy} = \\frac{\\text{baseline length}}{\\text{positional error}} = 1 : n",
+            "label": "Relative accuracy ratio",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Plat and certification requirements</h3><p>A compliant Texas land-survey plat (drawing) is more than a picture; it carries required elements that the exam may quiz directly. Expect to see: a clear <strong>basis of bearing</strong> and the coordinate system/datum; <strong>all monuments found and set</strong>, described by type and condition; <strong>bearings and distances</strong> for every line and curve data for every curve; the parcel's <strong>area</strong>; adjoiner and record references; a north arrow and graphic scale; and a proper <strong>metes-and-bounds legal description</strong> that closes mathematically. Crucially, the plat must bear the <strong>RPLS's signature, seal, and date</strong> and an appropriate surveyor's certification; sealing work you did not perform or supervise, or omitting the seal, violates the rules. Standards compliance is therefore a blend of accuracy, documentation, and professional accountability.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Element", "Requirement"],
+            "rows": [
+              ["Basis of bearing", "Stated source/datum for all directions"],
+              ["Monuments", "All found and set, with type and condition"],
+              ["Line and curve data", "Bearing/distance per line; full curve table"],
+              ["Area", "Computed parcel area (acres and/or sq ft)"],
+              ["Legal description", "Metes-and-bounds that closes mathematically"],
+              ["Certification", "RPLS signature, seal, and date"]
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "TBPELS licenses RPLSs and adopts the rules; the TSPS Manual of Practice sets survey categories (e.g., Category 1A).",
+              "Relative accuracy = baseline / positional error; standards also state positional tolerance directly.",
+              "A compliant plat shows basis of bearing, monuments, line/curve data, area, and a closing legal description.",
+              "The RPLS's signature, seal, and date are mandatory; sealing unsupervised work violates the rules."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "TBPELS",
+          "definition": "Texas Board of Professional Engineers and Land Surveyors: the state agency that licenses RPLSs and adopts the administrative rules governing surveying practice in Texas."
+        },
+        {
+          "term": "TSPS Manual of Practice",
+          "definition": "The Texas Society of Professional Surveyors' manual defining survey categories and conditions (e.g., Category 1A land-title survey) that set minimum standards for survey products.",
+          "hint_1": "Category 1A = highest"
+        },
+        {
+          "term": "Relative accuracy ratio",
+          "definition": "Control/traverse quality expressed as 1:n, equal to baseline length divided by relative positional error; a larger n is better.",
+          "hint_1": "Length / error"
+        },
+        {
+          "term": "Surveyor's seal and certification",
+          "definition": "The RPLS's signature, seal, and date plus a certification statement required on a plat; affixing a seal to work not performed or supervised by that RPLS violates the rules."
+        }
+      ]
+    },
+    {
+      "lesson_id": "7c610f13-f9d4-454f-b989-9103f108ef0a",
+      "title": "RPLS Practice Problems — Practical",
+      "estimated_minutes": 50,
+      "learning_objectives": [
+        "Work multi-step practical problems combining closure, area, curves, and proportionate measurement.",
+        "Resolve a record-versus-monument conflict by holding the monument and correcting the distance.",
+        "Compute gap/overlap widths and corrected lot frontages numerically."
+      ],
+      "key_takeaways": [
+        "Practical problems chain the four COGO operations; tabulate and label units to avoid propagating errors.",
+        "Gap/overlap = the signed difference between adjoining record/measured positions along a common line.",
+        "When a monument controls, the corrected distance is the measured distance to the monument, not the deed call."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Putting the methods together</h3><p>This lesson is a worked-problem bridge between theory and the timed exam. The full-length practical exam rewards candidates who recognize that nearly every item is one of a handful of recurring problem <em>types</em>: latitude/departure of a course, linear misclosure, area by coordinates, single proportion of a lot frontage, cumulative proportion to an interior corner, gap/overlap width, curve tangent/arc, and corrected distance when a monument controls. Work each as a small, labeled computation, then assemble. Below we frame the canonical setups; the randomized problem templates at the end of the module let you practice each with fresh numbers. The discipline that earns points is the same every time: write the formula, substitute with units, compute, and sanity-check the magnitude.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Worked example: latitude and departure of a course",
+                "content": "<p>A course runs N 42&deg;00' E for 318.40 ft. Latitude = 318.40&middot;cos(42&deg;) = +236.61 ft (north). Departure = 318.40&middot;sin(42&deg;) = +213.04 ft (east). Both positive because the course lies in the NE quadrant.</p>",
+                "open": false
+              },
+              {
+                "title": "Worked example: linear misclosure",
+                "content": "<p>After summing a closed loop, the latitudes total -0.062 ft and the departures total +0.048 ft. Linear misclosure = hypot(-0.062, 0.048) = 0.078 ft. If the perimeter is 2,140 ft, the precision is 2140 / 0.078 = 1:27,400.</p>",
+                "open": false
+              },
+              {
+                "title": "Worked example: monument controls over distance",
+                "content": "<p>A deed calls 300.00 ft to an original 1/2-inch iron rod, but the rod is found at 297.85 ft. The monument controls: the boundary is held to the rod at 297.85 ft. The 300.00 ft call yields; do not split the difference.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Gaps, overlaps, and corrected frontages</h3><p>Two everyday conflict computations round out the practical set. A <strong>gap or overlap</strong> arises when adjoining descriptions do not meet exactly along a common line: compute each parcel's position along that line and take the signed difference. If parcel A's east line and parcel B's west line are computed to be 1.20 ft apart with no land between, that 1.20 ft is a <strong>gap</strong>; if they cross by 0.90 ft, that 0.90 ft is an <strong>overlap</strong> (the parcels both claim the strip). The width is simply the difference of the two computed line positions. A <strong>corrected lot frontage</strong> uses single proportion: when a platted block's measured total between controlling monuments differs from the record total, each equal lot becomes measured total &divide; number of lots, and the cumulative distance to any interior corner is (record-to-corner / record total) &times; measured total. These two skills appear repeatedly and are easy points when set up cleanly.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Exam tip: budget time by point value, not by order. Knock out the single-step COGO items (lat/dep, misclosure, area, frontage) first to bank guaranteed points, then return to the longer multi-stage traverse-plus-area problems."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Two adjoining parcels along a common line showing a small gap and, separately, an overlap strip",
+            "caption": "Figure: A gap (vacant strip) and an overlap (doubly claimed strip) between adjoining descriptions.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Most practical items are recurring types; solve each as a small labeled computation and assemble.",
+              "Gap/overlap width = signed difference of the two computed line positions; gap = vacant, overlap = doubly claimed.",
+              "Corrected lot frontage = measured total / number of lots; cumulative corner distance = (record/recordTotal) x measured.",
+              "When a monument controls, hold the measured distance to the monument and let the deed call yield."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Gap",
+          "definition": "A strip of land left unclaimed between two adjoining descriptions whose common lines do not meet; its width is the signed difference of the two computed line positions.",
+          "hint_1": "Vacant strip"
+        },
+        {
+          "term": "Overlap",
+          "definition": "A strip claimed by two adjoining descriptions because their boundary lines cross; the senior parcel's call generally controls the contested strip.",
+          "hint_1": "Doubly claimed"
+        },
+        {
+          "term": "Corrected lot frontage",
+          "definition": "For equal platted lots, the measured total distance between controlling monuments divided by the number of lots, distributing surplus or shortage by single proportion."
+        },
+        {
+          "term": "Cumulative proportion",
+          "definition": "The proportioned distance from a controlling monument to an interior corner: (record distance to corner / record total) x measured total."
+        }
+      ]
+    },
+    {
+      "lesson_id": "2a4b0b8a-b0d9-4ccb-a718-ef836cee7547",
+      "title": "RPLS Full-Length Practice Exam Tips",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Apply a time-management strategy for the full-length practical exam.",
+        "Avoid the most common computational and unit errors under exam conditions.",
+        "Use a structured method to show work and earn partial credit."
+      ],
+      "key_takeaways": [
+        "Triage by point value; bank quick single-step items, then invest time in multi-stage problems.",
+        "Most lost points come from sign/quadrant errors, unit mix-ups, and calculator mode (deg vs rad).",
+        "Always write the formula and substitute with units so graders can award partial credit."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Strategy for the practical exam</h3><p>The practical portion is a marathon of computation under time pressure, and strategy matters as much as knowledge. Begin by <strong>triaging</strong>: scan the whole exam, mark the quick single-step items (lat/dep, misclosure, area by coordinates, a lone curve part), and complete those first to bank guaranteed points. Then return to the multi-stage problems (full traverse adjustment plus area, or a proportionate-measurement scenario) where partial credit is plentiful. Do not get stuck — if a problem stalls, capture the formula and partial result, then move on and circle back. Keep a running tally of which items you have skipped. Reserve the final minutes to revisit flagged questions and to double-check signs and units on the answers you committed.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Common errors and how to avoid them</h3><p>A predictable set of mistakes costs candidates points, and each is preventable. The biggest culprits are: <strong>sign/quadrant errors</strong> in latitudes and departures (always confirm the quadrant before trusting a sign); <strong>calculator mode</strong> set to radians when the problem is in degrees (or vice versa) — verify the mode at the start and after any reset; <strong>unit mix-ups</strong> (feet vs U.S. survey feet, square feet vs acres at 43,560, grid vs ground); <strong>rounding too early</strong>, which corrupts a multi-step chain (carry extra decimals, round only the final answer); and <strong>using the wrong angle</strong> in a curve (I/2 for T/LC/M/E but the full I for arc length). Build a personal checklist and run it before submitting each answer; the few seconds spent verifying mode and units routinely save whole problems.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Common error", "Prevention"],
+            "rows": [
+              ["Sign/quadrant in lat/dep", "Confirm quadrant before assigning sign"],
+              ["Calculator in wrong mode", "Verify degrees vs radians at start"],
+              ["Square feet vs acres", "Remember 43,560 sq ft = 1 acre"],
+              ["Grid vs ground distance", "Apply or remove CSF as stated"],
+              ["Rounding too early", "Carry extra decimals; round only at the end"],
+              ["Wrong angle in a curve", "I/2 for T/LC/M/E; full I for arc length"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Showing work and earning partial credit</h3><p>On worked-solution problems, <strong>how you present the work is part of the score</strong>. For every computation, write the governing <strong>formula</strong>, then the <strong>substitution with units</strong>, then the <strong>result</strong>, clearly labeled. This does three things: it lets a grader award partial credit when a single arithmetic slip would otherwise zero the item; it makes your own work self-checking; and it forces the disciplined sequence that prevents errors in the first place. Tabulate traverse work in columns, draw a quick sketch for any boundary-conflict problem, and box your final answer with its units. Conceptually, remember the exam's recurring theme: when calls conflict, honor the higher-dignity evidence (monuments over distances), and when distances conflict with a found original monument, the monument controls. Combine clean computation with sound boundary judgment and the practical exam is very passable.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "success",
+            "text": "Best practice: keep one scratch column for unit tracking. If your units do not cancel to the unit the question asks for (ft, sq ft, acres, ratio), you have made an error before you even check the arithmetic."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Triage the exam: bank quick single-step points first, then invest in multi-stage problems.",
+              "Guard against sign/quadrant errors, wrong calculator mode, unit mix-ups, and early rounding.",
+              "Write formula -> substitution with units -> labeled result to earn partial credit and self-check.",
+              "Pair clean computation with boundary judgment: monuments control over conflicting distances."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Triage (exam strategy)",
+          "definition": "Scanning the whole exam and completing quick, high-confidence items first to bank points before investing time in long multi-stage problems.",
+          "hint_1": "Quick points first"
+        },
+        {
+          "term": "Partial credit method",
+          "definition": "Presenting each computation as formula -> substitution with units -> labeled result, so a grader can award credit despite a minor arithmetic slip."
+        },
+        {
+          "term": "Calculator mode error",
+          "definition": "Using radians when a problem expects degrees (or vice versa); a frequent, preventable source of wrong trig results on the practical exam.",
+          "hint_1": "Check deg vs rad"
+        },
+        {
+          "term": "Unit tracking",
+          "definition": "Carrying units through every step so they cancel to the requested unit (ft, sq ft, acres, or a ratio); a mismatch flags an error before checking arithmetic."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "0c8c3b20-547c-40ac-9a95-f3864a116b2b",
+      "question_text": "A course runs N 36 deg 00' E for 250.00 ft. What is its departure (east-west component) in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "146.95",
+      "explanation": "Departure = d sin(bearing) = 250.00 x sin(36 deg) = 146.95 ft east. The latitude would be 250.00 x cos(36 deg) = 202.25 ft north.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "0c8c3b20-547c-40ac-9a95-f3864a116b2b",
+      "question_text": "Point A is (N 1000.00, E 1000.00) and point B is (N 1300.00, E 1400.00). What is the horizontal distance from A to B in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "500.00",
+      "explanation": "Inverse problem: dN = 300.00, dE = 400.00, distance = hypot(400, 300) = 500.00 ft (a 3-4-5 triangle).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "0c8c3b20-547c-40ac-9a95-f3864a116b2b",
+      "question_text": "In the inverse problem with azimuth measured clockwise from north, which quantity is the numerator in Az = atan2(?, ?)?",
+      "question_type": "multiple_choice",
+      "options": ["The latitude (dN)", "The departure (dE)", "The distance", "The elevation difference"],
+      "correct_answer": "The departure (dE)",
+      "explanation": "With azimuth clockwise from north, Az = atan2(dE, dN): the departure (east component) is the numerator and the latitude (north component) is the denominator.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "ca5cbe08-3766-4389-be5b-513e17479be8",
+      "question_text": "A ground distance of 5,280.00 ft is reduced to grid with a combined scale factor of 0.99988. What is the grid distance in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "5279.37",
+      "explanation": "Grid = Ground x CSF = 5280.00 x 0.99988 = 5279.37 ft. To go from grid back to ground you would divide by the CSF.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "ca5cbe08-3766-4389-be5b-513e17479be8",
+      "question_text": "The combined scale factor is the product of which two factors?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The grid scale factor and the elevation factor",
+        "The convergence angle and the grid scale factor",
+        "The geoid height and the ellipsoid height",
+        "The precision ratio and the perimeter"
+      ],
+      "correct_answer": "The grid scale factor and the elevation factor",
+      "explanation": "CSF = grid scale factor (projection distortion) x elevation factor R/(R+h) (reduction to the ellipsoid). It converts between ground and grid distances.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "ca5cbe08-3766-4389-be5b-513e17479be8",
+      "question_text": "A GNSS observation gives an ellipsoidal height of 412.350 m where the geoid height N is -26.150 m. What is the orthometric height H in meters?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "438.50",
+      "explanation": "H = h - N = 412.350 - (-26.150) = 438.500 m. Because N is negative across the CONUS, subtracting it increases the orthometric height.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "2aa90c7c-c09a-4dc0-9c2c-bd14f4f9c365",
+      "question_text": "Under the Texas priority of calls, which element controls when it conflicts with a record distance?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The call for area (quantity)",
+        "A call for a monument",
+        "Whichever number is larger",
+        "The average of the two distances"
+      ],
+      "correct_answer": "A call for a monument",
+      "explanation": "Calls for monuments outrank calls for distance in the dignity of calls (Stafford v. King). A found original monument controls over a conflicting record distance.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "2aa90c7c-c09a-4dc0-9c2c-bd14f4f9c365",
+      "question_text": "Place these in correct dignity-of-calls order (highest first): distance, natural monument, course, area.",
+      "question_type": "multiple_choice",
+      "options": [
+        "natural monument, course, distance, area",
+        "area, distance, course, natural monument",
+        "course, natural monument, area, distance",
+        "distance, course, natural monument, area"
+      ],
+      "correct_answer": "natural monument, course, distance, area",
+      "explanation": "The order is monuments (natural before artificial) > course > distance > area. Natural monuments are highest of these four and area is lowest.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "2aa90c7c-c09a-4dc0-9c2c-bd14f4f9c365",
+      "question_text": "A retracement surveyor's primary goal is to determine where the original surveyor actually established the lines, not where they ideally should be.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Retracement means following the footsteps of the original surveyor, honoring original monuments and evidence over a fresh mathematical recomputation from the deed.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "f3aa8c68-5638-4f0c-9fb7-aed7fb503220",
+      "question_text": "What should the interior angles of a closed five-sided traverse sum to?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "540",
+      "explanation": "Sum of interior angles = (n-2) x 180 = (5-2) x 180 = 540 degrees.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "f3aa8c68-5638-4f0c-9fb7-aed7fb503220",
+      "question_text": "A closed traverse has a perimeter of 2,400.00 ft and a linear misclosure of 0.16 ft. What is the precision ratio denominator (1:n)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "15000",
+      "explanation": "Precision = perimeter / linear misclosure = 2400.00 / 0.16 = 15,000, reported as 1:15,000.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "f3aa8c68-5638-4f0c-9fb7-aed7fb503220",
+      "question_text": "Under the compass (Bowditch) rule, the correction applied to a course is proportional to what?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The length of the course relative to the perimeter",
+        "The square of the course bearing",
+        "The interior angle at that station",
+        "The area of the traverse"
+      ],
+      "correct_answer": "The length of the course relative to the perimeter",
+      "explanation": "The compass rule distributes latitude and departure misclosure in proportion to each course's length over the total perimeter.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "370abca8-6a2f-4e77-8c73-9615d592af9a",
+      "question_text": "A platted block of 6 equal lots has a record total frontage of 360.00 ft, but a resurvey between the controlling original monuments measures 363.60 ft. By single proportion, what is the corrected frontage of each lot in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "60.60",
+      "explanation": "Each lot = measured total / number of lots = 363.60 / 6 = 60.60 ft, distributing the 3.60 ft surplus equally.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "370abca8-6a2f-4e77-8c73-9615d592af9a",
+      "question_text": "A rectangular parcel measures 300.00 ft by 435.60 ft. What is its area in acres (1 acre = 43,560 sq ft)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "3.000",
+      "explanation": "Area = 300.00 x 435.60 = 130,680 sq ft; divided by 43,560 = 3.000 acres.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "370abca8-6a2f-4e77-8c73-9615d592af9a",
+      "question_text": "Which method restores a LOST interior corner that is controlled by monuments in both the north-south and east-west directions?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Single proportionate measurement",
+        "Double proportionate measurement",
+        "The shoelace method",
+        "The compass rule"
+      ],
+      "correct_answer": "Double proportionate measurement",
+      "explanation": "Double proportion proportions measured-to-record distances independently N-S and E-W between four controlling monuments, then intersects the two positions to set the lost corner.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da06cbbe-3ed2-42aa-9e15-14807265501c",
+      "question_text": "A simple horizontal curve has R = 600.00 ft and central angle I = 40 deg. What is the tangent length T in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "218.38",
+      "explanation": "T = R tan(I/2) = 600 x tan(20 deg) = 218.38 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da06cbbe-3ed2-42aa-9e15-14807265501c",
+      "question_text": "For the same curve (R = 600.00 ft, I = 40 deg), what is the arc length L in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "418.88",
+      "explanation": "L = pi R I / 180 = pi x 600 x 40 / 180 = 418.88 ft (I in degrees converted to radians).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da06cbbe-3ed2-42aa-9e15-14807265501c",
+      "question_text": "Two cross-sections 100.00 ft apart have fill areas of 120.0 sq ft and 180.0 sq ft. What is the average-end-area volume in cubic yards?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "555.56",
+      "explanation": "V = (L/2)(A1+A2) = (100/2)(120+180) = 15,000 cu ft; divided by 27 = 555.56 cubic yards.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "42f97e15-6fd1-44a9-aedb-9e67438340eb",
+      "question_text": "Which GNSS method gives centimeter-level positions in real time using a base receiver broadcasting corrections to a rover?",
+      "question_type": "multiple_choice",
+      "options": ["Autonomous positioning", "Real-time kinematic (RTK)", "Static post-processing only", "Differential leveling"],
+      "correct_answer": "Real-time kinematic (RTK)",
+      "explanation": "RTK uses a base-rover correction link to produce cm-level positions in real time, the standard for topo and stakeout. Static is most accurate but post-processed.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "42f97e15-6fd1-44a9-aedb-9e67438340eb",
+      "question_text": "A high PDOP value indicates strong satellite geometry and a more reliable GNSS position.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Lower PDOP indicates stronger geometry. A high PDOP means weak geometry and a less reliable position.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "366b16ac-30f6-4400-b7c7-051edd5bf873",
+      "question_text": "Two control points are 9,000 ft apart with a relative positional error of 0.075 ft. What is the relative accuracy denominator (1:n)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "120000",
+      "explanation": "Relative accuracy = baseline / error = 9000 / 0.075 = 120,000, reported as 1:120,000.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "366b16ac-30f6-4400-b7c7-051edd5bf873",
+      "question_text": "In Texas, which body licenses Registered Professional Land Surveyors and adopts the rules of practice?",
+      "question_type": "multiple_choice",
+      "options": ["TBPELS", "NGS", "FEMA", "The county clerk"],
+      "correct_answer": "TBPELS",
+      "explanation": "The Texas Board of Professional Engineers and Land Surveyors (TBPELS) licenses RPLSs and adopts the administrative rules; the TSPS Manual of Practice supplies survey categories.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "7c610f13-f9d4-454f-b989-9103f108ef0a",
+      "question_text": "A deed calls 250.00 ft to an original iron rod, but the genuine original rod is found at 247.30 ft. What distance do you hold to the rod, in feet?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "247.30",
+      "explanation": "The monument controls over the record distance, so the boundary is held to the found rod at 247.30 ft; the 250.00 ft call yields.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "2a4b0b8a-b0d9-4ccb-a718-ef836cee7547",
+      "question_text": "Which practice best protects partial credit on a computational exam item?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Writing only the boxed final answer",
+        "Writing the formula, then the substitution with units, then the labeled result",
+        "Rounding every intermediate value to one decimal",
+        "Leaving the calculator in radian mode for consistency"
+      ],
+      "correct_answer": "Writing the formula, then the substitution with units, then the labeled result",
+      "explanation": "Showing formula -> substitution with units -> result lets a grader award partial credit and makes the work self-checking; the other options invite or hide errors.",
+      "difficulty": "easy"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Latitude and departure of a course",
+      "description": "Resolve a bearing-and-distance course into its latitude and departure components.",
+      "category": "RPLS Practical — Coordinate Geometry",
+      "subcategory": "Latitude and departure",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A course runs N {{ang}} deg E for a distance of {{dist:f2}} ft. Compute the DEPARTURE (east-west component) of this course in feet.",
+      "parameters": [
+        {"name": "ang", "type": "integer", "min": 15, "max": 75},
+        {"name": "dist", "type": "float", "min": 150, "max": 700, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "lat", "formula": "dist*cos(toRad(ang))"}
+      ],
+      "answer_formula": "dist*sin(toRad(ang))",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Departure formula", "formula": "Dep = d sin(alpha)", "calculation_template": "{{dist:f2}} x sin({{ang}} deg)"},
+        {"step_number": 2, "title": "Compute", "result_template": "Departure = {{_answer}} ft (east, positive)"}
+      ],
+      "explanation_template": "Departure = d sin(alpha) = {{dist:f2}} x sin({{ang}} deg) = {{_answer}} ft. (The latitude, d cos(alpha), would be {{lat:f2}} ft north.)",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-lat-dep", "caption": "Course resolved into latitude and departure in the NE quadrant", "kind": "diagram"}]
+    },
+    {
+      "name": "Linear misclosure of a closed traverse",
+      "description": "Compute the linear misclosure from the summed latitudes and departures of a closed traverse.",
+      "category": "RPLS Practical — Traverse",
+      "subcategory": "Misclosure",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "After summing all courses of a closed-loop traverse, the latitudes total {{sumLat:f3}} ft and the departures total {{sumDep:f3}} ft. Compute the LINEAR MISCLOSURE (ft).",
+      "parameters": [
+        {"name": "sumLat", "type": "float", "min": -0.20, "max": 0.20, "decimals": 3},
+        {"name": "sumDep", "type": "float", "min": -0.20, "max": 0.20, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "hypot(sumLat, sumDep)",
+      "answer_format": {"decimals": 3, "unit": "ft", "tolerance": 0.002},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Misclosure formula", "formula": "sqrt(sumLat^2 + sumDep^2)", "calculation_template": "sqrt(({{sumLat:f3}})^2 + ({{sumDep:f3}})^2)"},
+        {"step_number": 2, "title": "Compute", "result_template": "Linear misclosure = {{_answer}} ft"}
+      ],
+      "explanation_template": "Linear misclosure is the hypotenuse of the latitude and departure misclosures: hypot({{sumLat:f3}}, {{sumDep:f3}}) = {{_answer}} ft.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-misclosure", "caption": "Closing misclosure vector from summed latitudes and departures", "kind": "diagram"}]
+    },
+    {
+      "name": "Area of a right-triangular parcel by coordinates",
+      "description": "Compute parcel area in acres from the leg dimensions of a right-triangular lot.",
+      "category": "RPLS Practical — Area",
+      "subcategory": "Area by coordinates",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A triangular parcel has perpendicular legs of {{a:f2}} ft (east) and {{b:f2}} ft (north) meeting at a right angle. Using the coordinate (shoelace) method, compute the parcel AREA in ACRES (1 acre = 43,560 sq ft).",
+      "parameters": [
+        {"name": "a", "type": "float", "min": 200, "max": 600, "decimals": 2},
+        {"name": "b", "type": "float", "min": 200, "max": 600, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "sf", "formula": "0.5*a*b"}
+      ],
+      "answer_formula": "(0.5*a*b)/43560",
+      "answer_format": {"decimals": 3, "unit": "acres", "tolerance": 0.005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Triangle area in square feet", "formula": "1/2 x base x height", "calculation_template": "0.5 x {{a:f2}} x {{b:f2}} = {{sf:f2}} sq ft"},
+        {"step_number": 2, "title": "Convert to acres", "formula": "sq ft / 43560", "result_template": "{{sf:f2}} / 43560 = {{_answer}} acres"}
+      ],
+      "explanation_template": "By coordinates the area reduces to 1/2 x leg x leg = 0.5 x {{a:f2}} x {{b:f2}} = {{sf:f2}} sq ft; dividing by 43,560 gives {{_answer}} acres.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-triangle-area", "caption": "Right-triangular parcel with perpendicular legs used for the coordinate area", "kind": "diagram"}]
+    },
+    {
+      "name": "Single-proportion corrected lot frontage",
+      "description": "Distribute a measured surplus or deficiency equally among record lots by single proportion.",
+      "category": "RPLS Practical — Proportionate Measurement",
+      "subcategory": "Single proportion",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A block of {{n}} equal lots was platted, each with a record frontage of {{rec:f2}} ft (record total {{recTotal:f2}} ft). A resurvey finds the actual measured distance between the original block corners is {{meas:f2}} ft. By single proportionate measurement, what is the corrected frontage (ft) of each lot?",
+      "parameters": [
+        {"name": "n", "type": "integer", "min": 4, "max": 10},
+        {"name": "rec", "type": "float", "min": 48, "max": 60, "decimals": 2},
+        {"name": "surplus", "type": "float", "min": -3, "max": 4, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "recTotal", "formula": "n*rec"},
+        {"name": "meas", "formula": "n*rec+surplus"}
+      ],
+      "answer_formula": "(n*rec+surplus)/n",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.02},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Record total", "formula": "n x record", "calculation_template": "{{n}} x {{rec:f2}} = {{recTotal:f2}} ft"},
+        {"step_number": 2, "title": "Proportion to each lot", "formula": "measured total / n", "calculation_template": "{{meas:f2}} / {{n}}"},
+        {"step_number": 3, "title": "Corrected lot frontage", "result_template": "{{meas:f2}} / {{n}} = {{_answer}} ft"}
+      ],
+      "explanation_template": "Single proportion distributes the surplus/deficiency equally: each lot = measured total / n = {{meas:f2}} / {{n}} = {{_answer}} ft.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-single-proportion", "caption": "Block of equal lots with record vs measured total distributed by single proportion", "kind": "diagram"}]
+    },
+    {
+      "name": "Cumulative proportion to an interior corner",
+      "description": "Compute the proportioned distance from a controlling monument to an interior corner.",
+      "category": "RPLS Practical — Proportionate Measurement",
+      "subcategory": "Cumulative proportion",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "Between two controlling original monuments the record total distance is {{recTotal:f2}} ft, but the measured total is {{meas:f2}} ft. By single proportion, what is the corrected distance (ft) from the first monument to an interior corner whose RECORD distance from that monument is {{recToCorner:f2}} ft?",
+      "parameters": [
+        {"name": "recTotal", "type": "float", "min": 400, "max": 900, "decimals": 2},
+        {"name": "surplus", "type": "float", "min": -3, "max": 5, "decimals": 2},
+        {"name": "frac", "type": "float", "min": 0.30, "max": 0.70, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "meas", "formula": "recTotal+surplus"},
+        {"name": "recToCorner", "formula": "round(recTotal*frac,2)"}
+      ],
+      "answer_formula": "(round(recTotal*frac,2)/recTotal)*(recTotal+surplus)",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Proportion factor", "formula": "measured total / record total", "calculation_template": "{{meas:f2}} / {{recTotal:f2}}"},
+        {"step_number": 2, "title": "Apply to the record distance", "formula": "(recToCorner / recTotal) x measured", "calculation_template": "({{recToCorner:f2}} / {{recTotal:f2}}) x {{meas:f2}}"},
+        {"step_number": 3, "title": "Corrected distance to corner", "result_template": "= {{_answer}} ft"}
+      ],
+      "explanation_template": "Cumulative single proportion: corrected distance = (record-to-corner / record total) x measured total = ({{recToCorner:f2}} / {{recTotal:f2}}) x {{meas:f2}} = {{_answer}} ft.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-cumulative-proportion", "caption": "Interior corner proportioned between two controlling monuments", "kind": "diagram"}]
+    },
+    {
+      "name": "Gap or overlap width between adjoining lines",
+      "description": "Compute the gap/overlap width as the difference between two computed line positions along a common line.",
+      "category": "RPLS Practical — Conflict Resolution",
+      "subcategory": "Gap and overlap",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "Along a common reference line, parcel A's boundary is computed at station {{posA:f2}} ft and the adjoining parcel B's boundary is computed at station {{posB:f2}} ft. What is the WIDTH (ft) of the gap or overlap between them?",
+      "parameters": [
+        {"name": "posA", "type": "float", "min": 100, "max": 300, "decimals": 2},
+        {"name": "delta", "type": "float", "min": 0.30, "max": 3.50, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "posB", "formula": "posA+delta"}
+      ],
+      "answer_formula": "abs(posB-posA)",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.02},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Difference of line positions", "formula": "|posB - posA|", "calculation_template": "|{{posB:f2}} - {{posA:f2}}|"},
+        {"step_number": 2, "title": "Gap/overlap width", "result_template": "= {{_answer}} ft"}
+      ],
+      "explanation_template": "The gap or overlap width is the absolute difference between the two computed line positions: |{{posB:f2}} - {{posA:f2}}| = {{_answer}} ft. If land lies between, it is a gap; if the lines cross, it is an overlap.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-gap-overlap", "caption": "Two adjoining boundary lines along a common reference line with a gap/overlap width", "kind": "diagram"}]
+    },
+    {
+      "name": "Tangent length of a simple horizontal curve",
+      "description": "Compute the tangent distance T of a simple circular curve from its radius and central angle.",
+      "category": "RPLS Practical — Curves",
+      "subcategory": "Tangent length",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A simple horizontal curve has a radius R = {{R}} ft and an intersection (central) angle I = {{I}} deg. What is the tangent length T (ft) from the PC to the PI?",
+      "parameters": [
+        {"name": "R", "type": "integer", "min": 400, "max": 1500},
+        {"name": "I", "type": "integer", "min": 10, "max": 60}
+      ],
+      "computed_vars": [],
+      "answer_formula": "R*tan(toRad(I/2))",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Half the central angle", "formula": "I / 2", "calculation_template": "{{I}} deg / 2"},
+        {"step_number": 2, "title": "Tangent length", "result_template": "T = {{R}} x tan({{I}} deg / 2) = {{_answer}} ft"}
+      ],
+      "explanation_template": "The tangent distance from the PC to the PI of a simple curve is T = R tan(I/2) = {{R}} x tan({{I}} deg / 2) = {{_answer}} ft.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-curve-tangent", "caption": "Simple curve with tangent T from PC to PI for radius R and central angle I", "kind": "diagram"}]
+    },
+    {
+      "name": "Corrected distance when a monument controls",
+      "description": "Determine the held distance to a found original monument when it conflicts with the record call.",
+      "category": "RPLS Practical — Conflict Resolution",
+      "subcategory": "Monument over distance",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A deed calls to run {{rec:f2}} ft to an original iron rod, but the genuine, undisturbed original rod is found at a measured {{meas:f2}} ft. Applying the controlling-monument rule, what distance (ft) do you hold to the corner?",
+      "parameters": [
+        {"name": "rec", "type": "float", "min": 200, "max": 400, "decimals": 2},
+        {"name": "diff", "type": "float", "min": -4, "max": 4, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "meas", "formula": "rec+diff"}
+      ],
+      "answer_formula": "rec+diff",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.01},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Apply the controlling-monument rule", "formula": "monument controls over record distance", "calculation_template": "Hold the found rod, not the {{rec:f2}} ft call"},
+        {"step_number": 2, "title": "Held distance", "result_template": "= {{meas:f2}} ft (the measured distance to the monument)"}
+      ],
+      "explanation_template": "A found genuine original monument controls over the record distance, so the boundary is held to the rod at {{meas:f2}} ft; the {{rec:f2}} ft call yields. The answer is {{_answer}} ft.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m28-monument-controls", "caption": "Record distance call versus the found original monument that controls", "kind": "diagram"}]
+    }
+  ]
+}
