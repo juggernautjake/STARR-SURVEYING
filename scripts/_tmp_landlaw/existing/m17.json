@@ -1,0 +1,812 @@
+{
+  "order_index": 17,
+  "module_id": "c1000011-0000-0000-0000-000000000011",
+  "title": "Subdivision Design and Platting",
+  "lessons": [
+    {
+      "lesson_id": "9f32004f-0308-4c54-a042-702b4d241d33",
+      "title": "Subdivision Design Principles",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Define the basic components of a subdivision: lots, blocks, streets, rights-of-way, and easements",
+        "Explain how lot frontage, depth, and area drive the design and yield of a subdivision",
+        "Describe the design objectives a layout must balance: access, drainage, utilities, density, and marketability",
+        "Distinguish a right-of-way (ROW) from an easement and explain why each is reserved"
+      ],
+      "key_takeaways": [
+        "A subdivision divides land into lots and blocks served by streets, ROW, and easements",
+        "Lots are sized by frontage and depth; blocks group lots between streets",
+        "ROW is dedicated land for streets/utilities; easements are limited-use rights over private lots",
+        "Good design balances buildable yield against access, drainage, utilities, and setbacks"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>What a subdivision is</h3><p>A <strong>subdivision</strong> is the division of a single tract (the <em>parent tract</em> or <em>gross area</em>) into two or more smaller parcels intended for sale, lease, or development, together with the streets, rights-of-way, and easements needed to serve them. The surveyor and the land planner translate raw acreage into a usable pattern of <strong>lots</strong> (the individual buildable parcels), <strong>blocks</strong> (groups of lots bounded by streets), and the public and private corridors that give every lot legal access, drainage, and utilities.</p><p>Design is never just geometry. A layout must simultaneously satisfy the developer's economic goal (maximize saleable lots), the regulatory floor (minimum lot size, street width, setbacks, drainage capacity), and the long-term livability of the neighborhood. The surveyor sits at the center of this because the platted lines &mdash; lot corners, block lines, ROW, and easement limits &mdash; become permanent legal boundaries the moment the plat is recorded.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Lots, blocks, and frontage</h3><p>A <strong>lot</strong> is the fundamental unit of a subdivision &mdash; a single parcel with its own legal description (Lot, Block, Subdivision name). Lots are dimensioned chiefly by two numbers: <strong>frontage</strong> (the width measured along the street) and <strong>depth</strong> (the distance back from the street). For a simple rectangular lot, <em>area = frontage &times; depth</em>. Minimum frontage matters because every lot needs enough street face for a driveway, utility connections, and visual proportion; minimum depth ensures room for a building plus front and rear yards.</p><p>A <strong>block</strong> is a group of lots bounded on all sides by streets (or by streets and a subdivision boundary). Block length is constrained by code and good practice &mdash; very long blocks frustrate pedestrian and emergency access, while very short blocks waste land on pavement and intersections. The planner arranges lots back-to-back within a block, typically sharing a rear lot line where a utility easement runs.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "A_{lot} = w_{frontage} \\times d_{depth}", "label": "Rectangular lot area", "display": "block"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Rights-of-way versus easements</h3><p>A <strong>right-of-way (ROW)</strong> is a strip of land set aside for a street or roadway and the utilities within it. In a typical subdivision the developer <strong>dedicates</strong> the ROW to the public, transferring an interest in that land so the public can build and maintain the street. ROW width is measured between the lot lines on either side of the street and must accommodate travel lanes, parking, sidewalks, drainage, and buried utilities &mdash; commonly 50 to 60 feet for a local residential street.</p><p>An <strong>easement</strong> is a narrower, <em>limited-use</em> right over land that the lot owner still owns in fee. The owner keeps title but cannot build over the easement, and the holder (a utility, a drainage district, the city) may enter to install and maintain facilities. Common types are the <strong>utility easement</strong> (often along rear or side lot lines), the <strong>drainage easement</strong> (carrying stormwater), and <strong>access easements</strong>. The crucial distinction: ROW is usually land dedicated for the street itself, whereas an easement is a restricted right burdening an otherwise private lot.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Element", "What it is", "Typical purpose", "Who controls it"], "rows": [
+            ["Lot", "Individual buildable parcel", "Sale and building site", "Private owner"],
+            ["Block", "Group of lots between streets", "Organizing the layout", "Defined by plat"],
+            ["Right-of-way (ROW)", "Strip dedicated for a street", "Public access + utilities in street", "Public (dedicated)"],
+            ["Utility easement", "Limited right over a private lot", "Buried/overhead utility lines", "Utility; owner keeps fee"],
+            ["Drainage easement", "Limited right for stormwater", "Conveying runoff", "City/district; owner keeps fee"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Design heuristic: net buildable area = gross area minus the land consumed by ROW and easements (and any detention, parks, or undevelopable area). Lots are carved only from that net area, so estimating ROW/easement take early is essential to a realistic yield."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Subdivision layout showing lots arranged in blocks with street right-of-way and rear utility easements", "caption": "Figure: Lots and blocks served by a dedicated street ROW, with rear-line utility easements.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Lots are the saleable units; blocks group lots between streets.",
+            "Lot area for a simple lot = frontage x depth.",
+            "ROW is dedicated land for the street and its utilities; easements are limited rights over private lots.",
+            "Net buildable area = gross area minus ROW, easements, and other undevelopable land.",
+            "Every platted line becomes a permanent legal boundary once recorded."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Lot", "definition": "The fundamental buildable unit of a subdivision, identified by Lot/Block/Subdivision and dimensioned chiefly by frontage and depth.", "hint_1": "The thing that gets sold."},
+        {"term": "Block", "definition": "A group of lots bounded on all sides by streets, or by streets and the subdivision boundary.", "hint_1": "Lots between streets."},
+        {"term": "Right-of-way (ROW)", "definition": "A strip of land set aside (usually dedicated to the public) for a street and the utilities within it; width measured between opposing lot lines.", "hint_1": "The street corridor."},
+        {"term": "Easement", "definition": "A limited, non-possessory right to use land that another owns in fee (e.g., utility or drainage easement); the owner keeps title but cannot build over it.", "hint_1": "Use right, not ownership."}
+      ]
+    },
+    {
+      "lesson_id": "cff08476-3c98-44ca-a59d-c35063701abe",
+      "title": "Texas Subdivision Regulations",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify the two principal Texas platting statutes: Local Government Code Ch. 212 (municipal) and Ch. 232 (county)",
+        "Explain the role of a municipality's extraterritorial jurisdiction (ETJ) in subdivision control",
+        "State the rule that subdividing in a regulated area requires a plat, even for metes-and-bounds conveyances",
+        "Describe the platting-approval and recording gatekeeping unique to Texas (tax certificate; clerk's duty)"
+      ],
+      "key_takeaways": [
+        "Municipal platting authority is in Loc. Gov't Code Ch. 212; county authority in Ch. 232",
+        "A city's platting reach extends into its ETJ, not just the corporate limits",
+        "Loc. Gov't Code 212.004 requires a plat to subdivide land in the regulated area",
+        "A county clerk may not record a plat without required approval and a tax certificate (Prop. Code 12.002)"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The two Texas platting statutes</h3><p>Texas regulates the division of land through two parallel chapters of the Local Government Code. <strong>Chapter 212</strong> governs <strong>municipal</strong> subdivision and platting &mdash; it gives cities the power to require, review, and approve plats inside the city and within its extraterritorial jurisdiction. <strong>Chapter 232</strong> governs <strong>county</strong> subdivision regulation for land outside any city's reach. Together they form the backbone of subdivision control in the state; a surveyor must know which authority &mdash; city, county, or both &mdash; has jurisdiction over a given tract before designing or platting it.</p><p>This split matters because the requirements differ. Municipal plats under Ch. 212 typically face more detailed engineering, drainage, and infrastructure review; county plats under Ch. 232 emphasize roads, drainage, water/wastewater adequacy, and (in border and economically distressed areas) special model-subdivision rules. The first question on any platting job is always jurisdictional.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs: Subdivision authority is statutory and split by location. Tex. Loc. Gov't Code Ch. 212 controls MUNICIPAL platting (city + ETJ); Ch. 232 controls COUNTY platting outside city reach. Always confirm which authority (and whether both) has jurisdiction before you plat."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Extraterritorial jurisdiction (ETJ)</h3><p>A distinctive feature of Texas law is the <strong>extraterritorial jurisdiction (ETJ)</strong> &mdash; an unincorporated buffer extending outward from a city's corporate limits, sized by the city's population. Within its ETJ a city may exercise subdivision and platting control even though the land is not inside the city and pays no city taxes. For the surveyor this means a rural-looking tract outside the city limits may still require a <strong>municipal</strong> plat because it sits in the ETJ. Many tracts fall under <em>both</em> municipal (ETJ) and county review, requiring coordination of two sets of standards.</p><p>Failing to recognize ETJ reach is a classic, expensive mistake: a developer who plats only under county rules may find the city refuses to approve the plat or extend utilities, stalling the project. Legislative changes have repeatedly adjusted ETJ scope and release procedures, so confirm the current status with the city.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Platting is mandatory &mdash; even for metes and bounds</h3><p>A central Texas rule is that you cannot escape subdivision control merely by conveying land with a metes-and-bounds description instead of a recorded lot-and-block plat. Under <strong>Tex. Loc. Gov't Code &sect; 212.004</strong>, the owner of a tract in the regulated area who divides it into two or more parts to lay out a subdivision (including by metes-and-bounds conveyance) <strong>must have a plat prepared and approved</strong>. This statutory hook closes the loophole many would otherwise use to avoid platting requirements, and it is something Texas handles more explicitly than many states.</p><p>There are statutory exceptions (for example, certain large-tract divisions or divisions not creating new streets/access), but the default assumption for the surveyor should be: if the parent tract is being split in a regulated area to create a subdivision, a plat is required.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Recording gatekeeping</h3><p>Texas adds a strong gatekeeping step at the county-clerk's office. Under <strong>Tex. Prop. Code &sect; 12.002</strong> a county clerk <strong>may not record a plat or replat</strong> unless it has been approved by the appropriate governmental authority as required by law and is accompanied by the documents the Local Government Code requires &mdash; including an <strong>original tax certificate</strong> from each taxing unit showing the property has no delinquent ad valorem taxes. General recording of instruments affecting real property is governed by Property Code Title 3, Chapter 12. So in Texas, approval and recording are distinct, sequential hurdles: design and survey, then governmental approval, then clerk recording with proof of paid taxes.</p>"}
+        },
+        {
+          "block_type": "link_reference",
+          "content": {"links": [
+            {"url": "https://statutes.capitol.texas.gov/Docs/LG/htm/LG.212.htm", "title": "Tex. Loc. Gov't Code Ch. 212", "type": "website", "description": "Municipal regulation of subdivisions and property development (including 212.004)"},
+            {"url": "https://statutes.capitol.texas.gov/Docs/LG/htm/LG.232.htm", "title": "Tex. Loc. Gov't Code Ch. 232", "type": "website", "description": "County regulation of subdivisions"},
+            {"url": "https://statutes.capitol.texas.gov/Docs/PR/htm/PR.12.htm", "title": "Tex. Prop. Code Ch. 12 (12.002)", "type": "website", "description": "Recording of plats; tax certificate requirement"}
+          ]}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Loc. Gov't Code Ch. 212 = municipal platting (city + ETJ); Ch. 232 = county platting.",
+            "A city's ETJ extends its subdivision control beyond the corporate limits.",
+            "Loc. Gov't Code 212.004 requires a plat to subdivide in the regulated area, even by metes and bounds.",
+            "Prop. Code 12.002 bars the clerk from recording a plat without approval + a tax certificate.",
+            "Confirm jurisdiction (city, county, or both) before designing or platting."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Chapter 212 (Loc. Gov't Code)", "definition": "The Texas statute granting municipalities authority to require, review, and approve subdivision plats inside the city and within its ETJ.", "hint_1": "Municipal platting."},
+        {"term": "Chapter 232 (Loc. Gov't Code)", "definition": "The Texas statute governing county regulation of subdivisions for land outside a city's reach.", "hint_1": "County platting."},
+        {"term": "Extraterritorial jurisdiction (ETJ)", "definition": "An unincorporated buffer around a Texas city, sized by population, within which the city may exercise subdivision/platting control even though the land is outside the city limits.", "hint_1": "City reach beyond the limits."},
+        {"term": "Loc. Gov't Code 212.004", "definition": "The provision requiring a plat when an owner divides a tract in the regulated area to lay out a subdivision, including by metes-and-bounds conveyance.", "hint_1": "No metes-and-bounds escape hatch."}
+      ]
+    },
+    {
+      "lesson_id": "c0d8bd65-e438-4a66-a932-ea7e76ddea3e",
+      "title": "Plat Requirements and Standards",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Distinguish a preliminary plat from a final plat and describe the approval sequence",
+        "List the elements a final plat must show (boundary, lots/blocks, ROW, easements, dedication, monuments)",
+        "Explain the surveyor's monumentation duty and certification on a plat",
+        "Identify the governing TBPELS standard for subdivision plats (22 TAC Ch. 138, esp. 138.93)"
+      ],
+      "key_takeaways": [
+        "Preliminary plat = conceptual approval; final plat = the recordable instrument",
+        "A final plat shows boundary, lots/blocks, dimensions, ROW, easements, dedication, and monuments",
+        "The RPLS certifies the plat and is responsible for monumentation",
+        "Texas subdivision-plat standards are in 22 TAC Ch. 138, with 138.93 addressing subdivision plats"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Preliminary versus final plat</h3><p>Platting in Texas typically proceeds in two stages. The <strong>preliminary plat</strong> is the conceptual submission: it shows the proposed layout of lots, blocks, streets, and major easements so the city or county can evaluate the design against its ordinances (lot sizes, street connectivity, drainage, utilities) before the developer invests in final engineering. Preliminary approval is essentially a conditional green light on the concept; it is generally <em>not</em> recorded and does not by itself create lots.</p><p>The <strong>final plat</strong> is the precise, survey-grade, recordable instrument. It must conform to the approved preliminary design and to all engineering and infrastructure requirements. Once the appropriate authority approves the final plat and it is recorded with the county clerk, the lot and block lines become legally established &mdash; lots can be sold by their Lot/Block/Subdivision description, and the dedicated streets and easements take effect.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Aspect", "Preliminary plat", "Final plat"], "rows": [
+            ["Purpose", "Concept review and conditional approval", "Recordable, legally binding instrument"],
+            ["Precision", "Design-level layout", "Survey-grade dimensions and monuments"],
+            ["Recorded?", "Generally no", "Yes, with the county clerk"],
+            ["Creates lots?", "No", "Yes, upon approval and recording"],
+            ["Dedication", "Proposed", "Formal dedication of ROW/easements"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>What a final plat must show</h3><p>A recordable final plat is a dense legal-and-technical drawing. At minimum it shows: the <strong>exterior boundary</strong> of the subdivision tied to a controlling survey corner; all <strong>lots and blocks</strong> with their dimensions, bearings, and areas; the <strong>street rights-of-way</strong> with widths; all <strong>easements</strong> (utility, drainage, access) with dimensions; <strong>setback or building lines</strong> where required; curve data for any cul-de-sacs and curved streets; the basis of bearing and coordinate datum; and the <strong>monuments</strong> found and set. It also carries the formal <strong>dedication</strong> language conveying streets and easements to the public, the owner's acknowledgment, the approval certificates of the governing authority, and the <strong>surveyor's certificate and seal</strong>.</p><p>Because the recorded plat fixes permanent boundaries, accuracy and completeness are not optional. An ambiguous or non-closing plat seeds future boundary disputes among the very lots it created (a classic simultaneous-conveyance problem resolved by proportionate measurement).</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Monumentation and the surveyor's certificate</h3><p>The Registered Professional Land Surveyor (RPLS) is responsible for the survey, the plat geometry, and the placement of <strong>monuments</strong> marking the block corners and lot corners so the lines can be recovered on the ground. The plat must state which monuments were <strong>found</strong> and which were <strong>set</strong>. The plat closes with the surveyor's <strong>certificate</strong>: a signed, sealed statement that the plat was prepared from an actual on-the-ground survey under the surveyor's supervision and that the monuments shown were set (or will be set) as represented. Only an RPLS may seal a Texas plat.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas standards moved: The old 22 TAC Ch. 663 surveying standards were REPEALED. After HB 1523 (2019) merged the surveying board into TBPELS, the professional and technical standards were re-codified into 22 TAC Ch. 138 (Subchapter E). Subdivision plats are addressed in 22 TAC 138.93, and monumentation in 138.87. Citing 663 is outdated for 2026."}
+        },
+        {
+          "block_type": "link_reference",
+          "content": {"links": [
+            {"url": "https://texas-tbpels.gov/", "title": "22 TAC Ch. 138 (TBPELS) — Subch. E, incl. 138.93 (Subdivision Plat), 138.87 (Monumentation)", "type": "website", "description": "Texas administrative standards of practice for surveyors (post-2021 recodification)"}
+          ]}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Anatomy of a final plat showing boundary, lots, blocks, ROW, easements, dedication block, and surveyor's certificate", "caption": "Figure: Required elements of a recordable final plat.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Preliminary plat = concept approval; final plat = recordable, lot-creating instrument.",
+            "A final plat shows boundary, lots/blocks, dimensions, ROW, easements, setbacks, and monuments.",
+            "Dedication, owner's acknowledgment, approval certificates, and the surveyor's seal appear on the plat.",
+            "The RPLS certifies the plat and is responsible for monumentation (found vs. set).",
+            "Texas subdivision-plat standards live in 22 TAC Ch. 138 (138.93, 138.87) — not the repealed 663."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Preliminary plat", "definition": "A conceptual subdivision submission reviewed for layout, lot sizes, streets, and drainage; conditionally approved but generally not recorded and does not create lots.", "hint_1": "Concept stage."},
+        {"term": "Final plat", "definition": "The precise, survey-grade, recordable instrument that, once approved and recorded, legally establishes lots, blocks, ROW, and easements.", "hint_1": "The recordable one."},
+        {"term": "Dedication (on a plat)", "definition": "The owner's formal conveyance of streets and easements shown on the plat to the public; statutory dedication is made by recording the plat under the platting statutes.", "hint_1": "Giving the streets to the public."},
+        {"term": "Surveyor's certificate", "definition": "The signed, sealed statement on a plat that it was prepared from an actual on-the-ground survey under the RPLS's supervision and that monuments were set as shown.", "hint_1": "The seal block."}
+      ]
+    },
+    {
+      "lesson_id": "d5b60839-89a1-49ff-a054-4deea97c0a79",
+      "title": "Lot and Block Design",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Apply minimum lot-size, frontage, and setback requirements to lay out conforming lots",
+        "Compute lot area from frontage and depth and estimate lots from net buildable area",
+        "Explain setbacks (front, side, rear) and how the building envelope is derived",
+        "Describe density and yield and compute lots per acre"
+      ],
+      "key_takeaways": [
+        "Lot area = frontage x depth for a rectangular lot; the building envelope is the lot minus setbacks",
+        "Front, side, and rear setbacks define the buildable area on each lot",
+        "Yield = number of conforming lots a tract can produce after ROW/easement take",
+        "Gross density (lots/acre) uses the whole tract; net density uses only the buildable area"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Sizing lots to the ordinance</h3><p>Every subdivision lot must meet the governing ordinance's <strong>minimum standards</strong>: a minimum <strong>lot area</strong>, a minimum <strong>frontage</strong> (width at the street or building line), and sometimes a minimum <strong>depth</strong>. The planner lays out lots to satisfy all three simultaneously. For a rectangular lot the area is simply frontage times depth, so a code requiring (say) 7,000 sq ft minimum area, 60 ft minimum frontage, and 100 ft minimum depth is satisfied by a 60 ft &times; 117 ft lot (7,020 sq ft) but <em>not</em> by a 60 ft &times; 100 ft lot (6,000 sq ft), even though that lot meets the frontage and depth minimums.</p><p>Corner lots, irregular lots, and lots on curved streets need extra attention: frontage on a curve is measured along the arc or chord per local rule, and corner lots usually must satisfy setbacks from <em>both</em> streets, shrinking the buildable area. The surveyor checks each lot against every applicable minimum before the plat is finalized.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "A_{lot} = w \\times d \\qquad A_{envelope} = (w - s_{l} - s_{r})\\,(d - s_{f} - s_{b})", "label": "Lot area and building envelope", "display": "block"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Setbacks and the building envelope</h3><p><strong>Setbacks</strong> (building lines) are minimum distances a structure must be held back from the lot lines: a <strong>front</strong> setback from the street ROW, <strong>side</strong> setbacks from the side lot lines, and a <strong>rear</strong> setback from the back lot line. Subtracting the setbacks from the lot dimensions yields the <strong>building envelope</strong> &mdash; the area within which a structure may legally be built. A 60 ft &times; 120 ft lot with a 25 ft front, 10 ft rear, and 5 ft side setbacks has a building envelope of (60 &minus; 5 &minus; 5) &times; (120 &minus; 25 &minus; 10) = 50 &times; 85 = 4,250 sq ft.</p><p>Setbacks protect light, air, fire separation, drainage, and the placement of utilities and easements. Because a lot can meet the minimum-area rule yet still have a cramped or unbuildable envelope, good design checks the envelope, not just the gross lot area.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "A lot can pass the minimum-area test and still fail in practice: deep setbacks, easements along the rear line, or an odd shape can leave too little building envelope. Always design to the envelope, not just the gross lot area."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Density and yield</h3><p><strong>Yield</strong> is the number of conforming lots a tract can produce. It is bounded above by the net buildable area divided by the minimum lot size, but real yield is usually lower because lots must fit an orderly block-and-street pattern. A first-cut estimate is: take the <strong>gross area</strong>, subtract the land consumed by street <strong>ROW</strong> and by <strong>easements</strong> and other undevelopable area to get the <strong>net buildable area</strong>, then divide by the typical lot size.</p><p><strong>Density</strong> expresses lots (or dwelling units) per acre. <strong>Gross density</strong> divides the lot count by the entire tract acreage (including streets and easements); <strong>net density</strong> divides by only the buildable acreage. Gross density is always lower than net density for the same project because the gross figure carries the overhead land. Ordinances and comprehensive plans usually cap gross density to control infrastructure load and neighborhood character.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "N_{lots} \\approx \\frac{A_{gross} - A_{ROW} - A_{esmt}}{A_{lot}} \\qquad \\text{Density} = \\frac{N_{lots}}{A_{acres}}", "label": "Lot yield and density", "display": "block"}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Single lot showing frontage, depth, front/side/rear setbacks, and the resulting building envelope", "caption": "Figure: A lot's setbacks reduce the gross area to the buildable building envelope.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "A conforming lot must meet minimum area, frontage, and depth simultaneously.",
+            "Building envelope = lot dimensions reduced by front, side, and rear setbacks.",
+            "Yield estimate = (gross area - ROW - easements) / lot size.",
+            "Gross density uses the whole tract; net density uses only buildable area (gross is lower).",
+            "Design to the building envelope, not merely the gross lot area."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Setback (building line)", "definition": "The minimum distance a structure must be held back from a lot line (front, side, or rear), defining where building is allowed.", "hint_1": "Hold the house back from the line."},
+        {"term": "Building envelope", "definition": "The buildable area remaining on a lot after subtracting all required setbacks from the lot dimensions.", "hint_1": "Lot minus setbacks."},
+        {"term": "Yield", "definition": "The number of conforming lots a tract can produce after deducting ROW, easements, and undevelopable area.", "hint_1": "How many lots you get."},
+        {"term": "Gross vs. net density", "definition": "Gross density = lots per acre over the whole tract (incl. streets/easements); net density = lots per acre over only buildable area. Net is higher.", "hint_1": "Whole tract vs. buildable only."}
+      ]
+    },
+    {
+      "lesson_id": "6387002b-9d9f-4f4e-bcb3-fdb1926273f1",
+      "title": "Street and Utility Layout",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Describe the functional street hierarchy (local, collector, arterial) and typical ROW widths",
+        "Lay out cul-de-sacs and compute the area of a circular turnaround",
+        "Place drainage and utility easements to serve every lot",
+        "Explain how street and utility layout interacts with lot yield and drainage"
+      ],
+      "key_takeaways": [
+        "Streets form a hierarchy: local -> collector -> arterial, with widening ROW",
+        "Cul-de-sac turnarounds need a minimum radius for emergency and service vehicles",
+        "Utility easements typically run along rear/side lot lines; drainage easements follow flow paths",
+        "ROW area = length x width; a turnaround bulb adds pi r^2 of paved circle"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The functional street hierarchy</h3><p>Subdivision streets are designed in a <strong>functional hierarchy</strong>. <strong>Local streets</strong> provide direct access to individual lots and carry low volumes at low speed; their ROW is typically 50 to 60 ft. <strong>Collector streets</strong> gather traffic from several local streets and feed it toward the larger network; they are wider, with more ROW and pavement. <strong>Arterials</strong> move higher volumes between districts and have the widest ROW. Good design pushes through-traffic onto collectors and arterials and keeps local streets quiet, which improves safety and lot desirability.</p><p>Street layout also drives lot yield: a tight, efficient street network leaves more land for lots, while excessive pavement and intersections waste developable area. The planner balances connectivity (for access and emergency response) against the land and cost consumed by ROW.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Street type", "Function", "Typical ROW width"], "rows": [
+            ["Local", "Direct lot access, low volume", "50–60 ft"],
+            ["Collector", "Gathers local traffic to the network", "60–80 ft"],
+            ["Arterial", "Moves higher volumes between areas", "80–120+ ft"],
+            ["Cul-de-sac (local)", "Dead-end local access with turnaround", "50–60 ft + bulb"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Cul-de-sac geometry</h3><p>A <strong>cul-de-sac</strong> is a dead-end local street terminating in a circular <strong>turnaround (bulb)</strong> so that vehicles &mdash; especially fire trucks, moving vans, and refuse trucks &mdash; can reverse direction without backing out. Ordinances set a minimum turnaround <strong>radius</strong> (commonly on the order of 40 to 60 ft of pavement radius, with a larger ROW radius) and a maximum cul-de-sac <strong>length</strong> to limit the number of homes served by a single access point. The surveyor lays out the bulb with curve data (radius, central angle, arc length) and ties the surrounding pie-shaped lots to it.</p><p>The paved bulb consumes a roughly circular area of <em>&pi;r&sup2;</em> plus the area of the straight street stem (length &times; width). Pie-shaped cul-de-sac lots are tricky: their narrow street frontage on the curve must still meet the minimum frontage rule (measured along the arc, chord, or at the building line, per local code), so lots on a bulb often need extra depth to compensate.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "A_{ROW} = L \\times w \\qquad A_{bulb} = \\pi r^{2}", "label": "Street ROW area and cul-de-sac bulb area", "display": "block"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Drainage and utility easements</h3><p>Every lot must be served by water, wastewater, and dry utilities, and stormwater must have a path off the site. <strong>Utility easements</strong> are typically reserved along <strong>rear and side lot lines</strong> (and within street ROW) so that water, sewer, gas, electric, and communications can be installed and maintained without trespassing on the buildable part of each lot. <strong>Drainage easements</strong> follow the natural and engineered <strong>flow paths</strong> &mdash; swales, channels, and detention areas &mdash; carrying runoff across or around the subdivision. These easements are shown and dimensioned on the plat and reduce the net buildable area, so they must be planned together with the lot layout, not bolted on afterward.</p><p>Coordinating streets, lots, utilities, and drainage is the heart of subdivision engineering: a layout that ignores how water flows, or that strands a lot without utility access, will not be approved.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Plan grading and drainage with the lots, not after. Drainage and utility easements consume buildable land and constrain building envelopes; designing them last forces costly redesign and can lower yield."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Cul-de-sac with circular turnaround bulb, pie-shaped lots, street stem ROW, and rear-line utility easements", "caption": "Figure: A cul-de-sac bulb with pie-shaped lots and rear-line utility easements.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Streets follow a hierarchy: local -> collector -> arterial, with increasing ROW width.",
+            "Cul-de-sacs need a minimum turnaround radius and a maximum length per ordinance.",
+            "ROW area = length x width; the paved bulb adds about pi r^2.",
+            "Utility easements run along rear/side lines; drainage easements follow flow paths.",
+            "Design streets, utilities, and drainage together with the lots to protect yield."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Street hierarchy", "definition": "The functional classification of streets — local (lot access), collector (gathers traffic), arterial (high volume) — with ROW width increasing up the hierarchy.", "hint_1": "Local, collector, arterial."},
+        {"term": "Cul-de-sac", "definition": "A dead-end local street ending in a circular turnaround (bulb) sized so service and emergency vehicles can reverse direction.", "hint_1": "Dead-end with a bulb."},
+        {"term": "Utility easement", "definition": "A reserved strip, usually along rear/side lot lines or in ROW, allowing installation and maintenance of water, sewer, and dry utilities over a privately owned lot.", "hint_1": "Where the pipes and wires run."},
+        {"term": "Drainage easement", "definition": "A reserved corridor following stormwater flow paths (swales, channels, detention) to convey runoff across or around a subdivision.", "hint_1": "Where the water goes."}
+      ]
+    },
+    {
+      "lesson_id": "09e7d13c-12bb-4019-b55c-d6139667ec4e",
+      "title": "Filing and Recording Plats",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Sequence the approval-then-recording process for a Texas plat",
+        "Explain the documents required to record a plat, including the tax certificate",
+        "Describe how recording creates statutory dedication and establishes lots",
+        "Define a replat and vacation of a plat and when each is used"
+      ],
+      "key_takeaways": [
+        "Approval by the governing authority precedes recording with the county clerk",
+        "Prop. Code 12.002 bars recording without approval and an original tax certificate",
+        "Recording the plat effects statutory dedication of streets/easements and establishes lots",
+        "A replat amends a recorded plat; a vacation cancels one — both follow statutory procedure"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>From approval to the public record</h3><p>A plat does not become legally effective until it is <strong>approved</strong> by the appropriate governing authority (the municipal planning body, the county commissioners court, or both for ETJ tracts) <em>and then</em> <strong>recorded</strong> in the official public records by the county clerk. These are two separate steps in a fixed order: design and survey, governmental approval, then recording. Until recorded, the lots shown on the plat have no independent legal existence and cannot be conveyed by their Lot/Block/Subdivision description.</p><p>Once recorded, the plat becomes a public document that the whole world is charged with notice of. Future deeds simply reference 'Lot 7, Block 2, Sunny Acres, according to the plat recorded in [instrument/volume-page], [County] County, Texas,' incorporating all of the platted dimensions, ROW, and easements by reference.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Recording prerequisites and the tax certificate</h3><p>Texas imposes specific recording prerequisites at the clerk's office. Under <strong>Tex. Prop. Code &sect; 12.002</strong>, the county clerk <strong>may not record a plat or replat</strong> unless it (1) has been <strong>approved</strong> by the appropriate authority as required by law and (2) is accompanied by the documents the Local Government Code requires &mdash; notably an <strong>original tax certificate</strong> from each taxing unit with jurisdiction showing <strong>no delinquent ad valorem taxes</strong> on the land. This makes the clerk a gatekeeper: even a perfect, approved plat will be refused recording if back taxes are owed or required documents are missing.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs: A county clerk may not record a plat without (1) the governing authority's approval and (2) an original tax certificate showing no delinquent taxes (Tex. Prop. Code 12.002). Approval and recording are distinct steps — clearing taxes is a recording prerequisite, not part of design."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Recording effects statutory dedication</h3><p>Recording a plat that marks streets, alleys, and easements for public use is the classic act of <strong>statutory dedication</strong> &mdash; the owner offers those areas to the public under the platting statutes (Loc. Gov't Code Chs. 212/232; Prop. Code Ch. 12). Two cautions follow. First, <strong>plat approval is not automatic acceptance</strong>: under Texas law some affirmative public acceptance (by ordinance, by maintenance, or by use) is generally still required before the dedication is complete. Second, dedication is largely irrevocable once accepted &mdash; the developer cannot simply reclaim a street later. The surveyor should make the dedication language and the public's intended interests crystal clear on the plat.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Replats and vacations</h3><p>Recorded plats are not frozen forever. A <strong>replat</strong> revises a previously recorded plat &mdash; for example, to recombine or re-divide lots, shift lot lines, or add/remove easements &mdash; and must itself be approved and recorded under the same statutory procedure (often with additional notice and hearing requirements where existing lots or restrictions are affected). A <strong>vacation</strong> of a plat cancels a recorded plat (or part of it), returning the land to its un-platted state, again only through the statutory process and with the rights of existing lot owners and the public protected. Both processes exist precisely because the recorded plat carries real legal force that cannot be undone informally.</p>"}
+        },
+        {
+          "block_type": "link_reference",
+          "content": {"links": [
+            {"url": "https://statutes.capitol.texas.gov/Docs/PR/htm/PR.12.htm#12.002", "title": "Tex. Prop. Code 12.002 — Subdivision Plat; Penalty", "type": "website", "description": "Clerk may not record a plat without approval and a tax certificate"}
+          ]}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Approval by the governing authority comes before recording with the county clerk.",
+            "Prop. Code 12.002: no recording without approval + an original tax certificate (no delinquent taxes).",
+            "Recording effects statutory dedication, but approval is not automatic public acceptance.",
+            "Once recorded, deeds convey lots by Lot/Block/Subdivision reference to the plat.",
+            "A replat amends, and a vacation cancels, a recorded plat — each by statutory procedure."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Recording a plat", "definition": "Filing the approved final plat in the county's official public records, which establishes the lots and gives the world constructive notice of the platted lines and dedications.", "hint_1": "Into the public record."},
+        {"term": "Tax certificate (Prop. Code 12.002)", "definition": "An original certificate from each taxing unit showing no delinquent ad valorem taxes; required before a county clerk may record a plat or replat.", "hint_1": "Proof taxes are paid."},
+        {"term": "Statutory dedication", "definition": "The offer of streets/easements to the public made by recording a plat under the platting statutes; completed only when the public affirmatively accepts.", "hint_1": "Recording offers it; acceptance completes it."},
+        {"term": "Replat / vacation", "definition": "A replat revises a recorded plat; a vacation cancels one. Both follow statutory approval-and-recording procedures and protect existing owners' rights.", "hint_1": "Amend vs. cancel."}
+      ]
+    },
+    {
+      "lesson_id": "3f3ce9de-e506-4257-b268-04d349f5b2bf",
+      "title": "Subdivision Case Studies",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Apply yield, density, ROW, and lot-sizing calculations to a realistic tract",
+        "Diagnose common platting defects (non-closure, missing easements, ETJ oversight)",
+        "Resolve excess/deficiency among simultaneously created lots by proportionate measurement",
+        "Integrate design, regulatory, and recording requirements into a coherent platting workflow"
+      ],
+      "key_takeaways": [
+        "Real platting integrates design math, jurisdiction, and recording in one workflow",
+        "Most platting failures are jurisdictional (ETJ) or technical (non-closure, missing easements)",
+        "Lots in a recorded plat are simultaneous conveyances — excess/deficiency is apportioned, no lot is senior",
+        "A defensible plat closes mathematically, serves every lot, and clears every approval"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Case study 1: estimating yield on a 40-acre tract</h3><p>Consider a 40.00-acre (1,742,400 sq ft) tract inside a city's ETJ to be platted for single-family lots. The ordinance requires a minimum lot of 8,000 sq ft. Preliminary layout shows that street ROW will consume about 18% of the tract and drainage/utility easements and a detention pond another 7%, leaving roughly 75% net buildable area &mdash; about 1,306,800 sq ft. Dividing by the 8,000 sq ft lot size gives an upper-bound yield near 163 lots; after fitting lots to an orderly block-and-street pattern the realistic count lands somewhat lower, perhaps 150 to 158. The gross density is roughly 4 lots per acre. This first-cut arithmetic &mdash; gross area, minus ROW and easements, divided by lot size &mdash; is exactly what a developer needs before committing to engineering.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Case study 2: the ETJ trap</h3><p>A developer plans a 12-lot rural subdivision a mile outside the city limits and submits only to the county under Chapter 232. The county approves, but the city refuses to extend water service and objects that the tract lies in its <strong>extraterritorial jurisdiction</strong>, where municipal platting under Chapter 212 also applies. The project stalls until a municipal plat is processed. The lesson: <strong>jurisdiction is the first question</strong>. A tract can require county approval, municipal (ETJ) approval, or both; ignoring ETJ reach is one of the most common and costly platting mistakes in Texas.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs: A subdivision outside the city limits is NOT automatically free of municipal platting. If it falls within the city's ETJ, Chapter 212 review applies in addition to county Chapter 232 review. Confirm ETJ status before assuming county-only jurisdiction."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Case study 3: excess and deficiency among platted lots</h3><p>Years after recording, a surveyor retraces Block 3, which the plat shows as ten lots of 50.00 ft record frontage (500.00 ft record total) between two found, undisputed original block-corner monuments. The measured distance between those monuments is 503.00 ft &mdash; a 3.00 ft surplus. Because the lots were created <strong>simultaneously</strong> by the recorded plat, <strong>no lot is senior</strong>; the surplus is <strong>apportioned proportionately</strong> among the lots in proportion to their record frontage. Each lot grows to 503.00 &divide; 10 = 50.30 ft. The surveyor does not dump the entire surplus into the last lot. This is the textbook simultaneous-conveyance rule, and it flows directly from the fact that the plat created all the lots at one instant.</p>"}
+        },
+        {
+          "block_type": "accordion",
+          "content": {"sections": [
+            {"title": "Why apportionment, not seniority?", "content": "<p>The order in which the lots were later <em>sold</em> is immaterial to seniority. Lots in a recorded subdivision plat are the paradigm <strong>simultaneous</strong> conveyance: they spring into existence together when the plat is recorded, so each has equal dignity. Found, undisputed monuments at the block ends control the total distance; the record proportions are honored by distributing any excess/deficiency in proportion to record lengths. Apportionment is a last resort, applied only after found monuments and the original surveyor's footsteps are exhausted.</p>", "open": true},
+            {"title": "Common technical defects to catch on review", "content": "<ul><li><strong>Non-closure</strong>: the boundary or a block fails to mathematically return to its point of beginning &mdash; a legally defective plat.</li><li><strong>Missing or undimensioned easements</strong>: a lot left without utility or drainage access.</li><li><strong>Frontage failures on curves/cul-de-sacs</strong>: pie-shaped lots not meeting minimum frontage at the building line.</li><li><strong>No monumentation note</strong>: failure to state monuments found vs. set.</li><li><strong>Missing dedication or tax certificate</strong>: blocks recording under Prop. Code 12.002.</li></ul>", "open": false}
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Putting it together: a defensible plat</h3><p>The case studies converge on a single workflow. First, settle <strong>jurisdiction</strong> (city, county, ETJ). Second, design to the <strong>ordinance</strong> &mdash; lot minimums, setbacks, street hierarchy, ROW widths, drainage, and easements &mdash; and verify the <strong>yield</strong> math. Third, produce a <strong>final plat</strong> that closes mathematically, serves every lot, shows monuments and dedication, and bears the RPLS seal. Fourth, secure <strong>approval</strong> and then <strong>record</strong> with the tax certificate. A plat that respects all four stages is both economically sound and legally defensible; one that skips a stage seeds disputes among the very lots it creates.</p>"}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Block of ten platted lots between two found monuments with a measured surplus distributed proportionately", "caption": "Figure: A 3 ft surplus in a 10-lot block is apportioned, so each 50 ft record lot becomes 50.30 ft.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Yield = (gross area - ROW - easements) / lot size, then fit to an orderly pattern.",
+            "Jurisdiction (city/county/ETJ) is the first question on any platting job.",
+            "Lots in a recorded plat are simultaneous conveyances — apportion excess/deficiency, no lot is senior.",
+            "Catch defects on review: non-closure, missing easements, frontage failures, no tax certificate.",
+            "A defensible plat clears jurisdiction, design math, closure, dedication, approval, and recording."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Lot yield (first-cut)", "definition": "An estimate of buildable lots: (gross area minus ROW and easement/undevelopable area) divided by the minimum lot size, then reduced to fit an orderly block-and-street layout.", "hint_1": "Net buildable area / lot size."},
+        {"term": "Simultaneous conveyance (plat lots)", "definition": "Lots created at one instant by recording a plat; no lot is senior, so any excess/deficiency between controlling monuments is apportioned in proportion to record frontage.", "hint_1": "All lots born at once."},
+        {"term": "Proportionate measurement", "definition": "Distributing surplus or shortage found between undisputed monuments among simultaneously created lots in proportion to their record lengths, rather than dumping it into one lot.", "hint_1": "Spread the error proportionally."},
+        {"term": "Plat non-closure", "definition": "A defect in which the boundary or a block fails to mathematically return to its point of beginning, leaving a gap or overlap; a legally defective plat.", "hint_1": "It doesn't close back to the POB."}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "9f32004f-0308-4c54-a042-702b4d241d33",
+      "question_text": "In a subdivision, what is the essential difference between a right-of-way (ROW) and a utility easement?",
+      "question_type": "multiple_choice",
+      "options": [
+        "ROW is land dedicated for the street/utilities, while an easement is a limited-use right over a lot the owner still holds in fee",
+        "ROW is privately owned and an easement is always publicly owned",
+        "They are the same thing under different names",
+        "An easement is wider than ROW and carries the travel lanes"
+      ],
+      "correct_answer": "ROW is land dedicated for the street/utilities, while an easement is a limited-use right over a lot the owner still holds in fee",
+      "explanation": "ROW is typically dedicated land for the street and its utilities; an easement is a limited, non-possessory right burdening a lot whose owner keeps fee title. They are not the same, and easements are usually narrower, not wider.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "9f32004f-0308-4c54-a042-702b4d241d33",
+      "question_text": "A lot is described as a group of parcels bounded by streets.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "That describes a BLOCK. A lot is the individual buildable parcel; a block is the group of lots bounded by streets.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "9f32004f-0308-4c54-a042-702b4d241d33",
+      "question_text": "A rectangular lot has 65 ft of frontage and 130 ft of depth. What is its area?",
+      "question_type": "multiple_choice",
+      "options": ["8,450 sq ft", "7,800 sq ft", "9,025 sq ft", "6,500 sq ft"],
+      "correct_answer": "8,450 sq ft",
+      "explanation": "Area = frontage x depth = 65 x 130 = 8,450 sq ft.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "cff08476-3c98-44ca-a59d-c35063701abe",
+      "question_text": "Which Texas statute governs MUNICIPAL regulation of subdivision platting (city limits plus ETJ)?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Local Government Code Chapter 212",
+        "Local Government Code Chapter 232",
+        "Property Code Chapter 12",
+        "Natural Resources Code Chapter 21"
+      ],
+      "correct_answer": "Local Government Code Chapter 212",
+      "explanation": "Ch. 212 is the municipal platting statute (city + ETJ). Ch. 232 is the county counterpart; Prop. Code Ch. 12 governs recording; Nat. Res. Code Ch. 21 concerns navigable streams.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "cff08476-3c98-44ca-a59d-c35063701abe",
+      "question_text": "A developer divides a tract in a regulated area by conveying parcels with metes-and-bounds descriptions instead of a recorded plat, believing this avoids platting. Under Texas law this is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Improper — Loc. Gov't Code 212.004 still requires a plat to subdivide in the regulated area, even by metes and bounds",
+        "Proper — metes-and-bounds conveyances are categorically exempt from platting",
+        "Proper only if each parcel exceeds one acre",
+        "Improper only inside the city limits, never in the ETJ"
+      ],
+      "correct_answer": "Improper — Loc. Gov't Code 212.004 still requires a plat to subdivide in the regulated area, even by metes and bounds",
+      "explanation": "Section 212.004 closes the metes-and-bounds loophole: dividing a tract in the regulated area to lay out a subdivision requires a plat regardless of how the parcels are described.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "cff08476-3c98-44ca-a59d-c35063701abe",
+      "question_text": "A city's subdivision/platting authority can extend to land outside its corporate limits because of its extraterritorial jurisdiction (ETJ).",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "The ETJ is an unincorporated buffer, sized by city population, within which the city may exercise platting control even though the land is outside the city limits.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "cff08476-3c98-44ca-a59d-c35063701abe",
+      "question_text": "Name the Texas statute chapter that governs COUNTY regulation of subdivisions outside a city's reach.",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "Local Government Code Chapter 232",
+      "explanation": "Chapter 232 of the Local Government Code governs county subdivision regulation, paralleling municipal Chapter 212.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "c0d8bd65-e438-4a66-a932-ea7e76ddea3e",
+      "question_text": "Which statement best distinguishes a preliminary plat from a final plat?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The preliminary plat is a conceptual layout for approval and is generally not recorded; the final plat is the survey-grade, recordable instrument that establishes lots",
+        "The preliminary plat is recorded first and the final plat replaces it in the field only",
+        "The final plat is conceptual and the preliminary plat is the recordable one",
+        "They are identical except the final plat omits the surveyor's seal"
+      ],
+      "correct_answer": "The preliminary plat is a conceptual layout for approval and is generally not recorded; the final plat is the survey-grade, recordable instrument that establishes lots",
+      "explanation": "Preliminary = concept review (not recorded, no lots created). Final = precise, recordable, lot-creating instrument that carries the surveyor's seal and dedication.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "c0d8bd65-e438-4a66-a932-ea7e76ddea3e",
+      "question_text": "Where do the current Texas professional/technical standards governing surveyors and subdivision plats reside (as of 2026)?",
+      "question_type": "multiple_choice",
+      "options": [
+        "22 TAC Chapter 138 (TBPELS), with subdivision plats in 138.93",
+        "22 TAC Chapter 663, which remains the controlling rule",
+        "Local Government Code Chapter 212 only",
+        "The federal BLM Manual of Surveying Instructions"
+      ],
+      "correct_answer": "22 TAC Chapter 138 (TBPELS), with subdivision plats in 138.93",
+      "explanation": "After HB 1523 (2019) merged the boards into TBPELS, the repealed Ch. 663 standards were re-codified into 22 TAC Ch. 138 (Subch. E); 138.93 addresses subdivision plats and 138.87 monumentation.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "c0d8bd65-e438-4a66-a932-ea7e76ddea3e",
+      "question_text": "Which item is NOT normally required to appear on a recordable final plat?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The asking sale price of each lot",
+        "Lot and block dimensions with bearings",
+        "The surveyor's certificate and seal",
+        "Dedication language for streets and easements"
+      ],
+      "correct_answer": "The asking sale price of each lot",
+      "explanation": "Lot prices are economic, not part of the legal plat. A final plat shows boundary, lots/blocks and dimensions, ROW, easements, dedication, monuments, approvals, and the surveyor's seal.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "d5b60839-89a1-49ff-a054-4deea97c0a79",
+      "question_text": "A 70 ft by 120 ft lot has a 25 ft front setback, a 20 ft rear setback, and 8 ft side setbacks on each side. What is the building envelope area?",
+      "question_type": "multiple_choice",
+      "options": ["4,050 sq ft", "5,400 sq ft", "4,250 sq ft", "3,750 sq ft"],
+      "correct_answer": "4,050 sq ft",
+      "explanation": "Envelope = (70 - 8 - 8) x (120 - 25 - 20) = 54 x 75 = 4,050 sq ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "d5b60839-89a1-49ff-a054-4deea97c0a79",
+      "question_text": "For the same project, gross density is always lower than net density.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Gross density divides lots by the entire tract (including ROW/easements), while net density divides by only the buildable area; carrying the overhead land makes gross density lower.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "d5b60839-89a1-49ff-a054-4deea97c0a79",
+      "question_text": "A lot meets the ordinance's minimum lot area but, after deep setbacks and a rear utility easement, has almost no buildable space. What is the design lesson?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Design to the building envelope, not merely the gross lot area",
+        "Minimum area is the only test that matters; the envelope is irrelevant",
+        "Easements never affect the building envelope",
+        "Increase frontage and the envelope problem disappears automatically"
+      ],
+      "correct_answer": "Design to the building envelope, not merely the gross lot area",
+      "explanation": "A lot can satisfy minimum area yet still be effectively unbuildable; setbacks and easements reduce the envelope, so the envelope must be checked directly.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "6387002b-9d9f-4f4e-bcb3-fdb1926273f1",
+      "question_text": "In the functional street hierarchy, which type provides direct access to individual lots and carries the lowest volume?",
+      "question_type": "multiple_choice",
+      "options": ["Local street", "Collector street", "Arterial street", "Freeway"],
+      "correct_answer": "Local street",
+      "explanation": "Local streets give direct lot access at low volume and speed; collectors gather that traffic and arterials move higher volumes between areas.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "6387002b-9d9f-4f4e-bcb3-fdb1926273f1",
+      "question_text": "What is the primary functional reason a cul-de-sac terminates in a circular turnaround bulb?",
+      "question_type": "multiple_choice",
+      "options": [
+        "So service and emergency vehicles can reverse direction without backing out",
+        "To maximize the number of lots on the street",
+        "To eliminate the need for any utility easements",
+        "To allow the street to be narrower than a through street"
+      ],
+      "correct_answer": "So service and emergency vehicles can reverse direction without backing out",
+      "explanation": "The turnaround lets fire trucks, moving vans, and refuse trucks turn around; ordinances set a minimum radius and a maximum cul-de-sac length for this reason.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "6387002b-9d9f-4f4e-bcb3-fdb1926273f1",
+      "question_text": "A straight street segment is 500 ft long within a 60 ft ROW. What is the ROW area of that segment?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "30000",
+      "explanation": "ROW area = length x width = 500 x 60 = 30,000 sq ft.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "09e7d13c-12bb-4019-b55c-d6139667ec4e",
+      "question_text": "Under Tex. Prop. Code 12.002, a county clerk may not record a plat unless it is approved AND accompanied by which document?",
+      "question_type": "multiple_choice",
+      "options": [
+        "An original tax certificate showing no delinquent ad valorem taxes from each taxing unit",
+        "A signed real-estate sales contract for at least one lot",
+        "A certificate of occupancy from the building department",
+        "An environmental impact statement"
+      ],
+      "correct_answer": "An original tax certificate showing no delinquent ad valorem taxes from each taxing unit",
+      "explanation": "Section 12.002 requires governmental approval plus an original tax certificate from each taxing unit (no delinquent taxes) before the clerk may record a plat or replat.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "09e7d13c-12bb-4019-b55c-d6139667ec4e",
+      "question_text": "Recording a plat that marks streets for public use automatically completes a statutory dedication with no further public action required.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Recording makes the statutory OFFER, but plat approval/recording is not automatic acceptance; under Texas law some affirmative public acceptance (ordinance, maintenance, or use) is generally still required.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "09e7d13c-12bb-4019-b55c-d6139667ec4e",
+      "question_text": "What is the difference between a replat and a vacation of a plat?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A replat revises a recorded plat; a vacation cancels a recorded plat (or part of it)",
+        "A replat cancels a plat; a vacation revises it",
+        "Both terms mean recording a plat for the first time",
+        "A vacation is only for commercial plats and a replat only for residential plats"
+      ],
+      "correct_answer": "A replat revises a recorded plat; a vacation cancels a recorded plat (or part of it)",
+      "explanation": "A replat amends an existing recorded plat (re-divide lots, shift lines, change easements); a vacation cancels a recorded plat, returning land to its un-platted state. Both follow statutory procedure.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "3f3ce9de-e506-4257-b268-04d349f5b2bf",
+      "question_text": "A retracement of a platted block of 8 lots (record frontage 50.00 ft each, 400.00 ft record total) finds the measured distance between the two undisputed original block-corner monuments is 404.00 ft. What corrected frontage does each lot receive?",
+      "question_type": "multiple_choice",
+      "options": ["50.50 ft", "54.00 ft", "50.00 ft", "53.50 ft applied to the last lot only"],
+      "correct_answer": "50.50 ft",
+      "explanation": "Lots in a recorded plat are simultaneous conveyances of equal dignity, so the 4.00 ft surplus is apportioned: 404.00 / 8 = 50.50 ft per lot. The surplus is not dumped into one lot.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "3f3ce9de-e506-4257-b268-04d349f5b2bf",
+      "question_text": "Why are lots in a recorded subdivision plat treated as simultaneous (rather than sequential) conveyances for excess/deficiency purposes?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Because the plat creates all the lots at one instant, giving them equal dignity with no lot senior to another",
+        "Because the lots are always sold on the same day",
+        "Because the county clerk numbers them in order",
+        "Because the developer signs each deed simultaneously"
+      ],
+      "correct_answer": "Because the plat creates all the lots at one instant, giving them equal dignity with no lot senior to another",
+      "explanation": "The recorded plat is the paradigm simultaneous conveyance: all lots arise together, so none is senior; excess/deficiency between controlling monuments is apportioned in proportion to record frontage. The later order of sale is immaterial.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "3f3ce9de-e506-4257-b268-04d349f5b2bf",
+      "question_text": "A subdivision a mile outside the city limits but within the city's ETJ needs only county (Chapter 232) approval and no municipal review.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Within the ETJ, municipal platting under Chapter 212 applies in addition to (or instead of) county review. Ignoring ETJ reach is a common, costly mistake.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Lot yield from gross area minus ROW and easements",
+      "category": "Subdivision Design — Yield",
+      "subcategory": "Net buildable area",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A {{gross:f0}} sq ft tract will be platted for single-family lots. Street ROW and easements/undevelopable area together consume {{takePct:f0}}% of the tract. If the minimum lot size is {{lotSize:f0}} sq ft, estimate the maximum number of WHOLE lots (round DOWN).",
+      "parameters": [
+        {"name": "gross", "type": "integer", "min": 800000, "max": 2000000},
+        {"name": "takePct", "type": "integer", "min": 18, "max": 32},
+        {"name": "lotSize", "type": "integer", "min": 6000, "max": 12000}
+      ],
+      "computed_vars": [
+        {"name": "net", "formula": "gross*(1 - takePct/100)"}
+      ],
+      "answer_formula": "floor((gross*(1 - takePct/100))/lotSize)",
+      "answer_format": {"decimals": 0, "unit": "lots", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Net buildable area", "formula": "gross x (1 - take%)", "calculation_template": "{{gross:f0}} x (1 - {{takePct:f0}}/100) = {{net:f0}} sq ft"},
+        {"step_number": 2, "title": "Divide by lot size and round down", "result_template": "floor({{net:f0}} / {{lotSize:f0}}) = {{_answer}} lots"}
+      ],
+      "explanation_template": "Net buildable = {{gross:f0}} x (1 - {{takePct:f0}}%) = {{net:f0}} sq ft. Dividing by the {{lotSize:f0}} sq ft lot size and rounding down gives {{_answer}} whole lots (a first-cut upper bound before fitting to a block-and-street pattern).",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Lot area from frontage and depth",
+      "category": "Subdivision Design — Lot geometry",
+      "subcategory": "Rectangular lot area",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A rectangular lot has {{w:f0}} ft of frontage and {{d:f0}} ft of depth. Compute its area in SQUARE FEET.",
+      "parameters": [
+        {"name": "w", "type": "integer", "min": 45, "max": 90},
+        {"name": "d", "type": "integer", "min": 100, "max": 160}
+      ],
+      "computed_vars": [],
+      "answer_formula": "w*d",
+      "answer_format": {"decimals": 0, "unit": "sq ft", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Area = frontage x depth", "calculation_template": "{{w:f0}} x {{d:f0}}"},
+        {"step_number": 2, "title": "Compute", "result_template": "Area = {{_answer}} sq ft"}
+      ],
+      "explanation_template": "For a rectangular lot, area = frontage x depth = {{w:f0}} x {{d:f0}} = {{_answer}} sq ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Street right-of-way area",
+      "category": "Subdivision Design — Streets",
+      "subcategory": "ROW area",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A straight street segment is {{L:f0}} ft long within a {{wROW:f0}} ft right-of-way. Compute the ROW area of that segment in SQUARE FEET.",
+      "parameters": [
+        {"name": "L", "type": "integer", "min": 300, "max": 900},
+        {"name": "wROW", "type": "integer", "min": 50, "max": 80}
+      ],
+      "computed_vars": [],
+      "answer_formula": "L*wROW",
+      "answer_format": {"decimals": 0, "unit": "sq ft", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "ROW area = length x width", "calculation_template": "{{L:f0}} x {{wROW:f0}}"},
+        {"step_number": 2, "title": "Compute", "result_template": "ROW area = {{_answer}} sq ft"}
+      ],
+      "explanation_template": "A rectangular street ROW segment has area = length x width = {{L:f0}} x {{wROW:f0}} = {{_answer}} sq ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Gross density in lots per acre",
+      "category": "Subdivision Design — Density",
+      "subcategory": "Lots per acre",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A subdivision yields {{lots:f0}} lots on a {{acres:f1}}-acre tract (including all streets and easements). Compute the GROSS density in lots per acre.",
+      "parameters": [
+        {"name": "lots", "type": "integer", "min": 60, "max": 200},
+        {"name": "acres", "type": "float", "min": 15.0, "max": 50.0, "decimals": 1}
+      ],
+      "computed_vars": [],
+      "answer_formula": "lots/acres",
+      "answer_format": {"decimals": 2, "unit": "lots/acre", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Gross density = lots / total acres", "calculation_template": "{{lots:f0}} / {{acres:f1}}"},
+        {"step_number": 2, "title": "Compute", "result_template": "Gross density = {{_answer}} lots/acre"}
+      ],
+      "explanation_template": "Gross density divides the lot count by the entire tract acreage (streets and easements included): {{lots:f0}} / {{acres:f1}} = {{_answer}} lots/acre.",
+      "options_generator": {"method": "none"}
+    }
+  ]
+}

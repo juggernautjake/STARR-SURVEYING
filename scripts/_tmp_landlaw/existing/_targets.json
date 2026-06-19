@@ -1,203 +1,261 @@
 [
  {
   "module": {
-   "id": "c1000004-0000-0000-0000-000000000004",
-   "order_index": 4,
-   "title": "Distance Measurement",
-   "description": "Methods of measuring distances including taping, EDM, and modern total station techniques with corrections.",
+   "id": "c100000a-0000-0000-0000-00000000000a",
+   "order_index": 10,
+   "title": "Total Stations and Electronic Surveying",
+   "description": "Operation and application of total stations, data collectors, and field-to-office workflows.",
    "tags": [
-    "field-techniques",
-    "distance",
-    "measurement"
+    "technology",
+    "total-station",
+    "electronic"
    ]
   },
   "lessons": [
    {
-    "id": "dd80fdee-9e6a-4c38-96a9-6ec37a904f1f",
-    "title": "Taping and Chaining",
+    "id": "15139528-33df-4856-94bb-dff559fa6688",
+    "title": "Total Station Components and Setup",
     "order_index": 1
    },
    {
-    "id": "7d61396a-75c3-44f8-930a-e6f2ac1f41c6",
-    "title": "Electronic Distance Measurement (EDM)",
+    "id": "ff0b9ea1-bbb1-47f0-a2c1-e197d00b2c83",
+    "title": "Electronic Angle and Distance Measurement",
     "order_index": 2
    },
    {
-    "id": "f1bf8489-e37f-4890-ae22-325b45c620a5",
-    "title": "Total Station Distance Measurement",
+    "id": "400ac37c-79e7-4b0e-ac08-0e51b69706ec",
+    "title": "Data Collectors and Field Software",
     "order_index": 3
    },
    {
-    "id": "783b9d3b-5780-4407-9509-c3bcde73befa",
-    "title": "Slope, Horizontal, and Vertical Distances",
+    "id": "ea97aaff-e1e2-408a-8019-f9a1ca7e49f3",
+    "title": "Stakeout Procedures",
     "order_index": 4
    },
    {
-    "id": "15429f36-9c5d-4644-9cf4-1e66d0a7c08d",
-    "title": "Distance Corrections (Temperature, Sag, Tension)",
+    "id": "7c3a5f58-fcb3-4105-92cf-4db5055d91ea",
+    "title": "Reflectorless Measurement",
     "order_index": 5
    },
    {
-    "id": "7e79f9a9-1002-4a2f-a3cd-cd05220b8349",
-    "title": "Practical Distance Measurement Exercises",
-    "order_index": 6
-   }
-  ]
- },
- {
-  "module": {
-   "id": "c1000005-0000-0000-0000-000000000005",
-   "order_index": 5,
-   "title": "Angle and Direction Measurement",
-   "description": "Measuring horizontal and vertical angles, understanding bearings, azimuths, and compass work.",
-   "tags": [
-    "field-techniques",
-    "angles",
-    "directions",
-    "bearings"
-   ]
-  },
-  "lessons": [
-   {
-    "id": "2e7ffe0e-8ca6-4c6b-a6db-c27bbc115164",
-    "title": "Horizontal Angle Measurement",
-    "order_index": 1
-   },
-   {
-    "id": "c0abf49c-78a1-497a-b4f4-427c90319178",
-    "title": "Vertical Angle Measurement",
-    "order_index": 2
-   },
-   {
-    "id": "133cf579-5d6e-49f3-bdc0-11f5de4b16ac",
-    "title": "Bearings and Azimuths",
-    "order_index": 3
-   },
-   {
-    "id": "83899224-d0dd-440a-a695-522f4c8e3d7a",
-    "title": "Compass and Magnetic Declination",
-    "order_index": 4
-   },
-   {
-    "id": "fbe8386b-52f3-468e-a894-7b3a566b2b5a",
-    "title": "Deflection Angles and Interior Angles",
-    "order_index": 5
-   },
-   {
-    "id": "3f2a6213-5906-470f-870f-434dabb90125",
-    "title": "Angle Balancing and Adjustment",
+    "id": "d8e1362b-c24e-438e-842c-73064b2b656e",
+    "title": "Field-to-Office Data Transfer",
     "order_index": 6
    },
    {
-    "id": "007fdc47-4461-4e9f-92e5-de7e1228c23f",
-    "title": "Direction Computation Exercises",
+    "id": "549ace82-2dbd-4aef-84f1-6d48afc86d79",
+    "title": "Total Station Calibration and Care",
     "order_index": 7
    }
   ]
  },
  {
   "module": {
-   "id": "c1000006-0000-0000-0000-000000000006",
-   "order_index": 6,
-   "title": "Leveling and Vertical Control",
-   "description": "Differential leveling, trigonometric leveling, profile leveling, and establishing vertical control.",
+   "id": "c100000b-0000-0000-0000-00000000000b",
+   "order_index": 11,
+   "title": "GPS/GNSS Surveying",
+   "description": "Principles and methods of Global Navigation Satellite System surveying, RTK, and post-processing.",
    "tags": [
-    "field-techniques",
-    "leveling",
-    "elevation"
+    "technology",
+    "gps",
+    "gnss",
+    "satellite"
    ]
   },
   "lessons": [
    {
-    "id": "757aea26-6c36-463a-9fa7-67243b0cdf5b",
-    "title": "Principles of Leveling",
+    "id": "dc0422fa-cbeb-434c-aee0-2e0e8914bcad",
+    "title": "GPS/GNSS Fundamentals",
     "order_index": 1
    },
    {
-    "id": "26c31d15-d0aa-495a-b954-79e07133f0d2",
-    "title": "Differential Leveling Procedures",
+    "id": "e702897d-97dc-46bb-b473-c364fb27a420",
+    "title": "Satellite Constellations (GPS, GLONASS, Galileo)",
     "order_index": 2
    },
    {
-    "id": "23b640e3-b819-4f1b-88de-49b8fb3003be",
-    "title": "Profile and Cross-Section Leveling",
+    "id": "3e13d01b-282e-419d-8204-e75e67537775",
+    "title": "GPS Signal Structure and Measurement",
     "order_index": 3
    },
    {
-    "id": "fd4b3508-a1ac-46ec-9210-632757407f8e",
-    "title": "Trigonometric Leveling",
+    "id": "dfc1c937-bd48-4033-8cb1-004ac5872e5e",
+    "title": "Static GPS Surveying",
     "order_index": 4
    },
    {
-    "id": "0ca1c9a9-5739-4c26-9694-9c93de7311ef",
-    "title": "Level Instrument Adjustments",
+    "id": "28e3e9ec-70e5-43ba-bf60-0e554e32e613",
+    "title": "Real-Time Kinematic (RTK) Methods",
     "order_index": 5
    },
    {
-    "id": "1e3bdc32-d674-4349-908e-41b96cf04b04",
-    "title": "Benchmark Networks and Vertical Datums",
+    "id": "e0b5a381-0a8a-4663-9c8b-0816e62c44f9",
+    "title": "Network RTK and CORS",
     "order_index": 6
    },
    {
-    "id": "911b6af8-808a-4c04-9bd2-7deffb3be294",
-    "title": "Leveling Field Exercises",
-    "order_index": 7
-   }
-  ]
- },
- {
-  "module": {
-   "id": "c1000007-0000-0000-0000-000000000007",
-   "order_index": 7,
-   "title": "Coordinate Systems and Datums",
-   "description": "Geographic and plane coordinate systems, map projections, and geodetic vs. local datums.",
-   "tags": [
-    "coordinates",
-    "datums",
-    "projections",
-    "geodesy"
-   ]
-  },
-  "lessons": [
-   {
-    "id": "925ac734-f4af-4719-99a4-8268b809fd84",
-    "title": "Geographic Coordinate Systems (Latitude/Longitude)",
-    "order_index": 1
-   },
-   {
-    "id": "12ef8155-8bce-4a93-bd86-386bac2dfefd",
-    "title": "Geodetic Datums (NAD 27, NAD 83, WGS 84)",
-    "order_index": 2
-   },
-   {
-    "id": "00673bd7-2c56-4e1a-b903-e29a73a3192f",
-    "title": "Map Projections Overview",
-    "order_index": 3
-   },
-   {
-    "id": "96ac4e17-4461-44dc-a19d-2e2701b4c825",
-    "title": "State Plane Coordinate System (SPCS)",
-    "order_index": 4
-   },
-   {
-    "id": "8d65dbcc-385a-444b-966a-fa8ac010f265",
-    "title": "Texas State Plane Zones",
-    "order_index": 5
-   },
-   {
-    "id": "138e3bc0-24f3-4c29-8982-e5523dbc7464",
-    "title": "UTM Coordinate System",
-    "order_index": 6
-   },
-   {
-    "id": "86fbc83d-6376-4eb6-bfc5-fd9f3639fa2a",
-    "title": "Datum Transformations",
+    "id": "46586422-2833-4eb7-a4f0-f43afa0daae8",
+    "title": "GPS Data Processing and Adjustment",
     "order_index": 7
    },
    {
-    "id": "004219c9-fffc-40af-a680-2320513bc530",
-    "title": "Practical Coordinate Conversions",
+    "id": "fbe7132a-2992-4500-b21e-33f4f5dc5d69",
+    "title": "GPS Error Sources and Mitigation",
     "order_index": 8
+   },
+   {
+    "id": "db07fb79-9728-47d7-8fc0-228e3e527bbf",
+    "title": "Integrating GPS with Conventional Surveys",
+    "order_index": 9
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c100000c-0000-0000-0000-00000000000c",
+   "order_index": 12,
+   "title": "Robotic, Scanning, and UAS Technology",
+   "description": "Emerging technologies: robotic total stations, 3D laser scanning, and unmanned aerial systems in surveying.",
+   "tags": [
+    "technology",
+    "lidar",
+    "uas",
+    "scanning",
+    "drones"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "01481882-ccd3-4374-8d8d-7b5d72b9b37e",
+    "title": "Robotic Total Stations",
+    "order_index": 1
+   },
+   {
+    "id": "9d92655f-bc09-401c-a2eb-d30fd3e28545",
+    "title": "3D Laser Scanning (Terrestrial LiDAR)",
+    "order_index": 2
+   },
+   {
+    "id": "8fe92114-8460-42b3-a5df-7ea0b49f8e7d",
+    "title": "Point Cloud Processing",
+    "order_index": 3
+   },
+   {
+    "id": "991f9023-ca4c-41b4-92b9-29d4e39aaa2c",
+    "title": "Unmanned Aerial Systems (Drones) in Surveying",
+    "order_index": 4
+   },
+   {
+    "id": "d4ce5cc5-421a-46d9-9194-636ce782c5ac",
+    "title": "Photogrammetry from UAS",
+    "order_index": 5
+   },
+   {
+    "id": "2659a29f-3f98-4733-a026-754fa0d58782",
+    "title": "Technology Integration and Best Practices",
+    "order_index": 6
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c1000011-0000-0000-0000-000000000011",
+   "order_index": 17,
+   "title": "Subdivision Design and Platting",
+   "description": "Design principles for subdivisions, platting requirements in Texas, and regulatory compliance.",
+   "tags": [
+    "subdivision",
+    "platting",
+    "design",
+    "planning"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "9f32004f-0308-4c54-a042-702b4d241d33",
+    "title": "Subdivision Design Principles",
+    "order_index": 1
+   },
+   {
+    "id": "cff08476-3c98-44ca-a59d-c35063701abe",
+    "title": "Texas Subdivision Regulations",
+    "order_index": 2
+   },
+   {
+    "id": "c0d8bd65-e438-4a66-a932-ea7e76ddea3e",
+    "title": "Plat Requirements and Standards",
+    "order_index": 3
+   },
+   {
+    "id": "d5b60839-89a1-49ff-a054-4deea97c0a79",
+    "title": "Lot and Block Design",
+    "order_index": 4
+   },
+   {
+    "id": "6387002b-9d9f-4f4e-bcb3-fdb1926273f1",
+    "title": "Street and Utility Layout",
+    "order_index": 5
+   },
+   {
+    "id": "09e7d13c-12bb-4019-b55c-d6139667ec4e",
+    "title": "Filing and Recording Plats",
+    "order_index": 6
+   },
+   {
+    "id": "3f3ce9de-e506-4257-b268-04d349f5b2bf",
+    "title": "Subdivision Case Studies",
+    "order_index": 7
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c1000012-0000-0000-0000-000000000012",
+   "order_index": 18,
+   "title": "Construction Surveying",
+   "description": "Layout, stakeout, and control surveys for building, road, and infrastructure construction projects.",
+   "tags": [
+    "construction",
+    "layout",
+    "stakeout",
+    "building"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "b93d5b7a-89ef-48ac-9881-fb45b9bbde16",
+    "title": "Construction Survey Fundamentals",
+    "order_index": 1
+   },
+   {
+    "id": "08b9b9bd-4eea-48c8-b3f9-072479e48189",
+    "title": "Building Layout and Control",
+    "order_index": 2
+   },
+   {
+    "id": "6de831fc-aa76-4fe2-9fe4-13e90e2301a6",
+    "title": "Road and Highway Stakeout",
+    "order_index": 3
+   },
+   {
+    "id": "1682393e-399c-419e-93a7-1b373316c483",
+    "title": "Utility and Pipeline Surveys",
+    "order_index": 4
+   },
+   {
+    "id": "47a67367-9553-4fd4-b1cb-8d96d58dacfb",
+    "title": "Earthwork and Grading Surveys",
+    "order_index": 5
+   },
+   {
+    "id": "85201c11-56a6-4644-a1f9-5e866fb71fc8",
+    "title": "As-Built Surveys",
+    "order_index": 6
+   },
+   {
+    "id": "2eb63ef7-f13a-44cc-8ae4-943f5a44ede3",
+    "title": "Construction Survey Problems",
+    "order_index": 7
    }
   ]
  }
