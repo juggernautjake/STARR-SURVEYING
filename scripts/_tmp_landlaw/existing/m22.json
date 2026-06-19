@@ -1,0 +1,700 @@
+{
+  "order_index": 22,
+  "module_id": "c1000016-0000-0000-0000-000000000016",
+  "title": "Mining and Industrial Surveying",
+  "lessons": [
+    {
+      "lesson_id": "7a245639-e051-4c8c-9bf3-24aaea257ab1",
+      "title": "Mine Surveying Fundamentals",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Define mine surveying and distinguish surface from underground control",
+        "Explain how surface control is transferred underground (correlation surveys) and why it is the hardest problem in mine surveying",
+        "Describe shaft plumbing methods (wire plumbing, optical/laser plumbing) and the Weisbach triangle for azimuth transfer",
+        "State the role of the gyrotheodolite in establishing underground azimuth independent of surface ties"
+      ],
+      "key_takeaways": [
+        "Mine surveying ties a surface control network to underground workings so that excavations are dug to the correct position, grade, and orientation",
+        "A correlation (connection) survey transfers position and azimuth down a shaft; orientation is the difficult part because a vertical shaft gives little geometry to fix direction",
+        "Shaft plumbing drops one or two physical/optical plumb lines down the shaft to carry coordinates underground",
+        "Azimuth is transferred by the two-wire (Weisbach) method or, independently, by a gyrotheodolite that finds true north underground"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>What mine surveying is</h3><p><strong>Mine surveying</strong> is the branch of surveying that lays out, controls, and records mining excavations &mdash; surface pits and underground workings alike &mdash; and ties them to a common coordinate and grade system. The mine surveyor establishes <strong>surface control</strong> (a network of horizontal and vertical monuments over the property and around the shafts or portals), then carries that control into the workings so that drifts, raises, stopes, and tunnels are driven to the correct <strong>position, grade, and direction</strong>. Accuracy matters acutely underground: a drift driven on a slightly wrong azimbut over a kilometre can miss its target by metres, and two headings advancing toward each other (a <em>holing-through</em>) must meet within tight tolerances both in line and in level.</p><p>Mine surveying also produces the legal and engineering record of the mine: plans of the workings relative to the surface, lease and claim boundaries, ore reserves and extracted volumes, and proximity to neighbouring mines, old workings, and water bodies. Many jurisdictions require a licensed surveyor to maintain accurate, up-to-date mine plans for safety and regulatory reasons.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Surface vs. underground control</h3><p>On the surface, the mine surveyor enjoys GNSS, long sight lines, and conventional traversing to build a strong control network. <strong>Underground control</strong> is harder: there is no GNSS, sight lines are short and obstructed, the environment is dark, wet, dusty, and the only practical link to the surface network is through the <strong>shaft</strong> (a vertical or steeply inclined opening) or an adit/portal. The fundamental problem is the <strong>correlation (connection) survey</strong> &mdash; transferring <em>both position and azimuth</em> from the surface network down into the workings.</p><p>Transferring <em>position</em> (the X, Y of a point underground) is relatively straightforward by plumbing. Transferring <em>azimuth</em> (the orientation of the underground traverse) is the classic difficulty: a vertical shaft offers almost no horizontal geometry, so a short baseline at the shaft bottom must control the direction of an entire underground traverse. Small errors in the transferred azimuth swing the far end of long drifts by large amounts, which is why orientation is given special methods and redundancy.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Shaft plumbing</h3><p><strong>Shaft plumbing</strong> physically (or optically) extends a vertical line from the surface to the shaft bottom so coordinates can be carried down. In classic <strong>wire plumbing</strong>, fine high-tensile wires carrying heavy plumb-bobs are suspended down the shaft, the bobs damped in oil or water tanks to steady them; the surveyor coordinates the wires at the top (in the surface system) and reads them at the bottom, giving two underground points of known coordinates. <strong>Optical and laser plumbing</strong> uses a precise vertical-collimating instrument (an autoplumb or plumbing laser) projecting a vertical line down the shaft to a target at the bottom &mdash; faster and free of wire sway, now the common method. Either way the goal is the same: deliver one or two points of known surface coordinates to the bottom of the shaft.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "\\text{Azimuth}_{underground} = \\text{Azimuth}_{surface\\ baseline}\\ \\text{(carried down the shaft)}", "label": "Goal of a correlation survey: transfer position AND azimuth underground", "display": "block"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The Weisbach (two-wire) method and the gyrotheodolite</h3><p>To transfer <strong>azimuth</strong>, two plumb wires are hung in the shaft a short distance apart, defining a near-vertical plane whose horizontal trace is a tiny baseline of known surface azimuth. Because the two wires sit very close together, a theodolite at the shaft bottom cannot occupy the line directly; instead the surveyor sets up slightly off-line and forms the very thin <strong>Weisbach triangle</strong>, in which a tiny measured angle at the instrument is scaled by the ratio of side lengths to recover the wire-to-wire direction with high precision. The transferred direction then orients the underground traverse.</p><p>An independent and now widely used alternative is the <strong>gyrotheodolite</strong> (gyro-theodolite or surveying gyroscope), which senses the Earth&rsquo;s rotation to find <strong>true north directly underground</strong> &mdash; no shaft geometry required. A gyro azimuth provides a powerful, independent check on (or replacement for) the Weisbach transfer, and is essential for long tunnels where a wire transfer would be impractical.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Why orientation is the crux: a 20-arc-second azimuth error swings the far end of a 1,000 m drift by about 0.1 m, and a 1-arc-minute error by roughly 0.3 m. Position can be checked by re-plumbing; a bad transferred azimuth quietly corrupts the entire underground traverse — hence redundant transfers (two-wire AND gyro)."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Vertical shaft with two plumb wires hung from the surface to the shaft bottom, surface azimuth marked at top, and a Weisbach triangle formed by an offset theodolite at the bottom", "caption": "Figure: Correlation survey down a shaft — two plumb wires carry surface coordinates and azimuth down; a Weisbach triangle recovers the wire-to-wire direction at the bottom.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Mine surveying ties surface control to underground workings for correct position, grade, and direction.",
+            "The correlation (connection) survey transfers position AND azimuth down a shaft — orientation is the hard part.",
+            "Shaft plumbing (wires or laser/optical autoplumb) carries surface coordinates to the shaft bottom.",
+            "Azimuth is transferred by the two-wire Weisbach method and/or checked independently with a gyrotheodolite.",
+            "Small azimuth errors at the shaft propagate into large position errors at the far end of long drifts."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Mine surveying", "definition": "The branch of surveying that lays out, controls, and records surface and underground mine excavations and ties them to a common coordinate and grade system, producing the legal and engineering plan of the mine.", "hint_1": "Surveying the workings, surface and underground."},
+        {"term": "Correlation (connection) survey", "definition": "The survey that transfers both position and azimuth from the surface control network down into the underground workings, usually through a shaft. Transferring azimuth (orientation) is the difficult part.", "hint_1": "Tie surface control to the workings."},
+        {"term": "Shaft plumbing", "definition": "Extending a vertical line from the surface to the shaft bottom — by suspended plumb wires (with damped bobs) or an optical/laser autoplumb — to carry surface coordinates underground.", "hint_1": "Drop a vertical line down the shaft."},
+        {"term": "Weisbach triangle", "definition": "A very thin triangle formed when a theodolite is set up slightly off the line of two closely spaced plumb wires; a tiny measured angle, scaled by side lengths, recovers the precise wire-to-wire azimuth for the underground traverse.", "hint_1": "Two-wire azimuth transfer."},
+        {"term": "Gyrotheodolite", "definition": "A surveying instrument combining a theodolite with a gyroscope that senses Earth's rotation to determine true north directly underground, independent of any shaft geometry — used to set or check underground azimuth.", "hint_1": "Finds true north underground."}
+      ]
+    },
+    {
+      "lesson_id": "5068d3ab-7f1e-41d8-ba6e-cbc1864c54e3",
+      "title": "Underground Survey Methods",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Run an underground traverse using roof/floor stations, hanging plumb bobs, and forced centering",
+        "Set line and grade for a heading using spads, the laser line, and grade pegs",
+        "Compute the grade (slope) of an inclined drift or incline from rise and run",
+        "Describe how a gyrotheodolite re-orients a traverse and limits azimuth error over long drives"
+      ],
+      "key_takeaways": [
+        "Underground traverses use roof or floor stations (often hanging plumb bobs from roof spads) with short, obstructed sights and forced centering",
+        "Line and grade are given to the miners with a laser line on the line and grade pegs/spads to the design slope",
+        "Grade of an incline = atan2(rise, run) in degrees, or rise/run × 100 as a percent",
+        "Periodic gyro azimuth observations bound the orientation error that otherwise accumulates over long drives"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Traversing underground</h3><p>Once control is connected to the workings, the surveyor extends it with an <strong>underground traverse</strong> &mdash; a chain of measured angles and distances along the drifts. Stations are commonly fixed in the <strong>roof (back)</strong> rather than the floor, because the floor is disturbed by traffic, muck, and water; a <strong>spad</strong> (a special hook-eye nail) is driven into the roof and a <strong>plumb bob</strong> is hung from it to bring the station down to instrument height. Sights are short and obstructed, lighting is by lamp, and the instrument and targets are kept on line by <strong>forced centering</strong> (tribrachs swapped on fixed tripods/wall brackets) to minimize centering error over many short legs. Because legs are short, centering and pointing errors dominate, so careful instrument work and redundant ties are essential.</p><p>Distances are measured with EDM or steel tape; modern practice uses a <strong>total station</strong> sighting reflective targets or prisms hung from the roof spads. Each new station is computed from the previous one and periodically checked against an independent azimuth (gyro) and against re-plumbed shaft coordinates.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Giving line and grade to a heading</h3><p>The surveyor&rsquo;s product underground is <strong>line and grade</strong> for the working faces. <strong>Line</strong> (the horizontal direction the heading is to be driven) is marked by setting at least two, preferably three, roof spads on the design centerline; the miners sight or string between them, or a <strong>laser</strong> mounted on the spads projects a bright line straight down the drift onto the face. <strong>Grade</strong> (the design slope of the floor or the tunnel invert) is given by setting <strong>grade pegs/spads</strong> at a fixed offset above (or below) the design surface, or by tilting the laser to the design slope so the spot rises/falls correctly along the drive. The miners then excavate to keep the face on the laser line and the floor parallel to the grade marks.</p><p>Many drifts and inclines are intentionally sloped &mdash; for drainage (gravity dewatering), for haulage (loaded cars running downgrade), or to follow an ore body &mdash; so the surveyor frequently computes and sets a specific grade rather than a level floor.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Grade of an incline</h3><p>An <strong>incline</strong> (or inclined drift/decline) is described by its <strong>grade</strong>, expressed either as an <strong>angle of inclination</strong> or as a <strong>percent grade</strong>. From the vertical <em>rise</em> and the horizontal <em>run</em> between two stations, the angle is &theta; = atan2(rise, run) (in degrees), and the percent grade is rise/run &times; 100. A floor that rises 6 m over 100 m of horizontal run has a grade of about 3.43&deg;, or 6%. Mine surveyors routinely convert between the two because designers specify decline ramps in percent (e.g., a 1:7 or roughly 14% haulage decline) while the instrument reads vertical angles in degrees. The slope distance along the incline relates to run by run = slope &times; cos&theta;, and rise by rise = slope &times; sin&theta; &mdash; useful when reducing measured slope distances to plan distance and elevation difference.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "\\theta = \\operatorname{atan2}(\\text{rise},\\,\\text{run})\\quad,\\qquad \\text{grade}\\% = \\frac{\\text{rise}}{\\text{run}}\\times 100", "label": "Grade of an incline — as an angle (degrees) and as a percent", "display": "block"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Underground tool/term", "What it does", "Note"], "rows": [
+            ["Spad (roof hook-eye nail)", "Fixes a survey/control station in the back (roof)", "Hang a plumb bob to bring it to instrument height"],
+            ["Plumb bob from spad", "Transfers the roof point down for sighting", "Damp the bob to steady it"],
+            ["Forced centering", "Swap tribrachs on fixed tripods/brackets", "Cuts centering error over short legs"],
+            ["Laser line", "Projects line (and tilted, grade) down the drift", "Miners keep the face on the spot"],
+            ["Grade peg / grade spad", "Marks a fixed offset to the design grade", "Sets floor/invert slope"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Watch the sights, not just the math: underground legs are short, so centering and pointing errors — not distance error — dominate the traverse. Use forced centering, observe each angle on both faces, and re-orient with a gyro azimuth periodically; otherwise the swing in azimuth over a long drive can put a holing-through out of tolerance."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Underground drift with roof spads on the centerline, plumb bobs hung to instrument height, a laser projecting the line to the face, and grade pegs setting the floor slope", "caption": "Figure: Setting line and grade in a drift — roof spads define the centerline, a laser projects line to the face, and grade pegs set the floor slope.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Underground traverses use roof spads with hung plumb bobs, short obstructed sights, and forced centering.",
+            "Line is set by spads/laser on the centerline; grade is set by grade pegs or a tilted laser to the design slope.",
+            "Grade of an incline = atan2(rise, run) in degrees, or rise/run × 100 as a percent.",
+            "Convert slope distance with run = slope·cosθ and rise = slope·sinθ.",
+            "Periodic gyro azimuths bound the orientation error that accumulates over long drives."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Spad", "definition": "A hook-eye nail driven into the roof (back) of a heading to fix an underground survey or layout station; a plumb bob hung from it brings the point down to instrument or sighting height.", "hint_1": "Roof station you hang a bob from."},
+        {"term": "Forced centering", "definition": "An underground/precise traversing practice of interchanging tribrachs (instrument and targets) on permanently set tripods or wall brackets, eliminating repeated re-centering error over the many short legs.", "hint_1": "Swap tribrachs, not re-center."},
+        {"term": "Line and grade", "definition": "The two pieces of layout the mine surveyor gives a heading: line is the horizontal direction to drive (set by spads or a laser), grade is the design slope of the floor/invert (set by grade pegs or a tilted laser).", "hint_1": "Direction and slope for the miners."},
+        {"term": "Incline grade", "definition": "The slope of an inclined drift/decline, given as an angle θ = atan2(rise, run) in degrees or as a percent = rise/run × 100; a decline ramp is often specified in percent for haulage.", "hint_1": "Angle or percent from rise and run."}
+      ]
+    },
+    {
+      "lesson_id": "2a2f13a3-eaf6-424f-a469-c84dfae6951b",
+      "title": "Surface and Subsidence Monitoring",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Explain mining-induced subsidence and the surface features it produces (sag, troughs, sinkholes)",
+        "Lay out and observe a subsidence monitoring line and compute vertical movement between epochs",
+        "Compute stockpile and pit volumes by the average-end-area method and by UAV/surface comparison",
+        "Describe how precise levelling, total stations, GNSS, UAV photogrammetry, and InSAR are combined for monitoring"
+      ],
+      "key_takeaways": [
+        "Underground extraction lowers the overlying ground (subsidence); monitoring detects and quantifies it to protect surface structures and the public",
+        "Subsidence is observed by repeated precise levelling/GNSS over fixed monitoring points and reported as movement between epochs",
+        "Stockpile and pit volumes are computed by average end area between cross-sections, or by differencing surfaces from UAV/laser scans",
+        "Modern monitoring blends precise levelling, GNSS, robotic total stations, UAV photogrammetry/LiDAR, and satellite InSAR"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Mining-induced subsidence</h3><p>Removing ore or coal underground (especially by caving or longwall methods) leaves voids into which the overlying rock relaxes and settles, lowering the ground surface above &mdash; <strong>mining-induced subsidence</strong>. The surface response ranges from a broad, gentle <strong>sag (subsidence trough)</strong> over a wide extraction panel, to sharp, dangerous <strong>sinkholes</strong> and <strong>step (fault) scarps</strong> where shallow workings or pillars collapse. Subsidence can crack buildings, shear pipelines and rail, alter drainage and flooding, and endanger people, so mines are typically required to <strong>predict, monitor, and report</strong> surface movement above active and abandoned workings.</p><p>The mine surveyor establishes <strong>monitoring lines</strong> &mdash; rows of stable, well-monumented points crossing the predicted trough (often a centreline transverse to the panel plus a longitudinal line) &mdash; and observes them repeatedly. Each round of observation is an <strong>epoch</strong>; comparing epochs reveals how much each point has moved vertically (settlement) and horizontally (strain), and how the trough develops as mining advances.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Observing and reducing the movement</h3><p>Vertical movement is the primary subsidence quantity and is measured by <strong>precise (geodetic) levelling</strong> of the monitoring points back to deep, stable reference benchmarks well outside the influence zone, or by repeated static <strong>GNSS</strong>. The <strong>settlement</strong> of a point between two epochs is simply its earlier elevation minus its later elevation: &Delta;H = H<sub>epoch1</sub> &minus; H<sub>epoch2</sub> (a positive value is downward movement). Horizontal movements give <strong>strain</strong> (change in distance between adjacent points divided by their spacing), which is what actually damages rigid structures and pipelines. Results are plotted as subsidence profiles and contoured to show the trough, and compared against predicted (influence-function) values and against damage thresholds.</p><p>Reliability hinges on the <strong>reference frame</strong>: the datum benchmarks must lie outside the subsidence basin, and the network must be redundant and adjusted so that real ground movement is not confused with instrument or datum error. Tight, repeatable procedures (same setups, same routes) let small movements be detected with confidence.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "\\Delta H = H_{epoch\\,1} - H_{epoch\\,2}\\qquad(\\text{positive} = \\text{settlement / downward})", "label": "Vertical movement (settlement) of a monitoring point between two epochs", "display": "block"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Volumes — stockpiles and pits</h3><p>Mine surveyors are constantly asked &lsquo;how much?&rsquo; &mdash; the volume of an ore or waste <strong>stockpile</strong>, the material removed from a <strong>pit</strong> this month, or the void left by extraction. The classic field method is the <strong>average-end-area</strong> method: parallel cross-sections are cut through the pile/pit at a regular spacing L, the area of each section (A<sub>1</sub>, A<sub>2</sub>, &hellip;) is measured, and the volume between two adjacent sections is the average of their end areas times the spacing, V = (A<sub>1</sub> + A<sub>2</sub>)/2 &times; L, summed along the body. For a single prism between two sections this is exact for a linear change in area and a good approximation otherwise.</p><p>Today the same volumes are usually computed by <strong>surface differencing</strong>: a <strong>UAV (drone) photogrammetry</strong> or <strong>laser-scan</strong> survey builds a dense 3D surface of the pile, which is compared to a base/ground surface, and the software integrates the height difference over the footprint. UAV surveys are fast, safe (no climbing piles), and dense; average-end-area remains the hand-check and the method behind cross-section earthwork reports.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "V = \\frac{A_1 + A_2}{2}\\,L", "label": "Average-end-area volume between two cross-sections spaced L apart", "display": "block"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Technique", "Best for", "Note"], "rows": [
+            ["Precise levelling", "Vertical subsidence of monitoring points", "Tie to deep BMs outside the basin"],
+            ["Static / repeated GNSS", "3D movement of open monitoring points", "Needs sky view; mm-level over time"],
+            ["Robotic total station", "Continuous, automated point monitoring", "Auto-targets near critical structures"],
+            ["UAV photogrammetry / LiDAR", "Stockpile & pit volumes, broad surfaces", "Dense surface; difference to base"],
+            ["Satellite InSAR", "Wide-area, mm subsidence over time", "No ground marks; weather/coherence limits"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Datum outside the basin: subsidence results are only as good as the reference frame. If a 'stable' benchmark is itself inside the influence zone and sinking, the survey will under-report movement. Always tie monitoring to deep, distant benchmarks proven stable, and carry redundant ties so datum motion can be detected."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Cross-section of a subsidence trough over a mined panel with a row of monitoring points, and beside it a stockpile divided into cross-sections for average-end-area volume", "caption": "Figure: A subsidence trough monitored by a line of levelled points (left), and a stockpile sliced into end-area cross-sections for volume (right).", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Underground extraction causes surface subsidence — broad troughs to sinkholes — that must be predicted and monitored.",
+            "Vertical movement between epochs is ΔH = H_epoch1 − H_epoch2; horizontal movement gives damaging strain.",
+            "Reference benchmarks must lie outside the subsidence basin and be proven stable.",
+            "Stockpile/pit volume by average end area: V = (A1 + A2)/2 × L, summed along the body.",
+            "UAV photogrammetry/LiDAR and InSAR now provide dense, fast, safe volume and subsidence data."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Mining-induced subsidence", "definition": "The lowering of the ground surface caused by relaxation of overlying rock into voids left by underground extraction; ranges from broad sag troughs to sinkholes and step scarps, capable of damaging structures and utilities.", "hint_1": "Ground sinks over the workings."},
+        {"term": "Monitoring epoch", "definition": "One complete round of observations of a monitoring network at a point in time; comparing successive epochs reveals the vertical (settlement) and horizontal (strain) movement of each point.", "hint_1": "One survey 'snapshot' in time."},
+        {"term": "Average-end-area method", "definition": "A volume method: cut parallel cross-sections spaced L apart, measure each end area, and take V = (A1 + A2)/2 × L between adjacent sections, summed along the body (stockpile, pit, or earthwork).", "hint_1": "Mean of two end areas times spacing."},
+        {"term": "UAV volume survey", "definition": "Using drone photogrammetry or LiDAR to build a dense 3D surface of a stockpile/pit and differencing it against a base surface to compute volume — fast, safe, and dense compared with hand cross-sections.", "hint_1": "Drone surface differenced to a base."}
+      ]
+    },
+    {
+      "lesson_id": "1842b5e3-a8d9-43d7-9972-5b585eff182c",
+      "title": "Industrial and Optical Alignment",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Define industrial / dimensional metrology and large-scale metrology and distinguish it from ordinary surveying",
+        "Describe laser-tracker, laser-line, and autocollimation methods for machine alignment",
+        "Explain the precision and reference-frame demands of aligning large machines and assemblies",
+        "Relate alignment tolerances (flatness, straightness, level, coaxiality) to the instruments used to verify them"
+      ],
+      "key_takeaways": [
+        "Industrial / dimensional metrology applies surveying principles to align and measure machines and assemblies to sub-millimetre (often micrometre) tolerances",
+        "Large-scale metrology covers objects too big for a CMM — aircraft, turbines, accelerators, ship hulls — using trackers and total stations",
+        "Laser trackers measure 3D coordinates of a moving retroreflector (SMR) to micrometre precision; laser lines and autocollimators verify straightness and squareness",
+        "The reference frame (datum) and environmental control (temperature) dominate the achievable accuracy"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>From surveying to dimensional metrology</h3><p><strong>Industrial (dimensional) metrology</strong> applies the measurement science of surveying &mdash; angles, distances, coordinates, and least-squares adjustment &mdash; to the alignment and inspection of <strong>machines, structures, and manufactured assemblies</strong>. Where field surveying works at the millimetre-to-centimetre level over metres-to-kilometres, industrial metrology works at the <strong>micrometre-to-tenth-of-millimetre level</strong> over millimetres-to-tens-of-metres. The same person who can build a precise control network is well-suited to align a paper-machine drive train, set the rolls of a rolling mill, level a turbine, or position the magnets of a particle accelerator.</p><p><strong>Large-scale metrology</strong> is the subfield handling objects too large for a benchtop coordinate-measuring machine (CMM): aircraft fuselages and wings, ship sections, wind-turbine and generator assemblies, antennas, and accelerator tunnels. It uses portable, high-accuracy instruments &mdash; laser trackers, industrial total stations, photogrammetry, and laser scanners &mdash; brought to the object, with results tied into a single, rigorously defined <strong>reference frame</strong>.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The instruments</h3><p>The flagship instrument is the <strong>laser tracker</strong>: a servo-driven head that locks an interferometer/ADM laser onto a <strong>spherically mounted retroreflector (SMR)</strong> and continuously reports the 3D coordinates of the SMR as an operator walks it over the object, achieving accuracies of a few micrometres per metre. Trackers measure flatness, straightness, bore alignment, and build full point clouds of large parts. The <strong>industrial total station</strong> (a high-precision theodolite/EDM) and <strong>close-range photogrammetry</strong> serve similar large-scale tasks, often combined.</p><p>For pure <strong>straightness and squareness</strong>, optical methods remain unbeaten: a <strong>laser alignment line</strong> (or a precise optical line of sight from an alignment telescope) provides a straight reference against which targets are read for offset, while an <strong>autocollimator</strong> measures tiny <strong>angular</strong> deviations &mdash; the tilt or twist of a mirror/face &mdash; to fractions of an arc-second, used to check the flatness of ways, the squareness of machine axes, and the angular wander of a surface. <strong>Precision spirit/electronic levels</strong> verify level and small slopes to a few arc-seconds.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Instrument", "Measures", "Typical use"], "rows": [
+            ["Laser tracker (with SMR)", "3D coordinates of a moving target", "Machine/assembly alignment, large-part inspection"],
+            ["Industrial total station", "Angles + distance → coordinates", "Large structures, monitoring, tie-ins"],
+            ["Alignment telescope / laser line", "Straightness (offset from a line)", "Shaft trains, bores, rolls, ways"],
+            ["Autocollimator", "Small angular deviation (arc-seconds)", "Flatness, squareness, angular wander"],
+            ["Precision level (electronic)", "Level / small slope", "Leveling beds, turbines, foundations"],
+            ["Photogrammetry / laser scanner", "Dense 3D surface", "Reverse engineering, deformation, as-built"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Tolerances, datums, and the environment</h3><p>Industrial alignment is specified by tight geometric tolerances &mdash; <strong>straightness</strong> of a shaft line, <strong>flatness</strong> of a bed, <strong>level</strong> of a machine, <strong>coaxiality</strong> (concentricity) of bearings, and <strong>squareness</strong> of axes &mdash; often in micrometres or arc-seconds. Achieving them depends less on the headline instrument accuracy than on two things: a well-defined <strong>reference frame (datum)</strong> built from stable monuments/nests and tied with redundant, adjusted measurements, and <strong>environmental control</strong>. At these tolerances, <strong>temperature</strong> dominates: steel expands about 11.7 &micro;m per metre per &deg;C, so a 10 m machine bed grows over a tenth of a millimetre with a 1&deg;C change. Measurements are therefore referenced to 20&deg;C, taken when the structure is thermally stable, and corrected for the temperatures of both the part and the scale.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "\\Delta L = \\alpha\\, L\\, \\Delta T \\qquad (\\alpha_{steel} \\approx 11.7\\times 10^{-6}\\,/^{\\circ}\\mathrm{C})", "label": "Thermal expansion — why metrology is referenced to 20°C", "display": "block"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "At micrometre tolerances, temperature is the enemy. A 10 m steel assembly changes length by ~0.12 mm per 1°C. Reference everything to 20°C, let the part reach thermal equilibrium, record part and instrument temperatures, and apply scale/expansion corrections — or the alignment is wrong before you start."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Operator walking a spherically mounted retroreflector over a large machine bed while a laser tracker locks on, with an alignment telescope and autocollimator checking a shaft line", "caption": "Figure: Large-scale metrology — a laser tracker follows an SMR across a machine bed while an autocollimator checks angular deviation of the ways.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Industrial/dimensional metrology aligns and inspects machines and assemblies to micrometre/tenth-mm tolerances.",
+            "Large-scale metrology measures objects too big for a CMM using trackers, total stations, and photogrammetry.",
+            "Laser trackers report 3D coordinates of a moving SMR to a few µm/m; autocollimators measure tiny angular deviations.",
+            "Alignment specs include straightness, flatness, level, coaxiality, and squareness.",
+            "The reference frame and temperature (ΔL = αLΔT) control the achievable accuracy — reference to 20°C."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Dimensional / industrial metrology", "definition": "The application of surveying measurement science (angles, distances, coordinates, adjustment) to align and inspect machines and manufactured assemblies to micrometre-to-tenth-of-millimetre tolerances.", "hint_1": "Surveying precision applied to machines."},
+        {"term": "Large-scale metrology", "definition": "Metrology of objects too big for a benchtop CMM — aircraft, turbines, ships, accelerators — using portable high-accuracy instruments (laser trackers, total stations, photogrammetry) in one reference frame.", "hint_1": "Big parts a CMM can't fit."},
+        {"term": "Laser tracker (SMR)", "definition": "A servo head that locks a laser onto a spherically mounted retroreflector and continuously reports its 3D coordinates to a few micrometres per metre, used for machine alignment and large-part inspection.", "hint_1": "Follows a mirror-ball in 3D."},
+        {"term": "Autocollimator", "definition": "An optical instrument that measures very small angular deviations (tilt/twist) of a reflecting surface to fractions of an arc-second, used to check flatness, straightness, and squareness of machine elements.", "hint_1": "Tiny angles to arc-seconds."}
+      ]
+    },
+    {
+      "lesson_id": "da502306-8208-4fd7-9910-5bbf852044ba",
+      "title": "Deformation Monitoring Techniques",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Define a deformation monitoring survey and distinguish reference (datum) points from object (target) points",
+        "Design an epoch-based monitoring scheme and test movement for statistical significance",
+        "Apply geodetic and geotechnical sensors (robotic total stations, GNSS, InSAR, prisms, tiltmeters, crackmeters) appropriately",
+        "Interpret monitoring results against alert/alarm thresholds and report movement responsibly"
+      ],
+      "key_takeaways": [
+        "Deformation monitoring repeatedly surveys an object to detect and quantify movement over time relative to stable reference points",
+        "It separates stable reference (datum) points from object points; only movement larger than survey uncertainty is real",
+        "Automated robotic total stations, GNSS, InSAR, tiltmeters, and crackmeters provide near-continuous monitoring of dams, slopes, pits, and structures",
+        "Results are judged against alert/alarm thresholds, with redundancy and adjustment to avoid false alarms and missed movement"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>What deformation monitoring is</h3><p>A <strong>deformation monitoring survey</strong> measures an object repeatedly over time to detect, quantify, and characterise <strong>movement</strong> &mdash; settlement, heave, tilt, convergence, or lateral creep. In mining and industry it watches <strong>open-pit slopes and highwalls, tailings dams, waste dumps, shafts and headframes, underground convergence, large machines, bridges, and buildings</strong>, providing early warning of failure and a record of long-term behaviour. The survey is organised around two classes of points: <strong>reference (datum) points</strong>, placed on ground proven stable and well outside the deforming zone, and <strong>object (target) points</strong>, fixed to the structure or ground being watched. Each round of observations is an <strong>epoch</strong>; movement is the change in an object point&rsquo;s coordinates or height between epochs, expressed in the datum frame.</p><p>The defining challenge is separating <strong>real movement</strong> from <strong>measurement noise</strong>. A computed change is only meaningful if it exceeds the survey&rsquo;s uncertainty &mdash; so monitoring networks are designed for redundancy, rigorously adjusted by least squares, and the apparent movement of each point is tested for <strong>statistical significance</strong> before it is reported as deformation.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Significance: is the movement real?</h3><p>Because every measurement has uncertainty, the surveyor compares the observed displacement of a point against its <strong>uncertainty</strong>. A practical rule treats a movement as <strong>significant</strong> only when it exceeds about its expanded uncertainty &mdash; commonly the combined (root-sum-square) standard uncertainties of the two epochs times a coverage factor (e.g., &asymp; 2&radic;2 &sigma; for two epochs at 95%). For magnitude, the resultant horizontal movement of a point between epochs is the distance between its two positions, &delta; = hypot(&Delta;E, &Delta;N) = sqrt(&Delta;E&sup2; + &Delta;N&sup2;), and the total 3D movement adds the height change in quadrature. Reporting movement below the noise floor as &lsquo;deformation&rsquo; causes false alarms and erodes trust; failing to detect real movement is dangerous &mdash; so the statistical test, the network design, and the stability of the datum points are all critical.</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "\\delta = \\sqrt{\\Delta E^2 + \\Delta N^2} = \\operatorname{hypot}(\\Delta E,\\,\\Delta N)", "label": "Resultant horizontal displacement of an object point between two epochs", "display": "block"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The sensors and how they combine</h3><p>Modern monitoring blends <strong>geodetic</strong> and <strong>geotechnical</strong> sensors. <strong>Automated (robotic) total stations</strong> cyclically sight arrays of prisms on a structure or pit wall, delivering sub-millimetre 3D positions every few minutes &mdash; the workhorse for dams, tunnels, and pit slopes near sensitive works. <strong>Continuous GNSS</strong> stations give millimetre 3D movement of open points with sky view. <strong>Satellite InSAR</strong> maps wide-area, millimetre line-of-sight movement of slopes and subsidence without any ground marks, and <strong>ground-based radar</strong> watches a moving highwall in near real time. Geotechnical instruments &mdash; <strong>tiltmeters, extensometers, crackmeters, inclinometers, and piezometers</strong> &mdash; add high-rate, localised measurement of rotation, strain, crack opening, and pore pressure. The data feed a monitoring system that flags exceedance of <strong>alert</strong> and <strong>alarm</strong> thresholds, triggering review or evacuation.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Sensor / method", "Quantity", "Typical monitoring target"], "rows": [
+            ["Automated robotic total station", "3D position of prisms (sub-mm)", "Pit slopes, dams, tunnels, buildings"],
+            ["Continuous GNSS", "3D movement of open points (mm)", "Dam crests, slope reference/object points"],
+            ["Satellite InSAR", "Wide-area LOS movement (mm)", "Regional slopes, subsidence basins"],
+            ["Ground-based radar", "Near-real-time wall movement", "Active open-pit highwalls"],
+            ["Tiltmeter / inclinometer", "Rotation / sub-surface lateral movement", "Walls, structures, slope masses"],
+            ["Extensometer / crackmeter", "Strain / crack opening", "Convergence, fractures, joints"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Report only significant movement. Apparent movement smaller than the combined survey uncertainty is noise, not deformation — flagging it causes false alarms; missing real movement is dangerous. Design redundant networks, adjust by least squares, prove the datum points are stable, and test each displacement for statistical significance before reporting."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Open-pit highwall instrumented with prism targets watched by a robotic total station, GNSS reference points on stable ground, and a ground-based radar, with movement vectors between epochs", "caption": "Figure: An open-pit slope monitored by a robotic total station on prisms, GNSS reference points on stable ground, and ground-based radar; vectors show inter-epoch movement.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Deformation monitoring repeatedly surveys an object to detect and quantify movement over time.",
+            "It separates stable reference (datum) points from object points and works in epochs.",
+            "Movement is significant only when it exceeds the combined survey uncertainty (statistical test).",
+            "Resultant horizontal displacement δ = hypot(ΔE, ΔN); add ΔH in quadrature for 3D.",
+            "Robotic total stations, GNSS, InSAR, radar, and geotechnical sensors combine against alert/alarm thresholds."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Deformation monitoring survey", "definition": "A survey that measures an object repeatedly over time (in epochs) to detect, quantify, and characterise movement — settlement, tilt, convergence, creep — relative to stable reference points.", "hint_1": "Watch for movement over time."},
+        {"term": "Reference vs. object points", "definition": "Reference (datum) points sit on ground proven stable outside the deforming zone and define the frame; object (target) points are fixed to the structure/ground being watched. Movement is the change in object points relative to the reference frame.", "hint_1": "Stable frame vs. watched targets."},
+        {"term": "Statistical significance of movement", "definition": "A computed displacement is treated as real deformation only when it exceeds the combined uncertainty of the two epochs (e.g., ≈ 2√2 σ at 95%); smaller apparent movement is measurement noise.", "hint_1": "Bigger than the noise floor."},
+        {"term": "Automated robotic total station monitoring", "definition": "An ATS that cyclically sights an array of fixed prisms, computing sub-millimetre 3D positions every few minutes for continuous monitoring of dams, slopes, tunnels, and structures.", "hint_1": "Robot cycles prisms automatically."}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "7a245639-e051-4c8c-9bf3-24aaea257ab1",
+      "question_text": "In a correlation (connection) survey down a vertical shaft, which quantity is the most difficult to transfer underground?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Azimuth (orientation of the underground traverse)",
+        "Horizontal position (X, Y of a point)",
+        "Elevation of the shaft bottom",
+        "The temperature of the air"
+      ],
+      "correct_answer": "Azimuth (orientation of the underground traverse)",
+      "explanation": "Position can be carried down by plumbing and elevation by taping/levelling the shaft, but a vertical shaft offers almost no horizontal geometry to fix direction, so transferring azimuth is the classic hard problem — small errors swing the far end of long drifts badly.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "7a245639-e051-4c8c-9bf3-24aaea257ab1",
+      "question_text": "What is the purpose of a Weisbach triangle in shaft surveying?",
+      "question_type": "multiple_choice",
+      "options": [
+        "To recover the precise direction between two closely spaced plumb wires for azimuth transfer",
+        "To compute the volume of muck hoisted up the shaft",
+        "To level the shaft bottom to the surface benchmark",
+        "To measure the depth of the shaft"
+      ],
+      "correct_answer": "To recover the precise direction between two closely spaced plumb wires for azimuth transfer",
+      "explanation": "Because two plumb wires hang very close together, a theodolite cannot occupy their line; setting up slightly off-line forms a very thin Weisbach triangle whose small measured angle, scaled by side lengths, gives the precise wire-to-wire azimuth that orients the underground traverse.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "7a245639-e051-4c8c-9bf3-24aaea257ab1",
+      "question_text": "A gyrotheodolite establishes underground azimuth by:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Sensing the Earth's rotation to find true north directly",
+        "Receiving GNSS signals at the shaft bottom",
+        "Reading a magnetic compass corrected for declination",
+        "Measuring the sway of the plumb wires"
+      ],
+      "correct_answer": "Sensing the Earth's rotation to find true north directly",
+      "explanation": "A gyrotheodolite combines a theodolite with a gyroscope that senses Earth's rotation to find true north independent of any shaft geometry or surface tie — invaluable underground and in long tunnels, and a strong check on a two-wire transfer. GNSS does not work underground and a magnetic compass is unreliable near steel and ore.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "7a245639-e051-4c8c-9bf3-24aaea257ab1",
+      "question_text": "Optical/laser shaft plumbing (an autoplumb) is often preferred over suspended plumb wires because it avoids wire sway and is faster.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "A vertical-collimating autoplumb or plumbing laser projects a steady vertical line down the shaft to a target, avoiding the sway, damping tanks, and time of suspended wires, while still delivering known surface coordinates to the shaft bottom.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "5068d3ab-7f1e-41d8-ba6e-cbc1864c54e3",
+      "question_text": "Why are underground survey stations commonly fixed in the roof (back) with a spad rather than in the floor?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The floor is disturbed by traffic, muck, and water, while a roof spad is stable",
+        "Roof stations are required by GNSS",
+        "Floor stations cannot be levelled",
+        "It is impossible to drive a nail into a mine floor"
+      ],
+      "correct_answer": "The floor is disturbed by traffic, muck, and water, while a roof spad is stable",
+      "explanation": "The floor of a heading is churned by equipment, muck, and water, so a roof spad gives a far more stable station; a plumb bob hung from it brings the point down to instrument or sighting height.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "5068d3ab-7f1e-41d8-ba6e-cbc1864c54e3",
+      "question_text": "An inclined drift rises 5.0 m vertically over a horizontal run of 80.0 m. Its grade as a percent is approximately:",
+      "question_type": "multiple_choice",
+      "options": [
+        "6.3%",
+        "1.6%",
+        "16%",
+        "3.6%"
+      ],
+      "correct_answer": "6.3%",
+      "explanation": "Percent grade = rise/run × 100 = 5.0/80.0 × 100 = 6.25% ≈ 6.3%. As an angle it is atan2(5.0, 80.0) ≈ 3.58°.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "5068d3ab-7f1e-41d8-ba6e-cbc1864c54e3",
+      "question_text": "What does 'forced centering' achieve in underground traversing?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It reduces centering error over many short legs by interchanging tribrachs on fixed setups",
+        "It forces the instrument to read true north",
+        "It increases the measured distance accuracy of the EDM",
+        "It prevents the plumb bob from swinging"
+      ],
+      "correct_answer": "It reduces centering error over many short legs by interchanging tribrachs on fixed setups",
+      "explanation": "Underground legs are short, so repeated re-centering would inject large relative error. Swapping instrument and target tribrachs on permanently set tripods/brackets keeps everything on the same forced center, minimizing centering error.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "5068d3ab-7f1e-41d8-ba6e-cbc1864c54e3",
+      "question_text": "Which best describes how a surveyor gives 'line' to a driving heading?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Sets spads (or a laser) on the design centerline for the miners to sight or follow to the face",
+        "Marks only the elevation of the floor",
+        "Hands the miners the coordinates of the orebody",
+        "Levels the face to the surface benchmark"
+      ],
+      "correct_answer": "Sets spads (or a laser) on the design centerline for the miners to sight or follow to the face",
+      "explanation": "Line is the horizontal direction to drive: the surveyor sets two or three centerline spads (or a laser projecting the line), and the miners keep the face on that line. Grade (slope) is given separately by grade pegs or a tilted laser.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "2a2f13a3-eaf6-424f-a469-c84dfae6951b",
+      "question_text": "Why must the reference benchmarks for a subsidence monitoring survey lie outside the subsidence basin?",
+      "question_type": "multiple_choice",
+      "options": [
+        "If a 'stable' benchmark is itself sinking, the survey will under-report the true movement",
+        "Benchmarks inside the basin are illegal",
+        "It makes the levelling loop shorter",
+        "GNSS does not work inside a subsidence basin"
+      ],
+      "correct_answer": "If a 'stable' benchmark is itself sinking, the survey will under-report the true movement",
+      "explanation": "Subsidence is measured relative to the datum. A datum benchmark inside the influence zone is itself moving, so the measured settlement is referenced to a moving frame and is too small — the datum must be proven stable and outside the basin.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "2a2f13a3-eaf6-424f-a469-c84dfae6951b",
+      "question_text": "Two cross-sections through a waste stockpile have areas of 40 m² and 60 m² and are spaced 25 m apart. By the average-end-area method, the volume between them is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "1,250 m³",
+        "1,000 m³",
+        "2,500 m³",
+        "100 m³"
+      ],
+      "correct_answer": "1,250 m³",
+      "explanation": "V = (A1 + A2)/2 × L = (40 + 60)/2 × 25 = 50 × 25 = 1,250 m³.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "2a2f13a3-eaf6-424f-a469-c84dfae6951b",
+      "question_text": "UAV (drone) photogrammetry computes a stockpile volume by:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Building a dense 3D surface of the pile and differencing it against a base surface",
+        "Weighing the pile from the air",
+        "Measuring the pile's shadow length",
+        "Counting the number of trucks that dumped it"
+      ],
+      "correct_answer": "Building a dense 3D surface of the pile and differencing it against a base surface",
+      "explanation": "A UAV photogrammetry (or LiDAR) survey produces a dense 3D surface of the stockpile; software integrates the height difference between that surface and a base/ground surface over the footprint to give the volume — fast, dense, and safe.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "2a2f13a3-eaf6-424f-a469-c84dfae6951b",
+      "question_text": "Satellite InSAR is useful for subsidence monitoring because it measures wide-area, millimetre-level movement without requiring any ground marks.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "InSAR compares radar phase from repeated satellite passes to map line-of-sight ground movement at millimetre level over wide areas, needing no installed targets — though it is limited by coherence, weather, and line-of-sight geometry.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "1842b5e3-a8d9-43d7-9972-5b585eff182c",
+      "question_text": "A laser tracker determines the position of a large machine component by:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Locking a laser onto a spherically mounted retroreflector and reporting its 3D coordinates",
+        "Photographing the part from two angles only",
+        "Measuring the magnetic field of the steel",
+        "Weighing the component on a load cell"
+      ],
+      "correct_answer": "Locking a laser onto a spherically mounted retroreflector and reporting its 3D coordinates",
+      "explanation": "A laser tracker servo-locks an interferometer/ADM laser onto a spherically mounted retroreflector (SMR) and continuously reports the SMR's 3D coordinates to a few micrometres per metre as it is moved over the part.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "1842b5e3-a8d9-43d7-9972-5b585eff182c",
+      "question_text": "An autocollimator is best suited to measuring:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Very small angular deviations (tilt/twist) of a reflecting surface to fractions of an arc-second",
+        "Long horizontal distances to kilometre range",
+        "The 3D point cloud of an entire room",
+        "Atmospheric pressure"
+      ],
+      "correct_answer": "Very small angular deviations (tilt/twist) of a reflecting surface to fractions of an arc-second",
+      "explanation": "An autocollimator measures tiny angular deviations of a reflecting face to fractions of an arc-second, used to check flatness, straightness, and squareness of machine elements — not distances or full surfaces.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "1842b5e3-a8d9-43d7-9972-5b585eff182c",
+      "question_text": "Why are industrial metrology measurements referenced to 20 °C and taken when the structure is thermally stable?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Because thermal expansion (ΔL = αLΔT) changes large steel dimensions enough to exceed micrometre tolerances",
+        "Because lasers only work at 20 °C",
+        "Because surveyors prefer cool rooms",
+        "Because steel does not expand below 20 °C"
+      ],
+      "correct_answer": "Because thermal expansion (ΔL = αLΔT) changes large steel dimensions enough to exceed micrometre tolerances",
+      "explanation": "Steel expands about 11.7 µm per metre per °C, so a 10 m assembly grows over 0.1 mm per 1 °C — larger than the tolerance. Measurements are referenced to 20 °C, taken at thermal equilibrium, and corrected for temperature.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da502306-8208-4fd7-9910-5bbf852044ba",
+      "question_text": "In a deformation monitoring network, the role of the reference (datum) points is to:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Provide a stable frame, outside the deforming zone, against which object-point movement is measured",
+        "Mark the most likely failure surface",
+        "Carry the GNSS antenna power supply",
+        "Replace the need for least-squares adjustment"
+      ],
+      "correct_answer": "Provide a stable frame, outside the deforming zone, against which object-point movement is measured",
+      "explanation": "Reference points sit on proven-stable ground outside the deforming zone and define the frame; object (target) points are fixed to the structure being watched, and their movement is expressed relative to the reference frame.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da502306-8208-4fd7-9910-5bbf852044ba",
+      "question_text": "An object point moves ΔE = 9 mm east and ΔN = 12 mm north between two epochs. Its resultant horizontal displacement is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "15 mm",
+        "21 mm",
+        "10.5 mm",
+        "3 mm"
+      ],
+      "correct_answer": "15 mm",
+      "explanation": "δ = hypot(ΔE, ΔN) = sqrt(9² + 12²) = sqrt(81 + 144) = sqrt(225) = 15 mm.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da502306-8208-4fd7-9910-5bbf852044ba",
+      "question_text": "When should an apparent inter-epoch movement of a monitored point be reported as real deformation?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Only when it exceeds the combined measurement uncertainty (statistically significant)",
+        "Whenever any nonzero change is computed",
+        "Only after the structure has visibly failed",
+        "Whenever the weather changes"
+      ],
+      "correct_answer": "Only when it exceeds the combined measurement uncertainty (statistically significant)",
+      "explanation": "Every measurement has noise, so a displacement is treated as real deformation only when it exceeds the combined uncertainty of the two epochs. Reporting smaller apparent movement causes false alarms; failing to detect real movement is dangerous.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "da502306-8208-4fd7-9910-5bbf852044ba",
+      "question_text": "Which instrument provides automated, near-continuous sub-millimetre 3D monitoring of an array of prisms on a pit slope or dam?",
+      "question_type": "multiple_choice",
+      "options": [
+        "An automated (robotic) total station",
+        "A hand level",
+        "A magnetic compass",
+        "A measuring wheel"
+      ],
+      "correct_answer": "An automated (robotic) total station",
+      "explanation": "A robotic/automated total station cyclically sights fixed prisms and computes sub-millimetre 3D positions every few minutes, the workhorse for continuous monitoring of dams, slopes, tunnels, and structures.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": null,
+      "question_text": "Which statement best captures the unifying theme of mining and industrial surveying?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Extending precise control and measurement into difficult environments — underground, large machines, and moving structures",
+        "Recording only property boundaries for deeds",
+        "Computing parcel areas for taxation",
+        "Mapping navigable waterways and tidal datums"
+      ],
+      "correct_answer": "Extending precise control and measurement into difficult environments — underground, large machines, and moving structures",
+      "explanation": "Mining and industrial surveying take core surveying skills — control, traversing, levelling, adjustment, volumes — into challenging settings: underground workings with no GNSS, micrometre machine alignment, and time-dependent deformation, each demanding special methods and instruments.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Grade (slope) of an inclined drift",
+      "description": "Compute the grade of an inclined drift/decline from its vertical rise and horizontal run, as an angle in degrees and (optionally) as a percent.",
+      "category": "Mining & Industrial Surveying — Inclines",
+      "subcategory": "Grade / slope",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "An inclined drift rises {{rise:f2}} m vertically over a horizontal run of {{run}} m. What is its grade expressed as an angle of inclination (degrees)?",
+      "parameters": [
+        {"name": "rise", "type": "float", "min": 2, "max": 20, "decimals": 2},
+        {"name": "run", "type": "integer", "min": 40, "max": 200}
+      ],
+      "computed_vars": [],
+      "answer_formula": "toDeg(atan2(rise,run))",
+      "answer_format": {"decimals": 2, "unit": "deg", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Take the arctangent of rise over run", "formula": "θ = atan2(rise, run)", "calculation_template": "atan2({{rise:f2}}, {{run}})"},
+        {"step_number": 2, "title": "Convert to degrees", "result_template": "θ = {{_answer}}°"}
+      ],
+      "explanation_template": "The angle of inclination is θ = atan2(rise, run) = atan2({{rise:f2}}, {{run}}) = {{_answer}}°. (As a percent grade this is rise/run × 100 = {{rise:f2}}/{{run}} × 100.)",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m22-incline-grade", "caption": "Inclined drift showing vertical rise over horizontal run with the angle of inclination", "kind": "diagram"}]
+    },
+    {
+      "name": "Stockpile volume by average end area",
+      "description": "Compute the volume of material between two parallel cross-sections of a stockpile or pit using the average-end-area method.",
+      "category": "Mining & Industrial Surveying — Volumes",
+      "subcategory": "Average end area",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "Two parallel cross-sections through a stockpile have areas A1 = {{A1}} m² and A2 = {{A2}} m² and are spaced L = {{L}} m apart. Using the average-end-area method, what is the volume (m³) of material between them?",
+      "parameters": [
+        {"name": "A1", "type": "integer", "min": 20, "max": 120},
+        {"name": "A2", "type": "integer", "min": 20, "max": 120},
+        {"name": "L", "type": "integer", "min": 10, "max": 50}
+      ],
+      "computed_vars": [],
+      "answer_formula": "(A1+A2)/2*L",
+      "answer_format": {"decimals": 1, "unit": "m^3", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Average the two end areas", "formula": "(A1 + A2) / 2", "calculation_template": "({{A1}} + {{A2}}) / 2"},
+        {"step_number": 2, "title": "Multiply by the spacing", "result_template": "V = ({{A1}} + {{A2}})/2 × {{L}} = {{_answer}} m³"}
+      ],
+      "explanation_template": "The average-end-area volume is V = (A1 + A2)/2 × L = ({{A1}} + {{A2}})/2 × {{L}} = {{_answer}} m³.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m22-end-area", "caption": "Stockpile sliced into two parallel cross-sections A1 and A2 spaced L apart", "kind": "diagram"}]
+    },
+    {
+      "name": "Azimuth transfer down a shaft (offset)",
+      "description": "Recover the underground baseline azimuth from a known surface azimuth and a small lateral offset of the far wire over a baseline length (simplified Weisbach-style transfer).",
+      "category": "Mining & Industrial Surveying — Correlation Survey",
+      "subcategory": "Azimuth transfer",
+      "difficulty": "hard",
+      "question_type": "numeric_input",
+      "question_template": "Two plumb wires hang in a shaft forming a baseline of length b = {{b:f2}} m. At the shaft bottom the far wire is found to be offset perpendicular to the line by e = {{e:f3}} m. If the known surface azimuth of the baseline is {{az:f2}}°, what is the corrected underground azimuth of the baseline (degrees)? Add the small correction angle.",
+      "parameters": [
+        {"name": "b", "type": "float", "min": 3, "max": 8, "decimals": 2},
+        {"name": "e", "type": "float", "min": -0.05, "max": 0.05, "decimals": 3},
+        {"name": "az", "type": "float", "min": 10, "max": 350, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "corr", "formula": "toDeg(atan2(e,b))"}
+      ],
+      "answer_formula": "az + toDeg(atan2(e,b))",
+      "answer_format": {"decimals": 3, "unit": "deg", "tolerance": 0.01},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Compute the small correction angle", "formula": "δ = atan2(e, b)", "calculation_template": "atan2({{e:f3}}, {{b:f2}}) = {{corr:f3}}°"},
+        {"step_number": 2, "title": "Apply to the surface azimuth", "result_template": "Azimuth = {{az:f2}}° + {{corr:f3}}° = {{_answer}}°"}
+      ],
+      "explanation_template": "The wire offset over the baseline gives a correction angle δ = atan2(e, b) = atan2({{e:f3}}, {{b:f2}}) = {{corr:f3}}°. Applied to the surface azimuth, the underground baseline azimuth is {{az:f2}}° + {{corr:f3}}° = {{_answer}}°.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m22-shaft-azimuth", "caption": "Two plumb wires forming a baseline b in a shaft with a small perpendicular offset e at the bottom and the resulting azimuth correction", "kind": "diagram"}]
+    }
+  ]
+}

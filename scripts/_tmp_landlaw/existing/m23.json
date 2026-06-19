@@ -1,0 +1,806 @@
+{
+  "order_index": 23,
+  "module_id": "c1000017-0000-0000-0000-000000000017",
+  "title": "Survey Business and Professional Practice",
+  "lessons": [
+    {
+      "lesson_id": "792b860f-091e-4501-8941-addcebb7b0ea",
+      "title": "Starting and Running a Survey Business",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Compare the common business structures available to a surveying firm and their liability/tax tradeoffs",
+        "Explain why a Texas surveying firm must register with TBPELS and operate under an RPLS",
+        "Describe the start-up and overhead costs that drive a firm's billing rates",
+        "Identify the core back-office systems a small survey firm must run to stay solvent and compliant"
+      ],
+      "key_takeaways": [
+        "Choice of entity (sole prop, LLC, PLLC, PC) trades off liability protection, taxation, and professional-practice rules",
+        "In Texas a firm that offers surveying must hold a TBPELS firm registration and practice under an RPLS",
+        "Overhead and a target profit margin, not just labor cost, determine viable billing rates",
+        "A firm needs systems for accounting, insurance, records, and licensure long before it needs more fieldwork"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>From licensed surveyor to business owner</h3><p>Earning an RPLS license qualifies a person to practice surveying; it does not, by itself, make them ready to <em>run a firm</em>. A surveying business is a small professional-services enterprise that happens to produce surveys. It must win work, price it to cover cost and return a profit, deliver it competently, get paid, manage risk, and satisfy regulators &mdash; all while the principal is often also the most productive field and office technician. The leading cause of failure among new survey firms is not bad surveying; it is bad business: underpricing, undercapitalization, poor collections, and uncontrolled overhead.</p><p>This lesson frames the business as a system. The owner must decide on a <strong>legal structure</strong>, satisfy <strong>professional registration</strong>, capitalize the firm with enough cash and equipment to operate, and stand up the <strong>back-office systems</strong> (accounting, billing, insurance, records, HR) that keep it alive between paydays. Each of those choices interacts: the entity affects taxes and liability; the registration affects who may sign and seal; capitalization and overhead set the floor under every fee. Treating the firm as an engineering system &mdash; with inputs, throughput, and a required margin &mdash; is the mindset that distinguishes firms that survive from those that merely start.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Choosing a business structure</h3><p>The legal form of the firm governs personal liability, taxation, and how the professional practice is organized. The common options are the <strong>sole proprietorship</strong> (simplest, but the owner is personally liable for all business debts and the firm dissolves with the owner), the <strong>limited liability company (LLC)</strong> (liability shield with pass-through taxation and light formality), the <strong>professional LLC (PLLC)</strong> or <strong>professional corporation (PC)</strong> (entities reserved for licensed professionals and required in many states for a practice that renders professional services), and the standard <strong>C/S corporation</strong>.</p><p>For a surveying practice the key wrinkle is that a liability entity protects the owner's <em>personal assets from ordinary business debts</em> &mdash; it does <strong>not</strong> shield the licensed surveyor from <strong>personal professional liability</strong> for their own negligent work. An RPLS who seals a survey remains individually responsible for it. That is why professional-practice entities (PLLC/PC) exist and why <strong>errors-and-omissions (E&amp;O) insurance</strong>, not the corporate veil, is the real protection against malpractice claims. Many surveyors form a PLLC for liability and tax flexibility and carry E&amp;O on top of it.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Structure", "Liability shield (business debts)", "Taxation", "Typical use"], "rows": [
+            ["Sole proprietorship", "None — owner personally liable", "Pass-through (Schedule C)", "One-person start-up, lowest cost/formality"],
+            ["LLC", "Yes (members shielded)", "Pass-through by default", "Small firm wanting a shield + simplicity"],
+            ["PLLC / PC", "Yes, but licensee keeps personal professional liability", "Pass-through (PLLC) or corporate (PC)", "Licensed professional practice; often required by state"],
+            ["C corporation", "Yes", "Entity-level (double taxation)", "Larger firms seeking outside investment"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas firm registration: Under the Professional Land Surveying Practices Act (Texas Occupations Code Ch. 1071), a business that offers or provides surveying services in Texas must hold a TBPELS firm registration and must practice through a Registered Professional Land Surveyor. Choosing an LLC/PLLC does not waive that requirement — the entity and the firm registration are separate, and surveys must be sealed by an RPLS."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Capitalization, overhead, and the systems behind the firm</h3><p>A new firm needs enough capital to buy or lease instruments (total station, GNSS, data collectors, software), a vehicle, insurance, and licensing &mdash; <em>and</em> a cash cushion to cover payroll and rent during the 30&ndash;90 days between doing work and getting paid. Undercapitalization kills firms that are otherwise busy. Equally important is understanding <strong>overhead</strong>: rent, utilities, software subscriptions, vehicle and equipment costs, insurance, non-billable admin time, continuing education, and the owner's own non-field hours. Overhead is commonly expressed as a multiplier on direct labor; a billing rate that does not recover overhead plus a profit margin guarantees slow insolvency even at full utilization.</p><p>The back office is the firm's nervous system. At minimum the owner must run: <strong>accounting and invoicing</strong> (so work is billed promptly and receivables are collected), <strong>insurance</strong> (general liability, E&amp;O, auto, workers' comp where required), <strong>records management and document retention</strong> (field notes, plats, deeds, and project files kept and indexed), <strong>licensure compliance</strong> (firm registration renewal, RPLS license and CE, seal control), and basic <strong>HR/payroll</strong>. These systems are unglamorous but they are what convert good surveying into a sustainable business.</p>"}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Diagram of a survey firm as a system with inputs (capital, labor, equipment), throughput (projects), and required profit margin output", "caption": "Figure: The survey firm as a system — work in, overhead and labor consumed, a required profit margin out.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "A surveying firm is a professional-services business; most failures are business failures, not survey errors.",
+            "Entity choice (sole prop/LLC/PLLC/PC) trades liability protection, taxation, and professional-practice formality.",
+            "An entity shields personal assets from business debts but not the RPLS from personal professional liability — that is what E&O is for.",
+            "In Texas the firm must register with TBPELS and practice through an RPLS regardless of entity type.",
+            "Capitalize for the gap between doing work and getting paid; price to recover overhead plus a profit margin."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "PLLC (Professional LLC)", "definition": "A limited liability company organized to render professional services by licensed members; gives a liability shield for business debts while the licensed professional retains personal liability for their own negligent work.", "hint_1": "LLC for licensed professionals."},
+        {"term": "TBPELS firm registration", "definition": "The registration a business must hold to offer surveying services in Texas under Occupations Code Ch. 1071; separate from the entity's formation and required in addition to having an RPLS sign and seal the work."},
+        {"term": "Overhead multiplier", "definition": "A factor applied to direct labor cost to recover indirect costs (rent, equipment, software, insurance, admin, non-billable time); billing rates must recover overhead plus profit, not just wages.", "hint_1": "Direct labor × this = cost basis for rates."},
+        {"term": "Undercapitalization", "definition": "Starting or running a firm without enough cash to cover the lag between performing work and collecting payment; a leading cause of failure even for busy firms."}
+      ]
+    },
+    {
+      "lesson_id": "838bbaf5-e775-4e91-bbc1-46981bd9818b",
+      "title": "Project Management for Surveyors",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Define a survey project's scope, schedule, and budget and explain how the three constrain one another",
+        "Plan and sequence the phases of a survey project from research through deliverable",
+        "Use earned-value-style tracking to detect a project running over budget early",
+        "Identify and manage scope creep, the most common cause of survey project losses"
+      ],
+      "key_takeaways": [
+        "Scope, schedule, and budget form a triangle; changing one forces a change in another",
+        "A survey project moves through research, fieldwork, computation, and deliverable phases that must be planned and resourced",
+        "Tracking budgeted vs. actual hours by phase reveals overruns while they can still be corrected",
+        "Scope creep — uncompensated added work — is the leading destroyer of project profit and must be managed by change orders"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Every survey is a project</h3><p>Whether it is a single residential boundary or a corridor topographic survey, every job is a <strong>project</strong>: a temporary effort with a defined start and end, a deliverable, a budget, and a deadline. Project management is the discipline of getting that deliverable out the door on time and within budget while meeting the standard of care. For a surveying firm, project management is not bureaucracy &mdash; it is the difference between a job that earns its quoted fee and one that quietly loses money because the field crew spent two extra days searching for monuments nobody budgeted for.</p><p>The classic frame is the <strong>project triangle</strong>: <strong>scope</strong> (what work is included), <strong>schedule</strong> (how fast), and <strong>budget/cost</strong> (resources and fee), with <strong>quality</strong> at the center. The three are interdependent: you cannot expand scope or compress the schedule without affecting cost. A surveyor who promises a larger survey, faster, for the same fee, has not won an argument with physics &mdash; they have agreed to absorb the difference as a loss. Good project management makes those tradeoffs explicit and pushes them back to the client as choices rather than silently eating them.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Phases of a survey project</h3><p>A typical boundary or topographic project moves through recognizable phases, each of which must be planned, resourced, and tracked:</p><ul><li><strong>Research / due diligence</strong> &mdash; deed and plat research, adjoiner records, prior surveys, recorded easements, controlling monument history.</li><li><strong>Field reconnaissance and control</strong> &mdash; site visit, establishing control, GNSS/total-station setup.</li><li><strong>Fieldwork</strong> &mdash; monument search and recovery, measurements, locating improvements/features.</li><li><strong>Office computation and analysis</strong> &mdash; reduction, boundary resolution, evidence weighing, closure checks.</li><li><strong>Deliverable production</strong> &mdash; drafting the plat/map, writing the metes-and-bounds description, QA/QC, and the RPLS seal.</li></ul><p>Estimating realistic hours for each phase, assigning the right people, and building a schedule with dependencies (you cannot draft before computation, cannot compute before fieldwork) is the planning core. Research is the phase most often shortchanged and the one whose failure most often blows up the later phases &mdash; a missing senior deed discovered in the field is far more expensive than one found at a desk.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Phase", "Primary activity", "Common overrun risk"], "rows": [
+            ["Research", "Deed/plat/adjoiner research, monument history", "Incomplete record search; missed senior rights"],
+            ["Reconnaissance & control", "Site visit, control establishment", "Difficult access, poor GNSS conditions"],
+            ["Fieldwork", "Monument search, measurement, feature location", "Lost monuments, expanded search, weather"],
+            ["Computation", "Reduction, boundary resolution, closure", "Evidence conflicts requiring extra analysis"],
+            ["Deliverable", "Drafting, description, QA/QC, seal", "Revisions, scope additions, client changes"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Tracking, control, and scope creep</h3><p>A budget is useless if it is not <strong>tracked against actuals</strong>. The simple, powerful tool is to compare <strong>budgeted hours vs. actual hours by phase</strong> as the work progresses (a lightweight earned-value approach). If fieldwork was budgeted at 24 hours and the crew is at 30 with monument search still incomplete, the manager learns the job is in trouble while there is still time to act &mdash; add a change order, narrow scope, or at least stop the bleeding. Discovering the overrun only when the final invoice undershoots cost is discovering it too late.</p><p>The single greatest profit-killer in survey projects is <strong>scope creep</strong>: the steady accumulation of small, unbilled additions &mdash; 'while you're out there, can you also locate the back fence and the neighbor's shed?' Each request seems trivial; together they consume the margin. The defense is disciplined <strong>change management</strong>: a written scope in the contract, and a written <strong>change order</strong> (additional fee and/or schedule) for anything beyond it. Saying 'yes, and here is the change order' is professional; saying 'sure, no problem' repeatedly is how firms work hard and earn nothing.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Practical rule: estimate hours by phase, track actuals against the estimate weekly, and convert every out-of-scope client request into a written change order before doing the work. Margin is lost in small, unbilled increments — control it the same way."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Project management triangle showing scope, schedule, and budget with quality at the center", "caption": "Figure: The project triangle — scope, schedule, and budget constrain each other, with quality at the center.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Treat every survey as a project with defined scope, schedule, budget, and quality.",
+            "Scope, schedule, and cost are interdependent — changing one forces a change in another.",
+            "Plan and resource each phase (research → control → field → computation → deliverable); research is most often shortchanged.",
+            "Track budgeted vs. actual hours by phase to catch overruns while they can still be fixed.",
+            "Control scope creep with a written scope and change orders for anything beyond it."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Project triangle", "definition": "The interdependent constraints of scope, schedule, and budget (with quality at the center); changing any one forces a tradeoff in the others.", "hint_1": "Scope, schedule, cost."},
+        {"term": "Scope creep", "definition": "The gradual, uncompensated expansion of a project's work through small added requests; the leading cause of lost profit on survey projects.", "hint_1": "\"While you're out there...\""},
+        {"term": "Change order", "definition": "A written authorization adjusting fee and/or schedule for work beyond the contracted scope; the disciplined defense against scope creep.", "hint_1": "Put the extra work in writing first."},
+        {"term": "Budgeted vs. actual hours", "definition": "Comparing estimated hours per phase against hours actually charged as work progresses, to detect cost overruns early enough to correct them."}
+      ]
+    },
+    {
+      "lesson_id": "07ba0d76-807c-48fe-86c0-f9137439a19a",
+      "title": "Client Relations and Communication",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Explain how clear communication and managed expectations prevent most client disputes",
+        "Distinguish the surveyor's duty to the public from the duty to a paying client and resolve the tension ethically",
+        "Identify the elements of professional ethics that govern a surveyor's dealings with clients",
+        "Describe how to deliver bad news (e.g., an encroachment) honestly without breaching duty"
+      ],
+      "key_takeaways": [
+        "Most client complaints stem from unmet expectations, not technical error — communicate scope and limits up front",
+        "The surveyor's primary duty is to protect the public and the integrity of the survey, even against client pressure",
+        "Ethical practice means independent, honest findings — a surveyor cannot move a line or shade a result to please a client",
+        "Report adverse findings (encroachments, gaps, overlaps) factually; the surveyor reports, parties and counsel resolve"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Communication is risk management</h3><p>A surveyor can produce technically flawless work and still end up in a dispute &mdash; or even a TBPELS complaint &mdash; because of poor communication. Most client friction is not about a wrong measurement; it is about <strong>unmet expectations</strong>. The client thought the survey included staking the building corners; it did not. The client expected results in a week; weather and a buried monument took three. The client believed 'their' land ran to the old fence; the survey shows the record line eight feet inside it. None of these are technical failures, but all of them generate complaints, withheld payments, and reputational harm.</p><p>The remedy is deliberate, documented communication: a clear written <strong>scope of services</strong> at the outset; a realistic timeline; an explanation of what the deliverable is and is not; and prompt updates when conditions change. Setting expectations <em>before</em> the work, and confirming them in writing, converts most potential disputes into non-events. The cheapest hour a surveyor spends is the one explaining scope and limits to the client before the field crew rolls.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Two duties: the public and the client</h3><p>A licensed surveyor serves two masters and must keep them in the right order. The <strong>paramount duty is to the public</strong> &mdash; to the integrity of land boundaries, the safety of those who rely on the survey, and the public record &mdash; followed by the duty to the <strong>client</strong> who pays the fee. When those duties conflict, the public duty controls. A client who wants the line moved a few feet 'to include the driveway,' who pressures the surveyor to ignore a senior deed, or who asks for a result that is convenient rather than correct, is asking the surveyor to breach the paramount duty. The professional answer is no.</p><p>This is why surveying is a <strong>licensed profession</strong> and not a mere vendor relationship: the surveyor's signature and seal are a representation to the public, not just to the client. The surveyor's <strong>independence</strong> &mdash; the obligation to find and report the true location regardless of who is paying &mdash; is the core of professional ethics. A surveyor who lets the client's wishes determine the boundary has stopped being a professional and become a hired pen.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Ethics under Texas rules: TBPELS rules of professional conduct (22 TAC Ch. 138, 'Compliance and Professionalism for Surveyors') require the surveyor to exercise independent professional judgment and to protect the public. A surveyor may not let a client's preference dictate a boundary location, certify work they did not control, or misrepresent findings. Violations are grounds for board discipline against the individual RPLS, not just the firm."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Delivering hard findings honestly</h3><p>Surveys frequently uncover facts the client does not want to hear: the garage encroaches three feet onto the neighbor; there is a gap between the deed and the adjoiner; the buyer is purchasing two acres less than advertised. The surveyor's duty is to <strong>report these facts plainly and factually</strong> &mdash; on the plat and in communication &mdash; without softening or omitting them to keep the client happy. At the same time, the surveyor reports; they do not adjudicate. The plat shows the encroachment; whether the parties resolve it by agreement, easement, purchase, or suit is for the owners and their attorneys, not the surveyor.</p><p>The professional way to deliver bad news combines honesty with clarity and restraint: state what the evidence shows, distinguish fact from professional judgment, avoid legal conclusions that are not the surveyor's to make ('you've lost title to the strip'), and document the communication. A surveyor who buries an encroachment to avoid an awkward conversation has both failed the public duty and created enormous personal liability. Honest, well-documented delivery of adverse findings protects the public, the client (who can now act), and the surveyor.</p>"}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Diagram showing the surveyor's hierarchy of duties with public at top and client below, and the surveyor reporting findings to both", "caption": "Figure: The surveyor's duty hierarchy — public first, client second — and the reporting (not adjudicating) role.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Most disputes come from unmet expectations; set and confirm scope, timeline, and limits in writing up front.",
+            "The duty to the public and the integrity of boundaries outranks the duty to the paying client.",
+            "Professional independence means the surveyor reports the true location regardless of what the client wants.",
+            "Report adverse findings (encroachments, gaps, overlaps) factually; resolution is for owners and counsel.",
+            "TBPELS professional-conduct rules make ethics violations grounds for discipline against the individual RPLS."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Paramount duty to the public", "definition": "The surveyor's highest professional obligation — to protect the integrity of boundaries, public safety, and the public record — which outranks the duty to the paying client when the two conflict."},
+        {"term": "Professional independence", "definition": "The surveyor's obligation to determine and report the true boundary location based on evidence, free from client pressure to reach a convenient result.", "hint_1": "Not a hired pen."},
+        {"term": "Managing expectations", "definition": "Clearly communicating and documenting scope, timeline, deliverables, and limits before work begins, which prevents most client disputes.", "hint_1": "The cheapest hour you spend."},
+        {"term": "Reporting vs. adjudicating", "definition": "The principle that a surveyor states the facts an encroachment, gap, or overlap shows, but leaves the legal resolution to the owners and their attorneys."}
+      ]
+    },
+    {
+      "lesson_id": "93eba08c-7e61-4f50-8d26-2f5f6fc96083",
+      "title": "Proposal Writing and Fee Estimation",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Write a clear proposal that defines scope, deliverables, exclusions, and terms",
+        "Estimate a project fee by building it up from hours, billing rates, and direct expenses",
+        "Compare lump-sum, hourly (time-and-materials), and cost-plus fee structures and when to use each",
+        "Explain how overhead and a target profit margin convert labor cost into a viable billing rate"
+      ],
+      "key_takeaways": [
+        "A proposal defines scope, deliverables, exclusions, schedule, and terms — its precision is the firm's protection",
+        "Estimate fees bottom-up: hours per phase × billing rate, plus direct expenses",
+        "Billing rates must recover direct labor, overhead, and profit — not just wages",
+        "Choose the fee structure (lump-sum, hourly, cost-plus) that matches the project's risk and uncertainty"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The proposal is the firm's first line of defense</h3><p>A <strong>proposal</strong> (and the contract it becomes) is the document that defines what the firm has agreed to do, for how much, by when, and under what terms. Its precision directly determines the firm's exposure. A vague proposal &mdash; 'survey the property, $2,000' &mdash; invites scope creep, payment disputes, and liability for things the surveyor never intended to provide. A well-written proposal protects both parties by making the bargain explicit.</p><p>A complete survey proposal typically states: the <strong>scope of services</strong> (what type of survey, to what standard &mdash; e.g., a Texas Category 1A boundary survey); the <strong>deliverables</strong> (plat, description, number of copies, electronic files); explicit <strong>exclusions</strong> (e.g., does NOT include construction staking, flood determination, or wetland delineation); the <strong>schedule</strong>; the <strong>fee and fee structure</strong>; payment and retainer terms; and standard provisions (limitation of liability, change-order process, ownership of documents). Exclusions are as important as inclusions: stating what is <em>not</em> included is how the surveyor controls scope creep before it starts.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Estimating the fee from the bottom up</h3><p>Sound fee estimating is <strong>bottom-up</strong>: break the project into phases (research, control, fieldwork, computation, deliverable), estimate the <strong>hours</strong> each will take by labor classification (RPLS, party chief, crew, drafter), multiply by each classification's <strong>billing rate</strong>, and add <strong>direct expenses</strong> (mileage, monuments and materials, recording fees, subconsultants, equipment rental). The sum is the proposed fee. Guessing a lump number from gut feel is how firms underbid; building it from hours and rates forces the surveyor to confront how much work the job actually requires.</p><p>The base project fee is therefore:</p>"}
+        },
+        {
+          "block_type": "equation",
+          "content": {"latex": "\\text{Fee} = \\sum_i (\\text{hours}_i \\times \\text{rate}_i) + \\text{direct expenses}", "label": "Bottom-up project fee", "display": "block"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>What a billing rate must recover</h3><p>The billing rate is not the employee's wage. A surveyor paid $35/hour does <strong>not</strong> bill at $35/hour &mdash; that would cover wages and nothing else, and the firm would fail. The billing rate must recover three things: (1) <strong>direct labor</strong> (the wage plus payroll burden &mdash; taxes, benefits, insurance); (2) <strong>overhead</strong> (rent, equipment, software, vehicles, insurance, non-billable admin and field time, continuing education, the principal's management hours); and (3) <strong>profit</strong>. A common model multiplies direct labor by an overhead factor (often roughly 1.5&ndash;2.0&times; or more) and then adds a profit margin. If overhead is 150% of direct labor and the target profit margin is 15%, a $35 wage becomes a billing rate well above $100/hour by the time overhead and profit are layered on.</p><p>Two metrics keep this honest. <strong>Utilization</strong> &mdash; the fraction of paid hours that are billable &mdash; is rarely 100% (training, travel, equipment maintenance, marketing, and admin are non-billable), so the billable hours must carry the non-billable ones. And the <strong>profit margin</strong>, calculated as (revenue &minus; cost) / revenue, must be positive and intentional, not an afterthought. A firm that bills only its wages, ignores overhead, and assumes full utilization is mathematically guaranteed to lose money.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Fee structure", "How it works", "Best when...", "Risk borne by"], "rows": [
+            ["Lump-sum (fixed)", "One agreed price for a defined scope", "Scope is well-defined and predictable", "Surveyor (absorbs overruns)"],
+            ["Hourly / time-and-materials", "Bill actual hours × rate + expenses", "Scope is uncertain (boundary with unknown monuments)", "Client (pays actual cost)"],
+            ["Cost-plus", "Reimbursed cost + a fixed fee or %", "Large/long projects with shifting scope", "Client (with cost ceiling)"],
+            ["Per-unit / not-to-exceed", "Rate per lot/parcel or capped hourly", "Repetitive work or budget-limited clients", "Shared"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Matching structure to risk: use lump-sum when you can predict the work (a platted-lot survey with known monuments) and hourly when you cannot (a metes-and-bounds boundary where the monument search effort is unknown). Bidding a lump sum on an unpredictable boundary survey is how surveyors absorb someone else's risk for free."}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Build-up diagram showing wage plus burden plus overhead plus profit equals billing rate", "caption": "Figure: Building a billing rate — direct labor + overhead + profit, not just the wage.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "A precise proposal — scope, deliverables, exclusions, schedule, terms — is the firm's main protection.",
+            "Estimate fees bottom-up: hours per phase × billing rate, plus direct expenses.",
+            "Billing rates must recover direct labor, overhead, and a target profit — never just wages.",
+            "Utilization is below 100%, so billable hours must carry the non-billable ones.",
+            "Choose lump-sum for predictable scope and hourly for uncertain scope to put the risk where it belongs."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Bottom-up fee estimate", "definition": "Building a project fee by estimating hours per phase by labor class, multiplying by billing rates, and adding direct expenses — rather than guessing a lump number.", "hint_1": "Hours × rate + expenses."},
+        {"term": "Billing rate vs. wage", "definition": "The billing rate is the wage plus payroll burden, overhead, and profit; it is far higher than the employee's hourly pay because it must keep the firm solvent.", "hint_1": "A $35 wage is not a $35 rate."},
+        {"term": "Profit margin", "definition": "(Revenue − cost) / revenue, expressed as a percent; the deliberate return built into a fee, not whatever is left over by accident."},
+        {"term": "Lump-sum vs. hourly", "definition": "Lump-sum (fixed) fee suits predictable scope and puts overrun risk on the surveyor; hourly/time-and-materials suits uncertain scope and puts cost risk on the client.", "hint_1": "Match structure to scope certainty."},
+        {"term": "Proposal exclusions", "definition": "Explicit statements of work NOT included (e.g., construction staking, flood determination); they control scope creep and limit liability."}
+      ]
+    },
+    {
+      "lesson_id": "4d77040e-7139-4ba1-8eba-dc939ce32306",
+      "title": "Insurance and Liability",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Define the standard of care for a professional surveyor and how it sets the liability threshold",
+        "Distinguish professional liability (E&O) from general liability and other firm insurance",
+        "Explain why an RPLS retains personal professional liability despite a corporate entity",
+        "State the Texas statute of limitations for suits against surveyors and core risk-management practices"
+      ],
+      "key_takeaways": [
+        "The standard of care is what a reasonably prudent surveyor would do under similar circumstances — not perfection",
+        "Errors-and-omissions (E&O) insurance covers professional negligence; general liability covers bodily injury/property damage",
+        "A liability entity protects personal assets from business debts but not the licensee from personal malpractice liability",
+        "Texas sets a limitations period for suits against surveyors (Civ. Prac. & Rem. Code §16.011); documentation is the best defense"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The standard of care</h3><p>Professional liability turns on the <strong>standard of care</strong>: the level of skill, diligence, and judgment that a <em>reasonably prudent surveyor would exercise under the same or similar circumstances</em>. It is critical to understand that the standard is <strong>not perfection</strong>. A surveyor is not an insurer of a perfect result and is not liable merely because a boundary was later disputed or a more precise resurvey differed slightly. Liability attaches when the surveyor's conduct <em>falls below</em> the standard of care &mdash; for example, failing to research a senior deed a competent surveyor would have found, ignoring a controlling monument, or making a blunder a careful professional would have caught.</p><p>Because the standard is defined by what the profession does, it is shaped by accepted practice, by published standards (in Texas, the TBPELS rules and the TSPS Manual of Practice categories), and by what careful peers would do. A surveyor who follows the recognized methodology &mdash; thorough research, proper monument search, correct boundary resolution, QA/QC, and clear documentation &mdash; meets the standard of care even if the outcome is later contested. Conversely, sloppy, undocumented work that skips accepted steps breaches it. The standard of care is the line that separates a defensible professional judgment from negligence.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Professional liability and E&O insurance</h3><p><strong>Professional liability insurance</strong> &mdash; commonly called <strong>errors and omissions (E&amp;O)</strong> &mdash; covers claims that the surveyor's <em>professional negligence</em> (an error in the survey, an omission, a breach of the standard of care) caused the client or a third party economic loss. It is the surveyor's principal financial protection against malpractice claims, paying defense costs and damages up to policy limits. E&amp;O is distinct from the firm's other coverages: <strong>commercial general liability (CGL)</strong> covers bodily injury and property damage (a crew member damages a sprinkler system, a visitor trips at the office); <strong>commercial auto</strong> covers the vehicles; and <strong>workers' compensation</strong> covers employee injuries. A CGL policy explicitly excludes professional negligence &mdash; which is exactly why a dedicated E&amp;O policy is essential for a surveying practice.</p><p>E&amp;O policies are usually written on a <strong>claims-made</strong> basis: they cover claims <em>made</em> during the policy period (subject to a retroactive date), not claims arising from work done during the period. This matters because boundary problems can surface years after the survey, so a surveyor must maintain continuous coverage &mdash; and consider 'tail' coverage at retirement &mdash; to remain protected for past work. Carrying adequate E&amp;O limits is both a business necessity and, for many client contracts, a contractual requirement.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Coverage", "What it covers", "Typical exclusion"], "rows": [
+            ["Professional liability (E&O)", "Negligent surveying — errors, omissions, breach of standard of care", "Intentional/dishonest acts"],
+            ["Commercial general liability (CGL)", "Bodily injury and property damage to third parties", "Professional negligence"],
+            ["Commercial auto", "Firm vehicles and crew driving", "Personal-use claims"],
+            ["Workers' compensation", "Employee on-the-job injuries", "Independent contractors (varies)"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "The corporate veil does NOT shield the licensee: An RPLS who seals a survey remains personally liable for their own professional negligence even if the firm is an LLC, PLLC, or PC. The entity shields personal assets from ordinary business debts, but professional malpractice liability follows the licensed individual. E&O insurance — not the entity — is the real protection against a malpractice claim."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Texas limitations period and risk management</h3><p>Texas places a specific outer limit on how long a surveyor can be sued for a defective survey. Under <strong>Texas Civil Practice &amp; Remedies Code &sect;16.011</strong>, suits against a registered surveyor for an error in a survey are subject to a statute of limitations and an outer <strong>statute of repose</strong> running from the date the survey was completed (commonly cited as a ten-year repose, with the limitations clock generally tied to discovery within that window). The practical lesson is that liability does not end when the invoice is paid &mdash; it can extend for years, which is precisely why claims-made E&amp;O coverage and good records matter.</p><p>The best defense against a liability claim is not insurance &mdash; it is <strong>not breaching the standard of care in the first place, and being able to prove it</strong>. Core risk-management practices include: thorough, documented record research; complete field notes and search documentation; rigorous QA/QC and independent checks before sealing; clear written scopes and limitation-of-liability clauses in contracts; honest disclosure of adverse findings; controlled use of the seal; and disciplined records retention so the file can be reconstructed years later. A well-documented file that shows the surveyor followed accepted methodology is the single strongest shield when a survey is later challenged.</p>"}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Diagram contrasting professional liability (E&O) following the licensed individual versus business liability behind the corporate entity", "caption": "Figure: E&O follows the licensed RPLS; the entity shields only business debts, not professional malpractice.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "The standard of care is what a reasonably prudent surveyor would do under similar circumstances — not perfection.",
+            "E&O (professional liability) covers negligent surveying; CGL covers bodily injury/property damage and excludes professional negligence.",
+            "An LLC/PLLC/PC shields personal assets from business debts but not the RPLS from personal malpractice liability.",
+            "Texas (Civ. Prac. & Rem. Code §16.011) limits suits against surveyors with a repose period running from survey completion.",
+            "Documentation and adherence to accepted methodology are the best defense against a liability claim."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Standard of care", "definition": "The skill, diligence, and judgment a reasonably prudent surveyor would exercise under the same or similar circumstances; the threshold below which conduct becomes negligent. It does not require perfection.", "hint_1": "Reasonably prudent peer, not perfect."},
+        {"term": "Errors and omissions (E&O)", "definition": "Professional liability insurance covering claims that the surveyor's negligent professional work caused economic loss; the surveyor's main protection against malpractice claims, distinct from general liability."},
+        {"term": "Claims-made policy", "definition": "An insurance form that covers claims made during the policy period (subject to a retroactive date), not when the work was done; requires continuous coverage and possibly 'tail' coverage for past work.", "hint_1": "Covers the claim, not the work date."},
+        {"term": "Tex. Civ. Prac. & Rem. Code §16.011", "definition": "The Texas statute setting the limitations/repose period for suits against a registered surveyor for an error in a survey, running from completion of the survey.", "hint_1": "Limitations for suits against surveyors."}
+      ]
+    },
+    {
+      "lesson_id": "853d5851-55d4-4f6e-8e8c-afbca633727a",
+      "title": "Quality Assurance and Quality Control",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Distinguish quality assurance (the system) from quality control (checking the product)",
+        "Describe the QA/QC checks appropriate at each phase of a survey project",
+        "Explain the role of the RPLS seal as the final, accountable quality gate",
+        "Apply record-keeping and document-retention practices that support quality and liability defense"
+      ],
+      "key_takeaways": [
+        "QA is the system/process that prevents errors; QC is the inspection that catches them in the product",
+        "Build checks into every phase — research verification, field checks, closure analysis, independent review",
+        "The RPLS seal is the accountable quality gate: nothing leaves the firm unchecked under seal",
+        "Document retention preserves the evidence of quality and is essential to defending future claims"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Two halves of quality</h3><p>Quality in surveying has two complementary halves that students often conflate. <strong>Quality assurance (QA)</strong> is about the <em>process</em>: the firm's standardized procedures, checklists, templates, training, and workflows designed to <strong>prevent</strong> errors from occurring in the first place. <strong>Quality control (QC)</strong> is about the <em>product</em>: the inspections, checks, and reviews that <strong>detect</strong> errors that did occur before the deliverable goes out the door. QA asks 'is our process sound?'; QC asks 'is this specific survey correct?' A firm needs both: a good process reduces the number of errors QC must catch, and rigorous QC catches the ones that slip through.</p><p>The two are mutually reinforcing. A firm with strong QA &mdash; standard field procedures, naming conventions, computation templates, and review checklists &mdash; produces fewer errors and makes QC faster and more reliable. A firm that relies only on a final QC check, with no underlying QA system, is constantly catching avoidable mistakes late and expensively. Mature firms invest in QA precisely so that QC becomes confirmation rather than firefighting.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["", "Quality Assurance (QA)", "Quality Control (QC)"], "rows": [
+            ["Focus", "The process", "The product (this survey)"],
+            ["Goal", "Prevent errors", "Detect errors"],
+            ["Examples", "Checklists, templates, training, SOPs", "Closure check, peer review, field verification"],
+            ["Timing", "Built in continuously", "At checkpoints and before delivery"],
+            ["Question answered", "Is our process sound?", "Is this deliverable correct?"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>QC checks across the project phases</h3><p>Effective quality control is distributed across the whole project, not saved for the end:</p><ul><li><strong>Research</strong> &mdash; verify that the deed, adjoiners, easements, and senior rights were all pulled and reconciled; a second set of eyes on the chain of title.</li><li><strong>Field</strong> &mdash; redundant measurements, independent ties to control, monument documentation, and field checks (e.g., re-observing a critical corner, checking a closing distance).</li><li><strong>Computation</strong> &mdash; <strong>traverse closure analysis</strong> (does the math close within tolerance?), boundary resolution review, comparison of computed positions to found monuments, and recomputation of the description.</li><li><strong>Deliverable</strong> &mdash; an <strong>independent review</strong> of the plat and description by someone other than the preparer: do the bearings/distances on the drawing match the description, do the calls close, are the certifications and notes correct, is the standard (e.g., Category 1A) met?</li></ul><p>The most powerful single QC tool is the <strong>independent check</strong>: a competent person who did not prepare the work reviews it. People do not catch their own errors well; a fresh reviewer catches transposed digits, mismatched calls, and missed adjoiners that the preparer's eye glides over.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "The seal is the quality gate in Texas: Only an RPLS may sign and seal a survey, plat, or metes-and-bounds description (Occupations Code Ch. 1071), and the RPLS who seals it is personally accountable for it meeting the standard of care and the TBPELS standards (22 TAC Ch. 138, Subch. E). Sealing work the surveyor did not control or did not check is both a quality failure and a board-discipline risk. Nothing should leave the firm under seal that has not passed QC."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Record-keeping and document retention</h3><p>Quality and liability defense both depend on <strong>records</strong>. The firm should retain a complete, organized project file: record research and deeds, field notes and raw data, computations and closure reports, correspondence and the signed contract, the final plat and description, and documentation of the QC review. These records are what prove, years later, that the surveyor followed accepted methodology and met the standard of care &mdash; the single best defense if a survey is challenged.</p><p>Document <strong>retention</strong> is partly a professional standard and partly governed by how long the surveyor can be sued. Because Texas allows suits against surveyors for years after completion (Civ. Prac. &amp; Rem. Code &sect;16.011), firms commonly retain survey records for at least the limitations/repose horizon &mdash; many keep them effectively permanently, because old surveys are also the raw material for future retracements and because the cost of digital storage is trivial against the cost of a lost file in litigation. Good retention is both a quality practice (institutional memory for retracement) and a risk-management practice (the evidence that defends the firm).</p>"}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Flow diagram of QA processes feeding each project phase and QC checks gating the deliverable before the RPLS seal", "caption": "Figure: QA processes run through every phase; QC checks gate the deliverable, with the RPLS seal as the final accountable gate.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "QA is the process that prevents errors; QC is the inspection that detects them in the product.",
+            "Distribute QC across phases — research verification, field checks, closure analysis, and an independent review.",
+            "The independent check (a non-preparer reviewing the work) is the single most effective QC tool.",
+            "The RPLS seal is the final accountable quality gate; nothing leaves the firm unchecked under seal.",
+            "Retain complete project records — they preserve quality for retracement and defend the firm in future claims."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Quality assurance (QA)", "definition": "The system of standardized procedures, checklists, templates, and training designed to prevent errors in the firm's work; focused on the process.", "hint_1": "Prevent — the process."},
+        {"term": "Quality control (QC)", "definition": "The inspections, checks, and reviews that detect errors in a specific deliverable before it is released; focused on the product.", "hint_1": "Detect — the product."},
+        {"term": "Independent check", "definition": "Review of a deliverable by a competent person who did not prepare it; the most effective QC tool because people poorly catch their own errors.", "hint_1": "Fresh eyes."},
+        {"term": "Document retention", "definition": "Keeping complete, organized project records for at least the period a surveyor can be sued; supports future retracement and defends against liability claims."}
+      ]
+    },
+    {
+      "lesson_id": "2e7fcc24-6072-455f-a161-927c628d4514",
+      "title": "Professional Development and Continuing Education",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Outline the path to RPLS licensure in Texas and the role of TBPELS",
+        "Explain the continuing-education requirement for maintaining a Texas surveying license",
+        "Identify the value of professional organizations (TSPS, NSPS) to a surveyor's development",
+        "Describe the ethical obligation of lifelong competence and how it relates to the standard of care"
+      ],
+      "key_takeaways": [
+        "TBPELS licenses surveyors in Texas under Occupations Code Ch. 1071; the RPLS is the practice credential",
+        "Maintaining a Texas license requires periodic renewal and continuing education (CE/PDH)",
+        "Professional societies (TSPS, NSPS) provide standards, advocacy, networking, and CE",
+        "Lifelong learning is an ethical duty: staying current is how a surveyor continues to meet the standard of care"
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The path to licensure in Texas</h3><p>Surveying is a regulated profession, and the credential to practice independently in Texas is the <strong>Registered Professional Land Surveyor (RPLS)</strong>, issued by the <strong>Texas Board of Professional Engineers and Land Surveyors (TBPELS)</strong> under the <strong>Professional Land Surveying Practices Act (Texas Occupations Code Chapter 1071)</strong>. The path generally combines education, supervised experience, and examination: candidates typically progress from <strong>Surveyor-in-Training (SIT)</strong> &mdash; earned by passing the Fundamentals of Surveying exam &mdash; through a required period of qualifying experience under the supervision of an RPLS, to the Principles and Practice exams (including a Texas-specific state exam) and finally licensure as an RPLS. For work on state-owned land, Texas maintains a separate, more specialized credential, the <strong>Licensed State Land Surveyor (LSLS)</strong>.</p><p>Only an RPLS (or, for state land, an LSLS) may perform certain acts reserved to the profession: preparing a metes-and-bounds description, delineating and monumenting boundaries, and signing and sealing a survey. Understanding this licensure framework is part of running a firm: it dictates who may sign work, why the firm needs a registered surveyor, and how interns build toward the credential that lets them practice independently.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Continuing education and license maintenance</h3><p>A license is not earned once and kept forever without effort. To keep an RPLS license active, a surveyor must <strong>renew</strong> it periodically and complete <strong>continuing education (CE)</strong> &mdash; documented hours of qualifying professional development (often measured in continuing education or professional development hours) within each renewal cycle, including required ethics/professional-responsibility content. TBPELS sets the specific hour requirements and acceptable activities, and surveyors must track and be able to document their CE in case of audit. Letting CE lapse can result in non-renewal or disciplinary action, which directly threatens the firm's ability to sign and seal work.</p><p>Continuing education is not merely a bureaucratic hurdle. Surveying changes: GNSS and RTK networks, scanning and UAS/drone mapping, evolving datums and geoid models, and updated rules (recall that Texas surveying standards moved from the repealed 22 TAC Ch. 663 to the current 22 TAC Ch. 138 in 2021). A surveyor who stops learning falls behind both the technology and the law &mdash; and, as the next point shows, behind the standard of care itself.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Stay current on the rules, not just the gear: Texas surveying standards were re-codified from 22 TAC Ch. 663 (repealed) into 22 TAC Ch. 138, 'Compliance and Professionalism for Surveyors,' effective 2021 after the 2019 merger that created TBPELS. A surveyor citing or relying on the old Ch. 663 in 2026 is working from outdated rules — a concrete example of why continuing education matters."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Professional organizations and the ethic of lifelong competence</h3><p>Professional societies are a major engine of development. The <strong>Texas Society of Professional Surveyors (TSPS)</strong> publishes the <strong>Manual of Practice</strong> (which defines the Texas survey categories such as Category 1A and is incorporated by reference into the TBPELS rules), advocates for the profession in the legislature, and offers CE, conferences, and chapters for networking and mentorship. At the national level, the <strong>National Society of Professional Surveyors (NSPS)</strong> and standards like the joint <strong>ALTA/NSPS Land Title Survey</strong> connect Texas practice to national norms. Active participation accelerates a young surveyor's growth far beyond what solo study provides.</p><p>Underlying all of this is an <strong>ethical duty of competence</strong>. The standard of care is defined by what a reasonably prudent, <em>current</em> surveyor would do &mdash; so a surveyor who fails to keep up is, over time, failing to meet the standard of care. Lifelong learning is therefore not optional self-improvement; it is part of the professional obligation. The surveyor who treats CE as a checkbox misses the point: continuing education, society participation, and mentorship are how a professional stays competent, stays compliant, and continues to deserve the public trust embodied in the seal.</p>"}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Career ladder diagram from SIT through qualifying experience to RPLS, with continuing education sustaining the license", "caption": "Figure: The licensure ladder — SIT to RPLS — sustained by ongoing continuing education and professional engagement.", "alignment": "center"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "TBPELS licenses RPLS surveyors under Occupations Code Ch. 1071; only an RPLS (or LSLS for state land) may sign and seal.",
+            "The path runs SIT → qualifying experience under an RPLS → exams → RPLS licensure.",
+            "Maintaining a license requires periodic renewal and documented continuing education, including ethics.",
+            "TSPS (and its Manual of Practice) and NSPS provide standards, advocacy, CE, and networking.",
+            "Lifelong competence is an ethical duty — staying current is how a surveyor keeps meeting the standard of care."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Registered Professional Land Surveyor (RPLS)", "definition": "The Texas license, issued by TBPELS under Occupations Code Ch. 1071, that authorizes independent practice — including preparing metes-and-bounds descriptions and signing and sealing surveys.", "hint_1": "The Texas practice credential."},
+        {"term": "Surveyor-in-Training (SIT)", "definition": "The intermediate credential earned by passing the Fundamentals of Surveying exam; the SIT then completes qualifying experience under an RPLS on the path to licensure.", "hint_1": "Step before RPLS."},
+        {"term": "Continuing education (CE/PDH)", "definition": "Documented professional development hours a surveyor must complete each renewal cycle (including ethics) to keep a TBPELS license active.", "hint_1": "Required to renew."},
+        {"term": "TSPS Manual of Practice", "definition": "The Texas Society of Professional Surveyors publication that defines Texas survey categories (e.g., Category 1A) and is incorporated by reference into the TBPELS rules.", "hint_1": "Defines Category 1A."}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "792b860f-091e-4501-8941-addcebb7b0ea",
+      "question_text": "An RPLS forms a PLLC for their surveying firm. With respect to a malpractice claim for a negligent boundary survey the RPLS sealed, the PLLC structure:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Does not shield the RPLS from personal liability for their own negligent professional work",
+        "Completely eliminates the RPLS's personal liability for the survey",
+        "Transfers the professional liability entirely to the state board",
+        "Replaces the need to carry E&O insurance"
+      ],
+      "correct_answer": "Does not shield the RPLS from personal liability for their own negligent professional work",
+      "explanation": "A liability entity protects personal assets from ordinary business debts but not the licensed professional from personal liability for their own negligence. E&O insurance, not the corporate veil, is the real protection against malpractice claims.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "792b860f-091e-4501-8941-addcebb7b0ea",
+      "question_text": "Under the Texas Professional Land Surveying Practices Act, a business offering surveying services in Texas must:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Hold a TBPELS firm registration and practice through an RPLS",
+        "Be organized as a C corporation",
+        "Only obtain a local business license",
+        "Be owned solely by attorneys"
+      ],
+      "correct_answer": "Hold a TBPELS firm registration and practice through an RPLS",
+      "explanation": "Occupations Code Ch. 1071 requires the firm to hold a TBPELS registration and to provide surveying through a Registered Professional Land Surveyor. The entity type (LLC, PLLC, etc.) is a separate matter from the firm registration requirement.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "792b860f-091e-4501-8941-addcebb7b0ea",
+      "question_text": "A busy new firm with steady work suddenly cannot make payroll. The most likely business cause is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Undercapitalization — too little cash to cover the gap between doing work and getting paid",
+        "Too many monuments found in the field",
+        "Carrying E&O insurance",
+        "Registering with TBPELS"
+      ],
+      "correct_answer": "Undercapitalization — too little cash to cover the gap between doing work and getting paid",
+      "explanation": "Even busy firms fail when they lack the cash cushion to cover the 30–90 day lag between performing work and collecting receivables. Insurance and registration are necessary costs, not the cause of insolvency.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "838bbaf5-e775-4e91-bbc1-46981bd9818b",
+      "question_text": "In the project management triangle, if a client expands the scope of a survey but refuses to extend the schedule or increase the fee, the result is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "The firm absorbs the difference as a loss (or quality suffers)",
+        "The project automatically becomes faster",
+        "Overhead disappears",
+        "The standard of care no longer applies"
+      ],
+      "correct_answer": "The firm absorbs the difference as a loss (or quality suffers)",
+      "explanation": "Scope, schedule, and budget are interdependent. Expanding scope without more time or money forces the firm to absorb the extra cost or cut corners on quality. Good project management makes the tradeoff explicit via a change order.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "838bbaf5-e775-4e91-bbc1-46981bd9818b",
+      "question_text": "The gradual accumulation of small, unbilled client requests that erodes a project's profit is called:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Scope creep",
+        "Closure error",
+        "Proration",
+        "Utilization"
+      ],
+      "correct_answer": "Scope creep",
+      "explanation": "Scope creep is the steady, uncompensated expansion of work through small added requests. The defense is a written scope and a change order for anything beyond it. Closure error and proration are computation concepts; utilization is a labor metric.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "838bbaf5-e775-4e91-bbc1-46981bd9818b",
+      "question_text": "Which survey project phase, if shortchanged, most often causes expensive problems in later phases?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Research / due diligence",
+        "Drafting the final plat",
+        "Printing copies",
+        "Invoicing the client"
+      ],
+      "correct_answer": "Research / due diligence",
+      "explanation": "Incomplete deed and adjoiner research — e.g., a missed senior deed discovered in the field — is far more costly to fix later than at the desk. Research is the phase most often shortchanged and the one whose failure most often blows up the project.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "07ba0d76-807c-48fe-86c0-f9137439a19a",
+      "question_text": "A client pressures the surveyor to move the boundary line a few feet to include their driveway, contrary to the record. The surveyor should:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Refuse; the paramount duty to the public and the integrity of the boundary controls",
+        "Comply, since the client is paying the fee",
+        "Move the line but note it quietly on the plat",
+        "Average the record line with the driveway location"
+      ],
+      "correct_answer": "Refuse; the paramount duty to the public and the integrity of the boundary controls",
+      "explanation": "The surveyor's paramount duty is to the public and the integrity of the boundary record, which outranks the client's wishes. Professional independence requires reporting the true location regardless of who pays. Moving the line would breach ethics and create liability.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "07ba0d76-807c-48fe-86c0-f9137439a19a",
+      "question_text": "Most client complaints against surveyors arise primarily from technical measurement errors rather than from unmet expectations.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Most friction stems from unmet expectations — misunderstood scope, timeline, or deliverables — not from technical error. Setting and documenting expectations up front prevents the majority of disputes.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "07ba0d76-807c-48fe-86c0-f9137439a19a",
+      "question_text": "A survey reveals that the client's garage encroaches three feet onto the neighbor's parcel. The surveyor should:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Report the encroachment factually on the plat and leave the legal resolution to the owners and counsel",
+        "Omit it to keep the client satisfied",
+        "Tell the client they have lost title to the strip",
+        "Adjust the boundary so the garage fits"
+      ],
+      "correct_answer": "Report the encroachment factually on the plat and leave the legal resolution to the owners and counsel",
+      "explanation": "The surveyor reports facts plainly; they do not adjudicate. Omitting the encroachment breaches the public duty and creates liability, and stating legal conclusions ('lost title') exceeds the surveyor's role. Resolution belongs to the owners and their attorneys.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "93eba08c-7e61-4f50-8d26-2f5f6fc96083",
+      "question_text": "Why does a surveyor paid $35/hour bill that labor at a much higher rate?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The rate must recover direct labor plus overhead plus profit, not just wages",
+        "Texas law fixes a minimum billing rate",
+        "The client is being overcharged",
+        "Wages and billing rates are required by law to be equal"
+      ],
+      "correct_answer": "The rate must recover direct labor plus overhead plus profit, not just wages",
+      "explanation": "A billing rate must cover the wage plus payroll burden, overhead (rent, equipment, software, insurance, non-billable time), and profit. Billing only the wage guarantees the firm loses money even at full utilization.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "93eba08c-7e61-4f50-8d26-2f5f6fc96083",
+      "question_text": "For a metes-and-bounds boundary survey where the monument-search effort is highly uncertain, the fee structure that best places the risk appropriately is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Hourly / time-and-materials",
+        "Lump-sum fixed fee",
+        "A flat $500 regardless of effort",
+        "No fee until litigation"
+      ],
+      "correct_answer": "Hourly / time-and-materials",
+      "explanation": "When scope is uncertain, hourly billing puts the cost risk on the client, who pays for the actual effort. A lump sum on an unpredictable boundary forces the surveyor to absorb the unknown search effort as risk for free.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "93eba08c-7e61-4f50-8d26-2f5f6fc96083",
+      "question_text": "In a survey proposal, explicitly listing what is NOT included (e.g., construction staking, flood determination) primarily serves to:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Control scope creep and limit liability by defining the boundaries of the work",
+        "Increase the fee automatically",
+        "Satisfy the continuing-education requirement",
+        "Eliminate the need for an RPLS seal"
+      ],
+      "correct_answer": "Control scope creep and limit liability by defining the boundaries of the work",
+      "explanation": "Exclusions define the edges of the engagement, preventing scope creep and limiting liability for services the surveyor never agreed to provide. They are as important as the inclusions in a well-written proposal.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "4d77040e-7139-4ba1-8eba-dc939ce32306",
+      "question_text": "The standard of care for a professional surveyor is best described as:",
+      "question_type": "multiple_choice",
+      "options": [
+        "What a reasonably prudent surveyor would do under the same or similar circumstances",
+        "A guarantee of a perfect, error-free result",
+        "Whatever the client demands",
+        "The lowest-cost approach available"
+      ],
+      "correct_answer": "What a reasonably prudent surveyor would do under the same or similar circumstances",
+      "explanation": "The standard of care is the conduct of a reasonably prudent surveyor in similar circumstances — not perfection. Liability attaches when the surveyor falls below that standard, not merely because an outcome was later disputed.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "4d77040e-7139-4ba1-8eba-dc939ce32306",
+      "question_text": "Which insurance coverage protects a surveyor against a claim that a negligent error in a survey caused the client economic loss?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Professional liability (errors and omissions / E&O)",
+        "Commercial general liability (CGL)",
+        "Commercial auto",
+        "Workers' compensation"
+      ],
+      "correct_answer": "Professional liability (errors and omissions / E&O)",
+      "explanation": "E&O covers professional negligence — errors and omissions in the survey. CGL specifically excludes professional negligence (it covers bodily injury and property damage); auto and workers' comp cover vehicles and employee injuries.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "4d77040e-7139-4ba1-8eba-dc939ce32306",
+      "question_text": "Which Texas statute governs the limitations/repose period for a suit against a registered surveyor for an error in a survey?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Tex. Civ. Prac. & Rem. Code §16.011",
+        "Tex. Property Code §13.006",
+        "Tex. Occupations Code §1071.002 only",
+        "Tex. Natural Resources Code §21.001"
+      ],
+      "correct_answer": "Tex. Civ. Prac. & Rem. Code §16.011",
+      "explanation": "Section 16.011 of the Civil Practice & Remedies Code sets the limitations/repose period for suits against registered surveyors, running from completion of the survey. The other citations concern recording, licensure definitions, and navigable streams.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "853d5851-55d4-4f6e-8e8c-afbca633727a",
+      "question_text": "Which statement correctly distinguishes quality assurance (QA) from quality control (QC)?",
+      "question_type": "multiple_choice",
+      "options": [
+        "QA is the process designed to prevent errors; QC is the inspection that detects errors in the product",
+        "QA detects errors in the product; QC is the firm's hiring policy",
+        "QA and QC are identical terms",
+        "QC prevents errors and QA only happens after delivery"
+      ],
+      "correct_answer": "QA is the process designed to prevent errors; QC is the inspection that detects errors in the product",
+      "explanation": "QA is about the process — checklists, SOPs, templates, training — to prevent errors. QC is about the product — inspections and reviews that detect errors before delivery. A firm needs both working together.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "853d5851-55d4-4f6e-8e8c-afbca633727a",
+      "question_text": "What is the single most effective quality-control practice for catching errors in a finished plat and description?",
+      "question_type": "multiple_choice",
+      "options": [
+        "An independent check by a competent person who did not prepare the work",
+        "Having the preparer re-read their own work once more",
+        "Reducing the number of monuments searched",
+        "Skipping closure analysis to save time"
+      ],
+      "correct_answer": "An independent check by a competent person who did not prepare the work",
+      "explanation": "People poorly catch their own errors; a fresh, competent reviewer catches transposed digits, mismatched calls, and missed adjoiners. The independent check is the most powerful QC tool. Re-reading one's own work is far weaker.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "853d5851-55d4-4f6e-8e8c-afbca633727a",
+      "question_text": "Only an RPLS may sign and seal a survey, and the sealing RPLS is personally accountable for it meeting the standard of care.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Under Occupations Code Ch. 1071, only an RPLS may seal a survey, plat, or metes-and-bounds description, and that RPLS is personally accountable for it meeting the standard of care and the TBPELS standards. The seal is the final accountable quality gate.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "2e7fcc24-6072-455f-a161-927c628d4514",
+      "question_text": "Which board licenses land surveyors in Texas and administers the Professional Land Surveying Practices Act?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
+        "Texas General Land Office (GLO)",
+        "National Society of Professional Surveyors (NSPS)",
+        "Texas Department of Licensing and Regulation (TDLR)"
+      ],
+      "correct_answer": "Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
+      "explanation": "TBPELS licenses surveyors under Occupations Code Ch. 1071 (formed by the 2019 merger of the engineering and surveying boards). The GLO administers state land grants/patents; NSPS is a national society; TDLR regulates other occupations.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "2e7fcc24-6072-455f-a161-927c628d4514",
+      "question_text": "Why is continuing education an ethical obligation and not merely a bureaucratic requirement?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The standard of care is defined by what a current, reasonably prudent surveyor would do, so staying current is part of meeting it",
+        "Because CE hours are sold for profit",
+        "Because it eliminates the need for E&O insurance",
+        "Because it lets the surveyor ignore TBPELS rules"
+      ],
+      "correct_answer": "The standard of care is defined by what a current, reasonably prudent surveyor would do, so staying current is part of meeting it",
+      "explanation": "Because the standard of care reflects what a current, prudent surveyor would do, a surveyor who stops learning eventually fails to meet it. Lifelong competence is thus an ethical duty tied directly to the standard of care.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "2e7fcc24-6072-455f-a161-927c628d4514",
+      "question_text": "Which Texas-specific publication defines survey categories such as Category 1A and is incorporated by reference into the TBPELS rules?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The TSPS Manual of Practice",
+        "The federal BLM Manual of Surveying Instructions",
+        "The ALTA Title Standards",
+        "Brown's Boundary Control and Legal Principles"
+      ],
+      "correct_answer": "The TSPS Manual of Practice",
+      "explanation": "The Texas Society of Professional Surveyors (TSPS) Manual of Practice defines the Texas survey categories (e.g., Category 1A) and is incorporated by reference into the TBPELS rules. The BLM Manual governs the federal PLSS; ALTA standards are national; Brown is a textbook.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Project fee from hours, rate, and direct expenses",
+      "category": "Survey Business — Fee Estimation",
+      "subcategory": "Fee buildup",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A boundary survey is estimated at {{hours}} labor hours at a billing rate of ${{rate}}/hour. Direct expenses (mileage, monuments, recording fees) total ${{expenses}}. What is the total estimated project fee?",
+      "parameters": [
+        {"name": "hours", "type": "integer", "min": 20, "max": 80},
+        {"name": "rate", "type": "integer", "min": 90, "max": 160},
+        {"name": "expenses", "type": "integer", "min": 150, "max": 800}
+      ],
+      "computed_vars": [],
+      "answer_formula": "hours * rate + expenses",
+      "answer_format": {"decimals": 2, "unit": "$", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Labor cost", "formula": "hours × rate", "calculation_template": "{{hours}} × {{rate}} = {{laborCost:f2}}"},
+        {"step_number": 2, "title": "Add direct expenses", "result_template": "{{laborCost:f2}} + {{expenses}} = {{_answer}}"}
+      ],
+      "explanation_template": "The bottom-up fee is labor (hours × rate) plus direct expenses: {{hours}} × ${{rate}} + ${{expenses}} = ${{_answer}}.",
+      "options_generator": {"method": "none"},
+      "images_needed": [
+        {"slug": "m23-fee-buildup", "caption": "Project fee built from labor hours times rate plus direct expenses", "kind": "diagram"}
+      ]
+    },
+    {
+      "name": "Profit margin from revenue and cost",
+      "category": "Survey Business — Financial Metrics",
+      "subcategory": "Profit margin",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A survey project bills the client ${{revenue}} in revenue and costs the firm ${{cost}} to deliver (labor, overhead, and expenses). What is the project's profit margin, in percent?",
+      "parameters": [
+        {"name": "revenue", "type": "integer", "min": 4000, "max": 12000},
+        {"name": "costPct", "type": "integer", "min": 60, "max": 90}
+      ],
+      "computed_vars": [
+        {"name": "cost", "formula": "round(revenue * costPct / 100, 0)"}
+      ],
+      "answer_formula": "(revenue - round(revenue * costPct / 100, 0)) / revenue * 100",
+      "answer_format": {"decimals": 1, "unit": "%", "tolerance": 0.2},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Profit", "formula": "revenue − cost", "calculation_template": "{{revenue}} − {{cost}} = {{profit:f0}}"},
+        {"step_number": 2, "title": "Margin", "result_template": "({{revenue}} − {{cost}}) ÷ {{revenue}} × 100 = {{_answer}}%"}
+      ],
+      "explanation_template": "Profit margin = (revenue − cost) / revenue × 100 = ({{revenue}} − {{cost}}) / {{revenue}} × 100 = {{_answer}}%.",
+      "options_generator": {"method": "none"},
+      "images_needed": [
+        {"slug": "m23-profit-margin", "caption": "Profit margin as the share of revenue remaining after cost", "kind": "diagram"}
+      ]
+    },
+    {
+      "name": "Breakeven billable hours to cover fixed cost",
+      "category": "Survey Business — Financial Metrics",
+      "subcategory": "Breakeven analysis",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A firm has fixed monthly overhead of ${{fixed}}. Each billable hour generates a contribution margin of ${{margin}} (billing rate minus variable cost per hour). How many billable hours per month are needed to break even?",
+      "parameters": [
+        {"name": "fixed", "type": "integer", "min": 8000, "max": 20000},
+        {"name": "margin", "type": "integer", "min": 50, "max": 110}
+      ],
+      "computed_vars": [],
+      "answer_formula": "fixed / margin",
+      "answer_format": {"decimals": 1, "unit": "hours", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Breakeven hours", "formula": "fixed ÷ contribution margin", "result_template": "{{fixed}} ÷ {{margin}} = {{_answer}} hours"}
+      ],
+      "explanation_template": "Breakeven hours = fixed cost ÷ contribution margin per hour = ${{fixed}} ÷ ${{margin}} = {{_answer}} billable hours per month.",
+      "options_generator": {"method": "none"},
+      "images_needed": [
+        {"slug": "m23-breakeven", "caption": "Breakeven point where contribution margin covers fixed overhead", "kind": "diagram"}
+      ]
+    }
+  ]
+}
