@@ -11,6 +11,8 @@ import {
   tinyStatLabelStyle,
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
+// weather-severity-2026-06-19 — per-day tooltip + severity badge.
+import { buildDayTooltip, computeDaySeverity } from '@/lib/weather/severity';
 
 export type WeatherLocation = 'auto' | 'manual' | 'active-job';
 
@@ -26,10 +28,18 @@ interface WeatherDay {
   low_f: number;
   description: string;
   icon: string;
+  // Raw WMO code for the severity engine.
+  code?: number;
   // weather-extras-2026-06-18 — per-day rain chance.
   rain_chance_pct?: number | null;
   // weather-icon-accuracy-2026-06-19 — per-day max wind in mph.
   wind_mph?: number | null;
+  // weather-severity-2026-06-19 — extras driving the tooltip +
+  // severity engine.
+  wind_gust_mph?: number | null;
+  feels_like_max_f?: number | null;
+  feels_like_min_f?: number | null;
+  humidity_max_pct?: number | null;
 }
 interface WeatherSnapshot {
   temperature_f: number;
@@ -190,35 +200,83 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
             borderTop: '1px solid var(--theme-border, #e5e7eb)',
           }}
         >
-          {upcoming.map((d) => (
-            <li
-              key={d.date}
-              data-date={d.date}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                padding: '4px 2px',
-                borderRadius: 6,
-                background: 'var(--theme-bg-elevated, transparent)',
-                fontSize: 'var(--hub-font-xs, 0.72rem)',
-                color: 'var(--theme-fg-secondary)',
-              }}
-            >
-              <span style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>
-                {new Date(d.date).toLocaleDateString(undefined, { weekday: 'short' })}
-              </span>
-              <span aria-hidden style={{ fontSize: '1.15rem', lineHeight: 1 }}>{d.icon}</span>
-              <span>
-                <strong style={{ color: 'var(--theme-fg-primary)' }}>{Math.round(d.high_f)}°</strong>
-                {' / '}
-                <span>{Math.round(d.low_f)}°</span>
-              </span>
-              {d.rain_chance_pct != null && (
-                <span title="Chance of precipitation" style={{ color: 'var(--theme-fg-secondary)' }}>
-                  🌧 {d.rain_chance_pct}%
+          {upcoming.map((d) => {
+            const severity = computeDaySeverity({
+              code: d.code,
+              high_f: d.high_f,
+              low_f: d.low_f,
+              feels_like_max_f: d.feels_like_max_f,
+              feels_like_min_f: d.feels_like_min_f,
+              humidity_max_pct: d.humidity_max_pct,
+              rain_chance_pct: d.rain_chance_pct,
+              wind_mph: d.wind_mph,
+              wind_gust_mph: d.wind_gust_mph,
+            });
+            const tooltip = buildDayTooltip({
+              date: d.date,
+              description: d.description,
+              code: d.code,
+              high_f: d.high_f,
+              low_f: d.low_f,
+              feels_like_max_f: d.feels_like_max_f,
+              feels_like_min_f: d.feels_like_min_f,
+              humidity_max_pct: d.humidity_max_pct,
+              rain_chance_pct: d.rain_chance_pct,
+              wind_mph: d.wind_mph,
+              wind_gust_mph: d.wind_gust_mph,
+            });
+            return (
+              <li
+                key={d.date}
+                data-date={d.date}
+                data-severity={severity?.kind ?? ''}
+                title={tooltip}
+                tabIndex={0}
+                aria-label={tooltip}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                  padding: '4px 2px',
+                  borderRadius: 6,
+                  background: severity
+                    ? 'color-mix(in srgb, var(--theme-bg-elevated, #f3f4f6) 70%, #fee2e2)'
+                    : 'var(--theme-bg-elevated, transparent)',
+                  outline: severity ? '1px solid color-mix(in srgb, var(--theme-fg-secondary, #6B7280) 30%, #f87171)' : 'none',
+                  position: 'relative',
+                  cursor: 'help',
+                  fontSize: 'var(--hub-font-xs, 0.72rem)',
+                  color: 'var(--theme-fg-secondary)',
+                }}
+              >
+                {severity && (
+                  <span
+                    aria-hidden
+                    data-testid={`weather-day-severity-${severity.kind}`}
+                    title={`${severity.label}: ${severity.advice}`}
+                    style={{
+                      position: 'absolute', top: 2, right: 2,
+                      fontSize: '0.85rem', lineHeight: 1,
+                    }}
+                  >
+                    {severity.icon}
+                  </span>
+                )}
+                <span style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>
+                  {new Date(d.date).toLocaleDateString(undefined, { weekday: 'short' })}
                 </span>
-              )}
-            </li>
-          ))}
+                <span aria-hidden style={{ fontSize: '1.15rem', lineHeight: 1 }}>{d.icon}</span>
+                <span>
+                  <strong style={{ color: 'var(--theme-fg-primary)' }}>{Math.round(d.high_f)}°</strong>
+                  {' / '}
+                  <span>{Math.round(d.low_f)}°</span>
+                </span>
+                {d.rain_chance_pct != null && (
+                  <span style={{ color: 'var(--theme-fg-secondary)' }}>
+                    🌧 {d.rain_chance_pct}%
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

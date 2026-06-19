@@ -38,11 +38,23 @@ export function describeWeather(code: number): WeatherLook {
       return { description: 'Overcast', icon: '☁️' };
     case code === 45 || code === 48:
       return { description: 'Fog', icon: '🌫️' };
-    case code >= 51 && code <= 57:
+    // weather-severity-2026-06-19 — freezing drizzle / rain split
+    // out of the plain drizzle / rain bands so the office sees the
+    // ice glyph + the severity engine can fire an ice warning.
+    case code === 56 || code === 57:
+      return { description: 'Freezing drizzle', icon: '🧊' };
+    case code === 66 || code === 67:
+      return { description: 'Freezing rain', icon: '🧊' };
+    case code >= 51 && code <= 55:
       return { description: 'Drizzle', icon: '🌦️' };
-    case code >= 61 && code <= 67:
+    case code >= 61 && code <= 65:
       return { description: 'Rain', icon: '🌧️' };
-    case code >= 71 && code <= 77:
+    // Snow grains is code 77 — separate so the tooltip can name it.
+    case code === 77:
+      return { description: 'Snow grains', icon: '🌨️' };
+    case code === 75:
+      return { description: 'Heavy snow', icon: '❄️' };
+    case code >= 71 && code <= 73:
       return { description: 'Snow', icon: '🌨️' };
     case code >= 80 && code <= 82:
       return { description: 'Rain showers', icon: '🌦️' };
@@ -86,9 +98,13 @@ export const WIND_NOTABLE_MPH = 20;
  *  over the "cloudy" look. */
 export const WIND_DOMINANT_MPH = 30;
 
+// weather-severity-2026-06-19 — freezing precip codes (56, 57, 66,
+// 67) are deliberately EXCLUDED here. The forecast wouldn't issue
+// freezing precip casually, so the icon should stay 🧊 even at low
+// probability — the severity engine fires an ice warning regardless.
 const PRECIP_CODES = new Set<number>();
-for (let c = 51; c <= 57; c += 1) PRECIP_CODES.add(c);
-for (let c = 61; c <= 67; c += 1) PRECIP_CODES.add(c);
+for (let c = 51; c <= 55; c += 1) PRECIP_CODES.add(c);
+for (let c = 61; c <= 65; c += 1) PRECIP_CODES.add(c);
 for (let c = 80; c <= 82; c += 1) PRECIP_CODES.add(c);
 
 const MILD_CODES = new Set<number>([0, 1, 2, 3]);

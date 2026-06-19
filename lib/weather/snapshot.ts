@@ -46,6 +46,9 @@ export interface WeatherDay {
   low_f: number;
   description: string;
   icon: string;
+  /** Raw WMO weather code Open-Meteo returned. Surfaced so the
+   *  severity engine + tooltip builder can re-evaluate. */
+  code: number;
   /** weather-extras-2026-06-18 — per-day precipitation
    *  probability 0–100 (%). null when the daily block omits
    *  the precipitation_probability_max array. */
@@ -54,6 +57,22 @@ export interface WeatherDay {
    *  Feeds the per-day icon refinement so a windy day shows
    *  the windy glyph in the strip too. */
   wind_mph: number | null;
+  /** weather-severity-2026-06-19 — per-day max wind gust in mph.
+   *  Feeds the severity engine (gusts ≥ 50 → high wind / tornado
+   *  risk). null when the upstream omits the field. */
+  wind_gust_mph: number | null;
+  /** weather-severity-2026-06-19 — per-day apparent-temperature
+   *  max ("feels like") in °F. Drives the heat-wave warning when
+   *  the air temp itself isn't that high but the humidity makes
+   *  it feel ≥ 105°F. null when omitted. */
+  feels_like_max_f: number | null;
+  /** weather-severity-2026-06-19 — per-day apparent-temperature
+   *  min in °F. Useful for the tooltip but not directly used by
+   *  the warning engine today. */
+  feels_like_min_f: number | null;
+  /** weather-severity-2026-06-19 — per-day max humidity 0–100 (%).
+   *  Surfaced in the tooltip so the office can plan around it. */
+  humidity_max_pct: number | null;
 }
 
 /** Shape of the bits of the Open-Meteo `/v1/forecast` response we read.
@@ -78,6 +97,13 @@ export interface OpenMeteoForecast {
     precipitation_probability_max?: number[];
     // weather-icon-accuracy-2026-06-19 — daily max wind speed.
     wind_speed_10m_max?: number[];
+    // weather-severity-2026-06-19 — daily max wind gust, feels-like
+    // max + min, and humidity max. Feed the severity engine + the
+    // hover tooltip.
+    wind_gusts_10m_max?: number[];
+    apparent_temperature_max?: number[];
+    apparent_temperature_min?: number[];
+    relative_humidity_2m_max?: number[];
   };
 }
 
@@ -155,6 +181,11 @@ export function buildDailyForecast(forecast: OpenMeteoForecast): WeatherDay[] {
   const lows = forecast.daily?.temperature_2m_min ?? [];
   const rains = forecast.daily?.precipitation_probability_max ?? [];
   const winds = forecast.daily?.wind_speed_10m_max ?? [];
+  // weather-severity-2026-06-19 — gusts + feels-like + humidity.
+  const gusts = forecast.daily?.wind_gusts_10m_max ?? [];
+  const feelsMaxes = forecast.daily?.apparent_temperature_max ?? [];
+  const feelsMins = forecast.daily?.apparent_temperature_min ?? [];
+  const hums = forecast.daily?.relative_humidity_2m_max ?? [];
   const out: WeatherDay[] = [];
   const n = Math.min(5, times.length, highs.length, lows.length);
   for (let i = 0; i < n; i++) {
@@ -162,24 +193,35 @@ export function buildDailyForecast(forecast: OpenMeteoForecast): WeatherDay[] {
     const hi = highs[i];
     const lo = lows[i];
     if (!date || typeof hi !== 'number' || typeof lo !== 'number') continue;
+    const code = typeof codes[i] === 'number' ? codes[i] : -1;
     const r = rains[i];
     const rainPct = typeof r === 'number' && Number.isFinite(r) ? clampPct(r) : null;
     const w = winds[i];
     const windMph = typeof w === 'number' && Number.isFinite(w) ? w : null;
+    const g = gusts[i];
+    const gustMph = typeof g === 'number' && Number.isFinite(g) ? g : null;
+    const fm = feelsMaxes[i];
+    const feelsMax = typeof fm === 'number' && Number.isFinite(fm) ? fm : null;
+    const fn = feelsMins[i];
+    const feelsMin = typeof fn === 'number' && Number.isFinite(fn) ? fn : null;
+    const hm = hums[i];
+    const humMax = typeof hm === 'number' && Number.isFinite(hm) ? clampPct(hm) : null;
     // weather-icon-accuracy-2026-06-19 — refine the per-day icon
     // off the per-day probability + wind, not just the WMO code.
-    const look = describeWeatherWithContext(
-      typeof codes[i] === 'number' ? codes[i] : -1,
-      { rainChancePct: rainPct, windMph },
-    );
+    const look = describeWeatherWithContext(code, { rainChancePct: rainPct, windMph });
     out.push({
       date,
       high_f: hi,
       low_f: lo,
       description: look.description,
       icon: look.icon,
+      code,
       rain_chance_pct: rainPct,
       wind_mph: windMph != null ? Math.round(windMph) : null,
+      wind_gust_mph: gustMph != null ? Math.round(gustMph) : null,
+      feels_like_max_f: feelsMax != null ? Math.round(feelsMax * 10) / 10 : null,
+      feels_like_min_f: feelsMin != null ? Math.round(feelsMin * 10) / 10 : null,
+      humidity_max_pct: humMax,
     });
   }
   return out;

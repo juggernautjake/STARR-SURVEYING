@@ -69,10 +69,17 @@ export const GET = withErrorHandler(async (req: Request) => {
   // (high wind + mild code → 🌬️) and the widget can surface a
   // wind chip when notable. `windspeed_unit=mph` keeps units in
   // lockstep with the rest of the surface (temps already °F).
+  //
+  // weather-severity-2026-06-19 — also request the daily
+  // apparent-temperature max/min, max humidity, and wind gusts so
+  // the per-day tooltip can show feels-like / humidity and the
+  // severity engine can fire heat-wave / high-wind / tornado-risk
+  // warnings.
   const forecast = await fetchJson(
     `${FORECAST_URL}?latitude=${point.latitude}&longitude=${point.longitude}` +
       '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+      ',wind_speed_10m_max,wind_gusts_10m_max,apparent_temperature_max,apparent_temperature_min,relative_humidity_2m_max' +
       '&temperature_unit=fahrenheit&windspeed_unit=mph&forecast_days=5&timezone=auto',
   );
 

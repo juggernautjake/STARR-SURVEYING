@@ -21,7 +21,10 @@ describe('describeWeather (WMO codes)', () => {
     expect(describeWeather(0)).toEqual({ description: 'Clear sky', icon: '☀️' });
     expect(describeWeather(3).description).toBe('Overcast');
     expect(describeWeather(63).description).toBe('Rain');
-    expect(describeWeather(75).description).toBe('Snow');
+    // weather-severity-2026-06-19 — 71-73 stay generic "Snow",
+    // 75 splits to "Heavy snow", 77 to "Snow grains".
+    expect(describeWeather(71).description).toBe('Snow');
+    expect(describeWeather(75).description).toBe('Heavy snow');
     expect(describeWeather(95).description).toBe('Thunderstorm');
     expect(describeWeather(96).description).toBe('Thunderstorm with hail');
   });
@@ -66,7 +69,10 @@ describe('describeWeatherWithContext (icon accuracy)', () => {
   });
 
   it('never downgrades snow / fog / thunder (those codes are decisive)', () => {
-    expect(describeWeatherWithContext(75, { rainChancePct: 5 }).description).toBe('Snow');
+    // 71 stays generic "Snow"; 75 is now "Heavy snow" per the
+    // P22 split — both retain their snow glyph regardless of rain%.
+    expect(describeWeatherWithContext(71, { rainChancePct: 5 }).description).toBe('Snow');
+    expect(describeWeatherWithContext(75, { rainChancePct: 5 }).description).toBe('Heavy snow');
     expect(describeWeatherWithContext(45, { rainChancePct: 5 }).description).toBe('Fog');
     expect(describeWeatherWithContext(95, { rainChancePct: 5 }).description).toBe('Thunderstorm');
     expect(describeWeatherWithContext(96, { rainChancePct: 5 }).description).toBe('Thunderstorm with hail');
