@@ -1,0 +1,564 @@
+{
+  "module_number": 8,
+  "title": "Photogrammetry, GIS and Construction",
+  "description": "Map the world and stake it out: photo scale, ground sample distance, relief displacement, flying height and stereo parallax; remote sensing, LiDAR and UAS; mapping fundamentals, GIS data models, projections and datums; and construction surveying — stakeout, grades, and earthwork — all tied to the NCEES FS Reference Handbook photogrammetry and earthwork formulas.",
+  "week_range": "Weeks 14-15",
+  "exam_weight_percent": 12,
+  "icon": "🛩️",
+  "xp_reward": 450,
+  "prerequisite_module": 7,
+  "key_topics": [
+    "Vertical photo scale S = f/(H − h) and average scale",
+    "Ground sample distance (GSD) from pixel size, flying height, focal length",
+    "Relief (radial) displacement d = r·h/H",
+    "Flying height, overlap/sidelap, stereo base, and parallax",
+    "Remote sensing, multispectral imagery, LiDAR, and UAS/drone mapping",
+    "Mapping concepts: scale, contours, vector vs. raster data models",
+    "GIS: projections, coordinate systems, datums (NAD83/NAVD88), metadata",
+    "Map projections — Lambert vs. Transverse Mercator; geoid vs. ellipsoid",
+    "Construction stakeout: offsets, cut/fill, grade, and slope",
+    "Earthwork volumes by average end area and the prismoidal formula"
+  ],
+  "key_formulas": [
+    {"name": "Vertical photo scale", "formula": "S = f / (H − h)"},
+    {"name": "Photo scale (distance ratio)", "formula": "S = (photo distance) / (ground distance)"},
+    {"name": "Ground distance from photo", "formula": "D_ground = d_photo / S = d_photo · (H − h)/f"},
+    {"name": "Ground sample distance", "formula": "GSD = (pixel_size · H) / f"},
+    {"name": "GSD (cm) shortcut", "formula": "GSD_cm = (pixel_µm · H_m) / (f_mm · 10)"},
+    {"name": "Relief displacement", "formula": "d = r·h / H"},
+    {"name": "Flying height above ground", "formula": "H − h = f / S"},
+    {"name": "Stereo base (air base)", "formula": "B = (1 − overlap)·(photo width · ground scale)"},
+    {"name": "Parallax height", "formula": "h = H − f·B/p"},
+    {"name": "Map scale conversion", "formula": "ground = map distance × scale denominator"},
+    {"name": "Grade (slope)", "formula": "grade % = (ΔElev / horizontal distance) × 100"},
+    {"name": "Average end-area volume", "formula": "V = L·(A₁ + A₂)/2"},
+    {"name": "Prismoidal volume", "formula": "V = L·(A₁ + 4·A_m + A₂)/6"}
+  ],
+  "content_sections": [
+    {
+      "type": "overview",
+      "title": "Module Overview",
+      "content": "## Mapping the world, then building on it\n\n**Mapping Processes and Methods** (14–21 of 110 questions) is the FS knowledge area that turns measurements into maps, and **photogrammetry, remote sensing, and GIS** are its high-yield computational and conceptual core. This module also reaches into **Surveying Processes** (construction layout, as-builts, quantities) and **Survey Computations** (earthwork volumes, slopes and grades), because the same student who can scale an aerial photo is expected to stake a building pad and compute the dirt to move.\n\n**Photogrammetry** is the science of making measurements from photographs. From a single vertical aerial photo you can recover **scale** (`S = f/(H−h)`), correct for **relief displacement** (tall objects lean away from the photo center), and from a **stereo pair** you can measure heights via **parallax**. Modern practice replaces film with digital sensors, so the key map-resolution metric is now the **ground sample distance (GSD)** — the ground size of one pixel.\n\n**Remote sensing** broadens this to non-photographic sensors: multispectral and hyperspectral satellite imagery, **LiDAR** (active laser ranging that yields dense 3-D point clouds and bare-earth DEMs), and **UAS/drone** platforms that have transformed small-area mapping.\n\n**GIS** stores and analyzes spatial data in two models — **vector** (points/lines/polygons with attributes) and **raster** (a grid of cells) — and depends on correctly declared **projections, coordinate systems, and datums** (NAD83 horizontal, NAVD88 vertical) plus **metadata**. Mis-declared projections are the classic GIS blunder.\n\nFinally, **construction surveying** lays the design back onto the ground: setting line and grade, computing **cut/fill** and **slope stakes**, and quantifying **earthwork** by the average-end-area and prismoidal formulas. Every formula here matches the **NCEES FS Reference Handbook v2.5** (Photogrammetry, Curvature & refraction, Earthwork sections) so the on-screen exam reference will look familiar."
+    },
+    {
+      "type": "concepts",
+      "title": "Key Concepts",
+      "content": "## Photogrammetry — vertical photo geometry\n\nA **vertical aerial photograph** is taken with the camera axis (nearly) pointing straight down. The geometry is a perspective projection through the lens of **focal length f** at a **flying height H** above a datum; a point of ground height **h** sits at flying height **(H − h)** above it.\n\n- **Scale** of a vertical photo at a point of elevation h: `S = f / (H − h)`. Scale is a ratio (e.g., 1:6,000); it is **larger** (closer to 1) for low ground and high points, **smaller** for valleys. Use an **average scale** with `h = h_avg` for the whole photo.\n- **Scale as a distance ratio:** `S = (photo distance) / (ground distance)`. So `ground distance = photo distance / S` and `photo distance = ground distance × S`. Keep f, H, and h in **consistent units** (convert f in mm to feet, or H to mm) before dividing.\n- **Relief displacement** `d = r·h / H`: features above the datum are displaced **radially outward** from the principal point (photo center) by an amount proportional to the radial distance **r** and the object height **h**, and inversely to flying height **H**. This is why a building leans outward in an aerial photo — and the basis for measuring object heights from a single photo (`h = d·H/r`).\n\n## Digital sensors and GSD\n\nDigital cameras record a grid of pixels; the ground footprint of one pixel is the **ground sample distance**:\n\n`GSD = (pixel size × H) / f`\n\nwith pixel size, H, and f in **consistent units**. A handy shortcut: **GSD(cm) = pixel(µm) × H(m) / [f(mm) × 10]**. Smaller GSD = higher resolution. Flight planning trades GSD against flying height and flight time.\n\n## Stereo, overlap, and parallax\n\nAerial blocks are flown with ~**60% forward overlap** (endlap) and ~**30% sidelap** so every point appears on at least two photos, forming a **stereo model**. The horizontal distance between successive exposure stations is the **air base B**. **Parallax** `p = x − x′` is the difference in a point's photo position between the two images; greater parallax = closer to the camera = higher ground. Heights come from `h = H − f·B/p`, or differentially from `h₂ = h₁ + [(p₂ − p₁)/p₂]·(H − h₁)`.\n\n## Remote sensing and LiDAR\n\n- **Passive remote sensing** records reflected/emitted energy across spectral bands (visible, near-IR, thermal). **Multispectral/hyperspectral** imagery supports land-cover classification and vegetation indices (e.g., NDVI).\n- **LiDAR** is **active** — it emits laser pulses and times the returns to build a dense 3-D **point cloud**. Multiple returns let it penetrate vegetation; classified ground returns produce a **bare-earth DEM**. Accuracy depends on GNSS/IMU positioning of the platform.\n- **UAS/drones** carry cameras or small LiDAR for low-altitude, high-resolution mapping of small sites; products include orthomosaics, DSMs, and point clouds via **structure-from-motion (SfM)**.\n\n## Maps, terrain models, and GIS data\n\n- **Map scale** is the ratio of map distance to ground distance (1:1,200 means 1 unit on the map = 1,200 on the ground). **Contours** connect points of equal elevation; the **contour interval** is the vertical spacing.\n- **Terrain models:** a **TIN** (triangulated irregular network) and **DEM/DSM** represent the surface; a **DSM** includes objects (canopy, buildings), a **DEM/DTM** is bare earth.\n- **GIS data models:** **vector** stores discrete features (points, lines, polygons) with **attributes**; **raster** stores a continuous grid of cells (each holding a value). Vector is efficient for discrete boundaries; raster suits continuous phenomena (elevation, imagery).\n- **Projections, coordinate systems, datums:** every spatial layer must declare its **projection** (Lambert Conformal Conic for E–W-extended states; Transverse Mercator for N–S states), **coordinate system** (e.g., SPCS), and **datum** (NAD83 horizontal, NAVD88 vertical; geoid undulation N relates ellipsoidal h to orthometric H via h = H + N). **Metadata** documents source, accuracy, and lineage. The #1 GIS failure is layers in mismatched/undeclared projections that don't overlay.\n\n## Construction surveying\n\n- **Stakeout (layout)** places stakes that mark horizontal position (line/offset) and vertical position (grade/cut-fill) for construction. Offset stakes sit a known distance from the feature so they survive excavation.\n- **Grade** = the slope of a surface, usually expressed as a **percent**: `grade% = (ΔElev / horizontal distance) × 100`. A +2.0% grade rises 2 ft per 100 ft.\n- **Cut and fill:** at a station, **cut** = existing − proposed (remove material); **fill** = proposed − existing (add material). **Slope stakes** mark where the design side slope (e.g., 2:1, run:rise) meets existing ground.\n- **As-built (record) surveys** verify the finished work against design.\n\n## Earthwork volumes\n\nFrom cross-section **end areas** A₁, A₂ a distance L apart:\n\n- **Average end area:** `V = L·(A₁ + A₂)/2` — simple, slightly overestimates for transitioning sections.\n- **Prismoidal:** `V = L·(A₁ + 4·A_m + A₂)/6`, with A_m the area of the **mid-section** (not the average of A₁,A₂) — more accurate. Convert ft³ to **cubic yards** by ÷27. Apply **shrinkage** (fill compacts) or **swell** (excavated material bulks) factors as specified."
+    },
+    {
+      "type": "formulas",
+      "title": "Essential Formulas",
+      "content": "## Photogrammetry (vertical photos)\n\n| Quantity | Formula | Notes |\n|---|---|---|\n| Photo scale | `S = f / (H − h)` | f, H, h in consistent units; S is a ratio |\n| Scale as distance ratio | `S = photo dist / ground dist` | |\n| Ground distance | `D = d_photo / S = d_photo·(H − h)/f` | |\n| Photo distance | `d_photo = D·S` | |\n| Average scale | `S_avg = f / (H − h_avg)` | use mean ground elevation |\n| Flying height above ground | `H − h = f / S` | invert the scale relation |\n| Relief displacement | `d = r·h / H` | radial, outward from principal point |\n| Object height from displacement | `h = d·H / r` | |\n\n**Unit tip:** with f in millimeters and H, h in feet, convert f to feet first (`f_ft = f_mm/304.8`) or convert H to mm — never mix.\n\n## Ground sample distance (digital sensors)\n\n`GSD = (pixel size × H) / f`   (consistent units)\n\nShortcut: `GSD(cm) = pixel(µm) × H(m) / [f(mm) × 10]`\n\n## Stereo / parallax\n\n| Quantity | Formula |\n|---|---|\n| Parallax | `p = x − x′` |\n| Ground X, Y (parallax) | `X = x·B/p`,  `Y = y·B/p` |\n| Height from parallax | `h = H − f·B/p` |\n| Differential height | `h₂ = h₁ + [(p₂ − p₁)/p₂]·(H − h₁)` |\n| Air base (ground units) | `B = (1 − endlap)·(ground width of photo)` |\n\n(B = air base = ground distance between exposure stations; endlap ≈ 0.60, sidelap ≈ 0.30.)\n\n## Map scale conversions\n\n| Need | Relation |\n|---|---|\n| Ground from map | `ground = map dist × scale denominator` |\n| Map from ground | `map dist = ground / scale denominator` |\n| Engineer's scale 1 in = N ft | scale denominator = N × 12 |\n\n## Grades and slopes\n\n`grade % = (ΔElev / horizontal distance) × 100`     `ΔElev = grade × horizontal distance`\n\nSide slope **s:1** (run:rise) means horizontal run = s × vertical rise.\n\n## Earthwork volumes\n\n| Method | Formula |\n|---|---|\n| Average end area | `V = L·(A₁ + A₂)/2` |\n| Prismoidal | `V = L·(A₁ + 4·A_m + A₂)/6` |\n| Pyramid/cone | `V = h·(base area)/3` |\n| ft³ → yd³ | `÷ 27` |\n\n## Height systems (mapping/GIS)\n\n`h = H + N` — ellipsoidal height h, orthometric height H (NAVD88), geoid undulation N. Declare horizontal datum (NAD83) and vertical datum (NAVD88) in metadata."
+    },
+    {
+      "type": "examples",
+      "title": "Worked Examples",
+      "content": "## Vertical-photo geometry\n\nThe figure shows a vertical aerial photo: camera at flying height **H** above datum, focal length **f**, a ground point **A** at elevation **h**, and its image **a** at radial distance **r** from the principal point. Relief displacement leans **A** outward.\n\n<svg width=\"480\" height=\"320\" viewBox=\"0 0 480 320\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background:#fff;border:1px solid #ccc\">\n  <!-- ground / datum -->\n  <line x1=\"30\" y1=\"280\" x2=\"450\" y2=\"280\" stroke=\"#7a5a2a\" stroke-width=\"2\"/>\n  <text x=\"360\" y=\"298\" font-size=\"12\" fill=\"#7a5a2a\">datum (h = 0)</text>\n  <!-- terrain bump for point A -->\n  <line x1=\"300\" y1=\"280\" x2=\"300\" y2=\"230\" stroke=\"#2a7a2a\" stroke-width=\"2\"/>\n  <text x=\"306\" y=\"258\" font-size=\"12\" fill=\"#2a7a2a\">h</text>\n  <circle cx=\"300\" cy=\"230\" r=\"4\" fill=\"#c0392b\"/>\n  <text x=\"306\" y=\"228\" font-size=\"13\" font-weight=\"bold\">A</text>\n  <!-- camera / focal plane -->\n  <line x1=\"120\" y1=\"70\" x2=\"320\" y2=\"70\" stroke=\"#1c4e80\" stroke-width=\"2\"/>\n  <text x=\"322\" y=\"66\" font-size=\"12\" fill=\"#1c4e80\">focal plane (photo)</text>\n  <circle cx=\"190\" cy=\"40\" r=\"5\" fill=\"#333\"/>\n  <text x=\"198\" y=\"38\" font-size=\"12\">L (lens)</text>\n  <!-- focal length f -->\n  <line x1=\"190\" y1=\"40\" x2=\"190\" y2=\"70\" stroke=\"#888\" stroke-dasharray=\"3,3\"/>\n  <text x=\"196\" y=\"58\" font-size=\"12\">f</text>\n  <!-- principal point and image a -->\n  <circle cx=\"190\" cy=\"70\" r=\"3\" fill=\"#1c4e80\"/>\n  <text x=\"168\" y=\"86\" font-size=\"11\" fill=\"#1c4e80\">pp</text>\n  <circle cx=\"250\" cy=\"70\" r=\"4\" fill=\"#c0392b\"/>\n  <text x=\"252\" y=\"64\" font-size=\"12\" fill=\"#c0392b\">a</text>\n  <line x1=\"190\" y1=\"70\" x2=\"250\" y2=\"70\" stroke=\"#c0392b\" stroke-width=\"1.5\"/>\n  <text x=\"206\" y=\"84\" font-size=\"11\" fill=\"#c0392b\">r</text>\n  <!-- ray lens to A through a -->\n  <line x1=\"190\" y1=\"40\" x2=\"300\" y2=\"230\" stroke=\"#999\" stroke-dasharray=\"2,2\"/>\n  <!-- flying height H -->\n  <line x1=\"60\" y1=\"40\" x2=\"60\" y2=\"280\" stroke=\"#555\"/>\n  <text x=\"40\" y=\"160\" font-size=\"12\" fill=\"#555\">H</text>\n  <line x1=\"55\" y1=\"40\" x2=\"65\" y2=\"40\" stroke=\"#555\"/>\n  <line x1=\"55\" y1=\"280\" x2=\"65\" y2=\"280\" stroke=\"#555\"/>\n</svg>\n\n---\n\n## Example 1 — Photo scale of a vertical photograph\n\nA vertical photo is taken with a **f = 152.4 mm** (6.00 in) camera from a flying height **H = 6,000 ft** above datum. The ground beneath averages **h = 1,000 ft**. Find the average scale.\n\n1. Put f in feet: `f = 152.4 mm ÷ 304.8 = 0.500 ft` (6.00 in = 0.500 ft).\n2. Flying height above the ground: `H − h = 6,000 − 1,000 = 5,000 ft`.\n3. `S = f/(H − h) = 0.500 / 5,000 = 1/10,000`.\n\n**Scale = 1:10,000** (1 in on the photo = 10,000 in = 833.3 ft on the ground).\n\n**Calculator (TI-36X Pro):** `0.5 ÷ 5000 =` → `1×10⁻⁴`; take the reciprocal `x⁻¹` → **10,000**, so 1:10,000. **Casio fx-991:** identical. Watch the **unit conversion** of f from mm to ft — the single most common photogrammetry error.\n\n---\n\n## Example 2 — Ground distance from a photo measurement\n\nOn the photo of Example 1 (scale 1:10,000), two road intersections are **3.20 in** apart. What is their ground distance?\n\n1. `ground = photo distance / S = 3.20 in × 10,000 = 32,000 in`.\n2. `32,000 ÷ 12 = 2,666.7 ft`.\n\n**Ground distance ≈ 2,666.7 ft.** Equivalently `D = d·(H − h)/f = 3.20 × 5,000 / 0.5 in`-consistent — keep units straight. **Calculator:** `3.2 × 10000 ÷ 12 =`.\n\n---\n\n## Example 3 — Ground sample distance (digital sensor)\n\nA UAS camera has a **5.2 µm** pixel and **f = 24 mm** focal length, flown at **H = 400 m** above ground. Find the GSD.\n\n1. Shortcut form: `GSD(cm) = pixel(µm) × H(m) / [f(mm) × 10] = 5.2 × 400 / (24 × 10)`.\n2. `= 2,080 / 240 = 8.67 cm`.\n\n**GSD ≈ 8.7 cm/pixel.** Check the full form: `GSD = (5.2×10⁻⁶ m × 400 m)/(0.024 m) = 0.0867 m = 8.67 cm`. ✓\n\n**Calculator (Casio fx-991):** `5.2 × 400 ÷ ( 24 × 10 ) =` → 8.667. Confirm with the SI form using `×10^x` for the µm→m and mm→m conversions.\n\n---\n\n## Example 4 — Relief displacement\n\nA radio tower images at radial distance **r = 4.50 in** from the principal point. Its top is **h = 500 ft** above the datum; flying height **H = 5,000 ft**. Find the relief displacement and the tower height if measured displacement is 0.45 in.\n\n1. **Predicted displacement:** `d = r·h/H = 4.50 × 500 / 5,000 = 0.45 in` (the top leans 0.45 in outward from its base).\n2. **Inverting to get height** from a measured `d = 0.45 in`: `h = d·H/r = 0.45 × 5,000 / 4.50 = 500 ft`. ✓\n\n**Calculator:** `4.5 × 500 ÷ 5000 =` → 0.45. Relief displacement is **radial**, so always measure r and d from the **principal point**, not the photo corner.\n\n---\n\n## Example 5 — Flying height from a required scale\n\nA mapping job specifies photos at **1:12,000** with a **f = 6.00 in (0.500 ft)** camera over flat ground at elevation **h = 0**. What flying height above the ground is required?\n\n1. `H − h = f / S = 0.500 / (1/12,000) = 0.500 × 12,000 = 6,000 ft`.\n2. With h = 0, the flying height above datum **H = 6,000 ft**.\n\n**Flying height = 6,000 ft above ground.** **Calculator:** `0.5 × 12000 =`.\n\n---\n\n## Example 6 — Earthwork volume by average end area\n\nTwo adjacent cross-sections **100 ft apart** have end areas **A₁ = 220 ft²** and **A₂ = 380 ft²**. Find the cut volume in cubic yards.\n\n1. `V = L·(A₁ + A₂)/2 = 100 × (220 + 380)/2 = 100 × 300 = 30,000 ft³`.\n2. `÷ 27 = 1,111 yd³`.\n\n**V ≈ 1,111 yd³.** If a mid-section area A_m = 305 ft² were given, the **prismoidal** result would be `V = 100·(220 + 4·305 + 380)/6 = 100·(1,820)/6 = 30,333 ft³ = 1,123 yd³`. **Calculator:** `100 × ( 220 + 380 ) ÷ 2 ÷ 27 =`."
+    },
+    {
+      "type": "tips",
+      "title": "Exam Tips & Calculator Strategy",
+      "content": "## Strategy for the mapping area\n\n- **Photogrammetry items are mostly one-formula plug-ins** (`S = f/(H−h)`, `GSD`, `d = r·h/H`, map-scale ratios). They are fast points if you keep **units consistent** — convert f from mm to ft (÷304.8) or H from ft to mm before dividing. Budget ~2 min each and bank them.\n- **GIS/remote-sensing/mapping concept questions are even faster** — vector vs. raster, datum/projection, LiDAR vs. passive, contour interval. These are recall points; answer them on sight and save calculator time for COGO.\n- **Construction/earthwork items** reuse Module-5 skills: grade %, cut/fill, and the average-end-area/prismoidal volume formulas. Remember **÷27 for cubic yards** and the **A_m is the mid-section area, not the average**.\n\n## Approved-calculator tricks (TI-36X Pro / Casio fx-991 / HP-35S)\n\n- **Scale is a ratio:** compute `f/(H−h)` then press **x⁻¹** (reciprocal) to read the scale denominator (e.g., 1×10⁻⁴ → 10,000 → 1:10,000).\n- **Unit conversions:** TI-36X Pro and Casio have a **convert/constants** menu, but it's faster to memorize `1 ft = 304.8 mm`, `1 m = 3.2808 ft`, `1 in = 25.4 mm`. Use **×10^x** for µm (×10⁻⁶) and mm (×10⁻³) in the GSD SI form.\n- **GSD shortcut** avoids unit juggling entirely: `GSD(cm) = pixel(µm)·H(m)/[f(mm)·10]` — one keystroke chain.\n- **Store the flying height** (STO) when several photo-scale parts share the same H to avoid re-keying.\n- **Earthwork:** chain `L×(A₁+A₂)÷2÷27` in one expression; use the calculator's fraction/parenthesis entry to avoid order-of-operations slips.\n\n## Common traps\n\n- **Mixing units in the scale formula** — f in mm but H in ft. Convert first. This is the #1 photogrammetry mistake.\n- **Scale direction:** scale gets **larger** (denominator smaller) for **higher** ground (smaller H−h). Hilltops are at larger scale than valleys on the same photo.\n- **Relief displacement is radial** — r and d are measured from the **principal point**, and the displacement is **outward** for points above the datum.\n- **Average end area vs. prismoidal:** A_m is the **mid-section** area, NOT (A₁+A₂)/2. Average-end-area slightly **overestimates**; the prismoidal correction reduces it.\n- **Cubic yards:** divide ft³ by **27**, not 9. And watch shrinkage (compacted fill needs *more* bank volume) vs. swell.\n- **Datum vs. projection vs. coordinate system** are three different things in GIS — a layer needs all three declared to overlay correctly; geoid undulation N links ellipsoidal and orthometric heights (h = H + N).\n- **DSM vs. DEM/DTM:** DSM includes objects (canopy, buildings); DEM/DTM is bare earth — LiDAR last-return/ground-classified points give the DEM.\n\n## How the handbook helps\n\nThe NCEES FS Reference Handbook v2.5 lists the **Photogrammetry** block (scale `f/(H−h)`, relief displacement `r·h/H`, parallax forms, flying height) and the **Earthwork** block (average end area, prismoidal, pyramid) verbatim, plus **Conversions** (ft↔m, in↔mm, acre, the 43,560 and 27 factors). Know *where* the Photogrammetry and Earthwork sections sit in the Mathematical & Surveying-Related Formulas chapter so you can confirm a formula in seconds rather than deriving it under time pressure."
+    }
+  ],
+  "questions": [
+    {
+      "question_text": "The scale of a vertical aerial photograph is given by which relationship (f = focal length, H = flying height above datum, h = ground elevation)?",
+      "question_type": "multiple_choice",
+      "options": ["S = f / (H − h)", "S = (H − h) / f", "S = f · (H − h)", "S = f / H + h"],
+      "correct_answer": "S = f / (H − h)",
+      "explanation": "For a vertical photo, scale equals focal length divided by the flying height above the ground point: S = f/(H−h). Higher ground (smaller H−h) yields a larger scale; valleys yield a smaller scale.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "A vertical photo is taken with a 0.500-ft focal length from H = 9,000 ft above a datum, over ground at elevation 1,000 ft. The photo scale is most nearly:",
+      "question_type": "multiple_choice",
+      "options": ["1:16,000", "1:18,000", "1:8,000", "1:4,500"],
+      "correct_answer": "1:16,000",
+      "explanation": "S = f/(H−h) = 0.500/(9,000−1,000) = 0.500/8,000 = 1/16,000.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "On a photo at scale 1:6,000, two points are 4.00 in apart. Their ground distance is most nearly:",
+      "question_type": "multiple_choice",
+      "options": ["2,000 ft", "1,500 ft", "24,000 ft", "667 ft"],
+      "correct_answer": "2,000 ft",
+      "explanation": "Ground = photo distance × scale denominator = 4.00 in × 6,000 = 24,000 in = 2,000 ft (÷12).",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "Relief displacement on a vertical photograph is computed as (r = radial distance from principal point, h = object height, H = flying height):",
+      "question_type": "multiple_choice",
+      "options": ["d = r·h / H", "d = H·h / r", "d = r·H / h", "d = (H − h) / r"],
+      "correct_answer": "d = r·h / H",
+      "explanation": "Relief displacement d = r·h/H acts radially outward from the principal point for points above the datum, and is the basis for measuring object heights from a single photo (h = d·H/r).",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "Relief displacement on a vertical photo is directed:",
+      "question_type": "multiple_choice",
+      "options": ["radially outward from the principal point for points above the datum", "radially inward toward the principal point", "always toward the north edge of the photo", "tangent to the photo edge"],
+      "correct_answer": "radially outward from the principal point for points above the datum",
+      "explanation": "Objects taller than the datum lean radially outward (away from the photo center). Both r and d are measured from the principal point. This is why buildings appear to lean outward in an aerial photo.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "Ground sample distance (GSD) for a digital aerial sensor is given by:",
+      "question_type": "multiple_choice",
+      "options": ["GSD = (pixel size × H) / f", "GSD = f / (pixel size × H)", "GSD = (pixel size × f) / H", "GSD = H / (pixel size · f)"],
+      "correct_answer": "GSD = (pixel size × H) / f",
+      "explanation": "GSD is the ground footprint of one pixel: (pixel size × flying height) / focal length, with all terms in consistent units. Smaller GSD means higher resolution.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A UAS camera has a 5.0-µm pixel and a 20-mm focal length, flown 300 m above ground. The GSD is most nearly:",
+      "question_type": "multiple_choice",
+      "options": ["7.5 cm", "3.0 cm", "75 cm", "1.5 cm"],
+      "correct_answer": "7.5 cm",
+      "explanation": "GSD(cm) = pixel(µm)·H(m)/[f(mm)·10] = 5.0×300/(20×10) = 1,500/200 = 7.5 cm.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "Aerial photographs for stereo mapping are typically flown with what forward overlap (endlap)?",
+      "question_type": "multiple_choice",
+      "options": ["About 60%", "About 10%", "About 90%", "0% (no overlap)"],
+      "correct_answer": "About 60%",
+      "explanation": "Standard practice uses about 60% forward overlap (endlap) and about 30% sidelap so every ground point appears on at least two photos, enabling stereo viewing and parallax measurement.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "Stereoscopic parallax (p = x − x′) of a point in an aerial stereo pair is greatest for points that are:",
+      "question_type": "multiple_choice",
+      "options": ["closer to the camera (higher elevation)", "farther from the camera (lower elevation)", "at the exact datum elevation", "at the photo principal point only"],
+      "correct_answer": "closer to the camera (higher elevation)",
+      "explanation": "Parallax increases as a point gets closer to the camera, i.e., higher ground produces larger parallax. Heights follow from h = H − f·B/p.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "LiDAR differs fundamentally from aerial photography in that LiDAR is:",
+      "question_type": "multiple_choice",
+      "options": ["an active sensor that emits laser pulses and times their return", "a passive sensor that records reflected sunlight", "limited to a single visible band", "incapable of producing 3-D data"],
+      "correct_answer": "an active sensor that emits laser pulses and times their return",
+      "explanation": "LiDAR actively emits laser energy and measures travel time to build a dense 3-D point cloud; multiple returns can penetrate vegetation to yield a bare-earth DEM. Photography and most satellite imagers are passive.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "Which product is a BARE-EARTH representation of the terrain (objects removed)?",
+      "question_type": "multiple_choice",
+      "options": ["Digital Elevation Model / Digital Terrain Model (DEM/DTM)", "Digital Surface Model (DSM)", "Orthomosaic", "Point cloud (all returns)"],
+      "correct_answer": "Digital Elevation Model / Digital Terrain Model (DEM/DTM)",
+      "explanation": "A DEM/DTM represents bare ground. A DSM includes objects such as canopy and buildings. LiDAR ground-classified (last) returns are used to build the bare-earth DEM.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "In a GIS, which data model stores discrete features (points, lines, polygons) with attributes, as opposed to a grid of cells?",
+      "question_type": "multiple_choice",
+      "options": ["Vector", "Raster", "Metadata", "Geoid"],
+      "correct_answer": "Vector",
+      "explanation": "The vector model represents discrete features with geometry and attributes; the raster model stores a continuous grid of cells, each holding a value (e.g., elevation or a spectral band).",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "Two GIS layers fail to overlay correctly even though both cover the same area. The MOST likely cause is:",
+      "question_type": "multiple_choice",
+      "options": ["the layers are in different or undeclared coordinate systems/projections", "the monitor resolution is too low", "one layer is vector and one is raster", "the attribute tables have different column names"],
+      "correct_answer": "the layers are in different or undeclared coordinate systems/projections",
+      "explanation": "Mismatched or undeclared projections/datums are the classic reason layers don't line up. Each layer must declare its projection, coordinate system, and datum; metadata records this.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "Which map projection is preferred for a state with a large EAST–WEST extent (e.g., used in State Plane zones)?",
+      "question_type": "multiple_choice",
+      "options": ["Lambert Conformal Conic", "Transverse Mercator", "Universal Polar Stereographic", "Gnomonic"],
+      "correct_answer": "Lambert Conformal Conic",
+      "explanation": "Lambert Conformal Conic suits states elongated east–west; Transverse Mercator suits states elongated north–south. Both are conformal projections used in the U.S. State Plane Coordinate System.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "The current standard horizontal and vertical datums used for U.S. surveying/mapping are, respectively:",
+      "question_type": "multiple_choice",
+      "options": ["NAD83 (horizontal) and NAVD88 (vertical)", "NAD27 (horizontal) and NGVD29 (vertical)", "WGS84 (horizontal) and MSL (vertical)", "SPCS (horizontal) and geoid (vertical)"],
+      "correct_answer": "NAD83 (horizontal) and NAVD88 (vertical)",
+      "explanation": "NAD83 is the standard horizontal datum and NAVD88 the standard orthometric (vertical) datum for U.S. work. The geoid undulation N relates ellipsoidal height h to orthometric height H by h = H + N.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "On a 1:1,200 map, a property line measured 2.5 in long. Its ground length is:",
+      "question_type": "multiple_choice",
+      "options": ["250 ft", "300 ft", "3,000 ft", "120 ft"],
+      "correct_answer": "250 ft",
+      "explanation": "Ground = map distance × scale denominator = 2.5 in × 1,200 = 3,000 in = 250 ft (÷12).",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A proposed pipe runs at a +1.5% grade. Over a horizontal distance of 400 ft, the elevation change is:",
+      "question_type": "multiple_choice",
+      "options": ["+6.0 ft", "+0.6 ft", "+60 ft", "+1.5 ft"],
+      "correct_answer": "+6.0 ft",
+      "explanation": "ΔElev = grade × horizontal distance = 0.015 × 400 = 6.0 ft of rise.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "At a construction station the existing ground is 102.4 and the proposed finished grade is 99.7. The required earthwork at that point is:",
+      "question_type": "multiple_choice",
+      "options": ["a cut of 2.7 ft", "a fill of 2.7 ft", "a cut of 99.7 ft", "no work needed"],
+      "correct_answer": "a cut of 2.7 ft",
+      "explanation": "Cut = existing − proposed = 102.4 − 99.7 = 2.7 ft. Because existing is above proposed, material must be removed (cut).",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "Two cross-sections 100 ft apart have end areas of 150 ft² and 250 ft². By the average-end-area method the volume between them is:",
+      "question_type": "multiple_choice",
+      "options": ["20,000 ft³", "40,000 ft³", "10,000 ft³", "200 ft³"],
+      "correct_answer": "20,000 ft³",
+      "explanation": "V = L·(A₁+A₂)/2 = 100·(150+250)/2 = 100·200 = 20,000 ft³ (≈ 741 yd³).",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "In the prismoidal formula V = L·(A₁ + 4·A_m + A₂)/6, the quantity A_m is:",
+      "question_type": "multiple_choice",
+      "options": ["the area of the mid-section (halfway between the two ends)", "the average of A₁ and A₂", "the larger of A₁ and A₂", "the cross-section area at one-quarter point"],
+      "correct_answer": "the area of the mid-section (halfway between the two ends)",
+      "explanation": "A_m is the actual cross-section area measured at the midpoint between the two ends — NOT (A₁+A₂)/2. Using the true mid-section makes the prismoidal result more accurate than average-end-area.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "To convert an earthwork volume from cubic feet to cubic yards, divide by:",
+      "question_type": "multiple_choice",
+      "options": ["27", "9", "3", "43,560"],
+      "correct_answer": "27",
+      "explanation": "1 yd³ = 3 ft × 3 ft × 3 ft = 27 ft³, so divide cubic feet by 27 to get cubic yards. (43,560 ft² is one acre.)",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "True or False: On a single vertical aerial photo, ground at a higher elevation appears at a LARGER scale than ground in a valley.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "True. S = f/(H−h); higher ground has a smaller (H−h), so the scale ratio is larger (denominator smaller). Valleys (larger H−h) are at a smaller scale.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A vertical photo with f = 6.00 in is required at a scale of 1:4,800 over flat ground at the datum. The required flying height is most nearly:",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "2400",
+      "explanation": "H − h = f/S = 0.500 ft × 4,800 = 2,400 ft. With h = 0 at the datum, the flying height is 2,400 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A tower images 0.30 in of relief displacement at a radial distance r = 5.00 in from the principal point; the flying height is H = 4,000 ft. The tower height is most nearly:",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "240",
+      "explanation": "h = d·H/r = 0.30 × 4,000 / 5.00 = 240 ft.",
+      "difficulty": "hard"
+    },
+    {
+      "question_text": "Which statement about UAS (drone) photogrammetric mapping is correct?",
+      "question_type": "multiple_choice",
+      "options": ["It uses low flying heights to achieve a small GSD over small areas, often processed by structure-from-motion", "It cannot produce orthomosaics or 3-D models", "It must always be flown at the same height as manned aircraft", "It eliminates the need for any ground control"],
+      "correct_answer": "It uses low flying heights to achieve a small GSD over small areas, often processed by structure-from-motion",
+      "explanation": "UAS platforms fly low, giving a small GSD (high resolution) over limited areas, and SfM photogrammetry generates orthomosaics, DSMs, and point clouds. Ground control (or PPK/RTK) is still used for accuracy.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "True or False: A Digital Surface Model (DSM) and a Digital Terrain Model (DTM) of the same forested area are identical.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "False. A DSM includes the top of objects (tree canopy, rooftops), while a DTM/DEM is bare earth. They differ wherever vegetation or structures exist.",
+      "difficulty": "easy"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Vertical photo scale",
+      "category": "FS — Mapping & Photogrammetry",
+      "subcategory": "Photogrammetry",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A vertical aerial photo is taken with a focal length of {{f_ft:f3}} ft from a flying height of {{H:f0}} ft above datum, over ground at an average elevation of {{h:f0}} ft. Compute the photo SCALE denominator (report N for a scale of 1:N).",
+      "parameters": [
+        {"name": "f_ft", "type": "float", "min": 0.3, "max": 0.7, "decimals": 3},
+        {"name": "H", "type": "float", "min": 4000, "max": 12000, "decimals": 0},
+        {"name": "h", "type": "float", "min": 0, "max": 1500, "decimals": 0}
+      ],
+      "computed_vars": [],
+      "answer_formula": "round((H-h)/f_ft,0)",
+      "answer_format": {"decimals": 0, "unit": "", "tolerance": 5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Flying height above ground", "formula": "H − h", "calculation_template": "{{H:f0}} − {{h:f0}} = {{_d:f0}} ft"},
+        {"step_number": 2, "title": "Scale = f/(H − h); denominator = (H − h)/f", "result_template": "1:{{_answer}}"}
+      ],
+      "explanation_template": "Photo scale S = f/(H−h). With f = {{f_ft:f3}} ft and H−h = {{H:f0}} − {{h:f0}} ft, the scale denominator N = (H−h)/f = {{_answer}}, i.e. a scale of 1:{{_answer}}. Keep f, H, and h in the same units.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Ground distance from a photo measurement",
+      "category": "FS — Mapping & Photogrammetry",
+      "subcategory": "Photogrammetry",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "On a vertical photo at scale 1:{{scale:f0}}, two features are measured {{dphoto:f2}} in apart. Compute the corresponding GROUND distance, in feet.",
+      "parameters": [
+        {"name": "scale", "type": "float", "min": 3000, "max": 20000, "decimals": 0},
+        {"name": "dphoto", "type": "float", "min": 1.5, "max": 6.0, "decimals": 2}
+      ],
+      "computed_vars": [],
+      "answer_formula": "dphoto*scale/12",
+      "answer_format": {"decimals": 1, "unit": "ft", "tolerance": 1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Ground = photo distance × scale denominator", "calculation_template": "{{dphoto:f2}} in × {{scale:f0}} = {{_inch:f0}} in"},
+        {"step_number": 2, "title": "Convert inches to feet (÷12)", "result_template": "{{_answer}} ft"}
+      ],
+      "explanation_template": "Ground distance = photo distance × scale denominator = {{dphoto:f2}} in × {{scale:f0}} = ground inches; divide by 12 for feet → {{_answer}} ft. Scale is the ratio photo/ground, so ground = photo ÷ S.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Ground sample distance (GSD)",
+      "category": "FS — Mapping & Photogrammetry",
+      "subcategory": "Photogrammetry",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A digital aerial camera has a {{pix:f1}} µm pixel and a focal length of {{f_mm:f1}} mm, flown {{H:f0}} m above the ground. Compute the ground sample distance (GSD), in centimeters.",
+      "parameters": [
+        {"name": "pix", "type": "float", "min": 3.0, "max": 8.0, "decimals": 1},
+        {"name": "f_mm", "type": "float", "min": 16, "max": 50, "decimals": 1},
+        {"name": "H", "type": "float", "min": 120, "max": 1500, "decimals": 0}
+      ],
+      "computed_vars": [],
+      "answer_formula": "pix*H/(f_mm*10)",
+      "answer_format": {"decimals": 2, "unit": "cm", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "GSD shortcut (cm)", "formula": "GSD = pixel(µm)·H(m)/[f(mm)·10]", "calculation_template": "{{pix:f1}} × {{H:f0}} / ({{f_mm:f1}} × 10)"},
+        {"step_number": 2, "title": "Result", "result_template": "GSD = {{_answer}} cm/pixel"}
+      ],
+      "explanation_template": "Using the unit-matched shortcut GSD(cm) = pixel(µm)·H(m)/[f(mm)·10] = {{pix:f1}}·{{H:f0}}/({{f_mm:f1}}·10) = {{_answer}} cm. Smaller GSD means higher resolution.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Relief displacement",
+      "category": "FS — Mapping & Photogrammetry",
+      "subcategory": "Photogrammetry",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "On a vertical photo, an object images at a radial distance r = {{r:f2}} in from the principal point. The object top is {{h:f0}} ft above the datum and the flying height is H = {{H:f0}} ft. Compute the relief displacement d, in inches.",
+      "parameters": [
+        {"name": "r", "type": "float", "min": 1.5, "max": 5.0, "decimals": 2},
+        {"name": "h", "type": "float", "min": 100, "max": 800, "decimals": 0},
+        {"name": "H", "type": "float", "min": 3000, "max": 9000, "decimals": 0}
+      ],
+      "computed_vars": [],
+      "answer_formula": "r*h/H",
+      "answer_format": {"decimals": 3, "unit": "in", "tolerance": 0.005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Relief displacement", "formula": "d = r·h/H", "calculation_template": "{{r:f2}} × {{h:f0}} / {{H:f0}}"},
+        {"step_number": 2, "title": "Result", "result_template": "d = {{_answer}} in (radially outward)"}
+      ],
+      "explanation_template": "Relief displacement d = r·h/H = {{r:f2}} × {{h:f0}} / {{H:f0}} = {{_answer}} in. The displacement is radial and outward from the principal point for points above the datum.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Flying height from required scale",
+      "category": "FS — Mapping & Photogrammetry",
+      "subcategory": "Photogrammetry",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A mapping flight requires a photo scale of 1:{{scale:f0}} using a camera of focal length {{f_ft:f3}} ft over flat ground at the datum (h = 0). Compute the required FLYING HEIGHT above the ground, in feet.",
+      "parameters": [
+        {"name": "scale", "type": "float", "min": 3000, "max": 20000, "decimals": 0},
+        {"name": "f_ft", "type": "float", "min": 0.3, "max": 0.7, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "f_ft*scale",
+      "answer_format": {"decimals": 0, "unit": "ft", "tolerance": 2},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Invert the scale relation", "formula": "H − h = f/S = f × scale denominator", "calculation_template": "{{f_ft:f3}} × {{scale:f0}}"},
+        {"step_number": 2, "title": "Result (h = 0)", "result_template": "H = {{_answer}} ft above ground"}
+      ],
+      "explanation_template": "From S = f/(H−h), the flying height above ground is H−h = f × scale denominator = {{f_ft:f3}} × {{scale:f0}} = {{_answer}} ft. With h = 0 at the datum, H = {{_answer}} ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Map distance from ground distance",
+      "category": "FS — Mapping & Photogrammetry",
+      "subcategory": "Mapping",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A ground line is {{dground:f1}} ft long. On a map at scale 1:{{scale:f0}}, how long will the line plot, in inches?",
+      "parameters": [
+        {"name": "dground", "type": "float", "min": 400, "max": 5000, "decimals": 1},
+        {"name": "scale", "type": "float", "min": 600, "max": 4800, "decimals": 0}
+      ],
+      "computed_vars": [],
+      "answer_formula": "dground*12/scale",
+      "answer_format": {"decimals": 2, "unit": "in", "tolerance": 0.02},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Convert ground feet to inches", "calculation_template": "{{dground:f1}} ft × 12 = {{_gin:f0}} in"},
+        {"step_number": 2, "title": "Map distance = ground / scale denominator", "result_template": "{{_answer}} in"}
+      ],
+      "explanation_template": "Map distance = ground distance / scale denominator. Convert ground to inches: {{dground:f1}} ft × 12 = ground inches; ÷ {{scale:f0}} = {{_answer}} in on the map.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Earthwork volume by average end area",
+      "category": "FS — Plane Survey Computations",
+      "subcategory": "Earthwork",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "Two cross-sections {{L:f0}} ft apart have end areas of {{A1:f0}} ft² and {{A2:f0}} ft². Using the average-end-area method, compute the volume between them, in cubic yards.",
+      "parameters": [
+        {"name": "L", "type": "float", "min": 50, "max": 200, "decimals": 0},
+        {"name": "A1", "type": "float", "min": 80, "max": 400, "decimals": 0},
+        {"name": "A2", "type": "float", "min": 80, "max": 400, "decimals": 0}
+      ],
+      "computed_vars": [
+        {"name": "vcf", "formula": "L*(A1+A2)/2"}
+      ],
+      "answer_formula": "L*(A1+A2)/2/27",
+      "answer_format": {"decimals": 1, "unit": "yd³", "tolerance": 1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Average end area volume (ft³)", "formula": "V = L·(A₁+A₂)/2", "calculation_template": "{{L:f0}} × ({{A1:f0}} + {{A2:f0}})/2 = {{vcf:f0}} ft³"},
+        {"step_number": 2, "title": "Convert to cubic yards (÷27)", "result_template": "{{_answer}} yd³"}
+      ],
+      "explanation_template": "V = L·(A₁+A₂)/2 = {{L:f0}} × ({{A1:f0}}+{{A2:f0}})/2 = {{vcf:f0}} ft³. Divide by 27 to convert to cubic yards: {{_answer}} yd³.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Grade and elevation change",
+      "category": "FS — Plane Survey Computations",
+      "subcategory": "Construction",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A roadway is designed at a grade of {{grade:f2}}%. Over a horizontal distance of {{dist:f0}} ft, compute the change in elevation, in feet.",
+      "parameters": [
+        {"name": "grade", "type": "float", "min": 0.5, "max": 6.0, "decimals": 2},
+        {"name": "dist", "type": "float", "min": 100, "max": 1200, "decimals": 0}
+      ],
+      "computed_vars": [],
+      "answer_formula": "grade/100*dist",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "ΔElev = grade × horizontal distance", "calculation_template": "({{grade:f2}}/100) × {{dist:f0}}"},
+        {"step_number": 2, "title": "Result", "result_template": "ΔElev = {{_answer}} ft"}
+      ],
+      "explanation_template": "Grade as a decimal = {{grade:f2}}/100. ΔElev = grade × horizontal distance = ({{grade:f2}}/100) × {{dist:f0}} = {{_answer}} ft of rise (or fall, for a negative grade).",
+      "options_generator": {"method": "none"}
+    }
+  ],
+  "mock_questions": [
+    {
+      "question_text": "A vertical photo is taken with a 0.500-ft focal length from 7,500 ft above a datum, over ground at elevation 500 ft. The photo scale is most nearly:",
+      "options": ["1:14,000", "1:15,000", "1:7,000", "1:3,500"],
+      "correct_answer": "1:14,000",
+      "explanation": "S = f/(H−h) = 0.500/(7,500−500) = 0.500/7,000 = 1/14,000.",
+      "difficulty": "medium",
+      "area": "mapping"
+    },
+    {
+      "question_text": "On a photo at scale 1:5,000, a runway measures 5.00 in long. Its ground length is most nearly:",
+      "options": ["2,083 ft", "1,500 ft", "25,000 ft", "1,000 ft"],
+      "correct_answer": "2,083 ft",
+      "explanation": "Ground = 5.00 in × 5,000 = 25,000 in = 2,083 ft (÷12).",
+      "difficulty": "medium",
+      "area": "mapping"
+    },
+    {
+      "question_text": "A digital sensor has a 6.0-µm pixel and a 30-mm focal length, flown 600 m above ground. The GSD is most nearly:",
+      "options": ["12 cm", "6 cm", "20 cm", "3 cm"],
+      "correct_answer": "12 cm",
+      "explanation": "GSD(cm) = pixel(µm)·H(m)/[f(mm)·10] = 6.0×600/(30×10) = 3,600/300 = 12 cm.",
+      "difficulty": "medium",
+      "area": "mapping"
+    },
+    {
+      "question_text": "A building images at radial distance r = 4.00 in; its top is 600 ft above datum and the flying height is 6,000 ft. The relief displacement is most nearly:",
+      "options": ["0.40 in", "0.04 in", "4.0 in", "0.60 in"],
+      "correct_answer": "0.40 in",
+      "explanation": "d = r·h/H = 4.00 × 600 / 6,000 = 0.40 in, directed radially outward from the principal point.",
+      "difficulty": "medium",
+      "area": "mapping"
+    },
+    {
+      "question_text": "Which best describes the difference between the vector and raster GIS data models?",
+      "options": ["Vector stores discrete features with attributes; raster stores a grid of cells with values", "Vector is always 3-D; raster is always 2-D", "Vector cannot store attributes; raster can", "They are identical except for file size"],
+      "correct_answer": "Vector stores discrete features with attributes; raster stores a grid of cells with values",
+      "explanation": "Vector represents discrete points/lines/polygons with attributes; raster represents continuous phenomena as a grid of cells, each holding a value. Each suits different data types.",
+      "difficulty": "easy",
+      "area": "mapping"
+    },
+    {
+      "question_text": "For a U.S. State Plane zone in a state that is long in the NORTH–SOUTH direction, the projection used is typically:",
+      "options": ["Transverse Mercator", "Lambert Conformal Conic", "Albers Equal Area", "Mercator"],
+      "correct_answer": "Transverse Mercator",
+      "explanation": "Transverse Mercator is used for zones elongated north–south; Lambert Conformal Conic for zones elongated east–west. Both are conformal and used in SPCS.",
+      "difficulty": "medium",
+      "area": "mapping"
+    },
+    {
+      "question_text": "LiDAR's ability to map bare ground beneath a forest canopy depends on:",
+      "options": ["multiple laser returns, with ground-classified (last) returns used for the DEM", "the red band of a multispectral image", "stereo parallax between two photos", "the geoid undulation"],
+      "correct_answer": "multiple laser returns, with ground-classified (last) returns used for the DEM",
+      "explanation": "LiDAR pulses produce multiple returns; some penetrate gaps in the canopy. Classifying the ground (often last) returns yields a bare-earth DEM, which photography alone cannot do under canopy.",
+      "difficulty": "medium",
+      "area": "mapping"
+    },
+    {
+      "question_text": "Two cross-sections 80 ft apart have end areas 200 ft² and 320 ft². The average-end-area volume is most nearly:",
+      "options": ["20,800 ft³", "41,600 ft³", "10,400 ft³", "770 ft³"],
+      "correct_answer": "20,800 ft³",
+      "explanation": "V = L·(A₁+A₂)/2 = 80·(200+320)/2 = 80·260 = 20,800 ft³ (≈ 770 yd³).",
+      "difficulty": "medium",
+      "area": "computations"
+    },
+    {
+      "question_text": "A storm sewer is laid at −0.80% grade. Over 250 ft of horizontal run the invert drops by:",
+      "options": ["2.0 ft", "0.20 ft", "20 ft", "0.80 ft"],
+      "correct_answer": "2.0 ft",
+      "explanation": "ΔElev = grade × distance = 0.0080 × 250 = 2.0 ft of fall.",
+      "difficulty": "easy",
+      "area": "computations"
+    },
+    {
+      "question_text": "At a construction station, existing ground is 96.2 and proposed grade is 98.9. The earthwork required is:",
+      "options": ["a fill of 2.7 ft", "a cut of 2.7 ft", "a fill of 98.9 ft", "no work"],
+      "correct_answer": "a fill of 2.7 ft",
+      "explanation": "Fill = proposed − existing = 98.9 − 96.2 = 2.7 ft. Proposed is above existing, so material must be added (fill).",
+      "difficulty": "easy",
+      "area": "processes"
+    },
+    {
+      "question_text": "Offset stakes are commonly set in construction layout because:",
+      "options": ["they lie a known distance outside the work so they survive excavation while still defining line and grade", "they are cheaper than hubs", "they remove the need for any grade information", "they must be set exactly on the construction line"],
+      "correct_answer": "they lie a known distance outside the work so they survive excavation while still defining line and grade",
+      "explanation": "An offset stake is set a known horizontal distance from the feature so that grading/excavation does not destroy it; the crew transfers line and grade from the offset to the work.",
+      "difficulty": "medium",
+      "area": "processes"
+    },
+    {
+      "question_text": "An earthwork quantity computes to 54,000 ft³. In cubic yards this is:",
+      "options": ["2,000 yd³", "6,000 yd³", "18,000 yd³", "1.24 yd³"],
+      "correct_answer": "2,000 yd³",
+      "explanation": "54,000 ft³ ÷ 27 = 2,000 yd³ (1 yd³ = 27 ft³).",
+      "difficulty": "easy",
+      "area": "computations"
+    },
+    {
+      "question_text": "A Digital Surface Model (DSM) over an urban area differs from a Digital Terrain Model (DTM) in that the DSM:",
+      "options": ["includes the tops of buildings and vegetation, not just bare earth", "is always at a coarser resolution", "contains only vector data", "cannot be derived from LiDAR"],
+      "correct_answer": "includes the tops of buildings and vegetation, not just bare earth",
+      "explanation": "A DSM represents the first-surface elevations (canopy, rooftops), while a DTM/DEM is bare ground. Both can come from LiDAR or photogrammetry, but they differ wherever objects exist.",
+      "difficulty": "easy",
+      "area": "mapping"
+    },
+    {
+      "question_text": "A mapping job requires 1:9,600 photos with a 0.500-ft focal length over ground at the datum. The flying height required is:",
+      "options": ["4,800 ft", "9,600 ft", "2,400 ft", "19,200 ft"],
+      "correct_answer": "4,800 ft",
+      "explanation": "H − h = f × scale denominator = 0.500 × 9,600 = 4,800 ft; with h = 0, H = 4,800 ft.",
+      "difficulty": "hard",
+      "area": "mapping"
+    }
+  ]
+}
