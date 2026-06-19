@@ -1,0 +1,1465 @@
+{
+  "order_index": 30,
+  "module_id": "acc00002-0000-0000-0000-000000000002",
+  "title": "ACC SRVY 1335 — Land Surveying Applications (Lab)",
+  "lessons": [
+    {
+      "lesson_id": "acc02b01-0000-0000-0000-000000000001",
+      "title": "Week 1: Lab Safety, Equipment Overview, and Field Book Setup",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Apply field and lab safety practices for surveying near traffic, on construction sites, and in heat.",
+        "Identify the major instruments and accessories in a survey kit and verify a check-out inventory.",
+        "Set up a survey field book that meets professional documentation standards."
+      ],
+      "key_takeaways": [
+        "Survey field work is hazardous: traffic, heat, terrain, and overhead/buried utilities are the leading risks; high-visibility vests and a traffic plan are mandatory near roadways.",
+        "Every check-out of an instrument begins with an inventory and a quick physical/optical inspection before leaving the lab.",
+        "A field book is a permanent legal record: ink, dated, named, gridded notes on the right page and sketches on the left, with no erasures (line out, initial, re-enter).",
+        "Texas Board of Professional Land Surveying rules require that original field notes be retained as part of the survey record."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Welcome to the surveying lab</h3><p>SRVY 1335 is the hands-on companion to the lecture course SRVY 1341. In lab you will physically set up and operate <strong>total stations, theodolites, levels, and EDM equipment</strong>, run real traverses and level loops, set monuments, and reduce your own field data. Before any instrument leaves the cage, you must understand two things: how to stay safe, and how to keep a defensible record of what you measured. This first lab establishes both habits.</p><p>Field surveying happens in active environments &mdash; roadway shoulders, construction sites, brush, and open sun. The most common injuries in this profession are not exotic; they are being struck by vehicles, heat illness, falls on uneven ground, and contact with utilities. Treat every setup as a small job-hazard analysis: scan for traffic, overhead power, trip hazards, and weather before you plant the tripod.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Never turn your back to live traffic. Use a high-visibility (ANSI Class 2/3) vest, cones, and a spotter when occupying a point near a roadway. In a work zone, a Texas MUTCD-compliant traffic control plan is required."
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Item", "Purpose", "Pre-use check"],
+            "rows": [
+              ["Total station + tribrach", "Angles + distances", "Optical plummet, level vials, battery"],
+              ["Tripod", "Stable instrument support", "Tighten leg clamps, check head plate"],
+              ["Prism + pole", "EDM target", "Bubble on pole, prism offset value"],
+              ["Automatic/digital level", "Differential leveling", "Compensator free, vial level"],
+              ["Level rod", "Read elevations", "Sections seated, rod bubble"],
+              ["Field book + pen", "Permanent record", "Ink, gridded, your name inside cover"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The field book as a legal record</h3><p>Your field book is not scratch paper &mdash; it is the <strong>original observed record</strong> of the survey and can be subpoenaed. Follow standard conventions: write in <strong>waterproof ink</strong>; put your name, the project, the date, the crew, the instrument serial number, and the weather at the top of each day&rsquo;s notes. Numerical observations go in tabular columns on the <strong>right-hand (ruled) page</strong>; a north-arrowed <strong>sketch</strong> goes on the left-hand (grid) page. <strong>Never erase.</strong> If a value is wrong, draw a single line through it, initial it, and write the corrected value beside it so the original remains legible. Number your pages and never tear one out.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Texas Administrative Code (22 TAC Ch. 663) and the Texas Board of Professional Land Surveying require surveyors to maintain the records supporting a survey, including original field notes, for the statutory retention period."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Run a quick job-hazard scan (traffic, heat, utilities, terrain) at every setup.",
+              "Inventory and inspect every instrument at check-out and check-in.",
+              "Keep field notes in ink with right-page data, left-page sketch, no erasures.",
+              "Original field notes are part of the legal survey record in Texas."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Field book", "definition": "The bound, permanent, ink record of original survey observations and sketches; kept as part of the legal survey record.", "hint_1": "Right page = data, left page = sketch."},
+        {"term": "Job-hazard scan", "definition": "A quick pre-setup assessment of traffic, heat, overhead/buried utilities, and terrain hazards before occupying a point."},
+        {"term": "Lining out an error", "definition": "Correcting a field-book mistake by drawing one line through the wrong value, initialing it, and writing the correct value beside it (never erasing)."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b02-0000-0000-0000-000000000001",
+      "title": "Week 2: Electronic Distance Measuring (EDM) Equipment",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain how phase-comparison EDM determines distance from a modulated carrier.",
+        "Account for prism (reflector) constant, atmospheric correction (ppm), and instrument constants.",
+        "Reduce a measured slope distance to a horizontal distance using the vertical/zenith angle."
+      ],
+      "key_takeaways": [
+        "Phase-comparison EDM measures the fraction of a wavelength returned and counts whole wavelengths to resolve distance; pulse/time-of-flight EDM times the round trip.",
+        "Every EDM/prism pairing has a reflector (prism) constant that must be entered or the distance is biased by that constant.",
+        "Atmospheric conditions change the speed of light, so a ppm correction from temperature and pressure must be applied for precise work.",
+        "EDM measures SLOPE distance along the line of sight; horizontal distance = slope distance times sin(zenith) or cos(vertical angle)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How an EDM measures distance</h3><p>An <strong>electronic distance meter (EDM)</strong> sends a modulated infrared or laser beam to a reflector (prism) and analyzes the returning signal. The dominant method in survey instruments is <strong>phase comparison</strong>: the instrument compares the phase of the outgoing modulation to the returning signal to measure the fractional part of a wavelength, then uses several modulation frequencies to count the whole number of wavelengths over the path. Because the light travels out and back, the path is twice the distance, so the instrument divides by two internally. Modern reflectorless and pulse instruments instead time the round-trip travel of a pulse (time-of-flight).</p><p>The raw quantity an EDM reports is a <strong>slope distance</strong> along the line of sight between the instrument&rsquo;s electrical center and the prism. To use it on a map or in a traverse, you must correct it and then reduce it to horizontal.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "D = \\frac{c}{2 n f}\\left(N + \\frac{\\Delta\\varphi}{2\\pi}\\right)",
+            "label": "Phase-comparison distance (N whole wavelengths + phase fraction)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The three corrections</h3><p>Three systematic corrections turn a raw EDM reading into a usable distance. (1) The <strong>reflector / prism constant</strong> accounts for the offset between the prism&rsquo;s optical center and the point being measured; a typical glass prism offset is &minus;30 mm or 0 mm depending on type, and the wrong value biases every distance by that constant. (2) The <strong>atmospheric (ppm) correction</strong> adjusts for the actual speed of light, which depends on air temperature and barometric pressure; a rule of thumb is roughly 1 ppm per 1&deg;C or per a few millibars. (3) The <strong>instrument additive constant</strong>, found by baseline calibration, accounts for the offset of the EDM&rsquo;s electrical center. Enter the prism constant and ppm in the data collector before measuring.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Correction", "Cause", "Typical effect"],
+            "rows": [
+              ["Prism constant", "Optical center offset of reflector", "Fixed mm bias on every shot"],
+              ["Atmospheric ppm", "Speed of light vs temp/pressure", "~1 ppm per deg C; scales with distance"],
+              ["Slope-to-horizontal", "Line of sight not level", "H = S sin(zenith)"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "A wrong prism constant is the most common EDM blunder. A 360-deg prism, a mini-prism, and a standard prism can have different constants. Confirm the constant matches the physical prism you are using on the pole."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "EDM reports slope distance; you must correct and then reduce to horizontal.",
+              "Always set the correct prism constant and atmospheric ppm in the field.",
+              "Horizontal distance = slope x sin(zenith) = slope x cos(vertical angle).",
+              "Calibrate against a known baseline to recover the instrument additive constant."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Phase-comparison EDM", "definition": "Distance measurement that compares the phase of an emitted modulated wave to its reflected return to resolve the fractional and whole wavelengths over the path.", "hint_1": "Out-and-back path, divide by two."},
+        {"term": "Prism (reflector) constant", "definition": "A fixed offset, specific to the prism type, that must be entered so the EDM measures to the correct physical point.", "hint_1": "Often 0 or -30 mm."},
+        {"term": "Atmospheric (ppm) correction", "definition": "An adjustment to EDM distance for the actual speed of light based on air temperature and pressure, applied in parts per million.", "hint_1": "~1 ppm per degree C."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b03-0000-0000-0000-000000000001",
+      "title": "Week 3: Total Station Setup and Operation",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Set up and precisely level a total station over a point using the optical/laser plummet.",
+        "Perform a two-peg / collimation check and orient the instrument by backsight.",
+        "Record a measured point set (HA, ZA, SD) and verify it reduces to sensible coordinates."
+      ],
+      "key_takeaways": [
+        "Centering and leveling are iterative: rough center with tripod legs, level with foot screws, fine-center with the tribrach shift, relevel, repeat until both hold.",
+        "A total station integrates an electronic theodolite (angles) with an EDM (distance) and an onboard processor that reduces shots to coordinates.",
+        "Orientation requires occupying a known point and backsighting another known point/azimuth so all subsequent shots are in the project coordinate frame.",
+        "Routinely test pointing/collimation and the plummet; an out-of-adjustment plummet centers you over the wrong point."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What a total station does</h3><p>A <strong>total station</strong> combines an <strong>electronic theodolite</strong> (which reads horizontal and vertical/zenith angles digitally) with a built-in <strong>EDM</strong> and a microprocessor. For each pointing it captures a <strong>horizontal angle (HA)</strong>, a <strong>zenith angle (ZA)</strong>, and a <strong>slope distance (SD)</strong>, then computes horizontal distance, elevation difference, and northing/easting on the fly. Because it does the trigonometry internally, the field crew can stake and locate points directly in coordinates &mdash; but only after the instrument is correctly set up and oriented.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Setup procedure (centering and leveling)</h3><p>Setup is an iterative dance between centering over the point and leveling the instrument:</p><ul><li>Spread the tripod so the head is roughly over the point and near level; press the legs firmly into the ground.</li><li>Turn on the laser/optical plummet and shift the tripod (or slide on the head) until the plummet is near the point.</li><li>Use the <strong>foot screws</strong> to center the circular (bull&rsquo;s-eye) bubble.</li><li>Use the <strong>plate level</strong>: rotate 90&deg; between adjustments, leveling with two foot screws then the third.</li><li>Re-check the plummet; loosen the tribrach and <strong>shift</strong> the instrument to fine-center over the point.</li><li>Re-level and re-check. Iterate until both the bubble and the plummet hold simultaneously.</li></ul>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Check the optical/laser plummet adjustment periodically: with the instrument leveled over a marked point, rotate 180 deg in HA. If the plummet drifts off the mark, it is out of adjustment and you have been centering over a circle, not a point."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Orientation by backsight</h3><p>A leveled instrument still has an arbitrary horizontal circle until you <strong>orient</strong> it. Occupy a point of known coordinates, enter its coordinates and instrument height, then <strong>backsight</strong> a second known point (or a known azimuth) and set the horizontal circle to the computed backsight bearing/azimuth. From that moment, every foresight HA is in the project frame and the total station can compute coordinates for new points. Always take a check shot to a third known point to confirm the orientation before collecting data.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Center and level iteratively until plummet and bubble hold together.",
+              "A total station records HA, ZA, SD and reduces to coordinates internally.",
+              "Orient by occupying a known point and backsighting a known point/azimuth.",
+              "Always take an independent check shot before collecting production data."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Total station", "definition": "An instrument integrating an electronic theodolite, an EDM, and a processor that records HA/ZA/SD and computes coordinates.", "hint_1": "Angles + distance + brains."},
+        {"term": "Backsight orientation", "definition": "Setting the horizontal circle to a known azimuth/bearing by sighting a known reference point so foresights are in the project frame."},
+        {"term": "Optical/laser plummet check", "definition": "A test that rotates the leveled instrument 180 deg to confirm the centering device still points at the marked station."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b04-0000-0000-0000-000000000001",
+      "title": "Week 4: Theodolite Operation and Angular Measurement",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify the parts of an optical/digital theodolite and the axes that must be mutually perpendicular.",
+        "Measure a horizontal angle in direct and reverse (face left / face right) to cancel instrumental errors.",
+        "Mean a set of direct/reverse pointings and judge whether the spread is acceptable."
+      ],
+      "key_takeaways": [
+        "A theodolite measures horizontal and vertical angles precisely; its vertical, horizontal (trunnion), and sight (collimation) axes should be mutually perpendicular.",
+        "Measuring an angle in both faces (direct and reverse) and meaning the two cancels collimation, horizontal-axis, and vertical-index errors.",
+        "Centering errors and circle eccentricity are reduced by precise setup and by reading both faces.",
+        "The mean of face-left and face-right is the best single estimate; a large D/R spread signals a blunder or maladjustment."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Anatomy of a theodolite</h3><p>A <strong>theodolite</strong> is a precision angle-measuring instrument. Its telescope rotates about the horizontal <strong>trunnion axis</strong>; the whole upper body (alidade) rotates about the vertical <strong>standing axis</strong>; and the <strong>line of sight (collimation axis)</strong> runs through the telescope. For correct angles these three axes must satisfy adjustment relationships: the standing axis truly vertical, the trunnion axis perpendicular to it, and the line of sight perpendicular to the trunnion axis. Optical-reading theodolites display the circles through a microscope; digital theodolites read them electronically &mdash; the same as the angle engine inside a total station.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Axis", "Should be", "Error if not"],
+            "rows": [
+              ["Standing (vertical) axis", "Truly vertical", "Not removable by face reversal"],
+              ["Trunnion (horizontal) axis", "Perp. to standing axis", "Horizontal-axis error"],
+              ["Line of sight (collimation)", "Perp. to trunnion axis", "Collimation error"],
+              ["Vertical circle index", "Reads 90 deg level", "Vertical-index error"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Direct and reverse (two faces)</h3><p>The most important field technique is measuring each angle in <strong>both faces</strong>. In <strong>face left (direct)</strong> the vertical circle is on the observer&rsquo;s left; in <strong>face right (reverse)</strong> the telescope is plunged and the body turned 180&deg;. Reading the same angle in both faces and meaning the results <strong>cancels</strong> collimation error, horizontal-axis error, and vertical-circle index error, because those errors change sign between faces. The procedure for one set: backsight FL and read, foresight FL and read, plunge, foresight FR and read, backsight FR and read. The meaned horizontal angle is far more reliable than a single pointing.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Errors that reverse sign between faces (collimation, trunnion-axis, vertical-index) are removed by meaning direct and reverse. Standing-axis (plate not level) error does NOT reverse, so level carefully."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Three axes must be mutually perpendicular for correct angles.",
+              "Measure each angle face-left and face-right and mean them.",
+              "Meaning faces cancels collimation, horizontal-axis, and vertical-index errors.",
+              "Standing-axis (un-level) error is not cancelled by faces — level precisely."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Face left / face right (D/R)", "definition": "The two telescope positions (vertical circle left, then plunged) used to observe an angle so instrumental errors cancel when meaned.", "hint_1": "Direct and reverse."},
+        {"term": "Collimation axis", "definition": "The line of sight of the telescope; should be perpendicular to the trunnion axis."},
+        {"term": "Trunnion (horizontal) axis", "definition": "The axis about which the telescope tilts; should be perpendicular to the vertical standing axis."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b05-0000-0000-0000-000000000001",
+      "title": "Week 5: Horizontal Angle Measurement Lab",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Measure a horizontal angle by repetition (multiple turnings) and by direction sets.",
+        "Compute the mean angle, the angular spread, and the standard deviation of a set.",
+        "Apply the angle-closure condition for a closed polygon to detect angular misclosure."
+      ],
+      "key_takeaways": [
+        "The method of repetition accumulates an angle several times so the reading resolution is effectively divided by the number of repetitions.",
+        "Direction (set) methods point to several targets from one zero, then mean each set; both reduce random pointing error.",
+        "Interior angles of a closed n-sided polygon must sum to (n-2) x 180 degrees; the difference is the angular misclosure.",
+        "Acceptable angular misclosure is often specified as a constant times the square root of the number of angles."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why we repeat angles</h3><p>A single pointing carries random pointing and reading error. To beat it down we either <strong>repeat</strong> the angle or take several <strong>direction sets</strong>. In the <strong>repetition method</strong>, the angle is turned and accumulated <em>n</em> times on the circle, then the total is divided by <em>n</em>; this effectively divides the circle&rsquo;s reading resolution by <em>n</em> and averages the pointing error. In the <strong>direction method</strong>, you zero on a reference, then read the direction to each target; the angle is a difference of directions, and several sets are meaned. Both should be done in both faces.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\sigma = \\sqrt{\\dfrac{\\sum (x_i - \\bar{x})^2}{n-1}}",
+            "label": "Sample standard deviation of a set of angle readings",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Reducing a set and the closure check</h3><p>For each set, compute the mean angle, the <strong>range (spread)</strong> between the largest and smallest, and the sample standard deviation. A tight spread (a few seconds for a 5&Prime; instrument) confirms good work; a wild value flags a blunder to re-observe. When the angles form a <strong>closed polygon</strong>, the interior angles must satisfy a geometric condition: their sum equals <strong>(n &minus; 2) &times; 180&deg;</strong>. The amount by which the measured sum departs from that theoretical sum is the <strong>angular misclosure</strong>, which is distributed back into the angles (usually equally) before computing bearings.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Example specification: maximum angular misclosure = 30 seconds x sqrt(n) for a low-order traverse with n angles. A 6-sided traverse would allow about 73 seconds of misclosure."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Repetition divides reading resolution by the number of turnings.",
+              "Report mean, spread, and standard deviation for every angle set.",
+              "Interior angles of a closed n-gon sum to (n-2) x 180 deg.",
+              "Angular misclosure is the measured sum minus the theoretical sum."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Method of repetition", "definition": "Accumulating a horizontal angle n times on the circle and dividing by n to improve precision.", "hint_1": "Resolution divided by n."},
+        {"term": "Angular misclosure", "definition": "The difference between the measured sum of interior angles and the geometric requirement (n-2) x 180 deg for a closed traverse."},
+        {"term": "Angle-closure condition", "definition": "For a closed polygon of n sides, the interior angles must sum to (n-2) x 180 degrees."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b06-0000-0000-0000-000000000001",
+      "title": "Week 6: Vertical Angle Measurement and Zenith Angles",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Distinguish vertical angles (from horizontal) from zenith angles (from the upward vertical).",
+        "Reduce a slope distance to horizontal and vertical components using the zenith angle.",
+        "Compute trigonometric elevation difference including instrument and target heights."
+      ],
+      "key_takeaways": [
+        "Zenith angle is measured from straight up: 0 deg = up, 90 deg = horizontal, 180 deg = straight down; vertical angle = 90 deg - zenith.",
+        "Horizontal distance = slope distance x sin(zenith); vertical distance = slope distance x cos(zenith).",
+        "Trigonometric leveling computes elevation difference as V + HI - HR (instrument height minus rod/target height).",
+        "Observing the zenith angle in both faces removes vertical-circle index error."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Vertical angle vs. zenith angle</h3><p>Two conventions describe how far the line of sight tilts. A <strong>vertical angle</strong> is measured up (+) or down (&minus;) from the <strong>horizontal</strong>. A <strong>zenith angle</strong> is measured from the <strong>upward vertical</strong>: 0&deg; points straight up, <strong>90&deg; is horizontal</strong>, and 180&deg; points straight down. Most modern total stations report the zenith angle. They are simply related: <em>vertical angle = 90&deg; &minus; zenith angle</em>. Knowing which your instrument reports is essential, because the reduction formulas use the angle directly.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "H = S\\,\\sin(z), \\qquad V = S\\,\\cos(z)",
+            "label": "Horizontal (H) and vertical (V) from slope distance S and zenith angle z",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Trigonometric leveling</h3><p>A total station can determine an elevation difference without a level, using the zenith angle and slope distance &mdash; this is <strong>trigonometric leveling</strong>. The vertical component of the shot is <em>V = S cos(z)</em>. But the line of sight starts at the instrument&rsquo;s optical center (height <strong>HI</strong> above the occupied point) and ends at the prism (height <strong>HR</strong> above the target point). So the elevation difference between the two ground points is:</p><p><em>&Delta;Elev = V + HI &minus; HR</em></p><p>For long sights, refined work also adds a combined <strong>earth-curvature and refraction</strong> correction, but for typical lab distances it is negligible. Always observe the zenith angle in both faces and mean to remove vertical-index error.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "A frequent blunder is forgetting HI and HR. If you only add V to the occupied elevation, your foresight elevation is wrong by (HI - HR). Record both heights every setup."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Zenith angle: 0 deg up, 90 deg horizontal, 180 deg down.",
+              "H = S sin(z), V = S cos(z) using the zenith angle z.",
+              "Trig leveling: delta-elevation = V + HI - HR.",
+              "Mean both faces to remove vertical-circle index error."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Zenith angle", "definition": "A vertical angle measured from the upward vertical: 0 deg straight up, 90 deg horizontal, 180 deg straight down.", "hint_1": "Total stations usually report this."},
+        {"term": "Vertical angle", "definition": "Angle of the line of sight above (+) or below (-) the horizontal; equals 90 deg minus the zenith angle."},
+        {"term": "Trigonometric leveling", "definition": "Finding elevation difference from slope distance and zenith angle: delta-elev = S cos(z) + HI - HR.", "hint_1": "Add instrument height, subtract rod height."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b07-0000-0000-0000-000000000001",
+      "title": "Week 7: Distance Measurement Techniques — Taping and EDM Comparison",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Execute proper taping: alignment, plumbing, tension, and breaking chain on slopes.",
+        "Apply taping corrections for temperature, tension/pull, sag, and slope.",
+        "Compare a taped distance to an EDM distance and judge whether they agree within tolerance."
+      ],
+      "key_takeaways": [
+        "Standard taping requires correct horizontal alignment, full plumbing of the tape ends, and a standard pull (tension), with the tape supported or sag-corrected.",
+        "Systematic tape corrections include temperature, pull, sag, and slope; each has a known sign and formula.",
+        "A slope distance is reduced to horizontal by H = L cos(slope angle) or by the slope-correction approximation.",
+        "EDM and a carefully taped distance should agree to within a few hundredths over a short course; a larger difference signals a blunder."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Good taping technique</h3><p>Even in the EDM era, taping is a required skill for short ties, layout, and checks. Good chaining demands: <strong>horizontal alignment</strong> (the head chainer aligned by the rear chainer or instrument), <strong>plumbing</strong> the tape ends over the points with a plumb bob when the tape is held off the ground, applying a <strong>standard tension</strong> (commonly 10&ndash;20 lb) with a tension handle, and keeping the tape <strong>fully supported</strong> or correcting for sag if it is suspended. On slopes, you either measure horizontally in steps (<strong>breaking chain</strong>) or measure along the slope and reduce.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Correction", "Formula (per length L)", "Sign rule"],
+            "rows": [
+              ["Temperature", "C_t = k (T - T0) L", "+ if hotter than standard"],
+              ["Pull / tension", "C_p = (P - P0) L / (A E)", "+ if pulled harder"],
+              ["Sag", "C_s = - w^2 L^3 / (24 P^2)", "always shortens (negative)"],
+              ["Slope", "H = L cos(alpha)", "horizontal < slope length"]
+            ]
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "H = L\\cos\\alpha \\;\\approx\\; L - \\dfrac{h^2}{2L}",
+            "label": "Slope reduction: horizontal H from slope length L, slope angle alpha, elevation diff h",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Comparing taping to EDM</h3><p>A central lab exercise is to measure the same line by tape and by EDM and reconcile them. Tape the line with all corrections applied; measure it with the total station (correct prism constant and ppm) and reduce the slope distance to horizontal. Over a short, well-controlled course the two should agree to within a few hundredths of a foot. A persistent difference points to a systematic error &mdash; an uncorrected slope, a wrong prism constant, a temperature correction omitted, or a mis-identified point. Investigating the disagreement is how surveyors find blunders.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Sign check: if the tape is hotter than its standard temperature it is longer than nominal, so it reads too SHORT a distance, and the correction is positive (add)."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Tape with alignment, plumbing, standard tension, and support/sag control.",
+              "Apply temperature, pull, sag, and slope corrections with correct signs.",
+              "Reduce slope length to horizontal with H = L cos(slope angle).",
+              "Tape and EDM should agree within hundredths; investigate larger gaps."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Breaking chain", "definition": "Measuring a slope in short horizontal segments, plumbing the downhill tape end, to obtain horizontal distance directly.", "hint_1": "Step the tape down the hill."},
+        {"term": "Sag correction", "definition": "A negative tape correction for the curve of a suspended tape, proportional to weight squared and length cubed over tension squared."},
+        {"term": "Slope reduction", "definition": "Converting a slope distance to horizontal: H = L cos(slope angle), or H ≈ L - h²/(2L)."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b08-0000-0000-0000-000000000001",
+      "title": "Week 8: Midterm Practical Exam",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Demonstrate a timed, graded total-station setup, orientation, and check shot.",
+        "Measure and reduce a horizontal angle (D/R) and a distance under exam conditions.",
+        "Document the practical exam in a clean, defensible field book."
+      ],
+      "key_takeaways": [
+        "The midterm practical tests setup speed and accuracy: center and level within tolerance, orient correctly, and take a verified check shot.",
+        "You will be graded on procedure and documentation, not just the final number.",
+        "Reduce field observations (HA mean, slope-to-horizontal, trig elevation) without notes, showing your work.",
+        "Calm, methodical procedure beats rushing — most exam errors are blunders from skipped steps."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What the practical exam covers</h3><p>The midterm is a <strong>timed, hands-on station</strong> that assesses the core skills from Weeks 1&ndash;7. Expect to: set up and level a total station over a marked point within a stated centering and leveling tolerance; orient by occupying a known point and backsighting a known reference; take a <strong>check shot</strong> to confirm orientation; measure a horizontal angle in <strong>direct and reverse</strong> and mean it; measure a distance and reduce the slope distance to horizontal; and record everything cleanly in your field book. You are graded on <em>procedure, accuracy, and documentation</em>.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Station task", "What is graded", "Typical tolerance"],
+            "rows": [
+              ["Setup", "Centering + leveling", "Plumb within ~2 mm; bubble centered"],
+              ["Orientation", "Correct backsight azimuth", "Check shot within a few hundredths"],
+              ["Angle (D/R)", "Mean angle + spread", "FL/FR agree within instrument spec"],
+              ["Distance", "Slope reduced to horizontal", "Agrees with control within tolerance"],
+              ["Field book", "Legible, complete, dated", "No erasures, header complete"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Do not rush the setup to save time. A poorly leveled or off-center instrument biases every observation and is the most common cause of a failed practical. Iterate centering and leveling until both hold."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Reduction under exam conditions</h3><p>Bring and use the reduction skills cold: mean the direct/reverse angle, convert a zenith angle and slope distance to horizontal and vertical components, and compute a trig elevation with HI and HR. Show your work step by step in the field book so a grader can follow your logic even if a single arithmetic slip occurs. A clean header (name, date, instrument, weather), tabular observations on the right, and a labeled sketch on the left demonstrate professional habits the exam rewards.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Setup, orient, and verify with a check shot before measuring.",
+              "Measure angles in both faces and mean; reduce distances to horizontal.",
+              "You are graded on procedure and documentation, not only the answer.",
+              "Methodical pace prevents the skipped-step blunders that fail practicals."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Check shot", "definition": "An independent observation to a third known point used to confirm the instrument's orientation before collecting data.", "hint_1": "Catches a bad backsight."},
+        {"term": "Practical exam grading", "definition": "Assessment of field procedure, accuracy, and documentation — not merely the final computed value."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b09-0000-0000-0000-000000000001",
+      "title": "Week 9: Open Traverse Field Procedures",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Run an open traverse: occupy, backsight, foresight, and step station to station.",
+        "Convert measured angles and a starting azimuth into successive course azimuths.",
+        "Recognize that an open traverse has no closure check and plan independent verification."
+      ],
+      "key_takeaways": [
+        "An open traverse starts at a known point and ends at an unknown point, so there is no built-in mathematical check on the work.",
+        "Successive azimuths are propagated by adding the measured deflection or interior angle to the previous azimuth (then normalizing into 0–360 deg).",
+        "Because open traverses cannot self-check, redundant measurements (double angles, tie shots, repeated distances) are essential.",
+        "Open traverses suit route surveys (pipelines, roads) where returning to the start is impractical."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What an open traverse is</h3><p>An <strong>open traverse</strong> is a connected series of courses that begins at a point of known position and proceeds to a terminal point whose position is <em>not</em> independently known. It is common on <strong>route surveys</strong> &mdash; highways, pipelines, transmission lines &mdash; where the survey naturally moves forward and never returns to the start. The crew occupies a station, backsights the previous station to orient, turns the angle to the next station, and measures the distance, then moves up. Coordinates are computed by propagating azimuths and applying latitudes and departures.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Propagating azimuths</h3><p>Each new course direction comes from the previous one plus the measured angle. If you record <strong>deflection angles</strong>, the forward azimuth of the next course is the previous azimuth plus the right deflection (or minus a left deflection). If you record <strong>interior/clockwise angles to the right</strong>, the next azimuth is the back azimuth of the previous course plus the angle. Either way, after each addition you normalize the result into the 0&deg;&ndash;360&deg; range. Getting the bookkeeping right is the heart of traverse computation.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "Az_{i+1} = (Az_i + 180^\\circ + \\theta_i) \\bmod 360^\\circ",
+            "label": "Forward azimuth from back azimuth plus the measured angle-right",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "An open traverse provides NO closure check. A single undetected blunder propagates to every downstream point. Build in redundancy: double the angles, repeat distances, and tie into independent control whenever possible."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Open traverse: known start, unknown end, no closure check.",
+              "Occupy, backsight, turn angle, measure distance, advance.",
+              "Propagate azimuths by adding the measured angle and normalizing.",
+              "Add redundancy because errors cannot self-detect in an open traverse."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Open traverse", "definition": "A traverse that runs from a known point to a point of unknown position, providing no mathematical closure check.", "hint_1": "Common on route surveys."},
+        {"term": "Deflection angle", "definition": "The angle between a course and the prolongation of the preceding course, measured right (+) or left (-)."},
+        {"term": "Azimuth propagation", "definition": "Computing each course's azimuth from the previous course's azimuth plus the measured angle, normalized to 0–360 deg."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b10-0000-0000-0000-000000000001",
+      "title": "Week 10: Closed Traverse Field Procedures",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Run a closed-loop traverse and compute angular and linear misclosure.",
+        "Compute latitudes and departures and the linear misclosure by hypotenuse of the closures.",
+        "Express closure as a precision ratio and adjust the traverse by the compass (Bowditch) rule."
+      ],
+      "key_takeaways": [
+        "A closed traverse returns to its start (loop) or ties two known points (link), giving a mathematical check on the field work.",
+        "Linear misclosure = hypot(sum of latitudes, sum of departures); for a loop both sums should ideally be zero.",
+        "Precision ratio = linear misclosure divided by total traverse length, expressed as 1:N.",
+        "The compass (Bowditch) rule distributes the misclosure to each course in proportion to its length."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why closed traverses are preferred</h3><p>A <strong>closed traverse</strong> either returns to its starting station (a <strong>closed-loop</strong> traverse) or runs between two stations of known coordinates (a <strong>closed-connecting / link</strong> traverse). Either way it imposes a <strong>geometric condition</strong> that lets you compute how far off the field work is &mdash; the <strong>misclosure</strong> &mdash; and then adjust it. Boundary surveys are virtually always closed so the legal description mathematically closes. The field procedure is the same station-to-station routine as an open traverse, but the loop lets you check yourself.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Computing misclosure</h3><p>After balancing the angles, compute each course&rsquo;s <strong>latitude</strong> (north&ndash;south, <em>L cos(azimuth)</em>) and <strong>departure</strong> (east&ndash;west, <em>L sin(azimuth)</em>). For a loop, the latitudes should sum to zero and the departures should sum to zero. The leftover sums are the <strong>closure in latitude</strong> and <strong>closure in departure</strong>. The <strong>linear misclosure</strong> is the straight-line distance these represent:</p><p><em>misclosure = hypot(&Sigma;Lat, &Sigma;Dep)</em></p><p>Dividing the total course length by the misclosure gives the <strong>precision ratio</strong> 1:N &mdash; the higher N, the better.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "e = \\sqrt{(\\textstyle\\sum \\text{Lat})^2 + (\\textstyle\\sum \\text{Dep})^2}, \\qquad \\text{precision} = \\dfrac{\\sum L}{e}",
+            "label": "Linear misclosure e and precision ratio",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Adjusting by the compass rule</h3><p>If the precision meets the project specification, distribute the closures by the <strong>compass (Bowditch) rule</strong>: each course&rsquo;s correction to its latitude (or departure) is proportional to its length over the total length. After correcting all courses, the adjusted latitudes and departures sum to zero, and you compute final adjusted coordinates for every station. This balanced traverse is what feeds area computation and the final drawing.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Compass-rule correction to a course latitude = -(sum of latitudes) x (course length / total length). The departure correction follows the same proportion."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Closed traverses self-check via misclosure; loops should sum lat and dep to zero.",
+              "Linear misclosure = hypot(sum of latitudes, sum of departures).",
+              "Precision ratio = total length / misclosure, written 1:N.",
+              "Compass (Bowditch) rule distributes closure in proportion to course length."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Linear misclosure", "definition": "The hypotenuse of the summed latitude closure and summed departure closure of a traverse.", "hint_1": "hypot(sum Lat, sum Dep)."},
+        {"term": "Precision ratio", "definition": "Total traverse length divided by the linear misclosure, expressed as 1:N; larger N is better."},
+        {"term": "Compass (Bowditch) rule", "definition": "An adjustment that distributes traverse misclosure to each course in proportion to its length."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b11-0000-0000-0000-000000000001",
+      "title": "Week 11: Data Collection Methods and Electronic Recording",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Operate a data collector to record points with feature codes and attributes.",
+        "Apply consistent point numbering and field-to-finish coding for automated drafting.",
+        "Manage and back up survey data files (raw, coordinate, and code list)."
+      ],
+      "key_takeaways": [
+        "A data collector stores raw observations and reduced coordinates electronically, eliminating transcription error from hand notes.",
+        "Feature (descriptor) codes tell the office software what each point is and how to connect points into linework.",
+        "Consistent point numbering and a controlled code list make field-to-finish drafting automatic and repeatable.",
+        "Always keep the raw data file; back up to a second medium before leaving the field."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From field book to data collector</h3><p>Modern crews record observations in an electronic <strong>data collector</strong> (handheld or the instrument&rsquo;s onboard software). Each measured point is stored with a <strong>point number</strong>, its reduced <strong>northing/easting/elevation</strong>, and a <strong>feature code</strong> describing what it is (e.g., EP for edge of pavement, FH for fire hydrant). Storing the <strong>raw</strong> observations (HA/ZA/SD, HI, HR, backsight) as well as coordinates lets the office re-reduce the data if a setup value was wrong. Electronic recording removes the transcription errors that creep into hand-kept notes.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Field-to-finish coding</h3><p><strong>Field-to-finish</strong> is the practice of coding points in the field so the office CAD software draws the map automatically. A controlled <strong>code list</strong> maps each descriptor to a layer, symbol, and linework behavior. Line codes carry control characters &mdash; begin line, continue, close figure, start a curve &mdash; so a string of curb shots becomes a polyline without manual drafting. Discipline matters: a single mistyped code or a skipped &ldquo;begin line&rdquo; produces tangled linework that takes longer to fix than it saved.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["File type", "Contents", "Why keep it"],
+            "rows": [
+              ["Raw (.raw/.rw5)", "Observed HA/ZA/SD, HI, HR, setups", "Re-reduce if a setup value was wrong"],
+              ["Coordinate (.csv/.txt)", "Point #, N, E, Z, code", "Feeds CAD and stakeout"],
+              ["Code list", "Descriptor to layer/symbol map", "Drives field-to-finish drafting"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Never delete the raw data file. If a prism constant, instrument height, or backsight was entered wrong, only the raw file lets you correct the entire dataset. Back up to a second card or the cloud before leaving the site."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Data collectors store raw observations plus reduced coordinates and codes.",
+              "Feature codes drive automatic field-to-finish linework in CAD.",
+              "Use consistent point numbering and a controlled code list.",
+              "Preserve and back up the raw file before leaving the field."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Feature (descriptor) code", "definition": "A short code attached to a survey point identifying the feature and controlling its CAD layer, symbol, and linework.", "hint_1": "EP, FH, CL ..."},
+        {"term": "Field-to-finish", "definition": "Coding points in the field so the office software draws the map (symbols and linework) automatically."},
+        {"term": "Raw data file", "definition": "The stored original observations (angles, distances, heights, setups) that can be re-reduced if a setup value was wrong."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b12-0000-0000-0000-000000000001",
+      "title": "Week 12: Differential Leveling Field Lab",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Run a differential level loop using backsights, foresights, turning points, and benchmarks.",
+        "Reduce notes by the height-of-instrument (HI) method to compute elevations.",
+        "Compute and check level-loop misclosure and balance backsight/foresight distances."
+      ],
+      "key_takeaways": [
+        "Differential leveling transfers elevation from a benchmark through turning points using a level and rod.",
+        "HI method: HI = known elevation + backsight; new elevation = HI - foresight.",
+        "Closing a loop back to the benchmark gives a misclosure that checks the work.",
+        "Balancing backsight and foresight distances cancels collimation and curvature/refraction errors."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How differential leveling works</h3><p><strong>Differential leveling</strong> carries an elevation from a point of known elevation (a <strong>benchmark</strong>, BM) to new points using a level and a graduated rod. With the level set midway, the crew takes a <strong>backsight (BS)</strong> &mdash; a rod reading on the known point &mdash; then a <strong>foresight (FS)</strong> on the next point. When the next point is just a temporary stepping stone, it is a <strong>turning point (TP)</strong>. By leap-frogging level and rod, elevation is transferred any distance and over any terrain.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "HI = Elev_{BM} + BS, \\qquad Elev_{new} = HI - FS",
+            "label": "Height-of-instrument (HI) reduction",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Station", "BS (+)", "HI", "FS (-)", "Elevation"],
+            "rows": [
+              ["BM-1", "4.21", "104.21", "", "100.00"],
+              ["TP-1", "5.07", "106.62", "2.66", "101.55"],
+              ["BM-2", "", "", "3.18", "103.44"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Checks: misclosure and balanced sights</h3><p>Two checks protect a level run. First, the <strong>page/arithmetic check</strong>: the sum of backsights minus the sum of foresights equals the net elevation change (last elevation minus first). Second, the <strong>loop misclosure</strong>: running back to the starting benchmark (or to a second known BM) should reproduce its elevation; the small leftover is the misclosure, which is distributed among the setups if within tolerance. In the field, <strong>balance the BS and FS distances</strong> at each setup &mdash; equal sight lengths cancel instrumental collimation error and earth curvature/refraction.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Allowable loop misclosure is often written C x sqrt(M) or C x sqrt(K), where M is miles (or K kilometers) of leveling and C is an order-of-survey constant (e.g., 0.02 ft x sqrt(miles))."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "HI = elevation + backsight; new elevation = HI - foresight.",
+              "Turning points carry elevation between benchmarks.",
+              "Sum BS - sum FS must equal the net elevation change (arithmetic check).",
+              "Balance BS/FS distances to cancel collimation and curvature/refraction."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Height of instrument (HI)", "definition": "In leveling, the elevation of the level's line of sight = known elevation + backsight reading.", "hint_1": "Add the backsight."},
+        {"term": "Turning point (TP)", "definition": "A temporary point on which both a foresight and the next backsight are taken to advance a level run."},
+        {"term": "Balanced sights", "definition": "Keeping backsight and foresight distances equal so collimation and curvature/refraction errors cancel."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b13-0000-0000-0000-000000000001",
+      "title": "Week 13: Monument and Corner Establishment",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Set a durable boundary monument and reference it with witness/reference ties.",
+        "Cap monuments per Texas requirements and record the corner properly.",
+        "Distinguish setting a new corner from recovering and perpetuating an original monument."
+      ],
+      "key_takeaways": [
+        "A monument is the physical marker of a corner; durability and a permanent record are what give it long-term legal value.",
+        "Texas requires a Registered Professional Land Surveyor (RPLS) to cap set monuments with the firm/RPLS number under Board rules.",
+        "Reference (witness) ties and a detailed field record let a future surveyor recover the corner even if the monument is disturbed.",
+        "Recovering an original monument controls over setting a new one; original monuments hold the highest dignity in boundary law."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Monuments and corners</h3><p>A <strong>corner</strong> is a point of legal significance on a boundary; a <strong>monument</strong> is the physical object that marks it &mdash; an iron rod, pipe, capped rebar, concrete monument, or a natural/structural object called out in the record. The value of a monument comes from <strong>permanence</strong> and a <strong>documented record</strong> of how, when, and by whom it was set, and how it ties to surrounding evidence. Setting monuments and corner establishment are core deliverables of a boundary survey and are explicitly named in the SRVY 1335 course content.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Monument type", "Typical use", "Note"],
+            "rows": [
+              ["Capped iron rod / rebar", "Most modern property corners", "Cap stamped with RPLS/firm no."],
+              ["Iron pipe", "Older corners", "Often found, rarely newly set"],
+              ["Concrete monument", "Control / major corners", "Very durable, surveyed disk"],
+              ["Witness / reference mark", "Tie when corner can't be set", "Recorded offset to true corner"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: under the Professional Land Surveying Practices Act and 22 TAC Ch. 663, monuments set to mark a property corner must be capped/identified with the responsible RPLS's registration or firm number. Setting boundary monuments is the practice of professional surveying — students do so only under RPLS supervision."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Reference ties and perpetuation</h3><p>Because a monument can be destroyed by construction or weather, the surveyor records <strong>reference (witness) ties</strong> &mdash; measured distances and bearings from the corner to several nearby permanent objects &mdash; so it can be re-set in the same spot later. When you encounter an <strong>original monument</strong> (one set by the surveyor who created the boundary), the rule of boundary law is to <strong>recover and honor it</strong>, not to set a new corner by measurement: an undisturbed original monument controls over distances and bearings. Document the recovery thoroughly &mdash; that record perpetuates the corner.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "A monument's legal value comes from permanence plus a documented record.",
+              "Texas requires set property-corner monuments to be capped with the RPLS/firm number.",
+              "Record reference (witness) ties so a disturbed corner can be re-set.",
+              "Recover and honor original monuments — they control over measurements."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Monument", "definition": "The physical marker (rod, pipe, capped rebar, concrete) that occupies a boundary corner.", "hint_1": "Marks the corner; the corner is the legal point."},
+        {"term": "Reference (witness) tie", "definition": "A measured distance and bearing from a corner to a nearby permanent object, recorded so the corner can be re-established."},
+        {"term": "Original monument", "definition": "A monument set by the creating surveyor; when undisturbed it controls over record distances and bearings.", "hint_1": "Highest dignity of evidence."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b14-0000-0000-0000-000000000001",
+      "title": "Week 14: Profile and Cross-Section Leveling",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Run profile leveling along a centerline using stationing and intermediate foresights.",
+        "Take cross-sections perpendicular to the centerline and record offset/elevation pairs.",
+        "Plot a ground profile and cross-sections and compute simple cut/fill at grade."
+      ],
+      "key_takeaways": [
+        "Profile leveling records ground elevation along a line at regular stations to produce a longitudinal profile.",
+        "Intermediate foresights (rod shots) on the ground are read from the same HI; only turning points carry elevation forward.",
+        "Cross-sections capture ground elevation at offsets left and right of the centerline at each station.",
+        "Comparing ground elevation to a design grade yields cut (ground above grade) or fill (ground below grade)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Profile leveling</h3><p><strong>Profile leveling</strong> measures the elevation of the ground along a line &mdash; a road centerline, a sewer alignment, a ditch &mdash; at regular <strong>stations</strong> (e.g., every 50 or 100 ft, written 0+00, 1+00, ...). It uses the same level and HI method as differential leveling, but adds many <strong>intermediate foresights (IFS)</strong>: ground-rod shots taken from the current HI that record elevation but do <em>not</em> advance the instrument. Only true <strong>turning points</strong> carry the HI forward when the instrument must move. The result is a <strong>profile</strong> &mdash; a side view of the ground along the line.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "Elev_{station} = HI - IFS",
+            "label": "Intermediate ground elevation from the height of instrument",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Cross-sections and earthwork</h3><p>A <strong>cross-section</strong> is a profile taken <em>perpendicular</em> to the centerline at a station, capturing ground elevation at measured <strong>offsets</strong> left and right (e.g., &minus;25, &minus;10, 0, +10, +25 ft). Cross-sections describe the shape of the ground across the corridor and are the basis for earthwork volumes. Comparing each measured ground elevation to the <strong>design grade</strong> elevation at that point gives a <strong>cut</strong> (ground above grade, must be removed) or a <strong>fill</strong> (ground below grade, must be added). Plotted profiles and cross-sections, with stationing along the bottom, are standard construction deliverables.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Offset (ft)", "Ground elev", "Grade elev", "Cut(+)/Fill(-)"],
+            "rows": [
+              ["-25", "101.8", "100.0", "+1.8 cut"],
+              ["0 (CL)", "100.4", "100.0", "+0.4 cut"],
+              ["+25", "99.1", "100.0", "-0.9 fill"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Stationing convention: 1+00 means 100 ft from the start (0+00). A point at 3+50 is 350 ft along the centerline. Offsets are measured perpendicular, negative left and positive right (facing increasing stations)."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Profile leveling records ground elevation at stations along a centerline.",
+              "Intermediate foresights (HI - IFS) record ground but don't advance the HI.",
+              "Cross-sections record elevation at offsets perpendicular to the centerline.",
+              "Cut = ground above grade; fill = ground below grade."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Profile leveling", "definition": "Leveling along a centerline at regular stations to record the longitudinal ground profile.", "hint_1": "Side view along the line."},
+        {"term": "Intermediate foresight (IFS)", "definition": "A ground-rod reading taken from the current HI that records elevation but does not move the instrument."},
+        {"term": "Cross-section", "definition": "Ground elevations measured at offsets perpendicular to the centerline at a station, used for earthwork."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b15-0000-0000-0000-000000000001",
+      "title": "Week 15: Comprehensive Field Survey Project",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Plan and execute a closed control traverse with topographic detail collection.",
+        "Reduce, adjust, and compute area for the traverse and verify closure to specification.",
+        "Produce a finished, QA/QC-checked drawing deliverable from field-to-finish data."
+      ],
+      "key_takeaways": [
+        "The capstone integrates every lab skill: control, angles, distances, leveling, topo collection, reduction, adjustment, area, and drafting.",
+        "Begin with control: run and adjust a closed traverse meeting the precision spec before collecting detail.",
+        "Collect topographic detail by radial shots with feature codes for automated field-to-finish drafting.",
+        "QA/QC every deliverable: check closure, spot-check coordinates, verify linework, and confirm area by an independent method."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The capstone project</h3><p>The comprehensive project is the lab&rsquo;s capstone: a complete small survey that exercises every skill from the semester. A typical scope is to establish <strong>control</strong> over a site, run and adjust a <strong>closed traverse</strong>, transfer <strong>vertical control</strong> by leveling, collect <strong>topographic detail</strong>, reduce and adjust the data, compute the <strong>area</strong> of the bounded parcel, and deliver a finished, checked <strong>drawing</strong>. You work as a crew, rotate roles (instrument operator, rodperson, note keeper), and are graded on the end-to-end product, not just one task.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Sequence of work</h3><p>Order matters. Establish control first &mdash; an out-of-spec control traverse poisons everything built on it:</p><ul><li>Reconnoiter the site and plan station locations with good intervisibility.</li><li>Run the closed traverse (angles in both faces, distances measured both ways) and check angular and linear misclosure against the spec.</li><li>Adjust the traverse (compass rule) and compute final coordinates.</li><li>Carry vertical control by differential leveling to the project benchmarks.</li><li>Collect topographic detail by radial shots from control, each with a feature code.</li><li>Reduce, draft field-to-finish, and compute area by coordinates.</li></ul>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Do not collect topo before your control traverse closes and is adjusted. Detail shots inherit the error of the setup they are taken from; bad control means redrawing everything."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Deliverable and QA/QC</h3><p>The deliverable is a clean drawing with the boundary, topographic features, contours or spot elevations, control table, north arrow, scale, and computed area &mdash; plus the supporting field notes and reduced coordinate file. Before submitting, run <strong>QA/QC</strong>: confirm the traverse precision meets spec; spot-check several coordinates by independent computation; verify linework connects correctly with no stray segments; and confirm the parcel <strong>area</strong> by a second method (e.g., coordinate area vs. a CAD area readout). A surveyor signs nothing they have not checked.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Capstone integrates control, leveling, topo, reduction, adjustment, area, and drafting.",
+              "Establish and adjust control before collecting any detail.",
+              "Collect topo by coded radial shots for field-to-finish drafting.",
+              "QA/QC: verify closure, coordinates, linework, and area before delivering."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Radial (side-shot) topo", "definition": "Collecting detail points by shooting them directly from an oriented control setup, each tagged with a feature code."},
+        {"term": "Control-first workflow", "definition": "Establishing and adjusting the control traverse before any detail collection, because detail inherits control error."},
+        {"term": "QA/QC of a survey deliverable", "definition": "Checking closure, spot-checking coordinates, verifying linework, and confirming area by an independent method before signing."}
+      ]
+    },
+    {
+      "lesson_id": "acc02b16-0000-0000-0000-000000000001",
+      "title": "Week 16: Final Practical Exam",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Independently execute a complete short survey task under timed exam conditions.",
+        "Reduce field data to coordinates, compute traverse closure, and compute area.",
+        "Demonstrate professional documentation and self-checking throughout."
+      ],
+      "key_takeaways": [
+        "The final practical is a comprehensive, independent assessment of semester field and reduction skills.",
+        "You set up, orient, observe a small traverse, and reduce it to coordinates and closure on your own.",
+        "Computing area by coordinates and reporting a precision ratio demonstrates mastery.",
+        "Self-checking — a backsight check shot, a closure check, an independent area check — is the mark of a competent surveyor."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The final practical</h3><p>The final practical is a <strong>comprehensive, independent</strong> exercise. Working alone or with minimal crew, you will set up and orient an instrument, observe a short <strong>closed traverse</strong> (angles in both faces, distances), and reduce the data to <strong>coordinates</strong>, <strong>misclosure</strong>, a <strong>precision ratio</strong>, and a computed <strong>area</strong>. It rolls together every competency: setup, angles, distances, leveling concepts, reduction, adjustment, and area computation &mdash; under time pressure and graded on procedure and documentation as much as on the answers.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Phase", "Task", "Deliverable"],
+            "rows": [
+              ["Field", "Setup, orient, check shot", "Verified orientation"],
+              ["Field", "Observe closed traverse (D/R)", "Balanced angles"],
+              ["Office", "Latitudes/departures, misclosure", "Precision ratio 1:N"],
+              ["Office", "Adjust + coordinates", "Adjusted station coords"],
+              ["Office", "Area by coordinates", "Parcel area + check"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Demonstrating mastery</h3><p>Top scores come from <strong>self-checking</strong>. Verify orientation with a check shot before observing. Confirm the angular misclosure meets the (n&minus;2)&times;180&deg; condition before computing bearings. Compute the linear misclosure as <em>hypot(&Sigma;Lat, &Sigma;Dep)</em> and report the precision ratio. Compute the area by the <strong>coordinate (shoelace) method</strong> and confirm it independently. Throughout, keep a clean, dated field book and show your reduction steps so a grader can follow your reasoning. A surveyor who checks their own work is the one this course is trying to produce.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Reduction order on the final: balance angles -> compute azimuths -> latitudes/departures -> misclosure and precision -> adjust (compass rule) -> coordinates -> area by coordinates."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The final integrates setup, observation, reduction, adjustment, and area.",
+              "Report misclosure, precision ratio, adjusted coordinates, and area.",
+              "Compute area by the coordinate (shoelace) method and check it independently.",
+              "Self-checking at every step is what the exam rewards."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Coordinate (shoelace) area", "definition": "Area of a polygon computed from station coordinates: half the absolute value of the sum of (x_i*y_{i+1} - x_{i+1}*y_i)."},
+        {"term": "Reduction order", "definition": "Balance angles, compute azimuths, latitudes/departures, misclosure, adjust, coordinates, then area."},
+        {"term": "Self-checking", "definition": "Building independent verification (check shots, closure checks, area cross-checks) into a survey to catch blunders before signing."}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "acc02b01-0000-0000-0000-000000000001",
+      "question_text": "How should a wrong value be corrected in a survey field book?",
+      "question_type": "multiple_choice",
+      "options": ["Erase it and write the correct value", "Draw one line through it, initial it, and write the correct value beside it", "Scribble it out completely so it can't be read", "Tear out the page and start over"],
+      "correct_answer": "Draw one line through it, initial it, and write the correct value beside it",
+      "explanation": "Field notes are a permanent legal record. Errors are lined out (single line), initialed, and corrected beside, never erased, so the original remains legible.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b01-0000-0000-0000-000000000001",
+      "question_text": "Original field notes in Texas are considered part of the legal survey record and must be retained.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Texas Board rules (22 TAC Ch. 663) require surveyors to maintain the records supporting a survey, including original field notes.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b02-0000-0000-0000-000000000001",
+      "question_text": "An EDM reports a slope distance of 250.00 ft. If the entered prism constant is wrong by +0.03 ft, what is the effect on the measured distance?",
+      "question_type": "multiple_choice",
+      "options": ["The distance is biased by 0.03 ft regardless of length", "The error scales with distance (ppm)", "There is no effect because the EDM self-corrects", "Only the vertical component is affected"],
+      "correct_answer": "The distance is biased by 0.03 ft regardless of length",
+      "explanation": "The prism constant is a fixed additive offset; a wrong constant biases every measured distance by that constant, independent of length (unlike ppm errors, which scale).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b02-0000-0000-0000-000000000001",
+      "question_text": "The atmospheric (ppm) correction for an EDM accounts for which of the following?",
+      "question_type": "multiple_choice",
+      "options": ["The offset of the prism's optical center", "The actual speed of light, which varies with air temperature and pressure", "Earth curvature over the line", "The instrument's leveling error"],
+      "correct_answer": "The actual speed of light, which varies with air temperature and pressure",
+      "explanation": "The speed of light through air depends on temperature and pressure; the ppm correction adjusts the distance for the real propagation speed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b03-0000-0000-0000-000000000001",
+      "question_text": "What is the purpose of taking a check shot to a third known point after orienting a total station?",
+      "question_type": "multiple_choice",
+      "options": ["To recharge the battery", "To confirm the orientation (backsight) is correct before collecting data", "To set the prism constant", "To level the instrument"],
+      "correct_answer": "To confirm the orientation (backsight) is correct before collecting data",
+      "explanation": "A check shot to an independent known point verifies that the occupied point, instrument height, and backsight azimuth were entered correctly before production work begins.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b03-0000-0000-0000-000000000001",
+      "question_text": "When you rotate a leveled total station 180 degrees and the optical/laser plummet drifts off the marked point, what does this indicate?",
+      "question_type": "multiple_choice",
+      "options": ["The battery is low", "The plummet is out of adjustment", "The prism constant is wrong", "The instrument is perfectly adjusted"],
+      "correct_answer": "The plummet is out of adjustment",
+      "explanation": "A correctly adjusted plummet stays on the point through a 180-degree rotation. Drift means it is out of adjustment, so you have been centering over a circle rather than the point.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b04-0000-0000-0000-000000000001",
+      "question_text": "Measuring an angle in both face-left and face-right and meaning the results cancels which error?",
+      "question_type": "multiple_choice",
+      "options": ["Standing-axis (plate not level) error", "Collimation error", "Centering (setup) error", "Reading-resolution error"],
+      "correct_answer": "Collimation error",
+      "explanation": "Collimation, horizontal-axis, and vertical-index errors reverse sign between faces and cancel when meaned. Standing-axis error does not reverse, so it is not cancelled by face reversal.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b04-0000-0000-0000-000000000001",
+      "question_text": "In a properly adjusted theodolite, the line of sight (collimation axis) should be perpendicular to the trunnion (horizontal) axis.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "The three axes must be mutually perpendicular: the line of sight perpendicular to the trunnion axis, which is perpendicular to the vertical standing axis.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b05-0000-0000-0000-000000000001",
+      "question_text": "The interior angles of a closed six-sided traverse should theoretically sum to how many degrees?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "720",
+      "explanation": "(n - 2) x 180 = (6 - 2) x 180 = 4 x 180 = 720 degrees.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b05-0000-0000-0000-000000000001",
+      "question_text": "The method of repetition improves a measured horizontal angle primarily by:",
+      "question_type": "multiple_choice",
+      "options": ["Eliminating the prism constant", "Effectively dividing the reading resolution by the number of repetitions and averaging pointing error", "Correcting for atmospheric refraction", "Removing the need to level the instrument"],
+      "correct_answer": "Effectively dividing the reading resolution by the number of repetitions and averaging pointing error",
+      "explanation": "Accumulating the angle n times and dividing by n divides the circle's reading resolution by n and averages random pointing error.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b06-0000-0000-0000-000000000001",
+      "question_text": "A total station reads a zenith angle of 90 degrees. The line of sight is:",
+      "question_type": "multiple_choice",
+      "options": ["Pointing straight up", "Horizontal", "Pointing straight down", "Inclined 45 degrees"],
+      "correct_answer": "Horizontal",
+      "explanation": "Zenith angle is measured from the upward vertical: 0 deg is straight up, 90 deg is horizontal, and 180 deg is straight down.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b06-0000-0000-0000-000000000001",
+      "question_text": "A slope distance of 300.00 ft is measured at a zenith angle of 85 degrees. What is the horizontal distance (ft)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "298.86",
+      "explanation": "H = S sin(z) = 300.00 x sin(85 deg) = 300.00 x 0.99619 = 298.86 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b07-0000-0000-0000-000000000001",
+      "question_text": "A line is measured along a slope as 152.00 ft at a slope angle of 6 degrees. What is the horizontal distance (ft)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "151.17",
+      "explanation": "H = L cos(alpha) = 152.00 x cos(6 deg) = 152.00 x 0.99452 = 151.17 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b07-0000-0000-0000-000000000001",
+      "question_text": "If a steel tape is used at a temperature hotter than its standardization temperature, the tape is longer than nominal and therefore:",
+      "question_type": "multiple_choice",
+      "options": ["Reads the distance too long; correction is negative", "Reads the distance too short; correction is positive", "Is unaffected by temperature", "Must be re-standardized at every reading"],
+      "correct_answer": "Reads the distance too short; correction is positive",
+      "explanation": "A tape longer than nominal lays down fewer tape-lengths, so it reports a distance that is too short; the temperature correction is positive (added).",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "acc02b08-0000-0000-0000-000000000001",
+      "question_text": "On the midterm practical, a poorly leveled or off-center instrument is problematic because:",
+      "question_type": "multiple_choice",
+      "options": ["It drains the battery faster", "It biases every observation taken from that setup", "It only affects vertical angles", "It has no effect if you measure quickly"],
+      "correct_answer": "It biases every observation taken from that setup",
+      "explanation": "Centering and leveling errors propagate into every angle and distance from that setup, making setup quality the most common cause of a failed practical.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b09-0000-0000-0000-000000000001",
+      "question_text": "Which statement about an open traverse is correct?",
+      "question_type": "multiple_choice",
+      "options": ["It returns to its starting point", "It provides a mathematical closure check", "It ends at a point of unknown position and cannot self-check", "It is required for boundary surveys"],
+      "correct_answer": "It ends at a point of unknown position and cannot self-check",
+      "explanation": "An open traverse runs from a known point to an unknown point, so there is no geometric condition to check the work — redundancy must be added manually.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b10-0000-0000-0000-000000000001",
+      "question_text": "A closed-loop traverse has a latitude closure of +0.18 ft and a departure closure of -0.24 ft. What is the linear misclosure (ft)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "0.30",
+      "explanation": "Linear misclosure = hypot(0.18, 0.24) = sqrt(0.18^2 + 0.24^2) = sqrt(0.0324 + 0.0576) = sqrt(0.09) = 0.30 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b10-0000-0000-0000-000000000001",
+      "question_text": "A traverse with total length 2400 ft has a linear misclosure of 0.20 ft. The precision ratio is closest to:",
+      "question_type": "multiple_choice",
+      "options": ["1:120", "1:1200", "1:12000", "1:480"],
+      "correct_answer": "1:12000",
+      "explanation": "Precision = total length / misclosure = 2400 / 0.20 = 12000, written 1:12000.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b10-0000-0000-0000-000000000001",
+      "question_text": "The compass (Bowditch) rule distributes traverse misclosure to each course in proportion to its length.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "The compass rule corrects each course's latitude and departure in proportion to the course length over the total traverse length.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b11-0000-0000-0000-000000000001",
+      "question_text": "Why should the raw data file from a data collector never be deleted?",
+      "question_type": "multiple_choice",
+      "options": ["It is required for the battery to charge", "It alone allows the entire dataset to be re-reduced if a setup value (HI, prism constant, backsight) was wrong", "It contains the firmware", "It stores the office CAD drawing"],
+      "correct_answer": "It alone allows the entire dataset to be re-reduced if a setup value (HI, prism constant, backsight) was wrong",
+      "explanation": "The raw file holds the original observations and setup values, so it is the only way to correctly re-reduce data after a setup-entry error.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b11-0000-0000-0000-000000000001",
+      "question_text": "Feature (descriptor) codes recorded in the field are used to:",
+      "question_type": "multiple_choice",
+      "options": ["Calibrate the EDM", "Drive automatic field-to-finish linework, layers, and symbols in CAD", "Level the instrument", "Compute the prism constant"],
+      "correct_answer": "Drive automatic field-to-finish linework, layers, and symbols in CAD",
+      "explanation": "A controlled code list maps each descriptor to a layer, symbol, and linework behavior so the office software draws the map automatically.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b12-0000-0000-0000-000000000001",
+      "question_text": "A benchmark has elevation 100.00 ft. A backsight of 4.32 ft is read, then a foresight of 6.18 ft to a new point. What is the elevation of the new point (ft)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "98.14",
+      "explanation": "HI = 100.00 + 4.32 = 104.32; new elevation = HI - FS = 104.32 - 6.18 = 98.14 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b12-0000-0000-0000-000000000001",
+      "question_text": "Keeping backsight and foresight distances balanced (equal) at each level setup primarily cancels:",
+      "question_type": "multiple_choice",
+      "options": ["Rod graduation error", "Collimation error and curvature/refraction", "The prism constant", "Angular misclosure"],
+      "correct_answer": "Collimation error and curvature/refraction",
+      "explanation": "Equal sight lengths make the line-of-sight collimation error and the curvature/refraction effect equal on backsight and foresight, so they cancel in the elevation difference.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b13-0000-0000-0000-000000000001",
+      "question_text": "Under Texas Board rules, a monument set to mark a property corner must be:",
+      "question_type": "multiple_choice",
+      "options": ["Left uncapped to avoid liability", "Capped/identified with the responsible RPLS's registration or firm number", "Made only of wood", "Set by any crew member without supervision"],
+      "correct_answer": "Capped/identified with the responsible RPLS's registration or firm number",
+      "explanation": "22 TAC Ch. 663 requires set property-corner monuments to be identified with the responsible RPLS or firm number; setting boundary monuments is professional practice done under RPLS responsibility.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b13-0000-0000-0000-000000000001",
+      "question_text": "When an undisturbed original monument is recovered, boundary law says it controls over the record distances and bearings.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "An undisturbed original monument is the highest dignity of evidence and controls over measured distances and bearings in retracement.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b14-0000-0000-0000-000000000001",
+      "question_text": "At station 2+50 the ground elevation is 99.2 ft and the design grade is 100.0 ft. This represents:",
+      "question_type": "multiple_choice",
+      "options": ["0.8 ft of cut", "0.8 ft of fill", "No cut or fill", "1.8 ft of fill"],
+      "correct_answer": "0.8 ft of fill",
+      "explanation": "Ground (99.2) is below grade (100.0) by 0.8 ft, so material must be added: 0.8 ft of fill.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b14-0000-0000-0000-000000000001",
+      "question_text": "In profile leveling, an intermediate foresight (IFS) read on the ground:",
+      "question_type": "multiple_choice",
+      "options": ["Advances the instrument to a new HI", "Records a ground elevation (HI - IFS) but does not carry elevation forward", "Is the same as a benchmark", "Must equal the backsight"],
+      "correct_answer": "Records a ground elevation (HI - IFS) but does not carry elevation forward",
+      "explanation": "Intermediate foresights record ground elevations from the current HI; only turning points carry the elevation forward when the instrument moves.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b15-0000-0000-0000-000000000001",
+      "question_text": "Why must control be established and adjusted before collecting topographic detail?",
+      "question_type": "multiple_choice",
+      "options": ["To charge the data collector", "Because detail shots inherit the error of the control setups they are taken from", "Because topo cannot be coded otherwise", "It is not necessary; order does not matter"],
+      "correct_answer": "Because detail shots inherit the error of the control setups they are taken from",
+      "explanation": "Radial detail shots are referenced to control; if control is out of spec, every detail point is wrong and must be re-collected.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc02b16-0000-0000-0000-000000000001",
+      "question_text": "Using the coordinate (shoelace) method, a triangle has vertices A(0,0), B(100,0), C(100,80). What is its area (sq ft)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "4000",
+      "explanation": "Area = 0.5 |x_A(y_B - y_C) + x_B(y_C - y_A) + x_C(y_A - y_B)| = 0.5 |0(0-80) + 100(80-0) + 100(0-0)| = 0.5 x 8000 = 4000 sq ft.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc02b16-0000-0000-0000-000000000001",
+      "question_text": "What is the correct order of traverse reduction on the final exam?",
+      "question_type": "multiple_choice",
+      "options": ["Area, coordinates, misclosure, balance angles", "Balance angles, compute azimuths, latitudes/departures, misclosure, adjust, coordinates, area", "Coordinates first, then balance angles, then azimuths", "Compute area before checking angular misclosure"],
+      "correct_answer": "Balance angles, compute azimuths, latitudes/departures, misclosure, adjust, coordinates, area",
+      "explanation": "Angles are balanced first so bearings/azimuths are correct, then latitudes/departures and misclosure, adjustment, coordinates, and finally area by coordinates.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Latitude and departure of a traverse course",
+      "category": "Surveying Applications (Lab) — Traverse",
+      "subcategory": "Latitude and departure",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A traverse course has a length of {{dist:f2}} ft and a bearing of N {{ang:f0}} deg E. Compute the DEPARTURE (east-west component) of this course in feet.",
+      "parameters": [
+        {"name": "ang", "type": "integer", "min": 12, "max": 78},
+        {"name": "dist", "type": "float", "min": 150, "max": 700, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "lat", "formula": "dist*cos(toRad(ang))"}
+      ],
+      "answer_formula": "dist*sin(toRad(ang))",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Departure formula", "formula": "Dep = d sin(bearing)", "calculation_template": "{{dist:f2}} x sin({{ang:f0}} deg)"},
+        {"step_number": 2, "title": "Compute", "result_template": "Departure = {{_answer}} ft (east, positive)"}
+      ],
+      "explanation_template": "Departure = d sin(bearing) = {{dist:f2}} x sin({{ang:f0}} deg) = {{_answer}} ft east. (Its latitude, d cos(bearing), would be {{lat:f2}} ft north.)",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Linear misclosure of a closed traverse",
+      "category": "Surveying Applications (Lab) — Traverse",
+      "subcategory": "Misclosure",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A closed-loop traverse has a closure in latitude of {{clat:f2}} ft and a closure in departure of {{cdep:f2}} ft. Compute the LINEAR MISCLOSURE (ft).",
+      "parameters": [
+        {"name": "clat", "type": "float", "min": -0.5, "max": 0.5, "decimals": 2},
+        {"name": "cdep", "type": "float", "min": -0.5, "max": 0.5, "decimals": 2}
+      ],
+      "computed_vars": [],
+      "answer_formula": "hypot(clat,cdep)",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.01},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Misclosure", "formula": "e = hypot(sum Lat, sum Dep)", "calculation_template": "hypot({{clat:f2}}, {{cdep:f2}})"},
+        {"step_number": 2, "title": "Result", "result_template": "Linear misclosure = {{_answer}} ft"}
+      ],
+      "explanation_template": "The linear misclosure is the hypotenuse of the latitude and departure closures: hypot({{clat:f2}}, {{cdep:f2}}) = {{_answer}} ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Area of a triangular parcel by coordinates",
+      "category": "Surveying Applications (Lab) — Area",
+      "subcategory": "Coordinate area",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A triangular parcel has corner coordinates A(0, 0), B({{bx:f1}}, 0), and C({{bx:f1}}, {{cy:f1}}) in feet. Compute the AREA by coordinates (square feet).",
+      "parameters": [
+        {"name": "bx", "type": "float", "min": 80, "max": 300, "decimals": 1},
+        {"name": "cy", "type": "float", "min": 60, "max": 250, "decimals": 1}
+      ],
+      "computed_vars": [],
+      "answer_formula": "0.5*abs(bx*cy)",
+      "answer_format": {"decimals": 1, "unit": "sq ft", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Shoelace sum", "formula": "A = 0.5 |sum(x_i y_{i+1} - x_{i+1} y_i)|", "calculation_template": "0.5 x |{{bx:f1}} x {{cy:f1}}|"},
+        {"step_number": 2, "title": "Result", "result_template": "Area = {{_answer}} sq ft"}
+      ],
+      "explanation_template": "With A at the origin, the coordinate (shoelace) area reduces to 0.5 x base x height = 0.5 x {{bx:f1}} x {{cy:f1}} = {{_answer}} sq ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Differential leveling — new point elevation (HI method)",
+      "category": "Surveying Applications (Lab) — Leveling",
+      "subcategory": "HI reduction",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A benchmark has elevation {{bm:f2}} ft. A backsight of {{bs:f2}} ft is read on the benchmark, then a foresight of {{fs:f2}} ft is read on a new point. Compute the elevation of the new point (ft).",
+      "parameters": [
+        {"name": "bm", "type": "float", "min": 80, "max": 500, "decimals": 2},
+        {"name": "bs", "type": "float", "min": 1, "max": 9, "decimals": 2},
+        {"name": "fs", "type": "float", "min": 1, "max": 9, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "hi", "formula": "bm+bs"}
+      ],
+      "answer_formula": "bm+bs-fs",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Height of instrument", "formula": "HI = Elev + BS", "calculation_template": "{{bm:f2}} + {{bs:f2}} = {{hi:f2}} ft"},
+        {"step_number": 2, "title": "New elevation", "formula": "Elev = HI - FS", "result_template": "{{hi:f2}} - {{fs:f2}} = {{_answer}} ft"}
+      ],
+      "explanation_template": "HI = {{bm:f2}} + {{bs:f2}} = {{hi:f2}} ft; new elevation = HI - FS = {{hi:f2}} - {{fs:f2}} = {{_answer}} ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Slope distance reduced to horizontal via zenith angle",
+      "category": "Surveying Applications (Lab) — EDM",
+      "subcategory": "Slope reduction",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A total station measures a slope distance of {{sd:f2}} ft at a zenith angle of {{z:f0}} deg. Compute the HORIZONTAL distance (ft).",
+      "parameters": [
+        {"name": "sd", "type": "float", "min": 100, "max": 600, "decimals": 2},
+        {"name": "z", "type": "integer", "min": 80, "max": 100}
+      ],
+      "computed_vars": [
+        {"name": "vert", "formula": "sd*cos(toRad(z))"}
+      ],
+      "answer_formula": "sd*sin(toRad(z))",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.02},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Horizontal from zenith", "formula": "H = S sin(z)", "calculation_template": "{{sd:f2}} x sin({{z:f0}} deg)"},
+        {"step_number": 2, "title": "Result", "result_template": "Horizontal distance = {{_answer}} ft"}
+      ],
+      "explanation_template": "Using the zenith angle, H = S sin(z) = {{sd:f2}} x sin({{z:f0}} deg) = {{_answer}} ft. The vertical component V = S cos(z) = {{vert:f2}} ft.",
+      "options_generator": {"method": "none"}
+    }
+  ]
+}

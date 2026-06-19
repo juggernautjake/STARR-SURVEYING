@@ -1,250 +1,374 @@
 [
  {
+  "key": "29",
   "module": {
-   "id": "c1000019-0000-0000-0000-000000000019",
-   "order_index": 25,
-   "title": "SIT Exam Review — Fundamentals",
-   "description": "Comprehensive review of fundamental surveying concepts tested on the Texas Surveyor Intern Test (SIT).",
-   "tags": [
-    "exam-prep",
-    "SIT",
-    "fundamentals",
-    "review"
-   ]
+   "id": "acc00001-0000-0000-0000-000000000001",
+   "order_index": 29,
+   "real_order": 29,
+   "title": "ACC SRVY 1301 — Introduction to Surveying",
+   "description": "Austin Community College SRVY 1301 (3 SCH). An overview of the surveying profession covering the history of surveying and its impact on the world, review of mathematics used in surveying, introduction to basic surveying equipment with emphasis on horizontal and vertical measurements, instruction on surveying procedures and limitation of errors, and calculations to determine precision and error of closure. Topics include: units and significant figures, field notes, theory of errors, leveling theory and field procedures, distance measurement, angles/azimuths/bearings, total stations, traversing, traverse computations, coordinate geometry, area computation, and mapping surveys. Textbook: Elementary Surveying by Ghilani or Surveying Fundamentals by Nathanson. No prerequisites."
   },
   "lessons": [
    {
-    "id": "153e57a7-df0b-4b30-a4e8-cbfe125785ec",
-    "title": "SIT Exam Format and Study Strategy",
+    "id": "acc01b01-0000-0000-0000-000000000001",
+    "title": "Week 1: Introduction to Surveying",
     "order_index": 1
    },
    {
-    "id": "74470d18-37e1-4928-a697-46927b811835",
-    "title": "Mathematics Review for SIT",
+    "id": "acc01b02-0000-0000-0000-000000000001",
+    "title": "Week 2: Units, Significant Figures, and Field Notes",
     "order_index": 2
    },
    {
-    "id": "fb89ec38-209b-4125-9acf-7de4d88465bc",
-    "title": "Measurement and Error Theory Review",
+    "id": "acc01b03-0000-0000-0000-000000000001",
+    "title": "Week 3: Theory of Errors in Observation",
     "order_index": 3
    },
    {
-    "id": "6e515c6d-3835-4681-84ca-7ce2215b7c28",
-    "title": "Distance and Angle Measurement Review",
+    "id": "acc01b04-0000-0000-0000-000000000001",
+    "title": "Week 4: Leveling — Theory, Methods, and Equipment",
     "order_index": 4
    },
    {
-    "id": "b546fea7-83b5-4940-a51b-f02529e30b46",
-    "title": "Leveling Review",
+    "id": "acc01b05-0000-0000-0000-000000000001",
+    "title": "Week 5: Leveling — Field Procedures and Computations",
     "order_index": 5
    },
    {
-    "id": "0fe093eb-d7ed-43a7-9511-fdaf7f6b0f12",
-    "title": "Coordinate Systems Review",
+    "id": "acc01b06-0000-0000-0000-000000000001",
+    "title": "Week 6: Distance Measurement",
     "order_index": 6
    },
    {
-    "id": "abf146f7-f77e-4d6c-a065-6de160ac604b",
-    "title": "Traverse Computations Review",
+    "id": "acc01b07-0000-0000-0000-000000000001",
+    "title": "Week 7: Angles, Azimuths, and Bearings",
     "order_index": 7
    },
    {
-    "id": "e079ffe6-6bd0-499c-a406-a86b351ad5c2",
-    "title": "Area and Volume Review",
+    "id": "acc01b08-0000-0000-0000-000000000001",
+    "title": "Week 8: Midterm Exam",
     "order_index": 8
    },
    {
-    "id": "249bd04d-b9d0-455d-b416-023af3efc6b4",
-    "title": "GPS/GNSS Concepts Review",
+    "id": "acc01b09-0000-0000-0000-000000000001",
+    "title": "Week 9: Total Station Instruments and Angle Observations",
     "order_index": 9
    },
    {
-    "id": "cd8225a2-c6f3-4e3c-a8df-5b8278d6cf97",
-    "title": "SIT Practice Problems — Set 1",
+    "id": "acc01b10-0000-0000-0000-000000000001",
+    "title": "Week 10: Traversing",
     "order_index": 10
+   },
+   {
+    "id": "acc01b11-0000-0000-0000-000000000001",
+    "title": "Week 11: Traverse Computations",
+    "order_index": 11
+   },
+   {
+    "id": "acc01b12-0000-0000-0000-000000000001",
+    "title": "Week 12: Coordinate Geometry in Surveying",
+    "order_index": 12
+   },
+   {
+    "id": "acc01b13-0000-0000-0000-000000000001",
+    "title": "Week 13: Area Computation",
+    "order_index": 13
+   },
+   {
+    "id": "acc01b14-0000-0000-0000-000000000001",
+    "title": "Week 14: Mapping Surveys and Map Drafting",
+    "order_index": 14
+   },
+   {
+    "id": "acc01b15-0000-0000-0000-000000000001",
+    "title": "Week 15: Boundary Surveys and Public Lands",
+    "order_index": 15
+   },
+   {
+    "id": "acc01b16-0000-0000-0000-000000000001",
+    "title": "Week 16: Final Exam",
+    "order_index": 16
    }
   ]
  },
  {
+  "key": "30",
   "module": {
-   "id": "c100001a-0000-0000-0000-00000000001a",
-   "order_index": 26,
-   "title": "SIT Exam Review — Advanced Topics",
-   "description": "Advanced topics and practice for the SIT exam including boundary law, legal descriptions, and construction surveying.",
-   "tags": [
-    "exam-prep",
-    "SIT",
-    "advanced",
-    "review"
-   ]
+   "id": "acc00002-0000-0000-0000-000000000002",
+   "order_index": 30,
+   "real_order": 30,
+   "title": "ACC SRVY 1335 — Land Surveying Applications (Lab)",
+   "description": "Austin Community College SRVY 1335 (3 SCH). An intermediate lab course covering electronic distance measuring equipment, total stations, theodolites, and data collection methods. Includes monument and corner establishment. Students gain practical field experience with equipment, techniques, and hardware necessary to measure horizontal and vertical angles and distances used in surveying. This is the lab companion to SRVY 1341 and must be taken concurrently. Topics include: EDM equipment operation, total station setup and data recording, theodolite angular measurement, horizontal and vertical angle field procedures, traverse field work, differential leveling, profile and cross-section leveling, monument setting, and a comprehensive field survey project. Prerequisite: SRVY 1301. Corequisite: SRVY 1341."
   },
   "lessons": [
    {
-    "id": "a3c8c160-0a68-4aa4-9155-4ddcd1183a53",
-    "title": "Boundary Law Principles Review",
+    "id": "acc02b01-0000-0000-0000-000000000001",
+    "title": "Week 1: Lab Safety, Equipment Overview, and Field Book Setup",
     "order_index": 1
    },
    {
-    "id": "00e59f6c-81a9-46d7-8e06-9e98efec29a8",
-    "title": "Legal Descriptions Review",
+    "id": "acc02b02-0000-0000-0000-000000000001",
+    "title": "Week 2: Electronic Distance Measuring (EDM) Equipment",
     "order_index": 2
    },
    {
-    "id": "c3bca439-c78e-42ce-9416-f7313d08680e",
-    "title": "Texas Land Records Review",
+    "id": "acc02b03-0000-0000-0000-000000000001",
+    "title": "Week 3: Total Station Setup and Operation",
     "order_index": 3
    },
    {
-    "id": "6c0db991-2c1f-469c-83d2-4c3eb7f8f5de",
-    "title": "Construction Surveying Review",
+    "id": "acc02b04-0000-0000-0000-000000000001",
+    "title": "Week 4: Theodolite Operation and Angular Measurement",
     "order_index": 4
    },
    {
-    "id": "3a122889-17da-40cf-bf70-4e9fca9f0f31",
-    "title": "Topographic Surveying Review",
+    "id": "acc02b05-0000-0000-0000-000000000001",
+    "title": "Week 5: Horizontal Angle Measurement Lab",
     "order_index": 5
    },
    {
-    "id": "d9587b1a-eff4-4db8-88be-f3175623aa03",
-    "title": "Professional Practice Review",
+    "id": "acc02b06-0000-0000-0000-000000000001",
+    "title": "Week 6: Vertical Angle Measurement and Zenith Angles",
     "order_index": 6
    },
    {
-    "id": "beb9522e-1bab-425c-9d43-4c4d0696d9d3",
-    "title": "Texas Law and Regulations Review",
+    "id": "acc02b07-0000-0000-0000-000000000001",
+    "title": "Week 7: Distance Measurement Techniques — Taping and EDM Comparison",
     "order_index": 7
    },
    {
-    "id": "7487b90f-db5e-4144-ae61-de244ccc6ef1",
-    "title": "SIT Practice Problems — Set 2",
+    "id": "acc02b08-0000-0000-0000-000000000001",
+    "title": "Week 8: Midterm Practical Exam",
     "order_index": 8
    },
    {
-    "id": "cc4a39c2-d573-4a23-be15-0b43ebd31774",
-    "title": "SIT Full-Length Practice Exam Tips",
-    "order_index": 9
-   }
-  ]
- },
- {
-  "module": {
-   "id": "c100001b-0000-0000-0000-00000000001b",
-   "order_index": 27,
-   "title": "RPLS Exam Review — Texas Jurisprudence",
-   "description": "In-depth review of Texas land law, title history, and jurisprudence topics tested on the RPLS exam.",
-   "tags": [
-    "exam-prep",
-    "RPLS",
-    "jurisprudence",
-    "texas-law"
-   ]
-  },
-  "lessons": [
-   {
-    "id": "1052e7fe-064f-403d-84b4-7e24ae80d40d",
-    "title": "RPLS Exam Format and Study Strategy",
-    "order_index": 1
-   },
-   {
-    "id": "52180e80-d9ea-49a2-b1b2-a61b50c8bdaa",
-    "title": "Texas Land Grant History — Deep Review",
-    "order_index": 2
-   },
-   {
-    "id": "99060678-cdfc-4ba4-b275-97290a274ce9",
-    "title": "Property Law and Estates Review",
-    "order_index": 3
-   },
-   {
-    "id": "34aa0a43-89e1-4f66-9a3e-e4cafba0b02e",
-    "title": "Boundary Retracement and Resolution Review",
-    "order_index": 4
-   },
-   {
-    "id": "070eff40-b441-4f1d-b3c8-c7204f7e71d4",
-    "title": "Riparian and Water Rights Review",
-    "order_index": 5
-   },
-   {
-    "id": "19f2d785-c19e-417e-8674-6cf19964ed34",
-    "title": "Texas Surveying Statutes — Deep Review",
-    "order_index": 6
-   },
-   {
-    "id": "765a3fcb-bb30-46cf-a47d-9a9ff3673879",
-    "title": "RPLS Practice Problems — Jurisprudence",
-    "order_index": 7
-   },
-   {
-    "id": "b9fc342a-0136-47aa-9f15-5dd8fcdac51b",
-    "title": "RPLS Jurisprudence Practice Exam Tips",
-    "order_index": 8
-   }
-  ]
- },
- {
-  "module": {
-   "id": "c100001c-0000-0000-0000-00000000001c",
-   "order_index": 28,
-   "title": "RPLS Exam Review — Practical Surveying",
-   "description": "Practical surveying review and problem-solving for the RPLS exam including computation-heavy topics.",
-   "tags": [
-    "exam-prep",
-    "RPLS",
-    "practical",
-    "review"
-   ]
-  },
-  "lessons": [
-   {
-    "id": "0c8c3b20-547c-40ac-9a95-f3864a116b2b",
-    "title": "Advanced Coordinate Computations",
-    "order_index": 1
-   },
-   {
-    "id": "ca5cbe08-3766-4389-be5b-513e17479be8",
-    "title": "Geodetic Concepts for RPLS",
-    "order_index": 2
-   },
-   {
-    "id": "2aa90c7c-c09a-4dc0-9c2c-bd14f4f9c365",
-    "title": "Boundary Analysis and Evidence Evaluation",
-    "order_index": 3
-   },
-   {
-    "id": "f3aa8c68-5638-4f0c-9fb7-aed7fb503220",
-    "title": "Complex Traverse Problems",
-    "order_index": 4
-   },
-   {
-    "id": "370abca8-6a2f-4e77-8c73-9615d592af9a",
-    "title": "Area Computation and Land Division",
-    "order_index": 5
-   },
-   {
-    "id": "da06cbbe-3ed2-42aa-9e15-14807265501c",
-    "title": "Construction Layout and Design Problems",
-    "order_index": 6
-   },
-   {
-    "id": "42f97e15-6fd1-44a9-aedb-9e67438340eb",
-    "title": "GPS Integration and Modern Methods",
-    "order_index": 7
-   },
-   {
-    "id": "366b16ac-30f6-4400-b7c7-051edd5bf873",
-    "title": "Survey Standards Compliance",
-    "order_index": 8
-   },
-   {
-    "id": "7c610f13-f9d4-454f-b989-9103f108ef0a",
-    "title": "RPLS Practice Problems — Practical",
+    "id": "acc02b09-0000-0000-0000-000000000001",
+    "title": "Week 9: Open Traverse Field Procedures",
     "order_index": 9
    },
    {
-    "id": "2a4b0b8a-b0d9-4ccb-a718-ef836cee7547",
-    "title": "RPLS Full-Length Practice Exam Tips",
+    "id": "acc02b10-0000-0000-0000-000000000001",
+    "title": "Week 10: Closed Traverse Field Procedures",
     "order_index": 10
+   },
+   {
+    "id": "acc02b11-0000-0000-0000-000000000001",
+    "title": "Week 11: Data Collection Methods and Electronic Recording",
+    "order_index": 11
+   },
+   {
+    "id": "acc02b12-0000-0000-0000-000000000001",
+    "title": "Week 12: Differential Leveling Field Lab",
+    "order_index": 12
+   },
+   {
+    "id": "acc02b13-0000-0000-0000-000000000001",
+    "title": "Week 13: Monument and Corner Establishment",
+    "order_index": 13
+   },
+   {
+    "id": "acc02b14-0000-0000-0000-000000000001",
+    "title": "Week 14: Profile and Cross-Section Leveling",
+    "order_index": 14
+   },
+   {
+    "id": "acc02b15-0000-0000-0000-000000000001",
+    "title": "Week 15: Comprehensive Field Survey Project",
+    "order_index": 15
+   },
+   {
+    "id": "acc02b16-0000-0000-0000-000000000001",
+    "title": "Week 16: Final Practical Exam",
+    "order_index": 16
+   }
+  ]
+ },
+ {
+  "key": "31",
+  "module": {
+   "id": "acc00003-0000-0000-0000-000000000003",
+   "order_index": 31,
+   "real_order": 31,
+   "title": "ACC SRVY 1341 — Land Surveying",
+   "description": "Austin Community College SRVY 1341 (3 SCH). A study of the measurement and determination of boundaries, areas, shapes, and location through traversing techniques. Instruction in a variety of adjustment methods using programmed and non-programmed hand-held calculators and computers. Methods of traversing and adjustment of errors according to prevailing and applicable professional standards and the standards of the Texas Board of Professional Engineers and Land Surveyors. Topics include: traverse types and planning, latitudes and departures, error of closure and precision ratios, compass rule and transit rule adjustments, coordinate geometry and inverse computations, area computation methods (coordinate and DMD), boundary determination and retracement principles, subdivision concepts, and professional standards compliance. Prerequisite: SRVY 1301. Corequisite: SRVY 1335."
+  },
+  "lessons": [
+   {
+    "id": "acc03b00-0000-0000-0000-000000000001",
+    "title": "Welcome to SRVY 1341 — Land Surveying",
+    "order_index": 0
+   },
+   {
+    "id": "acc03b01-0000-0000-0000-000000000001",
+    "title": "Week 1: Distance Measurement — Chaining & Tape Corrections",
+    "order_index": 1
+   },
+   {
+    "id": "acc03b02-0000-0000-0000-000000000001",
+    "title": "Week 2: Compass Surveying, DD/DMS Conversions & Chaining Review",
+    "order_index": 2
+   },
+   {
+    "id": "acc03b03-0000-0000-0000-000000000001",
+    "title": "Week 3: Magnetic Declination Review, Smartphone Compass Apps, Field Notekeeping & Trade Magazines",
+    "order_index": 3
+   },
+   {
+    "id": "acc03b04-0000-0000-0000-000000000001",
+    "title": "Week 4: Instrument Care, Tripod Best Practices & Maintenance Schedules",
+    "order_index": 4
+   },
+   {
+    "id": "acc03b05-0000-0000-0000-000000000001",
+    "title": "Week 5: Instrument Leveling & Setup Over a Point",
+    "order_index": 5
+   },
+   {
+    "id": "acc03b06-0000-0000-0000-000000000001",
+    "title": "Week 6: Types of Angles & Angle Measurement",
+    "order_index": 6
+   },
+   {
+    "id": "acc03b07-0000-0000-0000-000000000001",
+    "title": "Week 7: Transit Rule and Other Adjustment Methods",
+    "order_index": 7
+   },
+   {
+    "id": "acc03b08-0000-0000-0000-000000000001",
+    "title": "Week 8: Midterm Exam",
+    "order_index": 8
+   },
+   {
+    "id": "acc03b09-0000-0000-0000-000000000001",
+    "title": "Week 9: Coordinate Geometry — Inversing and Intersections",
+    "order_index": 9
+   },
+   {
+    "id": "acc03b10-0000-0000-0000-000000000001",
+    "title": "Week 10: Area Computation — Coordinate and DMD Methods",
+    "order_index": 10
+   },
+   {
+    "id": "acc03b11-0000-0000-0000-000000000001",
+    "title": "Week 11: Boundary Determination I — Evidence and Monuments",
+    "order_index": 11
+   },
+   {
+    "id": "acc03b12-0000-0000-0000-000000000001",
+    "title": "Week 12: Boundary Determination II — Retracement Principles",
+    "order_index": 12
+   },
+   {
+    "id": "acc03b13-0000-0000-0000-000000000001",
+    "title": "Week 13: Subdivision Concepts and Curve Data",
+    "order_index": 13
+   },
+   {
+    "id": "acc03b14-0000-0000-0000-000000000001",
+    "title": "Week 14: Computer Applications in Traverse Adjustment",
+    "order_index": 14
+   },
+   {
+    "id": "acc03b15-0000-0000-0000-000000000001",
+    "title": "Week 15: Professional Standards and Comprehensive Review",
+    "order_index": 15
+   },
+   {
+    "id": "acc03b16-0000-0000-0000-000000000001",
+    "title": "Week 16: Final Exam",
+    "order_index": 16
+   }
+  ]
+ },
+ {
+  "key": "32",
+  "module": {
+   "id": "acc00004-0000-0000-0000-000000000004",
+   "order_index": 32,
+   "real_order": 32,
+   "title": "ACC SRVY 2343 — Surveying Legal Principles I",
+   "description": "Austin Community College SRVY 2343 (3 SCH). A study of the laws governing boundaries and land ownership as they apply to the land surveyor. Topics include real property concepts, estates and ownership types, deed construction and interpretation, legal descriptions (metes and bounds, lot-and-block, PLSS), the Texas land system and its unique history of Spanish and Mexican land grants, boundary evidence and the priority of calls, riparian and littoral boundaries, easements and right-of-way, adverse possession and acquiescence, the role of the surveyor as expert witness, and professional ethics in boundary determination. This course provides the legal foundation necessary for the Surveyor-in-Training (SIT) and RPLS examinations. Prerequisite: SRVY 1341. Textbook: Evidence and Procedures for Boundary Location by Brown, Robillard, and Wilson."
+  },
+  "lessons": [
+   {
+    "id": "acc04b01-0000-0000-0000-000000000001",
+    "title": "Week 1: Introduction to Property Law and the Surveyor's Role",
+    "order_index": 1
+   },
+   {
+    "id": "acc04b02-0000-0000-0000-000000000001",
+    "title": "Week 2: Estates and Ownership in Real Property",
+    "order_index": 2
+   },
+   {
+    "id": "acc04b03-0000-0000-0000-000000000001",
+    "title": "Week 3: Deeds — Construction, Types, and Interpretation",
+    "order_index": 3
+   },
+   {
+    "id": "acc04b04-0000-0000-0000-000000000001",
+    "title": "Week 4: Legal Descriptions — Metes and Bounds",
+    "order_index": 4
+   },
+   {
+    "id": "acc04b05-0000-0000-0000-000000000001",
+    "title": "Week 5: Legal Descriptions — PLSS and Lot-and-Block",
+    "order_index": 5
+   },
+   {
+    "id": "acc04b06-0000-0000-0000-000000000001",
+    "title": "Week 6: The Texas Land System — Spanish and Mexican Grants",
+    "order_index": 6
+   },
+   {
+    "id": "acc04b07-0000-0000-0000-000000000001",
+    "title": "Week 7: Boundary Evidence and the Priority of Calls",
+    "order_index": 7
+   },
+   {
+    "id": "acc04b08-0000-0000-0000-000000000001",
+    "title": "Week 8: Midterm Exam",
+    "order_index": 8
+   },
+   {
+    "id": "acc04b09-0000-0000-0000-000000000001",
+    "title": "Week 9: Original Surveys vs Retracement Surveys",
+    "order_index": 9
+   },
+   {
+    "id": "acc04b10-0000-0000-0000-000000000001",
+    "title": "Week 10: Riparian and Littoral Boundaries",
+    "order_index": 10
+   },
+   {
+    "id": "acc04b11-0000-0000-0000-000000000001",
+    "title": "Week 11: Adverse Possession and Acquiescence",
+    "order_index": 11
+   },
+   {
+    "id": "acc04b12-0000-0000-0000-000000000001",
+    "title": "Week 12: Easements and Rights-of-Way",
+    "order_index": 12
+   },
+   {
+    "id": "acc04b13-0000-0000-0000-000000000001",
+    "title": "Week 13: The Surveyor as Expert Witness",
+    "order_index": 13
+   },
+   {
+    "id": "acc04b14-0000-0000-0000-000000000001",
+    "title": "Week 14: Professional Ethics and Texas Survey Standards",
+    "order_index": 14
+   },
+   {
+    "id": "acc04b15-0000-0000-0000-000000000001",
+    "title": "Week 15: Case Law Review and Comprehensive Exam Preparation",
+    "order_index": 15
+   },
+   {
+    "id": "acc04b16-0000-0000-0000-000000000001",
+    "title": "Week 16: Final Exam",
+    "order_index": 16
    }
   ]
  }
