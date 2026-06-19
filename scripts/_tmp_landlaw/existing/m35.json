@@ -1,0 +1,1734 @@
+{
+  "order_index": 35,
+  "module_id": "acc00007-0000-0000-0000-000000000007",
+  "title": "ACC SRVY 2344 — Surveying Legal Principles II",
+  "lessons": [
+    {
+      "lesson_id": "acc07b01-0000-0000-0000-000000000001",
+      "title": "Week 1: Review of Legal Principles I and Advanced Deed Analysis",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Recall the dignity-of-calls hierarchy and the footsteps doctrine as the controlling framework for retracement.",
+        "Apply intent-of-the-parties and four-corners construction to ambiguous and conflicting deed language.",
+        "Analyze a chain of title across multiple instruments to identify senior rights, gaps, and defective links."
+      ],
+      "key_takeaways": [
+        "Intent of the parties, gathered from the four corners read in light of surrounding circumstances, is the paramount rule of deed construction.",
+        "The dignity-of-calls hierarchy is only a rule of construction; it yields to expressed intent and to the original surveyor's footsteps.",
+        "Advanced deed analysis means harmonizing every call across the whole instrument and the whole chain, not reading any single call in isolation."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From Legal Principles I to II</h3><p>This second course assumes you already command the foundations from SRVY 2343: estates and deeds, the recording act, easements, adverse possession, and the basic dignity-of-calls hierarchy. Legal Principles II is the <strong>advanced retracement course</strong> — it returns to those doctrines under harder facts: deeds that conflict with one another, conveyances created out of order or all at once, water boundaries that move, severed mineral estates, and the surveyor as an expert witness. Week 1 re-grounds you in the two ideas that govern everything that follows. First, the <strong>intent of the parties</strong>, gathered from the four corners of the instrument read in light of the surrounding circumstances, is the paramount objective of construction. Second, when calls within a description conflict, Texas ranks them by relative reliability (the <em>dignity of calls</em>), but that ranking is only a tool for <em>finding</em> intent — it always yields to the controlling intent and to the <strong>footsteps of the original surveyor</strong> on the ground.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Rank", "Type of call", "Reliability note"],
+            "rows": [
+              ["1", "Natural monuments (rivers, creeks, lakes, rocks)", "Most reliable; hard to move or mistake"],
+              ["2", "Artificial monuments (set iron, stakes, marked trees, fences)", "Reliable if found and identified as original"],
+              ["3", "Adjoinder (an already-established adjacent survey line)", "Modern Texas refinement, between artificial monuments and course"],
+              ["4", "Course (bearing/direction)", "More reliable than distance"],
+              ["5", "Distance", "Yields to course and to monuments"],
+              ["6", "Quantity / area / acreage", "Weakest; a check, not a control"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: the dignity-of-calls hierarchy is a rebuttable rule of construction, not a mechanical formula. Per Stafford v. King, a found and identified original monument controls over conflicting field-note calls, and a lower-dignity call can prevail when the instrument and circumstances show that was the intent."
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Stafford v. King, 30 Tex. 257 (1867) — the anchor case",
+                "content": "<p>The foundational Texas authority on both the dignity of calls and the footsteps doctrine. The Court explained that natural objects (mountains, lakes, rivers, creeks, rocks) outrank artificial objects (marked lines, trees, stakes), and that course and distance are the most unreliable calls and generally yield to monuments. It summarized the controlling order as natural objects, then artificial objects, then course and distance. Critically, the construction adopted must be the one most consistent with the intention apparent on the face of the patent, read in light of surrounding circumstances. The case also states the footsteps rule: 'The actual identification of the survey, the footsteps of the surveyor upon the ground, should always be followed, by whatever rule they may be traced.'</p>"
+              },
+              {
+                "title": "Bass v. Harper, 441 S.W.2d 825 (Tex. 1969) — harmonize the whole instrument",
+                "content": "<p>Modern deed construction focuses on the intent expressed within the deed and on harmonizing all of its parts so that no clause is rendered meaningless if it can be avoided. When two descriptions in the same instrument conflict, the court tries first to reconcile them; only when they cannot be harmonized does the priority-of-calls or the specific-controls-general canon resolve the conflict.</p>"
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What 'advanced' deed analysis adds</h3><p>Basic analysis reads one deed and applies the hierarchy. Advanced analysis reads the <strong>whole chain</strong> and asks how several instruments interact. You will: (1) trace title back toward the original GLO survey and abstract to find the senior grant; (2) compare the calls of adjoining deeds to detect <em>overlaps</em> (the same ground described twice) and <em>gaps/hiatus</em> (ground described by neither); (3) classify each conveyance as <em>senior</em> or <em>junior</em> and as <em>sequential</em> or <em>simultaneous</em>, because that classification dictates whether excess/deficiency is given to the junior or apportioned; and (4) apply the <em>specific-controls-general</em> rule — a metes-and-bounds description controls over a general or quantity description when they cannot be harmonized (<em>Concho Resources v. Ellison</em>, Tex. 2021). The surveyor does not decide title, but must marshal and weigh this evidence so the boundary opinion reflects the legal framework a court would apply.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Construe for intent from the four corners; use the dignity of calls only to resolve genuine conflicts.",
+              "Found, identified original monuments and the surveyor's footsteps outrank conflicting course/distance/quantity calls.",
+              "When a specific metes-and-bounds description conflicts irreconcilably with a general one, the specific controls (Concho v. Ellison).",
+              "Advanced analysis works across the whole chain to expose overlaps, gaps, and senior/junior relationships."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Dignity of calls",
+          "definition": "The Texas reliability hierarchy for conflicting calls: natural monuments > artificial monuments > adjoinder > course > distance > quantity. A rule of construction that yields to intent and to the original surveyor's footsteps.",
+          "hint_1": "Most reliable thing on the ground wins."
+        },
+        {
+          "term": "Footsteps doctrine",
+          "definition": "The cardinal Texas retracement rule from Stafford v. King: the retracing surveyor must follow the actual footsteps of the original surveyor on the ground, even against later, more 'accurate' field-note calls.",
+          "hint_1": "Where the line was run, not where it should have been."
+        },
+        {
+          "term": "Specific controls general",
+          "definition": "Construction canon (Concho Resources v. Ellison, Tex. 2021): when a specific metes-and-bounds description and a general/quantity description cannot be harmonized, the specific description governs.",
+          "hint_1": "Detailed calls beat a vague acreage recital."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b02-0000-0000-0000-000000000001",
+      "title": "Week 2: Simultaneous and Sequential Conveyances",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Distinguish sequential from simultaneous conveyances and identify each in a real chain of title.",
+        "Apply senior/junior rights to resolve overlaps and deficiencies in sequential conveyances.",
+        "Apply proportionate apportionment to distribute excess or deficiency among simultaneously created lots."
+      ],
+      "key_takeaways": [
+        "Sequential conveyances are governed by senior/junior rights; the senior takes its full description and the junior absorbs any excess or deficiency.",
+        "Simultaneous conveyances (a recorded subdivision plat) carry no seniority; excess/deficiency is apportioned among lots in proportion to record dimensions.",
+        "The order in which subdivision lots later sell is immaterial to seniority among them."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why creation order controls the math</h3><p>The single most important question before resolving a boundary excess or deficiency is: <strong>were these parcels created sequentially or simultaneously?</strong> The answer determines whether one parcel absorbs the entire discrepancy or whether the discrepancy is spread proportionately. <em>Sequential</em> conveyances are carved out of a larger tract one after another over time — the classic metes-and-bounds carve-out. <em>Simultaneous</em> conveyances are created at one instant from a common scheme — classically, the lots shown on a recorded subdivision plat. Both patterns are everyday Texas facts: a rancher selling off tracts piece by piece is creating sequential conveyances; a developer recording a plat of 40 lots is creating simultaneous ones.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Feature", "Sequential conveyances", "Simultaneous conveyances"],
+            "rows": [
+              ["Created", "One after another over time", "All at one instant (a plat)"],
+              ["Governing rule", "Senior/junior rights", "Proportionate apportionment"],
+              ["Excess/deficiency", "Junior absorbs it; senior made whole", "Spread among lots by record proportion"],
+              ["Typical example", "Metes-and-bounds carve-outs from a ranch", "Lots in a recorded subdivision"],
+              ["Effect of later sale order", "Establishes seniority", "Immaterial to seniority"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Senior/junior rights in sequential conveyances</h3><p>A grantor cannot convey land already conveyed. When parcels are carved out over time, the earlier (<strong>senior</strong>) conveyance takes the full measure of what its description grants; the later (<strong>junior</strong>) conveyance takes only the <strong>remainder</strong>. Seniority resolves both directions of error: if the ground turns out short, the junior eats the deficiency so the senior still gets its full described width; if the ground is long, the junior takes the surplus. Seniority does <em>not</em> expand a grant beyond its own description — it only allocates conflict in the senior's favor. Note the Texas regulatory overlay: TBPELS standards in 22 TAC Ch. 138 affirmatively direct surveyors to respect junior/senior rights and the record chain during retracement.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Apportionment in simultaneous conveyances</h3><p>Because no platted lot is senior to its neighbors, an excess or deficiency found between controlling, undisputed monuments at the block ends is <strong>apportioned proportionately</strong> among the interior lots according to their record lengths — no single lot absorbs the whole error. This is the surveyor's everyday block-breakdown problem. Two cautions: apportionment is a <em>last resort</em>, applied only after <strong>found original monuments and corners control first</strong> and only where a corner is genuinely <em>lost</em> (not merely obliterated and recoverable from collateral evidence); and apportionment distributes ordinary measurement error, not an isolable <em>gross blunder</em>, which is placed where it belongs rather than smeared across the block.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: the single/double proportionate-measurement methods are PLSS/BLM-Manual constructs. No Texas Supreme Court opinion adopts them by name. In Texas, apportionment is common-law surveying practice and a genuine fallback behind found monuments and the original surveyor's footsteps — because most Texas land sits on GLO original surveys, not the federal township-range grid."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Classify creation order first: sequential (senior/junior) versus simultaneous (apportion).",
+              "Senior takes its full description; the junior absorbs surplus or deficiency.",
+              "Apportion plat excess/deficiency among lots by record proportion — but only for lost corners after found monuments control.",
+              "Never apportion a gross blunder; place it where the evidence shows it belongs."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Simultaneous conveyance",
+          "definition": "Multiple parcels created at one instant from a common scheme (classically, lots on a recorded subdivision plat). No lot is senior; excess/deficiency is apportioned among lots by record proportion.",
+          "hint_1": "All lots born at the same moment."
+        },
+        {
+          "term": "Senior rights",
+          "definition": "In sequential conveyances, the earlier grant takes the full measure of its description; the later (junior) grant takes only the remainder and absorbs any excess or deficiency.",
+          "hint_1": "First conveyed, first served."
+        },
+        {
+          "term": "Proportionate apportionment",
+          "definition": "Distributing a measured excess or deficiency between controlling monuments among simultaneously created lots in proportion to their record lengths, used only as a last resort after found monuments control.",
+          "hint_1": "Spread the slop by record share."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b03-0000-0000-0000-000000000001",
+      "title": "Week 3: Advanced Boundary Conflict Resolution",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Classify boundary conflicts as overlaps, gaps/hiatus, or vacancies and select the correct resolution path.",
+        "Quantify the width of a gap or overlap from adjoining record calls.",
+        "Explain single and double proportionate measurement and when each restores a lost corner."
+      ],
+      "key_takeaways": [
+        "An overlap is ground claimed twice; a gap/hiatus is ground claimed by neither; resolution turns on seniority and the original footsteps.",
+        "Single proportion restores a lost corner on one line between two monuments; double proportion restores a corner controlled in two directions.",
+        "Found monuments and ascertainable footsteps always outrank proportioning."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The three classic conflicts</h3><p>Advanced retracement constantly produces three structural conflicts. An <strong>overlap</strong> occurs when two descriptions cover the same ground — the senior grant prevails and the junior is cut back to the residue. A <strong>gap</strong> (also called a <em>hiatus</em>) occurs when adjoining descriptions leave a strip claimed by neither; the strip belongs to whoever the record and footsteps show it belongs to, and it cannot be created or destroyed merely by re-measuring. A <strong>vacancy</strong> is a special Texas concept: unsurveyed, unappropriated land between or within original GLO surveys that was never severed from the State — title to a true vacancy remains in the sovereign and is administered by the GLO, not the adjoining private owners. Distinguishing a private gap from a State vacancy is a serious title question, not a math exercise.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Conflict", "Definition", "Resolution"],
+            "rows": [
+              ["Overlap", "Same ground described in two deeds", "Senior prevails; junior cut to remainder"],
+              ["Gap / hiatus", "Strip described by neither adjoining deed", "Belongs per record + footsteps; cannot be re-measured away"],
+              ["Vacancy", "Unappropriated land never severed from the State", "Title in the State; GLO administers"],
+              ["Lost corner", "Original corner position cannot be recovered from evidence", "Restore by proportionate measurement (last resort)"],
+              ["Obliterated corner", "Original gone but position recoverable from collateral evidence", "Re-establish from evidence; do NOT proportion"]
+            ]
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Single proportionate measurement (two-way)",
+                "content": "<p>Restores a <strong>lost</strong> corner that lies on a <em>single line</em> between two found, undisputed monuments. The corrected interval bears the same ratio to the corrected whole as the record interval bears to the record whole. If the record distance from monument A to the lost corner is d, the record whole A-to-B is D_rec, and the measured whole is D_meas, then the restored distance is d &times; (D_meas / D_rec). This is the everyday block-breakdown and interior-lot computation.</p>"
+              },
+              {
+                "title": "Double proportionate measurement",
+                "content": "<p>Restores a <strong>lost</strong> corner controlled in <em>two directions at once</em> — classically a corner common to four sections, re-established from four surrounding found monuments by proportioning independently along the latitudinal and the longitudinal lines. The two independent proportioned positions fix the restored corner. Double proportion is a PLSS/BLM-Manual construct used where a corner is genuinely lost in both directions.</p>"
+              },
+              {
+                "title": "Obliterated versus lost — the threshold question",
+                "content": "<p>Proportioning is a last resort. A corner is <em>obliterated</em> (not lost) if its original position can be recovered from collateral evidence — testimony, fences built to it, occupation lines, references in adjoining deeds. An obliterated corner is re-established from that evidence and must NOT be proportioned. Only a genuinely <em>lost</em> corner — no recoverable evidence — is restored by proportionate measurement.</p>"
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: because Texas land flows from GLO original surveys rather than the federal PLSS grid, an apparent 'gap' between surveys may be a State vacancy. Do not resolve it as a private gap or proration without analyzing whether the strip was ever severed from the sovereign and whether the GLO must be involved."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Choosing the path</h3><p>Resolution discipline runs in a fixed order. First, <strong>follow the footsteps</strong> — locate the original surveyor's actual lines and corners; if found, they control. Second, honor <strong>found monuments</strong> by dignity of calls. Third, apply <strong>senior/junior rights</strong> for overlaps in sequential conveyances. Fourth, <strong>apportion</strong> only for lost corners in simultaneous conveyances. Throughout, keep the gap/vacancy distinction in mind, and remember a gross blunder is isolated and placed, never smeared by proration. The surveyor documents which path was taken and why, because that reasoning is the heart of the boundary opinion a court will scrutinize.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Overlap = senior wins; gap = belongs per record/footsteps; vacancy = State land via GLO.",
+              "Single proportion fixes a lost corner on one line; double proportion fixes one controlled in two directions.",
+              "Obliterated corners are re-established from evidence and never proportioned.",
+              "Footsteps and found monuments always precede proportioning; a true Texas gap may be a State vacancy."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Hiatus (gap)",
+          "definition": "A strip of ground left between adjoining descriptions that is called for by neither. Its ownership is fixed by the record and the original footsteps and cannot be created or erased by re-measuring.",
+          "hint_1": "Land nobody's deed reaches."
+        },
+        {
+          "term": "Vacancy (Texas)",
+          "definition": "Unsurveyed, unappropriated land never severed from the sovereign that lies between or within original GLO surveys. Title remains in the State and is administered by the GLO.",
+          "hint_1": "Still the State's, never patented."
+        },
+        {
+          "term": "Lost vs. obliterated corner",
+          "definition": "An obliterated corner's position is recoverable from collateral evidence and is re-established from it (no proration). A lost corner has no recoverable evidence and is restored by proportionate measurement.",
+          "hint_1": "Evidence exists = obliterated; none = lost."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b04-0000-0000-0000-000000000001",
+      "title": "Week 4: Complex Riparian and Littoral Boundaries",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Apply the Texas gradient boundary method and the 30-foot navigability rule to navigable streams.",
+        "Select the correct tidal datum (MHHW vs. MHW) based on the sovereign source of a coastal grant.",
+        "Distinguish accretion, reliction, erosion, and avulsion and explain their effect on a boundary."
+      ],
+      "key_takeaways": [
+        "Texas fixes the bed of a navigable stream at the gradient boundary, midway up the qualified cut bank, not at the ordinary high-water mark.",
+        "Coastal datum depends on the sovereign source: Spanish/Mexican grants use mean higher high water; Anglo/Texas grants use mean high tide.",
+        "Gradual change (accretion/erosion) moves the boundary; sudden change (avulsion) fixes it."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Texas water boundaries are genuinely unusual</h3><p>Texas water-boundary law diverges sharply from general practice, so before choosing any rule you must establish two facts: <strong>is the water navigable</strong>, and <strong>what sovereign issued the grant</strong>. A stream is navigable in fact when it 'retains an average width of 30 feet from its mouth up' (<strong>Tex. Nat. Res. Code &sect;21.001(3)</strong>) — a bright-line geometric test measured across the entire bed, so a sometimes-dry channel can still be navigable. The State owns the beds of navigable streams in trust for the public; private patents stop at the bed margin, and the abutting owner of a <em>non-navigable</em> stream takes to the center thread of the channel.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Motl v. Boyd, 116 Tex. 82, 286 S.W. 458 (1926) — the gradient boundary",
+                "content": "<p>The Texas Supreme Court adopted the <strong>gradient boundary</strong> as the line dividing State-owned bed from private upland along a navigable stream. The boundary is a graded line along the bank, located <em>midway</em> between the lower water level that just reaches the cut bank and the higher level that just does not overtop it. The Court defined the 'bed' as soil alternately covered and left bare, adequate to contain the water at its average and mean annual stage, disregarding extreme freshets and droughts. This is a difficult expert survey — water-level observation, bank profiling, and gradient interpolation between qualified banks.</p>"
+              },
+              {
+                "title": "Brainard v. State, 12 S.W.3d 6 (Tex. 2000) — modern refinement",
+                "content": "<p>The leading modern application (Canadian River) restated and refined the gradient-boundary location method as the mid-height point of the lowest acceptable or 'qualified' bank in the vicinity. It confirms that the gradient boundary remains the controlling Texas method and clarifies how to choose the qualified bank when the actual bank is irregular.</p>"
+              },
+              {
+                "title": "Luttes v. State, 159 Tex. 500, 324 S.W.2d 167 (1959) — the dual tidal datum",
+                "content": "<p>The seaward boundary of coastal upland depends on the sovereign source. A <strong>Spanish/Mexican</strong> grant is bounded by <strong>mean higher high water (MHHW)</strong> — the average of the higher of the two daily high tides over an ~18.6-year epoch, which pushes the line landward and enlarges the State's seabed. An <strong>Anglo-American / Republic- or State-of-Texas</strong> grant is bounded by <strong>mean high tide / mean high water</strong> (the average of all high tides). The difference flows from Spanish-Mexican civil law defining the shore by the reach of the highest winter tides.</p>"
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: virtually every other state fixes a riparian boundary at the ordinary high-water mark and a coastal boundary at mean high tide universally. Texas uses a computed gradient line on navigable streams and a DUAL coastal datum (MHHW for civil-law grants, MHW for Anglo grants). Always trace the chain back to the original sovereign before selecting a datum."
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Process", "Rate", "Effect on boundary"],
+            "rows": [
+              ["Accretion", "Gradual addition of alluvion", "Boundary moves; owner gains land"],
+              ["Reliction", "Gradual uncovering by receding water", "Boundary moves; owner gains land"],
+              ["Erosion", "Gradual loss of land", "Boundary moves landward; owner loses land"],
+              ["Avulsion", "Sudden, perceptible change (flood, hurricane)", "Boundary FIXED at former location"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Movement, the Open Beaches Act, and curative statutes</h3><p>The gradual-versus-sudden rule controls movement: accretion, reliction, and erosion move the boundary; <strong>avulsion fixes it</strong> at the prior location. On the Gulf, the <strong>Open Beaches Act</strong> (Tex. Nat. Res. Code Ch. 61) guarantees public use of the dry beach between mean low tide and the vegetation line under a public easement, historically 'rolling' landward as the vegetation line migrates. In <strong>Severance v. Patterson</strong>, 370 S.W.3d 705 (Tex. 2012), the Court limited that doctrine: a beach easement may migrate gradually but does <em>not</em> automatically roll onto previously private dry land after an <em>avulsive</em> event — after avulsion the State must establish a new easement. Finally, the <strong>1929 'Small Bill'</strong> relinquished the State's interest in certain streambed <em>surfaces</em> to adjoining owners while reserving minerals to the State and preserving public water rights — so an owner can hold the bed surface yet the public keeps navigation rights and the State keeps the minerals.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Navigability test: average bed width of 30 feet (Nat. Res. Code 21.001(3)); State owns navigable beds.",
+              "Navigable-stream boundary = gradient boundary, midway up the qualified cut bank (Motl v. Boyd; Brainard).",
+              "Coastal datum follows the sovereign: MHHW for Spanish/Mexican grants, MHW for Anglo/Texas grants (Luttes).",
+              "Accretion/erosion move the line; avulsion fixes it (Severance limits the rolling-easement rule after avulsion)."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Gradient boundary",
+          "definition": "The Texas line dividing State-owned bed from private upland on a navigable stream: a graded line midway between the water level that just reaches the cut bank and the level that just fails to overtop it (Motl v. Boyd; Brainard).",
+          "hint_1": "Mid-height of the qualified cut bank."
+        },
+        {
+          "term": "Luttes dual datum",
+          "definition": "Texas coastal boundary rule: Spanish/Mexican grants are bounded by mean higher high water (MHHW); Anglo-American/Texas grants by mean high tide (MHW). The sovereign source picks the datum.",
+          "hint_1": "Civil-law grant = the higher, landward line."
+        },
+        {
+          "term": "Avulsion",
+          "definition": "A sudden, perceptible change in a watercourse (flood cutting a new channel, a hurricane). The boundary is FIXED at its former location and does not follow the new water line.",
+          "hint_1": "Sudden = boundary frozen."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b05-0000-0000-0000-000000000001",
+      "title": "Week 5: Mineral Rights and the Severed Estate",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain how a mineral estate is severed from the surface and which estate is dominant in Texas.",
+        "Describe the surface owner's protections and the surveyor's role in documenting severed estates.",
+        "Identify State mineral reservations arising from the Small Bill and Relinquishment Act lands."
+      ],
+      "key_takeaways": [
+        "Texas treats the severed mineral estate as dominant, with an implied right to use the surface reasonably to develop minerals.",
+        "Severance creates two estates from one tract; a surveyor must show easements, reservations, and access affecting the surface.",
+        "The 1929 Small Bill reserved streambed minerals to the State even where the bed surface was relinquished."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Two estates from one tract</h3><p>A single tract of land contains a <strong>surface estate</strong> and a <strong>mineral estate</strong>. When the minerals are conveyed or reserved separately — a <em>severance</em> — the two estates can have entirely different owners, chains of title, and rights. In Texas this is the norm rather than the exception, and it profoundly affects a surveyor's work: the boundary you locate on the ground describes the surface, but the records may show a severed mineral estate, oil-and-gas leases, pooling, and access easements that burden that surface. A complete boundary product accounts for these even though the surveyor does not adjudicate mineral title.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The dominant mineral estate</h3><p>Texas law treats the <strong>mineral estate as dominant</strong> over the surface estate. The mineral owner (or lessee) holds an <em>implied right</em> to make reasonable use of the surface as necessary to explore for, develop, and produce the minerals — roads, pads, pipelines, and the like — without paying the surface owner for that ordinary use, unless a lease or deed says otherwise. This dominance is bounded: the use must be reasonably necessary, and the <strong>accommodation doctrine</strong> requires the mineral developer to accommodate an existing surface use where reasonable alternatives exist. For the surveyor, the practical consequence is that surface improvements, access roads, and well sites may lawfully exist that the surface deed never mentions; they must be observed, located, and tied to the record where possible.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: the mineral estate is the DOMINANT estate and carries an implied surface easement to develop minerals. A surface boundary survey does not resolve mineral ownership, but the surveyor should flag visible mineral-development features and disclose that the survey addresses the surface estate only unless the scope says otherwise."
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "The Small Bill (1929) — State streambed minerals",
+                "content": "<p>Codified historically as Art. 5414a, Vernon's Revised Civil Statutes, the 1929 Small Bill relinquished the State's interest in certain streambed <em>surfaces</em> to adjoining patentees to cure title clouds where earlier surveys crossed streambeds. Critically it <strong>reserved the minerals (and sand/gravel) to the State</strong> and preserved public water rights. So along a navigable Texas stream the adjoining owner may hold the bed surface, yet the State still owns the minerals beneath it.</p>"
+              },
+              {
+                "title": "Relinquishment Act lands",
+                "content": "<p>On certain classified state lands, the surface owner acts as the State's agent for leasing the minerals, sharing the proceeds with the Permanent School Fund, while the State retains the mineral ownership. The exact mineral-classified-land cutoff date varies across sources and should be verified against the statute before relying on it in a title context. The teaching point for surveyors is that 'fee' ownership of the surface does not always carry the minerals, especially on lands traceable to State classification."
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The surveyor's role with severed estates</h3><p>The surveyor's job is to make the surface boundary unambiguous and to <strong>disclose</strong> the record encumbrances that touch the surface: mineral reservations, lease and pipeline easements, surface-use agreements, and access roads. Where the scope is a surface boundary survey, state clearly that mineral title is not addressed. Where features on the ground (tank batteries, pad sites, gathering lines) evidence mineral development, locate and label them, and tie them to recorded instruments when the records permit. This protects both the client and the surveyor by ensuring the boundary product reflects the real, multi-estate condition of the land.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Severance splits surface and mineral estates into separate ownerships and chains of title.",
+              "The mineral estate is dominant in Texas, with an implied right of reasonable surface use, tempered by the accommodation doctrine.",
+              "The Small Bill reserved streambed minerals to the State even where bed surface was relinquished.",
+              "A surface boundary survey should disclose mineral reservations and locate visible development features, without adjudicating mineral title."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Severed mineral estate",
+          "definition": "A mineral estate conveyed or reserved separately from the surface, creating two estates with different owners and chains of title from one original tract.",
+          "hint_1": "Minerals split off from the surface."
+        },
+        {
+          "term": "Dominant mineral estate",
+          "definition": "The Texas rule that the mineral estate prevails over the surface, carrying an implied right to make reasonable use of the surface to develop minerals, limited by the accommodation doctrine.",
+          "hint_1": "Minerals get to use the surface to produce."
+        },
+        {
+          "term": "Small Bill mineral reservation",
+          "definition": "Under the 1929 Small Bill (Art. 5414a), the State relinquished certain streambed surfaces to adjoining owners but reserved the minerals (and sand/gravel) and preserved public water rights.",
+          "hint_1": "You can own the bed surface; the State keeps what's under it."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b06-0000-0000-0000-000000000001",
+      "title": "Week 6: Eminent Domain and Condemnation Surveys",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Define eminent domain and condemnation and the constitutional requirements of public use and just compensation.",
+        "Describe the parts/whole-take survey deliverables and the parent-tract analysis used to value a partial taking.",
+        "Explain the surveyor's role and exposure in preparing right-of-way and condemnation descriptions."
+      ],
+      "key_takeaways": [
+        "Eminent domain requires a public use and adequate (just) compensation under the Texas Constitution.",
+        "A partial taking requires a parent-tract analysis: the part taken, the remainder, and damages/benefits to the remainder.",
+        "Condemnation descriptions demand high precision because they fix what the public acquires and what the owner is paid for."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Eminent domain and condemnation</h3><p><strong>Eminent domain</strong> is the sovereign power to take private property for public use; <strong>condemnation</strong> is the legal proceeding that exercises that power. In Texas the power is constrained by <strong>Tex. Const. art. I, &sect;17</strong>, which forbids taking, damaging, or destroying private property for public use without <strong>adequate compensation</strong> and (after the 2009 amendment) confines takings to genuine public uses, generally barring takings transferred to private parties for economic-development purposes. The condemnor — a governmental body or an entity with delegated power, such as a utility or pipeline — must establish public use and pay just compensation, typically determined first by special commissioners and then, on objection, by a court.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Whole takes, partial takes, and the parent tract</h3><p>A <strong>whole take</strong> acquires the entire parcel; compensation is the market value of the whole. The harder problem is the <strong>partial take</strong>, where the project acquires a strip or corner — a right-of-way for a road, pipeline, or transmission line. Valuing a partial take requires a <strong>parent-tract analysis</strong>: identify the larger parcel as it existed before the taking, then quantify (1) the value of the <em>part taken</em>, and (2) <em>damages to the remainder</em> (severance damages), offset by any <em>special benefits</em> the project confers on the remainder. The surveyor supplies the geometric backbone of this analysis: the parent-tract boundary, the take area, the remainder areas, and any uneconomic remnants the take creates.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Deliverable", "What it shows", "Why it matters"],
+            "rows": [
+              ["Parent-tract boundary", "The whole as it existed before the take", "Baseline for valuation and remainder analysis"],
+              ["Right-of-way / take parcel", "Metes-and-bounds of the part acquired", "Defines exactly what the public acquires"],
+              ["Remainder(s)", "Area and shape left to the owner", "Basis for severance damages"],
+              ["Strip map / ownership strip", "Take across many ownerships along a corridor", "Coordinates a linear project"],
+              ["Easement vs. fee distinction", "Whether fee title or an easement is taken", "Determines residual owner rights"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: art. I, sec. 17 requires ADEQUATE compensation for property taken, damaged, or destroyed for public use, and the 2009 constitutional amendment restricts takings for transfer to private parties for economic development. Right-of-way and condemnation descriptions must be drafted to that standard of precision and reviewability."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The surveyor's role and exposure</h3><p>Condemnation work is unforgiving because the description fixes both what the public acquires and what the owner is paid for. The surveyor must: tie the take to the parent-tract boundary and to controlling monuments; distinguish a <em>fee</em> acquisition from an <em>easement</em> acquisition (the latter leaves the underlying fee and residual rights in the owner); compute take and remainder areas accurately; and identify <em>uneconomic remnants</em> — slivers the take renders unusable — which can drive damages. Because these descriptions are litigated and become the operative legal instruments, they must meet the technical standards of 22 TAC Ch. 138 and withstand cross-examination. Errors here translate directly into over- or under-compensation and professional liability.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Eminent domain requires public use and adequate compensation (Tex. Const. art. I, sec. 17).",
+              "Partial takes need a parent-tract analysis: part taken plus damages to the remainder, offset by special benefits.",
+              "Distinguish fee acquisitions from easement acquisitions; they leave different residual rights.",
+              "Condemnation descriptions are litigated legal instruments demanding maximum precision and reviewability."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Eminent domain",
+          "definition": "The sovereign power to take private property for public use, exercised through condemnation and constrained in Texas by art. I, sec. 17's requirements of public use and adequate compensation.",
+          "hint_1": "Government takes; condemnation is the process."
+        },
+        {
+          "term": "Parent-tract analysis",
+          "definition": "The framework for valuing a partial taking: identify the larger parcel before the take, then value the part taken plus severance damages to the remainder, offset by special benefits.",
+          "hint_1": "Whole before, part taken, remainder after."
+        },
+        {
+          "term": "Uneconomic remnant",
+          "definition": "A portion of the remainder so small or oddly shaped after a partial taking that it has little or no independent utility; its impaired value increases just compensation.",
+          "hint_1": "The leftover sliver no one can use."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b07-0000-0000-0000-000000000001",
+      "title": "Week 7: Subdivision Platting Law and Municipal Regulations",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify when a Texas plat is required and the statutory approval and recording chain.",
+        "Distinguish statutory, common-law, and implied dedication and the 1981 limitation on implied dedication.",
+        "Explain the surveyor's responsibilities in preparing and certifying a subdivision plat."
+      ],
+      "key_takeaways": [
+        "Dividing a tract into a subdivision (including by metes-and-bounds) within a municipality or its ETJ triggers the plat requirement (Local Gov't Code 212.004).",
+        "A plat may not be recorded without required approval and a tax certificate (Property Code 12.002).",
+        "In counties of 50,000 or fewer, implied dedication of a public road has been abolished since August 1981 (Transp. Code Ch. 281)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>When a plat is required</h3><p>Texas regulates the division of land through platting. Under <strong>Local Government Code &sect;212.004</strong> ('Plat Required'), an owner who divides a tract within a municipality or its <strong>extraterritorial jurisdiction (ETJ)</strong> into two or more parts to lay out a subdivision, lots, streets, alleys, or parks <em>must have a plat prepared</em>. The statute is explicit that a division 'includes a division &hellip; made by using a metes and bounds description in a deed of conveyance or in a contract for deed &hellip; or by using any other method' — closing the loophole of subdividing informally by deed. A common exception covers divisions into parts greater than five acres where each has access and no public improvement is dedicated.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Step", "Authority", "Requirement"],
+            "rows": [
+              ["Plat required", "Local Gov't Code 212.004", "Subdivision within city or ETJ must be platted"],
+              ["Municipal review", "Local Gov't Code Ch. 212", "Planning authority approves the plat"],
+              ["County subdivision", "Local Gov't Code Ch. 232", "County-level platting outside cities"],
+              ["Tax certificate", "Property Code 12.002", "No delinquent taxes before recording"],
+              ["Recording", "Property Code Ch. 12", "Filed and recorded with the county clerk"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Recording prerequisites</h3><p>Approval is not recording. Under <strong>Property Code &sect;12.002</strong> ('Subdivision Plat; Penalty'), a county clerk <em>may not record</em> a plat or replat unless it is approved as required by law by the appropriate authority and is accompanied by the documents the Local Government Code requires — including an <strong>original tax certificate</strong> from each taxing unit showing no delinquent ad valorem taxes. The plat must be acknowledged like a deed. A standalone metes-and-bounds conveyance of a larger rural tract that does not create a subdivision records under Property Code Ch. 12 without a plat; it is the act of subdividing within a regulated area that triggers the Ch. 212 / Ch. 232 plat-approval-recording chain.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Three kinds of dedication",
+                "content": "<p><strong>Statutory dedication</strong> is made by recording a plat that marks streets and public areas under the platting statutes. <strong>Common-law dedication</strong> requires the owner's donative intent, public reliance or benefit, and offer plus acceptance (formal or informal — the authority grades or repairs the road, the public uses it, the county stops taxing it). <strong>Implied dedication</strong> historically arose from a course of conduct plus public use with no writing, needing the three elements plus an additional factor implying donative intent. Plat approval alone is not automatic acceptance; some affirmative public acceptance is generally still needed.</p>"
+              },
+              {
+                "title": "The 1981 limitation — Transp. Code Ch. 281",
+                "content": "<p>Effective August 1981, the Legislature <strong>abolished implied dedication</strong> as a means of establishing a public road on private property in <strong>counties of 50,000 or fewer</strong>. There, a public interest in a private road can be acquired only by purchase, condemnation, an express written dedication to the commissioners court, or a final judgment of adverse possession. Oral or 'overt act' implied dedication no longer suffices in covered counties. The change is not retroactive — roads impliedly dedicated before August 1981 can still be established under the old doctrine.</p>"
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: under general common law, implied dedication of public roads remains viable. In Texas counties of 50,000 or fewer, implied dedication has been abolished since August 1981 (Transp. Code Ch. 281). For a post-1981 road in a small county, public status cannot rest on 'everyone has always used it' — you need a written dedication, purchase, condemnation, or an adverse-possession judgment."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Subdividing within a city or ETJ requires a plat, even when done by metes-and-bounds (Local Gov't Code 212.004).",
+              "A plat cannot be recorded without proper approval and a tax certificate (Property Code 12.002).",
+              "Dedication comes in statutory, common-law, and implied forms; plat approval is not automatic acceptance.",
+              "Implied dedication of public roads is abolished in counties of 50,000 or fewer since August 1981 (Transp. Code Ch. 281)."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Plat required (212.004)",
+          "definition": "Local Government Code 212.004: an owner dividing a tract within a municipality or its ETJ into a subdivision must prepare a plat, including divisions made by metes-and-bounds description.",
+          "hint_1": "Can't subdivide a city tract by deed alone."
+        },
+        {
+          "term": "Implied dedication limitation",
+          "definition": "Transp. Code Ch. 281 (eff. Aug. 1981): in counties of 50,000 or fewer, a public road cannot be created by implied/oral dedication; it requires written dedication, purchase, condemnation, or an adverse-possession judgment.",
+          "hint_1": "Small counties need it in writing now."
+        },
+        {
+          "term": "Plat recording prerequisites",
+          "definition": "Property Code 12.002: a county clerk may not record a plat without required governmental approval and a tax certificate showing no delinquent ad valorem taxes; the plat must be acknowledged.",
+          "hint_1": "Approval plus paid taxes before filing."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b08-0000-0000-0000-000000000001",
+      "title": "Week 8: Midterm Exam",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Integrate Weeks 1-7 doctrines to resolve multi-issue boundary problems.",
+        "Select the correct conflict-resolution path under realistic chain-of-title facts.",
+        "Justify boundary conclusions with Texas authority and the dignity-of-calls/footsteps framework."
+      ],
+      "key_takeaways": [
+        "The midterm rewards spotting which doctrine controls before computing anything.",
+        "Most problems hinge on creation order (senior/junior vs. apportionment) and on found monuments/footsteps.",
+        "Water and severed-estate questions turn on sovereign source and navigability."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Scope and strategy</h3><p>The midterm covers Weeks 1 through 7: advanced deed analysis; simultaneous versus sequential conveyances; overlaps, gaps, vacancies, and proportionate measurement; complex riparian and littoral boundaries; the severed mineral estate; eminent domain and condemnation; and subdivision platting and dedication. Most questions are <strong>issue-spotting</strong>: before you compute, identify which doctrine controls. Ask in order — what is the intent of the instrument; are the parcels sequential or simultaneous; are there found monuments or ascertainable footsteps; is the water navigable and from what sovereign did the grant issue; is a mineral or public interest in play. Naming the controlling rule is usually worth more than the arithmetic.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Trigger in the facts", "Controlling doctrine"],
+            "rows": [
+              ["Lots on a recorded plat, total measures long/short", "Proportionate apportionment (simultaneous)"],
+              ["Tracts carved from a ranch over years, overlap", "Senior/junior rights (sequential)"],
+              ["Strip claimed by neither deed between GLO surveys", "Gap vs. State vacancy analysis"],
+              ["Boundary on a 40-ft-wide navigable river", "Gradient boundary (Motl v. Boyd)"],
+              ["Coastal line on an 1829 Mexican grant", "MHHW datum (Luttes)"],
+              ["Pipeline acquires a 50-ft strip across a farm", "Partial take / parent-tract analysis"],
+              ["Developer divides a tract in the city ETJ", "Plat required (212.004)"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Exam tip: write the controlling Texas authority next to each conclusion (Stafford, Motl v. Boyd, Luttes, Tran v. Macha, Severance, 212.004). Pairing a rule with a case earns credit even when a computed number is slightly off."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Spot the doctrine before doing the math.",
+              "Creation order and found monuments/footsteps decide most boundary conflicts.",
+              "Tie every conclusion to a Texas authority by name."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Issue-spotting (boundary exam)",
+          "definition": "The discipline of first identifying which doctrine controls a fact pattern (intent, creation order, monuments/footsteps, navigability, sovereign source) before performing any computation.",
+          "hint_1": "Name the rule before you reach for the calculator."
+        },
+        {
+          "term": "Creation-order trigger",
+          "definition": "The fact that determines whether senior/junior rights or proportionate apportionment applies: parcels carved over time are sequential; lots created at once on a plat are simultaneous.",
+          "hint_1": "Over time vs. all at once."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b09-0000-0000-0000-000000000001",
+      "title": "Week 9: ALTA/NSPS Land Title Surveys — Standards and Requirements",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Describe the purpose of an ALTA/NSPS Land Title Survey and the parties it serves.",
+        "List the core minimum standard requirements: record description, fieldwork, easements, and certification.",
+        "Relate the national ALTA/NSPS standard to the Texas Category 1A survey."
+      ],
+      "key_takeaways": [
+        "An ALTA/NSPS Land Title Survey is a high-standard boundary survey produced for a title insurer and lender in a commercial transaction.",
+        "It requires a record description, a current title commitment, location of easements and encroachments, and a specific certification.",
+        "Texas surveyors often perform an ALTA/NSPS survey to also satisfy the state Category 1A standard."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What an ALTA/NSPS survey is</h3><p>The <strong>ALTA/NSPS Land Title Survey</strong> is a nationally standardized boundary survey jointly promulgated by the American Land Title Association and the National Society of Professional Surveyors. It exists to serve a <strong>title insurer and a lender</strong> in a commercial real-estate transaction: the survey lets the title company delete or insure over the standard 'survey exception,' and lets the lender understand exactly what secures its loan. It is a boundary survey first, but with a defined package of additional content — record analysis against a current title commitment, location of easements and encroachments, and a formal certification — performed to the published <strong>Minimum Standard Detail Requirements</strong>.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Requirement", "What it entails"],
+            "rows": [
+              ["Record description", "Survey based on the legal description and a current title commitment"],
+              ["Fieldwork", "Boundary monumented and measured to the standard's relative positional precision"],
+              ["Easements", "Plot and reference each easement and exception from the commitment (by Schedule B item)"],
+              ["Improvements & encroachments", "Locate improvements; show encroachments either direction"],
+              ["Rights-of-way & access", "Show abutting streets and the property's access"],
+              ["Certification", "The prescribed certification to named parties (owner, lender, title company)"],
+              ["Table A items", "Optional, negotiated additional items (covered in Week 10)"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Title commitment and Schedule B</h3><p>An ALTA/NSPS survey is performed against a <strong>current title commitment</strong>, not just the deed. The surveyor reads <strong>Schedule B</strong> — the exceptions to coverage — and plots every easement, setback, and encumbrance that is locatable, keying each plotted item to its Schedule B number, and notes those that are blanket or not locatable. This cross-reference is what lets the title company evaluate and potentially remove the survey exception. The surveyor also reports encroachments in both directions, gaps or overlaps with adjoiners, and any evidence of use (utilities, driveways) suggesting unrecorded easements. The product is a single drawing that ties the record condition to the measured ground condition.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: the ALTA/NSPS standard is national, but Texas tiers its own surveys (Category 1A being the highest land-title standard) through the TSPS Manual of Practice, which the TBPELS rules incorporate by reference. Texas surveyors commonly perform one survey to satisfy BOTH the ALTA/NSPS standard and Category 1A, and a Category 1A plat requires a separate closure report."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "An ALTA/NSPS Land Title Survey serves the title insurer and lender in a commercial transaction.",
+              "It requires a current title commitment, plotted Schedule B easements, located improvements/encroachments, and a formal certification.",
+              "Texas Category 1A is the state's highest land-title standard, defined through the TSPS Manual incorporated by the TBPELS rules.",
+              "One survey can be performed to satisfy both ALTA/NSPS and Category 1A."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "ALTA/NSPS Land Title Survey",
+          "definition": "A nationally standardized high-standard boundary survey performed to ALTA/NSPS Minimum Standard Detail Requirements for a title insurer and lender, plotting record easements and certifying to named parties.",
+          "hint_1": "The commercial-transaction land-title survey."
+        },
+        {
+          "term": "Schedule B exceptions",
+          "definition": "The portion of a title commitment listing easements and encumbrances excepted from coverage; an ALTA/NSPS surveyor plots each locatable item and keys it to its Schedule B number.",
+          "hint_1": "The list of easements the surveyor must plot."
+        },
+        {
+          "term": "Category 1A survey",
+          "definition": "The highest-standard Texas boundary/land-title survey, defined by the TSPS Manual of Practice (incorporated by the TBPELS rules) and requiring a separate closure report.",
+          "hint_1": "Texas's top-tier land-title survey."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b10-0000-0000-0000-000000000001",
+      "title": "Week 10: ALTA/NSPS Table A Optional Items",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Explain the purpose of Table A and how items are selected and negotiated.",
+        "Identify common Table A items and the additional fieldwork each requires.",
+        "Describe how Table A selections drive scope, fee, and certification."
+      ],
+      "key_takeaways": [
+        "Table A is a menu of optional, negotiable additional services beyond the ALTA/NSPS minimum standard.",
+        "The client, lender, and title company select Table A items in advance; each selected item expands fieldwork and fee.",
+        "Common items include monuments set, area, flood zone, zoning, utilities, and improvements."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What Table A is</h3><p>The ALTA/NSPS standard separates a mandatory core from a menu of <strong>optional items in 'Table A.'</strong> The core requirements (boundary, record analysis, easements, certification) always apply; Table A items are <strong>negotiated and selected in advance</strong> by the client, lender, and title company, and the surveyor performs only the items the parties request. Each selected item adds defined scope, fieldwork, and cost. Because Table A is contractual, the surveyor's <em>engagement letter</em> should list exactly which items are included, so that the eventual certification accurately reflects the work performed and the fee matches the effort.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Common Table A item (subject)", "Additional work it triggers"],
+            "rows": [
+              ["Monuments set", "Set and describe boundary corner monuments"],
+              ["Area", "Compute and state the surveyed parcel area"],
+              ["Flood zone", "Show FEMA flood-zone designation graphically"],
+              ["Zoning", "Report setback/height/use info from a provided zoning report"],
+              ["Improvements", "Locate substantial improvements and measure key dimensions"],
+              ["Parking", "Count and locate striped parking spaces"],
+              ["Utilities", "Show observed and/or located utility evidence and 811 markings"],
+              ["Offsite easements", "Survey appurtenant easements benefiting the parcel"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Practice point: list every selected Table A item in the engagement letter before fieldwork. Items like utility location and offsite easements substantially expand scope and fee; certifying to an item not actually performed creates liability."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How Table A drives scope and risk</h3><p>Table A is where most of the survey's variable cost and risk live. A utilities item may require coordinating an 811 locate and depicting subsurface evidence the surveyor cannot fully verify; a zoning item relies on a third-party zoning report the surveyor reproduces but does not independently adjudicate; a flood-zone item depicts FEMA mapping that can change. The professional discipline is to (1) select items deliberately with the client and title company, (2) perform exactly what each selected item requires, and (3) qualify any item that depends on information furnished by others. The final certification should match the selected items precisely — neither claiming work not done nor omitting work performed.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Table A is an optional, negotiated menu layered on top of the mandatory ALTA/NSPS core.",
+              "Each selected item expands fieldwork, scope, fee, and certification responsibility.",
+              "Document selected items in the engagement letter and qualify items that rely on third-party information.",
+              "Certify only to the Table A items actually performed."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "ALTA Table A",
+          "definition": "The menu of optional, negotiable additional services in the ALTA/NSPS standard (e.g., monuments set, area, flood zone, zoning, utilities) selected in advance by the client, lender, and title company.",
+          "hint_1": "Optional extras chosen before fieldwork."
+        },
+        {
+          "term": "Engagement-letter scope",
+          "definition": "The contractual list of which Table A items and services the survey will include, ensuring the work, fee, and final certification all match what the parties requested.",
+          "hint_1": "Put the selected items in writing first."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b11-0000-0000-0000-000000000001",
+      "title": "Week 11: Texas Administrative Code — TBPELS Rules for Surveyors",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Locate the current TBPELS surveying standards in the Texas Administrative Code.",
+        "Summarize the professional and technical standards: precision, monumentation, and description content.",
+        "Explain licensure (RPLS, LSLS) and the surveyor's standard of practice and conduct."
+      ],
+      "key_takeaways": [
+        "TBPELS rules are in 22 TAC Part 6, Chs. 134/136/138; the surveying standards are in Ch. 138, Subchapter E.",
+        "Sections 138.83 (precision), 138.87 (monumentation), and 138.91 (drawing/description/report) govern the technical product.",
+        "Only an RPLS (or LSLS for state land) may prepare a metes-and-bounds description and seal a survey."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Where the rules live in 2026</h3><p>After <strong>HB 1523 (86th Leg., 2019)</strong> merged the separate engineering and surveying boards into the <strong>Texas Board of Professional Engineers and Land Surveyors (TBPELS)</strong>, the surveying standards were re-codified. The current rules are in <strong>22 Texas Administrative Code, Part 6</strong>: <strong>Ch. 134</strong> (licensing), <strong>Ch. 136</strong> (firm registration), and <strong>Ch. 138</strong> ('Compliance and Professionalism for Surveyors'). The professional and technical standards of practice sit in <strong>Ch. 138, Subchapter E (&sect;&sect;138.81 et seq.)</strong>. The older 22 TAC Chs. 661/663 were repealed and merged — citing &sect;663 in 2026 is outdated.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas update: do NOT cite 22 TAC Ch. 663. The repealed 661/663 surveying standards were merged into Ch. 138 (eff. 2021); the technical standards are now in Ch. 138, Subchapter E. Likewise, the governing statute is Occupations Code Ch. 1071 (Professional Land Surveying Practices Act)."
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Rule", "Subject", "Core content"],
+            "rows": [
+              ["22 TAC 138.81", "General / applicability", "Standards 'shall meet or exceed'; applies to surveys segregating a property interest"],
+              ["22 TAC 138.83", "Precision and accuracy", "Traverse/positional tolerances and closure"],
+              ["22 TAC 138.87", "Monumentation", "Set/leave adequate, stable, traceable monuments"],
+              ["22 TAC 138.91", "Drawing / written description / report", "Definite, unambiguous boundaries; found vs. placed monuments; basis of bearing"],
+              ["22 TAC 138.93", "Subdivision plat", "Standards specific to plats"],
+              ["22 TAC 138.95", "Descriptions for political subdivisions", "Standards for governmental descriptions"]
+            ]
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Section 138.91 — the description/report standard",
+                "content": "<p>Every description must 'provide a definite and unambiguous identification of the location of such boundaries and shall describe all monuments found or placed' (138.91(b)). Reports must 'delineate the relationship between record monuments and the location of the boundaries surveyed' (138.91(a)). Courses must be 'referenced &hellip; to an identifiable and monumented line or an established geodetic system' (138.91(c)) — a stated basis of bearing such as the Texas State Plane Coordinate System on NAD83. The surveyor must state which monuments were found and which were placed (138.91(e)).</p>"
+              },
+              {
+                "title": "Monumentation — section 138.87",
+                "content": "<p>Monuments set by an RPLS 'shall be set at sufficient depth to retain a stable and distinctive location and be of sufficient size to withstand the deteriorating forces of nature.' The surveyor must 'set, or leave as found, an adequate quantity of monuments of a stable and reasonably permanent nature to represent or reference the property or boundary corners,' and set monuments must be marked in a way traceable to the responsible registrant or firm.</p>"
+              },
+              {
+                "title": "Licensure — RPLS and LSLS",
+                "content": "<p>Under Occupations Code Ch. 1071, a <strong>Registered Professional Land Surveyor (RPLS)</strong> is licensed by TBPELS; only an RPLS (or LSLS) may prepare a metes-and-bounds description, monument boundaries, and seal/sign the survey. A <strong>Licensed State Land Surveyor (LSLS)</strong> is a higher GLO-issued credential required to survey land in which the State or Permanent School Fund has an interest, including relocating original land-grant boundaries and filing field notes in the GLO.</p>"
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Current surveying standards are in 22 TAC Ch. 138, Subchapter E — not the repealed Ch. 663.",
+              "138.83 sets precision/closure; 138.87 sets monumentation; 138.91 sets description/report content and basis of bearing.",
+              "Descriptions must be definite and unambiguous and state found vs. placed monuments.",
+              "Only an RPLS may seal a survey; an LSLS is required for original state-land boundary work."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "22 TAC Ch. 138, Subchapter E",
+          "definition": "The current TBPELS professional and technical standards of practice for surveyors (sections 138.81 et seq.), replacing the repealed 22 TAC Chs. 661/663.",
+          "hint_1": "Where the surveying standards live now."
+        },
+        {
+          "term": "RPLS",
+          "definition": "Registered Professional Land Surveyor, licensed by TBPELS under Occupations Code Ch. 1071; the only professional (besides an LSLS) who may prepare a metes-and-bounds description and seal a survey.",
+          "hint_1": "The license to sign the survey."
+        },
+        {
+          "term": "LSLS",
+          "definition": "Licensed State Land Surveyor, a higher GLO-issued credential required to survey land in which the State or Permanent School Fund has an interest and to relocate original land-grant boundaries.",
+          "hint_1": "Needed for original state-land work."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b12-0000-0000-0000-000000000001",
+      "title": "Week 12: Advanced Texas Case Law Analysis",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Read and brief leading Texas boundary cases for their controlling holdings.",
+        "Apply Tran v. Macha, Hamrick v. Ward, Severance, and Concho v. Ellison to new facts.",
+        "Synthesize case law with statutory rules to predict how a court would locate a boundary."
+      ],
+      "key_takeaways": [
+        "Texas disfavors prescriptive easements; joint use defeats the exclusivity element (Tran v. Macha).",
+        "Landlocked road access must proceed under easement by necessity, not prior use (Hamrick v. Ward).",
+        "A specific metes-and-bounds description controls over a general description when they cannot be harmonized (Concho v. Ellison)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why case law matters to retracement</h3><p>Statutes and the dignity-of-calls hierarchy supply the framework, but Texas <strong>case law</strong> supplies the controlling holdings a court will actually apply. Advanced analysis means briefing each leading case for its precise rule and then applying that rule to new facts — exactly what an expert surveyor does when forming a boundary opinion. This week consolidates the cases threaded through the course: the footsteps and dignity-of-calls foundation, the easement and prescription rules, the water-boundary line, and the modern deed-construction canon. The goal is to predict how a Texas court would locate the boundary, not merely to recite the holdings.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Tran v. Macha, 213 S.W.3d 913 (Tex. 2006) — prescriptive easements disfavored",
+                "content": "<p>Neighbors shared a driveway under a mutual mistake about the boundary. The Texas Supreme Court <strong>reversed</strong> the easement, holding that joint or shared use does not satisfy the <em>exclusivity</em> element of a prescriptive easement: 'joint use of a road, no matter how long, cannot ripen into a prescriptive easement.' Because most road-sharing fact patterns involve some owner use, Texas prescriptive claims rarely succeed, and access disputes are funneled toward necessity easements and express grants.</p>"
+              },
+              {
+                "title": "Hamrick v. Ward, 446 S.W.3d 377 (Tex. 2014) — access via necessity, not prior use",
+                "content": "<p>For roadway-access claims to a landlocked, previously unified parcel, the claimant must proceed under <strong>easement by necessity</strong>, not implied easement by prior use. This narrowed a long-unsettled doctrine and channels landlocked road access into the stricter necessity framework (unity of ownership before severance, strict necessity at severance). Prior use still applies to non-access uses such as utility lines where it remains 'reasonably necessary.'</p>"
+              },
+              {
+                "title": "Severance v. Patterson, 370 S.W.3d 705 (Tex. 2012) — limits on the rolling easement",
+                "content": "<p>A public beach easement under the Open Beaches Act may migrate gradually with a naturally shifting beach, but it does not automatically 'roll' onto previously private dry land after an <strong>avulsive</strong> event such as a hurricane. After avulsion the State must establish a new easement. The case imports the accretion/avulsion distinction into beach-access law.</p>"
+              },
+              {
+                "title": "Concho Resources v. Ellison (Tex. 2021) — specific controls general",
+                "content": "<p>A modern boundary/deed-conflict decision emphasizing the intent expressed in the instrument and holding that a specific metes-and-bounds description controls over a general description when the two cannot be harmonized. Reinforces the four-corners, harmonize-the-whole approach of Bass v. Harper.</p>"
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Case", "Controlling rule"],
+            "rows": [
+              ["Stafford v. King (1867)", "Dignity of calls; follow the original surveyor's footsteps"],
+              ["Tran v. Macha (2006)", "Joint use defeats prescriptive-easement exclusivity"],
+              ["Hamrick v. Ward (2014)", "Landlocked road access via necessity, not prior use"],
+              ["Koonce v. Brite Estate (1984)", "Unity of ownership required for easement by necessity"],
+              ["Motl v. Boyd (1926)", "Gradient boundary on navigable streams"],
+              ["Luttes v. State (1959)", "MHHW for Spanish/Mexican grants, MHW for Anglo grants"],
+              ["Severance v. Patterson (2012)", "No rolling beach easement after avulsion"],
+              ["Concho Resources v. Ellison (2021)", "Specific metes-and-bounds controls over general"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: the most heavily tested 'Texas-differs' holdings are the prescriptive-easement exclusivity rule (Tran v. Macha) and the necessity-over-prior-use rule for landlocked access (Hamrick v. Ward). Both make Texas access rights harder to acquire by implication than general common law."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Brief each case for its precise rule, then apply the rule to new facts.",
+              "Tran v. Macha: joint use defeats prescriptive exclusivity; Hamrick: landlocked access via necessity.",
+              "Severance: no rolling beach easement after avulsion; Concho: specific controls general.",
+              "Synthesize cases with statutes to predict how a court would locate the boundary."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Tran v. Macha (2006)",
+          "definition": "Texas Supreme Court case holding that joint or shared use cannot satisfy the exclusivity element of a prescriptive easement; 'joint use, no matter how long, cannot ripen into a prescriptive easement.'",
+          "hint_1": "Shared driveway defeats prescription."
+        },
+        {
+          "term": "Hamrick v. Ward (2014)",
+          "definition": "Texas Supreme Court case requiring that roadway-access claims to a landlocked, previously unified parcel proceed under easement by necessity rather than implied easement by prior use.",
+          "hint_1": "Landlocked access = necessity, not prior use."
+        },
+        {
+          "term": "Concho Resources v. Ellison (2021)",
+          "definition": "Modern Texas deed-conflict decision holding that a specific metes-and-bounds description controls over a general description when the two cannot be harmonized, consistent with four-corners intent.",
+          "hint_1": "Specific calls beat a general recital."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b13-0000-0000-0000-000000000001",
+      "title": "Week 13: Writing Boundary Opinions and Expert Reports",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Structure a defensible boundary opinion that states evidence, analysis, and conclusion.",
+        "Draft and defend a metes-and-bounds legal description that closes and ties to the original survey.",
+        "Describe the surveyor's role and duties as an expert witness in boundary litigation."
+      ],
+      "key_takeaways": [
+        "A boundary opinion marshals the evidence, applies the controlling Texas doctrine, and states a reasoned conclusion the surveyor can defend.",
+        "A defensible legal description is definite, unambiguous, closed, monumented, and tied to the original GLO survey and a stated basis of bearing.",
+        "An expert surveyor's opinions must rest on a reliable methodology (footsteps, dignity of calls, record analysis) and be explainable on cross-examination."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From measurements to a defensible opinion</h3><p>A boundary <strong>opinion</strong> is the surveyor's reasoned conclusion about where a line is, supported so it can withstand scrutiny. Its structure mirrors how a court reasons: state the <strong>evidence</strong> (record instruments, found monuments, occupation, testimony, GLO records); state the <strong>analysis</strong> (intent of the controlling instrument, dignity of calls, footsteps, senior/junior rights, applicable statutes and cases); and state the <strong>conclusion</strong> with the reasoning that connects evidence to result. The opinion should explain not only the line adopted but why competing positions were rejected. Because boundary location is ultimately a question of fact, a well-reasoned opinion grounded in Texas doctrine is the surveyor's most valuable product.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Writing and defending the legal description</h3><p>A defensible metes-and-bounds description satisfies <strong>22 TAC &sect;138.91</strong>: it provides a <em>definite and unambiguous</em> identification of the boundaries, describes all monuments found or placed, and references courses to a stated basis of bearing. Per Texas convention it carries a caption citing the original GLO survey and abstract, ties the point of beginning to a corner of that original survey, runs a continuous series of bearing-and-distance calls with monument ties, and <strong>closes</strong> mathematically back to the point of beginning. State which monuments were found and which were placed, and recite controlling monuments of record dignity relied upon. A description that does not close, or that cannot be relocated independently of the surveyor's own work, is legally defective and indefensible.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Description element", "Defensibility requirement"],
+            "rows": [
+              ["Caption", "County, original GLO survey + abstract, parent-tract reference"],
+              ["Point of beginning", "Tied to a corner of the original survey or a found monument"],
+              ["Calls", "Continuous bearing + distance with monument ties"],
+              ["Basis of bearing", "Stated datum (e.g., Texas State Plane, NAD83)"],
+              ["Monuments", "Found vs. placed identified; record-dignity monuments recited"],
+              ["Closure", "Returns to the POB; closed figure with no gap/overlap"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Defensibility test: could a different competent surveyor relocate this boundary from the description and record alone, without your field notes? If not, the description is not yet definite and unambiguous under 22 TAC 138.91."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The surveyor as expert witness</h3><p>In boundary litigation the surveyor often testifies as an <strong>expert</strong>. Expert opinions must rest on a <em>reliable methodology</em> — the recognized retracement framework of following the original surveyor's footsteps, weighing monuments by dignity of calls, analyzing the record chain and senior/junior rights, and applying the controlling statutes and cases — and must be explainable in plain terms on direct and cross-examination. The expert should disclose assumptions, the evidence relied upon and rejected, and the limits of the opinion. Credibility flows from transparent methodology and consistency with the record; an opinion that cannot be traced back to evidence and accepted doctrine will not persuade a factfinder.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "A boundary opinion states evidence, analysis (intent, dignity of calls, footsteps), and a reasoned conclusion.",
+              "A defensible description is definite, unambiguous, closed, monumented, and tied to the original GLO survey (22 TAC 138.91).",
+              "Test defensibility by whether another surveyor could relocate the line from the description and record alone.",
+              "Expert testimony must rest on reliable retracement methodology and be explainable on cross-examination."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Boundary opinion",
+          "definition": "A surveyor's reasoned, defensible conclusion about a line's location, structured as evidence, analysis under controlling Texas doctrine, and conclusion that explains why competing positions were rejected.",
+          "hint_1": "Evidence + analysis + reasoned conclusion."
+        },
+        {
+          "term": "Definite and unambiguous description",
+          "definition": "The 22 TAC 138.91 standard: a description that unmistakably identifies the boundaries, states found vs. placed monuments and a basis of bearing, closes, and can be relocated independently of the surveyor's own notes.",
+          "hint_1": "Another surveyor could relocate it cold."
+        },
+        {
+          "term": "Reliable expert methodology",
+          "definition": "The accepted retracement basis for a surveyor's expert opinion: follow the footsteps, weigh monuments by dignity of calls, analyze the record chain and senior/junior rights, apply controlling statutes and cases.",
+          "hint_1": "Footsteps, dignity of calls, record analysis."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b14-0000-0000-0000-000000000001",
+      "title": "Week 14: SIT/RPLS Exam Preparation — Legal Principles",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Review the legal-principles topics most heavily tested on the SIT/RPLS examinations.",
+        "Apply rapid issue-spotting to scenario questions on boundaries, easements, and water law.",
+        "Distinguish the Texas-specific rules examiners use to separate strong candidates."
+      ],
+      "key_takeaways": [
+        "Exam success rests on knowing the controlling rule and the Texas-specific exceptions, not on memorizing case facts.",
+        "High-yield Texas topics: dignity of calls/footsteps, senior/junior vs. apportionment, gradient boundary, Luttes datum, prescriptive-easement exclusivity, adverse-possession tracks.",
+        "Read scenario questions for the trigger fact that selects the doctrine."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How the legal-principles exam thinks</h3><p>The legal-principles portions of the SIT (Fundamentals) and RPLS (Texas-specific) examinations reward <strong>applying</strong> rules to scenarios. Pure definition recall is necessary but not sufficient; most questions embed a fact pattern and ask which doctrine controls or what result follows. The fastest path is disciplined issue-spotting: find the <em>trigger fact</em> (creation order, a found monument, a 30-foot navigable stream, a Spanish/Mexican grant, joint driveway use, a quitclaim) and map it to the controlling rule. This week drills the highest-yield Texas topics and the exceptions examiners use to separate candidates who merely memorized from those who understand.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["High-yield topic", "Rule to know cold"],
+            "rows": [
+              ["Conflicting calls", "Natural > artificial > adjoinder > course > distance > quantity; yields to intent/footsteps"],
+              ["Excess/deficiency", "Sequential = senior/junior; simultaneous = apportion by record proportion"],
+              ["Lost vs. obliterated corner", "Obliterated re-established from evidence; only lost corners are proportioned"],
+              ["Navigable stream", "30-ft average bed width; gradient boundary; State owns the bed"],
+              ["Coastal datum", "MHHW for Spanish/Mexican grants; MHW for Anglo/Texas grants (Luttes)"],
+              ["Prescriptive easement", "Exclusivity required; joint use is fatal (Tran v. Macha)"],
+              ["Adverse possession", "3/5/10/25-yr tracks; 5-yr needs taxes + registered deed (CPRC 16.024-16.028)"],
+              ["Recording", "Texas is a pure notice state (Prop. Code 13.001-13.002)"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas exam traps: adverse possession is in the Civil Practice & Remedies Code Ch. 16, NOT the Property Code; the surveying standards are in 22 TAC Ch. 138, NOT the repealed Ch. 663; and the navigable-stream test is a 30-foot average bed width, not a commerce test."
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Adverse-possession tracks (CPRC 16.024-16.028)",
+                "content": "<p><strong>3-year (16.024):</strong> title or color of title. <strong>5-year (16.025):</strong> cultivate/use + pay taxes + duly registered (non-quitclaim) deed; a single missed tax year is fatal. <strong>10-year (16.026):</strong> cultivate/use, no instrument or taxes needed, capped at 160 acres absent enclosure or a recorded deed fixing boundaries. <strong>25-year (16.027):</strong> runs regardless of legal disability. <strong>25-year (16.028):</strong> under a recorded instrument even if void on its face (excludes quitclaim/forged).</p>"
+              },
+              {
+                "title": "Easement quick rules",
+                "content": "<p>Easement by necessity requires unity of ownership before severance, strict (not mere convenience) necessity, and necessity existing at severance; it terminates when the necessity ends (Koonce; Staley). Landlocked road access goes through necessity, not prior use (Hamrick). Prescriptive easements are disfavored and require exclusivity; joint use is fatal (Tran v. Macha).</p>"
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Spot the trigger fact, then map it to the controlling rule.",
+              "Memorize the Texas-specific exceptions: gradient boundary, Luttes datum, prescriptive exclusivity, adverse-possession tracks.",
+              "Avoid the classic traps: AP is in CPRC Ch. 16; standards are in 22 TAC Ch. 138; navigability is a 30-foot bed-width test.",
+              "Texas is a pure notice recording state."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Adverse-possession tracks",
+          "definition": "Texas's statutory limitation periods in CPRC 16.024-16.028: 3-yr (title/color), 5-yr (taxes + registered deed), 10-yr (160-acre cap), and two 25-yr tracks (disability long-stop; void recorded instrument).",
+          "hint_1": "3/5/10/25 each with its own elements."
+        },
+        {
+          "term": "Notice recording state",
+          "definition": "Texas's recording regime (Prop. Code 13.001-13.002): a subsequent purchaser for value without notice takes free of a prior unrecorded conveyance and prevails even if the BFP records later or never records.",
+          "hint_1": "BFP without notice wins, no race needed."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b15-0000-0000-0000-000000000001",
+      "title": "Week 15: Comprehensive Review and Integration",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Integrate the full course into a single retracement decision sequence.",
+        "Apply the framework end-to-end to a multi-issue boundary scenario.",
+        "Connect Texas-specific doctrines to the surveyor's professional standards and liability."
+      ],
+      "key_takeaways": [
+        "The retracement sequence runs: intent, footsteps, found monuments by dignity of calls, senior/junior, then apportionment as a last resort.",
+        "Texas-specific overlays (GLO origin, gradient boundary, Luttes datum, severed minerals, dedication limits) reshape the general framework.",
+        "Professional standards (22 TAC Ch. 138) and a defensible opinion tie the analysis to practice and liability."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>One decision sequence for retracement</h3><p>The entire course collapses into a single ordered method the surveyor applies to any boundary problem. <strong>(1) Intent:</strong> construe the controlling instrument from its four corners for the parties' intent. <strong>(2) Footsteps:</strong> locate the original surveyor's actual lines and corners; if ascertainable, they control. <strong>(3) Monuments by dignity of calls:</strong> weigh found natural and artificial monuments over course, distance, and quantity. <strong>(4) Senior/junior rights:</strong> resolve overlaps in sequential conveyances in the senior's favor. <strong>(5) Apportionment:</strong> as a genuine last resort, proportion excess/deficiency among simultaneously created lots, but only for lost corners after found monuments and footsteps fail. Throughout, isolate gross blunders and never proportion them.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["General framework", "Texas-specific overlay"],
+            "rows": [
+              ["Chain of title to original grant", "Chain runs to a sovereign grant via GLO survey + abstract (no PLSS)"],
+              ["Riparian boundary at OHWM", "Gradient boundary on navigable streams (Motl v. Boyd)"],
+              ["Coastal boundary at MHW", "Dual datum: MHHW for Spanish/Mexican grants (Luttes)"],
+              ["Prescriptive easements available", "Disfavored; joint use fatal (Tran v. Macha)"],
+              ["Implied dedication of roads viable", "Abolished in counties under 50,000 since 1981 (Transp. Code 281)"],
+              ["Fee surface carries minerals", "Mineral estate often severed and dominant; Small Bill reserves streambed minerals"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Working a multi-issue scenario</h3><p>Apply the sequence to a composite: a 1900 deed carves a tract from a larger holding within the John Doe Survey, Abstract No. 123; the deed calls to a creek and to an iron stake now found; a 1925 plat later subdivides an adjoining tract; the boundary fronts a river that averages 35 feet of bed width; and the original grant is a State patent. The surveyor: construes the 1900 deed for intent; follows the original footsteps and honors the found creek (natural monument) and iron stake (artificial monument) over course and distance; treats the 1900 carve-out as <em>senior</em> to the 1925 plat (sequential), so any overlap favors the senior tract while the plat lots among themselves are apportioned (simultaneous); locates the river boundary by the <strong>gradient boundary</strong> because 35 feet exceeds the 30-foot navigability threshold; and, the grant being a State patent, applies the <strong>mean-high-tide</strong> family of rules rather than MHHW if any coastal frontage existed. Each step is documented in the opinion.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Integration check: for every conclusion, the surveyor should be able to name the controlling authority (Stafford, Motl v. Boyd, Luttes, Tran v. Macha, 212.004, CPRC Ch. 16) and the 22 TAC Ch. 138 standard the work product satisfies."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Apply the sequence: intent, footsteps, monuments by dignity, senior/junior, apportionment last.",
+              "Layer the Texas-specific overlays onto the general framework at each step.",
+              "Isolate gross blunders; never proportion them.",
+              "Tie every conclusion to a named authority and to the 22 TAC Ch. 138 standard met."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Retracement decision sequence",
+          "definition": "The ordered method for any boundary problem: (1) intent, (2) footsteps, (3) found monuments by dignity of calls, (4) senior/junior rights, (5) apportionment as a last resort.",
+          "hint_1": "Intent, footsteps, monuments, seniority, proration."
+        },
+        {
+          "term": "Texas overlay",
+          "definition": "The set of Texas-specific rules layered onto the general retracement framework: GLO/abstract origin, gradient boundary, Luttes dual datum, disfavored prescription, dedication limits, severed/dominant minerals.",
+          "hint_1": "What makes Texas retracement different."
+        }
+      ]
+    },
+    {
+      "lesson_id": "acc07b16-0000-0000-0000-000000000001",
+      "title": "Week 16: Final Exam",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Demonstrate integrated command of advanced Texas boundary law across the course.",
+        "Resolve multi-issue scenarios with the correct doctrine and authority.",
+        "Produce defensible reasoning connecting evidence, doctrine, and conclusion."
+      ],
+      "key_takeaways": [
+        "The final is cumulative; expect multi-issue scenarios spanning conveyances, water, minerals, condemnation, platting, and case law.",
+        "Credit follows correct doctrine selection and authority citation as much as computation.",
+        "Defensible reasoning links evidence to controlling Texas rule to conclusion."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Cumulative scope</h3><p>The final examination is comprehensive, drawing on every week: advanced deed analysis; simultaneous versus sequential conveyances and apportionment; overlaps, gaps, vacancies, and proportionate measurement; complex riparian and littoral boundaries; the severed and dominant mineral estate; eminent domain and condemnation surveys; subdivision platting and dedication; ALTA/NSPS Land Title Surveys and Table A; the TBPELS rules in 22 TAC Ch. 138; advanced Texas case law; and writing defensible boundary opinions. Expect multi-issue scenarios that require you to identify several doctrines in one fact pattern and resolve them in the right order.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Final-exam discipline: for each scenario, (1) name the controlling doctrine, (2) cite the Texas authority, (3) apply it to the facts, (4) state the conclusion. This structure earns credit even where a computed value is imperfect."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Demonstrating defensible reasoning</h3><p>The strongest answers read like a compact boundary opinion: they marshal the relevant evidence, apply the controlling Texas doctrine by name, explain why competing resolutions fail, and state a clear conclusion. Watch for the recurring 'Texas-differs' hooks — the gradient boundary on navigable streams, the <em>Luttes</em> dual coastal datum, the disfavored prescriptive easement (<em>Tran v. Macha</em>), the necessity-over-prior-use rule (<em>Hamrick v. Ward</em>), the adverse-possession tracks in CPRC Ch. 16, and the current surveying standards in 22 TAC Ch. 138 (not the repealed Ch. 663). Demonstrating that you can move from evidence to controlling rule to a defensible conclusion is the entire objective of Legal Principles II.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The final is cumulative and scenario-based across all course topics.",
+              "Structure each answer: doctrine, authority, application, conclusion.",
+              "Lead with the Texas-specific rules examiners emphasize.",
+              "Defensible reasoning connecting evidence to rule to conclusion is the goal."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Multi-issue scenario",
+          "definition": "An exam fact pattern embedding several boundary doctrines at once, requiring the candidate to identify and resolve each in the correct retracement order.",
+          "hint_1": "Several rules hidden in one story."
+        },
+        {
+          "term": "Doctrine-authority-application-conclusion",
+          "definition": "The answer structure for boundary-law exams: name the controlling doctrine, cite the Texas authority, apply it to the facts, and state the conclusion.",
+          "hint_1": "Rule, cite, apply, conclude."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "acc07b01-0000-0000-0000-000000000001",
+      "question_text": "A patent's metes-and-bounds calls conflict with a found, identified original monument on the ground. Under Texas law, which controls?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The found, identified original monument",
+        "The stated quantity/acreage",
+        "The course (bearing) call",
+        "The distance call"
+      ],
+      "correct_answer": "The found, identified original monument",
+      "explanation": "Per Stafford v. King and the dignity-of-calls hierarchy, a found and identified original monument outranks conflicting course, distance, and quantity calls; the hierarchy yields to the footsteps of the original surveyor. Quantity is the weakest call.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b01-0000-0000-0000-000000000001",
+      "question_text": "The dignity-of-calls hierarchy is a rigid, mechanical formula that always controls over the parties' intent.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "The hierarchy is only a rule of construction (a set of reliability presumptions). It always yields to the controlling intent of the instrument and to the original surveyor's footsteps.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc07b02-0000-0000-0000-000000000001",
+      "question_text": "A developer records a plat of 30 lots. A resurvey finds the block measures longer than the record. How is the excess handled among the lots?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Apportioned among the lots in proportion to their record lengths",
+        "Given entirely to the first lot sold",
+        "Given entirely to the last lot sold",
+        "Given to the senior lot by recording date"
+      ],
+      "correct_answer": "Apportioned among the lots in proportion to their record lengths",
+      "explanation": "Platted lots are simultaneous conveyances of equal dignity, so no lot is senior. Excess or deficiency is apportioned proportionately by record length; the order lots later sold is immaterial.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b02-0000-0000-0000-000000000001",
+      "question_text": "A grantor sells Tract A in 1990, then Tract B (adjoining) in 1998 from the same parent tract, and their descriptions overlap. Who prevails in the overlap?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Tract A, the senior conveyance, takes the overlap",
+        "The overlap is split equally between A and B",
+        "Tract B, the junior conveyance, takes the overlap",
+        "The overlap reverts to the grantor"
+      ],
+      "correct_answer": "Tract A, the senior conveyance, takes the overlap",
+      "explanation": "These are sequential conveyances governed by senior/junior rights. The senior (1990) grant takes its full description; the junior (1998) is cut back to the remainder. A grantor cannot convey land already conveyed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b03-0000-0000-0000-000000000001",
+      "question_text": "An original corner is gone, but its position can be recovered from an old fence built to it and references in an adjoining deed. How should it be re-established?",
+      "question_type": "multiple_choice",
+      "options": [
+        "From the collateral evidence; it is obliterated, not lost, and must not be proportioned",
+        "By single proportionate measurement",
+        "By double proportionate measurement",
+        "By splitting the difference between adjoining lots"
+      ],
+      "correct_answer": "From the collateral evidence; it is obliterated, not lost, and must not be proportioned",
+      "explanation": "A corner whose position is recoverable from collateral evidence is obliterated, not lost. It is re-established from that evidence. Only a genuinely lost corner (no recoverable evidence) is restored by proportionate measurement.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "acc07b04-0000-0000-0000-000000000001",
+      "question_text": "A boundary follows a navigable Texas stream. Under Motl v. Boyd, where is the line dividing State-owned bed from private upland?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The gradient boundary, midway up the qualified cut bank",
+        "The thread/center of the channel",
+        "The ordinary high-water mark",
+        "The line of mean higher high water"
+      ],
+      "correct_answer": "The gradient boundary, midway up the qualified cut bank",
+      "explanation": "Texas uses the gradient boundary (Motl v. Boyd; Brainard) — a graded line midway between the water level that just reaches the cut bank and the level that just fails to overtop it. The center-thread rule applies to non-navigable streams.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b04-0000-0000-0000-000000000001",
+      "question_text": "A coastal tract traces to an 1829 Mexican grant. Under Luttes v. State, what is the seaward boundary datum?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Mean higher high water (MHHW)",
+        "Mean high tide / mean high water (MHW)",
+        "Mean low tide",
+        "The vegetation line"
+      ],
+      "correct_answer": "Mean higher high water (MHHW)",
+      "explanation": "Under Luttes, Spanish/Mexican grants are bounded by mean higher high water, which lies landward; Anglo-American/Texas grants use mean high tide. The sovereign source selects the datum.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b05-0000-0000-0000-000000000001",
+      "question_text": "In Texas, which estate is dominant when the surface and mineral estates have been severed?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The mineral estate, with an implied right of reasonable surface use",
+        "The surface estate, which can exclude mineral development",
+        "Neither; they are perfectly co-equal in all respects",
+        "Whichever was conveyed later in time"
+      ],
+      "correct_answer": "The mineral estate, with an implied right of reasonable surface use",
+      "explanation": "Texas treats the mineral estate as dominant, carrying an implied right to make reasonable use of the surface to develop minerals, tempered by the accommodation doctrine. The surface estate is servient to that right.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b06-0000-0000-0000-000000000001",
+      "question_text": "A pipeline condemns a 50-foot strip across a 100-acre farm. What valuation framework applies to the partial taking?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Parent-tract analysis: value of the part taken plus damages to the remainder, offset by special benefits",
+        "Market value of the entire 100 acres",
+        "The strip's value only, with no remainder analysis",
+        "A flat statutory per-acre rate"
+      ],
+      "correct_answer": "Parent-tract analysis: value of the part taken plus damages to the remainder, offset by special benefits",
+      "explanation": "A partial take is valued by a parent-tract analysis: the value of the part taken plus severance damages to the remainder, offset by any special benefits. The whole-take measure (entire market value) applies only when the entire parcel is taken.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b07-0000-0000-0000-000000000001",
+      "question_text": "An owner divides a tract within a city's ETJ into subdivision lots using metes-and-bounds descriptions in deeds, recording no plat. Is this permissible under Local Gov't Code 212.004?",
+      "question_type": "multiple_choice",
+      "options": [
+        "No; a plat is required, and 212.004 expressly includes divisions by metes-and-bounds",
+        "Yes; metes-and-bounds deeds are exempt from platting",
+        "Yes; the ETJ has no platting authority",
+        "Only if each lot exceeds one acre"
+      ],
+      "correct_answer": "No; a plat is required, and 212.004 expressly includes divisions by metes-and-bounds",
+      "explanation": "Section 212.004 requires a plat for subdividing within a municipality or its ETJ and expressly states that a division 'includes a division made by using a metes and bounds description,' closing the deed loophole.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b07-0000-0000-0000-000000000001",
+      "question_text": "In a Texas county of 40,000 population, a road has been used by the public for decades but was never dedicated in writing. Since 1981, can implied dedication establish it as a public road?",
+      "question_type": "multiple_choice",
+      "options": [
+        "No; Transp. Code Ch. 281 abolished implied dedication in counties of 50,000 or fewer",
+        "Yes; long public use always creates an implied dedication",
+        "Yes; implied dedication is unaffected by statute",
+        "Only if the county graded the road once"
+      ],
+      "correct_answer": "No; Transp. Code Ch. 281 abolished implied dedication in counties of 50,000 or fewer",
+      "explanation": "Since August 1981, in counties of 50,000 or fewer, a public road interest can be acquired only by written dedication, purchase, condemnation, or an adverse-possession judgment. 'Everyone has always used it' is insufficient.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "acc07b09-0000-0000-0000-000000000001",
+      "question_text": "What is the primary purpose of an ALTA/NSPS Land Title Survey?",
+      "question_type": "multiple_choice",
+      "options": [
+        "To serve a title insurer and lender in a commercial transaction by plotting record matters against the ground",
+        "To set permanent monuments only",
+        "To establish a new subdivision plat",
+        "To determine mineral ownership"
+      ],
+      "correct_answer": "To serve a title insurer and lender in a commercial transaction by plotting record matters against the ground",
+      "explanation": "An ALTA/NSPS survey serves the title company and lender, letting the insurer address the survey exception. It plots Schedule B easements, locates improvements and encroachments, and certifies to named parties.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc07b09-0000-0000-0000-000000000001",
+      "question_text": "How does the national ALTA/NSPS standard relate to the Texas Category 1A survey?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Texas surveyors often perform one survey to satisfy both; Category 1A is defined via the TSPS Manual incorporated by the TBPELS rules",
+        "Category 1A replaced the ALTA/NSPS standard in Texas",
+        "They are identical and interchangeable in all respects",
+        "Category 1A is a federal standard"
+      ],
+      "correct_answer": "Texas surveyors often perform one survey to satisfy both; Category 1A is defined via the TSPS Manual incorporated by the TBPELS rules",
+      "explanation": "Category 1A is Texas's highest land-title standard, defined by the TSPS Manual of Practice incorporated by reference into the TBPELS rules. Surveyors commonly perform one survey meeting both standards; Category 1A requires a separate closure report.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b10-0000-0000-0000-000000000001",
+      "question_text": "Which best describes ALTA/NSPS Table A items?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Optional, negotiated additional services selected in advance by the client, lender, and title company",
+        "Mandatory items required on every ALTA survey",
+        "A list of title exceptions the surveyor must remove",
+        "Federal flood-insurance requirements"
+      ],
+      "correct_answer": "Optional, negotiated additional services selected in advance by the client, lender, and title company",
+      "explanation": "Table A is a menu of optional items (e.g., monuments set, area, flood zone, zoning, utilities) selected and negotiated before fieldwork. Each selected item expands scope, fee, and certification responsibility.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc07b11-0000-0000-0000-000000000001",
+      "question_text": "Where are the current TBPELS technical standards of practice for surveyors located?",
+      "question_type": "multiple_choice",
+      "options": [
+        "22 TAC Ch. 138, Subchapter E",
+        "22 TAC Ch. 663",
+        "The Texas Property Code",
+        "The federal BLM Manual"
+      ],
+      "correct_answer": "22 TAC Ch. 138, Subchapter E",
+      "explanation": "After HB 1523 (2019) merged the boards into TBPELS, the standards were re-codified into 22 TAC Ch. 138, Subchapter E (sections 138.81 et seq.). The former Chs. 661/663 were repealed; citing Ch. 663 in 2026 is outdated.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b12-0000-0000-0000-000000000001",
+      "question_text": "Two neighbors shared a driveway for over twenty years under a mutual mistake about the boundary. Under Tran v. Macha, can the user claim a prescriptive easement?",
+      "question_type": "multiple_choice",
+      "options": [
+        "No; joint use defeats the exclusivity element and cannot ripen into a prescriptive easement",
+        "Yes; twenty years of use always creates a prescriptive easement",
+        "Yes; mutual mistake satisfies hostility",
+        "Only if the user paid taxes on the strip"
+      ],
+      "correct_answer": "No; joint use defeats the exclusivity element and cannot ripen into a prescriptive easement",
+      "explanation": "Tran v. Macha holds that joint or shared use does not satisfy exclusivity; 'joint use, no matter how long, cannot ripen into a prescriptive easement.' Texas disfavors prescriptive easements and scrutinizes every element.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b12-0000-0000-0000-000000000001",
+      "question_text": "A landowner whose previously unified parcel is now landlocked seeks an easement for road access. Under Hamrick v. Ward, which doctrine must the claim proceed under?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Easement by necessity",
+        "Implied easement by prior use",
+        "Prescriptive easement",
+        "Express easement"
+      ],
+      "correct_answer": "Easement by necessity",
+      "explanation": "Hamrick v. Ward channels roadway-access claims to a landlocked, previously unified parcel into easement by necessity rather than prior use. Prior use still applies to non-access uses like utility lines where reasonably necessary.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b13-0000-0000-0000-000000000001",
+      "question_text": "Which is the best test of whether a metes-and-bounds legal description is 'definite and unambiguous' under 22 TAC 138.91?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Another competent surveyor could relocate the boundary from the description and record alone",
+        "It uses the maximum number of decimal places",
+        "It cites the most recent case law",
+        "It omits any reference to monuments"
+      ],
+      "correct_answer": "Another competent surveyor could relocate the boundary from the description and record alone",
+      "explanation": "A defensible description must let another surveyor relocate the line independently of the author's field notes. It must close, state found vs. placed monuments and a basis of bearing, and tie to the original survey.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b14-0000-0000-0000-000000000001",
+      "question_text": "In which Texas code are the adverse-possession limitation periods located?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Civil Practice & Remedies Code Ch. 16",
+        "Property Code",
+        "Natural Resources Code Ch. 21",
+        "Occupations Code Ch. 1071"
+      ],
+      "correct_answer": "Civil Practice & Remedies Code Ch. 16",
+      "explanation": "Adverse possession is in the Civil Practice & Remedies Code Ch. 16, sections 16.024-16.028 (a common trap), not the Property Code. The five-year track additionally requires paying taxes and a duly registered deed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b14-0000-0000-0000-000000000001",
+      "question_text": "Texas is a pure 'notice' recording state, so a bona fide purchaser for value without notice prevails over a prior unrecorded grantee even if the BFP records second or never records.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Under Prop. Code 13.001-13.002, a subsequent purchaser for value without notice takes free of a prior unrecorded conveyance and wins regardless of recording order; there is no race requirement for the BFP.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b15-0000-0000-0000-000000000001",
+      "question_text": "Place the retracement decision sequence in the correct order of priority.",
+      "question_type": "multiple_choice",
+      "options": [
+        "Intent, footsteps, found monuments by dignity of calls, senior/junior rights, apportionment last",
+        "Apportionment first, then monuments, then intent",
+        "Quantity, distance, course, monuments",
+        "Senior/junior rights before intent and footsteps"
+      ],
+      "correct_answer": "Intent, footsteps, found monuments by dignity of calls, senior/junior rights, apportionment last",
+      "explanation": "The ordered method is: construe for intent, follow the original surveyor's footsteps, weigh found monuments by dignity of calls, apply senior/junior rights to overlaps, and proportion only as a last resort for lost corners.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "acc07b16-0000-0000-0000-000000000001",
+      "question_text": "A boundary fronts a river averaging 35 feet of bed width, and the parcel's original grant is a State of Texas patent. Which two rules apply to locating the water boundary and (if coastal) the tidal datum?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Gradient boundary (navigable, >30 ft) and, for an Anglo/Texas grant, mean high tide",
+        "Center-thread rule and mean higher high water",
+        "Ordinary high-water mark and the vegetation line",
+        "Gradient boundary and mean higher high water"
+      ],
+      "correct_answer": "Gradient boundary (navigable, >30 ft) and, for an Anglo/Texas grant, mean high tide",
+      "explanation": "At 35 feet the stream exceeds the 30-foot navigability threshold, so the gradient boundary applies. The grant is a State (Anglo) patent, so any coastal frontage uses mean high tide, not the MHHW reserved for Spanish/Mexican grants.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "acc07b16-0000-0000-0000-000000000001",
+      "question_text": "On the final exam, citing the controlling Texas authority by name alongside a correct conclusion is unnecessary as long as the arithmetic is perfect.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Credit follows correct doctrine selection and authority citation as much as computation. The strongest answers name the controlling rule and case, apply it to the facts, and state a defensible conclusion.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "acc07b14-0000-0000-0000-000000000001",
+      "question_text": "Texas adverse possession's 5-year track (CPRC 16.025) requires the claimant to pay the applicable property taxes and hold under a duly registered, non-quitclaim deed.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "The 5-year track (16.025) requires cultivating/using the land, paying applicable taxes each year (a single missed year is fatal), and claiming under a duly registered deed that excludes quitclaim and forged deeds.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Single proportionate measurement — corrected interior distance",
+      "category": "Boundary Law — Boundary Conflict Resolution",
+      "subcategory": "Single proportion",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A block of {{n}} lots was platted, each with a record frontage of {{rec:f2}} ft, giving a record block length of {{recTotal:f2}} ft between two found, undisputed original corner monuments. A resurvey finds the actual measured length between those same monuments is {{meas:f2}} ft. Using single proportionate measurement, what is the corrected frontage (ft) of each lot?",
+      "parameters": [
+        {"name": "n", "type": "integer", "min": 4, "max": 10},
+        {"name": "rec", "type": "float", "min": 48, "max": 60, "decimals": 2},
+        {"name": "surplus", "type": "float", "min": -4, "max": 5, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "recTotal", "formula": "n*rec"},
+        {"name": "meas", "formula": "recTotal+surplus"}
+      ],
+      "answer_formula": "meas/n",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Record block length", "formula": "n × record", "calculation_template": "{{n}} × {{rec:f2}} = {{recTotal:f2}} ft"},
+        {"step_number": 2, "title": "Proportion factor", "calculation_template": "{{meas:f2}} ÷ {{recTotal:f2}}"},
+        {"step_number": 3, "title": "Corrected lot frontage", "result_template": "{{meas:f2}} ÷ {{n}} = {{_answer}} ft"}
+      ],
+      "explanation_template": "Lots on a recorded plat are simultaneous conveyances of equal dignity, so the measured excess/deficiency is apportioned proportionately. Each record-equal lot becomes the measured length divided by the number of lots: {{meas:f2}} ÷ {{n}} = {{_answer}} ft.",
+      "options_generator": {"method": "none"},
+      "images_needed": [
+        {"slug": "m35-single-proportion", "caption": "Block of n equal lots between two found original monuments, record vs. measured length", "kind": "diagram"}
+      ]
+    },
+    {
+      "name": "Gap or overlap width between adjoining record calls",
+      "category": "Boundary Law — Boundary Conflict Resolution",
+      "subcategory": "Gap/overlap",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "Surveyed from a common found corner along the same line, a senior deed calls a distance of {{senior:f2}} ft to its boundary, while the adjoining junior deed's described limit falls at {{junior:f2}} ft from that corner. What is the width (ft) of the strip in conflict (a positive value indicates a gap/hiatus; the same magnitude would be an overlap if the calls ran toward each other)?",
+      "parameters": [
+        {"name": "senior", "type": "float", "min": 180, "max": 240, "decimals": 2},
+        {"name": "delta", "type": "float", "min": 0.5, "max": 6, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "junior", "formula": "senior+delta"}
+      ],
+      "answer_formula": "abs(junior-senior)",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Identify the two record limits", "calculation_template": "Senior limit = {{senior:f2}} ft; junior limit = {{junior:f2}} ft"},
+        {"step_number": 2, "title": "Difference the distances", "result_template": "|{{junior:f2}} − {{senior:f2}}| = {{_answer}} ft"}
+      ],
+      "explanation_template": "The width of the conflict strip is the absolute difference between the two record limits along the common line: |{{junior:f2}} − {{senior:f2}}| = {{_answer}} ft. Whether it is a gap (claimed by neither) or an overlap (claimed by both) depends on the direction the calls run; resolution still follows senior/junior rights and the original footsteps.",
+      "options_generator": {"method": "none"},
+      "images_needed": [
+        {"slug": "m35-gap-overlap", "caption": "Adjoining senior and junior record limits along a common line showing the conflict-strip width", "kind": "diagram"}
+      ]
+    }
+  ]
+}

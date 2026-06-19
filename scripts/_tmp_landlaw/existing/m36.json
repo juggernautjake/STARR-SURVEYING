@@ -1,0 +1,2124 @@
+{
+  "order_index": 36,
+  "module_id": "da5e0001-0000-0000-0000-000000000001",
+  "title": "Drone Surveying — UAS for Land Surveying",
+  "lessons": [
+    {
+      "lesson_id": "da5e0b01-0000-0000-0000-000000000001",
+      "title": "Lesson 1: Introduction to Drone Surveying",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Define unmanned aircraft systems (UAS) and explain their role in modern land surveying.",
+        "Describe the primary survey deliverables produced from drone data.",
+        "Identify where UAS fits within a surveyor's workflow and where a licensed surveyor remains essential."
+      ],
+      "key_takeaways": [
+        "A UAS is the aircraft, sensor payload, ground control station, and data link working as one system.",
+        "Drones collect dense, high-resolution data quickly and safely, but the data still requires professional interpretation.",
+        "In Texas, boundary determinations and certified surveys require an RPLS regardless of how the data was captured."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What is drone surveying?</h3><p><strong>Drone surveying</strong> (also called <strong>UAS surveying</strong> or <strong>aerial mapping with small unmanned aircraft</strong>) uses a remotely piloted aircraft carrying a camera or laser scanner to collect geospatial data over a project site. A modern survey-grade drone can image dozens of acres in a single flight, producing thousands of overlapping photographs or millions of laser returns that are processed into measurable, georeferenced products.</p><p>The term <strong>UAS</strong> (unmanned aircraft system) is deliberate: the value comes not from the aircraft alone but from the integrated <em>system</em> &mdash; the airframe, the sensor payload, the autopilot and positioning hardware, the ground control station, the data link, and the processing software. Surveyors adopted UAS because it compresses tasks that once took days of field walking into a short flight, while keeping crews off dangerous terrain such as quarry highwalls, active roadways, and steep embankments.</p><p>It is important to frame UAS correctly from the start: it is a <em>measurement tool</em> that accelerates data collection. The professional decisions &mdash; what the data means, where a boundary lies, whether accuracy is sufficient for the purpose &mdash; remain the responsibility of a licensed surveyor.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why surveyors use drones</h3><p>Compared with conventional total-station or static GNSS topographic work, UAS mapping offers several advantages:</p><ul><li><strong>Speed and coverage:</strong> a single 20-minute flight can map terrain that would take a crew a full day to walk with a rover.</li><li><strong>Density:</strong> photogrammetry yields a point or pixel every few centimeters, capturing detail no rod-and-prism survey could economically collect.</li><li><strong>Safety:</strong> hazardous areas (stockpiles, landfills, flood zones, rooftops) are mapped without putting a person there.</li><li><strong>Repeatability:</strong> sites can be reflown on a schedule for change detection and volume tracking.</li></ul><p>The trade-offs are real, too: UAS accuracy depends heavily on ground control, weather, vegetation, and processing discipline. Bare-earth elevations under dense canopy are weak for photogrammetry (better with LiDAR), and absolute accuracy without good control can drift well beyond survey tolerances.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Component",
+              "Function"
+            ],
+            "rows": [
+              [
+                "Airframe (multirotor or fixed-wing)",
+                "Carries the payload and provides flight endurance"
+              ],
+              [
+                "Sensor payload",
+                "Camera (RGB/multispectral) or LiDAR scanner that records the data"
+              ],
+              [
+                "GNSS/IMU",
+                "Positions and orients each image or laser pulse"
+              ],
+              [
+                "Ground control station",
+                "Tablet/laptop running the flight-planning and monitoring software"
+              ],
+              [
+                "Processing software",
+                "Converts raw data into orthomosaics, DSMs, DTMs, and point clouds"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram of a UAS showing airframe, camera payload, GNSS antenna, data link, and ground control station tablet",
+            "caption": "Figure: The components of an unmanned aircraft system used for surveying.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Typical UAS survey deliverables: a high-resolution orthomosaic, a digital surface model (DSM), a bare-earth digital terrain model (DTM), a 3D point cloud, contours, breaklines, and volume reports."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "UAS surveying = integrated aircraft + sensor + positioning + ground station + software.",
+              "Drones excel at fast, dense, safe data capture over open terrain.",
+              "Photogrammetry struggles under vegetation for bare earth; LiDAR or field checks fill the gap.",
+              "Texas: the survey product must be made under an RPLS's responsible charge."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "UAS",
+          "definition": "Unmanned Aircraft System: the complete system of aircraft, sensor payload, positioning hardware, data link, ground control station, and software used to collect geospatial data.",
+          "hint_1": "It is more than just the aircraft."
+        },
+        {
+          "term": "Orthomosaic",
+          "definition": "A single, geometrically corrected (orthorectified) image built from many overlapping aerial photos, in which scale is uniform and distances can be measured."
+        },
+        {
+          "term": "Responsible charge (Texas)",
+          "definition": "The direct control and personal supervision a Registered Professional Land Surveyor must exercise over survey work, including UAS-derived products certified as a survey."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b02-0000-0000-0000-000000000001",
+      "title": "Lesson 2: FAA Part 107 Regulations and Airspace",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Summarize the core operating rules of 14 CFR Part 107 for small UAS.",
+        "Classify controlled and uncontrolled airspace and explain when authorization is required.",
+        "Describe LAANC and the process for obtaining airspace authorization and waivers."
+      ],
+      "key_takeaways": [
+        "Commercial drone surveying in the U.S. requires a Part 107 Remote Pilot Certificate.",
+        "Standard Part 107 limits: <=400 ft AGL, daylight/civil twilight, VLOS, <=100 mph, one aircraft per pilot.",
+        "Flights in controlled airspace (Class B/C/D/E surface) need authorization, usually via LAANC."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>14 CFR Part 107 in brief</h3><p>In the United States, commercial drone operations &mdash; including surveying &mdash; are governed by <strong>14 CFR Part 107</strong>, the FAA's small UAS rule. To fly commercially you must hold a <strong>Remote Pilot Certificate</strong> with a small UAS rating, obtained by passing the FAA aeronautical knowledge test, and the aircraft (if it weighs 0.55 lb or more) must be registered. The standard operating rules establish the baseline every surveyor must know:</p><ul><li>Maximum altitude <strong>400 ft above ground level (AGL)</strong>, or higher within 400 ft of a structure.</li><li>Operations only in <strong>daylight or civil twilight</strong> (with anti-collision lighting); routine night ops are allowed under the 2021 rule update with proper lighting and training.</li><li><strong>Visual line of sight (VLOS)</strong> must be maintained with the aircraft at all times.</li><li>Maximum groundspeed <strong>100 mph (87 knots)</strong> and minimum visibility 3 statute miles.</li><li>One remote pilot may operate <strong>only one aircraft</strong> at a time; no flight over people or moving vehicles without meeting the operations-over-people categories.</li></ul><p>Many of these limits can be lifted by a <strong>Part 107 waiver</strong> if the operator demonstrates an equivalent level of safety (e.g., BVLOS or operations over people).</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Airspace and the sectional chart</h3><p>Knowing <em>where</em> you may fly is as important as the operating rules. U.S. airspace is divided into classes:</p><ul><li><strong>Class B</strong> &mdash; busiest airports (e.g., DFW, IAH); authorization required.</li><li><strong>Class C</strong> &mdash; mid-size airports; authorization required.</li><li><strong>Class D</strong> &mdash; smaller towered airports; authorization required.</li><li><strong>Class E surface area</strong> &mdash; controlled airspace down to the surface; authorization required.</li><li><strong>Class G</strong> &mdash; uncontrolled airspace; no authorization needed, but VLOS and altitude rules still apply.</li></ul><p>Remote pilots read <strong>VFR sectional charts</strong> and the FAA's <strong>UAS Facility Maps (UASFM)</strong>, which publish the maximum altitude (e.g., 0, 100, 200, 400 ft) at which a drone may be pre-authorized in each grid cell near an airport. A grid showing '0' means no automatic authorization &mdash; a manual request is needed.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Standard Part 107 limit",
+              "Value"
+            ],
+            "rows": [
+              [
+                "Maximum altitude",
+                "400 ft AGL (or within 400 ft of a structure)"
+              ],
+              [
+                "Maximum groundspeed",
+                "100 mph (87 kt)"
+              ],
+              [
+                "Minimum visibility",
+                "3 statute miles"
+              ],
+              [
+                "Cloud clearance",
+                "500 ft below, 2,000 ft horizontal"
+              ],
+              [
+                "Aircraft per pilot",
+                "One"
+              ],
+              [
+                "Line of sight",
+                "Visual line of sight (VLOS) required"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>LAANC and authorizations</h3><p><strong>LAANC</strong> (Low Altitude Authorization and Notification Capability) is the automated system that grants near-real-time airspace authorizations in controlled airspace. Through an FAA-approved app (e.g., Aloft, AirMap), the pilot draws the operating area, selects a requested altitude at or below the UASFM ceiling for that grid, and typically receives an instant authorization. Requests above the published ceiling, or in '0-ft' grids, go through the manual <strong>FAA DroneZone</strong> process, which can take weeks. Authorizations and waivers should be obtained and documented <em>before</em> mobilizing the field crew.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Remember the difference: an airspace AUTHORIZATION lets you fly in controlled airspace; a WAIVER lets you deviate from an operating rule (e.g., fly BVLOS or over people). A surveying flight near a Class D airport may need an authorization but no waiver."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Part 107 governs HOW and WHERE you may fly; it says nothing about who may certify the survey. Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Hold a Part 107 Remote Pilot Certificate and register the aircraft before any commercial flight.",
+              "Standard limits: 400 ft AGL, VLOS, daylight/twilight, one aircraft, 100 mph, 3 SM visibility.",
+              "Controlled airspace (B/C/D/E surface) requires authorization, usually instant via LAANC.",
+              "Waivers (BVLOS, over people, night before lighting rule) require an FAA application."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Part 107",
+          "definition": "The 14 CFR rule governing commercial small UAS operations in the U.S.; requires a Remote Pilot Certificate and sets the standard operating limits.",
+          "hint_1": "The 'three-digit' FAA rule for commercial drones."
+        },
+        {
+          "term": "LAANC",
+          "definition": "Low Altitude Authorization and Notification Capability: the system that provides automated, near-real-time FAA authorizations to fly in controlled airspace."
+        },
+        {
+          "term": "VLOS",
+          "definition": "Visual Line of Sight: the requirement that the remote pilot or visual observer keep the aircraft within unaided sight throughout the flight."
+        },
+        {
+          "term": "UAS Facility Map (UASFM)",
+          "definition": "FAA grid map near airports that publishes the maximum altitude at which a drone may receive automatic authorization in each cell."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b03-0000-0000-0000-000000000001",
+      "title": "Lesson 3: Drone Hardware and Sensor Technology",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Compare multirotor and fixed-wing platforms for surveying missions.",
+        "Distinguish RGB, multispectral, thermal, and LiDAR payloads and their uses.",
+        "Explain the role of onboard GNSS (RTK/PPK) and the IMU in georeferencing."
+      ],
+      "key_takeaways": [
+        "Multirotors offer precise positioning and VTOL; fixed-wings offer endurance and area coverage.",
+        "The sensor choice (RGB vs LiDAR vs multispectral) is driven by the deliverable required.",
+        "Onboard RTK/PPK GNSS and an IMU georeference each image, reducing reliance on dense ground control."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Platforms: multirotor vs fixed-wing</h3><p>Survey drones fall into two broad airframe families. <strong>Multirotors</strong> (quadcopters, hexacopters) hover, take off and land vertically (VTOL), and fly precise grid lines at low speed &mdash; ideal for small-to-medium sites, vertical structures, and corridor inspection. Their limitation is endurance: typical flight times are 20&ndash;40 minutes per battery.</p><p><strong>Fixed-wing</strong> aircraft fly like small airplanes. They cover far more ground per flight (hundreds of acres) and tolerate wind better, but they need launch/landing space and cannot hover. <strong>VTOL hybrids</strong> combine vertical takeoff with efficient forward flight, capturing much of both worlds at higher cost and complexity. Platform choice follows the mission: a 5-acre construction pad suits a multirotor; a 600-acre ranch topo suits a fixed-wing or VTOL.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Attribute",
+              "Multirotor",
+              "Fixed-wing"
+            ],
+            "rows": [
+              [
+                "Takeoff/landing",
+                "Vertical (VTOL)",
+                "Runway or hand/catapult launch"
+              ],
+              [
+                "Endurance",
+                "20-40 min",
+                "45-90+ min"
+              ],
+              [
+                "Area per flight",
+                "Small-medium",
+                "Large"
+              ],
+              [
+                "Hover/inspection",
+                "Yes",
+                "No"
+              ],
+              [
+                "Best use",
+                "Sites, structures, corridors",
+                "Large open topo and mapping"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Sensor payloads</h3><p>The payload determines what you can measure:</p><ul><li><strong>RGB camera:</strong> the workhorse for photogrammetry &mdash; orthomosaics, DSMs, and 3D models. A larger sensor and higher resolution improve ground sample distance.</li><li><strong>Multispectral:</strong> captures additional bands (red-edge, near-infrared) for vegetation health and agriculture; less common in pure boundary/topo work.</li><li><strong>Thermal:</strong> detects temperature differences for inspections, leak detection, and search applications.</li><li><strong>LiDAR:</strong> an active laser scanner that measures range directly; it penetrates gaps in vegetation to recover bare-earth elevations that photogrammetry cannot.</li></ul><p>Sensor specifications that drive accuracy include focal length, pixel pitch (sensor pixel size in micrometers), sensor width in pixels, and shutter type. A <strong>mechanical or global shutter</strong> reduces motion distortion compared with a rolling shutter at flight speed.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{GSD} = \\frac{\\text{pixel pitch}_{\\mu m} \\times \\text{flight height}_{m}}{\\text{focal length}_{mm} \\times 10}",
+            "label": "Ground Sample Distance (cm/pixel)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Onboard positioning: GNSS and IMU</h3><p>Modern survey drones carry a multi-frequency <strong>GNSS</strong> receiver and an <strong>IMU</strong> (inertial measurement unit). Two techniques deliver centimeter-level image positions:</p><ul><li><strong>RTK (Real-Time Kinematic):</strong> the drone receives live corrections from a base station or network and tags each photo with a corrected position in flight.</li><li><strong>PPK (Post-Processed Kinematic):</strong> raw GNSS logs from the drone and base are combined after the flight, often yielding more robust results because there is no dependence on a live radio link.</li></ul><p>RTK/PPK georeferencing dramatically reduces &mdash; but does not eliminate &mdash; the need for ground control points. Checkpoints are still flown to verify the result.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Even an RTK drone produces a survey-grade deliverable only when the data is reduced and certified under an RPLS. Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Match the platform to the site: multirotor for small/vertical, fixed-wing/VTOL for large.",
+              "Choose the sensor by deliverable: RGB for ortho/topo, LiDAR for bare earth under vegetation.",
+              "GSD depends on pixel pitch, flight height, and focal length.",
+              "RTK/PPK + IMU georeference imagery and reduce (not remove) ground-control needs."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "GSD (Ground Sample Distance)",
+          "definition": "The real-world distance represented by one pixel in an aerial image, usually expressed in cm/pixel; smaller GSD means finer detail.",
+          "hint_1": "Lower number = sharper map."
+        },
+        {
+          "term": "RTK vs PPK",
+          "definition": "RTK applies GNSS corrections in real time during flight; PPK combines raw logs after the flight. Both yield centimeter-level image positions."
+        },
+        {
+          "term": "LiDAR",
+          "definition": "Light Detection And Ranging: an active sensor that measures distance with laser pulses and can penetrate vegetation gaps to map bare earth."
+        },
+        {
+          "term": "IMU",
+          "definition": "Inertial Measurement Unit: accelerometers and gyroscopes that record the aircraft/sensor orientation (roll, pitch, yaw) for each exposure."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b04-0000-0000-0000-000000000001",
+      "title": "Lesson 4: Flight Planning and Mission Design",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Plan flight altitude to achieve a target GSD for a given camera.",
+        "Select front and side overlap appropriate to terrain and vegetation.",
+        "Estimate flight time, number of images, and battery requirements for a mission."
+      ],
+      "key_takeaways": [
+        "Flight altitude sets GSD; lower flights give finer detail but cover less ground per pass.",
+        "Typical survey overlap is 70-80% front and 60-75% side; increase it over vegetation and uniform terrain.",
+        "Plan with margins: wind, battery reserve, takeoff/landing, and turn time all reduce productive coverage."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From deliverable to flight plan</h3><p>Mission design works backward from the required product. The driving specification is usually a <strong>target GSD</strong> (e.g., 2 cm/pixel) and a target accuracy. Once you know the camera's pixel pitch and focal length, you can solve the GSD equation for the flight height that achieves it. Lower altitude yields finer GSD and better accuracy but narrows each image's footprint, so you fly more lines and burn more battery. Higher altitude covers ground faster at coarser detail. The planner balances detail, accuracy, and productivity.</p><p>Most planning is done in software (e.g., DJI Pilot, Pix4Dcapture, DroneDeploy) where you draw the boundary, set altitude and overlap, and the app generates the serpentine flight lines, exposure stations, and estimated flight time. Understanding the math behind the app prevents blind trust in defaults.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{footprint}_{ground} = \\text{GSD} \\times \\text{sensor width (px)}",
+            "label": "Image ground footprint",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Overlap</h3><p>Photogrammetry needs every ground point to appear in multiple images from different angles. <strong>Front overlap (forward/endlap)</strong> is the overlap between successive photos along a flight line; <strong>side overlap (sidelap)</strong> is the overlap between adjacent lines. Typical survey settings are:</p><ul><li><strong>Front overlap:</strong> 70&ndash;80% (use 80&ndash;85% over vegetation, water, or featureless terrain).</li><li><strong>Side overlap:</strong> 60&ndash;75% (raise it in tall vegetation, urban canyons, and steep terrain).</li></ul><p>Insufficient overlap causes weak tie-point matching, holes in the model, and 'doming' or warping errors. More overlap improves robustness but increases image count, flight time, and processing load &mdash; another balance the planner manages.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Mission factor",
+              "Effect of increasing it"
+            ],
+            "rows": [
+              [
+                "Flight altitude",
+                "Coarser GSD, larger footprint, fewer lines, faster"
+              ],
+              [
+                "Overlap",
+                "More images, longer flight, more robust model"
+              ],
+              [
+                "Sensor resolution",
+                "Finer GSD or higher altitude for same GSD"
+              ],
+              [
+                "Site size",
+                "More batteries / more flights"
+              ],
+              [
+                "Wind",
+                "Shorter endurance, planning margin needed"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Coverage, images, and battery</h3><p>To budget a mission you estimate: the area to cover, the swath width per line (image footprint minus sidelap), the distance between exposures (footprint minus front overlap, in the flight direction), and the cruise speed. From these you derive total flight-line length, image count, and flight time, then divide by usable battery endurance to find how many batteries (and field hours) the job needs. Always keep a battery reserve (commonly land at ~25&ndash;30%), and add time for takeoff, landing, turns, and ground control work. Planning with realistic margins is what separates a one-mobilization job from a costly return trip.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Serpentine drone flight plan over a rectangular parcel showing overlapping image footprints, front overlap along lines and side overlap between lines",
+            "caption": "Figure: A grid (serpentine) flight plan showing front overlap and side overlap of image footprints.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Rule of thumb: number of flight lines across a site = ceil( site width / line spacing ), where line spacing = footprint width x (1 - sidelap)."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. The flight plan should be designed to meet the accuracy the certifying surveyor requires for the deliverable."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Solve the GSD equation for altitude to hit a target detail level.",
+              "Use 70-80% front / 60-75% side overlap; raise it over vegetation and featureless ground.",
+              "Footprint = GSD x sensor width; line spacing = footprint x (1 - sidelap).",
+              "Budget batteries from total line length / cruise speed, with reserves and turn time."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Front overlap (endlap)",
+          "definition": "The percentage of overlap between successive photos taken along the same flight line; typically 70-80% for surveying."
+        },
+        {
+          "term": "Side overlap (sidelap)",
+          "definition": "The percentage of overlap between photos on adjacent, parallel flight lines; typically 60-75% for surveying."
+        },
+        {
+          "term": "Flight line spacing",
+          "definition": "The ground distance between adjacent flight lines, equal to the image ground footprint times (1 - sidelap)."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b05-0000-0000-0000-000000000001",
+      "title": "Lesson 5: Ground Control Points and GNSS Integration",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Explain the purpose of ground control points (GCPs) and independent checkpoints.",
+        "Describe how to lay out, target, and observe GCPs across a project.",
+        "Relate UAS georeferencing to a project datum and the role of RTK/PPK base stations."
+      ],
+      "key_takeaways": [
+        "GCPs tie the photogrammetric model to a real-world datum; checkpoints independently verify accuracy.",
+        "Distribute GCPs across the site and at elevation extremes; never cluster them in one area.",
+        "Even with an RTK drone, surveyors place checkpoints to validate absolute accuracy."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why ground control matters</h3><p>A photogrammetric model is internally consistent but, without control, it may be scaled, rotated, or shifted relative to the real world. <strong>Ground control points (GCPs)</strong> are targets on the ground whose coordinates are measured precisely (by GNSS or total station) and identified in the imagery. During processing the software ties the model to these known points, locking it to the project datum. <strong>Checkpoints</strong> are additional surveyed points that are <em>withheld</em> from the adjustment and used only to measure the final accuracy &mdash; they are the independent grade for the job.</p><p>With a non-RTK drone, GCPs supply both the absolute georeferencing and the scale. With an RTK/PPK drone, the GNSS already provides strong absolute positioning, but GCPs and especially checkpoints remain best practice to detect blunders, datum mismatches, and vertical bias.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Layout and targeting</h3><p>Good GCP geometry is as important as good observations:</p><ul><li><strong>Distribute</strong> control around the perimeter and through the interior &mdash; do not cluster them in one corner.</li><li><strong>Cover the elevation range:</strong> include points at the highest and lowest areas to control vertical accuracy.</li><li><strong>Quantity:</strong> a common starting point is 5&ndash;10 GCPs for a small site, more for large or complex terrain; add checkpoints separately.</li><li><strong>Targets:</strong> use high-contrast, durable targets (checkerboard or 'V' patterns) large enough to span several pixels at the planned GSD, placed on flat, unobstructed ground.</li></ul><p>Each target's center is observed to the project's horizontal and vertical datum, and the same physical center must be clicked in the imagery during processing.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Point type",
+              "Used in adjustment?",
+              "Purpose"
+            ],
+            "rows": [
+              [
+                "Ground control point (GCP)",
+                "Yes",
+                "Ties/locks the model to the datum"
+              ],
+              [
+                "Checkpoint",
+                "No (withheld)",
+                "Independently measures final accuracy"
+              ],
+              [
+                "RTK/PPK image position",
+                "Yes (as observations)",
+                "Georeferences each photo directly"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>GNSS integration and datum</h3><p>Whether control is measured by network RTK, a local base/rover pair, or PPK, every coordinate must be reduced to the <strong>project datum</strong> &mdash; horizontal (e.g., a State Plane zone on NAD83) and vertical (e.g., NAVD88 via a geoid model). A frequent source of error is a mismatch between the ellipsoidal heights the GNSS reports and the orthometric heights the deliverable requires; the correct <strong>geoid model</strong> must be applied. The surveyor confirms that GCPs, checkpoints, and the drone's onboard GNSS all reference the same datum and epoch before processing.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Site plan showing ground control points distributed around the perimeter and interior of a parcel, with checkpoints marked separately",
+            "caption": "Figure: GCPs distributed across a site (perimeter and interior) with independent checkpoints.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "A useful split: use most surveyed points as GCPs and reserve a representative subset (often ~20-30%) as checkpoints to report independent RMSE."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. Establishing the control datum, observing GCPs/checkpoints to survey tolerance, and certifying the result are professional surveying functions."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "GCPs lock the model to the datum; checkpoints (withheld) measure true accuracy.",
+              "Distribute control around and through the site and over the elevation range.",
+              "Targets must be high-contrast and large enough for the planned GSD.",
+              "All control and the drone GNSS must share one horizontal/vertical datum and geoid model."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Ground Control Point (GCP)",
+          "definition": "A surveyed target with known coordinates, identified in the imagery and used to tie/lock the photogrammetric model to the real-world datum."
+        },
+        {
+          "term": "Checkpoint",
+          "definition": "A surveyed point withheld from the adjustment and used only to independently measure the final positional accuracy of the model.",
+          "hint_1": "It grades the survey, it doesn't fix it."
+        },
+        {
+          "term": "Geoid model",
+          "definition": "A model relating ellipsoidal (GNSS) heights to orthometric (e.g., NAVD88) heights; required to produce correct elevations from GNSS observations."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b06-0000-0000-0000-000000000001",
+      "title": "Lesson 6: Photogrammetry Fundamentals",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Explain the photogrammetric principle of recovering 3D positions from overlapping 2D images.",
+        "Describe the Structure-from-Motion (SfM) workflow: feature matching, bundle adjustment, dense cloud.",
+        "Define interior and exterior orientation and the role of camera calibration."
+      ],
+      "key_takeaways": [
+        "Photogrammetry recovers 3D geometry from the parallax between overlapping images.",
+        "SfM solves camera positions and a sparse cloud first, then densifies to a full point cloud.",
+        "Bundle adjustment simultaneously refines camera poses, calibration, and 3D point coordinates."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The photogrammetric principle</h3><p><strong>Photogrammetry</strong> is the science of making measurements from photographs. When the same ground feature appears in two or more overlapping images taken from different positions, the difference in its apparent location &mdash; <strong>parallax</strong> &mdash; lets us triangulate its 3D position, exactly as human binocular vision perceives depth. Collect enough well-overlapped images of a site and you can reconstruct its full three-dimensional surface.</p><p>Two coordinate relationships underpin this. <strong>Interior orientation</strong> describes the camera's internal geometry &mdash; focal length, principal point, and lens distortion &mdash; established by <strong>camera calibration</strong>. <strong>Exterior orientation</strong> describes where each photo was taken and how the camera was pointed (its position and the roll/pitch/yaw of the sensor). With both known, every pixel can be projected as a ray into object space, and intersecting rays from multiple images fix ground coordinates.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Structure from Motion (SfM)</h3><p>Modern drone photogrammetry uses <strong>Structure from Motion (SfM)</strong>, an automated pipeline that solves camera positions and scene geometry together from an unordered set of overlapping photos. The typical stages are:</p><ul><li><strong>Feature detection &amp; matching:</strong> distinctive points (corners, textures) are detected in each image and matched across overlapping photos as <em>tie points</em>.</li><li><strong>Sparse reconstruction (bundle adjustment):</strong> a least-squares solution simultaneously estimates every camera's exterior orientation, the interior calibration, and the 3D coordinates of the tie points, minimizing reprojection error.</li><li><strong>Georeferencing:</strong> GCPs and/or RTK image positions tie the solution to the datum.</li><li><strong>Dense matching:</strong> the sparse cloud is densified into millions of points (a dense point cloud) describing the surface.</li><li><strong>Surface &amp; texture:</strong> the cloud becomes a mesh/DSM and is draped with photo texture for an orthomosaic.</li></ul>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{GSD} = \\frac{\\text{pixel pitch}_{\\mu m} \\times H_{m}}{f_{mm} \\times 10}",
+            "label": "GSD links image scale to flight height H and focal length f",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Term",
+              "Meaning"
+            ],
+            "rows": [
+              [
+                "Tie point",
+                "A feature matched across multiple overlapping images"
+              ],
+              [
+                "Interior orientation",
+                "Camera internal geometry (focal length, principal point, distortion)"
+              ],
+              [
+                "Exterior orientation",
+                "Camera position and orientation for each exposure"
+              ],
+              [
+                "Bundle adjustment",
+                "Least-squares solution refining poses, calibration, and 3D points"
+              ],
+              [
+                "Dense cloud",
+                "Millions of 3D points densified from the sparse solution"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Two overlapping aerial images of the same ground point with intersecting rays illustrating parallax and triangulation in photogrammetry",
+            "caption": "Figure: Parallax and ray intersection &mdash; the basis of photogrammetric 3D reconstruction.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Reprojection error (often reported in pixels) is a key quality indicator from bundle adjustment: it measures how well the solved geometry predicts where tie points actually appear in the images."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "SfM software reports internal precision, not legal accuracy. Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Overlapping images + parallax let you triangulate 3D ground positions.",
+              "SfM = feature matching -> bundle adjustment (sparse) -> georeference -> dense cloud -> surface/ortho.",
+              "Interior orientation (calibration) and exterior orientation (pose) define each ray.",
+              "Bundle adjustment co-solves camera poses, calibration, and point coordinates."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Structure from Motion (SfM)",
+          "definition": "An automated photogrammetric pipeline that recovers camera positions and 3D scene geometry from a set of overlapping images via feature matching and bundle adjustment."
+        },
+        {
+          "term": "Parallax",
+          "definition": "The apparent shift in a feature's position between images taken from different viewpoints; the cue that allows 3D triangulation."
+        },
+        {
+          "term": "Bundle adjustment",
+          "definition": "A simultaneous least-squares refinement of all camera orientations, interior calibration, and 3D tie-point coordinates that minimizes reprojection error."
+        },
+        {
+          "term": "Exterior orientation",
+          "definition": "The position (X, Y, Z) and orientation (omega, phi, kappa / roll, pitch, yaw) of the camera at the moment of each exposure."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b07-0000-0000-0000-000000000001",
+      "title": "Lesson 7: LiDAR Drone Surveying",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Explain how airborne LiDAR measures range and builds a point cloud.",
+        "Contrast LiDAR with photogrammetry for vegetation penetration and bare-earth mapping.",
+        "Describe the integration of laser scanner, GNSS, and IMU and the need for boresight calibration."
+      ],
+      "key_takeaways": [
+        "LiDAR actively measures range with laser pulses and can return multiple echoes per pulse.",
+        "Multiple returns let LiDAR see through vegetation gaps to recover bare-earth elevations.",
+        "Accuracy depends on tight GNSS/IMU integration and boresight calibration of the sensor."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How airborne LiDAR works</h3><p><strong>LiDAR</strong> (Light Detection and Ranging) is an <em>active</em> sensor: it emits laser pulses and measures the time for each to return, computing range directly as range = (speed of light &times; time of flight) / 2. A scanning mechanism sweeps thousands of pulses per second across the ground while the aircraft flies, and the system fuses each range with the aircraft's position (GNSS) and orientation (IMU) to compute a 3D coordinate for every return. The result is a dense <strong>point cloud</strong> &mdash; but unlike photogrammetry, no overlap or texture is required, and it works in low light.</p><p>A defining capability is <strong>multiple returns</strong>: a single pulse striking a tree may return an echo from the canopy, another from understory, and a final from the ground. By keeping the last/lowest returns, LiDAR recovers <strong>bare-earth</strong> elevations beneath vegetation that photogrammetry simply cannot see.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Attribute",
+              "Photogrammetry",
+              "LiDAR"
+            ],
+            "rows": [
+              [
+                "Sensor type",
+                "Passive (camera)",
+                "Active (laser)"
+              ],
+              [
+                "Bare earth under vegetation",
+                "Weak",
+                "Strong (multiple returns)"
+              ],
+              [
+                "Needs daylight/texture",
+                "Yes",
+                "No"
+              ],
+              [
+                "Produces color imagery",
+                "Yes (ortho)",
+                "No (unless paired with camera)"
+              ],
+              [
+                "Typical relative cost",
+                "Lower",
+                "Higher"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>System integration and calibration</h3><p>A drone LiDAR payload integrates three subsystems whose timing and geometry must agree precisely: the <strong>laser scanner</strong>, a survey-grade <strong>GNSS</strong> receiver, and a high-rate <strong>IMU</strong>. Two calibrations are essential:</p><ul><li><strong>Trajectory solution:</strong> GNSS/IMU data are post-processed into a smooth, accurate flight trajectory (position + attitude at every instant).</li><li><strong>Boresight calibration:</strong> the small angular misalignment between the IMU axes and the laser scanner must be measured and removed, or the cloud will show systematic offsets between overlapping flight lines.</li></ul><p>Even with perfect integration, surveyors collect <strong>ground checkpoints</strong> to validate vertical accuracy, and they classify the cloud (ground vs vegetation vs structures) before generating a bare-earth DTM.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{range} = \\frac{c \\times t}{2}",
+            "label": "LiDAR range from time-of-flight t (c = speed of light)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram of a UAS LiDAR pulse striking a tree and producing multiple returns from canopy, understory, and bare ground",
+            "caption": "Figure: Multiple LiDAR returns from one pulse reveal bare earth beneath vegetation.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Point density (pulses/returns per square meter) drives how much detail and how reliable a bare-earth surface you can extract; densify flight lines or slow the aircraft to raise it."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. Classifying and certifying a bare-earth surface for a legal or design purpose is the surveyor's professional responsibility."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "LiDAR is active: it measures range from laser time-of-flight.",
+              "Multiple returns let LiDAR recover bare earth under vegetation.",
+              "Accuracy requires tight GNSS/IMU trajectory and boresight calibration.",
+              "Classify the cloud and verify with checkpoints before delivering a DTM."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "LiDAR",
+          "definition": "Light Detection and Ranging: an active sensor that measures distance from laser pulse time-of-flight to build a 3D point cloud."
+        },
+        {
+          "term": "Multiple returns",
+          "definition": "Several echoes from one laser pulse (e.g., canopy, understory, ground) that let LiDAR map bare earth beneath vegetation."
+        },
+        {
+          "term": "Boresight calibration",
+          "definition": "Determining and removing the angular misalignment between the IMU and the laser scanner so overlapping flight lines align."
+        },
+        {
+          "term": "Point density",
+          "definition": "The number of LiDAR points (or returns) per unit area; higher density yields more detail and more reliable bare-earth surfaces."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b08-0000-0000-0000-000000000001",
+      "title": "Lesson 8: Data Processing Workflows",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Outline the end-to-end processing workflow from raw images to deliverables.",
+        "Explain GCP marking, optimization, and point-cloud classification steps.",
+        "Identify common processing errors and quality flags to watch for."
+      ],
+      "key_takeaways": [
+        "The workflow is: import & align -> add/mark control -> optimize -> densify -> classify -> generate products.",
+        "Marking GCPs accurately and re-optimizing is the step that locks accuracy.",
+        "Watch reprojection error, GCP residuals, and point-cloud noise as quality flags."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The processing pipeline</h3><p>Software such as Pix4Dmapper, Agisoft Metashape, DroneDeploy, or RealityCapture turns raw flights into deliverables through a repeatable sequence:</p><ol><li><strong>Import &amp; align:</strong> load images and their GNSS positions; the software detects features and performs the initial bundle adjustment to build a sparse cloud and camera poses.</li><li><strong>Add &amp; mark control:</strong> import GCP/checkpoint coordinates and mark each target center in the images where it appears.</li><li><strong>Optimize (re-adjust):</strong> re-run the bundle adjustment with the control to lock the model to the datum.</li><li><strong>Densify:</strong> build the dense point cloud.</li><li><strong>Classify:</strong> separate ground from non-ground (vegetation, buildings) to create a bare-earth surface.</li><li><strong>Generate products:</strong> DSM, DTM, orthomosaic, contours, and volumes.</li></ol><p>For LiDAR the early steps differ (trajectory + boresight rather than image alignment), but classification and product generation are analogous.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Marking control and optimizing</h3><p>The accuracy-defining step is marking control. After the initial alignment you click each GCP's physical center in several images; the software then re-optimizes so the model honors those coordinates. Done well, GCP <strong>residuals</strong> (the difference between surveyed and modeled positions) fall to within the GSD; <strong>checkpoint residuals</strong>, measured on withheld points, report the true accuracy. Sloppy marking &mdash; clicking the wrong corner of a target or mismarking a single image &mdash; can pull the whole model and inflate errors. Always re-optimize after editing control and re-check the residual report.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Quality flag",
+              "What it indicates"
+            ],
+            "rows": [
+              [
+                "High mean reprojection error",
+                "Weak matching, calibration, or motion blur"
+              ],
+              [
+                "Large GCP residuals",
+                "Mismarked targets or datum mismatch"
+              ],
+              [
+                "Large checkpoint RMSE",
+                "Poor absolute accuracy despite low GCP residuals"
+              ],
+              [
+                "Noisy/doming point cloud",
+                "Insufficient overlap or rolling-shutter distortion"
+              ],
+              [
+                "Gaps/holes",
+                "Water, low overlap, or featureless surfaces"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Classification and cleanup</h3><p>Before a bare-earth DTM or contours can be produced, the dense cloud is <strong>classified</strong>: points are sorted into ground, vegetation, buildings, and noise using automated filters and manual editing. Errors here propagate into elevations and volumes &mdash; for example, unclassified vegetation left as 'ground' raises a DTM and corrupts cut/fill quantities. Outliers and noise (often over water, vehicles, or reflective surfaces) are removed. The cleaned, classified cloud is the foundation for every downstream product, so review it before exporting.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Workflow diagram from raw images through alignment, control marking, optimization, densification, classification, to final deliverables",
+            "caption": "Figure: End-to-end UAS data-processing workflow.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Document the processing report (camera calibration, GCP/checkpoint residuals, RMSE, point density) with every deliverable; it is the evidence of quality."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. The reviewing RPLS evaluates the processing report and accepts or rejects the result for the survey."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Pipeline: align -> control -> optimize -> densify -> classify -> products.",
+              "Marking GCPs accurately and re-optimizing is what locks accuracy.",
+              "Reprojection error, GCP/checkpoint residuals, and cloud noise are key quality flags.",
+              "Classification errors corrupt DTMs and volumes &mdash; review before exporting."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Bundle adjustment (processing)",
+          "definition": "The optimization step that solves camera poses, calibration, and tie-point coordinates; re-run after adding control to lock the model to the datum."
+        },
+        {
+          "term": "GCP residual",
+          "definition": "The difference between a control point's surveyed coordinates and its modeled position after optimization; small residuals indicate good control marking."
+        },
+        {
+          "term": "Point-cloud classification",
+          "definition": "Sorting cloud points into categories (ground, vegetation, buildings, noise) so a bare-earth DTM and accurate volumes can be produced."
+        },
+        {
+          "term": "Reprojection error",
+          "definition": "The pixel distance between where a tie point is observed in an image and where the solved geometry predicts it; a core internal quality metric."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b09-0000-0000-0000-000000000001",
+      "title": "Lesson 9: Mapping Products — Orthomosaics, DSMs, and DTMs",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Define orthomosaic, DSM, and DTM and explain how each is produced.",
+        "Distinguish a surface model (DSM) from a bare-earth model (DTM).",
+        "Generate contours and breaklines from elevation models for survey deliverables."
+      ],
+      "key_takeaways": [
+        "An orthomosaic is a scale-true, measurable image; a raw aerial photo is not.",
+        "A DSM includes everything (vegetation, buildings); a DTM is bare earth only.",
+        "Contours and breaklines are derived from the DTM, not the DSM."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Orthomosaics</h3><p>A raw aerial photograph has perspective distortion: features lean, and scale varies with terrain and camera tilt, so you cannot measure distances on it directly. An <strong>orthomosaic</strong> fixes this. Using the DSM and camera solutions, every pixel is re-projected to a true overhead (orthographic) position, removing tilt and relief displacement, and the corrected images are mosaicked into one seamless, georeferenced image with <em>uniform scale</em>. On an orthomosaic you can measure distances and areas and digitize planimetric features (edges of pavement, building corners, fences) like a map. Its resolution equals the GSD of the source imagery.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>DSM vs DTM</h3><p>Two elevation models are central to UAS deliverables, and confusing them is a common mistake:</p><ul><li><strong>DSM (Digital Surface Model):</strong> a raster of the <em>top</em> of everything &mdash; ground, vegetation canopy, rooftops, and other objects. It is what photogrammetry naturally produces first.</li><li><strong>DTM / DEM (Digital Terrain Model):</strong> the <em>bare-earth</em> surface, with vegetation and structures removed via classification. It is what most engineering and survey deliverables require.</li></ul><p>A <strong>nDSM</strong> (normalized DSM = DSM &minus; DTM) yields object heights such as tree or building height. Contours, slope, drainage, and earthwork volumes are computed from the <strong>DTM</strong>; running them off a DSM would include treetops and roofs and corrupt the result.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Product",
+              "Includes vegetation/structures?",
+              "Primary use"
+            ],
+            "rows": [
+              [
+                "Orthomosaic",
+                "N/A (image)",
+                "Scale-true map for digitizing/measuring"
+              ],
+              [
+                "DSM",
+                "Yes (top surface)",
+                "Canopy/rooftop heights, viewsheds"
+              ],
+              [
+                "DTM / DEM",
+                "No (bare earth)",
+                "Contours, grading, hydrology, volumes"
+              ],
+              [
+                "nDSM",
+                "Object heights",
+                "Tree/building height = DSM - DTM"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Contours and breaklines</h3><p>From the DTM the software interpolates <strong>contours</strong> (lines of equal elevation) at a chosen interval. Raw machine contours can look noisy or 'wormy,' so surveyors add <strong>breaklines</strong> &mdash; 3D lines along abrupt surface changes such as curbs, ditch flowlines, ridge tops, and pavement edges &mdash; that force the surface (a TIN) to honor real terrain breaks. The combination of a clean classified DTM and good breaklines produces contours suitable for design. Deliverables are then exported in the formats the client needs (GeoTIFF, LandXML, DWG/DGN, shapefile, LAS/LAZ).</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Side-by-side profile comparing a DSM following treetops and rooftops with a DTM following bare ground, with contours drawn from the DTM",
+            "caption": "Figure: DSM (top of features) vs DTM (bare earth); contours are derived from the DTM.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Mnemonic: DS-M = top of Stuff; DT-M = the bare Terrain. Always confirm which one a client's specification calls for."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. Contours, planimetrics, and surfaces certified for design or boundary purposes must be reviewed and sealed by the RPLS."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "An orthomosaic is scale-true and measurable; a raw photo is not.",
+              "DSM = top of everything; DTM/DEM = bare earth after classification.",
+              "Contours, volumes, and hydrology come from the DTM.",
+              "Breaklines force the surface to honor curbs, ditches, and ridges."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Orthomosaic",
+          "definition": "A seamless, georeferenced image corrected for tilt and relief so it has uniform scale and supports direct measurement."
+        },
+        {
+          "term": "DSM (Digital Surface Model)",
+          "definition": "An elevation model of the top of all features &mdash; ground plus vegetation and structures."
+        },
+        {
+          "term": "DTM / DEM",
+          "definition": "A bare-earth elevation model with vegetation and structures removed; the basis for contours and volumes.",
+          "hint_1": "'T' for Terrain = bare ground."
+        },
+        {
+          "term": "Breakline",
+          "definition": "A 3D line digitized along an abrupt terrain change (curb, ditch, ridge) that forces the surface model to honor that feature."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b0a-0000-0000-0000-000000000001",
+      "title": "Lesson 10: Topographic and Volumetric Surveys",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Plan a UAS topographic survey to meet a contour-interval accuracy standard.",
+        "Compute stockpile and earthwork volumes from UAS surfaces.",
+        "Explain base-surface selection and its effect on volume results."
+      ],
+      "key_takeaways": [
+        "UAS topo can meet tight contour standards when GSD, overlap, and control are adequate.",
+        "Volumes are computed between a measured surface and a chosen base surface.",
+        "The base-surface choice (best-fit plane, lowest point, or a prior survey) strongly affects the answer."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>UAS topographic surveys</h3><p>A <strong>topographic survey</strong> maps the elevation and planimetric features of a site. UAS is well suited to open topo: a single flight yields a dense surface from which contours and spot elevations are extracted. To meet a target contour interval, vertical accuracy must be roughly one-half the interval or better, which drives the GSD, overlap, and control plan. Vegetation is the main limiter for photogrammetric topo &mdash; bare-earth elevations under canopy are unreliable &mdash; so heavily vegetated sites favor LiDAR or supplemental ground shots. The surveyor verifies the surface against independent checkpoints before certifying contours.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Volumetric surveys</h3><p>One of UAS surveying's most valuable applications is <strong>volume measurement</strong> &mdash; stockpiles, mine cuts, landfill cells, and earthwork progress. The software computes volume as the integral of the height difference between the measured top surface and a <strong>base (reference) surface</strong>. The base can be:</p><ul><li>a <strong>best-fit plane</strong> through the toe of a pile,</li><li>a flat plane at the lowest perimeter elevation,</li><li>a <strong>triangulated base</strong> from the surrounding ground, or</li><li>a <strong>prior survey surface</strong> for cut/fill between two epochs.</li></ul><p>The same pile can yield noticeably different volumes depending on which base is chosen, so the base method must be stated and consistent between surveys for valid change tracking.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "V \\approx \\sum_{i} (z_{top,i} - z_{base,i}) \\cdot A_{cell}",
+            "label": "Volume by summation over grid cells of area A",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Volume input",
+              "Effect on result"
+            ],
+            "rows": [
+              [
+                "Base surface method",
+                "Can change the volume substantially; must be stated"
+              ],
+              [
+                "Vegetation on the pile",
+                "Inflates measured top surface; clean/classify first"
+              ],
+              [
+                "Surface resolution (GSD)",
+                "Finer GSD captures pile shape more faithfully"
+              ],
+              [
+                "Toe/boundary definition",
+                "Where the pile 'ends' shifts both area and volume"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Accuracy and reporting</h3><p>Volume accuracy is usually reported as a percentage and depends on surface quality, control, and base-surface definition; well-controlled stockpile surveys commonly achieve a few percent. Report the method (base type, density, software), and for change detection keep the workflow identical between flights so that real change &mdash; not method differences &mdash; is what the numbers reflect. For payment or regulatory volumes, the surveyor's certification and a documented QA process are essential.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Stockpile with a measured top surface and a triangulated base surface, showing the height difference integrated to compute volume",
+            "caption": "Figure: Stockpile volume as the integrated height between the top surface and a base surface.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "For reliable change detection, fix the base-surface method, control, and processing settings so successive surveys are directly comparable."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. Certified volume and topographic deliverables must be produced under an RPLS's responsible charge."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Target vertical accuracy ~ half the contour interval; plan GSD, overlap, control accordingly.",
+              "Volume = integral of (top - base); the base-surface method is a key decision.",
+              "Vegetation and toe definition strongly affect both topo and volumes.",
+              "Hold the method constant between flights for valid change detection."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Base (reference) surface",
+          "definition": "The surface a measured top is compared against to compute volume; choices include best-fit plane, lowest-point plane, triangulated, or a prior survey."
+        },
+        {
+          "term": "Cut and fill",
+          "definition": "The volume of material to be removed (cut) or added (fill), computed as the signed difference between a design or prior surface and the current surface."
+        },
+        {
+          "term": "Contour interval rule of thumb",
+          "definition": "Vertical accuracy should be about one-half the contour interval or better for contours to be reliable."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b0b-0000-0000-0000-000000000001",
+      "title": "Lesson 11: Construction and Infrastructure Applications",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Describe UAS applications across the construction project lifecycle.",
+        "Explain corridor mapping for roads, pipelines, and transmission lines.",
+        "Relate UAS deliverables to design surfaces, progress tracking, and as-builts."
+      ],
+      "key_takeaways": [
+        "Drones support pre-design topo, progress monitoring, earthwork tracking, and as-built documentation.",
+        "Corridor (linear) projects use long, narrow flight plans with extra sidelap and control.",
+        "UAS data integrates with BIM/CAD design surfaces for cut/fill and progress comparison."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>UAS across the construction lifecycle</h3><p>Construction is the fastest-growing use of survey drones because the same site is mapped repeatedly:</p><ul><li><strong>Pre-design:</strong> existing-conditions topo and orthomosaic for the engineer's base.</li><li><strong>Earthwork:</strong> periodic flights track cut/fill against the design surface and verify quantities for payment.</li><li><strong>Progress monitoring:</strong> orthomosaics and 3D models document schedule and support stakeholder reporting.</li><li><strong>As-built:</strong> a final flight captures the completed work for record drawings.</li></ul><p>Frequent reflights make discipline essential: consistent control, datum, and processing so successive surveys compare cleanly. The drone shortens each cycle from days to hours, keeping crews off heavy-equipment areas.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Corridor and infrastructure mapping</h3><p>Roads, rail, pipelines, canals, and transmission lines are <strong>corridors</strong> &mdash; long and narrow. They demand special planning: flight lines run along the corridor with <em>higher sidelap</em> (the narrow strip is prone to weak geometry and 'banana'/bowing errors), and control must be distributed along the full length, not just the ends, to prevent the model from twisting. Fixed-wing or VTOL platforms suit long corridors; multirotors handle structures and detailed segments. LiDAR is favored where vegetation lines the corridor or where wires and poles must be captured in 3D.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Application",
+              "Typical deliverable"
+            ],
+            "rows": [
+              [
+                "Existing conditions",
+                "Topo (DTM), contours, orthomosaic"
+              ],
+              [
+                "Earthwork tracking",
+                "Cut/fill vs design surface, volume reports"
+              ],
+              [
+                "Progress monitoring",
+                "Time-stamped orthomosaics and 3D models"
+              ],
+              [
+                "Corridor mapping",
+                "Strip ortho, DTM, profiles, clearances"
+              ],
+              [
+                "As-built",
+                "Record surface and planimetrics vs design"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Integration with design data</h3><p>UAS surfaces are most powerful when compared with <strong>design surfaces</strong> from CAD/BIM (e.g., a proposed grading surface in LandXML). Overlaying the as-flown DTM on the design surface yields a cut/fill heat map and quantities in minutes, flagging where the site is over- or under-built. The same comparison drives machine-control verification and progress billing. Because these numbers can affect payment and design decisions, control, accuracy reporting, and surveyor review remain non-negotiable.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Corridor flight plan along a highway with overlapping strips and control distributed along the length, plus a cut/fill heat map against a design surface",
+            "caption": "Figure: Corridor flight planning and a UAS-vs-design cut/fill comparison.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "For corridors, add extra sidelap and place control along the entire length to suppress the bowing/'banana' distortion common to long, narrow blocks."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. As-builts and quantities used for payment or design require certification under an RPLS."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Drones serve pre-design topo, earthwork tracking, progress, and as-builts.",
+              "Corridors need extra sidelap and control along the full length.",
+              "Compare UAS DTMs to CAD/BIM design surfaces for cut/fill and progress.",
+              "Repeatable control and processing make reflights comparable."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Corridor mapping",
+          "definition": "UAS mapping of long, narrow projects (roads, pipelines, transmission lines) requiring extra sidelap and control distributed along the full length."
+        },
+        {
+          "term": "As-built survey",
+          "definition": "A survey documenting the actual constructed conditions, compared against the design to confirm conformance and create record drawings."
+        },
+        {
+          "term": "Design surface",
+          "definition": "A proposed grading or facility surface (e.g., LandXML from CAD/BIM) against which a UAS-measured surface is compared for cut/fill and progress."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b0c-0000-0000-0000-000000000001",
+      "title": "Lesson 12: Accuracy Assessment, Quality Control, and Deliverables",
+      "estimated_minutes": 45,
+      "learning_objectives": [
+        "Distinguish absolute vs relative and horizontal vs vertical accuracy.",
+        "Compute RMSE from checkpoint residuals and relate it to accuracy standards.",
+        "Assemble a complete, well-documented UAS deliverable package."
+      ],
+      "key_takeaways": [
+        "Accuracy is measured on independent checkpoints, not GCPs used in the adjustment.",
+        "RMSE from checkpoint residuals is the standard accuracy statistic (per ASPRS).",
+        "A professional deliverable includes products, metadata, an accuracy report, and the surveyor's certification."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Kinds of accuracy</h3><p>Precise language matters when reporting UAS accuracy:</p><ul><li><strong>Absolute accuracy</strong> &mdash; how closely coordinates match the true datum (the figure clients usually care about).</li><li><strong>Relative accuracy</strong> &mdash; how internally consistent the model is point-to-point, regardless of datum.</li><li><strong>Horizontal vs vertical</strong> &mdash; reported separately because vertical is almost always the weaker, controlling component in aerial work.</li></ul><p>Internal software statistics (reprojection error, GCP residuals) describe precision, not absolute accuracy. The only honest measure of absolute accuracy comes from <strong>independent checkpoints</strong> withheld from the adjustment.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>RMSE and accuracy standards</h3><p>Accuracy is quantified as <strong>root-mean-square error (RMSE)</strong> of the checkpoint residuals &mdash; the differences between surveyed and modeled coordinates. For each component (X, Y, Z) you square the residuals, average them, and take the square root. The <strong>ASPRS Positional Accuracy Standards for Digital Geospatial Data</strong> express accuracy in terms of RMSE (e.g., RMSEx, RMSEy, RMSEz) and define accuracy classes by those values. Reporting accuracy this way &mdash; on checkpoints, by component &mdash; is the professional norm.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{RMSE} = \\sqrt{\\dfrac{1}{n}\\sum_{i=1}^{n} (v_i)^2}",
+            "label": "RMSE of n checkpoint residuals v",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Statistic",
+              "Source",
+              "Tells you"
+            ],
+            "rows": [
+              [
+                "Reprojection error",
+                "Bundle adjustment",
+                "Internal precision (pixels)"
+              ],
+              [
+                "GCP residual",
+                "Control in adjustment",
+                "How well control was honored"
+              ],
+              [
+                "Checkpoint RMSE",
+                "Withheld points",
+                "Absolute accuracy (the real grade)"
+              ],
+              [
+                "RMSEz",
+                "Vertical checkpoints",
+                "Vertical accuracy (usually controlling)"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>QA/QC and the deliverable package</h3><p>Quality control is the surveyor's discipline of verifying the product before it leaves the office: review the processing report, confirm checkpoint RMSE meets the specification, inspect the cloud classification and orthomosaic for artifacts, and confirm the datum and units. The final <strong>deliverable package</strong> typically includes the orthomosaic, DSM/DTM, point cloud, contours, and volumes, plus <strong>metadata</strong> (datum, projection, units, GSD, flight parameters), an <strong>accuracy report</strong> (checkpoint RMSE by component), and the <strong>surveyor's certification/seal</strong>. Documentation is what makes a UAS product defensible.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Sample accuracy report showing checkpoint residuals in X, Y, Z with computed RMSE values by component",
+            "caption": "Figure: A checkpoint accuracy report with RMSE reported by component.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Always report accuracy on CHECKPOINTS (withheld), not on the GCPs used in the adjustment &mdash; GCP residuals understate true error."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment. The certification, seal, and accuracy statement on a survey deliverable are the exclusive province of the RPLS."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Distinguish absolute/relative and horizontal/vertical accuracy.",
+              "Measure accuracy on independent checkpoints, not GCPs.",
+              "RMSE of checkpoint residuals (per ASPRS), reported by component, is the standard.",
+              "A complete package = products + metadata + accuracy report + surveyor's certification."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "RMSE",
+          "definition": "Root-Mean-Square Error: the square root of the mean of squared checkpoint residuals; the standard statistic for reporting positional accuracy."
+        },
+        {
+          "term": "Absolute vs relative accuracy",
+          "definition": "Absolute accuracy is agreement with the true datum; relative accuracy is internal point-to-point consistency regardless of datum."
+        },
+        {
+          "term": "ASPRS Positional Accuracy Standards",
+          "definition": "The standards that define geospatial accuracy classes in terms of RMSE (RMSEx, RMSEy, RMSEz) on independent checkpoints."
+        },
+        {
+          "term": "Deliverable package",
+          "definition": "The complete set of UAS products plus metadata, an accuracy report, and the surveyor's certification/seal."
+        }
+      ]
+    },
+    {
+      "lesson_id": "da5e0b0d-0000-0000-0000-000000000001",
+      "title": "Final Exam: Drone Surveying Comprehensive Assessment",
+      "estimated_minutes": 50,
+      "learning_objectives": [
+        "Integrate knowledge of UAS platforms, regulations, planning, processing, and QA.",
+        "Apply GSD, footprint, coverage, and accuracy computations to realistic scenarios.",
+        "Evaluate when a deliverable requires a licensed surveyor's certification."
+      ],
+      "key_takeaways": [
+        "Mastery means connecting regulation, flight planning, processing, and accuracy into one defensible workflow.",
+        "Quantitative skills (GSD, footprint, coverage, RMSE) underpin every UAS deliverable.",
+        "A drone gathers data; an RPLS certifies the survey."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Comprehensive review</h3><p>This final assessment integrates the whole course. A competent UAS surveyor moves from <strong>regulation</strong> (Part 107, airspace, LAANC) to <strong>mission design</strong> (GSD, altitude, overlap, coverage, battery), to <strong>data capture</strong> (platform and sensor choice, RTK/PPK, ground control and checkpoints), to <strong>processing</strong> (SfM/bundle adjustment or LiDAR trajectory, classification), to <strong>products</strong> (orthomosaic, DSM, DTM, contours, volumes), to <strong>quality assurance</strong> (checkpoint RMSE, ASPRS reporting, documentation). Each stage feeds the next, and a weakness anywhere &mdash; an unauthorized flight, thin overlap, mismarked control, an unclassified cloud, or an undocumented accuracy claim &mdash; degrades the whole.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Putting it together</h3><p>Use the exam to practice end-to-end thinking. Given a project, ask: Is the airspace controlled, and do I need LAANC? What GSD and accuracy does the deliverable require, and what altitude and overlap achieve them? Which platform and sensor fit the terrain and vegetation? How many and where are my GCPs and checkpoints? What products does the client need, in what datum and format? Finally, what RMSE did the checkpoints yield, and is the package documented and certified? Answering this chain &mdash; with the supporting calculations &mdash; is the mark of a job-ready UAS surveyor.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": [
+              "Stage",
+              "Core competency"
+            ],
+            "rows": [
+              [
+                "Regulation",
+                "Part 107 limits, airspace class, LAANC/waivers"
+              ],
+              [
+                "Planning",
+                "GSD/altitude, overlap, coverage, battery budget"
+              ],
+              [
+                "Capture",
+                "Platform & sensor choice, RTK/PPK, GCP/checkpoint layout"
+              ],
+              [
+                "Processing",
+                "SfM/bundle adjustment or LiDAR trajectory, classification"
+              ],
+              [
+                "Products",
+                "Ortho, DSM, DTM, contours, volumes"
+              ],
+              [
+                "QA/QC",
+                "Checkpoint RMSE, ASPRS reporting, certification"
+              ]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "When you reach a numeric question, identify the governing equation first (GSD, footprint, line spacing, RMSE, volume), then substitute &mdash; the formula choice is half the answer."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas note: A drone is a data-collection tool, not a license to determine boundaries. Under the Texas Professional Land Surveying Practices Act (Tex. Occ. Code ch. 1071) and the TBPELS rules, the determination of property boundaries, the setting of monuments, and the certification of a survey are the practice of land surveying and must be performed by or under the responsible charge of a Registered Professional Land Surveyor (RPLS). UAS imagery and point clouds support that work; they do not replace the surveyor's judgment."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "A defensible UAS survey links regulation, planning, capture, processing, products, and QA.",
+              "Know the governing equations: GSD, footprint, line spacing, coverage, RMSE, volume.",
+              "Accuracy is proven on independent checkpoints and documented in the package.",
+              "Texas: the drone collects data; the RPLS certifies the survey."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "UAS workflow chain",
+          "definition": "Regulation -> planning -> capture -> processing -> products -> QA/QC, each stage feeding the next into a certified deliverable."
+        },
+        {
+          "term": "Governing equations (UAS)",
+          "definition": "GSD = (pixel pitch x H)/(focal x 10); footprint = GSD x sensor px; line spacing = footprint x (1 - sidelap); RMSE = sqrt(mean of squared checkpoint residuals)."
+        },
+        {
+          "term": "Drone as a tool (Texas)",
+          "definition": "In Texas, UAS gathers data and accelerates fieldwork, but boundary determinations and certified surveys remain the responsibility of an RPLS."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "da5e0b01-0000-0000-0000-000000000001",
+      "question_text": "What does the acronym UAS stand for in drone surveying?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Unmanned Aircraft System",
+        "Universal Aerial Survey",
+        "Unmanned Aerial Sensor",
+        "Uncrewed Airspace Service"
+      ],
+      "correct_answer": "Unmanned Aircraft System",
+      "explanation": "UAS = Unmanned Aircraft System, emphasizing the complete system (aircraft, payload, positioning, ground station, software), not just the airframe.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b01-0000-0000-0000-000000000001",
+      "question_text": "Which UAS deliverable is a scale-true, measurable image of a site?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Orthomosaic",
+        "Sparse cloud",
+        "Raw nadir photo",
+        "IMU log"
+      ],
+      "correct_answer": "Orthomosaic",
+      "explanation": "An orthomosaic is orthorectified to uniform scale so distances and areas can be measured; a raw photo has perspective/relief distortion.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b01-0000-0000-0000-000000000001",
+      "question_text": "In Texas, an RTK drone can certify a boundary survey without a licensed surveyor.",
+      "question_type": "true_false",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correct_answer": "False",
+      "explanation": "A drone is a data tool. In Texas, boundary determinations and certified surveys must be made under the responsible charge of an RPLS.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b02-0000-0000-0000-000000000001",
+      "question_text": "What certificate is required to conduct commercial drone surveying in the U.S.?",
+      "question_type": "multiple_choice",
+      "options": [
+        "FAA Remote Pilot Certificate (Part 107)",
+        "A standard private pilot license",
+        "An FCC station license",
+        "No certificate is required"
+      ],
+      "correct_answer": "FAA Remote Pilot Certificate (Part 107)",
+      "explanation": "Commercial small UAS operations require a Part 107 Remote Pilot Certificate; a private pilot license is for crewed aircraft.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b02-0000-0000-0000-000000000001",
+      "question_text": "Under standard Part 107 rules, the maximum altitude for a small UAS is generally:",
+      "question_type": "multiple_choice",
+      "options": [
+        "400 ft AGL",
+        "1,000 ft AGL",
+        "500 ft MSL",
+        "No limit"
+      ],
+      "correct_answer": "400 ft AGL",
+      "explanation": "The standard ceiling is 400 ft above ground level, or higher only within 400 ft of a structure.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b02-0000-0000-0000-000000000001",
+      "question_text": "Which system provides automated, near-real-time FAA authorization to fly in controlled airspace?",
+      "question_type": "multiple_choice",
+      "options": [
+        "LAANC",
+        "ADS-B",
+        "NOTAM",
+        "TFR"
+      ],
+      "correct_answer": "LAANC",
+      "explanation": "LAANC (Low Altitude Authorization and Notification Capability) grants near-instant authorizations in controlled airspace via approved apps.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b02-0000-0000-0000-000000000001",
+      "question_text": "A flight near a small towered airport in Class D airspace generally requires:",
+      "question_type": "multiple_choice",
+      "options": [
+        "An airspace authorization (e.g., via LAANC)",
+        "A Part 107 waiver only",
+        "Nothing, since Part 107 covers it",
+        "An instrument rating"
+      ],
+      "correct_answer": "An airspace authorization (e.g., via LAANC)",
+      "explanation": "Class D is controlled airspace, so an authorization is needed; a waiver is only required to deviate from an operating rule like VLOS.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b02-0000-0000-0000-000000000001",
+      "question_text": "Visual line of sight (VLOS) must be maintained under standard Part 107 operations.",
+      "question_type": "true_false",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correct_answer": "True",
+      "explanation": "VLOS is a core Part 107 requirement; flying beyond visual line of sight (BVLOS) needs a waiver.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b03-0000-0000-0000-000000000001",
+      "question_text": "Which platform is best suited to mapping a large, open 600-acre ranch in one mobilization?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Fixed-wing or VTOL",
+        "Small toy multirotor",
+        "Tethered balloon",
+        "Handheld camera"
+      ],
+      "correct_answer": "Fixed-wing or VTOL",
+      "explanation": "Fixed-wing/VTOL aircraft offer the endurance and coverage needed for large areas; multirotors are better for small or vertical sites.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b03-0000-0000-0000-000000000001",
+      "question_text": "Which sensor can recover bare-earth elevations beneath vegetation that photogrammetry cannot?",
+      "question_type": "multiple_choice",
+      "options": [
+        "LiDAR",
+        "RGB camera",
+        "Thermal camera",
+        "Multispectral camera"
+      ],
+      "correct_answer": "LiDAR",
+      "explanation": "LiDAR's multiple returns let it map the ground through gaps in vegetation; passive cameras only see the top surface.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b03-0000-0000-0000-000000000001",
+      "question_text": "What do RTK and PPK provide for a survey drone?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Centimeter-level georeferencing of each image",
+        "Higher image resolution",
+        "Longer battery life",
+        "Obstacle avoidance"
+      ],
+      "correct_answer": "Centimeter-level georeferencing of each image",
+      "explanation": "RTK applies GNSS corrections in flight and PPK post-processes them; both yield precise image positions, reducing (not removing) GCP needs.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b04-0000-0000-0000-000000000001",
+      "question_text": "Increasing flight altitude (with the same camera) will:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Increase (coarsen) the GSD and enlarge the footprint",
+        "Decrease the GSD value",
+        "Have no effect on GSD",
+        "Require more flight lines"
+      ],
+      "correct_answer": "Increase (coarsen) the GSD and enlarge the footprint",
+      "explanation": "GSD is proportional to flight height; flying higher gives a larger ground sample distance (coarser detail) and a bigger image footprint.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b04-0000-0000-0000-000000000001",
+      "question_text": "Typical front overlap for survey-grade photogrammetry is about:",
+      "question_type": "multiple_choice",
+      "options": [
+        "70-80%",
+        "20-30%",
+        "40-50%",
+        "95-99%"
+      ],
+      "correct_answer": "70-80%",
+      "explanation": "Survey work commonly uses ~70-80% front overlap (higher over vegetation/featureless terrain) and ~60-75% side overlap.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b04-0000-0000-0000-000000000001",
+      "question_text": "Flight line spacing equals the image ground footprint multiplied by (1 minus the side overlap).",
+      "question_type": "true_false",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correct_answer": "True",
+      "explanation": "Line spacing = footprint x (1 - sidelap); higher sidelap means closer lines and more flight lines.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b05-0000-0000-0000-000000000001",
+      "question_text": "What is the purpose of an independent checkpoint in UAS surveying?",
+      "question_type": "multiple_choice",
+      "options": [
+        "To measure the model's accuracy without being used in the adjustment",
+        "To georeference the model",
+        "To increase image overlap",
+        "To calibrate the camera lens"
+      ],
+      "correct_answer": "To measure the model's accuracy without being used in the adjustment",
+      "explanation": "Checkpoints are withheld from the adjustment and used only to grade absolute accuracy; GCPs lock the model to the datum.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b05-0000-0000-0000-000000000001",
+      "question_text": "Which GCP layout practice is correct?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Distribute control around the perimeter, through the interior, and over the elevation range",
+        "Cluster all GCPs in one corner for efficiency",
+        "Place GCPs only at the lowest point",
+        "Use a single central GCP"
+      ],
+      "correct_answer": "Distribute control around the perimeter, through the interior, and over the elevation range",
+      "explanation": "Good geometry requires spreading control across the site and covering elevation extremes; clustering weakens the solution.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b06-0000-0000-0000-000000000001",
+      "question_text": "In Structure-from-Motion, which step simultaneously refines camera poses, calibration, and 3D point coordinates?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Bundle adjustment",
+        "Feature detection",
+        "Orthorectification",
+        "Classification"
+      ],
+      "correct_answer": "Bundle adjustment",
+      "explanation": "Bundle adjustment is the least-squares step that co-solves exterior orientation, interior calibration, and tie-point coordinates.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b06-0000-0000-0000-000000000001",
+      "question_text": "Photogrammetry uses parallax between overlapping images to triangulate 3D positions.",
+      "question_type": "true_false",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correct_answer": "True",
+      "explanation": "The apparent shift (parallax) of a feature seen from different viewpoints allows triangulation of its 3D coordinates.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b07-0000-0000-0000-000000000001",
+      "question_text": "How does airborne LiDAR determine the range to a target?",
+      "question_type": "multiple_choice",
+      "options": [
+        "From the time of flight of a laser pulse",
+        "From image parallax",
+        "From GNSS alone",
+        "From magnetometer readings"
+      ],
+      "correct_answer": "From the time of flight of a laser pulse",
+      "explanation": "LiDAR is active: range = (c x time-of-flight)/2; it does not rely on image overlap or texture.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b08-0000-0000-0000-000000000001",
+      "question_text": "Which step in processing most directly locks model accuracy to the project datum?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Marking GCPs and re-optimizing the adjustment",
+        "Importing the images",
+        "Exporting the orthomosaic",
+        "Choosing a color balance"
+      ],
+      "correct_answer": "Marking GCPs and re-optimizing the adjustment",
+      "explanation": "Accurately marking control and re-optimizing ties the model to the datum; mismarked targets inflate residuals.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b09-0000-0000-0000-000000000001",
+      "question_text": "What is the difference between a DSM and a DTM?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A DSM includes vegetation and structures; a DTM is bare earth",
+        "A DTM includes rooftops; a DSM is bare earth",
+        "They are identical",
+        "A DSM is a 2D image; a DTM is a photo"
+      ],
+      "correct_answer": "A DSM includes vegetation and structures; a DTM is bare earth",
+      "explanation": "DSM = top of all features; DTM/DEM = bare earth after classification. Contours and volumes come from the DTM.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b09-0000-0000-0000-000000000001",
+      "question_text": "Contours for design should be generated from the DTM, not the DSM.",
+      "question_type": "true_false",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correct_answer": "True",
+      "explanation": "A DSM includes treetops and rooftops; deriving contours or volumes from it corrupts the result. Use the bare-earth DTM.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b0a-0000-0000-0000-000000000001",
+      "question_text": "When measuring a stockpile volume, why does the base-surface choice matter?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Different base surfaces can yield substantially different volumes",
+        "It changes the camera focal length",
+        "It has no effect on the volume",
+        "It only changes the color of the model"
+      ],
+      "correct_answer": "Different base surfaces can yield substantially different volumes",
+      "explanation": "Volume is the integral of (top - base); a best-fit plane, lowest-point plane, or triangulated base can give different answers, so the method must be stated.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "da5e0b0b-0000-0000-0000-000000000001",
+      "question_text": "For mapping a long highway corridor, a key planning adjustment is to:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Increase sidelap and distribute control along the entire length",
+        "Use a single GCP at the midpoint",
+        "Reduce overlap to save time",
+        "Fly only the two end points"
+      ],
+      "correct_answer": "Increase sidelap and distribute control along the entire length",
+      "explanation": "Narrow corridors are prone to bowing ('banana') distortion; extra sidelap and length-wise control suppress it.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "da5e0b0c-0000-0000-0000-000000000001",
+      "question_text": "Absolute positional accuracy of a UAS deliverable is best measured by:",
+      "question_type": "multiple_choice",
+      "options": [
+        "RMSE on independent checkpoints",
+        "GCP residuals from the adjustment",
+        "Mean reprojection error",
+        "Point density"
+      ],
+      "correct_answer": "RMSE on independent checkpoints",
+      "explanation": "Only withheld checkpoints give honest absolute accuracy; GCP residuals understate error because those points were fit in the adjustment.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b0c-0000-0000-0000-000000000001",
+      "question_text": "Which standard expresses geospatial accuracy in terms of RMSE on checkpoints?",
+      "question_type": "multiple_choice",
+      "options": [
+        "ASPRS Positional Accuracy Standards",
+        "Part 107",
+        "LAANC",
+        "NAVD88"
+      ],
+      "correct_answer": "ASPRS Positional Accuracy Standards",
+      "explanation": "The ASPRS Positional Accuracy Standards define accuracy classes via RMSEx/RMSEy/RMSEz measured on independent checkpoints.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "da5e0b0d-0000-0000-0000-000000000001",
+      "question_text": "Which statement best captures a drone's role in a Texas boundary survey?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It collects data that supports a survey certified by an RPLS",
+        "It replaces the need for a licensed surveyor",
+        "It legally sets property corners automatically",
+        "It eliminates the need for ground control"
+      ],
+      "correct_answer": "It collects data that supports a survey certified by an RPLS",
+      "explanation": "A drone is a measurement tool; in Texas, boundary determinations and certified surveys require an RPLS's responsible charge.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "da5e0b0d-0000-0000-0000-000000000001",
+      "question_text": "A camera has a pixel pitch of 3.0 micrometers and a 9.0 mm focal length. Flying at 90 m AGL, compute the GSD in cm/pixel using GSD = (pixel_um * height_m)/(focal_mm * 10).",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "3.0",
+      "explanation": "GSD = (3.0 x 90)/(9.0 x 10) = 270/90 = 3.0 cm/pixel.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Ground Sample Distance from camera and flight height",
+      "category": "Drone Surveying — Flight Planning",
+      "subcategory": "GSD",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A survey camera has a pixel pitch of {{pix:f1}} micrometers and a focal length of {{foc:f1}} mm. The drone flies at {{height:f0}} m above ground level. Compute the ground sample distance (GSD) in cm/pixel.",
+      "parameters": [
+        {
+          "name": "pix",
+          "type": "float",
+          "min": 2.4,
+          "max": 6,
+          "decimals": 1
+        },
+        {
+          "name": "foc",
+          "type": "float",
+          "min": 8,
+          "max": 35,
+          "decimals": 1
+        },
+        {
+          "name": "height",
+          "type": "integer",
+          "min": 60,
+          "max": 120
+        }
+      ],
+      "computed_vars": [],
+      "answer_formula": "(pix*height)/(foc*10)",
+      "answer_format": {
+        "decimals": 2,
+        "unit": "cm/pixel",
+        "tolerance": 0.05
+      },
+      "solution_steps_template": [
+        {
+          "step_number": 1,
+          "title": "GSD formula",
+          "formula": "GSD = (pixel_um x H_m) / (focal_mm x 10)",
+          "calculation_template": "({{pix:f1}} x {{height:f0}}) / ({{foc:f1}} x 10)"
+        },
+        {
+          "step_number": 2,
+          "title": "Compute",
+          "result_template": "GSD = {{_answer}} cm/pixel"
+        }
+      ],
+      "explanation_template": "GSD = (pixel_um x H) / (focal_mm x 10) = ({{pix:f1}} x {{height:f0}}) / ({{foc:f1}} x 10) = {{_answer}} cm/pixel.",
+      "options_generator": {
+        "method": "none"
+      }
+    },
+    {
+      "name": "Image ground footprint from GSD and sensor width",
+      "category": "Drone Surveying — Flight Planning",
+      "subcategory": "Image footprint",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "At a GSD of {{gsd:f1}} cm/pixel, a camera sensor is {{width:f0}} pixels wide. Compute the ground footprint width of one image in meters.",
+      "parameters": [
+        {
+          "name": "gsd",
+          "type": "float",
+          "min": 1.5,
+          "max": 5,
+          "decimals": 1
+        },
+        {
+          "name": "width",
+          "type": "integer",
+          "min": 4000,
+          "max": 8000
+        }
+      ],
+      "computed_vars": [],
+      "answer_formula": "(gsd*width)/100",
+      "answer_format": {
+        "decimals": 1,
+        "unit": "m",
+        "tolerance": 0.5
+      },
+      "solution_steps_template": [
+        {
+          "step_number": 1,
+          "title": "Footprint formula",
+          "formula": "footprint = GSD x sensor_width_px",
+          "calculation_template": "{{gsd:f1}} cm/px x {{width:f0}} px = (result) cm"
+        },
+        {
+          "step_number": 2,
+          "title": "Convert to meters",
+          "result_template": "footprint = {{_answer}} m"
+        }
+      ],
+      "explanation_template": "Footprint = GSD x sensor width = {{gsd:f1}} cm/px x {{width:f0}} px = {{_answer}} m (after dividing cm by 100).",
+      "options_generator": {
+        "method": "none"
+      }
+    },
+    {
+      "name": "Number of flight lines across a site",
+      "category": "Drone Surveying — Flight Planning",
+      "subcategory": "Coverage",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A site is {{site:f0}} m wide. Each image footprint is {{foot:f0}} m wide and you plan {{side:f0}}% side overlap. How many parallel flight lines are needed to cover the width? (line spacing = footprint x (1 - sidelap); round up.)",
+      "parameters": [
+        {
+          "name": "site",
+          "type": "integer",
+          "min": 300,
+          "max": 900
+        },
+        {
+          "name": "foot",
+          "type": "integer",
+          "min": 120,
+          "max": 200
+        },
+        {
+          "name": "side",
+          "type": "integer",
+          "min": 60,
+          "max": 75
+        }
+      ],
+      "computed_vars": [
+        {
+          "name": "spacing",
+          "formula": "foot*(1-side/100)"
+        }
+      ],
+      "answer_formula": "ceil(site/spacing)",
+      "answer_format": {
+        "decimals": 0,
+        "unit": "lines",
+        "tolerance": 0
+      },
+      "solution_steps_template": [
+        {
+          "step_number": 1,
+          "title": "Line spacing",
+          "formula": "spacing = footprint x (1 - sidelap)",
+          "calculation_template": "{{foot:f0}} x (1 - {{side:f0}}/100) = {{spacing:f1}} m"
+        },
+        {
+          "step_number": 2,
+          "title": "Number of lines",
+          "result_template": "ceil({{site:f0}} / {{spacing:f1}}) = {{_answer}} lines"
+        }
+      ],
+      "explanation_template": "Line spacing = {{foot:f0}} x (1 - {{side:f0}}/100) = {{spacing:f1}} m. Lines = ceil({{site:f0}} / {{spacing:f1}}) = {{_answer}}.",
+      "options_generator": {
+        "method": "none"
+      }
+    },
+    {
+      "name": "Number of batteries for a mission",
+      "category": "Drone Surveying — Flight Planning",
+      "subcategory": "Battery budget",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "Total flight time for a mission is estimated at {{total:f0}} minutes. Each battery provides {{usable:f0}} minutes of usable flight before the landing reserve. How many batteries are required? (round up.)",
+      "parameters": [
+        {
+          "name": "total",
+          "type": "integer",
+          "min": 60,
+          "max": 180
+        },
+        {
+          "name": "usable",
+          "type": "integer",
+          "min": 15,
+          "max": 28
+        }
+      ],
+      "computed_vars": [],
+      "answer_formula": "ceil(total/usable)",
+      "answer_format": {
+        "decimals": 0,
+        "unit": "batteries",
+        "tolerance": 0
+      },
+      "solution_steps_template": [
+        {
+          "step_number": 1,
+          "title": "Batteries needed",
+          "formula": "batteries = ceil(total / usable per battery)",
+          "calculation_template": "ceil({{total:f0}} / {{usable:f0}})"
+        },
+        {
+          "step_number": 2,
+          "title": "Result",
+          "result_template": "batteries = {{_answer}}"
+        }
+      ],
+      "explanation_template": "batteries = ceil(total / usable) = ceil({{total:f0}} / {{usable:f0}}) = {{_answer}}. Always plan a landing reserve, so divide by USABLE minutes.",
+      "options_generator": {
+        "method": "none"
+      }
+    }
+  ]
+}
