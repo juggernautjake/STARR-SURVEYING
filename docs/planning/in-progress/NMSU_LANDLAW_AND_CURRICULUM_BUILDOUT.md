@@ -53,9 +53,14 @@ pure-notice recording, 22 TAC Ch. 138, vara, GLO). Applied + verified live.
       variables (`scripts/_tmp_landlaw/verify_engine.ts`, 18/18).
 - [x] DB counts verified live (8 modules / 47 lessons / 315 blocks / 201 Q (18
       dynamic) / 190 flashcards / 18 templates).
-- [ ] **Live visual pass (needs the user's session):** open the course under ACC
-      Academic Courses, walk a lesson, take a quiz incl. a randomized question.
-      Auth.js v5 uses encrypted session cookies; left for the user to click through.
+- [x] **Live visual pass — DONE.** Booted the dev server, minted a valid Auth.js
+      session (via `next-auth/jwt` encode), and drove Playwright: Module 1 detail
+      renders (6 lessons + gated Module Test); Lesson 1 renders the full rich-block
+      prose; the lesson quiz fetched, graded (33%, per-question Correct markers,
+      70% pass line), and **persisted a quiz_attempt with org_id defaulted to the
+      Starr org** — proving seed 330 + the QuizRunner fix work end-to-end on real
+      data. (Pre-existing dev-only React "unique key" warning in LessonViewerPage
+      noted; cosmetic, not introduced by this work.)
 
 ### Slices 3+ — Flesh out existing empty modules (college-level)
 321 empty lessons across 36 modules. One module per slice via the same
