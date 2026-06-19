@@ -1,0 +1,1081 @@
+{
+  "order_index": 7,
+  "module_id": "c1000007-0000-0000-0000-000000000007",
+  "title": "Coordinate Systems and Datums",
+  "lessons": [
+    {
+      "lesson_id": "925ac734-f4af-4719-99a4-8268b809fd84",
+      "title": "Geographic Coordinate Systems (Latitude/Longitude)",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Define latitude and longitude and the reference lines (equator, prime meridian) from which they are measured.",
+        "Express geographic coordinates in degrees-minutes-seconds and decimal degrees and convert between them.",
+        "Explain why a curved-earth (angular) coordinate system is unsuited to direct plane computation of distances and areas."
+      ],
+      "key_takeaways": [
+        "Latitude is the angle north or south of the equator (0 to 90 deg); longitude is the angle east or west of the prime meridian (0 to 180 deg).",
+        "Geographic coordinates are angular, measured on a reference ellipsoid, not plane (x,y) coordinates.",
+        "DMS and decimal degrees are interchangeable: decimal = deg + min/60 + sec/3600.",
+        "One degree of latitude is about 69 miles; a degree of longitude shrinks toward the poles as cos(latitude)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>A coordinate system for a round earth</h3><p>A <strong>geographic coordinate system</strong> locates any point on the earth by two angles, <strong>latitude</strong> and <strong>longitude</strong>, measured at the center of the earth and referenced to a mathematical model of its shape. Unlike the plane (x, y) coordinates a surveyor uses on a job site, geographic coordinates are <strong>angular</strong> &mdash; they are positions on a curved surface, expressed in degrees, minutes, and seconds (or decimal degrees). They are the universal language for global position: every GPS receiver, every map, and every datum definition begins with latitude and longitude.</p><p>Because the earth is very nearly an oblate ellipsoid (slightly flattened at the poles), geographic coordinates are defined on a smooth reference <strong>ellipsoid</strong>, not on the bumpy physical ground. Understanding latitude and longitude is the foundation for everything else in this module: datums fix the ellipsoid in space, and map projections flatten the lat/long grid into the plane coordinates we actually compute with.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Latitude</h3><p><strong>Latitude</strong> (often the Greek letter &phi;, phi) is the angular distance <strong>north or south of the equator</strong>, ranging from <strong>0&deg; at the equator to 90&deg; at each pole</strong>. Lines of equal latitude are <strong>parallels</strong> &mdash; circles that run east&ndash;west and shrink toward the poles. Latitude north of the equator is positive (N); south is negative (S). One degree of latitude spans almost a constant distance on the ground, roughly <strong>69 miles (about 111 km)</strong>, because the parallels are evenly spaced along any meridian.</p><p>A surveyor in Texas works at latitudes near 26&deg; N (the lower Rio Grande Valley) up to about 36&deg; 30' N (the northern Panhandle). The latitude of a project controls which State Plane zone applies and, through the geometry of the projection, the size of the scale factor &mdash; topics later in this module.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Longitude</h3><p><strong>Longitude</strong> (often &lambda;, lambda) is the angular distance <strong>east or west of the prime meridian</strong>, the meridian through Greenwich, England, ranging from <strong>0&deg; to 180&deg;</strong>. Lines of equal longitude are <strong>meridians</strong> &mdash; great-circle halves running pole to pole, all the same length, converging at the poles. West longitude (the entire United States) is conventionally negative. Because the meridians converge, the ground distance of <strong>one degree of longitude is not constant</strong>: it equals about 69 miles times the cosine of the latitude, so it shrinks from ~69 miles at the equator to zero at the poles.</p><p>This convergence of meridians is exactly why true north is not the same direction at every point and why a flat-map (grid) north differs from geodetic north &mdash; the <strong>convergence angle</strong> studied later in this module. Together, latitude and longitude pin down any point on the reference ellipsoid uniquely.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Element", "Symbol", "Measured from", "Range", "Lines called"],
+            "rows": [
+              ["Latitude", "phi", "Equator (N/S)", "0 to 90 deg", "Parallels (E-W circles)"],
+              ["Longitude", "lambda", "Prime meridian (E/W)", "0 to 180 deg", "Meridians (pole to pole)"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>DMS and decimal degrees</h3><p>Geographic coordinates are written two ways. <strong>Degrees-minutes-seconds (DMS)</strong> divides each degree into 60 minutes and each minute into 60 seconds, e.g. <strong>30&deg; 16' 30\" N</strong>. <strong>Decimal degrees (DD)</strong> express the same value as a single number, e.g. <strong>30.27500&deg; N</strong>. Convert DMS to decimal by adding the fractional parts: decimal = degrees + minutes/60 + seconds/3600. To go back, multiply the fractional degree by 60 for minutes, then the leftover by 60 for seconds. Software and GPS output usually use decimal degrees; recorded surveys and legal references often use DMS, so converting fluently is an everyday skill.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{Decimal degrees} = D + \\frac{M}{60} + \\frac{S}{3600}",
+            "label": "DMS to decimal degrees conversion",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Worked conversion: 30 deg 16' 30\" = 30 + 16/60 + 30/3600 = 30 + 0.26667 + 0.00833 = 30.27500 deg. Reverse: 0.275 x 60 = 16.5 min, so 16' and 0.5 x 60 = 30\"."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Geographic (lat/long) coordinates are angular and cannot be used directly to compute ground distances or areas with plane trigonometry. To do flat-earth survey math you must first project them onto a plane grid (State Plane or UTM). Never subtract two longitudes and call the result a distance in feet."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Globe showing parallels of latitude and meridians of longitude with the equator and prime meridian highlighted",
+            "caption": "Figure: The geographic graticule — parallels of latitude and meridians of longitude on the reference ellipsoid.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Latitude (phi): angle N/S of the equator, 0 to 90 deg; longitude (lambda): angle E/W of the prime meridian, 0 to 180 deg.",
+              "Geographic coordinates are angular positions on a reference ellipsoid, not plane (x,y) coordinates.",
+              "Convert DMS to decimal: decimal = deg + min/60 + sec/3600.",
+              "A degree of latitude is ~69 miles; a degree of longitude is ~69 x cos(latitude) miles.",
+              "Project lat/long to a plane grid before doing plane distance/area computations."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Latitude (phi)", "definition": "The angular distance of a point north or south of the equator, ranging from 0 degrees at the equator to 90 degrees at the poles; lines of equal latitude are parallels.", "hint_1": "Angle N/S of the equator."},
+        {"term": "Longitude (lambda)", "definition": "The angular distance of a point east or west of the prime meridian (Greenwich), ranging from 0 to 180 degrees; lines of equal longitude are meridians.", "hint_1": "Angle E/W of Greenwich."},
+        {"term": "Decimal degrees", "definition": "A geographic coordinate expressed as a single decimal number, computed as degrees + minutes/60 + seconds/3600; the form used by most GPS receivers and software.", "hint_1": "deg + min/60 + sec/3600."},
+        {"term": "Graticule", "definition": "The network of parallels (latitude) and meridians (longitude) drawn on a globe or map to reference geographic position.", "hint_1": "Lat/long grid on the earth."}
+      ]
+    },
+    {
+      "lesson_id": "12ef8155-8bce-4a93-bd86-386bac2dfefd",
+      "title": "Geodetic Datums (NAD 27, NAD 83, WGS 84)",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Define a geodetic datum and distinguish the reference ellipsoid from the geoid.",
+        "Compare NAD 27, NAD 83, and WGS 84 and explain why the same point has different coordinates on each.",
+        "Describe the coming NATRF2022 replacement of NAD 83 and its significance for surveyors."
+      ],
+      "key_takeaways": [
+        "A geodetic datum is a reference ellipsoid fixed to the earth, providing the origin and orientation for latitude, longitude, and height.",
+        "NAD 27 (Clarke 1866, fixed at Meades Ranch) was horizontally distorted; NAD 83 is geocentric and far more consistent.",
+        "WGS 84 is the global datum used by GPS; NAD 83 and WGS 84 differ by 1-2 meters in the conterminous US, not negligible for survey-grade work.",
+        "NAD 83 will be replaced around 2025+ by NATRF2022, a new geocentric reference frame from NGS — surveyors must plan for the transition."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What a datum is</h3><p>Latitude and longitude are meaningless until you say <em>relative to what</em>. A <strong>geodetic datum</strong> supplies that reference: it is a <strong>reference ellipsoid</strong> (a precisely defined mathematical earth-shape) together with the parameters that fix that ellipsoid's <strong>origin, orientation, and scale</strong> relative to the physical earth. Once the datum is set, every point has a definite latitude, longitude, and ellipsoid height. Change the datum and the <em>same physical monument</em> takes on <strong>different coordinates</strong> &mdash; sometimes by hundreds of feet. This is the single most common source of coordinate confusion in practice, so a surveyor must always state the datum.</p><p>Two surfaces must be kept distinct. The <strong>ellipsoid</strong> is the smooth mathematical model. The <strong>geoid</strong> is the equipotential surface of the earth's gravity field (mean sea level extended under the continents), and it is what levels and gravity sense. Datums covered next are <em>horizontal</em> (ellipsoidal) references; the geoid governs <em>orthometric heights</em> and is the subject of the next lesson.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>NAD 27 — the old North American Datum</h3><p>The <strong>North American Datum of 1927 (NAD 27)</strong> used the <strong>Clarke 1866</strong> ellipsoid and was a <strong>horizontal datum</strong> held fixed at a single origin point &mdash; <strong>Meades Ranch, Kansas</strong> &mdash; with its orientation set by a survey azimuth there. Because it was anchored to one point and built up by ground triangulation across the continent, NAD 27 accumulated <strong>distortions</strong> of many meters as you moved away from Kansas, and it was <strong>not geocentric</strong> (its center did not coincide with the earth's center of mass). Vast amounts of older mapping, deeds, and control are still on NAD 27, so surveyors routinely encounter and must transform NAD 27 coordinates &mdash; but no new work is established on it.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>NAD 83 — the modern North American Datum</h3><p>The <strong>North American Datum of 1983 (NAD 83)</strong> replaced NAD 27. It uses the <strong>GRS 80</strong> ellipsoid, is <strong>geocentric</strong> (origin at the earth's center of mass, give or take), and was computed from a continent-wide least-squares adjustment of satellite and terrestrial data, eliminating most of NAD 27's distortion. NAD 83 is the <strong>legal horizontal datum for the United States</strong> and the basis of the modern State Plane Coordinate System (1983). It has been refined over time (realizations such as NAD 83(1986), (HARN), (CORS96), (2011)), so a complete datum tag includes the <strong>realization/epoch</strong>. Survey-grade Texas coordinates are normally reported on the Texas State Plane Coordinate System, <strong>NAD 83</strong>.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>WGS 84 — the GPS datum, and why it differs from NAD 83</h3><p>The <strong>World Geodetic System 1984 (WGS 84)</strong> is the global, geocentric datum maintained for the <strong>GPS</strong> system; its ellipsoid is essentially identical to GRS 80 in size and shape. At the level of a wall map, WGS 84 and NAD 83 look the same, and people loosely treat them as interchangeable. They are <strong>not</strong> identical: in the conterminous United States the two frames differ by roughly <strong>1 to 2 meters</strong> (and the gap grows over time, because WGS 84 is tied to the global ITRF that 'moves' with plate tectonics while NAD 83 is fixed to the North American plate). For mapping that is negligible; for <strong>survey-grade</strong> work it absolutely is not. Always know whether your GPS output is WGS 84/ITRF or has been transformed to NAD 83.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Datum", "Ellipsoid", "Geocentric?", "Primary use", "Status"],
+            "rows": [
+              ["NAD 27", "Clarke 1866", "No (fixed at Meades Ranch, KS)", "Legacy mapping, old deeds", "Superseded"],
+              ["NAD 83", "GRS 80", "Yes (near geocentric)", "Legal US horizontal datum; State Plane 1983", "Current US standard"],
+              ["WGS 84", "WGS 84 (~GRS 80)", "Yes (global, ITRF-tied)", "GPS / global positioning", "Current GPS datum"],
+              ["NATRF2022", "GRS 80-based frame", "Yes (geocentric, time-dependent)", "Planned replacement for NAD 83", "In transition"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The NATRF2022 transition</h3><p>The National Geodetic Survey (NGS) is modernizing the National Spatial Reference System and will <strong>replace NAD 83 with a new geometric reference frame, the North American Terrestrial Reference Frame of 2022 (NATRF2022)</strong>, alongside a new geopotential (vertical) datum. NATRF2022 will be truly <strong>geocentric</strong> and <strong>time-dependent</strong> (coordinates carry an epoch and change slowly with plate motion), correcting the ~1&ndash;2 m offset that NAD 83 carries relative to the global frame. The rollout has slipped past its original 2022 target into the mid-2020s, but it is coming. Practically, a Texas surveyor should expect new published control, new State Plane definitions, and the need to track which frame and epoch each dataset belongs to.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas practice: Survey-grade coordinates in Texas are reported on the Texas State Plane Coordinate System, NAD 83, by zone. A basis of bearing tied to a geodetic datum (e.g., NAD 83 grid) must state the datum and realization (TBPELS rules, 22 TAC ch. 138). Mixing NAD 27, NAD 83, and raw WGS 84/GPS coordinates without transformation produces errors of meters — enough to move a boundary."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Quick mental model: the datum is the 'stage' your latitude/longitude actors stand on. Move the stage (NAD 27 -> NAD 83 -> NATRF2022) and the actors' reported positions shift even though they never moved on the ground."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "A geodetic datum fixes a reference ellipsoid to the earth, giving meaning to latitude, longitude, and height.",
+              "NAD 27 (Clarke 1866, Meades Ranch origin) is non-geocentric and distorted; it is legacy only.",
+              "NAD 83 (GRS 80, geocentric) is the current legal US horizontal datum and the basis of State Plane 1983.",
+              "WGS 84 is the global GPS datum; it differs from NAD 83 by ~1-2 m — significant for survey-grade work.",
+              "NATRF2022 is the coming geocentric, time-dependent replacement for NAD 83; track the frame and epoch."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Geodetic datum", "definition": "A reference ellipsoid fixed to the earth by a defined origin, orientation, and scale, providing the reference for latitude, longitude, and ellipsoid height.", "hint_1": "The ellipsoid plus how it is fixed to the earth."},
+        {"term": "NAD 27", "definition": "The North American Datum of 1927, based on the Clarke 1866 ellipsoid and held fixed at Meades Ranch, Kansas; non-geocentric and horizontally distorted, now superseded.", "hint_1": "Clarke 1866, fixed in Kansas."},
+        {"term": "NAD 83", "definition": "The North American Datum of 1983, based on the geocentric GRS 80 ellipsoid; the current legal US horizontal datum and the basis of the 1983 State Plane Coordinate System.", "hint_1": "GRS 80, geocentric, current US standard."},
+        {"term": "WGS 84", "definition": "The World Geodetic System 1984, the global geocentric datum used by GPS; differs from NAD 83 by roughly 1-2 meters in the conterminous United States.", "hint_1": "The GPS datum; not identical to NAD 83."},
+        {"term": "NATRF2022", "definition": "The North American Terrestrial Reference Frame of 2022, NGS's planned geocentric, time-dependent replacement for NAD 83 in the modernized National Spatial Reference System.", "hint_1": "Coming geocentric replacement for NAD 83."}
+      ]
+    },
+    {
+      "lesson_id": "00673bd7-2c56-4e1a-b903-e29a73a3192f",
+      "title": "Map Projections Overview",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain why a curved earth cannot be flattened without distortion and what 'developable surface' means.",
+        "Distinguish conformal, equal-area, and equidistant projections and state why surveying uses conformal projections.",
+        "Compare the Lambert Conformal Conic and Transverse Mercator projections and the shape of zone each favors."
+      ],
+      "key_takeaways": [
+        "No projection can preserve shape, area, and distance simultaneously; every flat map distorts something.",
+        "Surveying and mapping use conformal projections, which preserve angles/shape locally and let scale factor be applied as a single number.",
+        "The Lambert Conformal Conic (a cone) suits zones that are wide east-west; the Transverse Mercator (a cylinder) suits zones that are tall north-south.",
+        "Both LCC and TM underlie the State Plane Coordinate System; Texas uses Lambert zones."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why we project</h3><p>Surveyors compute with plane trigonometry &mdash; latitudes, departures, coordinates, areas &mdash; but the earth is curved. A <strong>map projection</strong> is the mathematical recipe that converts geographic coordinates (latitude, longitude on the ellipsoid) into plane grid coordinates (northing, easting). The catch, proven by Gauss, is that <strong>a curved surface cannot be flattened without distortion</strong>: every projection stretches or compresses something. The art is choosing a projection whose distortion is small and well-behaved over the area of interest, and whose distortion can be <em>corrected with a simple scale factor</em>.</p><p>Projections are built on <strong>developable surfaces</strong> &mdash; shapes that <em>can</em> be unrolled flat without tearing: the <strong>cone</strong>, the <strong>cylinder</strong>, and the <strong>plane</strong>. Wrapping one of these around the ellipsoid, projecting points onto it, and unrolling it gives the flat grid. The cone yields conic projections (Lambert), the cylinder yields cylindrical ones (Mercator/Transverse Mercator).</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What a projection can preserve</h3><p>Projections are classified by which property they hold true:</p><ul><li><strong>Conformal</strong> &mdash; preserves <strong>angles and local shape</strong>; scale is the same in every direction <em>at a point</em> (though it varies from place to place). Bearings are preserved locally.</li><li><strong>Equal-area (equivalent)</strong> &mdash; preserves <strong>area</strong> but distorts shape.</li><li><strong>Equidistant</strong> &mdash; preserves <strong>distance</strong> along certain lines only.</li></ul><p>You cannot have all three at once. <strong>Surveying chooses conformal projections</strong> because surveyors care most about correct <strong>angles and directions</strong>, and because conformality means the distortion at a point is a single <strong>scale factor</strong> the same in all directions &mdash; so reducing a measured ground distance to grid is one clean multiplication rather than a direction-dependent mess.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Lambert Conformal Conic (LCC)</h3><p>The <strong>Lambert Conformal Conic</strong> projection drapes a <strong>cone</strong> over the ellipsoid, secant along <strong>two standard parallels</strong> where the scale is exactly true. Between the standard parallels the grid is slightly <em>compressed</em> (scale < 1); outside them it is slightly <em>expanded</em> (scale > 1). Because distortion grows north&ndash;south away from the standard parallels but stays small east&ndash;west, the LCC is ideal for regions that are <strong>wider east&ndash;west than they are tall</strong>. Meridians become straight lines converging to the cone's apex, and parallels become concentric arcs.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Transverse Mercator (TM)</h3><p>The <strong>Transverse Mercator</strong> projection wraps a <strong>cylinder</strong> around the earth touching (or cutting) along a <strong>central meridian</strong> rather than the equator &mdash; hence 'transverse.' Scale is true (or held slightly below 1) along the central meridian and grows east&ndash;west away from it. Distortion is therefore smallest in a <strong>narrow north&ndash;south strip</strong> centered on the central meridian. The TM is the right choice for zones that are <strong>taller north&ndash;south than they are wide</strong> &mdash; the basis of UTM and of the north&ndash;south State Plane zones in states shaped that way.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Projection", "Developable surface", "True scale along", "Best zone shape", "Used by"],
+            "rows": [
+              ["Lambert Conformal Conic", "Cone", "Two standard parallels", "Wide E-W", "State Plane (most zones, incl. Texas)"],
+              ["Transverse Mercator", "Cylinder", "Central meridian", "Tall N-S", "UTM; N-S State Plane zones"],
+              ["Oblique Mercator", "Tilted cylinder", "An oblique line", "Diagonal", "Alaska panhandle zone"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Rule of thumb for State Plane: a state (or zone) that is wide east-west gets a Lambert Conformal Conic zone; one that is tall north-south gets a Transverse Mercator zone. The choice keeps the scale-factor distortion within the design limit of about 1 part in 10,000 across the zone."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas context: All Texas State Plane zones use the Lambert Conformal Conic projection, because each Texas zone is a wide east-west band. Knowing the projection type tells you the geometry of the scale factor: in a Lambert zone the scale factor changes mainly with latitude (north-south position)."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Side-by-side diagram of a cone secant to the ellipsoid (Lambert) and a transverse cylinder touching a central meridian (Transverse Mercator)",
+            "caption": "Figure: Lambert Conformal Conic (secant cone, two standard parallels) vs. Transverse Mercator (cylinder on a central meridian).",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Flattening a curved earth always distorts something; projections use developable surfaces (cone, cylinder, plane).",
+              "Conformal projections preserve local angles/shape and make distortion a single scale factor — so surveying uses them.",
+              "Lambert Conformal Conic (cone, two standard parallels) fits wide east-west zones.",
+              "Transverse Mercator (cylinder on a central meridian) fits tall north-south zones and underlies UTM.",
+              "Texas State Plane zones all use the Lambert Conformal Conic projection."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Map projection", "definition": "A mathematical method of converting geographic coordinates (latitude/longitude on the ellipsoid) into plane grid coordinates, necessarily introducing some distortion.", "hint_1": "Curved earth to flat grid."},
+        {"term": "Conformal projection", "definition": "A projection that preserves local angles and shape, so scale at any point is the same in all directions; the type used in surveying because distortion reduces to a single scale factor.", "hint_1": "Preserves angles; scale equal in all directions at a point."},
+        {"term": "Lambert Conformal Conic", "definition": "A conformal conic projection true along two standard parallels, best for zones wide east-west; the projection used by all Texas State Plane zones.", "hint_1": "Cone, two standard parallels, wide E-W zones."},
+        {"term": "Transverse Mercator", "definition": "A conformal cylindrical projection true along a central meridian, best for zones tall north-south; the basis of UTM.", "hint_1": "Cylinder on a central meridian, tall N-S zones."},
+        {"term": "Developable surface", "definition": "A surface (cone, cylinder, or plane) that can be unrolled flat without stretching or tearing, onto which the earth is projected.", "hint_1": "Cone, cylinder, or plane — unrolls flat."}
+      ]
+    },
+    {
+      "lesson_id": "96ac4e17-4461-44dc-a19d-2e2701b4c825",
+      "title": "State Plane Coordinate System (SPCS)",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Describe the purpose and design of the State Plane Coordinate System and its zone concept.",
+        "State why SPCS zones limit scale-factor distortion to about 1 part in 10,000.",
+        "Identify the false-origin (false easting/northing) convention and the units used in SPCS 1983."
+      ],
+      "key_takeaways": [
+        "SPCS divides the US into zones, each with its own conformal projection, so plane coordinates can be used with small, known distortion.",
+        "Zones are sized to keep the scale-factor distortion within about 1:10,000.",
+        "Lambert Conformal Conic is used for east-west zones; Transverse Mercator for north-south zones.",
+        "A false origin (large false easting/northing) keeps all coordinates positive; SPCS 1983 is defined in meters, commonly reported in US survey feet."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The idea behind State Plane</h3><p>The <strong>State Plane Coordinate System (SPCS)</strong> gives surveyors a way to put real, datum-based positions into <strong>plane (x, y) coordinates</strong> that can be used with ordinary plane trigonometry, while keeping the inevitable projection distortion <strong>small and known</strong>. It was designed in the 1930s by the U.S. Coast and Geodetic Survey so that local surveyors and engineers could enjoy a rigorous national coordinate framework without doing curved-earth geodesy on every job. SPCS exists in two main vintages: the original on <strong>NAD 27 (feet)</strong> and the modern <strong>SPCS 1983 on NAD 83</strong>.</p><p>The genius of the design is <strong>zoning</strong>: instead of one projection for the whole country (which would distort enormously), each state is divided into one or more <strong>zones</strong>, and each zone gets its <em>own</em> projection tuned to that strip of ground. Within a zone, the grid is so close to true scale that a single scale factor handles the correction.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Zones and the 1:10,000 design limit</h3><p>Each SPCS zone is deliberately kept <strong>narrow in the direction of growing distortion</strong> so that the projection's scale factor stays within about <strong>1 part in 10,000</strong> of true anywhere in the zone &mdash; roughly half a foot per mile. That tolerance was chosen so that, for many ordinary surveys, the grid&ndash;ground difference is small enough to ignore or easily correct. To honor that limit over a large state, the state is split into multiple zones; a state wide east&ndash;west is sliced into several <strong>Lambert (LCC)</strong> bands stacked north to south, while a state tall north&ndash;south is sliced into <strong>Transverse Mercator (TM)</strong> strips side by side.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Projection choice and the central feature</h3><p>For a <strong>Lambert</strong> zone, the projection is defined by two <strong>standard parallels</strong> placed so the secant cone is true-scale at about the one-sixth and five-sixths points of the zone's north&ndash;south extent; scale is slightly under 1 in the middle and slightly over 1 at the top and bottom edges. For a <strong>Transverse Mercator</strong> zone, the projection is defined by a <strong>central meridian</strong> held slightly below true scale, with scale rising to slightly over 1 at the east and west edges. Either way, the goal is to <strong>balance</strong> the distortion so the maximum departure from true scale is minimized across the zone.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>False origin and units</h3><p>To avoid negative coordinates and to keep northings and eastings clearly distinguishable, each zone has a <strong>false origin</strong>: a large <strong>false easting</strong> (and sometimes false northing) is added so that every point in the zone has positive coordinates and eastings are obviously smaller than northings in magnitude. <strong>SPCS 1983 is legally defined in meters</strong> (the projection constants are metric), but U.S. surveyors very commonly report and stake in <strong>US survey feet</strong> (or, increasingly, international feet). Because the survey foot and international foot differ by 2 parts per million, a State Plane easting of ~2,000,000 ft can differ by several feet depending on which foot is used &mdash; so the <strong>foot definition must be stated</strong>.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Design element", "Purpose"],
+            "rows": [
+              ["Zones", "Limit scale-factor distortion to ~1:10,000 within each zone"],
+              ["Lambert Conformal Conic", "Used for zones that are wide east-west (e.g., Texas)"],
+              ["Transverse Mercator", "Used for zones that are tall north-south"],
+              ["False easting/northing", "Shift the origin so all coordinates are positive"],
+              ["Units (SPCS 1983)", "Defined in meters; commonly reported in US survey feet"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Why eastings and northings look so different: the large false easting (and the projection's design) make eastings and northings differ in magnitude, so a quick glance tells you which number is which. If two coordinates are similar in size, suspect they were swapped."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas context: Texas is large and wide, so it is divided into FIVE State Plane zones, all Lambert Conformal Conic. Survey-grade Texas coordinates are reported on the Texas State Plane Coordinate System, NAD 83, by zone (the next lesson covers the five zones). Always record the zone, datum, and whether values are US survey feet or meters."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "SPCS gives datum-based plane coordinates with small, known distortion by dividing the country into zones.",
+              "Each zone is sized so the scale factor stays within about 1 part in 10,000.",
+              "Lambert Conformal Conic serves east-west zones; Transverse Mercator serves north-south zones.",
+              "A false origin (false easting/northing) keeps all coordinates positive.",
+              "SPCS 1983 is defined in meters but usually reported in US survey feet — state the foot definition."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "State Plane Coordinate System (SPCS)", "definition": "A system of plane coordinate zones, each with its own conformal projection, that provides datum-based (x,y) coordinates usable with plane trigonometry while keeping distortion small.", "hint_1": "Zoned plane-coordinate framework for the US."},
+        {"term": "SPCS zone", "definition": "A regional subdivision of a state given its own projection so that the scale-factor distortion within it stays within about 1 part in 10,000.", "hint_1": "Keeps distortion under ~1:10,000."},
+        {"term": "False origin (false easting/northing)", "definition": "A large constant added to the grid origin of an SPCS zone so that all coordinates in the zone are positive and eastings and northings are easily distinguished.", "hint_1": "Offset that makes coordinates positive."},
+        {"term": "US survey foot", "definition": "A foot defined as exactly 1200/3937 meter, historically used for State Plane coordinates; it differs from the international foot by 2 parts per million, which matters at State Plane magnitudes.", "hint_1": "1200/3937 m; not the international foot."}
+      ]
+    },
+    {
+      "lesson_id": "8d65dbcc-385a-444b-966a-fa8ac010f265",
+      "title": "Texas State Plane Zones",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Name the five Texas State Plane zones and the general region each covers.",
+        "Explain why Texas uses five Lambert Conformal Conic zones and how a project is assigned to a zone.",
+        "State the datum, units, and SPCS designation used for Texas survey-grade coordinates."
+      ],
+      "key_takeaways": [
+        "Texas has FIVE State Plane zones: North, North Central, Central, South Central, and South.",
+        "All five Texas zones use the Lambert Conformal Conic projection because each is a wide east-west band.",
+        "A project is assigned to the zone covering the county it lies in; zones are defined by FIPS zone numbers (4201-4205).",
+        "Texas survey-grade coordinates are reported on the Texas State Plane Coordinate System (TX SPCS), NAD 83, by zone, commonly in US survey feet."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why Texas needs five zones</h3><p>Texas spans roughly <strong>ten degrees of latitude</strong> (about 26&deg; N at the Rio Grande to about 36.5&deg; N in the Panhandle) and even more in longitude. To keep the State Plane scale-factor distortion within the design limit of about <strong>1 part in 10,000</strong> everywhere, Texas is divided into <strong>five zones</strong>, stacked north to south: <strong>North, North Central, Central, South Central, and South</strong>. Because each zone is a band that is much <strong>wider east&ndash;west than it is tall north&ndash;south</strong>, every Texas zone uses the <strong>Lambert Conformal Conic</strong> projection &mdash; the projection built for east&ndash;west zones. No Texas zone uses Transverse Mercator.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The five zones and how counties are assigned</h3><p>Each Texas zone is defined by its own two standard parallels and a central meridian, and is identified by a <strong>FIPS zone number</strong> (4201 North through 4205 South in SPCS 1983). A surveyed project is assigned to a zone <strong>by county</strong>: the published zone definition lists which counties fall in each zone, and the entire project uses that zone's projection constants. Roughly, the <strong>North</strong> zone covers the Panhandle, <strong>North Central</strong> the Dallas&ndash;Fort Worth region, <strong>Central</strong> the Austin&ndash;Hill Country band, <strong>South Central</strong> the San Antonio&ndash;Houston band, and <strong>South</strong> the Rio Grande Valley and deep South Texas. When a project crosses a county that sits in a different zone, the surveyor must decide which zone governs and state it clearly.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Texas zone", "FIPS (SPCS 83)", "General region", "Projection"],
+            "rows": [
+              ["North", "4201", "Panhandle / far north Texas", "Lambert Conformal Conic"],
+              ["North Central", "4202", "Dallas-Fort Worth metroplex region", "Lambert Conformal Conic"],
+              ["Central", "4203", "Austin / Hill Country band", "Lambert Conformal Conic"],
+              ["South Central", "4204", "San Antonio / Houston / Gulf band", "Lambert Conformal Conic"],
+              ["South", "4205", "Rio Grande Valley / deep South Texas", "Lambert Conformal Conic"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Datum, designation, and units</h3><p>Modern Texas survey-grade coordinates are reported on the <strong>Texas State Plane Coordinate System (TX SPCS), NAD 83</strong>, identified by zone. Like all of SPCS 1983, the Texas zones are <strong>defined in meters</strong>, but Texas practice overwhelmingly reports and stakes in <strong>US survey feet</strong> &mdash; so the foot definition (US survey foot vs. international foot) should be stated to avoid the 2-ppm discrepancy at State Plane magnitudes. A complete coordinate citation therefore reads something like: <em>'N = 6,950,000.00, E = 2,300,000.00, TX SPCS NAD 83 (2011), South Central Zone (4204), US survey feet, grid.'</em> Recording all of that &mdash; datum, realization, zone, units, and grid-vs-ground &mdash; is what makes the coordinate reproducible.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: most states have one or two State Plane zones; Texas has FIVE, all Lambert. A coordinate is ambiguous — and potentially off by miles — unless the specific Texas zone is stated. The basis of bearing in a Texas description tied to grid must name the zone and datum (TBPELS standards, 22 TAC ch. 138)."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Memory aid for the five zones, north to south: North, North Central, Central, South Central, South — they read top-to-bottom across the state like a stack of horizontal slices, each a Lambert band."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Map of Texas divided into five horizontal State Plane zones labeled North, North Central, Central, South Central, and South",
+            "caption": "Figure: The five Texas State Plane zones (North, North Central, Central, South Central, South), all Lambert Conformal Conic.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Texas has five State Plane zones: North, North Central, Central, South Central, and South.",
+              "All five use the Lambert Conformal Conic projection (each zone is a wide east-west band).",
+              "Zones carry FIPS numbers 4201-4205 and are assigned by county.",
+              "Texas survey-grade coordinates use TX SPCS, NAD 83, by zone, commonly in US survey feet.",
+              "A Texas coordinate or grid basis of bearing is ambiguous unless the zone and datum are stated."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Texas State Plane zones", "definition": "The five Lambert Conformal Conic zones into which Texas is divided for the State Plane Coordinate System: North, North Central, Central, South Central, and South.", "hint_1": "Five Lambert bands, north to south."},
+        {"term": "Why five zones in Texas", "definition": "Texas spans about ten degrees of latitude, so it is split into five east-west bands to keep the State Plane scale-factor distortion within about 1 part in 10,000.", "hint_1": "Big state — keep distortion under 1:10,000."},
+        {"term": "Texas zone projection", "definition": "Every Texas State Plane zone uses the Lambert Conformal Conic projection, because each zone is wider east-west than north-south.", "hint_1": "All Lambert, no Transverse Mercator."},
+        {"term": "TX SPCS NAD 83", "definition": "The Texas State Plane Coordinate System on the NAD 83 datum, the standard for survey-grade horizontal coordinates in Texas, reported by zone and commonly in US survey feet.", "hint_1": "Texas grid datum reported by zone."}
+      ]
+    },
+    {
+      "lesson_id": "138e3bc0-24f3-4c29-8982-e5523dbc7464",
+      "title": "UTM Coordinate System",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Describe the Universal Transverse Mercator (UTM) system, its 6-degree zones, and its global coverage.",
+        "Identify the UTM zone(s) covering Texas and the false-easting/northing conventions.",
+        "Contrast UTM with State Plane in zone size, distortion, and typical use."
+      ],
+      "key_takeaways": [
+        "UTM divides the earth into 60 zones, each 6 degrees of longitude wide, using the Transverse Mercator projection.",
+        "Each UTM zone has a 500,000 m false easting on its central meridian; the southern hemisphere adds a 10,000,000 m false northing.",
+        "UTM's central-meridian scale factor is 0.9996, allowing up to ~1:2,500 distortion — coarser than State Plane.",
+        "Texas spans UTM zones 13N and 14N (with a sliver of 15N); UTM is common for mapping/GIS, State Plane for survey-grade boundary work."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>A worldwide grid</h3><p>The <strong>Universal Transverse Mercator (UTM)</strong> system is a global plane-coordinate framework that, like State Plane, uses the <strong>Transverse Mercator</strong> projection &mdash; but applies it uniformly worldwide. UTM divides the earth into <strong>60 zones</strong>, each <strong>6&deg; of longitude wide</strong>, numbered 1 through 60 starting at the 180&deg; meridian and marching east. Each zone has its own central meridian and its own Transverse Mercator projection, so the entire globe (between 80&deg; S and 84&deg; N) is covered by a consistent set of metric grids. UTM was developed for military and topographic mapping and is the default coordinate system in much GIS and remote-sensing work.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>UTM conventions</h3><p>Within each UTM zone, coordinates are in <strong>meters</strong>. To keep eastings positive, the central meridian is assigned a <strong>false easting of 500,000 m</strong>, so points west of the central meridian have eastings below 500,000 and points east have eastings above it. <strong>Northings</strong> are measured from the equator: in the <strong>northern hemisphere</strong> the equator is 0 m N and northings grow northward; in the <strong>southern hemisphere</strong> a <strong>false northing of 10,000,000 m</strong> is added so southern northings stay positive. The central meridian carries a deliberate <strong>scale factor of 0.9996</strong> (held slightly below 1), which balances the scale so it rises to about 1.0004 at the zone edges.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>UTM vs. State Plane</h3><p>The key difference is <strong>zone size and distortion</strong>. A UTM zone is a full <strong>6&deg; wide</strong>, so to cover that width the projection accepts a larger scale distortion &mdash; up to roughly <strong>1 part in 2,500</strong> at the zone edges (the 0.9996 central-meridian factor is the price of the wide zone). State Plane zones are <strong>narrower</strong> and tuned to hold distortion to about <strong>1 part in 10,000</strong>. Consequently <strong>UTM is favored for mapping, GIS, and small-scale regional work</strong> where its coarser fit is fine and its global consistency is valuable, while <strong>State Plane is favored for survey-grade boundary and engineering work</strong> where the tighter scale factor matters. Both are conformal, so both reduce ground distances to grid through a scale factor.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Feature", "UTM", "State Plane (SPCS)"],
+            "rows": [
+              ["Projection", "Transverse Mercator (all zones)", "Lambert or Transverse Mercator by zone"],
+              ["Zone width", "6 deg of longitude (60 zones)", "Narrow, tuned per state"],
+              ["Central-meridian scale", "0.9996 fixed", "Varies; tuned near 1"],
+              ["Max distortion", "~1:2,500", "~1:10,000"],
+              ["Units", "Meters", "Meters (often reported in US survey feet)"],
+              ["Typical use", "Mapping, GIS, military", "Survey-grade boundary/engineering"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas context: Texas spans UTM zones 13N and 14N, with a small eastern sliver in 15N. UTM is widely used for Texas mapping and GIS, but boundary and survey-grade work in Texas is normally done on the Texas State Plane Coordinate System (NAD 83), not UTM, because of State Plane's tighter scale factor."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "World map showing 60 UTM longitudinal zones with Texas highlighted spanning zones 13N and 14N",
+            "caption": "Figure: UTM 6-degree zones worldwide; Texas falls mainly in zones 13N and 14N.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "UTM divides the globe into 60 Transverse Mercator zones, each 6 degrees of longitude wide.",
+              "Each zone uses a 500,000 m false easting; the southern hemisphere adds a 10,000,000 m false northing.",
+              "The central-meridian scale factor is 0.9996; max distortion is about 1:2,500 — coarser than State Plane.",
+              "Texas spans UTM zones 13N and 14N (sliver of 15N).",
+              "UTM suits mapping/GIS; Texas survey-grade boundary work uses State Plane (NAD 83)."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Universal Transverse Mercator (UTM)", "definition": "A global plane-coordinate system that divides the earth into 60 zones of 6 degrees longitude each, each using its own Transverse Mercator projection in meters.", "hint_1": "60 zones, 6 degrees wide, Transverse Mercator."},
+        {"term": "UTM false easting / northing", "definition": "Each UTM zone assigns its central meridian a 500,000 m easting so eastings stay positive; the southern hemisphere also adds a 10,000,000 m false northing.", "hint_1": "500,000 m E on the central meridian."},
+        {"term": "UTM central-meridian scale factor", "definition": "The fixed value 0.9996 applied along each UTM zone's central meridian, balancing scale so distortion stays within about 1 part in 2,500 across the 6-degree zone.", "hint_1": "0.9996 on the central meridian."},
+        {"term": "Texas UTM zones", "definition": "Texas falls primarily within UTM zones 13N and 14N, with a small eastern portion in 15N; UTM is used mainly for mapping and GIS in Texas.", "hint_1": "Mostly 13N and 14N."}
+      ]
+    },
+    {
+      "lesson_id": "86fbc83d-6376-4eb6-bfc5-fd9f3639fa2a",
+      "title": "Datum Transformations",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain why a single physical point has different coordinates on different datums and why transformations are needed.",
+        "Describe the geoid-ellipsoid relationship and how orthometric, ellipsoid, and geoid heights are related.",
+        "Identify standard transformation tools (NADCON, VERTCON, GEOID models) and apply the grid-vs-ground scale relationship that links datums to ground distance."
+      ],
+      "key_takeaways": [
+        "The same monument has different lat/long on NAD 27, NAD 83, and WGS 84; transforming between datums is routine, not optional.",
+        "Orthometric height H = ellipsoid height h - geoid height N; GPS gives h, leveling gives H, and a geoid model supplies N.",
+        "NGS tools NADCON (horizontal) and VERTCON (vertical) transform between datums; GEOID models convert ellipsoid to orthometric heights.",
+        "After fixing the datum, ground distances still differ from grid by the combined scale factor — always track datum, units, and grid-vs-ground together."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why transform at all</h3><p>Because each datum fixes the reference ellipsoid to the earth differently, the <strong>same physical monument</strong> has <strong>different latitude/longitude (and grid coordinates) on NAD 27, NAD 83, and WGS 84</strong>. A surveyor constantly works across these frames: an old deed on NAD 27, modern control on NAD 83, raw GPS on WGS 84/ITRF, and soon NATRF2022. A <strong>datum transformation</strong> mathematically converts coordinates from one datum to another so that everything is expressed in a single, consistent frame. Skipping the transformation &mdash; treating WGS 84 GPS as if it were NAD 83, or NAD 27 deed coordinates as if they were modern &mdash; introduces errors of <strong>meters to hundreds of meters</strong>, easily enough to misplace a boundary.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The geoid, the ellipsoid, and heights</h3><p>Horizontal datums ride on the <strong>ellipsoid</strong>; heights need the <strong>geoid</strong>. The <strong>geoid</strong> is the equipotential surface of the earth's gravity field (mean sea level continued under the land) and is what a level instrument and a plumb line sense. The two relevant heights are the <strong>ellipsoid (geodetic) height h</strong> (height above the ellipsoid, what GPS delivers) and the <strong>orthometric height H</strong> (height above the geoid, the traditional 'elevation' from leveling). They are linked by the <strong>geoid height (geoid undulation) N</strong>, the separation between geoid and ellipsoid. To the accuracy surveyors use, the relationship is the simple subtraction below.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "H = h - N",
+            "label": "Orthometric height H from ellipsoid height h and geoid height N",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Transformation tools</h3><p>The National Geodetic Survey publishes the standard transformation tools so results are reproducible:</p><ul><li><strong>NADCON</strong> &mdash; transforms <strong>horizontal</strong> coordinates between NAD 27 and NAD 83 (and among NAD 83 realizations) using a grid of modeled shifts.</li><li><strong>VERTCON</strong> &mdash; transforms <strong>orthometric heights</strong> between vertical datums (e.g., NGVD 29 to NAVD 88).</li><li><strong>GEOID models</strong> (GEOID18 and successors) &mdash; supply the <strong>geoid height N</strong> so a GPS ellipsoid height h can be converted to an orthometric elevation H.</li></ul><p>For high-accuracy work the NGS <strong>OPUS</strong> service and published <strong>CORS</strong> coordinates tie a survey directly into the national frame at a stated realization and epoch, which is the cleanest way to avoid datum confusion altogether.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Need", "Tool", "Converts"],
+            "rows": [
+              ["Horizontal datum shift", "NADCON", "NAD 27 <-> NAD 83 (and realizations)"],
+              ["Vertical datum shift", "VERTCON", "NGVD 29 <-> NAVD 88"],
+              ["Ellipsoid to orthometric height", "GEOID model (e.g., GEOID18)", "h - N = H"],
+              ["Tie to national frame", "OPUS / CORS", "Local observations -> NAD 83 / NATRF2022 at an epoch"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Datum is not the end — grid vs. ground remains</h3><p>Even once every coordinate is on the correct datum and zone, the <strong>grid distance</strong> between two State Plane coordinates is <em>not</em> the <strong>ground distance</strong> you would tape between the monuments. They differ by the <strong>combined scale factor</strong> &mdash; the product of the projection (grid) scale factor and the elevation (sea-level) factor &mdash; covered in the next lesson. So a complete, reproducible position requires three labels traveling together: the <strong>datum/realization</strong>, the <strong>units</strong> (US survey foot vs. meter), and whether the distance is <strong>grid or ground</strong>. Transforming the datum without also reconciling grid-vs-ground is a classic source of stakeout error.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas context: When tying Texas work to the Texas State Plane Coordinate System, you must (1) transform legacy NAD 27 deed/control coordinates to NAD 83, and (2) reduce ground distances to grid by the combined scale factor. Record clearly whether coordinates and distances are grid or ground, and on which datum/realization (TBPELS standards, 22 TAC ch. 138)."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "GPS gives you h (ellipsoid height); your level book gives you H (orthometric elevation). They are not the same number — they differ by the geoid height N, which in Texas is roughly -22 to -27 m. Always apply a geoid model before comparing GPS heights to leveled benchmarks."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The same point has different coordinates on NAD 27, NAD 83, and WGS 84; transforming between datums is routine.",
+              "Orthometric height H = ellipsoid height h - geoid height N; GPS gives h, leveling gives H, a geoid model gives N.",
+              "Use NADCON (horizontal), VERTCON (vertical), and GEOID models to transform; OPUS/CORS tie into the national frame.",
+              "After the datum is fixed, grid distance still differs from ground distance by the combined scale factor.",
+              "Carry datum/realization, units, and grid-vs-ground together for every coordinate."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Datum transformation", "definition": "The mathematical conversion of coordinates from one geodetic datum to another (e.g., NAD 27 to NAD 83), needed because the same point has different coordinates on each datum.", "hint_1": "Convert coordinates between datums."},
+        {"term": "Geoid", "definition": "The equipotential surface of the earth's gravity field (mean sea level extended under the continents), the surface to which orthometric heights are referenced and which leveling instruments sense.", "hint_1": "Gravity equipotential / extended mean sea level."},
+        {"term": "Ellipsoid height vs. orthometric height", "definition": "Ellipsoid height h is measured above the reference ellipsoid (what GPS gives); orthometric height H is measured above the geoid (traditional elevation); they relate by H = h - N.", "hint_1": "h above ellipsoid, H above geoid; H = h - N."},
+        {"term": "NADCON / VERTCON / GEOID model", "definition": "NGS transformation tools: NADCON shifts horizontal coordinates between datums, VERTCON shifts vertical datums, and GEOID models supply the geoid height N to convert ellipsoid to orthometric heights.", "hint_1": "Horizontal, vertical, and height-conversion tools."}
+      ]
+    },
+    {
+      "lesson_id": "004219c9-fffc-40af-a680-2320513bc530",
+      "title": "Practical Coordinate Conversions",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Reduce ground distances to grid (and back) using the combined scale factor: grid = ground x CSF.",
+        "Apply the elevation factor and grid scale factor and combine them, and account for the convergence angle between grid and geodetic north.",
+        "Convert distances between US survey feet and meters and perform a simple coordinate forward computation from a grid azimuth and distance."
+      ],
+      "key_takeaways": [
+        "Grid distance = ground distance x combined scale factor (CSF); ground distance = grid distance / CSF.",
+        "CSF = grid (projection) scale factor x elevation (sea-level) factor; both are typically slightly less than 1.",
+        "The convergence angle (gamma) is the angle between grid north and geodetic north: geodetic azimuth = grid azimuth + convergence.",
+        "Forward computation: E2 = E1 + dist x sin(azimuth), N2 = N1 + dist x cos(azimuth) (azimuth from north, clockwise)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Grid, ground, and the combined scale factor</h3><p>On a State Plane (or UTM) grid, the <strong>grid distance</strong> between two coordinates is not the same as the <strong>ground distance</strong> you measure with a total station, for two reasons. First, the projection itself stretches or shrinks distances by the <strong>grid (projection) scale factor</strong>. Second, your tape lies <em>above</em> the ellipsoid at the project elevation, and reducing it to the ellipsoid (sea level) multiplies by the <strong>elevation factor</strong>. The product of the two is the <strong>combined scale factor (CSF)</strong>, and it is the single number that links ground to grid:</p><ul><li><strong>grid = ground &times; CSF</strong></li><li><strong>ground = grid &divide; CSF</strong></li></ul><p>Because both component factors are usually slightly below 1, the CSF is typically a touch less than 1, so grid distances are usually a little <em>shorter</em> than ground distances. Getting the direction of this multiplication right is one of the most common stakeout pitfalls.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{CSF} = k_{\\text{grid}} \\times k_{\\text{elev}}, \\qquad D_{\\text{grid}} = D_{\\text{ground}} \\times \\text{CSF}",
+            "label": "Combined scale factor and grid distance from ground distance",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The elevation (sea-level) factor</h3><p>The <strong>elevation factor</strong> reduces a ground distance to the ellipsoid. Geometrically it is the ratio of the ellipsoid radius to the radius at the project elevation: k<sub>elev</sub> = R / (R + h), where R is the mean earth radius (about 20,906,000 ft / 6,372,000 m) and h is the height above the ellipsoid. Higher elevations give a <em>smaller</em> elevation factor (you are farther from the earth's center, so the same arc subtends a longer ground chord that must be shrunk more). In the Texas Panhandle, where ground elevations exceed 3,000 ft, the elevation factor noticeably departs from 1; along the Gulf Coast it is very close to 1.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Convergence angle: grid north vs. geodetic north</h3><p>On a projection, the grid's vertical lines (grid north) generally do <em>not</em> point to true geodetic north, except along the projection's central meridian. The angle between them is the <strong>convergence angle</strong> (gamma, sometimes called the mapping angle or 'meridian convergence'). It is zero on the central meridian and grows east and west of it. To convert a measured <strong>grid azimuth</strong> to a <strong>geodetic azimuth</strong> you apply the convergence: <strong>geodetic azimuth = grid azimuth + convergence</strong> (with sign depending on which side of the central meridian you are on). Surveyors who establish a geodetic 'basis of bearing' from State Plane grid bearings must account for convergence, or their reported true bearings will be rotated.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\alpha_{\\text{geodetic}} = \\alpha_{\\text{grid}} + \\gamma",
+            "label": "Geodetic azimuth from grid azimuth and convergence angle gamma",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Units: US survey feet and meters</h3><p>Because SPCS 1983 is defined in <strong>meters</strong> but Texas reports in <strong>US survey feet</strong>, distance and coordinate conversions are routine. The exact relations are: <strong>1 US survey foot = 1200/3937 m = 0.3048006096... m</strong>, and <strong>1 m = 3937/1200 ft = 3.280833333... US survey feet</strong>. The <strong>international foot</strong> (exactly 0.3048 m) differs by about <strong>2 parts per million</strong> &mdash; trivial on a 100-ft tape, but several feet on a 2,000,000-ft State Plane easting. Always know which foot a coordinate uses.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>A simple coordinate forward computation</h3><p>Given a starting grid coordinate, a <strong>grid azimuth</strong> (clockwise from grid north), and a <strong>grid distance</strong>, the next point follows from the latitude/departure decomposition you already know, written with azimuths so the signs come out automatically:</p><ul><li><strong>E<sub>2</sub> = E<sub>1</sub> + D &times; sin(azimuth)</strong> (easting uses sine)</li><li><strong>N<sub>2</sub> = N<sub>1</sub> + D &times; cos(azimuth)</strong> (northing uses cosine)</li></ul><p>For example, from E<sub>1</sub> = 2,300,000.00, N<sub>1</sub> = 6,950,000.00 with a grid azimuth of 60&deg; and grid distance 500.00 ft: E<sub>2</sub> = 2,300,000.00 + 500 &times; sin 60&deg; = 2,300,000.00 + 433.01 = 2,300,433.01; N<sub>2</sub> = 6,950,000.00 + 500 &times; cos 60&deg; = 6,950,000.00 + 250.00 = 6,950,250.00. Note the distance used here must be a <em>grid</em> distance &mdash; if you measured it on the ground, multiply by the CSF first.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas context: In a Texas Lambert zone, surveyors typically measure ground distances and must reduce them to grid (D_grid = D_ground x CSF) before coordinate computation, then convert back to ground for stakeout. State clearly whether each distance and coordinate is grid or ground and on which datum (TBPELS standards, 22 TAC ch. 138). A forgotten CSF can offset a long line by feet."
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Direction check: grid = ground x CSF, and CSF is usually slightly LESS than 1, so the grid distance is usually slightly SHORTER than the ground distance. If your converted grid distance came out longer, you probably divided when you should have multiplied."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram showing a ground line at project elevation reduced to the ellipsoid and then to the grid, with grid north, geodetic north, and the convergence angle gamma",
+            "caption": "Figure: Ground -> ellipsoid (elevation factor) -> grid (scale factor); and the convergence angle between grid and geodetic north.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Grid = ground x combined scale factor (CSF); ground = grid / CSF.",
+              "CSF = grid (projection) scale factor x elevation (sea-level) factor; both usually slightly below 1.",
+              "Convergence angle gamma relates grid and geodetic north: geodetic azimuth = grid azimuth + convergence.",
+              "1 US survey foot = 1200/3937 m; the international foot differs by 2 ppm — know which foot.",
+              "Forward computation: E2 = E1 + D sin(az), N2 = N1 + D cos(az), using a grid distance and grid azimuth."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Combined scale factor (CSF)", "definition": "The product of the grid (projection) scale factor and the elevation (sea-level) factor; it converts ground distance to grid distance via grid = ground x CSF.", "hint_1": "grid scale x elevation factor; grid = ground x CSF."},
+        {"term": "Elevation (sea-level) factor", "definition": "The factor that reduces a ground distance to the ellipsoid, k = R/(R+h); larger project elevations give a smaller factor.", "hint_1": "R/(R+h); shrinks with height."},
+        {"term": "Convergence angle (gamma)", "definition": "The angle between grid north and geodetic (true) north on a projection; zero on the central meridian and growing east/west of it. Geodetic azimuth = grid azimuth + convergence.", "hint_1": "Grid north vs. true north; zero on central meridian."},
+        {"term": "Grid vs. ground distance", "definition": "Grid distance is the distance between projected (State Plane) coordinates; ground distance is measured on the earth. They differ by the combined scale factor: grid = ground x CSF.", "hint_1": "Differ by the CSF."},
+        {"term": "US survey foot to meter", "definition": "1 US survey foot = 1200/3937 meter (about 0.3048006 m); it differs from the international foot (exactly 0.3048 m) by 2 parts per million.", "hint_1": "1200/3937 m per survey foot."}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "925ac734-f4af-4719-99a4-8268b809fd84",
+      "question_text": "Latitude is the angular distance measured:",
+      "question_type": "multiple_choice",
+      "options": ["North or south of the equator", "East or west of the prime meridian", "From the nearest pole", "Along a parallel from Greenwich"],
+      "correct_answer": "North or south of the equator",
+      "explanation": "Latitude (phi) is measured north or south of the equator, 0 to 90 degrees. Longitude is measured east or west of the prime meridian.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "925ac734-f4af-4719-99a4-8268b809fd84",
+      "question_text": "Convert 30 deg 15' 00\" to decimal degrees.",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "30.25",
+      "explanation": "Decimal = 30 + 15/60 + 0/3600 = 30 + 0.25 = 30.25 degrees.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "925ac734-f4af-4719-99a4-8268b809fd84",
+      "question_text": "Why can't geographic (latitude/longitude) coordinates be used directly to compute a plane distance in feet?",
+      "question_type": "multiple_choice",
+      "options": ["They are angular coordinates on a curved surface, not plane (x,y) coordinates", "They are always given in meters", "Longitude is undefined in Texas", "They ignore the prime meridian"],
+      "correct_answer": "They are angular coordinates on a curved surface, not plane (x,y) coordinates",
+      "explanation": "Lat/long are angles on a reference ellipsoid. To use plane trigonometry you must first project them to a plane grid (State Plane or UTM).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "12ef8155-8bce-4a93-bd86-386bac2dfefd",
+      "question_text": "Which datum is geocentric and serves as the current legal horizontal datum of the United States and the basis of the 1983 State Plane Coordinate System?",
+      "question_type": "multiple_choice",
+      "options": ["NAD 83", "NAD 27", "WGS 84", "NGVD 29"],
+      "correct_answer": "NAD 83",
+      "explanation": "NAD 83 (GRS 80 ellipsoid, geocentric) is the current US legal horizontal datum and the basis of SPCS 1983. NAD 27 is the older, distorted datum; WGS 84 is the global GPS datum; NGVD 29 is a vertical datum.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "12ef8155-8bce-4a93-bd86-386bac2dfefd",
+      "question_text": "In the conterminous United States, NAD 83 and WGS 84 coordinates are identical, so they can be used interchangeably for survey-grade work.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "NAD 83 and WGS 84 differ by roughly 1-2 meters in the conterminous US (and the gap grows over time). That is negligible for mapping but not for survey-grade work; always transform GPS WGS 84 to NAD 83.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "12ef8155-8bce-4a93-bd86-386bac2dfefd",
+      "question_text": "The planned NGS reference frame that will replace NAD 83 in the modernized National Spatial Reference System is:",
+      "question_type": "multiple_choice",
+      "options": ["NATRF2022", "NAD 27", "NAVD 88", "Clarke 1866"],
+      "correct_answer": "NATRF2022",
+      "explanation": "NATRF2022 (North American Terrestrial Reference Frame of 2022) is the coming geocentric, time-dependent replacement for NAD 83. NAVD 88 is a vertical datum; Clarke 1866 was the NAD 27 ellipsoid.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "00673bd7-2c56-4e1a-b903-e29a73a3192f",
+      "question_text": "Surveying uses conformal map projections primarily because they:",
+      "question_type": "multiple_choice",
+      "options": ["Preserve local angles/shape so distortion reduces to a single scale factor", "Preserve area exactly", "Preserve true distance everywhere", "Eliminate all distortion"],
+      "correct_answer": "Preserve local angles/shape so distortion reduces to a single scale factor",
+      "explanation": "Conformal projections keep angles true locally and make scale the same in all directions at a point, so a ground distance can be reduced to grid by one scale factor. No projection eliminates all distortion or preserves area, shape, and distance at once.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "00673bd7-2c56-4e1a-b903-e29a73a3192f",
+      "question_text": "A zone that is much wider east-west than north-south is best mapped with which projection?",
+      "question_type": "multiple_choice",
+      "options": ["Lambert Conformal Conic", "Transverse Mercator", "Universal Polar Stereographic", "Gnomonic"],
+      "correct_answer": "Lambert Conformal Conic",
+      "explanation": "The Lambert Conformal Conic (true along two standard parallels) keeps distortion small across a wide east-west band. Transverse Mercator suits tall north-south zones. Texas's wide zones are all Lambert.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "00673bd7-2c56-4e1a-b903-e29a73a3192f",
+      "question_text": "No single map projection can simultaneously preserve shape, area, and distance everywhere.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "A curved surface cannot be flattened without distortion, so every projection sacrifices at least one of shape, area, or distance. Conformal projections keep shape/angles at the cost of area.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "96ac4e17-4461-44dc-a19d-2e2701b4c825",
+      "question_text": "State Plane zones are sized so that the scale-factor distortion within a zone stays within about:",
+      "question_type": "multiple_choice",
+      "options": ["1 part in 10,000", "1 part in 100", "1 part in 1,000", "1 part in 1,000,000"],
+      "correct_answer": "1 part in 10,000",
+      "explanation": "SPCS zones are designed to hold the scale factor within roughly 1:10,000 (about half a foot per mile). UTM, with wider zones, allows about 1:2,500.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "96ac4e17-4461-44dc-a19d-2e2701b4c825",
+      "question_text": "What is the purpose of the large false easting added to each State Plane zone?",
+      "question_type": "multiple_choice",
+      "options": ["To keep all coordinates positive and distinguish eastings from northings", "To correct for earth curvature", "To convert meters to feet", "To remove the convergence angle"],
+      "correct_answer": "To keep all coordinates positive and distinguish eastings from northings",
+      "explanation": "A false origin (large false easting, sometimes false northing) shifts the grid so all coordinates in the zone are positive and eastings are clearly distinguishable from northings.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "96ac4e17-4461-44dc-a19d-2e2701b4c825",
+      "question_text": "SPCS 1983 is legally defined in meters but Texas surveyors commonly report coordinates in US survey feet.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "SPCS 1983 projection constants are metric, yet US survey feet are the common reporting unit. Because the survey foot and international foot differ by 2 ppm, the foot definition must be stated at State Plane magnitudes.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "8d65dbcc-385a-444b-966a-fa8ac010f265",
+      "question_text": "How many State Plane zones does Texas have, and what projection do they use?",
+      "question_type": "multiple_choice",
+      "options": ["Five zones, all Lambert Conformal Conic", "Two zones, all Transverse Mercator", "One zone, Lambert Conformal Conic", "Five zones, all Transverse Mercator"],
+      "correct_answer": "Five zones, all Lambert Conformal Conic",
+      "explanation": "Texas has five State Plane zones (North, North Central, Central, South Central, South), and because each is a wide east-west band they all use the Lambert Conformal Conic projection.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "8d65dbcc-385a-444b-966a-fa8ac010f265",
+      "question_text": "Which list correctly names the five Texas State Plane zones from north to south?",
+      "question_type": "multiple_choice",
+      "options": ["North, North Central, Central, South Central, South", "North, Central, South, East, West", "Panhandle, Metroplex, Hill Country, Gulf, Valley", "Zone 1, Zone 2, Zone 3, Zone 4, Zone 5"],
+      "correct_answer": "North, North Central, Central, South Central, South",
+      "explanation": "The Texas zones, stacked north to south, are North, North Central, Central, South Central, and South (FIPS 4201-4205).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "8d65dbcc-385a-444b-966a-fa8ac010f265",
+      "question_text": "A Texas State Plane coordinate is fully specified by its northing and easting alone, with no need to state the zone.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Because Texas has five zones, the same northing/easting pair is ambiguous (and could be off by miles) unless the specific zone and datum are stated.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "138e3bc0-24f3-4c29-8982-e5523dbc7464",
+      "question_text": "Each UTM zone spans how many degrees of longitude, and what scale factor is fixed on its central meridian?",
+      "question_type": "multiple_choice",
+      "options": ["6 degrees wide; 0.9996 on the central meridian", "3 degrees wide; 1.0000 on the central meridian", "8 degrees wide; 0.9999 on the central meridian", "10 degrees wide; 0.9996 on the central meridian"],
+      "correct_answer": "6 degrees wide; 0.9996 on the central meridian",
+      "explanation": "UTM uses 60 zones of 6 degrees longitude each, with a fixed central-meridian scale factor of 0.9996 to balance distortion across the wide zone.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "138e3bc0-24f3-4c29-8982-e5523dbc7464",
+      "question_text": "Compared with State Plane, UTM zones are wider and therefore allow:",
+      "question_type": "multiple_choice",
+      "options": ["Larger scale-factor distortion (about 1:2,500)", "Smaller scale-factor distortion (about 1:50,000)", "Exactly zero distortion", "Distortion only at the equator"],
+      "correct_answer": "Larger scale-factor distortion (about 1:2,500)",
+      "explanation": "A 6-degree UTM zone accepts about 1:2,500 distortion, coarser than State Plane's ~1:10,000. That is why survey-grade boundary work favors State Plane.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "138e3bc0-24f3-4c29-8982-e5523dbc7464",
+      "question_text": "Texas falls primarily within which two UTM zones?",
+      "question_type": "multiple_choice",
+      "options": ["13N and 14N", "10N and 11N", "16N and 17N", "1N and 60N"],
+      "correct_answer": "13N and 14N",
+      "explanation": "Texas spans UTM zones 13N and 14N, with a small eastern sliver in 15N. UTM is used mostly for Texas mapping and GIS, while State Plane is used for survey-grade boundary work.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "86fbc83d-6376-4eb6-bfc5-fd9f3639fa2a",
+      "question_text": "Orthometric height (H), ellipsoid height (h), and geoid height (N) are related by:",
+      "question_type": "multiple_choice",
+      "options": ["H = h - N", "H = h + N", "N = h + H", "H = N - h"],
+      "correct_answer": "H = h - N",
+      "explanation": "Orthometric height equals ellipsoid height minus geoid height: H = h - N. GPS gives h, leveling gives H, and a geoid model supplies N.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "86fbc83d-6376-4eb6-bfc5-fd9f3639fa2a",
+      "question_text": "Which NGS tool transforms horizontal coordinates between NAD 27 and NAD 83?",
+      "question_type": "multiple_choice",
+      "options": ["NADCON", "VERTCON", "GEOID18", "OPUS-Projects"],
+      "correct_answer": "NADCON",
+      "explanation": "NADCON transforms horizontal coordinates between NAD 27 and NAD 83. VERTCON handles vertical datums; GEOID models supply geoid heights; OPUS ties observations into the national frame.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "86fbc83d-6376-4eb6-bfc5-fd9f3639fa2a",
+      "question_text": "A GPS-derived ellipsoid height can be used directly as an elevation on leveled benchmarks without applying a geoid model.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "GPS gives ellipsoid height h, while benchmarks carry orthometric height H. They differ by the geoid height N (H = h - N), so a geoid model must be applied before comparing them.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "004219c9-fffc-40af-a680-2320513bc530",
+      "question_text": "The relationship between grid distance and ground distance using the combined scale factor (CSF) is:",
+      "question_type": "multiple_choice",
+      "options": ["grid = ground x CSF", "grid = ground + CSF", "ground = grid x CSF", "grid = ground / CSF squared"],
+      "correct_answer": "grid = ground x CSF",
+      "explanation": "Grid distance = ground distance x CSF (and ground = grid / CSF). The CSF is the product of the grid scale factor and the elevation factor.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "004219c9-fffc-40af-a680-2320513bc530",
+      "question_text": "A ground distance of 1,000.00 ft is measured where the combined scale factor is 0.99990. What is the grid distance?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "999.90",
+      "explanation": "grid = ground x CSF = 1000.00 x 0.99990 = 999.90 ft. The grid distance is slightly shorter because the CSF is below 1.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "004219c9-fffc-40af-a680-2320513bc530",
+      "question_text": "The convergence angle (gamma) is the angle between grid north and geodetic north, and it is zero along the projection's central meridian.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Convergence is the angle between grid north and geodetic (true) north; it is zero on the central meridian and grows east and west of it. Geodetic azimuth = grid azimuth + convergence.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "004219c9-fffc-40af-a680-2320513bc530",
+      "question_text": "Convert 100.00 US survey feet to meters (1 US survey ft = 1200/3937 m).",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "30.48",
+      "explanation": "100.00 x (1200/3937) = 100.00 x 0.30480061 = 30.48 m (to two decimals).",
+      "difficulty": "easy"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Grid distance from ground distance via combined scale factor",
+      "category": "Coordinate Systems and Datums — Grid/Ground",
+      "subcategory": "Combined scale factor",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A ground distance of {{ground:f2}} ft is measured on a State Plane project where the combined scale factor (CSF) is {{csf:f6}}. Compute the GRID distance (ft).",
+      "parameters": [
+        {"name": "ground", "type": "float", "min": 500, "max": 5000, "decimals": 2},
+        {"name": "csf", "type": "float", "min": 0.99988, "max": 0.99999, "decimals": 6}
+      ],
+      "computed_vars": [],
+      "answer_formula": "ground*csf",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Grid from ground", "formula": "D_grid = D_ground x CSF", "calculation_template": "{{ground:f2}} x {{csf:f6}}"},
+        {"step_number": 2, "title": "Compute", "result_template": "Grid distance = {{_answer}} ft"}
+      ],
+      "explanation_template": "Grid distance = ground x CSF = {{ground:f2}} x {{csf:f6}} = {{_answer}} ft. Because the CSF is just below 1, the grid distance is slightly shorter than the ground distance.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Ground distance from grid distance via combined scale factor",
+      "category": "Coordinate Systems and Datums — Grid/Ground",
+      "subcategory": "Combined scale factor",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "For stakeout you must convert a GRID distance of {{grid:f2}} ft to a ground distance. The combined scale factor (CSF) for the project is {{csf:f6}}. Compute the GROUND distance (ft).",
+      "parameters": [
+        {"name": "grid", "type": "float", "min": 500, "max": 5000, "decimals": 2},
+        {"name": "csf", "type": "float", "min": 0.99988, "max": 0.99999, "decimals": 6}
+      ],
+      "computed_vars": [],
+      "answer_formula": "grid/csf",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Ground from grid", "formula": "D_ground = D_grid / CSF", "calculation_template": "{{grid:f2}} / {{csf:f6}}"},
+        {"step_number": 2, "title": "Compute", "result_template": "Ground distance = {{_answer}} ft"}
+      ],
+      "explanation_template": "Ground distance = grid / CSF = {{grid:f2}} / {{csf:f6}} = {{_answer}} ft. Dividing by a CSF below 1 makes the ground distance slightly longer than the grid distance.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Convert a distance from US survey feet to meters",
+      "category": "Coordinate Systems and Datums — Units",
+      "subcategory": "Feet/meter conversion",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "Convert a distance of {{feet:f2}} US survey feet to meters. (1 US survey foot = 1200/3937 m = 0.30480061 m.)",
+      "parameters": [
+        {"name": "feet", "type": "float", "min": 50, "max": 2500, "decimals": 2}
+      ],
+      "computed_vars": [],
+      "answer_formula": "feet*(1200/3937)",
+      "answer_format": {"decimals": 3, "unit": "m", "tolerance": 0.01},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Apply the conversion", "formula": "m = ft x (1200/3937)", "calculation_template": "{{feet:f2}} x 0.30480061"},
+        {"step_number": 2, "title": "Compute", "result_template": "Distance = {{_answer}} m"}
+      ],
+      "explanation_template": "Multiply US survey feet by 1200/3937 (0.30480061): {{feet:f2}} x 0.30480061 = {{_answer}} m. The international foot would give a value 2 ppm different.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Coordinate forward computation from a grid azimuth and distance",
+      "category": "Coordinate Systems and Datums — Coordinate geometry",
+      "subcategory": "Forward computation",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "From a State Plane point at E1 = {{e1:f2}} ft, N1 = {{n1:f2}} ft, a line runs at a grid azimuth of {{az:f0}} deg (clockwise from grid north) for a grid distance of {{dist:f2}} ft. Compute the EASTING (E2) of the new point.",
+      "parameters": [
+        {"name": "e1", "type": "float", "min": 2200000, "max": 2400000, "decimals": 2},
+        {"name": "n1", "type": "float", "min": 6900000, "max": 7000000, "decimals": 2},
+        {"name": "az", "type": "integer", "min": 20, "max": 340},
+        {"name": "dist", "type": "float", "min": 200, "max": 1500, "decimals": 2}
+      ],
+      "computed_vars": [
+        {"name": "n2", "formula": "n1 + dist*cos(toRad(az))"}
+      ],
+      "answer_formula": "e1 + dist*sin(toRad(az))",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Easting forward formula", "formula": "E2 = E1 + D sin(azimuth)", "calculation_template": "{{e1:f2}} + {{dist:f2}} x sin({{az:f0}} deg)"},
+        {"step_number": 2, "title": "Compute", "result_template": "E2 = {{_answer}} ft"}
+      ],
+      "explanation_template": "Using azimuths, easting uses the sine: E2 = E1 + D sin(az) = {{e1:f2}} + {{dist:f2}} x sin({{az:f0}} deg) = {{_answer}} ft. (The northing would be N2 = N1 + D cos(az) = {{n2:f2}} ft.)",
+      "options_generator": {"method": "none"}
+    }
+  ]
+}
