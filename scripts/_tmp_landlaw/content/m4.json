@@ -459,7 +459,7 @@
       "subcategory": "Coordinate Computation",
       "difficulty": "hard",
       "question_type": "numeric_input",
-      "question_template": "From a found controlling corner at coordinates (N {{n0:f2}}, E {{e0:f2}}), a deed line runs {{brg:dms}} (a bearing of {{az:f2}} degrees from north, in the NE quadrant) for the corrected distance of {{dist:f2}} ft to the next corner. Compute the EASTING (E) of the next corner.",
+      "question_template": "From a found controlling corner at coordinates (N {{n0:f2}}, E {{e0:f2}}), a deed line runs N {{az:dms}} E (azimuth {{az:f2}}° from north) for the corrected distance of {{dist:f2}} ft to the next corner. Compute the EASTING (E) of the next corner.",
       "parameters": [
         {"name":"n0","type":"float","min":4000,"max":6000,"decimals":2},
         {"name":"e0","type":"float","min":4000,"max":6000,"decimals":2},
