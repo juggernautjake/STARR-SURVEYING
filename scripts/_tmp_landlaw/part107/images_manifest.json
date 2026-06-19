@@ -1,0 +1,401 @@
+[
+  {
+    "module": 1,
+    "lesson": "Lesson 1: What Part 107 Is and Who Needs It",
+    "slug": "p107-m1-commercial-vs-recreational",
+    "caption": "Decision flowchart distinguishing recreational (44809/TRUST) from commercial (Part 107) operation based on the purpose of the flight.",
+    "kind": "diagram"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 2: Eligibility and the Path to Certification",
+    "slug": "p107-m1-certification-pipeline",
+    "caption": "Step-by-step pipeline of the Part 107 certification process from study through registration of the drone.",
+    "kind": "diagram"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 3: The UAG Knowledge Exam",
+    "slug": "p107-m1-acs-weights",
+    "caption": "Chart of the five ACS knowledge-area exam weights, emphasizing Operations as the largest area.",
+    "kind": "chart"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 4: Staying Current — Recurrent Training",
+    "slug": "p107-m1-currency-timeline",
+    "caption": "Timeline showing initial certification, then a recurrent online course renewing knowledge recency every 24 calendar months with no in-person retest.",
+    "kind": "diagram"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 5: Registering the Drone, Remote ID, and the 5 Knowledge Areas Ahead",
+    "slug": "p107-m1-remote-id-options",
+    "caption": "Three-panel illustration of the Remote ID compliance options: standard RID drone, broadcast module, and operating within a FRIA.",
+    "kind": "diagram"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 5: Registering the Drone, Remote ID, and the 5 Knowledge Areas Ahead",
+    "slug": "p107-m1-five-knowledge-areas",
+    "caption": "Roadmap graphic of the five ACS knowledge areas the course covers, with their approximate exam weights.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "Lesson 2: Registration, Marking, and Remote ID",
+    "slug": "p107-m2-remoteid-options",
+    "caption": "Three Remote ID compliance paths side by side: standard RID drone broadcasting pilot/control-station location, a broadcast module broadcasting take-off location, and a FRIA boundary with a non-RID drone inside.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "Lesson 4: Core Operating Limitations (14 CFR 107.51)",
+    "slug": "p107-m2-altitude-structure",
+    "caption": "Side-view diagram showing the 400-ft AGL ceiling over open ground and the 400-ft-above-structure exception within a 400-ft radius of a tall tower.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "Lesson 6: Operations Over People & Moving Vehicles, Preflight, and Accident Reporting",
+    "slug": "p107-m2-report-flow",
+    "caption": "Decision flowchart for 14 CFR 107.9: does the event involve serious injury, loss of consciousness, or non-drone property damage over $500? If yes, report within 10 calendar days.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "lesson": "The National Airspace System: Controlled vs. Uncontrolled",
+    "slug": "p107-m3-nas-crosssection",
+    "caption": "Side-view cross-section of the National Airspace System showing all classes stacked by altitude: Class A above 18,000 MSL, Class B upside-down wedding cake, Class C two-tier, Class D cylinder to surface, Class E floors (surface, 700, 1,200 ft AGL), and Class G below the overlying Class E.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "lesson": "Controlled Airspace: Classes A, B, C, and D",
+    "slug": "p107-m3-bcd-comparison",
+    "caption": "Sectional excerpt comparing the three towered-airport classes side by side: solid blue Class B concentric rings, solid magenta Class C rings, and a blue dashed Class D ring with a visible boxed ceiling number.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Controlled Airspace: Classes A, B, C, and D",
+    "slug": "p107-m3-class-b-weddingcake",
+    "caption": "Three-dimensional cutaway of a Class B 'upside-down wedding cake' showing the surface core and the wider shelves stacked above it, with each shelf's floor/ceiling MSL altitudes labeled.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "lesson": "Class E, Class G, and Who Needs Authorization",
+    "slug": "p107-m3-class-e-types",
+    "caption": "Sectional excerpt showing all three Class E depictions together: dashed-magenta surface-area E around an airport, faded magenta 700 ft AGL vignette fading outward, and faded blue 1,200 ft AGL vignette transition.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Class E, Class G, and Who Needs Authorization",
+    "slug": "p107-m3-uasfm-grid",
+    "caption": "Example UAS Facility Map (UASFM) grid overlaid on an airport area, showing maximum LAANC altitudes (0, 100, 200, 300, 400 ft AGL) per cell, with low/zero values near the runway and higher values farther out.",
+    "kind": "map"
+  },
+  {
+    "module": 3,
+    "lesson": "Reading the Sectional Chart: Airports, Airspace Lines & Vignettes",
+    "slug": "p107-m3-airport-symbols",
+    "caption": "Sectional legend comparison of a blue towered-airport symbol and a magenta non-towered-airport symbol, annotated with fuel-service ticks and the rotating-beacon star.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Reading the Sectional Chart: Airports, Airspace Lines & Vignettes",
+    "slug": "p107-m3-airspace-color-key",
+    "caption": "A clean reference panel showing each airspace line/vignette style next to its class: solid blue (B), solid magenta (C), blue dashed (D), magenta dashed (E-surface), faded magenta (E 700 AGL), faded blue (E 1,200 AGL).",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Reading the Sectional Chart: Airports, Airspace Lines & Vignettes",
+    "slug": "p107-m3-ceiling-floor-boxes",
+    "caption": "Zoomed chart excerpt highlighting airspace floor/ceiling numbers: a Class C shelf labeled 41/12 and a Class D ring with a boxed [25] ceiling, plus an SFC floor callout.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Airport Data Blocks, Frequencies, Lat/Long & the MEF",
+    "slug": "p107-m3-data-block",
+    "caption": "Magnified Sectional airport data block with each element labeled: airport name, field elevation MSL, CTAF (bold magenta C in circle), runway length in hundreds of feet, lighting code.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Airport Data Blocks, Frequencies, Lat/Long & the MEF",
+    "slug": "p107-m3-latlong-ticks",
+    "caption": "Sectional neatline corner showing degree and minute tick marks for latitude and longitude, with an example coordinate read-off annotated.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Airport Data Blocks, Frequencies, Lat/Long & the MEF",
+    "slug": "p107-m3-mef-quadrangle",
+    "caption": "A chart quadrangle bounded by lat/long lines showing a large bold MEF (e.g., 12 with superscript 5 = 12,500 MSL) centered in the block.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Special Use Airspace, TFRs, NOTAMs & Obstructions",
+    "slug": "p107-m3-sua-borders",
+    "caption": "Sectional excerpt with several Special Use Airspace borders (Restricted, Prohibited, MOA, Alert) and the SUA tabulation box listing numbers, altitudes, times of use, and controlling agency.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Special Use Airspace, TFRs, NOTAMs & Obstructions",
+    "slug": "p107-m3-tfr-example",
+    "caption": "Graphical depiction of a TFR ring (e.g., a stadium or VIP TFR) as shown in a flight-planning app, with the prohibited radius and altitude limits labeled.",
+    "kind": "map"
+  },
+  {
+    "module": 3,
+    "lesson": "Special Use Airspace, TFRs, NOTAMs & Obstructions",
+    "slug": "p107-m3-obstruction-symbols",
+    "caption": "Sectional obstruction symbology: single inverted-V tower and a grouped obstruction, each labeled with bold MSL top height and parenthetical AGL height, plus the high-intensity lighted-obstruction symbol.",
+    "kind": "chart"
+  },
+  {
+    "module": 3,
+    "lesson": "Putting It Together: Can I Legally Fly Here?",
+    "slug": "p107-m3-go-nogo-flowchart",
+    "caption": "Decision flowchart for the five-step can-I-fly workflow ending in GO / NO-GO, branching at airspace class and TFR checks.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "lesson": "Putting It Together: Can I Legally Fly Here?",
+    "slug": "p107-m3-b4ufly-screen",
+    "caption": "Mock B4UFLY-style app screen showing a location with its airspace status (e.g., controlled/authorization-required vs. clear), nearby airport, and an active TFR alert.",
+    "kind": "schematic"
+  },
+  {
+    "module": 4,
+    "lesson": "The Atmosphere, the Standard Atmosphere & Moisture",
+    "slug": "p107-m4-standard-atmosphere",
+    "caption": "Diagram of the ICAO standard atmosphere: a vertical scale showing sea-level temperature 15 degrees C and pressure 29.92 inHg, with the ~2 degrees C per 1,000 ft temperature lapse illustrated up through the troposphere.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Density Altitude & Its Effect on sUAS Performance",
+    "slug": "p107-m4-density-altitude-chart",
+    "caption": "A density-altitude conversion chart: outside air temperature on the horizontal axis, pressure-altitude lines diagonally, density altitude read off the vertical axis - annotated to show that a hot day at a high field yields a very high density altitude.",
+    "kind": "chart"
+  },
+  {
+    "module": 4,
+    "lesson": "Stability, Air Masses & Fronts",
+    "slug": "p107-m4-fronts-diagram",
+    "caption": "A four-panel fronts diagram showing cold, warm, stationary, and occluded fronts: their standard weather-map symbols (blue triangles, red half-circles, alternating symbols, purple combined) plus a side-view cross-section of each showing the air-mass slopes and the resulting cloud and precipitation pattern.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Clouds, Ceilings, Visibility & the Cloud-Clearance Rules",
+    "slug": "p107-m4-cloud-families",
+    "caption": "A cloud-family height chart showing low (stratus, stratocumulus, cumulus), middle (altostratus, altocumulus), and high (cirrus, cirrostratus) clouds plus a towering cumulonimbus, with the FEW/SCT/BKN/OVC sky-cover icons labeled.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Wind, Thunderstorms, Microbursts & Fog",
+    "slug": "p107-m4-microburst",
+    "caption": "Cross-section of a microburst: an intense downdraft column striking the ground and spreading outward as a damaging horizontal outflow, with arrows showing the rapidly reversing wind shear an aircraft would encounter passing through it.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Wind, Thunderstorms, Microbursts & Fog",
+    "slug": "p107-m4-thunderstorm-stages",
+    "caption": "Three side-by-side cloud cross-sections labeled cumulus, mature, and dissipating, with arrows showing updrafts in the cumulus stage, mixed updrafts/downdrafts and precipitation in the mature stage, and downdrafts in the dissipating stage.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Reading a METAR & TAF; Weather Sources",
+    "slug": "p107-m4-metar-taf-sample",
+    "caption": "An annotated sample METAR and TAF: the METAR 'KSAT 121753Z AUTO 27015G25KT 10SM FEW050 SCT250 27/12 A2992 RMK AO2' with callout labels on each element, and below it a TAF showing the valid-period group and FM/TEMPO/BECMG change groups labeled.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Reading a METAR & TAF; Weather Sources",
+    "slug": "p107-m4-weather-sources",
+    "caption": "A composite of the two official FAA weather websites - aviationweather.gov and 1800wxbrief.com - with the METAR and TAF panels highlighted to show where a Remote PIC pulls observations and forecasts.",
+    "kind": "photo"
+  },
+  {
+    "module": 5,
+    "lesson": "The Forces of Flight on a Small UAS",
+    "slug": "p107-m5-four-forces",
+    "caption": "Quadcopter in forward cruise with the four forces labeled: lift (up), weight (down), thrust (forward), drag (rearward), aircraft tilted into the direction of travel.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "Weight, Balance, and Center of Gravity",
+    "slug": "p107-m5-cg-diagram",
+    "caption": "Side-by-side CG diagram: balanced multirotor with CG at center vs. one with an off-center payload shifting the CG, showing the aircraft tilting and motors compensating.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "Payload Effects: Flight Time, Maneuverability, and Battery Draw",
+    "slug": "p107-m5-payload-flighttime",
+    "caption": "Simple line chart: flight time (minutes) decreasing as payload weight increases, with a note that wind and high density altitude push the curve lower.",
+    "kind": "chart"
+  },
+  {
+    "module": 5,
+    "lesson": "Density Altitude and Wind: Performance and Endurance",
+    "slug": "p107-m5-density-altitude",
+    "caption": "Illustration of 'High, Hot, Humid' raising density altitude: a drone climbing sluggishly on a hot day at high elevation vs. a brisk climb on a cool, low day.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "Battery Care, Hazards, and Pre-Flight Performance Planning",
+    "slug": "p107-m5-battery-swelling",
+    "caption": "Comparison photo of a flat, healthy LiPo pack vs. a swollen/puffed pack, with a caption noting that swollen packs must be retired.",
+    "kind": "photo"
+  },
+  {
+    "module": 5,
+    "lesson": "Battery Care, Hazards, and Pre-Flight Performance Planning",
+    "slug": "p107-m5-perf-chart",
+    "caption": "Sample manufacturer performance table/chart: flight time vs. payload and vs. temperature, illustrating how to read and discount best-case figures.",
+    "kind": "chart"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 1: Crew Resource Management & the Remote PIC's Authority",
+    "slug": "p107-m6-crm-roles",
+    "caption": "Crew diagram showing RPIC (final authority), person manipulating controls under supervision, and a visual observer, with communication arrows between them.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 2: Physiological Factors & Fitness for Flight",
+    "slug": "p107-m6-imsafe",
+    "caption": "IMSAFE checklist graphic listing Illness, Medication, Stress, Alcohol, Fatigue, Emotion with self-check prompts.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 3: Aeronautical Decision-Making & the Five Hazardous Attitudes",
+    "slug": "p107-m6-hazardous-attitudes",
+    "caption": "Table or infographic of the five hazardous attitudes paired with their antidotes (Anti-Authority, Impulsivity, Invulnerability, Macho, Resignation).",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 4: Risk Management — PAVE & the 3P Model",
+    "slug": "p107-m6-pave",
+    "caption": "PAVE checklist infographic: Pilot, Aircraft, enVironment, External pressures, each with example risk items.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 5: Radio Communications, Airport Operations & Traffic Patterns",
+    "slug": "p107-m6-traffic-pattern",
+    "caption": "Standard left-hand traffic pattern diagram labeling upwind, crosswind, downwind, base, and final around a runway, with a wind sock indicating wind direction.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 5: Radio Communications, Airport Operations & Traffic Patterns",
+    "slug": "p107-m6-wind-indicators",
+    "caption": "Airport wind indicators: wind sock, tetrahedron, and segmented circle, showing how each indicates wind/landing direction.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 6: Maintenance, Preflight Inspection & Recordkeeping",
+    "slug": "p107-m6-preflight-checklist",
+    "caption": "Preflight inspection checklist graphic grouping checks into aircraft, environment, power/links, and crew/documents.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 7: Emergency Procedures, Night Operations & Maintaining VLOS",
+    "slug": "p107-m6-emergency-flowchart",
+    "caption": "Decision flowchart for in-flight emergencies: lost link, flyaway, GPS loss, low battery, fire — with the correct response for each.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Lesson 7: Emergency Procedures, Night Operations & Maintaining VLOS",
+    "slug": "p107-m6-night-lighting",
+    "caption": "Night drone operation showing anti-collision lighting visible 3 SM and a remote pilot using off-center scanning.",
+    "kind": "photo"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 1: How the UAG Exam Works & Test Strategy",
+    "slug": "p107-m7-exam-structure",
+    "caption": "Infographic summarizing the UAG exam: 60 questions, 120 minutes, 3 options each, 70% to pass, and the five knowledge-area proportions as a pie/bar chart.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 1: How the UAG Exam Works & Test Strategy",
+    "slug": "p107-m7-chart-workflow",
+    "caption": "Flowchart of the four-step chart-reading workflow (locate point, identify airspace by color, decide authorization, scan for traps).",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 2: Regulations & Operations Cram Sheet",
+    "slug": "p107-m7-numbers-cheatcard",
+    "caption": "One-page 'cheat card' graphic listing the high-yield numbers: 400 ft AGL, 87 kt/100 mph, 3 SM, 500/2000 cloud clearance, 0.04 BAC / 8 hr, 107.9 = 10 days/$500.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 2: Regulations & Operations Cram Sheet",
+    "slug": "p107-m7-hazardous-attitudes",
+    "caption": "Table graphic pairing each of the five hazardous attitudes with its antidote.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 3: Airspace & Weather Cram Sheet",
+    "slug": "p107-m7-airspace-colors",
+    "caption": "Side-by-side sectional excerpts: Class B (solid blue), Class C (solid magenta), Class D (dashed blue with boxed ceiling), Class E to surface (dashed magenta), and the 700-ft AGL faded magenta vignette.",
+    "kind": "chart"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 3: Airspace & Weather Cram Sheet",
+    "slug": "p107-m7-metar-annotated",
+    "caption": "An annotated METAR with each group labeled, plus a small sky-cover legend (FEW/SCT/BKN/OVC oktas).",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 3: Airspace & Weather Cram Sheet",
+    "slug": "p107-m7-density-altitude",
+    "caption": "Diagram showing how high, hot, and humid conditions raise density altitude and reduce drone lift/thrust/flight time.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 4: Final Readiness Checklist & Next Steps",
+    "slug": "p107-m7-certification-flow",
+    "caption": "Flowchart of the post-exam certification process: FTN → pass UAG → Form 8710-13 in IACRA → TSA vetting → temporary certificate → permanent card → register drone.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Lesson 4: Final Readiness Checklist & Next Steps",
+    "slug": "p107-m7-recency-timeline",
+    "caption": "Timeline graphic showing the 24-calendar-month recurrent-training cycle and that the certificate itself never expires.",
+    "kind": "diagram"
+  }
+]

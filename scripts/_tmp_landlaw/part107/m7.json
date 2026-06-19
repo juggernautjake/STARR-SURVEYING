@@ -1,0 +1,860 @@
+{
+  "module": {
+    "order_index": 7,
+    "title": "Module 7: Comprehensive Review & Practice Exam",
+    "description": "The capstone module that ties the entire Part 107 course together: how the UAG knowledge exam works, condensed high-yield cram sheets for all five knowledge areas, a final readiness checklist, and a large 40+ question mock-exam pool built in true exam proportions.",
+    "estimated_hours": 3.0,
+    "learning_objectives": [
+      "Describe the structure, scoring, timing, and logistics of the FAA Unmanned Aircraft General (UAG) knowledge exam and apply proven test-taking strategy.",
+      "Recall the high-yield Part 107 rule numbers, operating limitations, reporting thresholds, and ADM frameworks from memory.",
+      "Decode the core sectional-chart symbols and METAR/TAF elements quickly using condensed reference tables.",
+      "Complete the post-exam certification process (IACRA, TSA vetting, registration, Remote ID) and maintain recency through recurrent training.",
+      "Pass a full-length, exam-proportioned practice test spanning Regulations, Airspace, Weather, Loading & Performance, and Operations."
+    ]
+  },
+  "lessons": [
+    {
+      "title": "Lesson 1: How the UAG Exam Works & Test Strategy",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "State the format, number of questions, passing score, time limit, and cost of the UAG knowledge exam.",
+        "Apply pacing, flag-and-return, and distractor-elimination strategies to maximize score.",
+        "Use a repeatable approach for chart-reading and METAR-decoding questions.",
+        "Identify what to bring to the testing center and what to expect on test day."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The test you are preparing for</h3><p>The exam that earns you a Remote Pilot Certificate is the <strong>Unmanned Aircraft General &ndash; Small (UAG)</strong> aeronautical knowledge test. It is an objective, <strong>multiple-choice</strong> test with a single correct answer and <strong>three options (A, B, C)</strong> per question. You take it in person at a <strong>PSI Services</strong> testing center, and the result is reported on a knowledge test report you will use to file your certificate application.</p><p>Everything in Modules 1&ndash;6 maps to one of the five FAA knowledge areas tested here. This module's job is to consolidate that material, drill the high-yield numbers, and put you through a full-length practice pool so the real test feels familiar.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Item", "Value"], "rows": [
+            ["Test name / code", "Unmanned Aircraft General – Small (UAG)"],
+            ["Number of questions", "60 multiple-choice (3 options each)"],
+            ["Time limit", "2 hours (120 minutes)"],
+            ["Passing score", "70% (about 42 of 60 correct)"],
+            ["Pacing", "~2 minutes per question"],
+            ["Where taken", "PSI Services testing centers"],
+            ["Test fee", "about $175 (set by PSI; subject to change)"],
+            ["Result validity", "Knowledge test report valid 24 calendar months for applying"],
+            ["Retake after failing", "Wait 14 calendar days to retake (as of this writing)"],
+            ["Prior pilot certificate", "Not required for the initial UAG test"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "You need 70% to pass, so you can miss up to 18 of 60 questions. Aim for consistently above 85% on practice tests before scheduling, so you have a comfortable margin on test day."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Clock management and flag-and-return</h3><p>Sixty questions in 120 minutes is roughly <strong>two minutes per question</strong>, which is generous if you do not stall. The single most common avoidable mistake is burning ten minutes on one hard chart question and then rushing the easy ones at the end. The fix is <strong>flag-and-return</strong>: if a question is not yielding within about a minute, pick your best guess, <em>flag it</em>, and move on. Make a fast first pass through the whole test capturing every easy point, then circle back to the flagged questions with the time you have left.</p><ul><li><strong>Never leave a question blank.</strong> There is no penalty for guessing, so a flagged question still gets your best answer in case you run out of time.</li><li><strong>Answer easy questions first.</strong> Banking the points you are sure of protects your score from a clock crunch.</li><li><strong>Trust your first instinct</strong> unless you find a concrete reason (a misread number, a rule you now recall) to change it.</li></ul>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Eliminate distractors</h3><p>With only three options, eliminating even one obviously wrong answer raises a guess from 33% to 50%. FAA distractors are usually <em>plausible</em> &mdash; they encode a common misconception or a number that is close but wrong (for example, \"500 ft AGL\" instead of \"400 ft AGL\", or \"5 statute miles\" instead of \"3 statute miles\"). When you know the hard number or the rule, the two wrong answers tend to fall away. When you are unsure:</p><ul><li>Cross out any option that violates a number you <em>do</em> know.</li><li>Watch for absolutes like \"always\" / \"never\" &mdash; aviation rules usually have conditions.</li><li>For \"which is required\" questions, ask whether the option is a legal requirement or merely a good practice; the exam distinguishes the two.</li></ul>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>A method for chart questions</h3><p>The UAG test now uses <strong>current, real-world chart excerpts</strong> (Sectional, Instrument Approach, and Low Altitude Enroute charts) that are not the legacy supplement figures, so you must be able to read live-style charts rather than memorize old figures. Use a fixed workflow for every chart question:</p><ol><li><strong>Locate the point</strong> the question asks about (by airport name or latitude/longitude tick marks).</li><li><strong>Identify the airspace</strong> at that point from the ring or vignette color (solid blue = B, solid magenta = C, dashed blue = D, dashed magenta = E to surface, faded magenta/blue = E floor at 700/1,200 ft AGL).</li><li><strong>Decide if authorization is needed</strong>: controlled airspace (B, C, D, surface-area E) requires an authorization; Class G does not.</li><li><strong>Scan for traps</strong>: special use airspace, obstacles, the Maximum Elevation Figure, and any TFR/NOTAM.</li></ol>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>A method for METAR questions</h3><p>Decode a METAR <strong>left to right, in order</strong>, and the question usually asks about just one element. Read the groups in sequence: report type, station, date/time (Zulu), modifier, <strong>wind</strong> (direction true / speed / gusts in knots), <strong>visibility</strong> (statute miles), weather phenomena, <strong>sky condition</strong> (heights in hundreds of feet AGL; ceiling = lowest BKN or OVC), <strong>temperature/dewpoint</strong> (°C, M = minus), and <strong>altimeter</strong> (inHg). Convert Zulu to local before answering time questions, and remember a small temperature&ndash;dewpoint spread signals fog or low cloud.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Bring to the test center", "Why"], "rows": [
+            ["Government-issued photo ID", "Required to check in; name must match your registration"],
+            ["Your FTN / IACRA confirmation (helpful)", "Speeds linking your test result to your application"],
+            ["Knowledge of the rules; no notes allowed", "It is a closed-book test; the FAA supplement is provided"],
+            ["Arrive early", "Late arrival can forfeit your appointment and fee"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "The test is closed-book. You may NOT bring your own notes, phone, or smartwatch into the testing room. PSI provides the official FAA Airman Knowledge Testing Supplement (the chart and figure booklet) and on-screen tools. Do not plan to look anything up."}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "The UAG exam is 60 multiple-choice questions, 3 options each, 120 minutes, 70% to pass, taken at a PSI center.",
+            "Pace at ~2 minutes per question; flag-and-return, answer easy questions first, and never leave a blank.",
+            "Eliminate distractors: knowing a hard number kills the plausible-but-wrong options.",
+            "Chart questions: locate the point, read the airspace color, decide if authorization is needed, scan for SUA/obstacles/TFRs.",
+            "METAR questions: decode left to right; convert Zulu to local; small temp–dewpoint spread means fog/low cloud likely.",
+            "It is closed-book; bring a photo ID, arrive early, and rely on memorized rules."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "UAG exam format", "definition": "60 multiple-choice questions, 3 options each, 120 minutes, 70% passing score, taken at a PSI testing center.", "hint_1": "60 / 120 / 70%."},
+        {"term": "Flag-and-return", "definition": "A pacing strategy: if a question stalls past about a minute, mark your best guess, flag it, move on, and revisit flagged items after a full first pass."},
+        {"term": "Knowledge test report validity", "definition": "The UAG result is valid for 24 calendar months for the purpose of applying for the remote pilot certificate."},
+        {"term": "Distractor elimination", "definition": "Removing implausible or rule-violating answer options to improve guessing odds; knowing the exact rule number usually exposes the two wrong choices."},
+        {"term": "Chart-question workflow", "definition": "Locate the point, identify the airspace by ring/vignette color, decide if an authorization is required, then scan for SUA, obstacles, MEF, and TFRs/NOTAMs."}
+      ],
+      "images_needed": [
+        {"slug": "p107-m7-exam-structure", "caption": "Infographic summarizing the UAG exam: 60 questions, 120 minutes, 3 options each, 70% to pass, and the five knowledge-area proportions as a pie/bar chart.", "kind": "diagram"},
+        {"slug": "p107-m7-chart-workflow", "caption": "Flowchart of the four-step chart-reading workflow (locate point, identify airspace by color, decide authorization, scan for traps).", "kind": "diagram"}
+      ]
+    },
+    {
+      "title": "Lesson 2: Regulations & Operations Cram Sheet",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Recall the key Part 107 operating limitations and rule numbers from memory.",
+        "State the 107.9 accident-reporting thresholds and the alcohol/drug limits.",
+        "Reproduce the five hazardous attitudes and their antidotes verbatim.",
+        "Summarize PIC responsibilities, certification, registration, and Remote ID requirements."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>The numbers the test loves</h3><p>Regulations and Operations together are the heart of the exam &mdash; Operations alone is the single largest knowledge area (roughly 35&ndash;45% of questions), and Regulations is another large block. Most of the points here come down to a small set of <strong>hard numbers</strong> and a handful of frameworks you can memorize cold. Drill the table below until each value is automatic.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Limit / rule", "Value", "Rule"], "rows": [
+            ["Maximum altitude", "400 ft AGL (or 400 ft above a structure within a 400-ft radius of it)", "107.51"],
+            ["Maximum groundspeed", "87 knots (100 mph)", "107.51"],
+            ["Minimum flight visibility", "3 statute miles from the control station", "107.51"],
+            ["Cloud clearance", "500 ft below and 2,000 ft horizontal", "107.51"],
+            ["Anti-collision lighting (night/twilight)", "Visible for at least 3 statute miles", "107.29"],
+            ["Visual line of sight", "RPIC/VO must see the aircraft unaided (corrective lenses OK)", "107.31"],
+            ["Aircraft per pilot", "One unmanned aircraft per remote pilot at a time", "107.35"],
+            ["Right of way", "Yield to all other aircraft (manned and unmanned)", "107.37"],
+            ["Operation from moving vehicle", "Only over a sparsely populated area", "107.25"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "High-yield trap: minimum visibility is 3 statute miles and cloud clearance is 500 ft below / 2,000 ft horizontal. Distractors swap these for '5 SM' or '1,000 ft below' — know the exact numbers."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Accident reporting &mdash; 14 CFR 107.9</h3><p>This single rule shows up almost every test. Report to the FAA <strong>no later than 10 calendar days</strong> after any operation that results in <strong>at least</strong>:</p><ul><li><strong>Serious injury</strong> to any person, or <strong>any loss of consciousness</strong>; OR</li><li><strong>Damage to property other than the small unmanned aircraft itself</strong>, <em>unless</em> the cost of repair (materials plus labor) does not exceed <strong>$500</strong>, or the fair market value of the property does not exceed $500.</li></ul><p>Memory hook: <strong>10 days, $500, serious injury or loss of consciousness</strong>. Damage to the drone itself never triggers a report.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Topic", "Key value to memorize"], "rows": [
+            ["Accident report (107.9)", "Within 10 calendar days if serious injury / loss of consciousness, or property damage over $500 (excluding the drone)"],
+            ["Alcohol (107.27/107.57)", "8 hours bottle-to-throttle; BAC below 0.04%; never under the influence"],
+            ["Eligibility (107.61)", "At least 16 years old; read/speak/write/understand English; sound physical & mental condition; TSA vetting"],
+            ["Recurrent training", "Free online course every 24 calendar months to keep knowledge recency"],
+            ["Registration", "Every Part 107 drone registered individually via FAADroneZone; mark number on the exterior; carry proof"],
+            ["Remote ID", "Required since Sept 16, 2023: standard RID drone, broadcast module, or fly within a FRIA"],
+            ["Hazardous materials (107.36)", "Carriage of hazardous material is prohibited"],
+            ["Dropping objects (107.23)", "No careless/reckless operation; no dropping an object that creates a hazard"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Operations over people &mdash; Categories 1&ndash;4</h3><p>Subpart D sorts flights over people by likely injury severity. Know the gateway criterion for each category.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Category", "Key criterion"], "rows": [
+            ["Category 1", "Weighs 0.55 lb (250 g) or less, no exposed rotating parts that can lacerate, meets Remote ID"],
+            ["Category 2", "Will not cause injury equal to or greater than an 11 ft-lb kinetic-energy transfer; FAA-accepted means of compliance"],
+            ["Category 3", "Will not cause injury equal to or greater than a 25 ft-lb transfer; no sustained flight over open-air assemblies of people"],
+            ["Category 4", "Has an airworthiness certificate and is operated per its approved Flight Manual"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Aeronautical Decision-Making and the five hazardous attitudes</h3><p>ADM is a systematic approach to consistently choosing the best course of action. Self-assessment tools include <strong>IMSAFE</strong> (Illness, Medication, Stress, Alcohol, Fatigue, Emotion), <strong>PAVE</strong> (Pilot, Aircraft, enVironment, External pressures), and the <strong>DECIDE</strong> model. The exam expects you to match each hazardous attitude to its antidote <em>verbatim</em> &mdash; these are easy points.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Hazardous attitude", "Antidote"], "rows": [
+            ["Anti-Authority (\"Don't tell me!\")", "Follow the rules. They are usually right."],
+            ["Impulsivity (\"Do something quickly!\")", "Not so fast. Think first."],
+            ["Invulnerability (\"It won't happen to me\")", "It could happen to me."],
+            ["Macho (\"I can do it\")", "Taking chances is foolish."],
+            ["Resignation (\"What's the use?\")", "I'm not helpless. I can make a difference."]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "CRM (Crew Resource Management) is using all available resources — people, hardware, and information — to operate safely. Brief the crew, define roles (RPIC vs. person manipulating controls vs. visual observer), and keep continuous communication."}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Memorize 107.51: 400 ft AGL, 87 kt / 100 mph, 3 SM visibility, 500 below / 2,000 horizontal.",
+            "107.9: report within 10 calendar days for serious injury/loss of consciousness or over-$500 property damage (excluding the drone).",
+            "Alcohol: 8 hours bottle-to-throttle, BAC below 0.04%; one aircraft per pilot; yield to all other aircraft.",
+            "Operations over people: Cat 1 = 0.55 lb, Cat 2 = 11 ft-lb, Cat 3 = 25 ft-lb, Cat 4 = airworthiness certificate.",
+            "Know the five hazardous attitudes and antidotes verbatim; use IMSAFE/PAVE/DECIDE for risk decisions.",
+            "Register every drone individually, mark the number externally, and comply with Remote ID (since Sept 16, 2023)."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "107.51 operating limits", "definition": "400 ft AGL max altitude, 87 kt (100 mph) max groundspeed, 3 SM minimum visibility, and 500 ft below / 2,000 ft horizontal cloud clearance.", "hint_1": "400 / 87 / 3 / 500-2000."},
+        {"term": "107.9 reporting threshold", "definition": "Report to the FAA within 10 calendar days for any serious injury, loss of consciousness, or property damage over $500 (excluding the drone itself)."},
+        {"term": "Alcohol rule (107.27/107.57)", "definition": "No operating within 8 hours of consuming alcohol, while under the influence, or with a blood-alcohol concentration of 0.04% or greater."},
+        {"term": "Five hazardous attitudes", "definition": "Anti-Authority, Impulsivity, Invulnerability, Macho, and Resignation — each with a memorized antidote.", "hint_1": "A-I-I-M-R."},
+        {"term": "Operations over people categories", "definition": "Cat 1 = 0.55 lb or less; Cat 2 = under 11 ft-lb injury; Cat 3 = under 25 ft-lb injury, no open-air assemblies; Cat 4 = airworthiness certificate."},
+        {"term": "Remote ID compliance options", "definition": "Standard Remote ID drone (built-in broadcast), a Remote ID broadcast module retrofit, or flying within a FRIA."}
+      ],
+      "images_needed": [
+        {"slug": "p107-m7-numbers-cheatcard", "caption": "One-page 'cheat card' graphic listing the high-yield numbers: 400 ft AGL, 87 kt/100 mph, 3 SM, 500/2000 cloud clearance, 0.04 BAC / 8 hr, 107.9 = 10 days/$500.", "kind": "diagram"},
+        {"slug": "p107-m7-hazardous-attitudes", "caption": "Table graphic pairing each of the five hazardous attitudes with its antidote.", "kind": "diagram"}
+      ]
+    },
+    {
+      "title": "Lesson 3: Airspace & Weather Cram Sheet",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Identify airspace classes and the sectional-chart symbology that marks them.",
+        "Determine whether an airspace authorization is required for a given operation.",
+        "Decode each element of a METAR quickly using a reference table.",
+        "Recognize TAF change groups and key weather hazards affecting small UAS."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Reading the sky on paper</h3><p>Airspace and Weather together make up a large slice of the test, and most of those questions reward fast pattern recognition: the <em>color of a ring</em> tells you the airspace class, and the <em>position of a group</em> in a METAR tells you what it means. Use the tables in this lesson as flash-reference and drill them until recall is instant.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Airspace class", "Drone relevance", "Authorization?"], "rows": [
+            ["Class A (18,000 ft MSL to FL600)", "Not relevant — far above 400 ft AGL", "N/A"],
+            ["Class B (busiest airports)", "Surface up to ~10,000 ft MSL, upside-down wedding cake", "Yes"],
+            ["Class C (busy airports)", "Surface to ~4,000 ft AGL", "Yes"],
+            ["Class D (towered airports)", "Surface to ~2,500 ft AGL", "Yes"],
+            ["Class E (controlled, lower floors)", "Floor at surface, 700, or 1,200 ft AGL", "Yes if surface-area E near an airport"],
+            ["Class G (uncontrolled)", "Default legal sUAS airspace below 400 ft AGL", "No"]
+          ]}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Sectional symbol", "Meaning"], "rows": [
+            ["Solid blue rings", "Class B airspace"],
+            ["Solid magenta rings", "Class C airspace"],
+            ["Dashed blue line", "Class D airspace; boxed number = ceiling in hundreds of feet MSL"],
+            ["Dashed magenta line", "Class E to the surface"],
+            ["Faded magenta vignette (fades outward)", "Class E floor begins at 700 ft AGL"],
+            ["Faded blue vignette", "Class E floor begins at 1,200 ft AGL"],
+            ["Magenta airport symbol", "Airport WITHOUT an operating control tower"],
+            ["Blue airport symbol", "Airport WITH an operating control tower"],
+            ["Bold blue quadrangle number (e.g., 1²5)", "Maximum Elevation Figure (MEF), in thousands + hundreds of ft MSL"]
+          ]}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Sectional chart excerpt showing airspace ring colors", "caption": "Figure: Sectional excerpt showing a Class B (solid blue), Class C (solid magenta), and Class D (dashed blue, with boxed ceiling) airport side by side, plus the faded magenta Class E 700-ft AGL vignette.", "alignment": "center"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Authorization rule of thumb: you may fly in Class G up to 400 ft AGL with NO ATC authorization. To fly in controlled airspace (B, C, D, and surface-area E) you MUST obtain an authorization — typically through LAANC or FAADroneZone — before flying."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>LAANC, UAS Facility Maps, and DroneZone</h3><p><strong>LAANC</strong> (Low Altitude Authorization and Notification Capability) gives near-real-time authorization to fly in controlled airspace up to the altitude posted on the <strong>UAS Facility Map (UASFM)</strong> grid for that location. A <strong>\"0\" grid</strong> means automatic LAANC is unavailable there and a slower further-coordination request to the FAA is required. <strong>FAADroneZone</strong> handles authorizations where LAANC is not available, plus waivers and further coordination, but it is not near-real-time.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Special use airspace and restrictions</h3><p>Know the categories and what they mean for a drone: <strong>Prohibited Areas (P-)</strong> &mdash; flight prohibited; <strong>Restricted Areas (R-)</strong> &mdash; hazardous activity, enter only with the controlling agency's permission; <strong>MOAs</strong> &mdash; military training, use caution; <strong>Warning Areas (W-)</strong> &mdash; like restricted but over international waters; <strong>Alert Areas (A-)</strong> &mdash; high training volume. A <strong>TFR</strong> (Temporary Flight Restriction), issued by FDC NOTAM, restricts a defined area (VIP movement, disasters, stadiums); drones must comply, and many TFRs prohibit all UAS. Always check NOTAMs and TFRs before every flight.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>METAR decode &mdash; quick reference</h3><p>A METAR is read left to right; each group has a fixed position. The example below is decoded element by element in the table that follows.</p><p><code>METAR KXYZ 121753Z AUTO 27015G25KT 10SM FEW050 SCT250 27/12 A2992 RMK AO2</code></p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Group", "Example", "Meaning"], "rows": [
+            ["Report type", "METAR", "Routine hourly observation (SPECI = special, off-schedule)"],
+            ["Station", "KXYZ", "4-letter ICAO station identifier"],
+            ["Date/time", "121753Z", "12th day, 1753 Zulu (UTC) — aviation weather is in Zulu"],
+            ["Modifier", "AUTO", "Automated station (COR = corrected)"],
+            ["Wind", "27015G25KT", "From 270° true at 15 kt, gusting 25 kt (VRB = variable, 00000KT = calm)"],
+            ["Visibility", "10SM", "10 statute miles"],
+            ["Weather", "(none shown)", "e.g., RA rain, BR mist, FG fog, TS thunderstorm; - light, + heavy"],
+            ["Sky condition", "FEW050 SCT250", "FEW at 5,000 ft, SCT at 25,000 ft; heights in hundreds of ft AGL"],
+            ["Temp/Dewpoint", "27/12", "27°C / 12°C (M prefix = minus); small spread = fog/low cloud likely"],
+            ["Altimeter", "A2992", "29.92 inHg"],
+            ["Remarks", "RMK AO2", "Automated station with a precipitation sensor"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Sky-cover coverage: FEW = 1–2 oktas, SCT (scattered) = 3–4, BKN (broken) = 5–7, OVC (overcast) = 8. A CEILING is the lowest BKN or OVC layer. SCT and FEW layers are not ceilings."}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["TAF change group", "Meaning"], "rows": [
+            ["FM (FROM)", "Rapid, lasting change beginning at a stated time"],
+            ["BECMG", "Gradual change over a period"],
+            ["TEMPO", "Temporary fluctuations expected to last less than 1 hour each"],
+            ["PROB30 / PROB40", "30% or 40% probability of the stated conditions"]
+          ]}
+        },
+        {
+          "block_type": "image",
+          "content": {"url": "", "alt": "Annotated METAR decode", "caption": "Figure: A sample METAR with each group labeled (station, Zulu time, wind, visibility, sky condition, temp/dewpoint, altimeter) for quick visual reference.", "alignment": "center"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Weather hazards and density altitude</h3><p><strong>Density altitude</strong> is pressure altitude corrected for non-standard temperature &mdash; the altitude the aircraft \"feels.\" <strong>High, hot, and humid</strong> conditions raise density altitude, thinning the air so the drone makes less lift and thrust: shorter flight time, sluggish climb, reduced payload. Other hazards: <strong>thunderstorms</strong> (avoid entirely &mdash; turbulence, lightning, hail, and microbursts with violent wind shear), <strong>stable air</strong> (stratiform clouds, steady precip, poor visibility, smooth), <strong>unstable air</strong> (cumuliform clouds, showers, good visibility, turbulence), and <strong>fog</strong> when the temperature&ndash;dewpoint spread is small. Cold sharply reduces LiPo battery capacity.</p>"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Class G needs no authorization up to 400 ft AGL; controlled airspace (B, C, D, surface-area E) requires one via LAANC or DroneZone.",
+            "Chart colors: solid blue = B, solid magenta = C, dashed blue = D, dashed magenta = E to surface, faded magenta/blue = E floor at 700/1,200 ft AGL.",
+            "Blue airport symbol = towered; magenta = non-towered. The MEF is the bold blue quadrangle number.",
+            "Decode METARs left to right; wind is degrees-true/knots, visibility in statute miles, heights in hundreds of feet AGL, time in Zulu.",
+            "A ceiling is the lowest BKN or OVC layer; a small temp–dewpoint spread means fog or low cloud is likely.",
+            "High, hot, and humid raise density altitude and degrade sUAS performance; avoid thunderstorms and microbursts."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Class G authorization", "definition": "Uncontrolled airspace; a Part 107 pilot may fly up to 400 ft AGL with no ATC authorization. It is the default legal sUAS airspace."},
+        {"term": "Sectional ring colors", "definition": "Solid blue = Class B, solid magenta = Class C, dashed blue = Class D, dashed magenta = Class E to the surface.", "hint_1": "Blue solid = B, magenta solid = C."},
+        {"term": "Towered vs. non-towered airport symbol", "definition": "A blue airport symbol marks an airport with an operating control tower; a magenta symbol marks one without."},
+        {"term": "METAR ceiling", "definition": "The lowest broken (BKN) or overcast (OVC) cloud layer. FEW and SCT layers do not constitute a ceiling."},
+        {"term": "Density altitude", "definition": "Pressure altitude corrected for non-standard temperature. High, hot, and humid conditions raise it and reduce lift, thrust, and performance."},
+        {"term": "LAANC", "definition": "Low Altitude Authorization and Notification Capability — near-real-time authorization to fly in controlled airspace up to the UAS Facility Map grid altitude."}
+      ],
+      "images_needed": [
+        {"slug": "p107-m7-airspace-colors", "caption": "Side-by-side sectional excerpts: Class B (solid blue), Class C (solid magenta), Class D (dashed blue with boxed ceiling), Class E to surface (dashed magenta), and the 700-ft AGL faded magenta vignette.", "kind": "chart"},
+        {"slug": "p107-m7-metar-annotated", "caption": "An annotated METAR with each group labeled, plus a small sky-cover legend (FEW/SCT/BKN/OVC oktas).", "kind": "diagram"},
+        {"slug": "p107-m7-density-altitude", "caption": "Diagram showing how high, hot, and humid conditions raise density altitude and reduce drone lift/thrust/flight time.", "kind": "diagram"}
+      ]
+    },
+    {
+      "title": "Lesson 4: Final Readiness Checklist & Next Steps",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Walk through the IACRA certificate application steps after passing the UAG test.",
+        "Explain TSA vetting, temporary vs. permanent certificate, and drone registration.",
+        "State how and when to complete recurrent training to maintain recency.",
+        "Identify free FAA resources and tools for finding where to fly."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>You passed &mdash; now what?</h3><p>Passing the UAG test is the hard part, but it is not the certificate. The knowledge test report is your ticket into the <strong>certificate application</strong>, which you file through <strong>IACRA</strong> (Integrated Airman Certification and Rating Application). This lesson is a checklist for everything between walking out of the test center and legally flying for hire.</p>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Step", "What you do"], "rows": [
+            ["1. Get an FTN", "Create an IACRA account to obtain your FAA Tracking Number (do this before or after the test)"],
+            ["2. Pass the UAG test", "Take and pass at a PSI center; keep your knowledge test report"],
+            ["3. File Form 8710-13", "Complete the remote pilot application in IACRA using your test report"],
+            ["4. TSA vetting", "A security background check runs automatically during the application"],
+            ["5. Temporary certificate", "Receive a temporary remote pilot certificate by email — you may fly once it is issued"],
+            ["6. Permanent certificate", "The permanent card arrives by mail"],
+            ["7. Register the drone", "Register each aircraft via FAADroneZone (separate from the certificate)"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Your remote pilot certificate does NOT expire and has no printed expiration date. What you must keep current is your aeronautical knowledge recency — every 24 calendar months."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Registration and Remote ID before you fly</h3><p>Before the first commercial flight, finish the aircraft-side requirements:</p><ul><li><strong>Register</strong> any sUAS over 0.55 lb (250 g) up to 55 lb. Under Part 107 <strong>every drone is registered individually</strong> with its own number (unlike recreational flyers, who can use one number for their whole fleet).</li><li><strong>Mark</strong> the registration number on the exterior so it is legible without tools, and <strong>carry proof</strong> of registration during operations.</li><li><strong>Comply with Remote ID</strong> (required since Sept 16, 2023): use a standard Remote ID drone, add a broadcast module, or fly within a FRIA.</li></ul>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Recurrent training &mdash; staying legal</h3><p>To keep flying under Part 107 you must maintain knowledge recency by completing a <strong>free online recurrent training course</strong> on FAASafety.gov <strong>every 24 calendar months</strong>. Since the 2021 rule change, this replaced the old in-person recurrent knowledge test &mdash; there is no retest at a PSI center. The course covers a <strong>night operations</strong> knowledge area. The FAA does not mail a new certificate after recurrent training; you must <strong>retain the course-completion certificate</strong> and be able to present it as proof of currency. \"24 calendar months\" means good through the last day of the 24th month after completion.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Common misconception: there is no annual retest. Recurrent training is a FREE online course every 24 calendar months, not a paid in-person exam. Keep your completion certificate as proof — the FAA does not issue a new card."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Where to fly and free FAA resources</h3><p>Use FAA tools and free study materials to keep flying safely and to deepen your knowledge:</p><ul><li><strong>B4UFLY</strong> &mdash; an app (from FAA-approved providers) showing where you can fly, airspace restrictions, and active TFRs.</li><li><strong>LAANC / FAADroneZone</strong> &mdash; get airspace authorizations for controlled airspace and apply for waivers.</li><li><strong>Remote Pilot sUAS Study Guide (FAA-G-8082-22)</strong> and the <strong>ACS (FAA-S-ACS-10B)</strong> &mdash; the FAA's own prep book and exact knowledge blueprint.</li><li><strong>UAG Sample Questions (PDF)</strong>, the <strong>Aeronautical Chart Users' Guide</strong>, and <strong>AC 00-45 (Aviation Weather Services)</strong> &mdash; official, free, and exam-representative.</li></ul>"}
+        },
+        {
+          "block_type": "link_reference",
+          "content": {"links": [
+            {"url": "https://www.faa.gov/uas/commercial_operators/become_a_drone_pilot", "title": "FAA — Become a Certificated Remote Pilot", "type": "website", "description": "Authoritative step-by-step certification process."},
+            {"url": "https://www.faa.gov/uas/getting_started/remote_id", "title": "FAA — Remote Identification of Drones", "type": "website", "description": "Remote ID requirements and the three compliance options."},
+            {"url": "https://www.faa.gov/uas/recreational_flyers", "title": "FAA — Recreational Flyers & B4UFLY", "type": "website", "description": "Where-can-I-fly tools and recreational vs. Part 107 differences."}
+          ]}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "After passing, file Form 8710-13 in IACRA; TSA vetting runs automatically; you get a temporary certificate by email, then the permanent card by mail.",
+            "The certificate never expires, but you must renew knowledge recency every 24 calendar months via a free online recurrent course.",
+            "Recurrent training is online and free — there is no annual in-person retest; keep your completion certificate as proof.",
+            "Register every Part 107 drone individually, mark the number externally, carry proof, and comply with Remote ID.",
+            "Use B4UFLY, LAANC/DroneZone, and free FAA study materials (Study Guide, ACS, Chart Users' Guide, AC 00-45) to fly safely and stay sharp."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "IACRA", "definition": "Integrated Airman Certification and Rating Application — the FAA system where you obtain an FTN and file Form 8710-13 for the remote pilot certificate."},
+        {"term": "Temporary remote pilot certificate", "definition": "Issued by email after the application and TSA vetting clear; lets you fly immediately while the permanent card is mailed."},
+        {"term": "Recurrent training", "definition": "A free online FAASafety.gov course completed every 24 calendar months to maintain aeronautical knowledge recency; replaced the old in-person retest in 2021."},
+        {"term": "Part 107 registration", "definition": "Each drone over 0.55 lb up to 55 lb is registered individually via FAADroneZone, with the number marked on the exterior and proof carried in operations."},
+        {"term": "B4UFLY", "definition": "An FAA-approved app that shows where you can fly, airspace restrictions, and active TFRs for trip planning."}
+      ],
+      "images_needed": [
+        {"slug": "p107-m7-certification-flow", "caption": "Flowchart of the post-exam certification process: FTN → pass UAG → Form 8710-13 in IACRA → TSA vetting → temporary certificate → permanent card → register drone.", "kind": "diagram"},
+        {"slug": "p107-m7-recency-timeline", "caption": "Timeline graphic showing the 24-calendar-month recurrent-training cycle and that the certificate itself never expires.", "kind": "diagram"}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_index": 0,
+      "question_text": "How many questions are on the UAG knowledge exam, and what is the minimum passing score?",
+      "question_type": "multiple_choice",
+      "options": ["60 questions, 70% to pass", "50 questions, 80% to pass", "100 questions, 70% to pass"],
+      "correct_answer": "60 questions, 70% to pass",
+      "explanation": "The UAG test is 60 multiple-choice questions with a 70% passing score (about 42 correct). The other options misstate the count and threshold.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "You have 120 minutes for 60 questions. About how much time does this allow per question, and what is the best strategy when one question stalls you?",
+      "question_type": "multiple_choice",
+      "options": ["About 2 minutes each; flag it and return after a full first pass", "About 5 minutes each; solve every question in order before moving on", "About 30 seconds each; skip hard questions permanently and leave them blank"],
+      "correct_answer": "About 2 minutes each; flag it and return after a full first pass",
+      "explanation": "60 questions in 120 minutes is roughly 2 minutes each. Flag-and-return banks easy points first. Leaving blanks is never correct because there is no penalty for guessing.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "On a multiple-choice question with three options, why is eliminating one clearly wrong option valuable?",
+      "question_type": "multiple_choice",
+      "options": ["It raises a guess from about 33% to about 50%", "It is required by the FAA scoring rules", "It removes the penalty for guessing"],
+      "correct_answer": "It raises a guess from about 33% to about 50%",
+      "explanation": "With three options a blind guess is ~33%; eliminating one makes it ~50%. There is no guessing penalty to remove, and elimination is a strategy, not a scoring rule.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "When answering a sectional-chart question, what is the most reliable first step?",
+      "question_type": "multiple_choice",
+      "options": ["Locate the specific point in question, then identify the airspace by its ring or vignette color", "Assume the airspace is Class G unless a tower is drawn", "Start by reading the Maximum Elevation Figure for the whole chart"],
+      "correct_answer": "Locate the specific point in question, then identify the airspace by its ring or vignette color",
+      "explanation": "The workflow is locate the point, identify airspace by color, decide if authorization is needed, then scan for traps. Assuming Class G or starting with the MEF skips the airspace identification.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "Which item are you NOT allowed to use during the UAG test?",
+      "question_type": "multiple_choice",
+      "options": ["Your own personal study notes", "The FAA-provided testing supplement", "A government-issued photo ID at check-in"],
+      "correct_answer": "Your own personal study notes",
+      "explanation": "The test is closed-book; personal notes, phones, and smartwatches are prohibited. PSI provides the official FAA supplement, and a photo ID is required to check in.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Under 14 CFR 107.51, what is the maximum altitude a small unmanned aircraft may generally be operated above the ground?",
+      "question_type": "multiple_choice",
+      "options": ["400 feet AGL", "500 feet AGL", "1,000 feet AGL"],
+      "correct_answer": "400 feet AGL",
+      "explanation": "107.51 caps altitude at 400 ft AGL, or up to 400 ft above a structure when within a 400-ft radius of it. 500 and 1,000 ft are common distractor values.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "What is the maximum allowable groundspeed for a small unmanned aircraft under Part 107?",
+      "question_type": "multiple_choice",
+      "options": ["87 knots (100 mph)", "100 knots (115 mph)", "60 knots (69 mph)"],
+      "correct_answer": "87 knots (100 mph)",
+      "explanation": "107.51 limits groundspeed to 87 knots, which equals 100 mph. The other values are plausible but incorrect.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "What is the minimum flight visibility required from the control station under Part 107?",
+      "question_type": "multiple_choice",
+      "options": ["3 statute miles", "5 statute miles", "1 statute mile"],
+      "correct_answer": "3 statute miles",
+      "explanation": "107.51 requires at least 3 statute miles of flight visibility. 5 SM is the common wrong answer carried over from other rules.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "What cloud clearance must a small unmanned aircraft maintain under Part 107?",
+      "question_type": "multiple_choice",
+      "options": ["500 feet below and 2,000 feet horizontal", "1,000 feet below and 2,000 feet horizontal", "500 feet below and 1,000 feet horizontal"],
+      "correct_answer": "500 feet below and 2,000 feet horizontal",
+      "explanation": "107.51 requires staying at least 500 ft below and 2,000 ft horizontally from clouds. The distractors swap in 1,000-ft values.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A drone operation causes a person to suffer a serious injury. Within how many days must the remote PIC report this to the FAA?",
+      "question_type": "multiple_choice",
+      "options": ["10 calendar days", "30 calendar days", "Immediately, within 24 hours"],
+      "correct_answer": "10 calendar days",
+      "explanation": "14 CFR 107.9 requires reporting within 10 calendar days for serious injury, loss of consciousness, or over-$500 property damage. There is no 24-hour or 30-day requirement under 107.9.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Your drone strikes a parked car, causing $700 in damage, and no one is injured. Does this require a report to the FAA under 107.9?",
+      "question_type": "multiple_choice",
+      "options": ["Yes, because property damage exceeds $500", "No, because no one was injured", "No, because only the drone and the car were involved"],
+      "correct_answer": "Yes, because property damage exceeds $500",
+      "explanation": "107.9 requires a report for damage to property other than the drone when repair cost or fair market value exceeds $500. Injury is not the only trigger; the $700 damage exceeds the threshold.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "What is the maximum blood-alcohol concentration at which a person may act as remote PIC, and how long after drinking must they wait?",
+      "question_type": "multiple_choice",
+      "options": ["Below 0.04% BAC and at least 8 hours after consuming alcohol", "Below 0.08% BAC and at least 12 hours after consuming alcohol", "Below 0.02% BAC and at least 4 hours after consuming alcohol"],
+      "correct_answer": "Below 0.04% BAC and at least 8 hours after consuming alcohol",
+      "explanation": "Part 107 prohibits operating with a BAC of 0.04% or greater or within 8 hours of consuming alcohol ('8 hours bottle-to-throttle'). 0.08% is the common driving limit and is a distractor.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "How many small unmanned aircraft may one remote pilot operate at the same time under Part 107?",
+      "question_type": "multiple_choice",
+      "options": ["One", "Two", "As many as the pilot can keep within visual line of sight"],
+      "correct_answer": "One",
+      "explanation": "Under 107.35 a person may not act as remote PIC or manipulate the controls of more than one unmanned aircraft at a time — one aircraft per pilot.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A manned helicopter approaches your area of operation. What must you do?",
+      "question_type": "multiple_choice",
+      "options": ["Yield the right of way to the manned aircraft", "Maintain your altitude and let the helicopter avoid you", "Climb above the helicopter to stay clear"],
+      "correct_answer": "Yield the right of way to the manned aircraft",
+      "explanation": "Under 107.37 the small UA must yield right of way to all other aircraft and must not create a collision hazard. The remote pilot always gives way.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Which hazardous attitude is correctly paired with its antidote?",
+      "question_type": "multiple_choice",
+      "options": ["Impulsivity — 'Not so fast. Think first.'", "Macho — 'It could happen to me.'", "Resignation — 'Follow the rules. They are usually right.'"],
+      "correct_answer": "Impulsivity — 'Not so fast. Think first.'",
+      "explanation": "Impulsivity's antidote is 'Not so fast. Think first.' 'It could happen to me' is the antidote to Invulnerability, and 'Follow the rules' is the antidote to Anti-Authority.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "What is the antidote to the hazardous attitude of Invulnerability?",
+      "question_type": "multiple_choice",
+      "options": ["It could happen to me.", "Taking chances is foolish.", "I'm not helpless. I can make a difference."],
+      "correct_answer": "It could happen to me.",
+      "explanation": "Invulnerability ('it won't happen to me') is countered by 'It could happen to me.' 'Taking chances is foolish' answers Macho; 'I'm not helpless' answers Resignation.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A pilot thinks, 'The rules don't apply to me.' Which hazardous attitude is this, and what is its antidote?",
+      "question_type": "multiple_choice",
+      "options": ["Anti-Authority; 'Follow the rules. They are usually right.'", "Macho; 'Taking chances is foolish.'", "Impulsivity; 'Not so fast. Think first.'"],
+      "correct_answer": "Anti-Authority; 'Follow the rules. They are usually right.'",
+      "explanation": "'Don't tell me' / 'the rules don't apply to me' is Anti-Authority, whose antidote is 'Follow the rules. They are usually right.'",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "What does the IMSAFE checklist help a remote pilot assess?",
+      "question_type": "multiple_choice",
+      "options": ["The pilot's own fitness to fly (Illness, Medication, Stress, Alcohol, Fatigue, Emotion)", "The aircraft's mechanical condition before flight", "The weather and airspace for the operating area"],
+      "correct_answer": "The pilot's own fitness to fly (Illness, Medication, Stress, Alcohol, Fatigue, Emotion)",
+      "explanation": "IMSAFE is a personal self-assessment of the pilot's fitness. Aircraft and environment are addressed by other tools such as PAVE and the preflight inspection.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "To conduct operations over people under Category 1, what is the key requirement for the small unmanned aircraft?",
+      "question_type": "multiple_choice",
+      "options": ["It weighs 0.55 pound or less and has no exposed rotating parts that could lacerate skin", "It has an airworthiness certificate and an approved Flight Manual", "It will not transfer more than 25 ft-lb of kinetic energy on impact"],
+      "correct_answer": "It weighs 0.55 pound or less and has no exposed rotating parts that could lacerate skin",
+      "explanation": "Category 1 requires the aircraft to weigh 0.55 lb (250 g) or less with no lacerating exposed parts and meet Remote ID. Airworthiness certificate is Category 4; 25 ft-lb is Category 3.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Since what date has Remote ID broadcast been required for drones that must be registered (unless flown in a FRIA)?",
+      "question_type": "multiple_choice",
+      "options": ["September 16, 2023", "April 21, 2021", "January 1, 2020"],
+      "correct_answer": "September 16, 2023",
+      "explanation": "Remote ID broadcast enforcement began September 16, 2023. April 21, 2021 is the night/operations-over-people rule date, a plausible distractor.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "How does drone registration differ between recreational flyers and Part 107 operators?",
+      "question_type": "multiple_choice",
+      "options": ["Part 107 requires each drone to be registered individually; recreational flyers may use one number for all their drones", "Recreational flyers must register each drone individually; Part 107 operators register once", "Neither recreational nor Part 107 operators must register drones under 0.55 lb for any purpose"],
+      "correct_answer": "Part 107 requires each drone to be registered individually; recreational flyers may use one number for all their drones",
+      "explanation": "Under Part 107 every aircraft is registered individually. Recreational (44809) flyers may apply one registration number to all their drones. All Part 107 aircraft must be registered regardless of weight.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Operating a small UAS from a moving vehicle is permitted under Part 107 under what condition?",
+      "question_type": "multiple_choice",
+      "options": ["Only over a sparsely populated area", "Only on a closed-course racetrack", "Never, under any circumstances"],
+      "correct_answer": "Only over a sparsely populated area",
+      "explanation": "Under 107.25, operating from a moving vehicle is allowed only over a sparsely populated area (and not while transporting property for compensation/hire).",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Which of the following is a required action before flight under the preflight rules?",
+      "question_type": "multiple_choice",
+      "options": ["Inspect the sUAS to ensure it is in a condition for safe operation", "Notify the nearest control tower of every Class G operation", "File a flight plan with Flight Service"],
+      "correct_answer": "Inspect the sUAS to ensure it is in a condition for safe operation",
+      "explanation": "The RPIC must perform a preflight inspection to ensure the sUAS is in condition for safe operation. No tower notification or flight plan is required for routine Class G operations.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "What does CRM (Crew Resource Management) emphasize for a drone operation?",
+      "question_type": "multiple_choice",
+      "options": ["Effective use of all available resources — people, hardware, and information — to operate safely", "Operating multiple drones simultaneously to cover more area", "Letting the most senior crew member make all decisions without input"],
+      "correct_answer": "Effective use of all available resources — people, hardware, and information — to operate safely",
+      "explanation": "CRM is about using all available resources, briefing the crew, defining roles, and maintaining communication. It does not mean flying multiple drones or excluding crew input.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A remote pilot feels pressure to finish a job before a storm and decides to push the flight quickly without checking the aircraft. Which hazardous attitude is most at play?",
+      "question_type": "multiple_choice",
+      "options": ["Impulsivity", "Resignation", "Anti-Authority"],
+      "correct_answer": "Impulsivity",
+      "explanation": "Acting on the first thought without proper consideration ('do something quickly') is Impulsivity; the antidote is 'Not so fast. Think first.'",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "On a sectional chart, solid blue concentric rings around a busy airport indicate which class of airspace?",
+      "question_type": "multiple_choice",
+      "options": ["Class B", "Class C", "Class D"],
+      "correct_answer": "Class B",
+      "explanation": "Solid blue rings mark Class B airspace (the busiest airports, an upside-down wedding cake). Class C is solid magenta; Class D is a dashed blue line.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A dashed blue line on a sectional chart depicts the lateral boundary of which airspace?",
+      "question_type": "multiple_choice",
+      "options": ["Class D", "Class E to the surface", "Class C"],
+      "correct_answer": "Class D",
+      "explanation": "Class D is shown by a dashed blue line, usually with a boxed ceiling number. Class E to the surface is dashed magenta; Class C is solid magenta.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "You plan to fly at 350 ft AGL in Class G airspace away from any airport. What authorization do you need?",
+      "question_type": "multiple_choice",
+      "options": ["None — Class G up to 400 ft AGL requires no ATC authorization", "A LAANC authorization before each flight", "A waiver from FAADroneZone"],
+      "correct_answer": "None — Class G up to 400 ft AGL requires no ATC authorization",
+      "explanation": "Class G is uncontrolled; a Part 107 pilot may fly up to 400 ft AGL there with no authorization. Authorizations apply to controlled airspace (B, C, D, surface-area E).",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "You want to fly in Class D airspace near a towered airport. What must you obtain first?",
+      "question_type": "multiple_choice",
+      "options": ["An airspace authorization, typically through LAANC or FAADroneZone", "Nothing, as long as you stay below 400 ft AGL", "A Remote ID broadcast module only"],
+      "correct_answer": "An airspace authorization, typically through LAANC or FAADroneZone",
+      "explanation": "Controlled airspace (B, C, D, surface-area E) requires an airspace authorization before flying, usually via LAANC or DroneZone. Staying low does not exempt you, and Remote ID is unrelated to airspace access.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "On a UAS Facility Map, a grid showing '0' means what for a LAANC request?",
+      "question_type": "multiple_choice",
+      "options": ["Automatic LAANC authorization is unavailable there; a further-coordination request to the FAA is required", "You may fly up to 0 ft, meaning no flight is ever allowed", "The airspace is Class G and no authorization is needed"],
+      "correct_answer": "Automatic LAANC authorization is unavailable there; a further-coordination request to the FAA is required",
+      "explanation": "A '0' grid means automatic LAANC will not approve operations there; the pilot must submit a slower further-coordination request to the FAA. It does not mean flight is banned or that the airspace is Class G.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A magenta airport symbol on a sectional chart indicates what about that airport?",
+      "question_type": "multiple_choice",
+      "options": ["It does not have an operating control tower", "It is a Class C airport", "It is restricted to military traffic"],
+      "correct_answer": "It does not have an operating control tower",
+      "explanation": "A magenta airport symbol marks a non-towered airport; a blue symbol marks a towered one. Color of the airport symbol indicates tower status, not airspace class or military use.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "In the METAR group '27015G25KT', what does the wind information mean?",
+      "question_type": "multiple_choice",
+      "options": ["Wind from 270 degrees true at 15 knots, gusting to 25 knots", "Wind from 027 degrees at 15 knots for 25 minutes", "Wind variable between 270 and 025 degrees at 15 knots"],
+      "correct_answer": "Wind from 270 degrees true at 15 knots, gusting to 25 knots",
+      "explanation": "The first three digits are direction in degrees true (270), the next two are speed (15 kt), and 'G25' is the gust to 25 kt. 'KT' confirms knots.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "In a METAR, the time group '121753Z' represents what?",
+      "question_type": "multiple_choice",
+      "options": ["The 12th day of the month at 1753 Zulu (UTC)", "12:17:53 local time", "December 17 at 53 minutes past the hour"],
+      "correct_answer": "The 12th day of the month at 1753 Zulu (UTC)",
+      "explanation": "The first two digits are the day (12), the next four are the time in Zulu/UTC (1753), and 'Z' confirms Zulu. Aviation weather is always reported in UTC.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "In the METAR sky condition 'BKN015', what is the cloud height and is it a ceiling?",
+      "question_type": "multiple_choice",
+      "options": ["Broken layer at 1,500 ft AGL, and yes it is a ceiling", "Broken layer at 15,000 ft AGL, and it is not a ceiling", "Broken layer at 150 ft AGL, and it is not a ceiling"],
+      "correct_answer": "Broken layer at 1,500 ft AGL, and yes it is a ceiling",
+      "explanation": "Heights are in hundreds of feet AGL, so '015' is 1,500 ft. A broken (BKN) or overcast (OVC) layer is a ceiling; this is the lowest such layer, so it is the ceiling.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A METAR reports a temperature and dewpoint that are very close together (a small spread). What weather is most likely?",
+      "question_type": "multiple_choice",
+      "options": ["Fog or low clouds", "Clear skies with strong gusty winds", "Thunderstorms and hail"],
+      "correct_answer": "Fog or low clouds",
+      "explanation": "A small temperature–dewpoint spread means the air is near saturation, favoring fog and low cloud formation. It does not by itself indicate gusty clear conditions or thunderstorms.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "In a TAF, what does the change indicator 'TEMPO' signify?",
+      "question_type": "multiple_choice",
+      "options": ["Temporary fluctuations expected to last less than 1 hour each", "A permanent, rapid change beginning at a stated time", "A 40% probability of the stated conditions"],
+      "correct_answer": "Temporary fluctuations expected to last less than 1 hour each",
+      "explanation": "TEMPO marks temporary conditions lasting under an hour. 'FM' marks a rapid lasting change; 'PROB40' marks a 40% probability.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Which set of conditions produces a HIGH density altitude and degrades drone performance?",
+      "question_type": "multiple_choice",
+      "options": ["High elevation, high temperature, and high humidity", "Low elevation, cold temperature, and dry air", "Sea level, standard temperature, and standard pressure"],
+      "correct_answer": "High elevation, high temperature, and high humidity",
+      "explanation": "High, hot, and humid conditions raise density altitude, thinning the air so the drone produces less lift and thrust. Cold, low, dry conditions lower density altitude and improve performance.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Which weather hazard involves an intense, localized downdraft with dangerous, rapidly shifting wind shear that can slam a small UA to the ground?",
+      "question_type": "multiple_choice",
+      "options": ["A microburst", "A temperature inversion", "Radiation fog"],
+      "correct_answer": "A microburst",
+      "explanation": "A microburst is a violent localized downdraft, often associated with thunderstorms, producing severe wind shear. Inversions trap haze; radiation fog reduces visibility but is not a downdraft hazard.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A boxed number near a dashed blue ring on a sectional chart most likely indicates what?",
+      "question_type": "multiple_choice",
+      "options": ["The ceiling of the Class D airspace in hundreds of feet MSL", "The maximum drone altitude allowed there", "The CTAF frequency for the airport"],
+      "correct_answer": "The ceiling of the Class D airspace in hundreds of feet MSL",
+      "explanation": "A dashed blue ring is Class D; the boxed number is its ceiling in hundreds of feet MSL. It is not a drone altitude limit or a frequency.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A bold blue number such as '1 5' (with a smaller second digit) printed in a quadrangle on a sectional chart is the:",
+      "question_type": "multiple_choice",
+      "options": ["Maximum Elevation Figure (MEF) for that quadrangle, in thousands and hundreds of feet MSL", "Magnetic variation for that region", "Pattern altitude for the nearest airport"],
+      "correct_answer": "Maximum Elevation Figure (MEF) for that quadrangle, in thousands and hundreds of feet MSL",
+      "explanation": "The bold blue quadrangle number is the MEF — the highest terrain or obstacle in that block, in thousands and hundreds of feet MSL. It is not magnetic variation or pattern altitude.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A Temporary Flight Restriction (TFR) is issued by which mechanism, and how should a drone pilot treat it?",
+      "question_type": "multiple_choice",
+      "options": ["By an FDC NOTAM; the drone must comply, and many TFRs prohibit all UAS", "By a sectional chart revision only; drones are exempt", "By the local airport manager; it applies only to manned aircraft"],
+      "correct_answer": "By an FDC NOTAM; the drone must comply, and many TFRs prohibit all UAS",
+      "explanation": "TFRs are issued via FDC NOTAMs and must be checked before every flight. Drones must comply; many TFRs (e.g., stadiums, VIP movement) prohibit all UAS.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "After passing the UAG test, what system do you use to apply for the remote pilot certificate?",
+      "question_type": "multiple_choice",
+      "options": ["IACRA (Integrated Airman Certification and Rating Application)", "FAADroneZone registration portal", "The PSI testing scheduler"],
+      "correct_answer": "IACRA (Integrated Airman Certification and Rating Application)",
+      "explanation": "You file Form 8710-13 through IACRA using your knowledge test report. FAADroneZone is for aircraft registration; PSI schedules the test.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "What background check runs automatically as part of the remote pilot certificate application?",
+      "question_type": "multiple_choice",
+      "options": ["A TSA security vetting", "An FBI fingerprint check at a PSI center", "A DMV driving-record review"],
+      "correct_answer": "A TSA security vetting",
+      "explanation": "TSA security vetting runs automatically during the IACRA application. There is no separate fingerprinting or DMV review for the certificate.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "How often must a Part 107 remote pilot complete recurrent training to maintain aeronautical knowledge recency?",
+      "question_type": "multiple_choice",
+      "options": ["Every 24 calendar months", "Every 12 calendar months", "Every 36 calendar months"],
+      "correct_answer": "Every 24 calendar months",
+      "explanation": "Knowledge recency must be renewed every 24 calendar months via a free online recurrent course. 12 and 36 months are distractors.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "How is current Part 107 recurrent training completed?",
+      "question_type": "multiple_choice",
+      "options": ["A free online course on FAASafety.gov", "A paid in-person retest at a PSI center", "A check ride with an FAA examiner"],
+      "correct_answer": "A free online course on FAASafety.gov",
+      "explanation": "Since the 2021 rule change, recurrency is a free online course; the old paid in-person recurrent knowledge test was eliminated. There is no check ride for sUAS recency.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Which statement about the remote pilot certificate's expiration is correct?",
+      "question_type": "multiple_choice",
+      "options": ["The certificate does not expire, but knowledge recency must be renewed every 24 calendar months", "The certificate expires after 2 years and a new one is mailed automatically", "The certificate expires after 5 years and requires a new UAG test"],
+      "correct_answer": "The certificate does not expire, but knowledge recency must be renewed every 24 calendar months",
+      "explanation": "The certificate has no expiration date; what must stay current is knowledge recency (every 24 calendar months). No new certificate is issued after recurrent training.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Under Part 107, how must drones be registered, and what is the weight threshold for required registration?",
+      "question_type": "multiple_choice",
+      "options": ["Each drone is registered individually; registration is required for drones over 0.55 lb up to 55 lb", "All drones share one registration number; only drones over 5 lb need registration", "Registration is optional for commercial operations under 1 lb"],
+      "correct_answer": "Each drone is registered individually; registration is required for drones over 0.55 lb up to 55 lb",
+      "explanation": "Part 107 requires individual registration of each aircraft; drones over 0.55 lb (250 g) up to 55 lb must be registered, and all Part 107 aircraft must be registered regardless of weight.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "After completing the online recurrent training, what must the remote pilot keep as proof of currency?",
+      "question_type": "multiple_choice",
+      "options": ["The course-completion certificate, which they must be able to present", "A newly mailed plastic remote pilot certificate from the FAA", "A receipt from PSI for the recurrent test fee"],
+      "correct_answer": "The course-completion certificate, which they must be able to present",
+      "explanation": "The FAA does not issue a new certificate after recurrent training; the pilot must retain the course-completion certificate and present it as proof. There is no PSI fee for the online course.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Which free tool helps a remote pilot quickly see where they can fly and check active airspace restrictions and TFRs?",
+      "question_type": "multiple_choice",
+      "options": ["The B4UFLY app", "The IACRA portal", "The PSI scheduling site"],
+      "correct_answer": "The B4UFLY app",
+      "explanation": "B4UFLY (from FAA-approved providers) shows where you can fly plus restrictions and active TFRs. IACRA is for applications; PSI schedules tests.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "After your application clears, how do you typically receive authorization to begin flying before your permanent card arrives?",
+      "question_type": "multiple_choice",
+      "options": ["A temporary remote pilot certificate is issued by email", "You must wait for the permanent card in the mail before flying", "You receive a printed certificate at the PSI testing center"],
+      "correct_answer": "A temporary remote pilot certificate is issued by email",
+      "explanation": "Once the application and TSA vetting clear, a temporary certificate is emailed so you can fly immediately; the permanent card follows by mail. PSI does not issue the certificate.",
+      "difficulty": "medium"
+    }
+  ],
+  "homework": []
+}
