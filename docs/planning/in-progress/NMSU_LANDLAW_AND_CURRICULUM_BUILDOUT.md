@@ -85,6 +85,26 @@ Each module slice: 1–2 content blocks per lesson minimum (intro→develop→ta
 8–15 flashcards, 12–20 quiz questions, and problem templates for computational
 modules. Apply + verify each before committing.
 
+### Curriculum buildout — COMPLETE ✅
+All 36 pre-existing modules fleshed out across batches (seeds 332–367). Final
+live state: **44 modules, 381 lessons, 2,767 lesson_blocks, 1,522 flashcards,
+2,370 quiz questions (158 randomized/dynamic), 158 problem templates — ZERO
+empty lessons remain.** Every dynamic template generates + self-grades cleanly
+(158/158). College/SIT level, Texas-specific.
+
+### Seed application audit (user asked: "ensure all seeds applied") ✅/⚠️
+- [x] Applied all learn schema + course seeds (330–367).
+- [x] Applied previously-unapplied leads seeds 317–322 (DB was lagging main).
+      Fixed a real bug in `seeds/321_reply_templates.sql` (INSERT named 5 columns
+      but supplied 4 values — dropped the surplus `is_org_default`, which defaults
+      to FALSE).
+- [ ] ⚠️ **Payment seeds 323–327 NOT applied — pre-existing schema drift on main.**
+      323 fails: an older `invoices` table exists WITHOUT the `issued_at` column
+      323 indexes. This touches live payment infrastructure; it rolled back cleanly
+      (no partial state, payments unchanged). Left for deliberate human review —
+      reconcile the live `invoices` schema before re-running 323–327. NOT a course
+      concern; flagged here for visibility.
+
 ## Deferred / needs the user (roadmap — keep this doc in-progress until addressed)
 - [ ] **Figures & diagrams.** 75 `images_needed` specs captured in
       `scripts/_tmp_landlaw/content/images_manifest.json`; image blocks render as

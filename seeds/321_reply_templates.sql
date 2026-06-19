@@ -69,7 +69,7 @@ END $$;
 -- Idempotent via UNIQUE (org_id, name); ON CONFLICT DO NOTHING keeps
 -- re-runs safe even after the office edits the body.
 
-INSERT INTO public.reply_templates (name, category, subject_template, body_html_template, is_org_default)
+INSERT INTO public.reply_templates (name, category, subject_template, body_html_template)
 VALUES
   (
     'First contact',
