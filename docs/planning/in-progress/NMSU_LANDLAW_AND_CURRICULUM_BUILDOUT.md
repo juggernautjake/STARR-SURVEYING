@@ -133,6 +133,30 @@ exam spec (researched online) and the user's SIT Prep resources.
 - Build fix shipped: excluded `scripts/_tmp_landlaw` from tsconfig so `next build`
   type-checks cleanly (the throwaway verify_*.ts import `pg`, which ships no types).
 
+### Dynamic problem-diagram engine — COMPLETE ✅
+`lib/diagrams/survey-diagram.ts` — a pure, DOM-free SVG generator (reuses the CAD
+survey-geometry helpers) that renders a labeled figure from the SAME random values
+the problem engine produces: traverse (+inverse highlight), inverse line, triangle/
+polygon area, horizontal curve, differential leveling, compass. Wired through:
+`problem_templates.diagram` (jsonb spec, seed 330) → engine resolves it against the
+generated vars → quiz API returns `_diagram` → QuizRunner renders it above the
+answer. 19 FS COGO/curve/leveling/azimuth templates ship matching diagrams.
+**Verified live:** an FS Module-4 quiz returned a dynamic COGO question whose SVG
+labels matched the generated coordinates exactly (A (N 3245.69, E 1305.67) …),
+rendered in-browser, generated server-side in <1ms. Build stays green (tsc clean).
+Future: extend specs to more templates and surface diagrams in the FS lesson
+practice/`fs_study_modules` examples.
+
+### FAA Part 107 commercial-drone course — COMPLETE ✅ (seed 369)
+A full Remote Pilot (UAG) exam-prep academic course (`acc_course_id='faa-part107'`),
+researched against FAA/eCFR (14 CFR Part 107, the UAG ACS, AC 107-2). 7 modules
+(Certification; Regulations; Airspace & Sectional Charts; Weather; Loading &
+Performance; Operations/ADM; Review & 50-q Practice Exam), 41 lessons, 310 blocks,
+196 flashcards, 225 FAA-style 3-option questions (exam_category='PART107'), 57
+sectional-chart/weather image placeholders (render as "🖼️ Figure (to be added)"
+callouts; manifest in scripts/_tmp_landlaw/part107/images_manifest.json). Verified
+live: Airspace lesson renders, placeholders show, quiz returns 3-option questions.
+
 ## Deferred / needs the user (roadmap — keep this doc in-progress until addressed)
 - [ ] **Figures & diagrams.** 75 `images_needed` specs captured in
       `scripts/_tmp_landlaw/content/images_manifest.json`; image blocks render as
