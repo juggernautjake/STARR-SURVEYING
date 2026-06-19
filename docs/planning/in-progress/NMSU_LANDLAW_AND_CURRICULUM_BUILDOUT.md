@@ -110,6 +110,29 @@ empty lessons remain.** Every dynamic template generates + self-grades cleanly
       reconcile the live `invoices` schema before re-running 323–327. NOT a course
       concern; flagged here for visibility.
 
+### Comprehensive FS / Texas-SIT exam-prep course — COMPLETE ✅ (seed 368)
+Built into the existing dedicated `fs_study_modules` system (the `/admin/learn/
+exam-prep/sit` feature with module gating, progress, weak-areas, and the 110-q
+mock exam), reconciled against the NCEES FS Reference Handbook v2.5 + current
+exam spec (researched online) and the user's SIT Prep resources.
+- 10 modules: enriched 1–8 (Fundamentals→Photogrammetry) with deep 5-tab content
+  (overview/concepts/formulas/examples/tips) + embedded **SVG diagrams** (4-leg
+  traverse, horizontal curve, geoid/ellipsoid, vertical-photo geometry); NEW
+  **Module 9 "Approved Calculator Mastery & Test Strategy"** (TI-36X Pro / Casio
+  fx-991 / HP-33S/35S keystrokes for DMS, R▸P inverse, P▸R forward, area) and
+  **Module 10 "Comprehensive Review & Final Mock Exam"**.
+- 340 FS questions (259 static + 81 template-linked dynamic) → module quizzes
+  generate endless unique COGO/inverse/azimuth↔bearing/DMS-seconds/leg-length/
+  coordinate/curve/leveling/scale problems. All 81 templates self-grade (verified).
+- 270-question FS-MOCK pool across all 7 NCEES areas → the 110-question
+  comprehensive mock exam (scored by category). Verified live: landing renders
+  (0/10 modules, readiness gauge), Module 1 content + quiz grade with a dynamic
+  numeric question, mock-exam page shows "110 / 5h20m / 70%".
+- Knowledge checks = each module's 70%-to-unlock quiz (the prerequisite chain is
+  the milestone spine); the final comprehensive mock is the capstone.
+- Build fix shipped: excluded `scripts/_tmp_landlaw` from tsconfig so `next build`
+  type-checks cleanly (the throwaway verify_*.ts import `pg`, which ships no types).
+
 ## Deferred / needs the user (roadmap — keep this doc in-progress until addressed)
 - [ ] **Figures & diagrams.** 75 `images_needed` specs captured in
       `scripts/_tmp_landlaw/content/images_manifest.json`; image blocks render as
