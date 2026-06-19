@@ -28,6 +28,8 @@ interface WeatherDay {
   icon: string;
   // weather-extras-2026-06-18 — per-day rain chance.
   rain_chance_pct?: number | null;
+  // weather-icon-accuracy-2026-06-19 — per-day max wind in mph.
+  wind_mph?: number | null;
 }
 interface WeatherSnapshot {
   temperature_f: number;
@@ -41,7 +43,14 @@ interface WeatherSnapshot {
   feels_like_f?: number | null;
   humidity_pct?: number | null;
   rain_chance_pct?: number | null;
+  // weather-icon-accuracy-2026-06-19 — current sustained wind in mph.
+  wind_mph?: number | null;
 }
+
+// weather-icon-accuracy-2026-06-19 — wind threshold for the chip.
+// Mirrors lib/weather/wmo.ts WIND_NOTABLE_MPH so the chip appears
+// in the same range the icon refinement reacts to.
+const WIND_CHIP_THRESHOLD_MPH = 15;
 
 function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
   const settings = { ...DEFAULTS, ...content };
@@ -101,9 +110,13 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
   // returned above, so by this point bucket is small or wider).
   // Each chip is null-safe so a partial Open-Meteo payload
   // still renders the others.
+  // weather-icon-accuracy-2026-06-19 — surface wind as a chip when
+  // notable so the office knows why the icon may show 🌬️.
+  const showWindChip = weather.wind_mph != null && weather.wind_mph >= WIND_CHIP_THRESHOLD_MPH;
   const showExtras = weather.feels_like_f != null
     || weather.humidity_pct != null
-    || weather.rain_chance_pct != null;
+    || weather.rain_chance_pct != null
+    || showWindChip;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, height: '100%' }}>
@@ -150,6 +163,16 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
             >
               <span aria-hidden>🌧️</span>
               <span>{weather.rain_chance_pct}% rain</span>
+            </li>
+          )}
+          {showWindChip && (
+            <li
+              data-testid="weather-extra-wind"
+              title="Current sustained wind"
+              style={extraChipStyle}
+            >
+              <span aria-hidden>🌬️</span>
+              <span>{weather.wind_mph} mph wind</span>
             </li>
           )}
         </ul>

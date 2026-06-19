@@ -29,6 +29,9 @@ describe('buildDailyForecast (pure)', () => {
       // weather-extras-2026-06-18 — rain chance null when the
       // upstream omits precipitation_probability_max.
       rain_chance_pct: null,
+      // weather-icon-accuracy-2026-06-19 — wind null when the
+      // upstream omits wind_speed_10m_max.
+      wind_mph: null,
     });
     expect(out[2].date).toBe('2026-06-20');
   });
@@ -82,6 +85,9 @@ describe('toWeatherSnapshot — carries the daily strip', () => {
       date: '2026-06-19', high_f: 90, low_f: 68,
       description: 'Overcast', icon: '☁️',
       rain_chance_pct: null,
+      // weather-icon-accuracy-2026-06-19 — wind null when the
+      // upstream omits wind_speed_10m_max.
+      wind_mph: null,
     });
   });
 });
@@ -107,6 +113,16 @@ describe('weather widget — forecast strip threshold (W5 + weather-extras-2026-
   it('renders an ul[data-testid="weather-forecast-strip"] for the source-lock', () => {
     expect(SRC).toMatch(/data-testid="weather-forecast-strip"/);
   });
+
+  it('weather-icon-accuracy-2026-06-19 — wind chip surfaces when wind ≥ chip threshold', () => {
+    expect(SRC).toMatch(/data-testid="weather-extra-wind"/);
+    expect(SRC).toMatch(/WIND_CHIP_THRESHOLD_MPH/);
+  });
+
+  it('weather-icon-accuracy-2026-06-19 — WeatherDay + WeatherSnapshot shapes carry wind_mph', () => {
+    expect(SRC).toMatch(/interface WeatherDay \{[\s\S]*?wind_mph\?: number \| null;[\s\S]*?\}/);
+    expect(SRC).toMatch(/interface WeatherSnapshot \{[\s\S]*?wind_mph\?: number \| null;[\s\S]*?\}/);
+  });
 });
 
 describe('weather API — requests 5 days + daily weather_code (W5)', () => {
@@ -126,5 +142,17 @@ describe('weather API — requests 5 days + daily weather_code (W5)', () => {
 
   it('weather-extras-2026-06-18 — current snapshot also fetches feels-like + humidity', () => {
     expect(SRC).toMatch(/current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code/);
+  });
+
+  it('weather-icon-accuracy-2026-06-19 — current snapshot also fetches wind_speed_10m', () => {
+    expect(SRC).toMatch(/current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m/);
+  });
+
+  it('weather-icon-accuracy-2026-06-19 — daily block also requests wind_speed_10m_max', () => {
+    expect(SRC).toMatch(/daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max/);
+  });
+
+  it('weather-icon-accuracy-2026-06-19 — explicitly asks for windspeed_unit=mph', () => {
+    expect(SRC).toMatch(/windspeed_unit=mph/);
   });
 });
