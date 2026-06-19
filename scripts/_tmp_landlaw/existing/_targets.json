@@ -1,277 +1,258 @@
 [
  {
   "module": {
-   "id": "c100000d-0000-0000-0000-00000000000d",
-   "order_index": 13,
-   "title": "Boundary Law Principles",
-   "description": "Legal principles of boundary determination including riparian rights, adverse possession, and rules of construction.",
+   "id": "c1000001-0000-0000-0000-000000000001",
+   "order_index": 1,
+   "title": "Introduction to Land Surveying",
+   "description": "History, purpose, and scope of the land surveying profession in the United States and Texas.",
    "tags": [
-    "boundary",
-    "legal",
-    "law",
-    "property"
+    "foundations",
+    "history",
+    "profession"
    ]
   },
   "lessons": [
    {
-    "id": "7609d69d-4e47-41af-ba52-4fb43c7bd30b",
-    "title": "Introduction to Property Law",
+    "id": "22222222-2222-2222-2222-222222222200",
+    "title": "Welcome to Starr Surveying",
+    "order_index": 0
+   },
+   {
+    "id": "4bf81c35-abfe-4431-9a09-6941789520cb",
+    "title": "What Is Land Surveying?",
     "order_index": 1
    },
    {
-    "id": "d9dce125-bcb4-4b45-ba8d-9b158330f19a",
-    "title": "Types of Property (Real vs. Personal)",
+    "id": "0d4cdb00-24c3-4f32-895c-8979d6babe3d",
+    "title": "Brief History of Surveying (Ancient to Modern)",
     "order_index": 2
    },
    {
-    "id": "2f9cc34d-ae8a-4d64-85d8-fa127e99c3af",
-    "title": "Estates and Interests in Land",
+    "id": "f1457d76-60f4-4152-ab1b-d4751101acac",
+    "title": "The Role of the Modern Land Surveyor",
     "order_index": 3
    },
    {
-    "id": "adab54df-2ed0-4b42-84a3-b5dc747ee7ab",
-    "title": "Legal Descriptions Overview",
+    "id": "05a5c66e-807e-4635-a20d-7cd116d829c4",
+    "title": "Land Surveying in Texas — Overview",
     "order_index": 4
    },
    {
-    "id": "b6e53f76-c210-49f5-bc00-e863acdb4a26",
-    "title": "Rules of Construction for Deeds",
+    "id": "10a4dc63-93e3-4ba5-b6bb-d420617b01de",
+    "title": "Licensing Path: SIT → RPLS",
     "order_index": 5
    },
    {
-    "id": "62544af0-961b-47ed-be48-62be4f3c7721",
-    "title": "Riparian and Littoral Rights",
+    "id": "68cfb0d8-ffa2-429a-8a66-01c6d3264403",
+    "title": "Ethics and Professional Responsibility",
+    "order_index": 6
+   }
+  ]
+ },
+ {
+  "module": {
+   "id": "c1000002-0000-0000-0000-000000000002",
+   "order_index": 2,
+   "title": "Mathematics for Surveyors",
+   "description": "Essential math skills including trigonometry, coordinate geometry, and unit conversions used daily in surveying.",
+   "tags": [
+    "foundations",
+    "math",
+    "trigonometry"
+   ]
+  },
+  "lessons": [
+   {
+    "id": "02ce6947-ebfd-40ed-8ee9-30aae4331968",
+    "title": "Review of Algebra and Geometry Basics",
+    "order_index": 1
+   },
+   {
+    "id": "24f0890d-d4b8-4d6c-b287-009d76f7502d",
+    "title": "Trigonometric Functions and Identities",
+    "order_index": 2
+   },
+   {
+    "id": "f3f20b2d-c28f-46d7-a20b-bea06201b1fc",
+    "title": "Right Triangle Solutions in Surveying",
+    "order_index": 3
+   },
+   {
+    "id": "7dbd1cd4-2b1b-4d8d-850a-9c338ac3587a",
+    "title": "Oblique Triangle Solutions",
+    "order_index": 4
+   },
+   {
+    "id": "8339b9ef-a60e-4fd7-9ffd-220e2250bb7e",
+    "title": "Coordinate Geometry (COGO) Fundamentals",
+    "order_index": 5
+   },
+   {
+    "id": "068b86a9-cc98-457b-8479-2ab60d011ad1",
+    "title": "Unit Conversions (Feet, Meters, Chains, Varas)",
     "order_index": 6
    },
    {
-    "id": "7d2f4cce-bb4a-48ab-b9c4-61cd49b2951a",
-    "title": "Adverse Possession and Acquiescence",
+    "id": "392e4287-7043-44e7-8bc0-b81d423c933b",
+    "title": "Area Computation Methods",
     "order_index": 7
    },
    {
-    "id": "149f728d-c46e-4060-80b4-442d34c58bc6",
-    "title": "Easements and Rights-of-Way",
+    "id": "7669b3eb-ea77-478b-9d58-d2eff6eb4302",
+    "title": "Practical Math Problem Sets",
     "order_index": 8
    }
   ]
  },
  {
   "module": {
-   "id": "c100000e-0000-0000-0000-00000000000e",
-   "order_index": 14,
-   "title": "Metes and Bounds Descriptions",
-   "description": "Writing and interpreting metes and bounds legal descriptions, understanding calls, and resolving conflicts.",
+   "id": "c1000003-0000-0000-0000-000000000003",
+   "order_index": 3,
+   "title": "Surveying Measurements & Error Theory",
+   "description": "Principles of measurement, types of errors, precision vs. accuracy, and how to minimize error in field observations.",
    "tags": [
-    "boundary",
-    "metes-bounds",
-    "descriptions",
-    "legal"
+    "foundations",
+    "measurements",
+    "errors"
    ]
   },
   "lessons": [
    {
-    "id": "ac63566a-d49c-47db-97c5-cc9186fdee08",
-    "title": "Components of a Metes and Bounds Description",
+    "id": "5e9763a8-6772-4fcf-866f-5c61b1d525cf",
+    "title": "Principles of Measurement",
     "order_index": 1
    },
    {
-    "id": "5c4cda74-f4e2-45d8-bfdd-373702f28d14",
-    "title": "Beginning Points and Monuments",
+    "id": "9442daa4-8a0c-4b34-90f7-80304ebb0e20",
+    "title": "Types of Errors (Systematic, Random, Blunders)",
     "order_index": 2
    },
    {
-    "id": "89312e01-b753-4286-ac10-c7096c77357e",
-    "title": "Course and Distance Calls",
+    "id": "b1466895-7138-43f6-8f99-8565d7b42962",
+    "title": "Precision vs. Accuracy",
     "order_index": 3
    },
    {
-    "id": "da65db00-054e-419d-9988-24d97953ca1e",
-    "title": "Natural and Artificial Monuments",
+    "id": "eafbffa3-948b-4bf6-a2d8-8d7effc3bcf7",
+    "title": "Significant Figures and Rounding",
     "order_index": 4
    },
    {
-    "id": "9fc9e9f1-25b9-4c57-b4f2-e6e3b3a4de29",
-    "title": "Senior vs. Junior Rights",
+    "id": "190ebc35-c5e8-4479-8f39-77c6e490d034",
+    "title": "Error Propagation",
     "order_index": 5
    },
    {
-    "id": "42792d8e-0f3a-46d9-95c4-2add696124cf",
-    "title": "Resolving Conflicting Calls",
+    "id": "703631b0-5d21-4272-b25a-9577c8a3bc05",
+    "title": "Least Squares Concepts (Intro)",
     "order_index": 6
    },
    {
-    "id": "1112f7a8-b60d-43db-aac0-c02cc1ce39cf",
-    "title": "Writing Legal Descriptions",
+    "id": "4ae68562-9fd5-4869-8dca-f3c50cc77f9d",
+    "title": "Field Procedures to Minimize Error",
     "order_index": 7
    }
   ]
  },
  {
   "module": {
-   "id": "c100000f-0000-0000-0000-00000000000f",
-   "order_index": 15,
-   "title": "Texas Land Titles and Records",
-   "description": "Texas land title history from Spanish grants through present, abstract of title, and county records research.",
+   "id": "c1000008-0000-0000-0000-000000000008",
+   "order_index": 8,
+   "title": "Traverse Computations",
+   "description": "Open and closed traverse computations, closure calculations, and traverse adjustment methods.",
    "tags": [
-    "boundary",
-    "texas",
-    "titles",
-    "records",
-    "history"
+    "coordinates",
+    "traverse",
+    "closure",
+    "adjustment"
    ]
   },
   "lessons": [
    {
-    "id": "6dc25256-cb35-42e0-b8ec-90b29f6c7085",
-    "title": "History of Texas Land Grants",
+    "id": "4ea6aa56-31e3-4b33-a7e2-ab2dc6d7723e",
+    "title": "Traverse Types (Open, Closed, Link)",
     "order_index": 1
    },
    {
-    "id": "5ea5e4f0-f3c6-48af-a855-054e9110356e",
-    "title": "Spanish and Mexican Land Grants",
+    "id": "c053d4ff-74a7-4594-a8d1-d0c401307e02",
+    "title": "Traverse Field Procedures",
     "order_index": 2
    },
    {
-    "id": "184ab3e2-3b90-48ae-b9a1-be10d4e85a55",
-    "title": "Republic of Texas Grants",
+    "id": "61c4b9a9-e00e-4b80-99da-c15edf192c6e",
+    "title": "Latitude and Departure Calculations",
     "order_index": 3
    },
    {
-    "id": "e5580ef9-dc1d-436a-80df-6e83e08e5a71",
-    "title": "Texas General Land Office (GLO)",
+    "id": "3dd698ce-6ccc-4a03-a8d7-f19a53f40a16",
+    "title": "Closure Error and Ratio of Closure",
     "order_index": 4
    },
    {
-    "id": "f0ebedbb-846c-4687-bac9-e799499718b8",
-    "title": "Abstract of Title and Title Insurance",
+    "id": "24eb9a48-b37f-4615-ac1b-db880aa3480c",
+    "title": "Compass Rule Adjustment",
     "order_index": 5
    },
    {
-    "id": "a1904e23-948b-4673-8fc9-cf711ada59a0",
-    "title": "County Clerk Records Research",
+    "id": "2e258399-f9ef-432f-a67c-b6e624269e55",
+    "title": "Transit Rule Adjustment",
     "order_index": 6
    },
    {
-    "id": "768c4969-7fca-4dfe-a552-3a375e926869",
-    "title": "Deed Interpretation",
+    "id": "d597ed54-edfa-42b1-97b7-1064d9acc5f1",
+    "title": "Coordinate Calculation from Traverse Data",
     "order_index": 7
    },
    {
-    "id": "d12cd2e7-2324-47e0-b1f5-ae908b7963e2",
-    "title": "Texas Land Title Practice Exercises",
+    "id": "1085aa13-7c9d-4929-84c8-bc9f7d50448b",
+    "title": "Traverse Computation Problem Sets",
     "order_index": 8
    }
   ]
  },
  {
   "module": {
-   "id": "c1000010-0000-0000-0000-000000000010",
-   "order_index": 16,
-   "title": "Boundary Retracement and Resolution",
-   "description": "Procedures for retracing existing boundaries, resolving discrepancies, and re-establishing lost or obliterated corners.",
+   "id": "c1000009-0000-0000-0000-000000000009",
+   "order_index": 9,
+   "title": "Area and Volume Computations",
+   "description": "Methods for computing areas of parcels and volumes for earthwork using coordinate and cross-section methods.",
    "tags": [
-    "boundary",
-    "retracement",
-    "resolution",
-    "field"
+    "coordinates",
+    "area",
+    "volume",
+    "calculations"
    ]
   },
   "lessons": [
    {
-    "id": "88e2e8b2-1b43-44cb-9f84-69b4287c1bd5",
-    "title": "Retracement Survey Principles",
+    "id": "429a1bdd-bc34-4723-bb7d-daf1db4d2665",
+    "title": "Area by Coordinates (Double Meridian Distance)",
     "order_index": 1
    },
    {
-    "id": "0e44ee50-808d-40e0-9fac-d92394584cb5",
-    "title": "Original Survey vs. Retracement",
+    "id": "a9daa1c2-b0ae-40ab-ac31-c0295afe69b0",
+    "title": "Area by Triangulation",
     "order_index": 2
    },
    {
-    "id": "b5bf81bd-43fb-4104-bf00-21500875b87d",
-    "title": "Evidence Collection and Analysis",
+    "id": "704310c8-fb7a-49e1-8912-62f081890afa",
+    "title": "Area Partitioning and Division",
     "order_index": 3
    },
    {
-    "id": "3557faa5-147f-430a-bc6b-57c4260d5653",
-    "title": "Lost and Obliterated Corners",
+    "id": "de47d43a-6820-4784-96d0-40a3cfaa4621",
+    "title": "Volume by Cross-Sections",
     "order_index": 4
    },
    {
-    "id": "5dfc9628-8f23-417d-97b6-192f68ce2c10",
-    "title": "Proportionate Measurement",
+    "id": "133e303e-b95a-45de-8d33-b39ce8eb2d40",
+    "title": "Volume by Contour Methods",
     "order_index": 5
    },
    {
-    "id": "30169341-4a73-4d9b-84e7-0700156b62af",
-    "title": "Agreement Lines and Boundary Agreements",
+    "id": "df466917-ac9e-4799-a168-8475631ca487",
+    "title": "Earthwork Computation Exercises",
     "order_index": 6
-   },
-   {
-    "id": "20950896-59ec-45d2-9dbc-eb3e020232b6",
-    "title": "Expert Witness and Court Procedures",
-    "order_index": 7
-   },
-   {
-    "id": "bf1c4700-19c2-40c1-8477-19d8a2150348",
-    "title": "Boundary Retracement Case Studies",
-    "order_index": 8
-   }
-  ]
- },
- {
-  "module": {
-   "id": "c1000018-0000-0000-0000-000000000018",
-   "order_index": 24,
-   "title": "Texas Surveying Law and Regulations",
-   "description": "Texas-specific laws, TBPELS rules, Standards and Specifications, and regulatory compliance for surveyors.",
-   "tags": [
-    "professional",
-    "texas-law",
-    "regulations",
-    "TBPELS"
-   ]
-  },
-  "lessons": [
-   {
-    "id": "4ee6b9bd-40a2-4a27-9bf5-e2a25d4195ca",
-    "title": "Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
-    "order_index": 1
-   },
-   {
-    "id": "16f6fb48-114c-4670-8be8-bb211da888a8",
-    "title": "Texas Professional Land Surveying Practices Act",
-    "order_index": 2
-   },
-   {
-    "id": "8a8a6ec2-fee2-48a5-9676-71e947c1e640",
-    "title": "TBPELS Rules and Regulations",
-    "order_index": 3
-   },
-   {
-    "id": "aea6fe59-0955-42ca-87cd-a20323dd7c45",
-    "title": "Texas Standards and Specifications for Land Surveying",
-    "order_index": 4
-   },
-   {
-    "id": "4cf7696b-094d-47d1-bc5b-a68c9bb7f21b",
-    "title": "Texas Natural Resources Code — Surveying Sections",
-    "order_index": 5
-   },
-   {
-    "id": "5d0e6d5b-5066-449e-80a8-5c48cb705009",
-    "title": "Texas Property Code — Relevant Sections",
-    "order_index": 6
-   },
-   {
-    "id": "d254ce3d-221e-465e-a28a-d04e6429193b",
-    "title": "Ethics Complaints and Disciplinary Process",
-    "order_index": 7
-   },
-   {
-    "id": "947241dc-10a7-4ace-b235-6451665b5d16",
-    "title": "Regulatory Compliance Case Studies",
-    "order_index": 8
    }
   ]
  }
