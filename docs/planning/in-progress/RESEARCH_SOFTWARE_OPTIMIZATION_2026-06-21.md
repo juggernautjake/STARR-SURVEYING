@@ -256,6 +256,48 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 7 — §9.1 (semantic-layer) Canary diff ✅ (2026-06-21)
+`lib/research/canary-diff.ts` ships `diffAgainstCanary(extracted, canary)` —
+the **strongest breakage signal** in §9.1's three-layer health-check stack.
+Run the live adapter against its canary input, hand the result to this
+function, and get back exactly what changed since registration.
+
+  Result shape:
+    - `produced_record`  — false when the adapter handed back null /
+       missing parcel_id; severity is always `broken` in that case.
+    - `missing_fields`   — canary had it, adapter lost it.
+    - `changed_fields`   — value drift (with path / was / now / reason).
+    - `new_fields`       — adapter returns more data than the canary
+       (informational, not bad).
+    - `severity`         — `healthy` / `degraded` / `broken`. A change
+       to any path in `BREAKING_PATHS` (parcel_id, owner.display_name,
+       legal.text, situs/mailing.formatted) escalates degraded → broken.
+    - `summary`          — human-readable single-line for the §9.8
+       dashboard ("broken: 2 missing (owner.display_name, legal.text)").
+
+  Path-aware normalization (reuses slice 3's helpers):
+    - parcel_id   — through `normalizeParcelId` so cosmetic vendor
+                    variance ("R0012345" → "R12345") doesn't trip the
+                    diff.
+    - owner.display_name — through `normalizeOwnerName` so "JOHN SMITH
+                    ETUX" matches "SMITH JOHN".
+    - numbers     — small-epsilon comparison (<0.5% diff is rounding).
+    - wrapped fields — unwraps `CanonicalValue<T>` so an adapter that
+                    started attaching attribution to its outputs
+                    compares cleanly against a bare canary.
+
+  Pure — no DB, no network, no Playwright. The §9.4 diagnose-and-repair
+  agent will consume this diff as its strongest input signal; the §9.3
+  health-check writer will stamp the typed `CanaryFieldChange[]` straight
+  into the (forthcoming) `adapter_health_checks` jsonb column.
+
+Source-locked with 14 tests in `__tests__/research/canary-diff.test.ts`
+covering all three severity buckets, the cosmetic-variance no-flag cases,
+non-critical field degradation, breaking-field escalation, wrapped-field
+unwrapping, no-record handling, and summary text formatting.
+
+118/118 research tests pass; clean tsc.
+
 ### Slice 6 — §8.2 Vendor auto-detection ✅ (2026-06-21)
 `lib/research/vendor-detection.ts` ships `detectVendor(url, vendors)` — the
 pure matcher that turns a pasted portal URL into the right vendor
@@ -515,15 +557,16 @@ changed its website / our access broke, diagnoses the change, and
 proposes (or, when safe, auto-applies) an updated adapter — so coverage heals
 itself.
 
-- [ ] **9.1 Three-layer change detection** per adapter run:
-  - **Structural** — HTTP status + a DOM-structure hash (stable subset:
-    form/anchor/table skeleton) vs the recorded baseline. Divergence → flag.
-  - **Visual** — Playwright screenshot vs baseline; AI-vision compares "same
-    page/layout?" (catches CSS/redesign + captcha/interstitial walls). OCR the
-    page when it's image/canvas-rendered.
-  - **Semantic/data** — run the real extraction against the canary and compare
-    to the golden record. Missing/changed canonical fields → strongest breakage
-    signal.
+- [~] **9.1 Three-layer change detection** per adapter run:
+  - [x] **Semantic/data** ✅ (2026-06-21, Slice 7) — `diffAgainstCanary` in
+    `lib/research/canary-diff.ts` ships the strongest breakage signal.
+    Path-aware normalization, severity bucketing (`healthy` / `degraded` /
+    `broken`), human-readable summary.
+  - [ ] **Structural** — DOM-structure hash vs baseline. Pure-function
+    slice queued.
+  - [ ] **Visual** — Playwright screenshot + AI-vision diff. Needs
+    Playwright orchestration + AI-vision integration; lands as its own
+    slice once the §8.3 site-probe Playwright harness is up.
 - [ ] **9.2 Canary golden records** — `adapter_canaries` (`adapter_id`,
   `query_input`, `expected_fields` JSONB, `baseline_dom_hash`,
   `baseline_screenshot_ref`, `captured_at`). Seeded at registration (§8.5);
