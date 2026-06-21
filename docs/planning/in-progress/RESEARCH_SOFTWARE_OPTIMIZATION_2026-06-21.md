@@ -256,6 +256,43 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 12 — §10.5 + §10.6 Spatial filter + disambiguation ✅ (2026-06-21)
+`lib/research/spatial-filter.ts` ships the cost + correctness gate that
+sits in front of the §10.4 deep extractor: when a portal returns N
+parcels we keep only the subject + its adjoiners, ranked by composite
+relevance, and surface disambiguation to the user when the leader isn't
+clearly winning.
+
+  - `rankAndFilterCandidates(candidates, context, opts?)` — composes
+    slice 3's `classifyRelevance` with a proximity bonus (polygon-to-
+    polygon when both shapes are present via slice 5's
+    `arePolygonsAdjacent`; centroid-to-centroid haversine fallback).
+    Composite score = `confidence × tag_weight + proximity_bonus`,
+    where the tag weights are `subject=1.0`, `adjoiner=0.7`,
+    `unknown=0.3`, `unrelated=0`. Proximity bonus = +0.15 at ≤50 m,
+    linearly falling to 0 at ≥500 m. Drops everything below
+    `scoreFloor` (default 0.05); cap with `limit` for cost control.
+  - `disambiguateSubject(ranked, opts?)` — eligible candidates are
+    `subject` + `unknown` tagged (adjoiners are surrounding, not
+    target). Auto-pick when the leader's absolute score ≥ 0.6 AND
+    the runner-up is more than 0.15 below; otherwise return `chosen:
+    null` + the top-N candidates for the UI to surface to the user.
+    The user's pick strengthens the anchor for the rest of the
+    project.
+  - `rankAndDisambiguate(candidates, context, …)` — convenience
+    wrapper that runs both in sequence so the route handler can call
+    one function and get `{ ranked, disambiguation }` back.
+
+  Source-locked with 13 tests in
+  `__tests__/research/spatial-filter.test.ts`: drops `unrelated`,
+  subject-above-adjoiner ordering, limit honoring, proximity-bonus
+  re-ranking when geometry is available, empty-result on score-floor
+  miss, input immutability, disambiguation auto-pick + surfacing +
+  no-eligible-candidate cases, `maxCandidates` cap, custom
+  `ambiguityGap`, and the composed `rankAndDisambiguate` flow.
+
+196/196 research tests pass; clean tsc.
+
 ### Slice 11 — §9.5 + §9.9 Apply policy + reversible swap ✅ (2026-06-21)
 `lib/research/apply-policy.ts` ships the safe-by-default policy engine that
 decides what happens to a §9.4 change proposal — auto-apply, queue for human
@@ -832,14 +869,16 @@ surrounding/adjoining properties, and tag every datum's relevance.
   the regions/lots matching the relevance set; **Pass 2 (Sonnet)** deep-extracts
   only those segments. Avoids both cost blow-up and irrelevant-data bleed on
   100-lot plats.
-- [ ] **10.5 Spatial result filtering** — when a portal returns many parcels
-  (e.g. a street search → 30 hits), rank by proximity/identity to the subject
-  anchor and pursue only the subject + true adjoiners; discard the rest before
-  any expensive deep analysis.
-- [ ] **10.6 Disambiguation surfacing** — when multiple parcels plausibly match
-  the subject (common owner, similar address) and the anchor can't decide,
-  **surface the ambiguity to the user** with the candidates rather than guessing
-  silently; the user's pick strengthens the anchor.
+- [x] **10.5 Spatial result filtering** ✅ (2026-06-21, Slice 12) —
+  `rankAndFilterCandidates()` in `lib/research/spatial-filter.ts`
+  composes the relevance classifier (slice 3) with the polygon /
+  centroid proximity from slices 4/5 and a `scoreFloor` so unrelated
+  parcels are dropped before the §10.4 deep extractor pays a single
+  token.
+- [x] **10.6 Disambiguation surfacing** ✅ (2026-06-21, Slice 12) —
+  `disambiguateSubject()` auto-picks only when the leader is clearly
+  ahead (score ≥ 0.6, runner-up more than 0.15 behind); otherwise
+  returns `chosen: null` + the top-N candidates for the UI to surface.
 - [ ] **10.7 Acceptance** — given a multi-parcel plat fixture, the system
   extracts calls for the subject + its adjoiners and **provably excludes**
   unrelated lots; every extracted datum carries a `relevance` tag and
