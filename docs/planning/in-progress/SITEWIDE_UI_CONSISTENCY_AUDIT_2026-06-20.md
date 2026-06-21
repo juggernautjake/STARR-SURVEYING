@@ -487,13 +487,15 @@ per-page note in §6.
   - [x] **learn/modules + roadmap + exam-prep** → lucide. Commit `34658211`.
   - [x] **rewards(+how-it-works/admin) + users + discussions(+[id])** →
     lucide (tabs/section-titles/empty/loading). Commit `88f42f65`.
-  - [ ] Remaining (~24): learn/modules/[id](+[lessonId]), learn/manage(+
-    question-builder/lesson-builder/media/article-editor), learn/exam-prep/
-    sit(+module/[id]/mock-exam), learn/flashcards(+bank/practice),
-    learn/articles/[id], my-notes, and components (TipTapEditor,
-    JobFileManager, Fieldbook, FlashcardViewer, QuizRunner, FileViewer,
-    ArticleReader/Editor, SmallScreenBanner). Content editors need
-    per-file assessment (emoji may be authoring tools).
+  - [x] 9 more learn pages (modules/[id], exam-prep/sit, flashcards,
+    flashcard-bank, practice, articles/[id], manage/media, manage/
+    article-editor, mock-exam) → lucide. Commit `aaec139b`.
+  - [ ] Remaining (~15): learn/modules/[id]/[lessonId], learn/manage(+
+    question-builder/lesson-builder), learn/exam-prep/sit/module/[id],
+    my-notes, and components (TipTapEditor, JobFileManager, Fieldbook,
+    FlashcardViewer, QuizRunner, FileViewer, ArticleReader/Editor,
+    SmallScreenBanner). Content editors need per-file assessment (emoji
+    may be authoring tools / content).
 - ~~G3 — Payment seeds 323–327~~ — **deferred: BLOCKED on a human decision
   (live Stripe billing).** Root-caused 2026-06-21: `invoices` is a
   two-feature table-name collision — live = Stripe SaaS billing schema;
