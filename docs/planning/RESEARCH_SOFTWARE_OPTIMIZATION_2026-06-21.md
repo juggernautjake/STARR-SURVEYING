@@ -2,11 +2,18 @@
 
 **Date:** 2026-06-21
 **Author:** automated deep analysis (R1 of `SITEWIDE_UI_CONSISTENCY_AUDIT_2026-06-20.md`)
-**Status:** analysis + roadmap. **No feature build in this artifact.** Each
-roadmap phase below is a candidate for its own `in-progress/` phase doc once
-the user prioritizes it. Productization, pricing, and county-integration
-scale-out are business decisions — they are intentionally NOT queued for the
-autonomous stop-hook loop.
+**Status:** Part I = strategic analysis + roadmap. **Part II (§7–§11) is the
+fleshed-out, build-ready specification** for the three user-priority pillars —
+self-healing adapters, one-screen site registration, and relevance-scoped
+extraction — written so we can start building soon. Every Part II item is a
+checkbox so we can verify we cover all of it. Productization/pricing decisions
+(R-D) remain user-gated, not auto-queued.
+
+**To activate the build:** move this doc (or the §11 slice list as its own
+phase doc) into `docs/planning/in-progress/` and the stop-hook loop will build
+the slices in order. Outward-facing slices (live scheduled polling of county
+sites, auto-applying scraper changes) are explicitly **GATED** behind a feature
+flag + human review — see §9 guardrails.
 
 ---
 
@@ -232,3 +239,220 @@ Smallest high-value first, each shippable on its own:
 > These are recommendations. Implementation, sequencing, and the
 > productization/pricing decisions in R-D require the user's direction and are
 > **not** auto-queued into the stop-hook loop.
+
+---
+
+# Part II — Build specification (the three priority pillars)
+
+> User directive (2026-06-21): the research subsystem must be **perfect and
+> self-healing**. Counties change their websites and our access methods must
+> adapt. We need (1) AI that **regularly checks county sites** with Playwright +
+> OCR + whatever else helps, detects breakage, and **proposes/auto-applies
+> fixes**; (2) a **clean, simple way to register new county / CAD / property /
+> deed / plat / legal-description sites** so they're fully integrated and
+> AI-scrapable; and (3) AI that is **excellent at weeding** — extracting only
+> data about **our subject property and its surrounding/adjoining properties**,
+> never unrelated parcels. This part specifies all three so we can build them.
+
+## 7. Shared foundation — adapter & coverage data model
+
+Everything below sits on a small registry. Build this first; the three pillars
+all consume it.
+
+- [ ] **7.1 `counties`** — one row per Texas county (254). Columns:
+  `id`, `fips`, `name`, `metro_tier` (1–4 for prioritization), `centroid`,
+  `seeded_at`. Seed all 254 up front (static data).
+- [ ] **7.2 `data_vendors`** — the reusable vendor templates (the moat).
+  Columns: `id`, `key` (`tyler_publicsearch` | `trueautomation_propaccess` |
+  `esearch_cad` | `bis_arcgis` | `kofile` | `txglo` | `generic_playwright`),
+  `display_name`, `access_method` (`json_api` | `html_scrape` | `arcgis_rest` |
+  `browser_playwright`), `url_fingerprints` (regex/host patterns used to
+  auto-detect the vendor from a pasted URL), `config_template` (JSONB: endpoint
+  shapes, default selectors, query templates, pagination, auth), `field_map_template`
+  (vendor-field → our canonical schema), `notes`. Seed from the **existing**
+  working adapters in `lib/research/` (Bell ArcGIS, TrueAutomation, eSearch,
+  publicsearch) so day-one templates are real.
+- [ ] **7.3 `site_adapters`** — a concrete registered site (a county's specific
+  portal). Columns: `id`, `county_id` FK, `vendor_id` FK (nullable for bespoke),
+  `site_type` (`appraisal_cad` | `clerk_deeds` | `plat_records` | `gis_parcels`
+  | `legal_description`), `base_url`, `access_method`, `config` (JSONB —
+  vendor template + county-specific params: client id, layer ids, selectors),
+  `field_map` (JSONB), `status` (`draft` | `active` | `degraded` | `broken` |
+  `quarantined`), `health` (JSONB rollup), `created_by`, `created_at`,
+  `updated_at`, `last_verified_at`.
+- [ ] **7.4 `county_data_sources`** — coverage rollup per county × site_type:
+  `coverage` (`full` | `partial` | `requested` | `none`), `adapter_id` FK.
+  Drives the customer-facing coverage dashboard (`/admin/research/coverage`
+  already exists — repoint it at this table).
+- [ ] **7.5 Canonical schema** — define `lib/research/canonical-schema.ts`: the
+  single target shape every adapter maps into (owner, mailing/situs address,
+  parcel_id, legal_description, acreage, deed_references[], plat_reference,
+  parcel_geometry (GeoJSON), adjoiner_parcel_ids[], values, etc.). All vendor
+  field-maps target this. Acceptance: every existing adapter re-expressed as a
+  `field_map` onto this schema with no data loss vs today.
+
+## 8. Pillar A — One-screen site registration
+
+**Goal:** a surveyor (or us) registers a new county portal in minutes, confirms
+a real property extracts correctly, and it auto-enrolls into health monitoring.
+
+- [ ] **8.1 Registration route + wizard** — `/admin/research/sites` (list) and
+  `/admin/research/sites/new` (wizard). Step 1: paste portal URL, pick county +
+  `site_type`.
+- [ ] **8.2 Vendor auto-detection** — match the pasted URL/host (and a quick
+  fetched-HTML fingerprint) against `data_vendors.url_fingerprints`. On match,
+  **pre-fill** `config` + `field_map` from the vendor template (this is the
+  reuse leverage — most new counties are an existing vendor with new params).
+  Show "Detected: Tyler / publicsearch.us — reusing template" with the few
+  county-specific params left to fill (client id, court/precinct, layer ids).
+- [ ] **8.3 AI site probe** — for unknown vendors (or to verify a known one),
+  an agent drives Playwright: open the site, locate the **search form**, submit
+  the test query, identify the **result list** and **detail page**, and read the
+  available fields (DOM + OCR for canvas/image-rendered portals like some
+  ArcGIS/printed-record viewers). Output: a proposed `config` (selectors/
+  endpoints/flow) + proposed `field_map` onto the canonical schema.
+- [ ] **8.4 Test-property confirm** — user supplies a known address/parcel; the
+  draft adapter runs end-to-end and shows extracted fields **side-by-side with
+  the live page** (Playwright screenshot + parsed values) for the user to
+  confirm/correct each mapping. Inline editing of a selector/field re-runs the
+  probe on that field only.
+- [ ] **8.5 Save + auto-enroll** — on confirm: adapter saved `active`; the test
+  property is stored as the adapter's **canary golden record** (§9.2); the
+  `county_data_sources` coverage rollup updates; the adapter appears on the
+  coverage dashboard.
+- [ ] **8.6 Generic Playwright fallback** — for portals with no vendor match,
+  §8.3's probe builds a bespoke `browser_playwright` adapter from the captured
+  flow (recorded steps + selectors), so even oddball county sites are
+  registrable without code changes.
+- [ ] **8.7 Acceptance** — (a) registering a known-vendor county = pick county +
+  paste URL + 1–2 params + confirm test property, < 5 min, **no code change**;
+  (b) an unknown portal is registrable via probe + confirm; (c) every saved
+  adapter has a canary and a coverage row.
+
+## 9. Pillar B — Self-healing monitoring & auto-repair
+
+**Goal:** AI regularly checks every registered site, detects when a county
+changed its website / our access broke, diagnoses the change, and
+proposes (or, when safe, auto-applies) an updated adapter — so coverage heals
+itself.
+
+- [ ] **9.1 Three-layer change detection** per adapter run:
+  - **Structural** — HTTP status + a DOM-structure hash (stable subset:
+    form/anchor/table skeleton) vs the recorded baseline. Divergence → flag.
+  - **Visual** — Playwright screenshot vs baseline; AI-vision compares "same
+    page/layout?" (catches CSS/redesign + captcha/interstitial walls). OCR the
+    page when it's image/canvas-rendered.
+  - **Semantic/data** — run the real extraction against the canary and compare
+    to the golden record. Missing/changed canonical fields → strongest breakage
+    signal.
+- [ ] **9.2 Canary golden records** — `adapter_canaries` (`adapter_id`,
+  `query_input`, `expected_fields` JSONB, `baseline_dom_hash`,
+  `baseline_screenshot_ref`, `captured_at`). Seeded at registration (§8.5);
+  re-baselined on approved repairs.
+- [ ] **9.3 `adapter_health_checks`** — timestamped results (`adapter_id`,
+  `ran_at`, `status` healthy/degraded/broken, `layer_results` JSONB, `diff_summary`,
+  `screenshot_ref`, `cost_tokens`). Powers history + alerting.
+- [ ] **9.4 AI diagnose + repair agent** — on a failed check: load the current
+  page (Playwright snapshot + screenshot + DOM), compare to last-known-good
+  `config`, **diagnose the change** (e.g. "search moved GET→POST", "result
+  table column renamed", "now requires session cookie", "added captcha"),
+  **propose an updated `config`/`field_map`**, and **test the proposal against
+  the canary**. Store as `adapter_change_proposals` (`adapter_id`, `diff`,
+  `rationale`, `confidence`, `canary_test_result`, `status`
+  proposed/approved/rejected/applied).
+- [ ] **9.5 Apply policy (GATED)** — a proposal that **passes the canary golden
+  check** with confidence ≥ threshold may **auto-apply** *only when the
+  `RESEARCH_SELF_HEAL_AUTOAPPLY` flag is on*; otherwise it waits in a review
+  queue. All applies (auto or manual) are versioned + reversible (keep prior
+  `config`), and logged to the audit trail. Default: **review-required**.
+- [ ] **9.6 Failure-triggered self-heal** — when a *live* extraction fails
+  mid-project, quarantine the adapter (`status=quarantined`), run §9.4
+  immediately, and surface "we're repairing <county> — your run will retry"
+  rather than failing silently.
+- [ ] **9.7 Scheduled cadence (GATED)** — a cron (`/api/cron/adapter-health` or
+  the DO worker) checks adapters by `metro_tier` (tier-1 daily, others weekly),
+  jittered + rate-limited per host. Behind `RESEARCH_SELF_HEAL_SCHEDULE` flag so
+  we don't hammer government sites until we choose to. Respect robots/ToS +
+  per-host concurrency caps (§ guardrails).
+- [ ] **9.8 Health dashboard** — extend `/admin/research/coverage`: per county ×
+  site_type health (healthy/degraded/broken), pending repair proposals with a
+  one-click review (diff + canary result + approve/reject), and last-checked
+  timestamps. This is also the customer-facing "is my county working" view.
+- [ ] **9.9 Guardrails (outward-facing — non-negotiable)** —
+  (a) per-host rate limit + backoff + jitter; (b) respect robots.txt/ToS, honor
+  blocks; (c) a global kill-switch env flag; (d) **never** auto-solve captchas
+  or auth — flag for human; (e) all auto-applies reversible + audited;
+  (f) PII from records is access-controlled + retention-bounded.
+- [ ] **9.10 Acceptance** — simulate a site change (swap a selector / move an
+  endpoint on a fixture portal): the scheduled check flips the adapter to
+  `broken`, the agent produces a proposal that **passes the canary**, and (flag
+  on) it auto-applies + re-baselines, or (flag off) it lands in the review queue
+  with a clear diff. No silent breakage.
+
+## 10. Pillar C — Relevance-scoped extraction (subject + adjoiners only)
+
+**Goal:** from any document or portal page — which often contain dozens of
+unrelated parcels — extract **only** data about the subject property and its
+surrounding/adjoining properties, and tag every datum's relevance.
+
+- [ ] **10.1 Subject anchor** — each project resolves a canonical subject
+  identity: `parcel_id` (strongest) → `parcel_geometry`/centroid → full
+  `legal_description` → `owner` → `address` (weakest). Store on
+  `research_projects` (or a `project_subject` row). Used to disambiguate every
+  multi-match and to anchor relevance.
+- [ ] **10.2 Adjoiner resolution** — build the **relevance set** =
+  {subject} ∪ {adjoiners} from two independent sources, then union:
+  - **GIS adjacency** — query the CAD parcel layer for parcels whose geometry
+    **touches** the subject polygon (authoritative surrounding set).
+  - **Deed-call adjoiners** — extract adjoiner references named in the legal
+    description ("along the Smith tract", "N line of Lot 7", referenced
+    adjoining deeds). Resolve names/refs to parcels where possible.
+  Persist to `project_adjoiners` (`project_id`, `parcel_id`, `owner`,
+  `source` gis/deed_call/manual, `confidence`, `geometry`).
+- [ ] **10.3 Relevance-gated extraction** — pass the relevance set
+  (subject + adjoiner parcel_ids / owner names / legal refs / geometry) into the
+  extractor as context. Instruct it to extract data **only** for parcels in the
+  set and to **classify + tag each item** `relevance` ∈ {`subject`, `adjoiner`,
+  `unrelated`} with the matched `parcel_ref`. Add `relevance` + `parcel_ref` to
+  `extracted_data_points`. Unrelated items are dropped (or stored flagged
+  out-of-scope for audit), never mixed into the boundary.
+- [ ] **10.4 Two-pass for large multi-parcel docs** — for subdivision plats /
+  multi-tract deeds: **Pass 1 (cheap, Haiku)** segments the doc and locates only
+  the regions/lots matching the relevance set; **Pass 2 (Sonnet)** deep-extracts
+  only those segments. Avoids both cost blow-up and irrelevant-data bleed on
+  100-lot plats.
+- [ ] **10.5 Spatial result filtering** — when a portal returns many parcels
+  (e.g. a street search → 30 hits), rank by proximity/identity to the subject
+  anchor and pursue only the subject + true adjoiners; discard the rest before
+  any expensive deep analysis.
+- [ ] **10.6 Disambiguation surfacing** — when multiple parcels plausibly match
+  the subject (common owner, similar address) and the anchor can't decide,
+  **surface the ambiguity to the user** with the candidates rather than guessing
+  silently; the user's pick strengthens the anchor.
+- [ ] **10.7 Acceptance** — given a multi-parcel plat fixture, the system
+  extracts calls for the subject + its adjoiners and **provably excludes**
+  unrelated lots; every extracted datum carries a `relevance` tag and
+  `parcel_ref`; an audit view shows what was excluded and why.
+
+## 11. Build order (slice sequence)
+
+Smallest-meaningful-first, each independently shippable + testable:
+
+1. **§7.1–7.5** registry + canonical schema + seed existing adapters as vendor
+   templates. *(foundation; no outward calls)*
+2. **§10.1–10.3** subject anchor + adjoiner resolution + relevance tagging.
+   *(biggest extraction-quality win; mostly internal)*
+3. **§8.1–8.5** registration wizard + vendor auto-detect + test-property
+   confirm. *(unlocks no-code county onboarding)*
+4. **§9.1–9.4 + 9.8** health-check framework + canaries + diagnose/propose +
+   dashboard, **review-required** (flags off). *(self-healing scaffolding, safe)*
+5. **§10.4–10.6** two-pass + spatial filter + disambiguation. *(polish
+   relevance at scale)*
+6. **§8.6** generic Playwright fallback for unknown vendors.
+7. **§9.5–9.7** auto-apply + scheduled polling — **GATED**, enable per §9.9
+   guardrails only after 1–5 are proven. *(the outward-facing, riskiest bits
+   last)*
+
+> Build 1–6 freely; **7 is the only part that touches the outside world on a
+> schedule / mutates scrapers automatically** — keep it flagged off until we
+> deliberately turn it on per the guardrails.
