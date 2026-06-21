@@ -97,6 +97,33 @@ prior art. When a finding matches one, cite the number.
     emoji also render differently per-OS. **Rule:** functional + nav
     icons = lucide; emoji allowed only as decorative accents, never as
     the sole affordance for an action or nav target.
+14. **Inline `style={{}}` objects vs CSS files on the same page.** Pages
+    that mix both (`/admin/contacts`, `/admin/team`, `/admin/field-data`,
+    the old employees list) drift out of sync with sitewide CSS changes.
+    Migrate hot inline styles to classes during each workspace sweep.
+15. **Responsive breakpoints beyond 1280.** Real breaks happen at 1024
+    (laptop), 768 (tablet), 599/414 (phone). Every sweep screenshots at
+    1280 / 768 / 599 — not just 1280.
+16. **Loading / empty / error states.** A page can look fine populated and
+    broken when empty (ghost containers, mis-centered spinners). Audit all
+    three states per page, not just the happy path.
+17. **Modal / dialog form rows.** Dialogs copy-paste old form rows and
+    inherit the §1–4 alignment bugs. Audit every modal's control row.
+18. **Color contrast / WCAG AA.** Pattern 8 is one contrast bug framed as
+    a cascade issue; do a general AA contrast pass (muted-on-white labels,
+    status pills, navy-on-navy).
+19. **Keyboard a11y on portals (tooltips, tabs, menus).** Billing tabs got
+    Arrow nav; tooltips + other portal UIs still lack Esc-dismiss /
+    focus-trap conventions.
+20. **Form-submission feedback.** Buttons should show disabled + loading +
+    success/error state while submitting. Audit primary actions for "does
+    it tell me what it's doing?"
+21. **Spacing rhythm + token drift.** Pages mix `8px / 12px / 0.85rem /
+    1rem` gaps ad-hoc. Prefer the spacing tokens; flag raw values.
+22. **Typography consistency.** `Sora,sans-serif` (no space/fallback) vs
+    `'Sora', sans-serif` vs JetBrains Mono used ad-hoc. Normalize the
+    font stacks during sweeps.
+
 13. **No shared back/up-navigation affordance; breadcrumb coverage is
     partial.** `AdminPageHeader` only renders a labeled crumb when
     `findRoute(pathname)` resolves in `ADMIN_ROUTES`. Detail/`[id]`
@@ -114,16 +141,14 @@ prior art. When a finding matches one, cite the number.
 These were called out by the user mid-audit; handle ahead of the
 per-workspace sweeps.
 
-- [ ] **U1 — Employee/student list redesign + prefix search.** The list
-  view of the employee page (`/admin/employees`, `EmployeePond.tsx` +
-  `page.tsx`) looks unappealing. Redesign each person row/card to be
-  attractive + uniform; make the search bar styling uniform with the
-  rest of admin. **Search semantics must change from substring-anywhere
-  to prefix-per-token:** typing "a" shows Andy/Arnold/Audey; typing "e"
-  must NOT show Audey/Annie/Henry (mid-word "e"); "Au"→Audey, "Ann"→Annie,
-  "Hen"→Henry. Match the typed string as a prefix of the first name, last
-  name, or email (token-aware), not an out-of-order substring. Verify in
-  the harness (`?page=...`).
+- [x] **U1 — Employee/student list redesign + prefix search.** Shipped
+  `lib/admin/employee-search.ts` (`matchesPersonPrefix`): prefix-match on
+  name words / email / local-part, used by BOTH the list view and the
+  Interactive pond. List redesigned onto a dedicated `.emp-card` grid +
+  36px-baseline search/filter row with lucide icons. 27 tests pass.
+  Commit `79f53916`. (Note: harness can't render the role-gated page with
+  data — the mock session resolves as `employee`; verified by unit tests
+  + live by the user.)
 - [ ] **U2 — Credential-bonus projected-salary overflow.** In the
   credential bonuses section, the projected salary (rendered in blue)
   spills out of its container. Fix the overflow/wrapping so the figure
@@ -202,6 +227,13 @@ per-page note in §6.
 
 ## 5. Functional + data slices
 
+- [x] **D0 — Production error-report triage (user-supplied, 2026-06-21).**
+  Fixed `/admin/research/billing` crash (API/view-model contract mismatch
+  → adapter) and added a global benign-error filter (ResizeObserver loop /
+  cross-origin "Script error.") in `ErrorProvider`. Verified-not-a-bug:
+  research/[projectId] "Failed to fetch" (transient, caught) and
+  research_projects "schema cache" (stale — table exists live, HTTP 200).
+  Commit `5cdbe4d5`.
 - [ ] **D1 — Dead-button / missing-functionality sweep.** Across the
   pages touched in W1–W6, list every `onClick` that no-ops or `TODO`s,
   every `<button>` with no handler, and every `<Link>`/`href` pointing
@@ -213,6 +245,40 @@ per-page note in §6.
   PostgREST + service key. Apply any seed whose rows are missing live;
   record what was applied. Do NOT click role-mutating buttons during
   live verification (`memory/feedback_no_role_mutations.md`).
+
+## 5.5 Session-surfaced open work (from the user's gap list)
+
+- [ ] **G1 — Badges expansion + Safety-course badges.** System mapped: 18
+  current badges, 28 modules, OSHA/HAZWOPER/First-Aid credentials exist
+  but zero Safety badges. Add the missing badge seed rows (with
+  appropriate lucide/emoji icons consistent with F2) to
+  `seeds/001_config.sql` (~lines 26–45) + apply per D2.
+- [ ] **G2 — Pay Progression visual polish.** The broken `AdminRewards.css`
+  import was already fixed so the page renders, but the hero card,
+  work-type grid, role ladder, and timeline still want a deliberate
+  design pass (coloring + alignment per the user's "good coloring and
+  perfect alignment"). Overlaps with U2 (do U2's overflow fix first).
+- ~~G3 — Payment seeds 323–327~~ — deferred: failed against pre-existing
+  invoices-schema drift on main; rolled back cleanly. Needs human
+  reconciliation of the live `invoices` schema, not an automated slice.
+  Flag to the user; do not auto-apply.
+
+## 5.6 Research-software deep analysis (user request 2026-06-21)
+
+- [ ] **R1 — AI property-research software analysis + optimization
+  roadmap.** After the styling sweep, do a thorough analysis of the
+  property-research subsystem (`app/admin/research/**`,
+  `app/api/admin/research/**`, `lib/research/**`, the recon graph,
+  county-data adapters, the AI pipeline, deeds/legal-description/plat
+  parsing). Understand the current architecture + how the user intends it
+  to work, then produce a dedicated analysis doc
+  (`docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md`)
+  cataloguing: pipeline stages + failure modes, Texas county-system
+  integration coverage + gaps, data-quality/accuracy levers, AI-cost +
+  latency optimizations, and a prioritized roadmap toward a packageable,
+  sellable product with maximal Texas-county integration. Analysis +
+  roadmap only (no feature build in this slice); the roadmap spawns its
+  own phase doc(s).
 
 ## 6. Per-page findings ledger (filled in as slices run)
 
