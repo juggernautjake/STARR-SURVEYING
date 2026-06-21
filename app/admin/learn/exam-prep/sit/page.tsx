@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Loader2, Target, ClipboardCheck, Zap, Info } from 'lucide-react';
 import Link from 'next/link';
 import { usePageError } from '../../../hooks/usePageError';
 
@@ -125,7 +126,7 @@ export default function FSPrepHubPage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading FS Exam Prep...</div>
     </div>
   );
@@ -134,7 +135,7 @@ export default function FSPrepHubPage() {
     <>
       <div className="admin-learn__header">
         <Link href="/admin/learn/exam-prep" className="admin-module-detail__back">&larr; Back to Exam Prep</Link>
-        <h2 className="admin-learn__title">&#x1F3AF; FS Exam Prep</h2>
+        <h2 className="admin-learn__title"><Target size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />FS Exam Prep</h2>
         <p className="admin-learn__subtitle">
           Comprehensive preparation for the NCEES Fundamentals of Surveying (FS) exam.
           Complete all 8 modules, pass each quiz, then take the full mock exam.
@@ -292,7 +293,7 @@ export default function FSPrepHubPage() {
 
       {/* Mock Exam Section */}
       <div className="fs-prep__mock-section">
-        <h3 className="fs-prep__section-title">&#x1F4DD; Full Mock Exam</h3>
+        <h3 className="fs-prep__section-title"><ClipboardCheck size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Full Mock Exam</h3>
         <div className="fs-prep__mock-card">
           <div className="fs-prep__mock-info">
             <h4>NCEES FS Practice Exam</h4>
@@ -322,7 +323,7 @@ export default function FSPrepHubPage() {
 
         {/* FS Readiness Test (mini mock - available anytime) */}
         <div className="fs-prep__readiness-test">
-          <h4 className="fs-prep__section-subtitle">&#x26A1; Quick Readiness Check</h4>
+          <h4 className="fs-prep__section-subtitle"><Zap size={15} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />Quick Readiness Check</h4>
           <p className="fs-prep__readiness-test-desc">
             Take a 20-question mini exam covering all topics. Available anytime to gauge your progress.
           </p>
@@ -357,7 +358,7 @@ export default function FSPrepHubPage() {
 
       {/* Exam Info */}
       <div className="fs-prep__info-section">
-        <h3 className="fs-prep__section-title">&#x2139;&#xFE0F; About the FS Exam</h3>
+        <h3 className="fs-prep__section-title"><Info size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />About the FS Exam</h3>
         <div className="fs-prep__info-grid">
           <div className="fs-prep__info-card">
             <strong>Format</strong>

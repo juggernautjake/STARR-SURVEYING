@@ -1,6 +1,7 @@
 // app/admin/learn/manage/media/page.tsx — Media Library Management
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { Loader2, Image as ImageIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { usePageError } from '../../../hooks/usePageError';
@@ -287,10 +288,10 @@ export default function MediaLibraryPage() {
 
       {/* Media Grid */}
       {loading ? (
-        <div className="admin-empty"><div className="admin-empty__icon">&#x23F3;</div><div className="admin-empty__title">Loading media...</div></div>
+        <div className="admin-empty"><div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div><div className="admin-empty__title">Loading media...</div></div>
       ) : media.length === 0 ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">&#x1F5BC;</div>
+          <div className="admin-empty__icon"><ImageIcon size={30} strokeWidth={1.5} /></div>
           <div className="admin-empty__title">No media files yet</div>
           <div className="admin-empty__desc">Upload images, videos, or other files to use in lessons, articles, and questions.</div>
         </div>
