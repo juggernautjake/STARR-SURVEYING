@@ -149,11 +149,14 @@ per-workspace sweeps.
   Commit `79f53916`. (Note: harness can't render the role-gated page with
   data — the mock session resolves as `employee`; verified by unit tests
   + live by the user.)
-- [ ] **U2 — Credential-bonus projected-salary overflow.** In the
-  credential bonuses section, the projected salary (rendered in blue)
-  spills out of its container. Fix the overflow/wrapping so the figure
-  stays inside its element. (Likely pay-progression / credentials UI —
-  `AdminRewards.css` / pay-progression components.)
+- [x] **U2 — Credential-bonus projected-salary overflow.** Root cause:
+  `.pay-prog__badge-meta` (pay-progression credentials gallery) is a
+  `space-between` flex row holding the green "+$X/hr" bonus + the navy
+  "→ $XX.XX/hr" projected-rate pill, both `nowrap`, with no wrap/shrink —
+  in a 220px badge track they overflowed the card. Fixed in
+  `AdminRewards.css` with `flex-wrap: wrap` + `min-width: 0` so the pill
+  drops below the bonus instead of spilling out. (CredentialBadge,
+  `page.tsx:2131`.)
 
 ## 3. Foundation slices (ship first — highest leverage)
 

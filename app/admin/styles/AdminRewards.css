@@ -859,7 +859,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.35rem 0.5rem;
+  /* U2 2026-06-21 — the navy "→ $XX.XX/hr" projected-rate pill used to
+   * spill out of the badge: both it and the green bonus are nowrap, and
+   * in a 220px track (minus the 48px medal + padding) they can't fit on
+   * one line. Allow the row to wrap (pill drops below the bonus) and to
+   * shrink within the grid track so nothing overflows the card. */
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .pay-prog__badge-bonus {
   font-family: var(--font-heading);
