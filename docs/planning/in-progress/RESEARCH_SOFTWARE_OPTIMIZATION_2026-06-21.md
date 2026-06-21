@@ -256,6 +256,37 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 6 — §8.2 Vendor auto-detection ✅ (2026-06-21)
+`lib/research/vendor-detection.ts` ships `detectVendor(url, vendors)` — the
+pure matcher that turns a pasted portal URL into the right vendor
+template, the leverage point that makes "registering a new county is a
+config row, not a code change" actually true.
+
+  - Reads the `url_fingerprints` JSONB shape seeded in slice 2 (`host_re`
+    + `path_re` rule types, regex-based, case-insensitive).
+  - Returns the strongest match (best) PLUS the full ranked list so the
+    §8 wizard can show a "we think it's Tyler publicsearch.us, but it
+    could also be a generic ArcGIS adapter" disambiguation when more
+    than one template matches.
+  - Score = number of fingerprints that matched + the template's
+    optional `priority`. A vendor that matches host AND path
+    (ArcGIS REST query URL) beats one that matches host only.
+  - Robust to malformed regexes (try/catch per fingerprint), bare hosts
+    without a scheme, mixed-case URLs, empty fingerprint arrays, and
+    unparseable URLs.
+  - `vendorKeyAsCanonical(key)` narrows the matched key to the
+    `CanonicalSource` union from slice 1 so the §8.5 save path stamps
+    a typed value on the adapter row.
+
+Source-locked with 15 tests in
+`__tests__/research/vendor-detection.test.ts` covering each of the four
+seeded vendor templates (Bell ArcGIS / TrueAutomation / eSearch /
+publicsearch), multi-fingerprint scoring, ranking when multiple
+templates match the same URL, unparseable input, case-insensitive
+hosts, and bare-host parsing.
+
+104/104 research tests pass; clean tsc.
+
 ### Slice 5 — §10.2 (GIS-adjacency half) Polygon-touching adjoiner finder ✅ (2026-06-21)
 `lib/research/gis-adjacency.ts` ships the pure geometry that completes §10.2.
 Given the subject's parcel polygon and a set of candidate polygons (e.g.
@@ -446,12 +477,13 @@ a real property extracts correctly, and it auto-enrolls into health monitoring.
 - [ ] **8.1 Registration route + wizard** — `/admin/research/sites` (list) and
   `/admin/research/sites/new` (wizard). Step 1: paste portal URL, pick county +
   `site_type`.
-- [ ] **8.2 Vendor auto-detection** — match the pasted URL/host (and a quick
-  fetched-HTML fingerprint) against `data_vendors.url_fingerprints`. On match,
-  **pre-fill** `config` + `field_map` from the vendor template (this is the
-  reuse leverage — most new counties are an existing vendor with new params).
-  Show "Detected: Tyler / publicsearch.us — reusing template" with the few
-  county-specific params left to fill (client id, court/precinct, layer ids).
+- [x] **8.2 Vendor auto-detection** ✅ (2026-06-21, Slice 6, partial) —
+  `detectVendor(url, vendors)` in `lib/research/vendor-detection.ts`
+  matches a pasted URL against the seeded `url_fingerprints` and
+  returns the strongest match + the full ranked list for the wizard's
+  disambiguation case. Fetched-HTML fingerprint (the optional second
+  signal) lands when the §8.1 wizard route is wired up; the matcher
+  surface is locked first so the route handler can call it freely.
 - [ ] **8.3 AI site probe** — for unknown vendors (or to verify a known one),
   an agent drives Playwright: open the site, locate the **search form**, submit
   the test query, identify the **result list** and **detail page**, and read the
