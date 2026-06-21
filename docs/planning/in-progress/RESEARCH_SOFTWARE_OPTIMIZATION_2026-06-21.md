@@ -256,6 +256,51 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 3 — §10.1 + §10.3 Subject anchor + relevance classification ✅ (2026-06-21)
+`lib/research/relevance.ts` ships the pure helpers that decide, for every
+extracted datum, whether it's about the **subject** property, an **adjoiner**,
+or someone **unrelated** — the AI's "weed through and keep only what matters"
+contract from the user directive:
+
+  - `resolveSubjectAnchors(subject)` — ranks the project subject's identities
+    strongest-first (`parcel_id` → `geometry_centroid` → `legal_description`
+    → `owner` → `address`); strength weights 1.0 → 0.45.
+  - `classifyRelevance(candidate, context)` — returns the
+    `RelevanceClassification` from the canonical schema. Subject-anchor
+    matching walks anchors strongest-first; adjoiner matching falls through
+    on parcel_id (0.95) / owner (0.6) / legal_reference (0.7). Returns
+    `unknown` when the project has no usable anchor (§10.6 surfaces
+    disambiguation to the user); returns `unrelated` when nothing matched.
+  - `filterRelevantRecords(records, context)` — batch convenience: classify
+    every `CanonicalProperty`, drop unrelated, stamp `relevance` onto each
+    kept record. Returns `dropped_count` so the UI can show "we excluded N
+    unrelated parcels".
+
+  Normalization helpers handle the cosmetic vendor variance that breaks
+  naive equality:
+    - `normalizeParcelId('R-00012345')` → `'R12345'` (drops punctuation +
+      leading zeros from each numeric run, even after a letter prefix).
+    - `normalizeOwnerName('SMITH JOHN & MARY ETUX')` matches
+      `'Smith, Mary John'` (drops ETUX/JR/TRUSTEE/INC/&; sorts tokens so
+      first/last order doesn't matter).
+    - `normalizeAddress(...)` collapses Road/St./Ave/Drive/Blvd/Highway
+      variants.
+    - `legalReferenceMatches(a, b)` requires (1) at least one shared strong
+      token (LOT:42, BLOCK:A, ABSTRACT:1234) AND (2) no conflict on a
+      shared key — so `LOT 4 BLOCK A` does NOT match `LOT 7 BLOCK A`.
+  Geometry helper: `haversineMeters` + `geojsonCentroid` for the 25 m
+  same-parcel bucket on centroid matching.
+
+  Source-locked with 27 tests in `__tests__/research/relevance.test.ts`
+  covering anchor ranking, all subject/adjoiner/unrelated/unknown classifier
+  branches, normalization round-trips, the legal-reference shared-token
+  AND no-conflict semantics, the geometry helper (great-circle + symmetry),
+  and `filterRelevantRecords` purity (no input mutation).
+
+  Zero runtime deps; no DB or network calls. Future slice §10.2 builds the
+  GIS-adjacency + deed-call adjoiner-resolution that produces the
+  `RelevanceContext.adjoiners` array these helpers consume.
+
 ### Slice 2 — §7.1–7.4 Registry tables + vendor template seed ✅ (2026-06-21)
 `seeds/370_research_adapter_registry.sql` creates the four registry tables
 (`research_counties`, `research_data_vendors`, `research_site_adapters`,
@@ -429,11 +474,14 @@ itself.
 unrelated parcels — extract **only** data about the subject property and its
 surrounding/adjoining properties, and tag every datum's relevance.
 
-- [ ] **10.1 Subject anchor** — each project resolves a canonical subject
-  identity: `parcel_id` (strongest) → `parcel_geometry`/centroid → full
-  `legal_description` → `owner` → `address` (weakest). Store on
-  `research_projects` (or a `project_subject` row). Used to disambiguate every
-  multi-match and to anchor relevance.
+- [x] **10.1 Subject anchor** ✅ (2026-06-21, Slice 3, partial) —
+  `resolveSubjectAnchors()` in `lib/research/relevance.ts` ranks every
+  available identity strongest-first (parcel_id → centroid → legal → owner
+  → address). The DB persistence of the anchor on `research_projects` /
+  `project_subject` lands in a subsequent slice that wires the helpers into
+  the project route handlers; the contract surface (function signature
+  + RelevanceContext shape) is locked first so route changes don't churn
+  the algorithm.
 - [ ] **10.2 Adjoiner resolution** — build the **relevance set** =
   {subject} ∪ {adjoiners} from two independent sources, then union:
   - **GIS adjacency** — query the CAD parcel layer for parcels whose geometry
@@ -443,13 +491,13 @@ surrounding/adjoining properties, and tag every datum's relevance.
     adjoining deeds). Resolve names/refs to parcels where possible.
   Persist to `project_adjoiners` (`project_id`, `parcel_id`, `owner`,
   `source` gis/deed_call/manual, `confidence`, `geometry`).
-- [ ] **10.3 Relevance-gated extraction** — pass the relevance set
-  (subject + adjoiner parcel_ids / owner names / legal refs / geometry) into the
-  extractor as context. Instruct it to extract data **only** for parcels in the
-  set and to **classify + tag each item** `relevance` ∈ {`subject`, `adjoiner`,
-  `unrelated`} with the matched `parcel_ref`. Add `relevance` + `parcel_ref` to
-  `extracted_data_points`. Unrelated items are dropped (or stored flagged
-  out-of-scope for audit), never mixed into the boundary.
+- [x] **10.3 Relevance-gated extraction** ✅ (2026-06-21, Slice 3, partial) —
+  `classifyRelevance()` + `filterRelevantRecords()` in
+  `lib/research/relevance.ts` are the contract every extractor will use to
+  tag a datum subject/adjoiner/unrelated/unknown. Adding the `relevance` +
+  `parcel_ref` columns to the existing `extracted_data_points` table + the
+  AI-prompt change that instructs the model to ask for the tag at extraction
+  time lands in a follow-up slice that touches the live pipeline.
 - [ ] **10.4 Two-pass for large multi-parcel docs** — for subdivision plats /
   multi-tract deeds: **Pass 1 (cheap, Haiku)** segments the doc and locates only
   the regions/lots matching the relevance set; **Pass 2 (Sonnet)** deep-extracts
