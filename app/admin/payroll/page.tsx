@@ -2,6 +2,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import { Users, DollarSign, BarChart3, Wallet, Play, Plus, TrendingUp } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
@@ -116,22 +117,22 @@ export default function PayrollPage() {
       {/* Summary Cards */}
       <div className="payroll-summary-cards">
         <div className="payroll-summary-card">
-          <div className="payroll-summary-card__icon">👥</div>
+          <div className="payroll-summary-card__icon"><Users size={22} strokeWidth={1.75} /></div>
           <div className="payroll-summary-card__value">{employees.filter(e => e.is_active).length}</div>
           <div className="payroll-summary-card__label">Active Employees</div>
         </div>
         <div className="payroll-summary-card">
-          <div className="payroll-summary-card__icon">💰</div>
+          <div className="payroll-summary-card__icon"><DollarSign size={22} strokeWidth={1.75} /></div>
           <div className="payroll-summary-card__value">{formatCurrency(totalPayroll)}</div>
           <div className="payroll-summary-card__label">Outstanding Balances</div>
         </div>
         <div className="payroll-summary-card">
-          <div className="payroll-summary-card__icon">📊</div>
+          <div className="payroll-summary-card__icon"><BarChart3 size={22} strokeWidth={1.75} /></div>
           <div className="payroll-summary-card__value">{formatCurrency(avgRate)}/hr</div>
           <div className="payroll-summary-card__label">Avg Hourly Rate</div>
         </div>
         <div className="payroll-summary-card">
-          <div className="payroll-summary-card__icon">💵</div>
+          <div className="payroll-summary-card__icon"><Wallet size={22} strokeWidth={1.75} /></div>
           <div className="payroll-summary-card__value">{formatCurrency(totalEarned)}</div>
           <div className="payroll-summary-card__label">Total Paid Out</div>
         </div>
@@ -176,15 +177,15 @@ export default function PayrollPage() {
             <h3>Quick Actions</h3>
             <div className="payroll-overview__actions-grid">
               <button className="payroll-overview__action-card" onClick={() => setActiveTab('payroll')}>
-                <span className="payroll-overview__action-icon">🏃</span>
+                <span className="payroll-overview__action-icon"><Play size={18} strokeWidth={1.75} /></span>
                 <span className="payroll-overview__action-label">Run Payroll</span>
               </button>
               <button className="payroll-overview__action-card" onClick={() => { setActiveTab('employees'); setShowAddForm(true); }}>
-                <span className="payroll-overview__action-icon">➕</span>
+                <span className="payroll-overview__action-icon"><Plus size={18} strokeWidth={1.75} /></span>
                 <span className="payroll-overview__action-label">Add Employee</span>
               </button>
               <button className="payroll-overview__action-card" onClick={() => setActiveTab('rates')}>
-                <span className="payroll-overview__action-icon">📈</span>
+                <span className="payroll-overview__action-icon"><TrendingUp size={18} strokeWidth={1.75} /></span>
                 <span className="payroll-overview__action-label">Manage Rates</span>
               </button>
             </div>
