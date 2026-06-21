@@ -125,7 +125,8 @@ This is **Slice 1** of Phase 2 — every other slice depends on it.
 
 | # | Slice | Type | Notes |
 |---|---|---|---|
-| **0** | Planning doc + under-construction route stub + upfront-rule pure helper | mixed | This commit. Stops the page-doesn't-exist 404 immediately + locks the upfront business rule before any UI consumes it. |
+| **0** ✅ | Planning doc + under-construction route stub + upfront-rule pure helper | mixed | Shipped 2026-06-21 (commit 48301b0). Planning doc + `/admin/invoicing` auth-gated dashboard + `lib/payments/upfront-rule.ts` + 28 tests. |
+| **7+8** ✅ | Allocation categories schema + engine | migration + pure helper | Shipped 2026-06-21 (this commit). `seeds/374_financial_allocation_categories.sql` (5 user-named + 13 §2.2 proposed categories, all at 0% pending dad's decision) + `lib/payments/allocation-engine.ts` (pure splitter, last-active-category absorbs rounding, refuses writes when target_percent ≠ 100). 30 source-locked tests including the books-balance sweep across 7 distributions × 7 amounts. Independent of the customer_invoices rename — the ledger FKs to `payments`, which is unchanged. |
 | 1 | Phase-1 collision fix (rename to customer_invoices) | migration + repoint | Per the existing reconciliation doc. Unblocks every other slice + the existing 22-slice payment work. Single-PR risky — split into 1a (seeds), 1b (code repoint), 1c (webhook + verify) if needed. |
 | 2 | Schema: `deposit_type` + `deposit_value` + `upfront_paid_at` columns on customer_invoices | migration | Idempotent ALTER TABLE. CHECK constraint on enum values. |
 | 3 | Backend: wire upfront-rule into `/api/public/invoice/[number]/intent` + `/attempt` | route | Reject under-upfront payments at the route, return 422 with the rejection-reason from the pure helper. |
