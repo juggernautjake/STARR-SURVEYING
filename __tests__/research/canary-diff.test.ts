@@ -1,7 +1,7 @@
 // __tests__/research/canary-diff.test.ts
 //
 // §9.1 (semantic / data-layer) + foundation for §9.3 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 
 import { describe, it, expect } from 'vitest';
 import { diffAgainstCanary, type CanaryGoldenRecord } from '@/lib/research/canary-diff';

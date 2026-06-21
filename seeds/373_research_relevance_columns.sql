@@ -2,7 +2,7 @@
 -- 373_research_relevance_columns.sql
 --
 -- §10.3 (live-pipeline half) of
--- docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+-- docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 --
 -- Adds `relevance` + `parcel_ref` + `relevance_classification` to the
 -- existing `extracted_data_points` table (seeds/090) so the §10

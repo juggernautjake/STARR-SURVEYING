@@ -1,6 +1,6 @@
 // __tests__/research/vendor-detection.test.ts
 //
-// §8.2 of docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// §8.2 of docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 // Source-locks the matcher against the four vendor templates seeded
 // in slice 2 (seeds/370_research_adapter_registry.sql).
 

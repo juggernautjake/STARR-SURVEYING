@@ -1,7 +1,7 @@
 // lib/research/health-check-scheduler.ts
 //
 // §9.7 (kernel) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure decision function: given the list of registered adapters,
 // their last-verified timestamps, and the active scheduling policy,

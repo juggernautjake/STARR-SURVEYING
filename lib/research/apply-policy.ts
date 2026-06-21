@@ -1,7 +1,7 @@
 // lib/research/apply-policy.ts
 //
 // §9.5 + §9.9 (guardrails) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure policy + state-transition helpers that decide what happens
 // to a §9.4 change proposal:

@@ -2,7 +2,7 @@
 -- 371_research_health_check_tables.sql
 --
 -- §9.2 + §9.3 + §9.4 of
--- docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
+-- docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
 --
 -- The self-healing layer's data model. Three tables — all idempotent —
 -- hanging off the research_site_adapters table from seed 370:

@@ -1,7 +1,7 @@
 // __tests__/research/adapter-registry-schema.test.ts
 //
 // Source-lock for seeds/370_research_adapter_registry.sql — §7.1–7.4 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Locks the table + column shape so a future slice that renames a column
 // (e.g. `field_map_template` → `mapping`) has to update this test

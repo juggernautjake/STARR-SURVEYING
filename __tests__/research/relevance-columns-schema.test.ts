@@ -1,7 +1,7 @@
 // __tests__/research/relevance-columns-schema.test.ts
 //
 // Source-lock for seeds/373_research_relevance_columns.sql — §10.3 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';

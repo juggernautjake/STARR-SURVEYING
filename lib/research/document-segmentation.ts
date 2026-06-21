@@ -1,7 +1,7 @@
 // lib/research/document-segmentation.ts
 //
 // §10.4 (first-pass segmentation) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Large multi-parcel documents (subdivision plats with 100 lots,
 // multi-tract deeds with adjoining tracts, bulk clerk-record dumps)

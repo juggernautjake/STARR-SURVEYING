@@ -1,7 +1,7 @@
 // lib/research/gis-adjacency.ts
 //
 // §10.2 (GIS-adjacency half) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure polygon-touching geometry. Given the subject parcel's polygon
 // and a set of candidate parcels (e.g. everything returned by a

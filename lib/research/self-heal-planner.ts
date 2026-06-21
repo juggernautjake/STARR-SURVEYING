@@ -1,7 +1,7 @@
 // lib/research/self-heal-planner.ts
 //
 // §9.6 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // "When a live extraction fails mid-project, quarantine the adapter
 // (status=quarantined), run §9.4 immediately, and surface 'we're

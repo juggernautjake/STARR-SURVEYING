@@ -1,7 +1,7 @@
 // lib/research/spatial-filter.ts
 //
 // §10.5 (spatial result filtering) + §10.6 (disambiguation surfacing)
-// of docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// of docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // When a portal returns many parcels (e.g. a street-name search → 30
 // hits) we rank by proximity/identity to the subject anchor and

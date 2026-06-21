@@ -1,7 +1,7 @@
 // lib/research/canary-diff.ts
 //
 // §9.1 (semantic / data-layer) + foundation for §9.3 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // The strongest breakage signal in the three-layer health-check
 // stack: run the live adapter against its canary input, then

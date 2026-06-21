@@ -1,7 +1,7 @@
 // lib/research/dom-fingerprint.ts
 //
 // §9.1 (structural layer) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Produce a stable structural fingerprint of an HTML page that
 // ignores cosmetic noise (text content, random class hashes,

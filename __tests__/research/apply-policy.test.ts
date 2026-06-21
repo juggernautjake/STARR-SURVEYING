@@ -1,7 +1,7 @@
 // __tests__/research/apply-policy.test.ts
 //
 // §9.5 + §9.9 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Locks the safe-by-default behavior so a future "let's auto-apply
 // everything" change has to land deliberately AND update these

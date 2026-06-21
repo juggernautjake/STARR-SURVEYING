@@ -1,7 +1,7 @@
 // __tests__/research/adjoiner-extraction.test.ts
 //
 // §10.2 (deed-call half) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure NLP tests on representative Texas deed prose. Conservative
 // by design — false negatives (missed adjoiners) are tolerated;

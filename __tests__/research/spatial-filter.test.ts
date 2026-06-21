@@ -1,7 +1,7 @@
 // __tests__/research/spatial-filter.test.ts
 //
 // §10.5 + §10.6 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 
 import { describe, it, expect } from 'vitest';
 import {

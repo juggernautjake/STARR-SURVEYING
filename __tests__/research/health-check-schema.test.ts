@@ -2,7 +2,7 @@
 //
 // Source-lock for seeds/371_research_health_check_tables.sql — §9.2 +
 // §9.3 + §9.4 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';

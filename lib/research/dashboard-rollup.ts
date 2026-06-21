@@ -1,7 +1,7 @@
 // lib/research/dashboard-rollup.ts
 //
 // §9.8 (data layer) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure aggregator. Takes raw rows from the seed-371 health tables
 // (research_adapter_health_checks, research_adapter_change_proposals)

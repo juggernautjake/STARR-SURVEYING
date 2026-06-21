@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 370_research_adapter_registry.sql
 --
--- §7.1–7.4 of docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
+-- §7.1–7.4 of docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
 -- — the shared foundation the three research pillars (self-healing
 -- adapters, one-screen site registration, relevance-scoped extraction)
 -- all build on.

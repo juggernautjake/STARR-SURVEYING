@@ -1,6 +1,6 @@
 // lib/research/canonical-schema.ts
 //
-// §7.5 of docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
+// §7.5 of docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
 //
 // The canonical target shape every vendor adapter maps INTO. Vendor
 // payloads from Bell CAD (`BellCadParcel`), TrueAutomation

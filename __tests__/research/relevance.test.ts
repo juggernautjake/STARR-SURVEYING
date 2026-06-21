@@ -1,7 +1,7 @@
 // __tests__/research/relevance.test.ts
 //
 // §10.1 (subject anchor) + §10.3 (relevance-gated classification)
-// of docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// of docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure logic tests — the heart of "the AI weeds through and only
 // extracts subject + adjoiner data." Future slices add the GIS-

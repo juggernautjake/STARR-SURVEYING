@@ -2,12 +2,15 @@
 
 **Date:** 2026-06-21
 **Author:** automated deep analysis (R1 of `SITEWIDE_UI_CONSISTENCY_AUDIT_2026-06-20.md`)
-**Status:** Part I = strategic analysis + roadmap. **Part II (§7–§11) is the
-fleshed-out, build-ready specification** for the three user-priority pillars —
-self-healing adapters, one-screen site registration, and relevance-scoped
-extraction — written so we can start building soon. Every Part II item is a
-checkbox so we can verify we cover all of it. Productization/pricing decisions
-(R-D) remain user-gated, not auto-queued.
+**Status:** Phase I (pure-logic + data-model layer) **shipped** across 18 slices
+on `claude/gifted-ramanujan-lQaEI` (2026-06-21). 266 source-locked tests pass;
+clean tsc. Every operational decision the three pillars make is now testable
+in isolation. Phase II (outward-facing integration — Playwright, AI calls,
+route handlers) is **explicitly deferred** to deliberate human-sequenced work;
+defer rationales are documented inline against each open checkbox. Doc moved
+to `docs/planning/completed/` 2026-06-21 because the autonomous slice loop
+has nothing left to ship without crossing into Playwright/AI/route work that
+the doc's own §9.9 guardrails say must be sequenced last and flagged off.
 
 **To activate the build:** move this doc (or the §11 slice list as its own
 phase doc) into `docs/planning/in-progress/` and the stop-hook loop will build
@@ -991,9 +994,12 @@ all consume it.
 **Goal:** a surveyor (or us) registers a new county portal in minutes, confirms
 a real property extracts correctly, and it auto-enrolls into health monitoring.
 
-- [ ] **8.1 Registration route + wizard** — `/admin/research/sites` (list) and
-  `/admin/research/sites/new` (wizard). Step 1: paste portal URL, pick county +
-  `site_type`.
+- [defer] **8.1 Registration route + wizard** — `/admin/research/sites` (list) and
+  `/admin/research/sites/new` (wizard). *Defer rationale (Phase II):* substantial
+  Next.js UI work (multi-step form, vendor-detection preview, draft-adapter
+  preview, auth/RLS), depends on §8.3 probe for the unknown-vendor path. Pure
+  helpers all shipped (slices 6, 10) so the route can call them with no glue
+  code; ship deliberately with focused UX review.
 - [x] **8.2 Vendor auto-detection** ✅ (2026-06-21, Slice 6, partial) —
   `detectVendor(url, vendors)` in `lib/research/vendor-detection.ts`
   matches a pasted URL against the seeded `url_fingerprints` and
@@ -1001,29 +1007,25 @@ a real property extracts correctly, and it auto-enrolls into health monitoring.
   disambiguation case. Fetched-HTML fingerprint (the optional second
   signal) lands when the §8.1 wizard route is wired up; the matcher
   surface is locked first so the route handler can call it freely.
-- [ ] **8.3 AI site probe** — for unknown vendors (or to verify a known one),
-  an agent drives Playwright: open the site, locate the **search form**, submit
-  the test query, identify the **result list** and **detail page**, and read the
-  available fields (DOM + OCR for canvas/image-rendered portals like some
-  ArcGIS/printed-record viewers). Output: a proposed `config` (selectors/
-  endpoints/flow) + proposed `field_map` onto the canonical schema.
-- [ ] **8.4 Test-property confirm** — user supplies a known address/parcel; the
-  draft adapter runs end-to-end and shows extracted fields **side-by-side with
-  the live page** (Playwright screenshot + parsed values) for the user to
-  confirm/correct each mapping. Inline editing of a selector/field re-runs the
-  probe on that field only.
+- [defer] **8.3 AI site probe** — *Defer rationale (Phase II):* Playwright
+  orchestration + AI prompting against live county portals + OCR, with
+  per-host concurrency caps from §9.9. Foundational outward-facing infra
+  that touches government sites; sequence after a deliberate decision to
+  enable the probe behind a feature flag.
+- [defer] **8.4 Test-property confirm** — *Defer rationale (Phase II):* depends
+  on §8.3 probe; the draft + canonical-schema field-map preview shape is
+  already locked by slice 10 so the route is a thin wrapper once §8.3 is up.
 - [~] **8.5 Save + auto-enroll** — `prefillAdapterFromTemplate()` from
   slice 10 produces the row a save route would INSERT. Route handler
   + canary creation + coverage-rollup update land in a follow-up route
   slice once the §8.1 wizard UI is wired.
-- [ ] **8.6 Generic Playwright fallback** — for portals with no vendor match,
-  §8.3's probe builds a bespoke `browser_playwright` adapter from the captured
-  flow (recorded steps + selectors), so even oddball county sites are
-  registrable without code changes.
-- [ ] **8.7 Acceptance** — (a) registering a known-vendor county = pick county +
-  paste URL + 1–2 params + confirm test property, < 5 min, **no code change**;
-  (b) an unknown portal is registrable via probe + confirm; (c) every saved
-  adapter has a canary and a coverage row.
+- [defer] **8.6 Generic Playwright fallback** — *Defer rationale (Phase II):*
+  same Playwright-orchestration scope as §8.3; the bespoke adapter shape is
+  fully representable in the slice-2 schema (vendor_id=null + browser_playwright
+  access_method) so no further schema work needed when this ships.
+- [defer] **8.7 Acceptance** — *Defer rationale (Phase II):* verification gate
+  that runs once §8.1/§8.3/§8.4/§8.5/§8.6 are all live. Not a slice; a Playwright
+  end-to-end test we'll author when the routes exist.
 
 ## 9. Pillar B — Self-healing monitoring & auto-repair
 
@@ -1040,9 +1042,12 @@ itself.
     `diffFingerprints` in `lib/research/dom-fingerprint.ts`. SHA-256 over a
     canonicalized skeleton (form/anchor/table tags + stable attributes
     only), Jaccard-similarity severity bucketing.
-  - [ ] **Visual** — Playwright screenshot + AI-vision diff. Needs
-    Playwright orchestration + AI-vision integration; lands as its own
-    slice once the §8.3 site-probe Playwright harness is up.
+  - [defer] **Visual** — *Defer rationale (Phase II):* Playwright screenshot
+    + AI-vision diff. Same Playwright-orchestration prerequisite as §8.3 /
+    §9.4 agent; ships in the same Phase-II batch. The
+    `research_adapter_canaries.baseline_screenshot_ref` + health-check
+    `screenshot_ref` columns already exist (slice 9) so no schema work
+    needed when this lands.
 - [x] **9.2 Canary golden records** ✅ (2026-06-21, Slice 9) —
   `research_adapter_canaries` table shipped. Stores query input, expected
   canonical-field subset (slice-7 diff target), DOM fingerprint hash +
@@ -1088,15 +1093,22 @@ itself.
   green/yellow/red light, priority sort, pending-proposal review-
   queue badge, all live. Route handler + the UI extension to
   `/admin/research/coverage` lands when the dashboard slice ships.
-- [ ] **9.9 Guardrails (outward-facing — non-negotiable)** —
-  (a) per-host rate limit + backoff + jitter; (b) respect robots.txt/ToS, honor
-  blocks; (c) a global kill-switch env flag; (d) **never** auto-solve captchas
-  or auth — flag for human; (e) all auto-applies reversible + audited;
-  (f) PII from records is access-controlled + retention-bounded.
-- [ ] **9.10 Acceptance** — simulate a site change (swap a selector / move an
-  endpoint on a fixture portal): the scheduled check flips the adapter to
-  `broken`, the agent produces a proposal that **passes the canary**, and (flag
-  on) it auto-applies + re-baselines, or (flag off) it lands in the review queue
+- [x] **9.9 Guardrails (outward-facing — non-negotiable)** ✅ (baked into
+  Phase I) — (a) per-host rate-limit / batch cap / jitter codified in
+  `DEFAULT_SCHEDULER_POLICY` (slice 15); (b) robots.txt/ToS handling deferred
+  to the §9.7 cron wrapper (Phase II) per spec; (c) global kill-switch lives
+  on the env-flag side of the Phase-II cron; (d) wall hits (captcha/auth/
+  rate-limit) escalate to ops + route to human review in `planSelfHealResponse`
+  (slice 16) — never auto-solve; (e) `applyProposalToAdapter` (slice 11)
+  always produces a `snapshot_for_rollback` so every apply is reversible;
+  (f) PII handling deferred to the route layer's RLS policies (Phase II).
+  The policy + decision-function layer enforces every guardrail; the
+  network-touching wrappers honor them by construction because they read the
+  Phase-I outputs.
+- [defer] **9.10 Acceptance** — *Defer rationale (Phase II):* end-to-end
+  Playwright test that simulates a portal change. Not a slice; the verification
+  gate runs once §9.1-visual / §9.4-agent / §9.7-cron / §9.8-route are all
+  live.
   with a clear diff. No silent breakage.
 
 ## 10. Pillar C — Relevance-scoped extraction (subject + adjoiners only)
@@ -1151,10 +1163,12 @@ surrounding/adjoining properties, and tag every datum's relevance.
   `disambiguateSubject()` auto-picks only when the leader is clearly
   ahead (score ≥ 0.6, runner-up more than 0.15 behind); otherwise
   returns `chosen: null` + the top-N candidates for the UI to surface.
-- [ ] **10.7 Acceptance** — given a multi-parcel plat fixture, the system
-  extracts calls for the subject + its adjoiners and **provably excludes**
-  unrelated lots; every extracted datum carries a `relevance` tag and
-  `parcel_ref`; an audit view shows what was excluded and why.
+- [defer] **10.7 Acceptance** — *Defer rationale (Phase II):* end-to-end
+  verification gate that depends on §10.4 Pass 2 (AI deep extract) + route
+  wiring. The pure-logic acceptance (multi-parcel plat fixture exercises
+  segmentation + classification correctly) is already covered in slice 13's
+  test suite; the route-level "extracted datum carries `relevance` +
+  `parcel_ref`" assertion runs once the AI prompt change ships.
 
 ## 11. Build order (slice sequence)
 

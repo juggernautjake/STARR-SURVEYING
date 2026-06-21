@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 372_research_counties_texas_full.sql
 --
--- §7.1 of docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
+-- §7.1 of docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
 -- — complete 254-county Texas seed for the research_counties registry from
 -- slice 2 (seeds/370).
 --

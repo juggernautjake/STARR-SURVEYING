@@ -1,7 +1,7 @@
 // __tests__/research/gis-adjacency.test.ts
 //
 // §10.2 (GIS-adjacency half) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure geometry tests. Coordinates are real-world WGS84 longitudes /
 // latitudes around central Texas (~30.5°N, -97.5°E), so the

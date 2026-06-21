@@ -1,7 +1,7 @@
 // lib/research/adjoiner-extraction.ts
 //
 // §10.2 (deed-call half) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Pure NLP — extract the adjoiner references named in a legal
 // description ("thence along the South line of the John Smith

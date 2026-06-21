@@ -1,6 +1,6 @@
 // lib/research/vendor-detection.ts
 //
-// §8.2 of docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
+// §8.2 of docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md
 // — vendor auto-detection. The leverage point that makes
 // no-code county onboarding work: a surveyor pastes a portal URL,
 // we look it up against the seeded `url_fingerprints` on

@@ -1,7 +1,7 @@
 // __tests__/research/canonical-schema.test.ts
 //
 // Source-lock for the canonical research schema (§7.5 of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md).
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md).
 // Locks the runtime helpers + the contract surface (key type
 // exports + the field-map shape) so future slices that touch the
 // schema have to update this file deliberately.

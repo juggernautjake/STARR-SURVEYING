@@ -1,7 +1,7 @@
 // lib/research/adapter-draft.ts
 //
 // §8.2 ↔ §8.5 bridge of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 //
 // Given a vendor-detection result from slice 6 + the user's
 // pasted URL + the chosen county/site_type, produce the draft

@@ -1,7 +1,7 @@
 // __tests__/research/dom-fingerprint.test.ts
 //
 // §9.1 (structural layer) of
-// docs/planning/in-progress/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
+// docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md.
 
 import { describe, it, expect } from 'vitest';
 import {
