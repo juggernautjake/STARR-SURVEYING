@@ -256,6 +256,40 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 4 — §10.2 (deed-call half) Adjoiner extraction from legal prose ✅ (2026-06-21)
+`lib/research/adjoiner-extraction.ts` ships `extractDeedCallAdjoiners(legal)` —
+pure NLP that pulls adjoiner references out of Texas deed prose and emits
+entries shaped like `RelevanceContext.adjoiners[number]` (`source:
+'deed_call'`). Five pattern families, each conservative:
+
+  - **Named tracts / properties** — `the John Smith tract`,
+    `land owned by Mary Jones`. Filtered through a `COMMON_NOUNS_BLOCKLIST`
+    so "the South boundary tract" never plucks "South boundary" as an
+    owner.
+  - **Lot / Block** — `Lot 7 Block A`, `Lots 4-6 Block C` →
+    `legal_reference: 'LOT 7 BLOCK A'`.
+  - **Abstract / survey number** — `A-1234`, `Abstract 1234` →
+    `legal_reference: 'ABSTRACT 1234'`.
+  - **Named survey** — `the J. Smith Survey` → `owner: 'J. Smith'`.
+  - **Deed citation** — `Vol. 1234, Pg. 567`, `Doc. 2024-12345` →
+    `legal_reference: 'VOL 1234 PG 567'` / `'DOC 2024-12345'`.
+
+Multi-mention dedup collapses repeated references on a normalized
+fingerprint (`normalizeOwnerName` from slice 3) and concatenates the
+evidence strings so a reviewer can see every location an adjoiner
+appeared.
+
+Source-locked with 17 tests in
+`__tests__/research/adjoiner-extraction.test.ts`, including a realistic
+end-to-end Texas legal description that exercises every pattern family in
+one run. 76/76 research tests pass; clean tsc.
+
+Conservative-by-design: false negatives are tolerated, false positives are
+bugs. The GIS-adjacency half of §10.2 (polygon-touching query against the
+CAD parcel layer) ships in a follow-up slice because it needs either a
+pure polygon-intersection algorithm or a network call to the county
+ArcGIS endpoint — both deserve their own slice.
+
 ### Slice 3 — §10.1 + §10.3 Subject anchor + relevance classification ✅ (2026-06-21)
 `lib/research/relevance.ts` ships the pure helpers that decide, for every
 extracted datum, whether it's about the **subject** property, an **adjoiner**,
@@ -482,15 +516,11 @@ surrounding/adjoining properties, and tag every datum's relevance.
   the project route handlers; the contract surface (function signature
   + RelevanceContext shape) is locked first so route changes don't churn
   the algorithm.
-- [ ] **10.2 Adjoiner resolution** — build the **relevance set** =
-  {subject} ∪ {adjoiners} from two independent sources, then union:
-  - **GIS adjacency** — query the CAD parcel layer for parcels whose geometry
-    **touches** the subject polygon (authoritative surrounding set).
-  - **Deed-call adjoiners** — extract adjoiner references named in the legal
-    description ("along the Smith tract", "N line of Lot 7", referenced
-    adjoining deeds). Resolve names/refs to parcels where possible.
-  Persist to `project_adjoiners` (`project_id`, `parcel_id`, `owner`,
-  `source` gis/deed_call/manual, `confidence`, `geometry`).
+- [~] **10.2 Adjoiner resolution** — deed-call half ✅ (2026-06-21, Slice 4):
+  `lib/research/adjoiner-extraction.ts` covers named tracts / Lot-Block /
+  abstract / named survey / deed-citation patterns. GIS-adjacency half
+  (polygon-touching query) + `project_adjoiners` table persistence land
+  in a follow-up slice.
 - [x] **10.3 Relevance-gated extraction** ✅ (2026-06-21, Slice 3, partial) —
   `classifyRelevance()` + `filterRelevantRecords()` in
   `lib/research/relevance.ts` are the contract every extractor will use to
