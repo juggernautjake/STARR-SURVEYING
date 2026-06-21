@@ -247,12 +247,25 @@ per-page note in §6.
   every `<button>` with no handler, and every `<Link>`/`href` pointing
   at a route with no `page.tsx`. Fix the cheap ones inline; for any that
   need real feature work, file a one-line deferral with rationale.
-- [ ] **D2 — Seeds verification + application.** Inventory `seeds/*.sql`
-  vs live Supabase. Per `memory/project_apply_seeds_to_supabase.md`:
-  apply with node-pg + `SUPABASE_DB_URL` (CLI paths fail), verify with
-  PostgREST + service key. Apply any seed whose rows are missing live;
-  record what was applied. Do NOT click role-mutating buttons during
-  live verification (`memory/feedback_no_role_mutations.md`).
+- [x] **D2 — Seeds verification + application.** Built `npm run db:seed`
+  (one-command node-pg runner, ordered, excludes destructive 000_reset) +
+  `db:seed:all` (continue-on-error). Ran against live 2026-06-21:
+  **127/172 applied, 45 skipped**, all categorized:
+  - **Already-applied (≈8)** — 020 (flashcards dup-key), 093–098/210
+    (policy/trigger "already exists"). No action — objects are live.
+  - **Storage-bucket ownership (3)** — 102/290/295 "must be owner of table
+    objects". The pooler role can't alter `storage.objects` RLS; apply
+    these via the Supabase SQL editor (privileged) if the buckets/policies
+    are actually missing.
+  - **Curriculum buildout FK (28)** — 332–359 `buildout_mNN` FK-violate
+    `lesson_blocks_lesson_id_fkey`: stale static files referencing lesson
+    ids that don't match the live curriculum (built via the gen_seed
+    pipeline). Content already live; files are a redundant path.
+  - **Genuine drift to reconcile (later):** 101_fieldbook_tables (42601
+    syntax error), 226_starr_field_files (live `job_files` lacks `name`
+    col), and the payment seeds 323–326 (= deferred G3, invoices-schema
+    drift). Tables already live; these need deliberate per-file
+    reconciliation, not a bulk apply.
 
 ## 5.5 Session-surfaced open work (from the user's gap list)
 
