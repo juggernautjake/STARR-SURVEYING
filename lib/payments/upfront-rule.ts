@@ -1,7 +1,7 @@
 // lib/payments/upfront-rule.ts
 //
 // Phase-2 Slice 0 of
-// docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
+// docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
 //
 // Pure helper that gates every payment attempt against the user-spec
 // upfront rule:

@@ -3,7 +3,7 @@
 // Customer-invoicing Phase 2 dashboard — **under construction**.
 //
 // Per the planning doc at
-// `docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md`, this
+// `docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md`, this
 // route exists today only as a status board the user (admin / developer)
 // can preview while the four Phase-2 features build out behind it:
 //
@@ -35,41 +35,41 @@ import Link from 'next/link';
 interface SliceRow {
   id: string;
   label: string;
-  state: 'done' | 'in-progress' | 'planned' | 'blocked';
+  state: 'done' | 'in-progress' | 'planned' | 'blocked' | 'deferred';
   detail: string;
 }
 
 const PHASE_2_SLICES: SliceRow[] = [
   { id: '0', label: 'Planning doc + this under-construction route + upfront-rule pure helper',
     state: 'in-progress',
-    detail: 'shipped this slice — planning doc at docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md, this page, lib/payments/upfront-rule.ts.' },
+    detail: 'shipped this slice — planning doc at docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md, this page, lib/payments/upfront-rule.ts.' },
   { id: '1', label: 'Phase-1 table-name collision fix (rename invoices → customer_invoices)',
-    state: 'blocked',
-    detail: 'documented in docs/payments-invoices-collision-2026-06-21.md. Unblocks every other slice. Needs a Stripe test-mode confirmation pass before merge.' },
-  { id: '2', label: 'Schema: deposit_type + deposit_value + upfront_paid_at columns', state: 'planned',
-    detail: 'idempotent ALTER TABLE on customer_invoices.' },
-  { id: '3', label: 'Wire upfront-rule into the public payment route', state: 'planned',
-    detail: 'reject under-upfront payments at /api/public/invoice/[number]/intent + /attempt.' },
-  { id: '4', label: 'Customer-facing upfront banner', state: 'planned',
-    detail: '"Your first payment must cover the upfront amount of $X" above the method picker.' },
-  { id: '5', label: 'Admin composer: deposit-type picker', state: 'planned',
-    detail: 'on /admin/invoices/new, dad picks none / percent / fixed + the value.' },
-  { id: '6', label: 'Notification on upfront-paid transition', state: 'planned',
-    detail: 'dad gets pinged so he can start research.' },
+    state: 'deferred',
+    detail: 'BLOCKED on human decision per docs/payments-invoices-collision-2026-06-21.md — touches live Stripe billing. Needs user go-ahead + a Stripe test-mode confirmation pass. Once approved, this re-opens the plan and the half-2 queue ships.' },
+  { id: '2', label: 'Schema: deposit_type + deposit_value + upfront_paid_at columns', state: 'deferred',
+    detail: 'Depends on slice 1 — the table customer_invoices doesn\'t exist until the rename lands.' },
+  { id: '3', label: 'Wire upfront-rule into the public payment route', state: 'deferred',
+    detail: 'Depends on slice 2 columns. Pure rule + 28 tests (slice 0) already done; route wiring is trivial once the column exists.' },
+  { id: '4', label: 'Customer-facing upfront banner', state: 'deferred',
+    detail: 'Depends on slice 2 columns being readable from the invoice row.' },
+  { id: '5', label: 'Admin composer: deposit-type picker', state: 'deferred',
+    detail: 'Depends on slice 2 columns.' },
+  { id: '6', label: 'Notification on upfront-paid transition', state: 'deferred',
+    detail: 'Depends on slice 2 + slice 3. Pure isUpfrontPaid helper (slice 0) is the rising-edge detector waiting to be wired.' },
   { id: '7', label: 'Schema: financial_allocation_categories + financial_allocations + default seed', state: 'done',
     detail: 'seeds/374 — 5 user-named + 13 §2.2 proposed categories, all start at 0% pending dad\'s decision; tables FK to payments (not customer_invoices), so independent of the collision fix.' },
   { id: '8', label: 'Allocation engine (pure splitter)', state: 'done',
     detail: 'lib/payments/allocation-engine.ts — pure, last active category absorbs rounding remainder, refuses to write when target_percent ≠ 100. 30 source-locked tests including a books-balance sweep.' },
-  { id: '9', label: 'Wire engine into the office-closeout + stripe-webhook paths', state: 'planned',
-    detail: 'every cleared payment writes its allocation ledger automatically.' },
+  { id: '9', label: 'Wire engine into the office-closeout + stripe-webhook paths', state: 'deferred',
+    detail: 'Both call sites 500 today on the live invoices table because column names they read don\'t exist in the SaaS-billing schema. Slice 1 unblocks both. Pure allocatePayment engine (slice 8) + 30 tests are ready.' },
   { id: '10', label: 'Reports: /admin/invoicing/reports', state: 'in-progress',
-    detail: 'Data layer shipped (lib/payments/allocation-reports.ts — rollupAllocationsByCategory + revenueByPeriod). UI page lands when collision fix exposes outstanding-invoices.' },
+    detail: 'Data layer shipped (lib/payments/allocation-reports.ts — rollupAllocationsByCategory + revenueByPeriod). UI page deferred until slice 1 exposes outstanding-invoices section.' },
   { id: '11', label: 'Category editor: /admin/invoicing/categories', state: 'done',
     detail: 'GET + PUT API at /api/admin/invoicing/categories; UI at /admin/invoicing/categories with inline validation + diff preview. ADD/DELETE deferred to a later slice.' },
-  { id: '12', label: 'Mock-customer test harness', state: 'planned',
-    detail: 'seeds 8 fake invoices covering every edge case for end-to-end tests.' },
-  { id: '13', label: 'Remove under-construction banner + graduate the route', state: 'planned',
-    detail: 'when slices 1–12 are green.' },
+  { id: '12', label: 'Mock-customer test harness', state: 'deferred',
+    detail: 'Harness seeds rows into customer_invoices + deposit_* columns, neither of which exists until slices 1 + 2 land.' },
+  { id: '13', label: 'Remove under-construction banner + graduate the route', state: 'deferred',
+    detail: 'Terminal cleanup gate — ships when 1–12 are green. The banner stays until the user reopens this plan and walks the half-2 queue.' },
 ];
 
 const STATE_COLORS: Record<SliceRow['state'], string> = {
@@ -77,6 +77,7 @@ const STATE_COLORS: Record<SliceRow['state'], string> = {
   'in-progress': '#D97706',
   planned:       '#6B7280',
   blocked:       '#DC2626',
+  deferred:      '#7C3AED',
 };
 
 const STATE_LABELS: Record<SliceRow['state'], string> = {
@@ -84,6 +85,7 @@ const STATE_LABELS: Record<SliceRow['state'], string> = {
   'in-progress': 'In progress',
   planned:       'Planned',
   blocked:       'Blocked',
+  deferred:      'Deferred',
 };
 
 export default function InvoicingPhase2Page(): React.ReactElement {
@@ -144,7 +146,7 @@ export default function InvoicingPhase2Page(): React.ReactElement {
         <h1 style={styles.h1}>Customer Invoicing — Phase 2</h1>
         <p style={styles.subtitle}>
           Live state of the planning doc at{' '}
-          <code>docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md</code>.
+          <code>docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md</code>.
           Hello, {session.user.email}.
         </p>
       </header>

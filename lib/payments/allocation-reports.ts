@@ -1,7 +1,7 @@
 // lib/payments/allocation-reports.ts
 //
 // Phase-2 Slice 10 (data layer) of
-// docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
+// docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
 //
 // Pure aggregators that turn raw `financial_allocations` ledger rows
 // + the category catalog into the rollups the §9.8 / Phase-2 Slice 10

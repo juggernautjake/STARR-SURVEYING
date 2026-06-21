@@ -1,7 +1,7 @@
 // lib/payments/allocation-engine.ts
 //
 // Phase-2 Slice 8 of
-// docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
+// docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
 //
 // Pure splitter. Given the amount of a cleared payment + the active
 // categories with their target percentages, return the ledger rows to

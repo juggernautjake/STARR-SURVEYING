@@ -1,7 +1,7 @@
 // app/api/admin/invoicing/categories/route.ts
 //
 // Phase-2 Slice 11 (route) of
-// docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
+// docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
 //
 //   GET  /api/admin/invoicing/categories
 //        → { categories: FinancialAllocationCategory[] }

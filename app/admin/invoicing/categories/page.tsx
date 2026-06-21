@@ -1,7 +1,7 @@
 // app/admin/invoicing/categories/page.tsx
 //
 // Phase-2 Slice 11 (UI) of
-// docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
+// docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
 //
 // Editor for the seed-374 financial_allocation_categories rows. Dad
 // sets the target percentage for each spending bucket (equipment /

@@ -2,7 +2,7 @@
 -- 374_financial_allocation_categories.sql
 --
 -- Phase-2 Slice 7 of
--- docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
+-- docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
 --
 -- Adds the two tables the §2.2 financial-allocation system writes into:
 --

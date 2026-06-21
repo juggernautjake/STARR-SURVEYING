@@ -1,7 +1,7 @@
 // lib/payments/category-editor.ts
 //
 // Phase-2 Slice 11 (data layer) of
-// docs/planning/in-progress/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
+// docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md.
 //
 // Pure validators + preview helpers for the (forthcoming)
 // /admin/invoicing/categories editor where dad sets target percentages,

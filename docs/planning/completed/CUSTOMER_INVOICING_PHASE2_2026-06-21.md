@@ -1,10 +1,20 @@
 # Customer Invoicing — Phase 2 (upfront / categories / under-construction gate)
 
 **Date:** 2026-06-21
-**Status:** in-progress — planning the four additions the user asked for that
-weren't in the original Phase-1 payment-infrastructure-2026-06-18 plan, plus
-the table-name collision fix that's blocking that whole earlier work from
-shipping to live.
+**Status:** Phase-2-Half-1 shipped (slices 0, 7, 8, 10-data, 11-data, 11-UI on
+branch `claude/gifted-ramanujan-lQaEI`, commits `48301b0` / `3673328` /
+`ebe96db` / `ebe804e` / `d022c95`). 110/110 payments tests pass; clean tsc + lint.
+
+Phase-2-Half-2 (slices 1, 2, 3, 4, 5, 6, 9, 10-UI, 12, 13) is **explicitly
+deferred** because every remaining slice gates on slice 1 — the seed-323
+`customer_invoices` rename — which `docs/payments-invoices-collision-2026-06-21.md`
+says **"BLOCKED on a human decision — deliberately not auto-applied"**. Once
+the user green-lights the rename + the Stripe test-mode confirmation, this
+doc moves back to `in-progress/` and the half-2 queue ships.
+
+Doc moves to `docs/planning/completed/` per the rubric: every action item is
+either ✅ shipped or [defer]'d with a one-line rationale tying it to the
+human-approval gate, not a code-cost gate.
 
 > User directive (verbatim, 2026-06-21):
 > "Ok, please actually wire the payment page so that customers can pay their
@@ -127,20 +137,20 @@ This is **Slice 1** of Phase 2 — every other slice depends on it.
 |---|---|---|---|
 | **0** ✅ | Planning doc + under-construction route stub + upfront-rule pure helper | mixed | Shipped 2026-06-21 (commit 48301b0). Planning doc + `/admin/invoicing` auth-gated dashboard + `lib/payments/upfront-rule.ts` + 28 tests. |
 | **7+8** ✅ | Allocation categories schema + engine | migration + pure helper | Shipped 2026-06-21 (this commit). `seeds/374_financial_allocation_categories.sql` (5 user-named + 13 §2.2 proposed categories, all at 0% pending dad's decision) + `lib/payments/allocation-engine.ts` (pure splitter, last-active-category absorbs rounding, refuses writes when target_percent ≠ 100). 30 source-locked tests including the books-balance sweep across 7 distributions × 7 amounts. Independent of the customer_invoices rename — the ledger FKs to `payments`, which is unchanged. |
-| 1 | Phase-1 collision fix (rename to customer_invoices) | migration + repoint | Per the existing reconciliation doc. Unblocks every other slice + the existing 22-slice payment work. Single-PR risky — split into 1a (seeds), 1b (code repoint), 1c (webhook + verify) if needed. |
-| 2 | Schema: `deposit_type` + `deposit_value` + `upfront_paid_at` columns on customer_invoices | migration | Idempotent ALTER TABLE. CHECK constraint on enum values. |
-| 3 | Backend: wire upfront-rule into `/api/public/invoice/[number]/intent` + `/attempt` | route | Reject under-upfront payments at the route, return 422 with the rejection-reason from the pure helper. |
-| 4 | Customer-facing UI: show "your first payment must cover $X" + the upfront amount | UI | On `/pay/[invoice]`, when `deposit_value > 0 && already_paid < deposit_amount`, surface a banner above the method picker that says exactly what they need to pay. |
-| 5 | Admin invoice composer: deposit-type picker + deposit-value field | UI | On `/admin/invoices/new`, add a "Deposit required?" dropdown (none / percent / fixed) + a value field. Saved into the new columns from slice 2. |
-| 6 | Notification: on transition → `upfront_paid`, fire admin notification | route | "Customer X paid the upfront amount; you can start the research phase." Email + in-app via existing pipeline. |
+| 1 [defer] | Phase-1 collision fix (rename to customer_invoices) | migration + repoint | *Defer rationale:* `docs/payments-invoices-collision-2026-06-21.md` explicitly says **"BLOCKED on a human decision — deliberately not auto-applied"** because the seed-323 + repoint touches live Stripe billing. A wrong split breaks real customer payments. Needs user go-ahead + a Stripe test-mode confirmation pass. NOT a code-cost issue. |
+| 2 [defer] | Schema: `deposit_type` + `deposit_value` + `upfront_paid_at` columns on customer_invoices | migration | *Defer rationale:* targets `customer_invoices` which doesn't exist as a separate table until slice 1 lands. The ALTER is a one-liner; one slice once unblocked. |
+| 3 [defer] | Backend: wire upfront-rule into `/api/public/invoice/[number]/intent` + `/attempt` | route | *Defer rationale:* the pure rule + 28 tests already ship; route wiring depends on slice 2 column existing. |
+| 4 [defer] | Customer-facing UI: show "your first payment must cover $X" + the upfront amount | UI | *Defer rationale:* `/pay/[invoice]` reads from `customer_invoices`, which doesn't resolve until slice 1. |
+| 5 [defer] | Admin invoice composer: deposit-type picker + deposit-value field | UI | *Defer rationale:* `/admin/invoices/new` writes to `customer_invoices`, which doesn't resolve until slice 1. |
+| 6 [defer] | Notification: on transition → `upfront_paid`, fire admin notification | route | *Defer rationale:* depends on slice 2's columns + slice 3's state transition firing. The pure `isUpfrontPaid` helper from Slice 0 is the rising-edge detector waiting to be wired. |
 | 7 | Schema: `financial_allocation_categories` + `financial_allocations` tables + default-category seed | migration | Includes every user-named category + the §2.2 additions. Default percentages = 0 (user sets them later). |
 | 8 | Allocation engine: `allocatePayment(payment, categories) → AllocationRow[]` (pure) | helper + tests | Splits a payment by target %. Handles rounding (last category absorbs the remainder). Idempotent. |
-| 9 | Wire allocation engine into the office-closeout path + stripe-webhook success path | route | Every cleared payment writes its allocation ledger rows automatically. |
+| 9 [defer] | Wire allocation engine into the office-closeout path + stripe-webhook success path | route | *Defer rationale:* both call sites (`/api/admin/payment-attempts/[id]/clear` + the customer-payment branch of `/api/webhooks/stripe`) 500 today on the live `invoices` table because the column names they read don't exist in the SaaS-billing schema. Slice 1 unblocks both. The pure `allocatePayment` engine + 30 tests are already in place and ready. |
 | 10 (data) ✅ | Reports — pure-aggregator data layer | helper + tests | Shipped 2026-06-21. `lib/payments/allocation-reports.ts` ships `rollupAllocationsByCategory` (target vs actual + variance + share_of_actual + window filtering + inactive-category gating) and `revenueByPeriod` (day / ISO-week / month / year bucketing with from/to range). 22 source-locked tests. The UI half (the actual `/admin/invoicing/reports` page) ships once the collision fix lands so outstanding-invoices section can pull from `customer_invoices`. |
 | 11 (data) ✅ | Category editor — pure validators + preview helpers | helper + tests | Shipped 2026-06-21. `lib/payments/category-editor.ts`: `validateSingleCategory` (snake_case key, 80-char label cap, 0–100 percent with 2-decimal NUMERIC(5,2) check, `#RRGGBB` color), `validateCategorySet` (active-sum = 100 ± 0.01, duplicate-key detection, no-active-categories warning), `previewEdit(original, draft)` (added / modified-with-fields_changed / removed + percent_delta), `suggestCategoryKey(label)` (snake_case coercion with leading-digit escape). 30 source-locked tests including floating-point fuzz tolerance + the 401(k) → `_401_k_contributions` edge case. |
 | 11 (UI) ✅ | Category editor — `/admin/invoicing/categories` route + API | route + page | Shipped 2026-06-21. `GET /api/admin/invoicing/categories` lists every row from seed 374; `PUT` accepts a partial-update batch, runs the slice-11 validators FIRST (returns 422 with the typed `ValidationResult` on a bad sum / dup / out-of-range), then per-row `UPDATE`s. UI at `/admin/invoicing/categories` (admin+developer gated, identical Shell + Gate components to the parent route) — table of every bucket with color swatch + snake_case key + editable percent input + "changed" pill + footer total in green/red based on the live `validateCategorySet` verdict. Save button disabled when validation is invalid or there are no pending changes. Reset reverts the local draft to persisted state. No ADD or DELETE in this cut (the 18-default seed is comprehensive). |
-| 12 | Mock-customer test harness: seeder + dashboard button | route + test | Seeds 8 fake invoices covering every edge case. |
-| 13 | "Under construction" banner stays visible until every slice above is green | config | Then the banner is removed + the route graduates to the real dashboard. |
+| 12 [defer] | Mock-customer test harness: seeder + dashboard button | route + test | *Defer rationale:* the harness seeds rows into `customer_invoices` (and the new `deposit_*` columns), neither of which exists until slices 1 + 2 land. Pure helper logic for the seeded shapes lands with the route. |
+| 13 [defer] | "Under construction" banner stays visible until every slice above is green | config | *Defer rationale:* terminal cleanup gate — only ships when 1–12 are all green. The banner is already in place on `/admin/invoicing` and will stay until the user re-opens this plan, ships slice 1, and walks the queue. |
 
 ## 5. Edge cases the build must handle
 
