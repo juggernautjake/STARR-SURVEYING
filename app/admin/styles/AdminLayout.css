@@ -200,6 +200,39 @@
   margin: 0;
 }
 
+/* checkbox-radio-reset-2026-06-21 — the marketing-form default in
+ * globals.css doesn't distinguish text inputs from checkbox / radio
+ * inputs, so a bare <input type="checkbox"> inherits `padding:
+ * 0.875rem 1rem` + `border: 2px solid` + `font-size: 1rem` and
+ * renders as a huge ~32px oval (visible on /admin/org-settings
+ * "Require MFA at sign-in"). The rule below resets the box back to
+ * native and pins it to a uniform 16x16 square so all the
+ * checkboxes/radios across the site read as proper, perfectly round
+ * (radio) or square (checkbox) controls, vertically centered with
+ * their labels. accent-color tints the check/dot to brand navy on
+ * supporting browsers; appearance: auto restores the native widget. */
+.admin-layout input[type="checkbox"],
+.admin-layout input[type="radio"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+  background: transparent;
+  vertical-align: middle;
+  flex-shrink: 0;
+  accent-color: var(--color-brand-navy, #1D3095);
+  cursor: pointer;
+}
+.admin-layout input[type="checkbox"]:disabled,
+.admin-layout input[type="radio"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* === Portal-rendered tooltip (Tooltip.tsx) =============================
  * button-tooltip-portal-2026-06-20 — these rules were previously in
  * AdminResearch.css which only loads on /admin/research/**, so every
