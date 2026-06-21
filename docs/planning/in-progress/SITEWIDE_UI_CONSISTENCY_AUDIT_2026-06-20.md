@@ -300,8 +300,10 @@ per-page note in §6.
   `field-data/[id]`, `team`, `timeline`, `assignments`.
   - [x] **jobs** (All Jobs) — view-toggle ⊞/☰→LayoutGrid/List, delete 🗑→
     Trash2 (×2), empty 📋→Briefcase. work/jobs-new/jobs-import: no emoji.
-  - [ ] Remaining: calendar (⛶/🖨/📅/✕…), team (⚡/🔋/📋…), timeline
-    (📍/🚗), field-data (🔄) emoji→lucide; jobs/[id] + field-data/[id].
+  - [x] **timeline** (📍→MapPin, 🚗→Car) + **field-data** (🔄→Image) —
+    emoji-free.
+  - [ ] Remaining: calendar (⛶/🖨/📅/✕…), team (⚡/🔋/📋…) emoji→lucide;
+    jobs/[id] + field-data/[id] detail pages.
 - [ ] **W3 — Equipment workspace.** `equipment` + `inventory`,
   `consumables`, `maintenance` (+`[id]`), `timeline`, `fleet-valuation`,
   `overrides`, `templates` (+`new`/`[id]`/`cleanup-queue`), `today`,
