@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Upload, Microscope, ClipboardList, HardHat, Search, FolderOpen, MapPin,
   Pencil, FileText, Paperclip, BarChart3, Home, DraftingCompass, Route, Camera,
+  ScrollText, Map as MapIcon, Scale, Notebook, Ruler, Landmark, DollarSign, Satellite,
+  Mountain, Plug, Waves, Link2, Printer, Loader2, Sparkles, CheckCircle2,
+  Check, AlertTriangle, X, Inbox, type LucideIcon,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
@@ -65,7 +68,7 @@ const JOB_NOTES_PLACEHOLDER =
 // ── ReviewDocCard — collapsible document card for Stage 3 ────────────────────
 
 interface ReviewDocCardProps {
-  typeIcon: string;
+  typeIcon: LucideIcon;
   title: string;
   typeName: string;
   doc: {
@@ -103,7 +106,7 @@ function getCardPageUrls(ocrRegions: unknown): string[] {
   return [];
 }
 
-function ReviewDocCard({ typeIcon, title, typeName, doc, excerpt, hasViewable, onView }: ReviewDocCardProps) {
+function ReviewDocCard({ typeIcon: TypeIcon, title, typeName, doc, excerpt, hasViewable, onView }: ReviewDocCardProps) {
   const [open, setOpen] = useState(false);
   const pageUrls = getCardPageUrls(doc.ocr_regions);
   const thumbnailUrl = doc.storage_url || (pageUrls.length > 0 ? pageUrls[0] : null);
@@ -112,7 +115,7 @@ function ReviewDocCard({ typeIcon, title, typeName, doc, excerpt, hasViewable, o
   return (
     <div className={`review-doc-card${open ? ' review-doc-card--open' : ''}`}>
       <div className="review-doc-card__header" onClick={() => setOpen(o => !o)}>
-        <span className="review-doc-card__icon">{typeIcon}</span>
+        <span className="review-doc-card__icon"><TypeIcon size={16} strokeWidth={1.75} /></span>
         <span className="review-doc-card__title">{title}</span>
         <span className="review-doc-card__type">{typeName}</span>
         {doc.processing_status === 'analyzed' && (
@@ -2660,11 +2663,11 @@ export default function ResearchProjectPage() {
                         <div style={{ display: 'grid', gap: '0.5rem' }}>
                           {qr.checks.map((c, i) => {
                             const color = c.qualityScore >= 70 ? '#22c55e' : c.qualityScore >= 40 ? '#eab308' : '#ef4444';
-                            const icon = c.qualityScore >= 70 ? '✓' : c.qualityScore >= 40 ? '⚠' : '✗';
+                            const QIcon = c.qualityScore >= 70 ? Check : c.qualityScore >= 40 ? AlertTriangle : X;
                             return (
                               <div key={i} style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', background: 'var(--bg-elevated, #f9fafb)', border: '1px solid var(--border, #e5e7eb)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                                  <span style={{ color, fontWeight: 600 }}>{icon} {c.qualityScore}/100</span>
+                                  <span style={{ color, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><QIcon size={14} strokeWidth={2.5} /> {c.qualityScore}/100</span>
                                   <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{c.label}</span>
                                   <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary, #999)', marginLeft: 'auto' }}>
                                     zoom: {c.zoomAssessment}
@@ -2741,21 +2744,21 @@ export default function ResearchProjectPage() {
               SECTION 3 — Document/Source List (flat expandable cards)
               ══════════════════════════════════════════════════════ */}
           {(() => {
-            const docTypeIcons: Record<string, string> = {
-              deed: '📜', plat: '🗺️', survey: '📐', legal_description: '⚖️',
-              title_commitment: '📋', easement: '🛤️', restrictive_covenant: '📄',
-              field_notes: '📓', subdivision_plat: '🏘️', metes_and_bounds: '📏',
-              county_record: '🏛️', appraisal_record: '💰', aerial_photo: '🛰️',
-              topo_map: '🗻', utility_map: '🔌',
-              gis_map: '🗺️', flood_map: '🌊', property_report: '🏠', road_map: '🛣️',
-              deed_screenshot: '📜', plat_screenshot: '🗺️', map_screenshot: '🗺️',
-              other: '📎',
+            const docTypeIcons: Record<string, LucideIcon> = {
+              deed: ScrollText, plat: MapIcon, survey: DraftingCompass, legal_description: Scale,
+              title_commitment: ClipboardList, easement: Route, restrictive_covenant: FileText,
+              field_notes: Notebook, subdivision_plat: MapIcon, metes_and_bounds: Ruler,
+              county_record: Landmark, appraisal_record: DollarSign, aerial_photo: Satellite,
+              topo_map: Mountain, utility_map: Plug,
+              gis_map: MapIcon, flood_map: Waves, property_report: Home, road_map: Route,
+              deed_screenshot: ScrollText, plat_screenshot: MapIcon, map_screenshot: MapIcon,
+              other: Paperclip,
             };
-            const sourceTypeLabels: Record<string, { label: string; icon: string }> = {
-              property_search:  { label: 'Research — Web Sources', icon: '🔍' },
-              user_upload:      { label: 'User Uploaded', icon: '📤' },
-              linked_reference: { label: 'Linked References', icon: '🔗' },
-              manual_entry:     { label: 'Manual Entry', icon: '📝' },
+            const sourceTypeLabels: Record<string, { label: string; icon: LucideIcon }> = {
+              property_search:  { label: 'Research — Web Sources', icon: Search },
+              user_upload:      { label: 'User Uploaded', icon: Upload },
+              linked_reference: { label: 'Linked References', icon: Link2 },
+              manual_entry:     { label: 'Manual Entry', icon: Pencil },
             };
 
             // Separate MISC documents from regular documents
@@ -2781,7 +2784,7 @@ export default function ResearchProjectPage() {
             if (documents.length === 0) {
               return (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#4B5563', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📭</div>
+                  <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #999)" }}><Inbox size={30} strokeWidth={1.5} /></div>
                   <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No documents captured</div>
                   <div style={{ fontSize: '0.85rem' }}>Go back to Research &amp; Analysis to run the pipeline.</div>
                 </div>
@@ -2796,16 +2799,16 @@ export default function ResearchProjectPage() {
                   </div>
                   {sortedKeys.map(sourceKey => {
                     const docs = grouped[sourceKey];
-                    const { label, icon } = sourceTypeLabels[sourceKey] || { label: sourceKey, icon: '📎' };
+                    const { label, icon: SrcIcon } = sourceTypeLabels[sourceKey] || { label: sourceKey, icon: Paperclip };
                     return (
                       <div key={sourceKey} className="review-doc-group">
                         <div className="review-doc-group__header">
-                          <span>{icon}</span>
+                          <span><SrcIcon size={15} strokeWidth={1.75} /></span>
                           <span className="review-doc-group__label">{label}</span>
                           <span className="review-doc-group__count">{docs.length}</span>
                         </div>
                         {docs.map(doc => {
-                          const typeIcon = doc.document_type ? (docTypeIcons[doc.document_type] || '📎') : '📎';
+                          const typeIcon = (doc.document_type ? docTypeIcons[doc.document_type] : null) || Paperclip;
                           const typeName = doc.document_type
                             ? doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
                             : 'Document';
@@ -2875,19 +2878,19 @@ export default function ResearchProjectPage() {
               className={`research-jobprep__tab${jobPrepTab === 'drawing' ? ' research-jobprep__tab--active' : ''}`}
               onClick={() => setJobPrepTab('drawing')}
             >
-              ✏️ Drawing
+              <Pencil size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Drawing
             </button>
             <button
               className={`research-jobprep__tab${jobPrepTab === 'fieldplan' ? ' research-jobprep__tab--active' : ''}`}
               onClick={() => setJobPrepTab('fieldplan')}
             >
-              📋 Field Plan
+              <ClipboardList size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Field Plan
             </button>
             <button
               className={`research-jobprep__tab${jobPrepTab === 'finaldoc' ? ' research-jobprep__tab--active' : ''}`}
               onClick={() => setJobPrepTab('finaldoc')}
             >
-              🖨️ Final Document
+              <Printer size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Final Document
             </button>
           </div>
 
@@ -2906,7 +2909,7 @@ export default function ResearchProjectPage() {
                           onClick={handleGenerateDrawing}
                           disabled={generatingDrawing}
                         >
-                          {generatingDrawing ? '⏳ Generating...' : '✨ Generate AI Drawing'}
+                          {generatingDrawing ? <><Loader2 size={14} className="animate-spin" style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Generating…</> : <><Sparkles size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Generate AI Drawing</>}
                         </button>
                       )}
                     </div>
@@ -3165,7 +3168,7 @@ export default function ResearchProjectPage() {
                       disabled={isOpeningInCAD}
                       title="Convert this drawing to a full STARR CAD document and open it for editing"
                     >
-                      {isOpeningInCAD ? '⏳ Opening…' : '✏️ Open in CAD Editor'}
+                      {isOpeningInCAD ? <><Loader2 size={14} className="animate-spin" style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Opening…</> : <><Pencil size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Open in CAD Editor</>}
                     </button>
                     {/* Verify drawing */}
                     <button
@@ -3173,7 +3176,7 @@ export default function ResearchProjectPage() {
                       onClick={handleRunVerification}
                       disabled={isVerifying}
                     >
-                      {isVerifying ? '⏳ Verifying…' : '✅ Run Verification'}
+                      {isVerifying ? <><Loader2 size={14} className="animate-spin" style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Verifying…</> : <><CheckCircle2 size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Run Verification</>}
                     </button>
                   </div>
 
@@ -3232,7 +3235,7 @@ export default function ResearchProjectPage() {
                 <div className="research-final-doc__header">
                   <div>
                     <h2 className="research-final-doc__title">
-                      🖨️ Final Job Package — {project.name}
+                      <Printer size={15} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Final Job Package — {project.name}
                     </h2>
                     <p className="research-final-doc__subtitle">
                       {project.property_address}{project.county ? ` · ${project.county} County` : ''}{project.state ? `, ${project.state}` : ''}
@@ -3243,7 +3246,7 @@ export default function ResearchProjectPage() {
                       className="research-final-doc__btn research-final-doc__btn--primary"
                       onClick={() => window.print()}
                     >
-                      🖨️ Print
+                      <Printer size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Print
                     </button>
                     {activeDrawing && (
                       <button
@@ -3251,7 +3254,7 @@ export default function ResearchProjectPage() {
                         onClick={handleOpenInCAD}
                         disabled={isOpeningInCAD}
                       >
-                        {isOpeningInCAD ? '⏳ Opening…' : '✏️ Open in CAD Editor'}
+                        {isOpeningInCAD ? <><Loader2 size={14} className="animate-spin" style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Opening…</> : <><Pencil size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Open in CAD Editor</>}
                       </button>
                     )}
                   </div>
@@ -3326,7 +3329,7 @@ export default function ResearchProjectPage() {
                     <div className="research-final-doc__section">
                       <h3 className="research-final-doc__section-title"><Pencil size={16} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Boundary Drawing</h3>
                       <div style={{ padding: '2rem', textAlign: 'center', color: '#4B5563', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
-                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📐</div>
+                        <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #999)" }}><DraftingCompass size={24} strokeWidth={1.5} /></div>
                         <div style={{ fontSize: '0.88rem' }}>
                           No drawing generated yet. Go to the <button onClick={() => setJobPrepTab('drawing')} style={{ background: 'none', border: 'none', color: '#1D4ED8', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}>Drawing tab</button> to generate an AI boundary drawing.
                         </div>
@@ -3481,11 +3484,11 @@ export default function ResearchProjectPage() {
                             </span>
                             {doc.source_url && (
                               <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1D4ED8', flexShrink: 0 }}>
-                                🔗 Source
+                                <Link2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Source
                               </a>
                             )}
                             <span style={{ color: doc.processing_status === 'analyzed' ? '#059669' : '#6B7280', flexShrink: 0 }}>
-                              {doc.processing_status === 'analyzed' ? '✓ Analyzed' : doc.processing_status}
+                              {doc.processing_status === 'analyzed' ? <><Check size={12} style={{ verticalAlign: "-1px", marginRight: "0.2rem" }} />Analyzed</> : doc.processing_status}
                             </span>
                           </div>
                         ))}
