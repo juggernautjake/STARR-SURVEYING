@@ -475,7 +475,17 @@ per-page note in §6.
   card itself not done blind — the page is data-gated; U2 already fixed the
   one concrete overflow bug. The rate/tier work-type icons stay = G5.)
 
-- [ ] **W7 — Entity-encoded emoji sweep (follow-up).** The W1–W6 sweeps
+- [x] **W7 — Entity-encoded emoji sweep — COMPLETE.** Converted every
+  functional/chrome HTML-entity emoji (`&#x1F…;` etc.) across app/admin
+  (~35 files: navbar, all learn pages, rewards, users, discussions,
+  my-notes, settings/pay-prog, and 9 shared components incl. the TipTap
+  toolbar + lesson-builder). Final scan: 0 remaining except `ArticleEditor`'s
+  `&#x1F4C4;` (📄) — that's authored HTML *content* (the PDF-link icon
+  inserted into articles), not chrome, so intentionally kept (like the
+  Fieldbook/messenger/my-notes emoji *pickers*). Commits `8eeb99b8` →
+  `ab3f07f7`. The original W7 detail follows.
+
+- [x] ~~(legacy W7 detail)~~ The W1–W6 sweeps
   matched only literal-unicode emoji; **~35 admin files also use HTML-entity
   emoji** (`&#x1F…;` / `&#x26…;`) that were missed. Re-run the conversion
   targeting the entity form (`grep -rlE "&#x1F[0-9A-Fa-f]{3};" app/admin
@@ -491,7 +501,7 @@ per-page note in §6.
   - [x] modules/[id]/[lessonId], manage(+question-builder), exam-prep/sit/
     module/[id], my-notes → lucide. **All learn *pages* done.** Commit
     `853e713a`.
-  - [ ] Remaining (~9 components + lesson-builder entity glyphs):
+  - [x] All ~9 components + lesson-builder entity glyphs → lucide. Commit `ab3f07f7`.
     learn/manage/lesson-builder/[id] (entity ✕/▼ etc.), and shared
     components — TipTapEditor, JobFileManager, Fieldbook, FlashcardViewer,
     QuizRunner, FileViewer, ArticleReader, ArticleEditor, SmallScreenBanner.
