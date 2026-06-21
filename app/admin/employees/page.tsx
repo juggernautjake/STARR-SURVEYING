@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { Search, Users } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import type { UserRole } from '@/lib/auth';
+import { matchesPersonPrefix } from '@/lib/admin/employee-search';
 // employee-pond Slice E1 — alternative viewer behind a view toggle.
 import EmployeePond from './EmployeePond';
 import '../styles/EmployeePond.css';
@@ -121,10 +123,9 @@ export default function EmployeesPage() {
   if (!canView) return null;
 
   const filtered = employees.filter(e => {
-    if (search) {
-      const q = search.toLowerCase();
-      if (!(e.name || '').toLowerCase().includes(q) && !e.email.toLowerCase().includes(q)) return false;
-    }
+    // Prefix-match name/email (shared with the Interactive view) — typing
+    // "e" must not surface "Audey". User request 2026-06-20.
+    if (!matchesPersonPrefix(search, e.name || '', e.email)) return false;
     if (roleFilter !== 'all' && !(e.roles || []).includes(roleFilter)) return false;
     if (statusFilter === 'active' && e.is_banned) return false;
     if (statusFilter === 'inactive' && !e.is_banned && e.is_active !== false) return false;
@@ -182,136 +183,145 @@ export default function EmployeesPage() {
           }))}
         />
       ) : (
-      <>
+      <div className="emp-list">
       {/* Summary stats */}
-      <div className="jobs-page__my-summary">
-        <div className="jobs-page__my-stat">
-          <span className="jobs-page__my-stat-value">{activeCount}</span>
-          <span className="jobs-page__my-stat-label">Active</span>
+      <div className="emp-list__stats">
+        <div className="emp-list__stat">
+          <span className="emp-list__stat-value">{activeCount}</span>
+          <span className="emp-list__stat-label">Active</span>
         </div>
-        <div className="jobs-page__my-stat">
-          <span className="jobs-page__my-stat-value">{employees.length - activeCount}</span>
-          <span className="jobs-page__my-stat-label">Inactive/Banned</span>
+        <div className="emp-list__stat">
+          <span className="emp-list__stat-value">{employees.length - activeCount}</span>
+          <span className="emp-list__stat-label">Inactive / Banned</span>
         </div>
-        <div className="jobs-page__my-stat">
-          <span className="jobs-page__my-stat-value">{withProfileCount}</span>
-          <span className="jobs-page__my-stat-label">With Payroll Profile</span>
+        <div className="emp-list__stat">
+          <span className="emp-list__stat-value">{withProfileCount}</span>
+          <span className="emp-list__stat-label">With Payroll Profile</span>
         </div>
-        <div className="jobs-page__my-stat">
-          <span className="jobs-page__my-stat-value">{allEmployeeRoles.length}</span>
-          <span className="jobs-page__my-stat-label">Roles in Use</span>
+        <div className="emp-list__stat">
+          <span className="emp-list__stat-value">{allEmployeeRoles.length}</span>
+          <span className="emp-list__stat-label">Roles in Use</span>
         </div>
       </div>
 
-      {/* Search and filter */}
-      <div className="jobs-page__controls">
-        <form className="jobs-page__search-form" onSubmit={e => e.preventDefault()}>
+      {/* Search and filter — uniform 36px control row */}
+      <div className="emp-list__controls">
+        <div className="emp-list__search">
+          <Search size={16} strokeWidth={2} className="emp-list__search-icon" aria-hidden="true" />
           <input
-            className="jobs-page__search"
-            placeholder="Search by name or email..."
+            className="emp-list__search-input"
+            placeholder="Search by name or email…"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            aria-label="Search employees by name or email"
           />
-        </form>
-        <div style={{ display: 'flex', gap: '.5rem' }}>
-          {/* Slice P5 — pin both selects to the 36px baseline shared
-              by `.jobs-page__search` so the role/status filters sit
-              flush with the search input next door instead of
-              rendering ~2px taller from their default padding. */}
-          <select
-            className="job-form__select"
-            style={{ width: 'auto', minWidth: '140px', height: 36, boxSizing: 'border-box' }}
-            value={roleFilter}
-            onChange={e => setRoleFilter(e.target.value as UserRole | 'all')}
-          >
-            <option value="all">All Roles</option>
-            {allEmployeeRoles.map(r => <option key={r} value={r}>{ROLE_LABELS[r as UserRole] || r}</option>)}
-          </select>
-          <select
-            className="job-form__select"
-            style={{ width: 'auto', minWidth: '120px', height: 36, boxSizing: 'border-box' }}
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
         </div>
+        <select
+          className="emp-list__select"
+          value={roleFilter}
+          onChange={e => setRoleFilter(e.target.value as UserRole | 'all')}
+          aria-label="Filter by role"
+        >
+          <option value="all">All Roles</option>
+          {allEmployeeRoles.map(r => <option key={r} value={r}>{ROLE_LABELS[r as UserRole] || r}</option>)}
+        </select>
+        <select
+          className="emp-list__select"
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+          aria-label="Filter by status"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
 
       {/* Employee grid */}
       {loading ? (
-        <div className="tl-loading">Loading employees...</div>
+        <div className="emp-list__loading">Loading employees…</div>
       ) : filtered.length === 0 ? (
-        <div className="jobs-page__empty">
-          <span className="jobs-page__empty-icon">&#x1F465;</span>
+        <div className="emp-list__empty">
+          <Users size={32} strokeWidth={1.5} className="emp-list__empty-icon" aria-hidden="true" />
           <h3>No employees found</h3>
-          <p>{search ? 'Try a different search term' : 'No company employees have signed in yet.'}</p>
+          <p>{search || roleFilter !== 'all' || statusFilter !== 'all'
+            ? 'Try a different search term or filter.'
+            : 'No company employees have signed in yet.'}</p>
         </div>
       ) : (
-        <div className="jobs-page__grid">
+        <div className="emp-list__grid">
           {filtered.map(emp => {
-            const primaryRole = (emp.roles || []).find(r => r !== 'employee') || 'employee';
             const isActive = !emp.is_banned && emp.is_active !== false;
+            const status = emp.is_banned ? 'banned' : isActive ? 'active' : 'inactive';
+            const displayName = emp.name || emp.email.split('@')[0];
+            const initials = displayName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+            const extraRoles = (emp.roles || []).filter(r => r !== 'employee');
+            const clickable = isAdmin;
+            const open = () => {
+              if (!isAdmin) return;
+              if (emp.job_title) router.push(`/admin/employees/manage?email=${encodeURIComponent(emp.email)}`);
+              else router.push('/admin/users');
+            };
             return (
               <div
                 key={emp.id}
-                className="job-card"
-                style={{ cursor: isAdmin ? 'pointer' : 'default', opacity: isActive ? 1 : 0.7 }}
-                onClick={() => {
-                  if (isAdmin && emp.job_title) {
-                    router.push(`/admin/employees/manage?email=${encodeURIComponent(emp.email)}`);
-                  } else if (isAdmin) {
-                    router.push(`/admin/users`);
-                  }
-                }}
+                className="emp-card"
+                data-status={status}
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? open : undefined}
+                onKeyDown={clickable ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }) : undefined}
               >
-                <div className="job-card__header">
-                  <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-                    {emp.job_title && (
-                      <span className="job-card__stage" style={{ background: 'var(--color-brand-navy)', fontSize: '.68rem' }}>
-                        {JOB_TITLE_LABELS[emp.job_title] || emp.job_title}
-                      </span>
-                    )}
-                    <span className="job-card__stage" style={{ background: ROLE_COLORS[primaryRole] || '#6B7280', fontSize: '.68rem' }}>
-                      {ROLE_LABELS[primaryRole as UserRole] || primaryRole}
-                    </span>
+                <div className="emp-card__top">
+                  {emp.avatar_url ? (
+                    <img src={emp.avatar_url} alt="" className="emp-card__avatar" />
+                  ) : (
+                    <div className="emp-card__avatar emp-card__avatar--initials">{initials}</div>
+                  )}
+                  <div className="emp-card__id">
+                    <h3 className="emp-card__name">{displayName}</h3>
+                    <p className="emp-card__email" title={emp.email}>{emp.email}</p>
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: isActive ? '#059669' : 'var(--color-error)', fontWeight: 600 }}>
+                  <span className={`emp-card__status emp-card__status--${status}`}>
                     {emp.is_banned ? 'Banned' : isActive ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
-                  {emp.avatar_url ? (
-                    <img src={emp.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem', fontWeight: 700, color: '#6B7280' }}>
-                      {(emp.name || emp.email.split('@')[0]).split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
-                    </div>
-                  )}
-                  <h3 className="job-card__name" style={{ margin: 0 }}>{emp.name || emp.email.split('@')[0]}</h3>
-                </div>
-                <p className="job-card__client">{emp.email}</p>
-                {/* Role badges */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem', marginTop: '.25rem', marginBottom: '.5rem' }}>
-                  {(emp.roles || []).filter(r => r !== 'employee').map(r => (
-                    <span key={r} style={{ fontSize: '.65rem', padding: '.1rem .35rem', borderRadius: '4px', background: (ROLE_COLORS[r] || '#6B7280') + '15', color: ROLE_COLORS[r] || '#6B7280', fontWeight: 600 }}>
-                      {ROLE_LABELS[r as UserRole] || r}
-                    </span>
-                  ))}
-                </div>
-                <div className="job-card__footer">
-                  {emp.hourly_rate != null ? <span>${emp.hourly_rate.toFixed(2)}/hr</span> : <span style={{ color: '#9CA3AF' }}>No payroll profile</span>}
-                  {emp.hire_date && <span>Since {new Date(emp.hire_date).toLocaleDateString()}</span>}
-                  {emp.last_sign_in && !emp.hire_date && <span>Last login: {new Date(emp.last_sign_in).toLocaleDateString()}</span>}
+
+                {(emp.job_title || extraRoles.length > 0) && (
+                  <div className="emp-card__roles">
+                    {emp.job_title && (
+                      <span className="emp-card__title-chip">
+                        {JOB_TITLE_LABELS[emp.job_title] || emp.job_title}
+                      </span>
+                    )}
+                    {extraRoles.map(r => (
+                      <span
+                        key={r}
+                        className="emp-card__role-chip"
+                        style={{ background: (ROLE_COLORS[r] || '#6B7280') + '18', color: ROLE_COLORS[r] || '#6B7280' }}
+                      >
+                        {ROLE_LABELS[r as UserRole] || r}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="emp-card__meta">
+                  {emp.hourly_rate != null
+                    ? <span className="emp-card__rate">${emp.hourly_rate.toFixed(2)}/hr</span>
+                    : <span className="emp-card__rate emp-card__rate--none">No payroll profile</span>}
+                  {emp.hire_date
+                    ? <span>Since {new Date(emp.hire_date).toLocaleDateString()}</span>
+                    : emp.last_sign_in
+                      ? <span>Last login {new Date(emp.last_sign_in).toLocaleDateString()}</span>
+                      : null}
                 </div>
               </div>
             );
           })}
         </div>
       )}
-      </>
+      </div>
       )}
     </div>
   );

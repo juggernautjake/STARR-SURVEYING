@@ -109,19 +109,38 @@ prior art. When a finding matches one, cite the number.
     `router.back()`) and placement. Need a single shared component +
     a parent-route map so every page has one consistent up-link.
 
+## 2.5 Direct user requests (priority — interleaved with foundation)
+
+These were called out by the user mid-audit; handle ahead of the
+per-workspace sweeps.
+
+- [ ] **U1 — Employee/student list redesign + prefix search.** The list
+  view of the employee page (`/admin/employees`, `EmployeePond.tsx` +
+  `page.tsx`) looks unappealing. Redesign each person row/card to be
+  attractive + uniform; make the search bar styling uniform with the
+  rest of admin. **Search semantics must change from substring-anywhere
+  to prefix-per-token:** typing "a" shows Andy/Arnold/Audey; typing "e"
+  must NOT show Audey/Annie/Henry (mid-word "e"); "Au"→Audey, "Ann"→Annie,
+  "Hen"→Henry. Match the typed string as a prefix of the first name, last
+  name, or email (token-aware), not an out-of-order substring. Verify in
+  the harness (`?page=...`).
+- [ ] **U2 — Credential-bonus projected-salary overflow.** In the
+  credential bonuses section, the projected salary (rendered in blue)
+  spills out of its container. Fix the overflow/wrapping so the figure
+  stays inside its element. (Likely pay-progression / credentials UI —
+  `AdminRewards.css` / pay-progression components.)
+
 ## 3. Foundation slices (ship first — highest leverage)
 
-- [ ] **F1 — Universal back / breadcrumb navigation.** Build a shared
-  parent-route resolver so every admin route (including detail/`[id]`
-  pages) has a deterministic parent. Extend `AdminPageHeader` (or add a
-  sibling `<AdminBackCrumb>`) to always render a labeled trail that ends
-  in a clickable parent, falling back to the workspace landing. Add a
-  `parentHref`/`parentLabel` map in `lib/admin/route-registry.ts` (or a
-  new `lib/admin/route-parents.ts`) covering the dynamic segments. Audit
-  test asserts every `page.tsx` route resolves to a non-null parent.
-  Verify breadcrumb renders on a registered page, an unregistered
-  static page, and a `[id]` detail page (code-trace + one real-login
-  spot check if creds available).
+- [x] **F1 — Universal back / breadcrumb navigation.** `breadcrumbTrail()`
+  / `parentCrumb()` / `routeLabel()` added to `lib/admin/route-registry.ts`
+  (prefix-chain resolver: workspace landing → registered ancestors →
+  derived leaf). `AdminPageHeader` now renders the full trail + a leading
+  "‹ back" button on every admin route incl. detail/`[id]` pages. 11 new
+  unit tests lock it (incl. every registered route → non-empty trail).
+  Mobile rule drops the back-label. Commit `639d5961`. Visual spot-check
+  deferred to per-workspace slices (harness `usePathname` is `/ux-harness`
+  so the chrome can't render the real trail; logic is unit-verified).
 - [ ] **F2 — Icon / emoji consistency in shared chrome.** Replace
   emoji-as-functional-icon with lucide in the always-on shared
   components first: `AdminTopBar`, `AdminSidebar`, dashboard Quick
