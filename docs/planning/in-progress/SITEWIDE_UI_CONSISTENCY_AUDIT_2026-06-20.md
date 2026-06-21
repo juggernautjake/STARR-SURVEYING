@@ -371,6 +371,13 @@ per-page note in §6.
   `audit`, `error-log`, `announcements`, `messages` (+`new`/`contacts`/
   `settings`), `discussions` (+`[id]`), `hours-approval`, `rewards`
   (+`store`/`admin`/`how-it-works`), `pay-progression`.
+  - [x] Batch 1 (9 small pages): billing, billing/upgrade, contacts,
+    reports, error-log, leads, notes, messages/new, messages/contacts →
+    lucide. office/payout-log/payouts/users/invites/org-settings/orgs/
+    mileage/audit/announcements/support: already emoji-free.
+  - [ ] Remaining: settings (~15), pay-progression (~10), receipts (~8),
+    payroll (~7), messages (~7), employees/manage (~5), finances (~3),
+    discussions (~3). hours-approval icon = G5 (DB-config work-type).
 
 ## 5. Functional + data slices
 
