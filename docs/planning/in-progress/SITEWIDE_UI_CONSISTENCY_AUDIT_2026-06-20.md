@@ -320,8 +320,10 @@ per-page note in §6.
     (toast success strings kept as text).
   - [x] **inventory** — photo 📷→Camera, close ✕→X, low-stock ⚠ → lucide
     (toast strings kept; `startsWith('✓')` styling logic preserved).
-  - [ ] Remaining: maintenance/[id] (~16), templates/[id] (~13),
-    today (~9), templates (~5), import (~5), equipment/[id] (~4).
+  - [x] **today** (condition labels + 5 banners), **import** (banners +
+    dry-run), **equipment/[id]** (photo + history errors) → lucide.
+    **templates** is toast-string-only (no JSX emoji).
+  - [ ] Remaining: maintenance/[id] (~16), templates/[id] (~13).
 - [ ] **W4 — Research & CAD workspace.** `research-cad`, `research` +
   `new`/`billing`/`coverage`/`library`/`pipeline`/`testing`,
   `research/[id]`. (CAD editor `/admin/cad` owns its own chrome — audit
