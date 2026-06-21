@@ -281,8 +281,13 @@ per-page note in §6.
     (ClipboardList/BookOpen/ClipboardCheck/PenSquare/Rocket/CheckCircle2/
     Wrench/Clock/Satellite/GraduationCap); dropped the emoji from the
     native `<select>` options (SVG can't render in `<option>`).
-  - [ ] Remaining: me/schedule/time-off/fieldbook + me tab panels — emoji,
-    inline-flex filter rows (time-off per F3 list), responsive at 768/599.
+  - [x] **my-pay / my-jobs / profile** — inline emoji → lucide (Wallet,
+    Landmark, FolderOpen, X). me/schedule/time-off/fieldbook had no emoji.
+  - [ ] Remaining: time-off inline-flex filter row → `.admin-form-row`
+    (F3 list); responsive spot-check at 768/599; **data-driven config
+    icons** (my-pay `useJobTitles` 👤, my-hours `work_types` 📋 — emoji
+    stored in DB config; needs a config→lucide-name migration, tracked as
+    a follow-up under G-series, not a quick component swap).
 - [ ] **W2 — Work workspace.** `work`, `jobs`, `jobs/new`,
   `jobs/import`, `jobs/[id]` detail, `calendar`, `field-data`,
   `field-data/[id]`, `team`, `timeline`, `assignments`.
