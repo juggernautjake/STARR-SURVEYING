@@ -33,7 +33,8 @@
    reset + utilities verified; file-input + date/time baseline added; the
    35-page inline-flex migration list is recorded in the F3 detail and
    handed to W1–W6.
-3. **F4 — styling contract** §3. Extend `docs/admin-styling-contract.md`
+3. ~~F4 — styling contract~~ ✅ DONE — nav/icon/control-row rules added.
+   _(legacy detail below)_ §3. Extend `docs/admin-styling-contract.md`
    with the back-nav, icon (lucide vs emoji), and control-height rules.
 4. **W1 Hub** §4 — me, dashboard, assignments, schedule, time-off,
    my-files, fieldbook, /admin/me tab panels.
@@ -254,12 +255,12 @@ per-workspace sweeps.
   research/[projectId](+report), rewards/{admin,how-it-works}, settings,
   time-off, users. Each W slice migrates its workspace's pages to
   `.admin-form-row*`.
-- [ ] **F4 — Update the styling contract.** Extend
-  `docs/admin-styling-contract.md` with three new sections: (a) the
-  back/up-navigation rule (every page uses the shared crumb; no
-  hand-rolled back links), (b) the icon rule (lucide for functional/nav;
-  emoji decorative-only), (c) the control-height + `.admin-form-row`
-  rule. This is the reference the per-workspace slices enforce against.
+- [x] **F4 — Update the styling contract.** Added 3 sections to
+  `docs/admin-styling-contract.md`: "Navigation — every admin page has a
+  back/up affordance (F1)", "Icons — lucide for function/nav; emoji
+  decorative-only (F2)", and "Control rows — the 36px baseline +
+  `.admin-form-row*` (F3)". This is the reference the W1–W6 sweeps enforce.
+  **Foundation phase F1–F4 complete.**
 
 ## 4. Per-workspace sweeps (one slice each; visual + functional + nav)
 
