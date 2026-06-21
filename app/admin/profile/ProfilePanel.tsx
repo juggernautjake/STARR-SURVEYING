@@ -8,6 +8,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { X } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
@@ -83,7 +84,15 @@ export default function ProfilePanel() {
   const [credits, setCredits] = useState<LearningCredit[]>([]);
   const [totalPoints, setTotalPoints] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>('info');
+  // Deep-link support: /admin/me?tab=profile&sub=themes opens the themes
+  // sub-tab directly (the hub uses ?tab= for its own tab, so the profile
+  // panel reads ?sub= for its inner tab). Falls back to 'info'.
+  const searchParams = useSearchParams();
+  const subParam = searchParams?.get('sub');
+  const initialTab: Tab = (subParam === 'credentials' || subParam === 'credits' || subParam === 'changes' || subParam === 'themes')
+    ? subParam
+    : 'info';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [hubLayout, setHubLayout] = useState<HubLayoutRow | null>(null);
   // Slice EP3 — avatar upload state. `liveAvatarUrl` overrides
   // `session.user.image` after a successful upload so the user

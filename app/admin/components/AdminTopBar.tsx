@@ -105,7 +105,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
           >
             <Link
               role="menuitem"
-              href="/admin/profile"
+              href="/admin/me?tab=profile"
               onClick={() => setOpen(false)}
               style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem' }}
             >
@@ -113,7 +113,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
             </Link>
             <Link
               role="menuitem"
-              href="/admin/profile?tab=themes"
+              href="/admin/me?tab=profile&sub=themes"
               onClick={() => setOpen(false)}
               style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
             >
