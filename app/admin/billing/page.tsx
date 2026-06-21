@@ -17,6 +17,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 
 interface BillingState {
   org: { id: string; slug: string; name: string };
@@ -335,7 +336,7 @@ export default function CustomerBillingPage() {
                     </div>
                     {state.subscription.cancelAtPeriodEnd ? (
                       <div className="billing-banner billing-banner--warning">
-                        ⚠ Your subscription is set to cancel at the end of this period
+                        <AlertTriangle size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Your subscription is set to cancel at the end of this period
                         ({state.subscription.currentPeriodEnd
                           ? new Date(state.subscription.currentPeriodEnd).toLocaleDateString()
                           : 'end of period'}).

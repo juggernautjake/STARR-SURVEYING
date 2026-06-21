@@ -3,6 +3,7 @@
 import '../styles/AdminErrors.css';
 
 import { useState, useEffect, useCallback } from 'react';
+import { CheckCircle2, Check, Copy } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
 interface ErrorReportRow {
@@ -329,7 +330,7 @@ export default function ErrorLogPage() {
         </div>
       ) : reports.length === 0 ? (
         <div className="err-log__empty">
-          <div className="err-log__empty-icon">✅</div>
+          <div className="err-log__empty-icon"><CheckCircle2 size={30} strokeWidth={1.5} /></div>
           <p>No error reports found</p>
           <p style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>
             {statusFilter !== 'all' || typeFilter !== 'all' || severityFilter !== 'all' || searchDebounced
@@ -367,7 +368,7 @@ export default function ErrorLogPage() {
                       aria-label={`Copy full details of this error to clipboard`}
                       title="Copy full error details to clipboard"
                     >
-                      {copiedId === r.id ? '✓ Copied' : '📋 Copy'}
+                      {copiedId === r.id ? <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Check size={13} /> Copied</span> : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Copy size={13} /> Copy</span>}
                     </button>
                     <span className={`err-log__item-arrow ${isExpanded ? 'err-log__item-arrow--open' : ''}`}>▶</span>
                   </div>

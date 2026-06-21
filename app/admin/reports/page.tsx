@@ -7,6 +7,7 @@
 // Phase R-3 of OWNER_REPORTS.md.
 
 import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
 interface ReportData {
@@ -250,7 +251,7 @@ export default function ReportsPage() {
         <>
           {data.warnings.length > 0 && (
             <div className="reports-warnings reports-no-print">
-              {data.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              {data.warnings.map((w, i) => <div key={i}><AlertTriangle size={13} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />{w}</div>)}
             </div>
           )}
 

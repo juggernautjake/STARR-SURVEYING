@@ -1,6 +1,7 @@
 // app/admin/messages/new/page.tsx — New Message / New Group Chat
 'use client';
 import { useState } from 'react';
+import { Mail, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
@@ -88,13 +89,13 @@ export default function NewMessagePage() {
             className={`msg-new__type-btn ${type === 'direct' ? 'msg-new__type-btn--active' : ''}`}
             onClick={() => { setType('direct'); setSelectedEmails([]); }}
           >
-            ✉️ Direct Message
+            <Mail size={15} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Direct Message
           </button>
           <button
             className={`msg-new__type-btn ${type === 'group' ? 'msg-new__type-btn--active' : ''}`}
             onClick={() => { setType('group'); setSelectedEmails([]); }}
           >
-            👥 Group Chat
+            <Users size={15} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Group Chat
           </button>
         </div>
 
