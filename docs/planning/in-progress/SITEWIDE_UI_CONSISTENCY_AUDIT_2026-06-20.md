@@ -331,11 +331,14 @@ per-page note in §6.
   `research/[id]`. (CAD editor `/admin/cad` owns its own chrome — audit
   its title-bar + dialogs only for icon/cutoff issues, do not touch its
   layout shell.)
-  - [x] **pipeline** (status labels + title + info icons) + **testing**
-    (branch status + 🤖) → lucide. research/research-cad/coverage: clean.
-    research/billing fixed earlier (D0 adapter).
-  - [ ] Remaining: **library** (DOC_TYPE_ICONS map 🗺📜📋📐📄 + badges,
-    dark Tailwind), research/new, research/[projectId], and CAD dialogs.
+  - [x] **pipeline** + **testing** → lucide. research/research-cad/coverage:
+    clean. research/billing fixed earlier (D0 adapter). research/new is a
+    modal, not a page.
+  - [x] **library** — DOC_TYPE_ICONS map → lucide components (Map/ScrollText/
+    Spline/DraftingCompass/FileText) via DocTypeIcon helper; header/empty/
+    badges/address/spinner glyphs → lucide.
+  - [ ] Remaining: **research/[projectId]** (~49 emoji — large detail page,
+    needs its own slice) + CAD editor dialogs (icon/cutoff only).
 - [ ] **W5 — Knowledge / Learn workspace.** `learn` hub + `roadmap`,
   `modules` (+detail), `knowledge-base` (+article), `flashcards`
   (+`create`/`[deck]`), `flashcard-bank`, `exam-prep` (+`sit`/`rpls`/
