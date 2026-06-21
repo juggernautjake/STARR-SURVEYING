@@ -261,11 +261,29 @@ per-page note in §6.
     `lesson_blocks_lesson_id_fkey`: stale static files referencing lesson
     ids that don't match the live curriculum (built via the gen_seed
     pipeline). Content already live; files are a redundant path.
-  - **Genuine drift to reconcile (later):** 101_fieldbook_tables (42601
-    syntax error), 226_starr_field_files (live `job_files` lacks `name`
-    col), and the payment seeds 323–326 (= deferred G3, invoices-schema
-    drift). Tables already live; these need deliberate per-file
-    reconciliation, not a bulk apply.
+  - **Genuine drift — FIXED:** 101_fieldbook_tables (invalid
+    `CREATE POLICY IF NOT EXISTS` → DROP+CREATE, 11 policies) and
+    226_starr_field_files (job_files schema-drift guard) now apply
+    cleanly (commit `…`). Storage-bucket policy files (102/290/295)
+    stay skipped — verified all 4 buckets EXIST live; only the
+    `storage.objects` RLS statements need the privileged dashboard role,
+    and the app already works, so no action.
+  - **Payment seeds 323–327** — see G3: blocked on a human decision
+    (invoices table collision with live Stripe billing).
+  - **Curriculum buildout 332–359 (28 files)** — stale generated
+    artifacts: their hardcoded lesson UUIDs are orphaned (a later
+    curriculum re-seed recreated `learning_lessons` with new ids; live =
+    422 lessons / 1463 blocks, but only **215 lessons have blocks** →
+    ~207 empty). Can't bulk-apply; the real fix is regenerating these via
+    the `scripts/_tmp_landlaw` gen_seed pipeline against current lesson
+    ids — a content task, tracked as G4 below.
+
+- [ ] **G4 — Regenerate the empty-lesson curriculum buildout.** ~207 of
+  422 lessons have no blocks. The 332–359 buildout seeds are stale
+  (orphaned lesson ids). Re-run the `scripts/_tmp_landlaw` JSON→gen_seed
+  pipeline against the current live lesson ids to fill the empty lessons,
+  then apply. Separate content workstream from the UI audit; size it
+  before starting. (Was implicitly deferred; surfaced by the D2 apply.)
 
 ## 5.5 Session-surfaced open work (from the user's gap list)
 
