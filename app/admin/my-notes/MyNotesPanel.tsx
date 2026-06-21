@@ -8,6 +8,7 @@
 import '../styles/AdminMyNotes.css';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { X, List, CheckSquare, Loader2, Paperclip, Wrench, Trash2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
 /* ─── Types ─── */
@@ -348,7 +349,7 @@ export default function MyNotesPanel() {
                     <div key={idx} className="mynotes-notebook__media-item">
                       <span>{m.type === 'audio' ? '🎙' : m.type === 'image' ? '🖼' : m.type === 'video' ? '🎬' : '🔗'}</span>
                       <span className="mynotes-notebook__media-name">{m.name}</span>
-                      <button className="mynotes-notebook__media-remove" onClick={() => removeMedia(idx)} title="Remove">&#x2715;</button>
+                      <button className="mynotes-notebook__media-remove" onClick={() => removeMedia(idx)} title="Remove"><X size={13} strokeWidth={2.5} /></button>
                     </div>
                   ))}
                 </div>
@@ -359,8 +360,8 @@ export default function MyNotesPanel() {
               <button className="mynotes-editor__tool" onClick={() => applyFormat('**', '**')} title="Bold"><strong>B</strong></button>
               <button className="mynotes-editor__tool" onClick={() => applyFormat('*', '*')} title="Italic"><em>I</em></button>
               <button className="mynotes-editor__tool" onClick={() => applyFormat('__', '__')} title="Underline" style={{ textDecoration: 'underline' }}>U</button>
-              <button className="mynotes-editor__tool" onClick={() => applyFormat('- ', '')} title="Bullet List">&#x2022;</button>
-              <button className="mynotes-editor__tool" onClick={() => applyFormat('[ ] ', '')} title="Checklist">&#x2611;</button>
+              <button className="mynotes-editor__tool" onClick={() => applyFormat('- ', '')} title="Bullet List"><List size={15} strokeWidth={2} /></button>
+              <button className="mynotes-editor__tool" onClick={() => applyFormat('[ ] ', '')} title="Checklist"><CheckSquare size={15} strokeWidth={2} /></button>
               <button className="mynotes-editor__tool" onClick={() => applyFormat('### ', '')} title="Heading">H</button>
             </div>
           </div>
@@ -507,7 +508,7 @@ export default function MyNotesPanel() {
       {/* Notes grid */}
       {loading ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">&#x23F3;</div>
+          <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
           <div className="admin-empty__title">Loading your notes...</div>
         </div>
       ) : displayEntries.length === 0 ? (
@@ -534,12 +535,12 @@ export default function MyNotesPanel() {
                   {entry.title || 'Untitled Note'}
                 </h3>
                 {entry.media && entry.media.length > 0 && (
-                  <span className="mynotes__card-badge">&#x1F4CE; {entry.media.length}</span>
+                  <span className="mynotes__card-badge"><Paperclip size={12} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{entry.media.length}</span>
                 )}
               </div>
               {entry.job_name && (
                 <div className="mynotes__card-job">
-                  &#x1F527; {entry.job_name} {entry.job_number ? `(#${entry.job_number})` : ''}
+                  <Wrench size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{entry.job_name} {entry.job_number ? `(#${entry.job_number})` : ''}
                 </div>
               )}
               <p className="mynotes__card-preview">
@@ -558,7 +559,7 @@ export default function MyNotesPanel() {
                     onClick={e => { e.stopPropagation(); deleteEntry(entry.id); }}
                     title="Delete"
                   >
-                    &#x1F5D1;
+                    <Trash2 size={15} strokeWidth={2} />
                   </button>
                 )}
               </div>
