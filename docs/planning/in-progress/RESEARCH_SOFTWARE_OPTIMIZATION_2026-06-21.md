@@ -256,6 +256,53 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 9 — §9.2 + §9.3 + §9.4 Health-check data model ✅ (2026-06-21)
+`seeds/371_research_health_check_tables.sql` creates the three tables the
+self-healing loop writes into. All idempotent, all FK'd back to the
+`research_site_adapters` table from slice 2.
+
+  - **`research_adapter_canaries` (§9.2)** — golden records captured at
+    registration. Stores `query_input`, `expected_fields` (the slice-7
+    canary-diff target), `baseline_dom_hash` + `baseline_dom_skeleton`
+    (the slice-8 fingerprint), `baseline_screenshot_ref` (the §9.1
+    visual-layer baseline, hooked in when Playwright lands), plus
+    `is_active` so old baselines are kept on approved re-baseline
+    instead of overwritten — full history in a partial index keyed on
+    the active row.
+  - **`research_adapter_health_checks` (§9.3)** — append-only timestamped
+    check runs. `layer_results` is a structured jsonb rollup of the
+    three §9.1 layers (the slice-7 + slice-8 outputs go here today; the
+    visual layer joins when ready). `cost_tokens` + `duration_ms` track
+    AI spend per check so the §9.7 scheduled cadence (once flagged on)
+    is budgetable. Partial index on `(status IN degraded/broken/error)`
+    so the §9.8 dashboard's "show me what's failing" query is O(N
+    failures), not O(N runs).
+  - **`research_adapter_change_proposals` (§9.4)** — AI-diagnosed repair
+    proposals. `prior_config` + `prior_field_map` are snapshotted so any
+    apply (auto or manual) is reversible per the §9.9 guardrails.
+    `confidence` + `canary_test_passed` drive the §9.5 auto-apply gate
+    (flag-gated). Lifecycle enum:
+    `proposed` → `approved`/`rejected` → `applied`/`superseded`.
+
+  Two new enums: `research_health_status_enum`
+  (`healthy`/`degraded`/`broken`/`no_record`/`error`),
+  `research_change_proposal_status_enum`
+  (`proposed`/`approved`/`rejected`/`applied`/`superseded`).
+
+  Health-check rows are append-only (no `updated_at` trigger — `ran_at`
+  is the timeline anchor; preserving that integrity matters for the
+  audit story). Canaries + proposals carry the `updated_at` trigger that
+  was already created in slice 2.
+
+  Source-locked with 16 tests in
+  `__tests__/research/health-check-schema.test.ts` covering each table's
+  column set, enum membership, FK + ON DELETE rules, the three partial
+  indexes (active canary, failure runs, pending proposals),
+  transaction-wrap, idempotency ladders, and the "don't redefine
+  research_set_updated_at" hygiene check.
+
+153/153 research tests pass; clean tsc.
+
 ### Slice 8 — §9.1 (structural-layer) DOM fingerprint ✅ (2026-06-21)
 `lib/research/dom-fingerprint.ts` ships `fingerprintHtml(html)` +
 `diffFingerprints(was, now)` — the structural half of §9.1's three-layer
@@ -615,21 +662,24 @@ itself.
   - [ ] **Visual** — Playwright screenshot + AI-vision diff. Needs
     Playwright orchestration + AI-vision integration; lands as its own
     slice once the §8.3 site-probe Playwright harness is up.
-- [ ] **9.2 Canary golden records** — `adapter_canaries` (`adapter_id`,
-  `query_input`, `expected_fields` JSONB, `baseline_dom_hash`,
-  `baseline_screenshot_ref`, `captured_at`). Seeded at registration (§8.5);
-  re-baselined on approved repairs.
-- [ ] **9.3 `adapter_health_checks`** — timestamped results (`adapter_id`,
-  `ran_at`, `status` healthy/degraded/broken, `layer_results` JSONB, `diff_summary`,
-  `screenshot_ref`, `cost_tokens`). Powers history + alerting.
-- [ ] **9.4 AI diagnose + repair agent** — on a failed check: load the current
-  page (Playwright snapshot + screenshot + DOM), compare to last-known-good
-  `config`, **diagnose the change** (e.g. "search moved GET→POST", "result
-  table column renamed", "now requires session cookie", "added captcha"),
-  **propose an updated `config`/`field_map`**, and **test the proposal against
-  the canary**. Store as `adapter_change_proposals` (`adapter_id`, `diff`,
-  `rationale`, `confidence`, `canary_test_result`, `status`
-  proposed/approved/rejected/applied).
+- [x] **9.2 Canary golden records** ✅ (2026-06-21, Slice 9) —
+  `research_adapter_canaries` table shipped. Stores query input, expected
+  canonical-field subset (slice-7 diff target), DOM fingerprint hash +
+  skeleton (slice 8), and screenshot ref (hooks in when Playwright
+  lands). `is_active` partial-index preserves baseline history.
+- [x] **9.3 `research_adapter_health_checks`** ✅ (2026-06-21, Slice 9) —
+  append-only audit trail. `layer_results` jsonb carries the slice-7 +
+  slice-8 outputs today; visual layer fills in later. Partial index on
+  failures so the §9.8 dashboard's queries stay cheap.
+- [x] **9.4 AI diagnose + repair agent** ✅ (2026-06-21, Slice 9 — table
+  half) — `research_adapter_change_proposals` table shipped with
+  `prior_config`/`prior_field_map` snapshotted for reversibility,
+  `confidence` + `canary_test_passed` for the §9.5 auto-apply gate, and
+  the full `proposed → approved/rejected → applied/superseded`
+  lifecycle. The agent code itself (Playwright snapshot + AI diagnose
+  + canary re-test) lands once §8.3's site-probe Playwright harness is
+  up; the table contract is locked first so the agent code can write
+  to a typed surface from day one.
 - [ ] **9.5 Apply policy (GATED)** — a proposal that **passes the canary golden
   check** with confidence ≥ threshold may **auto-apply** *only when the
   `RESEARCH_SELF_HEAL_AUTOAPPLY` flag is on*; otherwise it waits in a review
