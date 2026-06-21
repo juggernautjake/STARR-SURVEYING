@@ -171,11 +171,11 @@ auth, dev server failed to boot, etc.) and one paragraph of
 
 ### Background context
 
-If you need it, the planning docs at
-`docs/planning/in-progress/sitewide-alignment-audit-2026-06-20.md`
-and `docs/planning/completed/` contain the history of which
-slices have shipped. The `docs/style/admin-styling-contract.md` is
-the live styling contract for admin pages.
+If you need it, the planning doc at
+`docs/planning/completed/sitewide-alignment-audit-2026-06-20.md`
+contains the history of which slices have shipped. The
+`docs/style/admin-styling-contract.md` is the live styling contract
+for admin pages.
 
 ### Output length
 
