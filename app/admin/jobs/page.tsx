@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { List, LayoutGrid, Trash2, Briefcase } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import Link from 'next/link';
 import JobCard, { STAGE_CONFIG, SURVEY_TYPES } from '../components/jobs/JobCard';
@@ -109,7 +110,7 @@ export default function AllJobsPage() {
       `Delete "${job.name}"?\n\n` +
       `It will be moved to the trash and stays recoverable for 30 days, ` +
       `then it's permanently removed. You can restore it any time before then ` +
-      `from the "🗑 Deleted" view.`,
+      `from the "Deleted" view.`,
     );
     if (!ok) return;
     setBusyId(job.id);
@@ -221,12 +222,12 @@ export default function AllJobsPage() {
               className={`jobs-page__view-btn ${viewMode === 'grid' ? 'jobs-page__view-btn--active' : ''}`}
               onClick={() => setViewMode('grid')}
               title="Grid view"
-            >⊞</button>
+            ><LayoutGrid size={16} strokeWidth={2} aria-hidden="true" /></button>
             <button
               className={`jobs-page__view-btn ${viewMode === 'list' ? 'jobs-page__view-btn--active' : ''}`}
               onClick={() => setViewMode('list')}
               title="List view"
-            >☰</button>
+            ><List size={16} strokeWidth={2} aria-hidden="true" /></button>
           </div>
           {/* job-soft-delete Slice 1 — toggle between live jobs and the
               trash (soft-deleted, recoverable for 30 days). */}
@@ -250,7 +251,9 @@ export default function AllJobsPage() {
               fontWeight: 500,
             }}
           >
-            {showDeleted ? '← Active jobs' : '🗑 Deleted'}
+            {showDeleted
+              ? <>← Active jobs</>
+              : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Trash2 size={14} strokeWidth={2} /> Deleted</span>}
           </button>
         </div>
 
@@ -269,7 +272,7 @@ export default function AllJobsPage() {
           </div>
         ) : jobs.length === 0 ? (
           <div className="jobs-page__empty">
-            <span className="jobs-page__empty-icon">📋</span>
+            <span className="jobs-page__empty-icon"><Briefcase size={30} strokeWidth={1.5} /></span>
             <h3>No jobs found</h3>
             <p>{search ? `No results for "${search}"` : 'Create your first job to get started'}</p>
             <Link href="/admin/jobs/new" className="jobs-page__btn jobs-page__btn--primary">+ New Job</Link>
@@ -325,7 +328,7 @@ export default function AllJobsPage() {
                     aria-label={`Delete ${job.name}`}
                     style={jobActionOverlayStyle}
                   >
-                    🗑
+                    <Trash2 size={15} strokeWidth={2} aria-hidden="true" />
                   </button>
                 )}
               </div>

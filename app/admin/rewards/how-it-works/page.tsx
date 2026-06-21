@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Lightbulb, Star, Banknote, RefreshCw, GraduationCap, Target, ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
 
 interface XPConfig { xp_value: number; expiry_months: number; }
@@ -55,7 +56,7 @@ export default function HowItWorksPage() {
     <>
       <div className="admin-learn__header">
         <Link href="/admin/rewards" className="admin-module-detail__back">&larr; Back to Rewards</Link>
-        <h2 className="admin-learn__title">&#x1F4A1; How Rewards Work</h2>
+        <h2 className="admin-learn__title"><Lightbulb size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />How Rewards Work</h2>
         <p className="admin-learn__subtitle">
           Everything you need to know about earning XP, getting pay increases, and redeeming rewards.
         </p>
@@ -63,7 +64,7 @@ export default function HowItWorksPage() {
 
       {/* XP System */}
       <div className="hiw__section">
-        <h3 className="hiw__title">&#x2B50; The XP System</h3>
+        <h3 className="hiw__title"><Star size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />The XP System</h3>
         <p className="hiw__text">
           XP (Experience Points) is our way of rewarding you for growing your skills and knowledge.
           You earn XP by completing learning modules, passing quizzes, earning certifications, and more.
@@ -101,7 +102,7 @@ export default function HowItWorksPage() {
 
       {/* Pay Increases */}
       <div className="hiw__section">
-        <h3 className="hiw__title">&#x1F4B5; How Pay Increases Work</h3>
+        <h3 className="hiw__title"><Banknote size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />How Pay Increases Work</h3>
         <p className="hiw__text">
           Your hourly pay is made up of several components that stack together.
           There are multiple ways to increase your pay!
@@ -138,7 +139,7 @@ export default function HowItWorksPage() {
 
       {/* Module Expiration */}
       <div className="hiw__section">
-        <h3 className="hiw__title">&#x1F504; Module Expiration &amp; Retakes</h3>
+        <h3 className="hiw__title"><RefreshCw size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Module Expiration &amp; Retakes</h3>
         <p className="hiw__text">
           Knowledge needs to stay fresh! Completed modules expire after 12-20 months (depending on the module).
           When a module expires:
@@ -154,7 +155,7 @@ export default function HowItWorksPage() {
 
       {/* Company Store */}
       <div className="hiw__section">
-        <h3 className="hiw__title">&#x1F6CD;&#xFE0F; Company Store</h3>
+        <h3 className="hiw__title"><ShoppingBag size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Company Store</h3>
         <p className="hiw__text">
           Spend your XP on real rewards! Items can be purchased with XP or cash. The store has five tiers of items:
         </p>
@@ -184,7 +185,7 @@ export default function HowItWorksPage() {
 
       {/* Education Reimbursement */}
       <div className="hiw__section">
-        <h3 className="hiw__title">&#x1F393; Education Reimbursement Rules</h3>
+        <h3 className="hiw__title"><GraduationCap size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Education Reimbursement Rules</h3>
         <div className="hiw__edu-flow">
           <div className="hiw__edu-step hiw__edu-step--pass">
             <strong>First Try &mdash; Pass</strong>
@@ -215,7 +216,7 @@ export default function HowItWorksPage() {
 
       {/* FS Prep Incentive */}
       <div className="hiw__section">
-        <h3 className="hiw__title">&#x1F3AF; FS Exam Prep Incentive</h3>
+        <h3 className="hiw__title"><Target size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />FS Exam Prep Incentive</h3>
         <p className="hiw__text">
           Complete the full FS Exam Prep course (all 8 modules + passing the mock exam) to earn:
         </p>

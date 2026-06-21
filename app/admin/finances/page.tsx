@@ -19,6 +19,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Download } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
 import { usePageError } from '../hooks/usePageError';
@@ -280,7 +281,7 @@ export default function FinancesPage() {
               : 'Download a tax-prep-friendly CSV (Schedule C lines, mileage, totals)'
           }
         >
-          {exporting ? 'Exporting…' : '⬇ Export CSV'}
+          {exporting ? 'Exporting…' : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Download size={14} /> Export CSV</span>}
         </button>
         <button
           type="button"

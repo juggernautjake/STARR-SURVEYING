@@ -13,6 +13,7 @@
 'use client';
 
 import Link from 'next/link';
+import { MapPin, Car } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -340,7 +341,7 @@ function StopCard({
 
   return (
     <li style={styles.stopCard}>
-      <div style={styles.stopMarker}>📍</div>
+      <div style={styles.stopMarker}><MapPin size={16} strokeWidth={2} /></div>
       <div style={styles.stopBody}>
         <div style={styles.stopHeader}>
           <span style={styles.stopTime}>
@@ -397,7 +398,7 @@ function StopCard({
               }}
               disabled={setting}
             >
-              {setting ? 'Saving…' : '📍 Set as job site →'}
+              {setting ? 'Saving…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><MapPin size={13} strokeWidth={2} /> Set as job site →</span>}
             </button>
           ) : null}
           <a
@@ -430,8 +431,8 @@ function SegmentRail({ segment }: { segment: SegmentRow }) {
   return (
     <li style={styles.segmentRail}>
       <div style={styles.segmentLine} />
-      <div style={styles.segmentLabel}>
-        🚗 <strong>{miles.toFixed(2)} mi</strong> over{' '}
+      <div style={{ ...styles.segmentLabel, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+        <Car size={14} strokeWidth={2} /> <strong>{miles.toFixed(2)} mi</strong> over{' '}
         {formatDuration(minutes)}
       </div>
     </li>

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Loader2, FileText } from 'lucide-react';
 import FillBlankQuestion from './FillBlankQuestion';
 
 type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
@@ -233,10 +234,10 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
     setAnswers(prev => ({ ...prev, [qId]: JSON.stringify(blanks) }));
   }
 
-  if (loading) return <div className="admin-empty"><div className="admin-empty__icon">&#x23F3;</div><div className="admin-empty__title">Loading questions...</div></div>;
+  if (loading) return <div className="admin-empty"><div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div><div className="admin-empty__title">Loading questions...</div></div>;
   if (noQuestions) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x1F4DD;</div>
+      <div className="admin-empty__icon"><FileText size={30} strokeWidth={1.5} /></div>
       <div className="admin-empty__title">No questions available yet</div>
       <div className="admin-empty__desc">Questions will be added by an admin. Check back later!</div>
       <a href={backUrl} className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>{backLabel}</a>

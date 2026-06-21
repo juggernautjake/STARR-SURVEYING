@@ -2,6 +2,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import { Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -78,7 +79,7 @@ export default function StudentDetailPage() {
   if (!canManage) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">🔒</div>
+        <div className="admin-empty__icon"><Lock size={30} strokeWidth={1.5} /></div>
         <h2 className="admin-empty__title">Access Restricted</h2>
       </div>
     );

@@ -271,7 +271,10 @@ function RequestTable({
 
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
 const labelStyle: React.CSSProperties = { fontSize: '0.75rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 };
-const inputStyle: React.CSSProperties = { padding: '0.45rem 0.6rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '0.85rem' };
+// F3 (pattern #3): pin every control to the 36px baseline + border-box so
+// native date/time pickers (taller intrinsic calendar chrome) line up with
+// text inputs in the form grid instead of overhanging them.
+const inputStyle: React.CSSProperties = { height: 36, boxSizing: 'border-box', padding: '0 0.6rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '0.85rem', lineHeight: '1.2' };
 const sectionTitle: React.CSSProperties = { fontSize: '1.05rem', fontWeight: 600, margin: '0 0 0.5rem' };
 const emptyStyle: React.CSSProperties = { padding: '1rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, color: '#6B7280', fontSize: '0.85rem' };
 const th: React.CSSProperties = { textAlign: 'left', padding: '0.5rem 0.75rem', fontWeight: 600, color: '#4B5563' };

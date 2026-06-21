@@ -12,8 +12,11 @@ import {
   WORKSPACES,
   WORKSPACE_ORDER,
   accessibleRoutes,
+  breadcrumbTrail,
   findRoute,
+  parentCrumb,
   rankRoutes,
+  routeLabel,
   routesForWorkspace,
   scoreRoute,
   workspaceOf,
@@ -81,6 +84,66 @@ describe('route-registry — lookups', () => {
     const work = routesForWorkspace('work');
     expect(work.length).toBeGreaterThan(0);
     for (const route of work) expect(route.workspace).toBe('work');
+  });
+});
+
+describe('route-registry — breadcrumb trail (F1)', () => {
+  it('returns [] for non-admin paths', () => {
+    expect(breadcrumbTrail('/marketing/about')).toEqual([]);
+    expect(breadcrumbTrail('/ux-harness')).toEqual([]);
+  });
+
+  it('a registered hub page reads Hub › <page> with the page current', () => {
+    const trail = breadcrumbTrail('/admin/dashboard');
+    expect(trail.map((c) => c.label)).toEqual(['Hub', 'Dashboard']);
+    expect(trail[0].href).toBe('/admin/me');
+    expect(trail[trail.length - 1].isCurrent).toBe(true);
+    expect(trail[0].isCurrent).toBe(false);
+  });
+
+  it('a detail/[id] page gets a derived leaf + a clickable list ancestor', () => {
+    const trail = breadcrumbTrail('/admin/jobs/9f8e7d6c-5b4a-3210-1234-567890abcdef');
+    expect(trail.map((c) => c.label)).toEqual(['Work', 'All Jobs', 'Job Detail']);
+    // the list ancestor is a real, clickable route (not current)
+    const list = trail.find((c) => c.href === '/admin/jobs');
+    expect(list?.isCurrent).toBe(false);
+    // only the final crumb is current
+    expect(trail.filter((c) => c.isCurrent)).toHaveLength(1);
+    expect(trail[trail.length - 1].isCurrent).toBe(true);
+  });
+
+  it('the deepest registered prefix becomes a mid-trail crumb', () => {
+    const trail = breadcrumbTrail('/admin/research/testing/run-42');
+    const hrefs = trail.map((c) => c.href);
+    expect(hrefs).toContain('/admin/research/testing');
+    expect(trail[trail.length - 1].isCurrent).toBe(true);
+  });
+
+  it('every registered route resolves to a non-empty trail ending in itself', () => {
+    for (const route of ADMIN_ROUTES) {
+      const trail = breadcrumbTrail(route.href);
+      expect(trail.length, `no trail for ${route.href}`).toBeGreaterThan(0);
+      expect(trail[trail.length - 1].href).toBe(route.href.split('?')[0]);
+      expect(trail[trail.length - 1].isCurrent).toBe(true);
+    }
+  });
+
+  it('parentCrumb is null at a workspace root and a clickable list elsewhere', () => {
+    expect(parentCrumb('/admin/me')).toBeNull();
+    const p = parentCrumb('/admin/jobs/9f8e7d6c-5b4a-3210-1234-567890abcdef');
+    expect(p?.href).toBe('/admin/jobs');
+    expect(p?.label).toBe('All Jobs');
+  });
+
+  it('routeLabel uses the registry label for registered routes', () => {
+    expect(routeLabel('/admin/jobs')).toBe('All Jobs');
+    expect(routeLabel('/admin/research/testing')).toBe('Testing Lab');
+  });
+
+  it('routeLabel derives readable labels for unregistered leaves', () => {
+    expect(routeLabel('/admin/jobs/9f8e7d6c5b4a3210')).toBe('Job Detail'); // id leaf
+    expect(routeLabel('/admin/some/plan-history')).toBe('Plan History'); // title-cased segment
+    expect(routeLabel('/admin/equipment/templates/new')).toBe('New'); // unregistered word segment
   });
 });
 

@@ -1,6 +1,7 @@
 // app/admin/components/jobs/JobFileManager.tsx — File management with viewer + multi upload
 'use client';
 import { useState } from 'react';
+import { Loader2, FolderOpen, Eye, Download, Trash2 } from 'lucide-react';
 import FileViewer, { isImageFile } from './FileViewer';
 
 interface JobFile {
@@ -208,12 +209,12 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
           >
             {uploading ? (
               <>
-                <span className="job-files__drop-icon">&#x23F3;</span>
+                <span className="job-files__drop-icon"><Loader2 size={24} strokeWidth={2} className="animate-spin" /></span>
                 <p className="job-files__drop-text">Uploading {uploadCount} file{uploadCount !== 1 ? 's' : ''}...</p>
               </>
             ) : (
               <>
-                <span className="job-files__drop-icon">&#x1F4C2;</span>
+                <span className="job-files__drop-icon"><FolderOpen size={24} strokeWidth={1.75} /></span>
                 <p className="job-files__drop-text">Drag & drop files here or click to browse</p>
                 <p className="job-files__drop-sub">Supports images, PDFs, Word docs, CAD files, and more. Multiple files OK.</p>
               </>
@@ -277,17 +278,17 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                 <div className="job-files__item-actions">
                   {previewing && (
                     <button className="job-files__item-btn" onClick={() => setViewingFile(file)} title="Preview">
-                      &#x1F441;
+                      <Eye size={15} strokeWidth={2} />
                     </button>
                   )}
                   {file.file_url && (
                     <a href={file.file_url} download={file.file_name} className="job-files__item-btn" title="Download">
-                      &#x2B07;&#xFE0F;
+                      <Download size={15} strokeWidth={2} />
                     </a>
                   )}
                   {onDelete && (
                     <button className="job-files__item-btn job-files__item-btn--delete" onClick={() => onDelete(file.id)} title="Delete">
-                      &#x1F5D1;&#xFE0F;
+                      <Trash2 size={15} strokeWidth={2} />
                     </button>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 // app/admin/learn/flashcards/page.tsx
 'use client';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Loader2, FileText, Shuffle, Layers } from 'lucide-react';
 import Link from 'next/link';
 import FieldbookButton from '@/app/admin/components/FieldbookButton';
 import { usePageError } from '../../hooks/usePageError';
@@ -230,7 +231,7 @@ export default function FlashcardsPage() {
   if (loading || !ready) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x23F3;</div>
+        <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
         <div className="admin-empty__title">Loading flashcards...</div>
       </div>
     );
@@ -297,12 +298,12 @@ export default function FlashcardsPage() {
           <span className="fc-setup__option-desc">See the term first, then try to recall the definition.</span>
         </button>
         <button className="fc-setup__option" onClick={() => startStudy('definition')}>
-          <span className="fc-setup__option-icon">&#x1F4DD;</span>
+          <span className="fc-setup__option-icon"><FileText size={18} strokeWidth={1.75} /></span>
           <span className="fc-setup__option-title">Study by Definition</span>
           <span className="fc-setup__option-desc">See the definition first, then try to recall the term.</span>
         </button>
         <button className="fc-setup__option" onClick={() => startStudy('mixed')}>
-          <span className="fc-setup__option-icon">&#x1F500;</span>
+          <span className="fc-setup__option-icon"><Shuffle size={18} strokeWidth={1.75} /></span>
           <span className="fc-setup__option-title">Mix It Up</span>
           <span className="fc-setup__option-desc">Randomly shows either the term or definition first. Keeps you on your toes!</span>
         </button>
@@ -506,7 +507,7 @@ export default function FlashcardsPage() {
 
       {filtered.length === 0 ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">&#x1F0CF;</div>
+          <div className="admin-empty__icon"><Layers size={30} strokeWidth={1.5} /></div>
           <div className="admin-empty__title">
             {filter === 'due' ? 'No cards due for review' : 'No flashcards to review'}
           </div>

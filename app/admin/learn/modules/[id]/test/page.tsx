@@ -13,7 +13,7 @@ export default function ModuleTestPage() {
       type="module_test"
       moduleId={moduleId}
       questionCount={10}
-      title="📋 Module Test"
+      title="Module Test"
       backUrl={`/admin/learn/modules/${moduleId}`}
       backLabel="Back to Module"
     />

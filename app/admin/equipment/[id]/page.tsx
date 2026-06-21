@@ -18,6 +18,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Camera, AlertTriangle } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -276,11 +277,11 @@ export default function EquipmentDrilldownPage() {
             />
           ) : row.photo_url ? (
             <div style={styles.photoFallback}>
-              📷 Photo on file (signed URL unavailable; refresh)
+              <Camera size={15} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> Photo on file (signed URL unavailable; refresh)
             </div>
           ) : (
             <div style={styles.photoFallback}>
-              📷 No photo yet — open Edit on the catalogue to upload.
+              <Camera size={15} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> No photo yet — open Edit on the catalogue to upload.
             </div>
           )}
         </div>
@@ -392,7 +393,7 @@ export default function EquipmentDrilldownPage() {
         </p>
         {data.assignment_history_error ? (
           <div style={styles.warnBanner}>
-            ⚠ Couldn&apos;t load full history: {data.assignment_history_error}
+            <AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> Couldn&apos;t load full history: {data.assignment_history_error}
           </div>
         ) : null}
         {data.assignment_history.length === 0 ? (
@@ -469,7 +470,7 @@ export default function EquipmentDrilldownPage() {
         </p>
         {data.maintenance_history_error ? (
           <div style={styles.warnBanner}>
-            ⚠ Couldn&apos;t load full history: {data.maintenance_history_error}
+            <AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> Couldn&apos;t load full history: {data.maintenance_history_error}
           </div>
         ) : null}
         {data.maintenance_history.length === 0 ? (

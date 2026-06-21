@@ -17,6 +17,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import {
+  Maximize2, Minimize2, Printer, EyeOff, CalendarDays, X, CalendarPlus, Briefcase,
+} from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 // Slice S1 (calendar-day-create-and-alerts-2026-06-17) — reuse the
 // today-schedule widget's compact event form for the hover-plus
@@ -528,7 +531,7 @@ export default function CalendarPage() {
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             title="Fullscreen (F)"
           >
-            {isFullscreen ? '⤡' : '⛶'}
+            {isFullscreen ? <Minimize2 size={16} strokeWidth={2} /> : <Maximize2 size={16} strokeWidth={2} />}
           </button>
           <button
             type="button"
@@ -539,7 +542,7 @@ export default function CalendarPage() {
             aria-label="Print calendar"
             title="Print this view"
           >
-            🖨
+            <Printer size={16} strokeWidth={2} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -595,7 +598,7 @@ export default function CalendarPage() {
           aria-live="polite"
         >
           <span className="calendar-page__empty-icon" aria-hidden>
-            {emptyKind === 'all-hidden' ? '🙈' : '📅'}
+            {emptyKind === 'all-hidden' ? <EyeOff size={32} strokeWidth={1.5} /> : <CalendarDays size={32} strokeWidth={1.5} />}
           </span>
           <span className="calendar-page__empty-message">{emptyMessage}</span>
           {emptyKind === 'no-events' && (
@@ -636,7 +639,7 @@ export default function CalendarPage() {
                 onClick={() => setShowCheatSheet(false)}
                 aria-label="Close"
               >
-                ✕
+                <X size={16} strokeWidth={2.5} aria-hidden="true" />
               </button>
             </div>
             <dl className="calendar-page__cheat-sheet-list">
@@ -684,7 +687,7 @@ export default function CalendarPage() {
                 aria-label="Close create event"
                 data-testid="calendar-create-event-close"
               >
-                ✕
+                <X size={16} strokeWidth={2.5} aria-hidden="true" />
               </button>
             </div>
             <AddEventForm
@@ -766,7 +769,7 @@ export default function CalendarPage() {
                         setActionMenuIso(null);
                       }}
                     >
-                      📅 Create event
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><CalendarPlus size={14} strokeWidth={2} /> Create event</span>
                     </button>
                     <Link
                       role="menuitem"
@@ -774,7 +777,7 @@ export default function CalendarPage() {
                       href={`/admin/jobs/new?scheduled_for=${cell.iso}`}
                       onClick={() => setActionMenuIso(null)}
                     >
-                      💼 Create job
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Briefcase size={14} strokeWidth={2} /> Create job</span>
                     </Link>
                   </div>
                 )}

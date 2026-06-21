@@ -41,7 +41,18 @@ INSERT INTO badges (badge_key, name, description, icon, category, xp_reward, sor
 ('xp_5k', 'XP Apprentice', 'Earned 5,000 total XP', '🔰', 'milestone', 0, 50),
 ('xp_10k', 'XP Journeyman', 'Earned 10,000 total XP', '⚡', 'milestone', 0, 51),
 ('xp_25k', 'XP Expert', 'Earned 25,000 total XP', '🌊', 'milestone', 0, 52),
-('xp_50k', 'XP Master', 'Earned 50,000 total XP', '🔥', 'milestone', 0, 53)
+('xp_50k', 'XP Master', 'Earned 50,000 total XP', '🔥', 'milestone', 0, 53),
+-- Safety badges (G1, 2026-06-21) — pair with the safety credentials in the
+-- pay-config seed below (osha_30/osha_10/first_aid_cpr/hazwoper/field_safety).
+-- The badges table CHECK only allows certification/achievement/milestone/
+-- special, so the cert-backed safety badges use 'certification' and the
+-- internal/capstone ones use 'achievement'.
+('safety_first',      'Safety First',       'Earned your first safety credential',                 '🦺', 'achievement',   250, 60),
+('osha_certified',    'OSHA Certified',     'Earned an OSHA 10- or 30-hour safety certification',  '⛑️', 'certification', 750, 61),
+('first_aid_ready',   'First Responder',    'Hold a current First Aid / CPR certification',        '🚑', 'certification', 400, 62),
+('hazwoper_qualified','HAZWOPER Qualified', 'Earned the HAZWOPER 40-hour certification',           '☣️', 'certification',1000, 63),
+('field_safety_done', 'Field-Safe',         'Completed the internal Field Safety course',          '🥽', 'achievement',   300, 64),
+('safety_champion',   'Safety Champion',    'Earned every core safety credential',                 '🛡️', 'achievement',  1500, 65)
 ON CONFLICT (badge_key) DO NOTHING;
 
 -- ── Rewards Catalog ───────────────────────────────────────────────────────

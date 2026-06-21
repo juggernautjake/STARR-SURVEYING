@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Clock } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { usePageError } from '../../../../hooks/usePageError';
@@ -318,7 +319,7 @@ export default function MockExamPage() {
       <div className="fs-mock__timer-bar">
         <div className="fs-mock__timer-left">
           <span className="fs-mock__timer-clock" style={{ color: getTimerColor() }}>
-            &#x23F1; {formatTimer(timeLeft)}
+            <Clock size={14} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{formatTimer(timeLeft)}
           </span>
           <span className="fs-mock__timer-progress">
             {answeredCount}/{questions.length} answered

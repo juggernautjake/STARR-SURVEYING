@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
+import { Plus, Save } from 'lucide-react';
 import { usePageError } from '../../../hooks/usePageError';
 
 export default function CreateFlashcardsPage() {
@@ -39,7 +40,7 @@ export default function CreateFlashcardsPage() {
     <>
       <div className="learn__header">
         <Link href="/admin/learn/flashcards" className="learn__back">← Back to Flashcards</Link>
-        <h2 className="learn__title">✚ Create Your Own Flashcards</h2>
+        <h2 className="learn__title"><Plus size={20} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Create Your Own Flashcards</h2>
         <p className="learn__subtitle">Build your own study cards with terms, definitions, and up to 3 hints each.</p>
       </div>
 
@@ -75,7 +76,7 @@ export default function CreateFlashcardsPage() {
             <input type="text" className="admin-input" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="e.g. vara, units, spanish, measurements" />
           </div>
           <button className="admin-btn admin-btn--primary" onClick={saveCard} disabled={saving || !term.trim() || !definition.trim()}>
-            {saving ? 'Saving...' : '💾 Save Card & Add Another'}
+            {saving ? 'Saving…' : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Save size={14} /> Save Card & Add Another</span>}
           </button>
         </div>
 

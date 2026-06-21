@@ -6,6 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import type { UserRole } from '@/lib/auth';
+import { RouteIcon } from '@/lib/admin/route-icons';
+import { ChevronRight } from 'lucide-react';
 
 interface AdminSidebarProps {
   role: UserRole;
@@ -89,47 +91,47 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
   // Items with `internalOnly` require @starr-surveying.com domain.
   const sections: NavSection[] = [
     { label: 'Main', items: [
-      { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-      { href: '/admin/assignments', label: 'Assignments', icon: '📋', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/schedule', label: 'My Schedule', icon: '📅', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+      { href: '/admin/assignments', label: 'Assignments', icon: 'ClipboardList', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/schedule', label: 'My Schedule', icon: 'Calendar', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
     ]},
 
     { label: 'Learning', items: [
-      { href: '/admin/learn', label: 'Learning Hub', icon: '🎓' },
-      { href: '/admin/learn/roadmap', label: 'My Roadmap', icon: '🗺️' },
-      { href: '/admin/learn/modules', label: 'Modules', icon: '📚' },
-      { href: '/admin/learn/knowledge-base', label: 'Knowledge Base', icon: '🔍' },
-      { href: '/admin/learn/flashcards', label: 'Flashcards', icon: '🃏' },
-      { href: '/admin/learn/exam-prep', label: 'Exam Prep', icon: '📝' },
-      { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: '📊' },
-      { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: '📓' },
-      { href: '/admin/learn/search', label: 'Search', icon: '🔎' },
-      { href: '/admin/learn/students', label: 'Student Progress', icon: '👨‍🎓', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
-      { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
+      { href: '/admin/learn', label: 'Learning Hub', icon: 'GraduationCap' },
+      { href: '/admin/learn/roadmap', label: 'My Roadmap', icon: 'Map' },
+      { href: '/admin/learn/modules', label: 'Modules', icon: 'BookOpen' },
+      { href: '/admin/learn/knowledge-base', label: 'Knowledge Base', icon: 'BookMarked' },
+      { href: '/admin/learn/flashcards', label: 'Flashcards', icon: 'Layers' },
+      { href: '/admin/learn/exam-prep', label: 'Exam Prep', icon: 'ClipboardCheck' },
+      { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: 'BarChart3' },
+      { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: 'Notebook' },
+      { href: '/admin/learn/search', label: 'Search', icon: 'Search' },
+      { href: '/admin/learn/students', label: 'Student Progress', icon: 'Users', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
+      { href: '/admin/learn/manage', label: 'Manage Content', icon: 'SquarePen', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
     ]},
 
     { label: 'Work', items: [
-      { href: '/admin/jobs', label: 'All Jobs', icon: '📋', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/jobs', label: 'All Jobs', icon: 'ListChecks', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
       // consolidation Slice 2 (2026-05-30) — sidebar hrefs now point
       // at the canonical hub URLs directly, bypassing the middleware
       // redirect for one fewer round-trip on in-app clicks. External
       // bookmarks still redirect via the LEGACY_REDIRECTS table.
-      { href: '/admin/me?tab=jobs', label: 'My Jobs', icon: '🗂️', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
-      { href: '/admin/me?tab=hours', label: 'My Hours', icon: '⏱️', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/jobs/new', label: 'New Job', icon: '➕', roles: ['admin'], internalOnly: true },
-      { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', roles: ['admin'], internalOnly: true },
-      { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/invoices/new', label: 'New Invoice', icon: '🧾', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/payments/inbox', label: 'Payments Inbox', icon: '📥', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/payouts/runs', label: 'Payout Runs', icon: '💰', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/time-off', label: 'Time Off', icon: '🌴' },
-      { href: '/admin/team', label: 'Field Team', icon: '🛰️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/field-data', label: 'Field Data', icon: '📍', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/timeline', label: 'Daily Timeline', icon: '🗺️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/mileage', label: 'Mileage', icon: '🚗', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/finances', label: 'Finances', icon: '💼', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/vehicles', label: 'Vehicles', icon: '🛻', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/me?tab=jobs', label: 'My Jobs', icon: 'FolderOpen', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
+      { href: '/admin/me?tab=hours', label: 'My Hours', icon: 'Clock', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/jobs/new', label: 'New Job', icon: 'FilePlus', roles: ['admin'], internalOnly: true },
+      { href: '/admin/jobs/import', label: 'Import Jobs', icon: 'Package', roles: ['admin'], internalOnly: true },
+      { href: '/admin/leads', label: 'Leads', icon: 'Inbox', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/invoices/new', label: 'New Invoice', icon: 'Receipt', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/payments/inbox', label: 'Payments Inbox', icon: 'Inbox', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/payouts/runs', label: 'Payout Runs', icon: 'Banknote', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/hours-approval', label: 'Hours Approval', icon: 'CheckCircle2', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/time-off', label: 'Time Off', icon: 'Palmtree' },
+      { href: '/admin/team', label: 'Field Team', icon: 'Satellite', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/field-data', label: 'Field Data', icon: 'MapPin', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/timeline', label: 'Daily Timeline', icon: 'Route', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/mileage', label: 'Mileage', icon: 'Car', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/finances', label: 'Finances', icon: 'Briefcase', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/vehicles', label: 'Vehicles', icon: 'Truck', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
 
     // Equipment group — Phase F10.6 sidebar scaffold. Catalogue + templates
@@ -139,21 +141,21 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     // equipment_manager role is the §4.6 hat that lives mostly in this
     // group so it appears here even when the user has no other admin role.
     { label: 'Equipment', items: [
-      { href: '/admin/equipment/today', label: 'Today', icon: '📅', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/timeline', label: 'Timeline', icon: '📊', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/personnel/crew-calendar', label: 'Crew calendar', icon: '👥', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/consumables', label: 'Consumables', icon: '🪣', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/maintenance', label: 'Maintenance', icon: '🔧', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment', label: 'Catalogue', icon: '📦', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/templates', label: 'Templates', icon: '📋', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/templates/cleanup-queue', label: 'Cleanup queue', icon: '🧹', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/overrides', label: 'Overrides audit', icon: '⚠️', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/fleet-valuation', label: 'Fleet valuation', icon: '🏛', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/today', label: 'Today', icon: 'CalendarDays', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/timeline', label: 'Timeline', icon: 'Activity', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/personnel/crew-calendar', label: 'Crew calendar', icon: 'Users', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/consumables', label: 'Consumables', icon: 'PaintBucket', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/maintenance', label: 'Maintenance', icon: 'Wrench', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment', label: 'Catalogue', icon: 'Package', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/templates', label: 'Templates', icon: 'Files', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/templates/cleanup-queue', label: 'Cleanup queue', icon: 'Trash2', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/overrides', label: 'Overrides audit', icon: 'AlertTriangle', roles: EQUIPMENT_ROLES, internalOnly: true },
+      { href: '/admin/equipment/fleet-valuation', label: 'Fleet valuation', icon: 'Landmark', roles: EQUIPMENT_ROLES, internalOnly: true },
     ]},
 
     { label: 'Research', items: [
-      { href: '/admin/research', label: 'Property Research', icon: '🔬', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true },
-      { href: '/admin/research/testing', label: 'Testing Lab', icon: '🧪', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/research', label: 'Property Research', icon: 'Microscope', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true },
+      { href: '/admin/research/testing', label: 'Testing Lab', icon: 'FlaskConical', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
 
     { label: 'CAD', items: [
@@ -161,41 +163,41 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       // user reaches the CAD editor). `roles:` is intentionally
       // absent. Restore the role gate when permissions (W7)
       // land.
-      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', internalOnly: true },
+      { href: '/admin/cad', label: 'CAD Editor', icon: 'DraftingCompass', internalOnly: true },
     ]},
 
     { label: 'Rewards & Pay', items: [
-      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/me?tab=pay', label: 'My Pay', icon: '💵', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/payout-log', label: 'Payout History', icon: '📒', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/rewards', label: 'Rewards & Store', icon: 'Trophy', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/pay-progression', label: 'Pay Progression', icon: 'TrendingUp', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: 'Lightbulb', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: 'Settings', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/me?tab=pay', label: 'My Pay', icon: 'Wallet', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+      { href: '/admin/payout-log', label: 'Payout History', icon: 'Notebook', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
     ]},
 
     { label: 'People', items: [
-      { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/users', label: 'Manage Users', icon: '🔑', roles: ['admin', 'tech_support'] },
-      { href: '/admin/payroll', label: 'Payroll', icon: '💰', roles: ['admin'], internalOnly: true },
-      { href: '/admin/receipts', label: 'Receipts', icon: '🧾', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/employees', label: 'Employees', icon: 'Users', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/users', label: 'Manage Users', icon: 'KeyRound', roles: ['admin', 'tech_support'] },
+      { href: '/admin/payroll', label: 'Payroll', icon: 'Banknote', roles: ['admin'], internalOnly: true },
+      { href: '/admin/receipts', label: 'Receipts', icon: 'Receipt', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
     ]},
 
     { label: 'Communication', items: [
-      { href: '/admin/messages', label: 'Messages', icon: '💬', roles: INTERNAL_COMM_ROLES, internalOnly: true },
-      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇', roles: INTERNAL_COMM_ROLES, internalOnly: true },
-      { href: '/admin/discussions', label: 'Discussions', icon: '💬', roles: INTERNAL_COMM_ROLES, internalOnly: true },
+      { href: '/admin/messages', label: 'Messages', icon: 'MessageSquare', roles: INTERNAL_COMM_ROLES, internalOnly: true },
+      { href: '/admin/messages/contacts', label: 'Team Directory', icon: 'Contact', roles: INTERNAL_COMM_ROLES, internalOnly: true },
+      { href: '/admin/discussions', label: 'Discussions', icon: 'MessagesSquare', roles: INTERNAL_COMM_ROLES, internalOnly: true },
     ]},
 
     { label: 'Notes & Files', items: [
-      { href: '/admin/notes', label: 'Company Notes', icon: '📝', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/me?tab=notes', label: 'My Notes', icon: '📒' },
-      { href: '/admin/my-files', label: 'My Files', icon: '📁' },
+      { href: '/admin/notes', label: 'Company Notes', icon: 'StickyNote', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+      { href: '/admin/me?tab=notes', label: 'My Notes', icon: 'NotebookPen' },
+      { href: '/admin/my-files', label: 'My Files', icon: 'Folder' },
     ]},
 
     { label: 'Account', items: [
-      { href: '/admin/me?tab=profile', label: 'My Profile', icon: '👤' },
-      { href: '/admin/settings', label: 'Settings', icon: '⚙️', roles: ['admin'] },
-      { href: '/admin/error-log', label: 'Error Log', icon: '🐛', roles: ['admin', 'developer', 'tech_support'] },
+      { href: '/admin/me?tab=profile', label: 'My Profile', icon: 'User' },
+      { href: '/admin/settings', label: 'Settings', icon: 'Settings', roles: ['admin'] },
+      { href: '/admin/error-log', label: 'Error Log', icon: 'Bug', roles: ['admin', 'developer', 'tech_support'] },
     ]},
   ];
 
@@ -279,13 +281,13 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
                   onKeyDown={(e) => { if (e.key === 'Enter') toggleSection(section.label); }}
                 >
                   <span className={`admin-sidebar__section-arrow ${isExpanded ? 'admin-sidebar__section-arrow--expanded' : ''}`}>
-                    &#x276F;
+                    <ChevronRight size={13} strokeWidth={2.5} />
                   </span>
                   {section.label}
                 </div>
                 {isExpanded && items.map((item) => (
                   <Link key={item.href} href={item.href} className={`admin-sidebar__link ${isActive(item.href) ? 'admin-sidebar__link--active' : ''}`} onClick={onClose}>
-                    <span className="admin-sidebar__link-icon">{item.icon}</span>
+                    <span className="admin-sidebar__link-icon"><RouteIcon name={item.icon} size={18} /></span>
                     {item.label}
                   </Link>
                 ))}

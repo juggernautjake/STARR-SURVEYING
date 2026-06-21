@@ -4,6 +4,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Workflow, BookOpen, Waves, Link2, Package, Landmark, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -29,10 +30,10 @@ interface BatchProperty {
 
 const STATUS_LABELS: Record<BatchJob['status'], string> = {
   queued: '⏳ Queued',
-  running: '🔄 Running',
-  completed: '✅ Completed',
-  failed: '❌ Failed',
-  cancelled: '🚫 Cancelled',
+  running: 'Running',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
 };
 
 const STATUS_COLORS: Record<BatchJob['status'], string> = {
@@ -168,7 +169,7 @@ export default function PipelineDashboardPage() {
             ← Research Projects
           </Link>
         </div>
-        <h1 className="research-pipeline__title">🔄 Research Pipeline Dashboard</h1>
+        <h1 className="research-pipeline__title"><Workflow size={20} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} /> Research Pipeline Dashboard</h1>
         <p className="research-pipeline__subtitle">
           Phase 11 — Batch processing, flood zone queries, chain-of-title lookups.
         </p>
@@ -229,7 +230,7 @@ export default function PipelineDashboardPage() {
                     disabled={batchRows.length === 1}
                     title="Remove row"
                   >
-                    ✕
+                    <X size={15} strokeWidth={2.5} aria-hidden="true" />
                   </button>
                 </div>
               ))}
@@ -319,10 +320,10 @@ export default function PipelineDashboardPage() {
 
       {/* How-to section */}
       <div className="research-pipeline__section research-pipeline__section--info">
-        <h2 className="research-pipeline__section-title">📚 Phase 11 Capabilities</h2>
+        <h2 className="research-pipeline__section-title"><BookOpen size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} /> Phase 11 Capabilities</h2>
         <div className="research-pipeline__info-grid">
           <div className="research-pipeline__info-card">
-            <div className="research-pipeline__info-icon">🌊</div>
+            <div className="research-pipeline__info-icon"><Waves size={22} strokeWidth={1.75} /></div>
             <div className="research-pipeline__info-content">
               <strong>FEMA Flood Zone</strong>
               <p>
@@ -332,7 +333,7 @@ export default function PipelineDashboardPage() {
             </div>
           </div>
           <div className="research-pipeline__info-card">
-            <div className="research-pipeline__info-icon">⛓️</div>
+            <div className="research-pipeline__info-icon"><Link2 size={22} strokeWidth={1.75} /></div>
             <div className="research-pipeline__info-content">
               <strong>Chain of Title</strong>
               <p>
@@ -342,7 +343,7 @@ export default function PipelineDashboardPage() {
             </div>
           </div>
           <div className="research-pipeline__info-card">
-            <div className="research-pipeline__info-icon">📦</div>
+            <div className="research-pipeline__info-icon"><Package size={22} strokeWidth={1.75} /></div>
             <div className="research-pipeline__info-content">
               <strong>Batch Processing</strong>
               <p>
@@ -352,7 +353,7 @@ export default function PipelineDashboardPage() {
             </div>
           </div>
           <div className="research-pipeline__info-card">
-            <div className="research-pipeline__info-icon">🏛️</div>
+            <div className="research-pipeline__info-icon"><Landmark size={22} strokeWidth={1.75} /></div>
             <div className="research-pipeline__info-content">
               <strong>County Clerk Registry</strong>
               <p>

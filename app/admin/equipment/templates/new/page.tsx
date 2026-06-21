@@ -20,6 +20,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -243,7 +244,7 @@ export default function NewTemplatePage() {
           </span>
         </label>
 
-        {error ? <div style={styles.errorBanner}>⚠ {error}</div> : null}
+        {error ? <div style={{ ...styles.errorBanner, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={15} strokeWidth={2} /> {error}</div> : null}
 
         <div style={styles.actions}>
           <Link

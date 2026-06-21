@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { FileX } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { usePageError } from '../../../hooks/usePageError';
 
@@ -18,7 +19,7 @@ export default function ArticleDetailPage() {
   }, [slug]);
 
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Loading...</div></div>;
-  if (!article) return <div className="admin-empty"><div className="admin-empty__icon">❌</div><div className="admin-empty__title">Article not found</div><Link href="/admin/learn/knowledge-base" className="admin-btn admin-btn--ghost admin-btn--sm">← Back</Link></div>;
+  if (!article) return <div className="admin-empty"><div className="admin-empty__icon"><FileX size={30} strokeWidth={1.5} /></div><div className="admin-empty__title">Article not found</div><Link href="/admin/learn/knowledge-base" className="admin-btn admin-btn--ghost admin-btn--sm">← Back</Link></div>;
 
   return (
     <>

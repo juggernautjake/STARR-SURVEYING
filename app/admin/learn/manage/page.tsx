@@ -1,6 +1,7 @@
 // app/admin/learn/manage/page.tsx — Content management with Assignments and Activity Monitor
 'use client';
 import { useState, useEffect } from 'react';
+import { Lock, ClipboardList, ChevronRight, FolderOpen, RefreshCw, BarChart3, HelpCircle, Trash2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -279,7 +280,7 @@ export default function ManageContentPage() {
   if (!canManage) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x1F512;</div>
+        <div className="admin-empty__icon"><Lock size={30} strokeWidth={1.5} /></div>
         <div className="admin-empty__title">Content Management Access Required</div>
         <div className="admin-empty__desc">Only administrators and teachers can manage learning content.</div>
         <Link href="/admin/learn" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back to Learning Hub</Link>
@@ -771,7 +772,7 @@ export default function ManageContentPage() {
 
           {filteredActiveAssignments.length === 0 ? (
             <div className="admin-empty" style={{ padding: '2rem' }}>
-              <div className="admin-empty__icon">&#x1F4CB;</div>
+              <div className="admin-empty__icon"><ClipboardList size={30} strokeWidth={1.5} /></div>
               <div className="admin-empty__title">{assignSearch ? 'No matching assignments' : 'No active assignments'}</div>
               <div className="admin-empty__desc">{assignSearch ? 'Try a different search term.' : 'Enroll a student using the form above.'}</div>
             </div>
@@ -823,7 +824,7 @@ export default function ManageContentPage() {
                 color: 'var(--color-text-tertiary)', padding: '0.25rem 0', width: '100%', textAlign: 'left',
               }}
             >
-              <span style={{ transform: showHistory ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block' }}>&#x25B6;</span>
+              <span style={{ transform: showHistory ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block' }}><ChevronRight size={14} strokeWidth={2.5} /></span>
               Assignment History ({historyAssignments.length})
               <span style={{ fontSize: '.75rem', fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: '.25rem' }}>
                 Completed &amp; Cancelled
@@ -850,7 +851,7 @@ export default function ManageContentPage() {
 
                 {filteredHistoryAssignments.length === 0 ? (
                   <div className="admin-empty" style={{ padding: '1.5rem' }}>
-                    <div className="admin-empty__icon" style={{ fontSize: '1.5rem' }}>&#x1F4C2;</div>
+                    <div className="admin-empty__icon"><FolderOpen size={24} strokeWidth={1.5} /></div>
                     <div className="admin-empty__title" style={{ fontSize: '.85rem' }}>
                       {historySearch ? 'No matching history' : 'No assignment history yet'}
                     </div>
@@ -901,14 +902,14 @@ export default function ManageContentPage() {
               <option value="all">All Activity Types</option>
               {activityTypes.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
             </select>
-            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={loadData}>&#x1F504; Refresh</button>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={loadData}><RefreshCw size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />Refresh</button>
           </div>
 
           <p className="activity__notice">Activity logs are retained for 4 weeks, then automatically cleaned up.</p>
 
           {filteredActivities.length === 0 ? (
             <div className="admin-empty" style={{ padding: '2rem' }}>
-              <div className="admin-empty__icon">&#x1F4CA;</div>
+              <div className="admin-empty__icon"><BarChart3 size={30} strokeWidth={1.5} /></div>
               <div className="admin-empty__title">No activity found</div>
               <div className="admin-empty__desc">Activity will appear here as users interact with the learning platform.</div>
             </div>
@@ -1214,7 +1215,7 @@ export default function ManageContentPage() {
 
           {tab === 'questions' && questions.length === 0 && !showForm && (
             <div className="admin-empty" style={{ padding: '2rem' }}>
-              <div className="admin-empty__icon">&#x2753;</div>
+              <div className="admin-empty__icon"><HelpCircle size={30} strokeWidth={1.5} /></div>
               <div className="admin-empty__title">No questions loaded</div>
               <div className="admin-empty__desc">Use the Question Builder or Quick Add to add questions to the bank.</div>
             </div>
@@ -1458,7 +1459,7 @@ export default function ManageContentPage() {
 
           {tab === 'recycle_bin' && recycleBin.length === 0 && (
             <div className="admin-empty">
-              <div className="admin-empty__icon">&#x1F5D1;</div>
+              <div className="admin-empty__icon"><Trash2 size={30} strokeWidth={1.5} /></div>
               <div className="admin-empty__title">Recycle bin is empty</div>
               <div className="admin-empty__desc">Deleted items will appear here for 90 days before being permanently removed.</div>
             </div>

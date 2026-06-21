@@ -2,6 +2,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Loader2, FileX, Clock, Tag, CheckCircle2, ChevronDown, Check, X, Film, Lock } from 'lucide-react';
+import { Paperclip, FileText, Globe, Calculator } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -343,8 +345,8 @@ export default function LessonViewerPage() {
     } catch { /* silent */ }
   }, [interactions, lessonId, moduleId]);
 
-  if (loading) return <div className="admin-empty"><div className="admin-empty__icon">&#x23F3;</div><div className="admin-empty__title">Loading lesson...</div></div>;
-  if (!lesson) return <div className="admin-empty"><div className="admin-empty__icon">&#x274C;</div><div className="admin-empty__title">Lesson not found</div></div>;
+  if (loading) return <div className="admin-empty"><div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div><div className="admin-empty__title">Loading lesson...</div></div>;
+  if (!lesson) return <div className="admin-empty"><div className="admin-empty__icon"><FileX size={30} strokeWidth={1.5} /></div><div className="admin-empty__title">Lesson not found</div></div>;
 
   let resources: Resource[] = [];
   let videos: Video[] = [];
@@ -375,9 +377,9 @@ export default function LessonViewerPage() {
         </div>
         <h2 className="admin-lesson__title">{lesson.title}</h2>
         <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-          <span>&#x23F1; ~{lesson.estimated_minutes} min</span>
-          {lesson.tags?.length > 0 && <span>&#x1F3F7; {lesson.tags.join(', ')}</span>}
-          {completed && <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>&#x2705; Completed</span>}
+          <span><Clock size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />~{lesson.estimated_minutes} min</span>
+          {lesson.tags?.length > 0 && <span><Tag size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{lesson.tags.join(', ')}</span>}
+          {completed && <span style={{ color: 'var(--color-success)', fontWeight: 600 }}><CheckCircle2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />Completed</span>}
         </div>
       </div>
 
@@ -450,7 +452,7 @@ export default function LessonViewerPage() {
               <div key={block.id} data-block-id={block.id} ref={(el) => { blockRefs.current[block.id] = el; }} style={st}>
                 {isCollapsible && (
                   <button className="lesson-builder__collapse-toggle" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}>
-                    <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}>&#x25BC;</span>
+                    <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}><ChevronDown size={14} strokeWidth={2.5} /></span>
                     {' '}{block.style?.collapsedLabel || block.block_type}
                   </button>
                 )}
@@ -584,8 +586,8 @@ export default function LessonViewerPage() {
                               <button key={i} className={cls} onClick={() => { if (!revealed) setQuizAnswers(prev => ({ ...prev, [qKey]: i })); }} disabled={revealed}>
                                 <span className="block-quiz__option-letter">{String.fromCharCode(65 + i)}</span>
                                 <span className="block-quiz__option-text">{opt}</span>
-                                {revealed && isCorrect && <span className="block-quiz__option-icon">&#x2713;</span>}
-                                {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon">&#x2717;</span>}
+                                {revealed && isCorrect && <span className="block-quiz__option-icon"><Check size={14} strokeWidth={3} /></span>}
+                                {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon"><X size={14} strokeWidth={3} /></span>}
                               </button>
                             );
                           })}
@@ -628,7 +630,7 @@ export default function LessonViewerPage() {
                   })()}
                   {block.block_type === 'file' && block.content.url && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: 'var(--border-light)' }}>
-                      <span style={{ fontSize: '1.5rem' }}>📎</span>
+                      <span style={{ display: "inline-flex" }}><Paperclip size={20} strokeWidth={1.75} /></span>
                       <div><div style={{ fontWeight: 600, fontSize: '.9rem' }}>{block.content.name || 'File'}</div></div>
                       <a href={block.content.url} download={block.content.name} className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginLeft: 'auto' }}>Download</a>
                     </div>
@@ -665,7 +667,7 @@ export default function LessonViewerPage() {
                               <span className="lesson-resources__link-status">
                                 {wasClicked ? '\u2705' : '\u25CB'}
                               </span>
-                              {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
+                              {link.type === 'pdf' ? <FileText size={14} style={{ verticalAlign: "-2px" }} /> : link.type === 'website' ? <Globe size={14} style={{ verticalAlign: "-2px" }} /> : <Paperclip size={14} style={{ verticalAlign: "-2px" }} />} {link.title || link.url}
                               {link.description && <span style={{ fontSize: '.78rem', color: 'var(--color-text-muted)', marginLeft: '.5rem' }}>{link.description}</span>}
                               <span className="lesson-resources__arrow">↗</span>
                             </a>
@@ -737,7 +739,7 @@ export default function LessonViewerPage() {
                           <h4 className="block-popup-article__title">{block.content.title || 'Article'}</h4>
                           <p className="block-popup-article__summary">{block.content.summary || ''}</p>
                         </div>
-                        <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
+                        <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}><ChevronDown size={14} strokeWidth={2.5} /></span>
                       </div>
                       <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
                         <div className="block-popup-article__content" dangerouslySetInnerHTML={dhtml(block.content.full_content)} />
@@ -761,7 +763,7 @@ export default function LessonViewerPage() {
                     return (
                       <div className="block-practice" style={{ margin: '1.5rem 0' }}>
                         <div className="block-practice__header">
-                          <span className="block-practice__icon">🧮</span>
+                          <span className="block-practice__icon"><Calculator size={18} strokeWidth={1.75} /></span>
                           <div>
                             <h4 className="block-practice__title">{block.content.title || 'Practice Problem'}</h4>
                             <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -918,7 +920,7 @@ export default function LessonViewerPage() {
                   <span className="lesson-resources__link-status">
                     {reviewed ? '\u2705' : '\u25CB'}
                   </span>
-                  &#x1F3AC; {v.title}
+                  <Film size={14} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{v.title}
                   {v.description && <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>{v.description}</span>}
                   <span className="lesson-resources__arrow">{'\u2197'}</span>
                 </a>
@@ -981,7 +983,7 @@ export default function LessonViewerPage() {
         {/* Completed badge */}
         {completed && (
           <span className="admin-lesson__complete-btn admin-lesson__complete-btn--completed" style={{ cursor: 'default' }}>
-            &#x2705; Lesson Completed
+            <CheckCircle2 size={14} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />Lesson Completed
           </span>
         )}
 
@@ -1005,7 +1007,7 @@ export default function LessonViewerPage() {
 
         {quizCount > 0 && !canTakeQuiz && (
           <div className="lesson-quiz-locked">
-            <span className="lesson-quiz-locked__icon">&#x1F512;</span>
+            <span className="lesson-quiz-locked__icon"><Lock size={16} strokeWidth={2} /></span>
             <span className="lesson-quiz-locked__text">
               Review all content above to unlock the quiz ({completedInteractions}/{totalRequired} done)
             </span>

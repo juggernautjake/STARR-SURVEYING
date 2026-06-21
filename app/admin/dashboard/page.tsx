@@ -3,6 +3,11 @@
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
+import {
+  Bell, GraduationCap, ClipboardList, Microscope, Wallet, Calendar,
+  Layers, ClipboardCheck, BarChart3, BookOpen, BookMarked, SquarePen,
+  DraftingCompass, Users, KeyRound,
+} from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 
 interface QuizAttempt {
@@ -246,7 +251,7 @@ export default function AdminDashboardPage() {
       {/* Pending Registrations Banner (admin only) */}
       {isAdminUser && pendingCount > 0 && (
         <Link href="/admin/users" className="dashboard-pending-banner">
-          <span className="dashboard-pending-banner__icon">&#x1F514;</span>
+          <span className="dashboard-pending-banner__icon"><Bell size={20} strokeWidth={2} /></span>
           <span className="dashboard-pending-banner__text">
             <strong>{pendingCount} pending registration{pendingCount !== 1 ? 's' : ''}</strong> awaiting approval
           </span>
@@ -259,7 +264,7 @@ export default function AdminDashboardPage() {
         {/* My Education */}
         <Link href="/admin/learn" className="dashboard-card dashboard-card--education">
           <div className="dashboard-card__header">
-            <span className="dashboard-card__icon">🎓</span>
+            <span className="dashboard-card__icon"><GraduationCap size={28} strokeWidth={1.75} /></span>
             <span className="dashboard-card__badge">Education</span>
           </div>
           <h3 className="dashboard-card__title">My Education</h3>
@@ -298,7 +303,7 @@ export default function AdminDashboardPage() {
         {(isAdminOrDev || roles.includes('field_crew') || roles.includes('researcher')) && isCompanyUser && (
           <Link href={isAdminOrDev ? '/admin/jobs' : '/admin/me?tab=jobs'} className="dashboard-card dashboard-card--jobs">
             <div className="dashboard-card__header">
-              <span className="dashboard-card__icon">📋</span>
+              <span className="dashboard-card__icon"><ClipboardList size={28} strokeWidth={1.75} /></span>
               <span className="dashboard-card__badge">Work</span>
             </div>
             <h3 className="dashboard-card__title">My Jobs</h3>
@@ -323,7 +328,7 @@ export default function AdminDashboardPage() {
         {(isAdminOrDev || roles.includes('researcher') || roles.includes('drawer')) && isCompanyUser && (
           <Link href="/admin/research" className="dashboard-card dashboard-card--jobs">
             <div className="dashboard-card__header">
-              <span className="dashboard-card__icon">🔬</span>
+              <span className="dashboard-card__icon"><Microscope size={28} strokeWidth={1.75} /></span>
               <span className="dashboard-card__badge">Research</span>
             </div>
             <h3 className="dashboard-card__title">Property Research</h3>
@@ -342,7 +347,7 @@ export default function AdminDashboardPage() {
         {(isAdminOrDev || roles.includes('field_crew')) && isCompanyUser && (
           <Link href={isAdminOrDev ? '/admin/payroll' : '/admin/me?tab=pay'} className="dashboard-card dashboard-card--finances">
             <div className="dashboard-card__header">
-              <span className="dashboard-card__icon">💰</span>
+              <span className="dashboard-card__icon"><Wallet size={28} strokeWidth={1.75} /></span>
               <span className="dashboard-card__badge">Finances</span>
             </div>
             <h3 className="dashboard-card__title">My Finances</h3>
@@ -369,7 +374,7 @@ export default function AdminDashboardPage() {
         {(isAdminOrDev || roles.includes('field_crew')) && isCompanyUser && (
           <Link href="/admin/schedule" className="dashboard-card dashboard-card--schedule">
             <div className="dashboard-card__header">
-              <span className="dashboard-card__icon">📅</span>
+              <span className="dashboard-card__icon"><Calendar size={28} strokeWidth={1.75} /></span>
               <span className="dashboard-card__badge">Schedule</span>
             </div>
             <h3 className="dashboard-card__title">My Schedule</h3>
@@ -441,25 +446,25 @@ export default function AdminDashboardPage() {
       <div className="admin-dashboard__section">
         <h3 className="admin-dashboard__section-title">Quick Links</h3>
         <div className="admin-dashboard__quick-links">
-          <Link href="/admin/learn" className="admin-dashboard__quick-link"><span>🎓</span>Learning Hub</Link>
-          <Link href="/admin/learn/flashcards" className="admin-dashboard__quick-link"><span>🃏</span>Flashcards</Link>
-          <Link href="/admin/learn/exam-prep" className="admin-dashboard__quick-link"><span>📝</span>Exam Prep</Link>
-          <Link href="/admin/learn/quiz-history" className="admin-dashboard__quick-link"><span>📊</span>Quiz History</Link>
-          <Link href="/admin/learn/knowledge-base" className="admin-dashboard__quick-link"><span>🔍</span>Knowledge Base</Link>
-          <Link href="/admin/learn/fieldbook" className="admin-dashboard__quick-link"><span>📓</span>My Fieldbook</Link>
+          <Link href="/admin/learn" className="admin-dashboard__quick-link"><GraduationCap size={18} strokeWidth={1.75} />Learning Hub</Link>
+          <Link href="/admin/learn/flashcards" className="admin-dashboard__quick-link"><Layers size={18} strokeWidth={1.75} />Flashcards</Link>
+          <Link href="/admin/learn/exam-prep" className="admin-dashboard__quick-link"><ClipboardCheck size={18} strokeWidth={1.75} />Exam Prep</Link>
+          <Link href="/admin/learn/quiz-history" className="admin-dashboard__quick-link"><BarChart3 size={18} strokeWidth={1.75} />Quiz History</Link>
+          <Link href="/admin/learn/knowledge-base" className="admin-dashboard__quick-link"><BookOpen size={18} strokeWidth={1.75} />Knowledge Base</Link>
+          <Link href="/admin/learn/fieldbook" className="admin-dashboard__quick-link"><BookMarked size={18} strokeWidth={1.75} />My Fieldbook</Link>
           {(isAdminOrDev || roles.includes('teacher')) && (
-            <Link href="/admin/learn/manage" className="admin-dashboard__quick-link"><span>✏️</span>Manage Content</Link>
+            <Link href="/admin/learn/manage" className="admin-dashboard__quick-link"><SquarePen size={18} strokeWidth={1.75} />Manage Content</Link>
           )}
           {(isAdminOrDev || roles.includes('researcher') || roles.includes('drawer') || roles.includes('field_crew')) && isCompanyUser && (
-            <Link href="/admin/research" className="admin-dashboard__quick-link"><span>🔬</span>Research</Link>
+            <Link href="/admin/research" className="admin-dashboard__quick-link"><Microscope size={18} strokeWidth={1.75} />Research</Link>
           )}
           {(isAdminOrDev || roles.includes('drawer') || roles.includes('researcher') || roles.includes('field_crew')) && isCompanyUser && (
-            <Link href="/admin/cad" className="admin-dashboard__quick-link"><span>📐</span>CAD Editor</Link>
+            <Link href="/admin/cad" className="admin-dashboard__quick-link"><DraftingCompass size={18} strokeWidth={1.75} />CAD Editor</Link>
           )}
           {isAdminUser && (
             <>
-              <Link href="/admin/employees" className="admin-dashboard__quick-link"><span>👥</span>Employees</Link>
-              <Link href="/admin/users" className="admin-dashboard__quick-link"><span>🔑</span>Manage Users</Link>
+              <Link href="/admin/employees" className="admin-dashboard__quick-link"><Users size={18} strokeWidth={1.75} />Employees</Link>
+              <Link href="/admin/users" className="admin-dashboard__quick-link"><KeyRound size={18} strokeWidth={1.75} />Manage Users</Link>
             </>
           )}
         </div>

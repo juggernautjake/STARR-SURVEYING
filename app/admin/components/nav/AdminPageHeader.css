@@ -23,6 +23,45 @@
   gap: 1rem;
 }
 
+/* F1 — universal back/up navigation. The back arrow + the breadcrumb
+ * trail share a row; the right-hand help/star cluster sits opposite via
+ * the parent's justify-content:space-between. */
+.admin-page-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0; /* let the trail shrink + ellipsize instead of pushing the icons off-screen */
+}
+
+.admin-page-header__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 0.5rem 0 0.3rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  background: #FFF;
+  color: var(--color-brand-navy, #1d3095);
+  font-size: 0.74rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.admin-page-header__back:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.admin-page-header__back-label {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .admin-page-header__trail {
   list-style: none;
   margin: 0;
@@ -31,6 +70,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
+}
+
+.admin-page-header__crumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
 .admin-page-header__crumb {
@@ -80,4 +127,23 @@
 .admin-page-header__star:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Tighten the strip on small screens: drop the back-button's text label
+ * (the arrow + the trail still communicate "up"), reduce side padding,
+ * and let the trail ellipsize so the help/star cluster stays reachable. */
+@media (max-width: 599px) {
+  .admin-page-header {
+    padding: 0.6rem 1rem;
+  }
+  .admin-page-header__back-label {
+    display: none;
+  }
+  .admin-page-header__trail {
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .admin-page-header__crumb {
+    white-space: nowrap;
+  }
 }

@@ -9,6 +9,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -119,7 +120,7 @@ export default function ContactsPage() {
               style={secondaryButtonStyle}
               aria-label="Clear search"
             >
-              ✕
+              <X size={15} strokeWidth={2.5} aria-hidden="true" />
             </button>
           )}
         </form>

@@ -4,6 +4,10 @@ import '../styles/AdminAssignments.css';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
+import {
+  ClipboardList, BookOpen, ClipboardCheck, PenSquare, Rocket, CheckCircle2,
+  Wrench, Clock, Satellite, GraduationCap, type LucideIcon,
+} from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 
 interface Assignment {
@@ -25,17 +29,17 @@ interface Assignment {
   created_at: string;
 }
 
-const TYPE_OPTIONS: { key: string; label: string; icon: string }[] = [
-  { key: 'task', label: 'General Task', icon: '📋' },
-  { key: 'study_material', label: 'Study Material', icon: '📖' },
-  { key: 'exam', label: 'Pass Exam', icon: '📝' },
-  { key: 'draw_job', label: 'Draw Job', icon: '✏️' },
-  { key: 'start_job', label: 'Start Job', icon: '🚀' },
-  { key: 'finish_job', label: 'Finish Job', icon: '✅' },
-  { key: 'equipment_maintenance', label: 'Equipment Maintenance', icon: '🔧' },
-  { key: 'log_hours', label: 'Log Hours', icon: '⏱️' },
-  { key: 'field_work', label: 'Field Work', icon: '📡' },
-  { key: 'training', label: 'Training', icon: '🎓' },
+const TYPE_OPTIONS: { key: string; label: string; Icon: LucideIcon }[] = [
+  { key: 'task', label: 'General Task', Icon: ClipboardList },
+  { key: 'study_material', label: 'Study Material', Icon: BookOpen },
+  { key: 'exam', label: 'Pass Exam', Icon: ClipboardCheck },
+  { key: 'draw_job', label: 'Draw Job', Icon: PenSquare },
+  { key: 'start_job', label: 'Start Job', Icon: Rocket },
+  { key: 'finish_job', label: 'Finish Job', Icon: CheckCircle2 },
+  { key: 'equipment_maintenance', label: 'Equipment Maintenance', Icon: Wrench },
+  { key: 'log_hours', label: 'Log Hours', Icon: Clock },
+  { key: 'field_work', label: 'Field Work', Icon: Satellite },
+  { key: 'training', label: 'Training', Icon: GraduationCap },
 ];
 
 const STATUS_OPTIONS = [
@@ -165,7 +169,7 @@ export default function AssignmentsPage() {
 
   if (!session?.user) return null;
 
-  const typeInfo = (type: string) => TYPE_OPTIONS.find(t => t.key === type) || { key: type, label: type, icon: '📋' };
+  const typeInfo = (type: string) => TYPE_OPTIONS.find(t => t.key === type) || { key: type, label: type, Icon: ClipboardList };
 
   return (
     <>
@@ -208,7 +212,7 @@ export default function AssignmentsPage() {
             <div className="assign__form-field">
               <label>Type</label>
               <select value={formData.assignment_type} onChange={e => setFormData(p => ({ ...p, assignment_type: e.target.value }))}>
-                {TYPE_OPTIONS.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+                {TYPE_OPTIONS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
             </div>
             <div className="assign__form-field">
@@ -268,7 +272,7 @@ export default function AssignmentsPage() {
         <div className="assign__empty"><p>Loading assignments...</p></div>
       ) : assignments.length === 0 ? (
         <div className="assign__empty">
-          <span className="assign__empty-icon">📋</span>
+          <span className="assign__empty-icon"><ClipboardList size={30} strokeWidth={1.5} /></span>
           <p>No assignments found</p>
           <p style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>
             {statusFilter !== 'all' ? 'Try changing the filter' : 'Assignments from your admin will appear here'}
@@ -286,7 +290,7 @@ export default function AssignmentsPage() {
               <div key={a.id} className={`assign__item ${isOverdue ? 'assign__item--overdue' : ''}`}>
                 <div className="assign__item-header" onClick={() => setExpandedId(isExpanded ? null : a.id)}>
                   <div className="assign__item-left">
-                    <span className="assign__item-icon">{ti.icon}</span>
+                    <span className="assign__item-icon"><ti.Icon size={18} strokeWidth={1.75} /></span>
                     <div className="assign__item-info">
                       <span className="assign__item-title">{a.title}</span>
                       <div className="assign__item-meta">

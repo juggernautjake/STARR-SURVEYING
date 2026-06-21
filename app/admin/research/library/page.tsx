@@ -7,6 +7,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  Map, ScrollText, Spline, DraftingCompass, FileText, BookOpen, Inbox,
+  Check, Home, Loader2, type LucideIcon,
+} from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,9 +49,14 @@ type SortBy = 'date_desc' | 'date_asc' | 'relevance' | 'type' | 'county';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const DOC_TYPE_ICONS: Record<string, string> = {
-  plat: '🗺', deed: '📜', easement: '📋', survey: '📐', other: '📄',
+const DOC_TYPE_ICONS: Record<string, LucideIcon> = {
+  plat: Map, deed: ScrollText, easement: Spline, survey: DraftingCompass, other: FileText,
 };
+
+function DocTypeIcon({ type, size = 16 }: { type: string; size?: number }) {
+  const Icon = DOC_TYPE_ICONS[type] ?? FileText;
+  return <Icon size={size} strokeWidth={1.75} className="inline align-text-bottom" aria-hidden="true" />;
+}
 
 function formatBytes(bytes: number | undefined): string {
   if (!bytes) return '—';
@@ -142,7 +151,7 @@ export default function GlobalLibraryPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-gray-300 text-center">
-          <div className="text-4xl mb-4 animate-spin">⟳</div>
+          <div className="mb-4 flex justify-center"><Loader2 size={36} strokeWidth={2} className="animate-spin" /></div>
           <p>Loading document library…</p>
         </div>
       </div>
@@ -172,7 +181,7 @@ export default function GlobalLibraryPage() {
             <Link href="/admin/research" className="text-gray-400 hover:text-white text-sm">
               ← Research
             </Link>
-            <h1 className="text-xl font-bold">📚 Document Library</h1>
+            <h1 className="text-xl font-bold flex items-center gap-2"><BookOpen size={20} strokeWidth={1.75} /> Document Library</h1>
           </div>
           {stats && (
             <div className="flex gap-6 text-sm text-gray-400">
@@ -188,7 +197,7 @@ export default function GlobalLibraryPage() {
       {stats && (
         <div className="bg-gray-900/50 border-b border-gray-800 px-6 py-2 flex gap-6 overflow-x-auto text-xs text-gray-400">
           {Object.entries(stats.byType).map(([type, count]) => (
-            <span key={type}>{DOC_TYPE_ICONS[type] ?? '📄'} {type}: <strong className="text-white">{count}</strong></span>
+            <span key={type}><DocTypeIcon type={type} size={14} /> {type}: <strong className="text-white">{count}</strong></span>
           ))}
         </div>
       )}
@@ -253,7 +262,7 @@ export default function GlobalLibraryPage() {
       <div className="px-6 py-4">
         {paginated.length === 0 ? (
           <div className="text-center text-gray-500 mt-16">
-            <div className="text-4xl mb-3">📭</div>
+            <div className="mb-3 flex justify-center text-gray-500"><Inbox size={40} strokeWidth={1.5} /></div>
             <p>{search ? 'No documents match your search.' : 'Your document library is empty.'}</p>
             <p className="text-sm mt-2">Run a research project to harvest documents.</p>
           </div>
@@ -267,7 +276,7 @@ export default function GlobalLibraryPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <span className="text-xl flex-shrink-0">{DOC_TYPE_ICONS[doc.type] ?? '📄'}</span>
+                    <span className="text-xl flex-shrink-0"><DocTypeIcon type={doc.type} size={20} /></span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs px-2 py-0.5 bg-gray-700 rounded text-gray-300 capitalize">
@@ -277,17 +286,17 @@ export default function GlobalLibraryPage() {
                           <span className="font-mono text-sm text-blue-300">{doc.instrumentNumber}</span>
                         )}
                         {doc.purchased && (
-                          <span className="text-xs px-2 py-0.5 bg-green-800 text-green-300 rounded">✓ Purchased</span>
+                          <span className="text-xs px-2 py-0.5 bg-green-800 text-green-300 rounded inline-flex items-center gap-1"><Check size={11} strokeWidth={2.5} /> Purchased</span>
                         )}
                         {doc.usedInAnalysis && (
-                          <span className="text-xs px-2 py-0.5 bg-blue-800 text-blue-300 rounded">✓ Used</span>
+                          <span className="text-xs px-2 py-0.5 bg-blue-800 text-blue-300 rounded inline-flex items-center gap-1"><Check size={11} strokeWidth={2.5} /> Used</span>
                         )}
                       </div>
                       {doc.description && (
                         <p className="text-sm text-gray-300 mt-1 truncate">{doc.description}</p>
                       )}
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-                        {doc.projectAddress && <span className="text-gray-400">🏠 {doc.projectAddress}</span>}
+                        {doc.projectAddress && <span className="text-gray-400 inline-flex items-center gap-1"><Home size={12} strokeWidth={2} /> {doc.projectAddress}</span>}
                         {doc.countyName && <span>{doc.countyName} County</span>}
                         {doc.grantor && <span>From: {doc.grantor}</span>}
                         {doc.recordedDate && <span>{doc.recordedDate}</span>}

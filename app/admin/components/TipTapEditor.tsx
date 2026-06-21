@@ -12,6 +12,7 @@ import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import { Extension } from '@tiptap/core';
 import { useEffect, useCallback, useState, useRef } from 'react';
+import { AlignLeft, AlignCenter, AlignRight, Link2, Image as ImageIcon, Film, Undo2, Redo2 } from 'lucide-react';
 
 // Custom FontFamily extension compatible with TipTap v2.x
 // (The official @tiptap/extension-font-family requires v3.x text-style)
@@ -233,23 +234,23 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
 
         {/* Alignment */}
         <div className="tiptap-editor__toolbar-group">
-          <button type="button" className={`tiptap-editor__btn ${editor.isActive({ textAlign: 'left' }) ? 'tiptap-editor__btn--active' : ''}`} onClick={() => editor.chain().focus().setTextAlign('left').run()} title="Align Left">&#x2190;</button>
-          <button type="button" className={`tiptap-editor__btn ${editor.isActive({ textAlign: 'center' }) ? 'tiptap-editor__btn--active' : ''}`} onClick={() => editor.chain().focus().setTextAlign('center').run()} title="Align Center">&#x2194;</button>
-          <button type="button" className={`tiptap-editor__btn ${editor.isActive({ textAlign: 'right' }) ? 'tiptap-editor__btn--active' : ''}`} onClick={() => editor.chain().focus().setTextAlign('right').run()} title="Align Right">&#x2192;</button>
+          <button type="button" className={`tiptap-editor__btn ${editor.isActive({ textAlign: 'left' }) ? 'tiptap-editor__btn--active' : ''}`} onClick={() => editor.chain().focus().setTextAlign('left').run()} title="Align Left"><AlignLeft size={15} strokeWidth={2} /></button>
+          <button type="button" className={`tiptap-editor__btn ${editor.isActive({ textAlign: 'center' }) ? 'tiptap-editor__btn--active' : ''}`} onClick={() => editor.chain().focus().setTextAlign('center').run()} title="Align Center"><AlignCenter size={15} strokeWidth={2} /></button>
+          <button type="button" className={`tiptap-editor__btn ${editor.isActive({ textAlign: 'right' }) ? 'tiptap-editor__btn--active' : ''}`} onClick={() => editor.chain().focus().setTextAlign('right').run()} title="Align Right"><AlignRight size={15} strokeWidth={2} /></button>
         </div>
 
         {/* Media & links */}
         <div className="tiptap-editor__toolbar-group">
-          <button type="button" className={`tiptap-editor__btn ${editor.isActive('link') ? 'tiptap-editor__btn--active' : ''}`} onClick={setLink} title="Insert/Edit Link">&#x1F517;</button>
-          <button type="button" className="tiptap-editor__btn" onClick={addImage} title="Insert Image">&#x1F5BC;</button>
-          <button type="button" className="tiptap-editor__btn" onClick={addYouTubeEmbed} title="Embed Video">&#x1F3AC;</button>
+          <button type="button" className={`tiptap-editor__btn ${editor.isActive('link') ? 'tiptap-editor__btn--active' : ''}`} onClick={setLink} title="Insert/Edit Link"><Link2 size={15} strokeWidth={2} /></button>
+          <button type="button" className="tiptap-editor__btn" onClick={addImage} title="Insert Image"><ImageIcon size={15} strokeWidth={2} /></button>
+          <button type="button" className="tiptap-editor__btn" onClick={addYouTubeEmbed} title="Embed Video"><Film size={15} strokeWidth={2} /></button>
         </div>
 
         {/* Utilities */}
         <div className="tiptap-editor__toolbar-group">
           <button type="button" className="tiptap-editor__btn" onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Rule">&mdash;</button>
-          <button type="button" className="tiptap-editor__btn" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">&#x21A9;</button>
-          <button type="button" className="tiptap-editor__btn" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">&#x21AA;</button>
+          <button type="button" className="tiptap-editor__btn" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo"><Undo2 size={15} strokeWidth={2} /></button>
+          <button type="button" className="tiptap-editor__btn" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo"><Redo2 size={15} strokeWidth={2} /></button>
         </div>
       </div>
 

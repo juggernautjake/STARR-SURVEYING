@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Layers, FileText, Shuffle } from 'lucide-react';
 import Link from 'next/link';
 
 interface Flashcard {
@@ -33,7 +34,7 @@ export default function FlashcardViewer({ cards, deckName, onBack }: FlashcardVi
   if (cards.length === 0) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x1F0CF;</div>
+        <div className="admin-empty__icon"><Layers size={30} strokeWidth={1.5} /></div>
         <div className="admin-empty__title">No cards in this deck</div>
         <button onClick={onBack} className="admin-btn admin-btn--ghost admin-btn--sm">&larr; Go Back</button>
       </div>
@@ -58,12 +59,12 @@ export default function FlashcardViewer({ cards, deckName, onBack }: FlashcardVi
             <span className="fc-setup__option-desc">See the term first, then try to recall the definition.</span>
           </button>
           <button className="fc-setup__option" onClick={() => { setStudyType('definition'); setCurrentIndex(0); resetCard(); }}>
-            <span className="fc-setup__option-icon">&#x1F4DD;</span>
+            <span className="fc-setup__option-icon"><FileText size={18} strokeWidth={1.75} /></span>
             <span className="fc-setup__option-title">Study by Definition</span>
             <span className="fc-setup__option-desc">See the definition first, then try to recall the term.</span>
           </button>
           <button className="fc-setup__option" onClick={() => { setMixedSides(cards.map(() => Math.random() > 0.5)); setStudyType('mixed'); setCurrentIndex(0); resetCard(); }}>
-            <span className="fc-setup__option-icon">&#x1F500;</span>
+            <span className="fc-setup__option-icon"><Shuffle size={18} strokeWidth={1.75} /></span>
             <span className="fc-setup__option-title">Mix It Up</span>
             <span className="fc-setup__option-desc">Randomly shows either the term or definition first.</span>
           </button>

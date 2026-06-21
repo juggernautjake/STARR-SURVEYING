@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { Flag } from 'lucide-react';
 import { PAGE_TITLES } from './AdminLayoutClient';
 // Slice MX4 — share the draggable hook with the messenger so
 // both popups behave the same way.
@@ -197,7 +198,7 @@ export default function DiscussionThreadButton() {
             onClick={() => setIsOpen(true)}
             aria-label="Flag an issue or start a discussion"
           >
-            🚩
+            <Flag size={22} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
       )}

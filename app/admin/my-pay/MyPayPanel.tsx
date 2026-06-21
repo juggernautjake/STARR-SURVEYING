@@ -8,6 +8,7 @@ import '../styles/AdminPayroll.css';
 
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
+import { Wallet, Landmark } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import BalanceCard from '../components/payroll/BalanceCard';
 import PayStubView from '../components/payroll/PayStubView';
@@ -103,7 +104,7 @@ export default function MyPayPanel() {
     return (
       <div className="payroll-page">
         <div className="payroll-empty-state">
-          <div className="payroll-empty-state__icon">💰</div>
+          <div className="payroll-empty-state__icon"><Wallet size={36} strokeWidth={1.5} /></div>
           <h2>Your pay profile hasn&apos;t been set up yet</h2>
           <p>Your admin will set up your pay profile with your job title, hourly rate, and other details. Once configured, you&apos;ll be able to see your earnings, pay stubs, and manage your bank account here.</p>
           <p>In the meantime, you can still link your bank account for future use.</p>
@@ -246,7 +247,7 @@ export default function MyPayPanel() {
           {profile.bank_account_last4 ? (
             <div className="payroll-bank-current">
               <div className="payroll-bank-current__info">
-                <span className="payroll-bank-current__icon">🏦</span>
+                <span className="payroll-bank-current__icon"><Landmark size={20} strokeWidth={1.75} /></span>
                 <div>
                   <div className="payroll-bank-current__name">{profile.bank_name || 'Bank Account'}</div>
                   <div className="payroll-bank-current__details">

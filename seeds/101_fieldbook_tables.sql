@@ -78,19 +78,23 @@ CREATE TRIGGER fieldbook_notes_updated_at_trigger
 -- Row-Level Security — each user sees only their own notes
 ALTER TABLE fieldbook_notes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "fieldbook_notes_select"
+DROP POLICY IF EXISTS "fieldbook_notes_select" ON fieldbook_notes;
+CREATE POLICY "fieldbook_notes_select"
   ON fieldbook_notes FOR SELECT
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email');
 
-CREATE POLICY IF NOT EXISTS "fieldbook_notes_insert"
+DROP POLICY IF EXISTS "fieldbook_notes_insert" ON fieldbook_notes;
+CREATE POLICY "fieldbook_notes_insert"
   ON fieldbook_notes FOR INSERT
   WITH CHECK (user_email = current_setting('request.jwt.claims', true)::json->>'email');
 
-CREATE POLICY IF NOT EXISTS "fieldbook_notes_update"
+DROP POLICY IF EXISTS "fieldbook_notes_update" ON fieldbook_notes;
+CREATE POLICY "fieldbook_notes_update"
   ON fieldbook_notes FOR UPDATE
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email');
 
-CREATE POLICY IF NOT EXISTS "fieldbook_notes_delete"
+DROP POLICY IF EXISTS "fieldbook_notes_delete" ON fieldbook_notes;
+CREATE POLICY "fieldbook_notes_delete"
   ON fieldbook_notes FOR DELETE
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email');
 
@@ -112,20 +116,24 @@ CREATE INDEX IF NOT EXISTS fieldbook_categories_sort_order_idx ON fieldbook_cate
 -- Row-Level Security
 ALTER TABLE fieldbook_categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "fieldbook_categories_select"
+DROP POLICY IF EXISTS "fieldbook_categories_select" ON fieldbook_categories;
+CREATE POLICY "fieldbook_categories_select"
   ON fieldbook_categories FOR SELECT
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email');
 
-CREATE POLICY IF NOT EXISTS "fieldbook_categories_insert"
+DROP POLICY IF EXISTS "fieldbook_categories_insert" ON fieldbook_categories;
+CREATE POLICY "fieldbook_categories_insert"
   ON fieldbook_categories FOR INSERT
   WITH CHECK (user_email = current_setting('request.jwt.claims', true)::json->>'email');
 
-CREATE POLICY IF NOT EXISTS "fieldbook_categories_update"
+DROP POLICY IF EXISTS "fieldbook_categories_update" ON fieldbook_categories;
+CREATE POLICY "fieldbook_categories_update"
   ON fieldbook_categories FOR UPDATE
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email'
          AND is_default = false);
 
-CREATE POLICY IF NOT EXISTS "fieldbook_categories_delete"
+DROP POLICY IF EXISTS "fieldbook_categories_delete" ON fieldbook_categories;
+CREATE POLICY "fieldbook_categories_delete"
   ON fieldbook_categories FOR DELETE
   USING (user_email = current_setting('request.jwt.claims', true)::json->>'email'
          AND is_default = false);
@@ -144,7 +152,8 @@ CREATE INDEX IF NOT EXISTS fieldbook_entry_categories_category_idx ON fieldbook_
 -- Row-Level Security — allow access when the underlying note belongs to the user
 ALTER TABLE fieldbook_entry_categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "fieldbook_entry_categories_select"
+DROP POLICY IF EXISTS "fieldbook_entry_categories_select" ON fieldbook_entry_categories;
+CREATE POLICY "fieldbook_entry_categories_select"
   ON fieldbook_entry_categories FOR SELECT
   USING (
     EXISTS (
@@ -154,7 +163,8 @@ CREATE POLICY IF NOT EXISTS "fieldbook_entry_categories_select"
     )
   );
 
-CREATE POLICY IF NOT EXISTS "fieldbook_entry_categories_insert"
+DROP POLICY IF EXISTS "fieldbook_entry_categories_insert" ON fieldbook_entry_categories;
+CREATE POLICY "fieldbook_entry_categories_insert"
   ON fieldbook_entry_categories FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -164,7 +174,8 @@ CREATE POLICY IF NOT EXISTS "fieldbook_entry_categories_insert"
     )
   );
 
-CREATE POLICY IF NOT EXISTS "fieldbook_entry_categories_delete"
+DROP POLICY IF EXISTS "fieldbook_entry_categories_delete" ON fieldbook_entry_categories;
+CREATE POLICY "fieldbook_entry_categories_delete"
   ON fieldbook_entry_categories FOR DELETE
   USING (
     EXISTS (

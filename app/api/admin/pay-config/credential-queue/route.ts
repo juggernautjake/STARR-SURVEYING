@@ -21,6 +21,66 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { awardXP } from '@/lib/xp';
+
+// G1 (2026-06-21) — Safety badges. When a safety credential is verified,
+// grant the matching catalogue badge (seeds/001_config.sql) idempotently.
+const SAFETY_BADGE_FOR: Record<string, string> = {
+  osha_30: 'osha_certified',
+  osha_10: 'osha_certified',
+  first_aid_cpr: 'first_aid_ready',
+  hazwoper: 'hazwoper_qualified',
+  field_safety: 'field_safety_done',
+};
+
+/** Award a badge to a user by badge_key — idempotent (no-op if already
+ *  earned or the badge_key doesn't exist), mirrors the /badges POST flow. */
+async function awardBadge(userEmail: string, badgeKey: string): Promise<void> {
+  const { data: badge } = await supabaseAdmin
+    .from('badges')
+    .select('id, name, xp_reward')
+    .eq('badge_key', badgeKey)
+    .maybeSingle();
+  if (!badge) return;
+  const { data: existing } = await supabaseAdmin
+    .from('user_badges')
+    .select('id')
+    .eq('user_email', userEmail)
+    .eq('badge_id', badge.id)
+    .maybeSingle();
+  if (existing) return;
+  await supabaseAdmin.from('user_badges').insert({
+    user_email: userEmail,
+    badge_id: badge.id,
+    awarded_by: 'system:credential-verified',
+  });
+  if (badge.xp_reward > 0) {
+    try {
+      await awardXP(userEmail, badge.xp_reward, 'badge_earned', 'badge', badge.id,
+        `Badge earned: ${badge.name} (+${badge.xp_reward} XP)`);
+    } catch { /* XP failure shouldn't block the badge */ }
+  }
+}
+
+/** After a safety credential is verified, grant its badge + the
+ *  "Safety First" entry badge, and "Safety Champion" once every core
+ *  safety credential is verified. */
+async function awardSafetyBadges(userEmail: string, credentialKey: string): Promise<void> {
+  const specific = SAFETY_BADGE_FOR[credentialKey];
+  if (!specific) return; // not a safety credential
+  await awardBadge(userEmail, specific);
+  await awardBadge(userEmail, 'safety_first');
+  const { data: verified } = await supabaseAdmin
+    .from('employee_earned_credentials')
+    .select('credential_key')
+    .eq('user_email', userEmail)
+    .eq('verified', true);
+  const keys = new Set((verified ?? []).map((v: { credential_key: string }) => v.credential_key));
+  const hasOsha = keys.has('osha_30') || keys.has('osha_10');
+  if (hasOsha && keys.has('first_aid_cpr') && keys.has('hazwoper') && keys.has('field_safety')) {
+    await awardBadge(userEmail, 'safety_champion');
+  }
+}
 
 interface QueueAction {
   id: string;
@@ -100,5 +160,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // G1 — grant safety badges when a safety credential is verified.
+  // Best-effort: never block the approval response on a badge hiccup.
+  if (data?.user_email && data?.credential_key) {
+    try {
+      await awardSafetyBadges(data.user_email, data.credential_key);
+    } catch { /* swallow — approval already succeeded */ }
+  }
+
   return NextResponse.json({ approved: data });
 }, { routeName: 'pay-config/credential-queue/POST' });

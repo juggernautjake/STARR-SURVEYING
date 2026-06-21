@@ -71,9 +71,36 @@ CREATE TABLE IF NOT EXISTS job_files (
   client_id       TEXT
 );
 
+-- ── Schema-drift guard (2026-06-21) ─────────────────────────────────────────
+-- On some live DBs `job_files` PRE-EXISTS as the web "job documents" feature
+-- (columns file_name / file_url / is_backup / version …) that backs
+-- app/api/admin/jobs/files/route.ts. In that case the CREATE TABLE above is a
+-- no-op and the rest of this file (which expects the mobile "field point
+-- files" columns: name / storage_path / upload_state …) errored with
+-- "column \"name\" does not exist". Add every field-files column defensively
+-- and NULLABLE so the two features can share the table without breaking the
+-- existing job-document rows. (A future migration can split these into a
+-- dedicated `field_point_files` table — see plan R-followup.)
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS data_point_id   UUID;
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS name            TEXT;
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS storage_path    TEXT;
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS content_type    TEXT;
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS file_size_bytes INTEGER;
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS upload_state    TEXT DEFAULT 'pending';
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS created_by      UUID;
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS created_at      TIMESTAMPTZ DEFAULT now();
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS uploaded_at     TIMESTAMPTZ;
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ DEFAULT now();
+ALTER TABLE job_files ADD COLUMN IF NOT EXISTS client_id       TEXT;
+
 DO $$ BEGIN
+  -- Only enforce the non-empty-name CHECK when EVERY existing row already has
+  -- a non-empty name (i.e. a fresh field-files table). On a pre-existing
+  -- job-documents table the name column is NULL for old rows, so skip it.
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'job_files_name_chk'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM job_files WHERE name IS NULL OR length(trim(name)) = 0
   ) THEN
     ALTER TABLE job_files
       ADD CONSTRAINT job_files_name_chk

@@ -12,6 +12,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Trash2, Wrench, X, AlertTriangle, Landmark } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -608,7 +609,7 @@ function ReceiptRow({
                   : `Deleted by user on ${formatDateTime(row.deleted_at)} — Batch CC tombstone`
               }
             >
-              🗑 deleted
+              <Trash2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />deleted
             </span>
           ) : null}
           <span
@@ -740,7 +741,7 @@ function ReceiptRow({
           <div style={maintLinkStyles.panel}>
             <div style={maintLinkStyles.headerRow}>
               <strong style={maintLinkStyles.title}>
-                🔧 Is this for equipment maintenance?
+                <Wrench size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Is this for equipment maintenance?
               </strong>
               <button
                 type="button"
@@ -1068,7 +1069,7 @@ function MaintenancePicker({
             aria-label="Close"
             disabled={submitting !== null}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
         <div style={pickerStyles.body}>
@@ -1101,7 +1102,7 @@ function MaintenancePicker({
             </label>
           </div>
 
-          {error ? <div style={pickerStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={{ ...pickerStyles.error, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={14} strokeWidth={2} /> {error}</div> : null}
 
           {loading ? (
             <div style={pickerStyles.loadingHint}>Loading events…</div>
@@ -1538,7 +1539,7 @@ function PromoteToAssetPanel({
       <div style={promoteStyles.panel}>
         <div style={promoteStyles.headerRow}>
           <strong style={promoteStyles.title}>
-            🏛 Promoted to capital asset
+            <Landmark size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Promoted to capital asset
           </strong>
           <Link
             href={`/admin/equipment/${row.promoted_to_equipment_id}`}
@@ -1563,7 +1564,7 @@ function PromoteToAssetPanel({
     <div style={promoteStyles.panel}>
       <div style={promoteStyles.headerRow}>
         <strong style={promoteStyles.title}>
-          🏛 Promote to capital asset?
+          <Landmark size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Promote to capital asset?
         </strong>
         <button
           type="button"
@@ -1685,7 +1686,7 @@ function PromoteToAssetModal({
             aria-label="Close"
             disabled={submitting}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
         <div style={pickerStyles.body}>
@@ -1856,7 +1857,7 @@ function PromoteToAssetModal({
             />
           </label>
 
-          {error ? <div style={pickerStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={{ ...pickerStyles.error, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={14} strokeWidth={2} /> {error}</div> : null}
         </div>
         <footer style={pickerStyles.footer}>
           <button

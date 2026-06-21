@@ -11,6 +11,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Pencil, X, Check, AlertTriangle, Save } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -267,7 +268,7 @@ export default function MaintenanceEventDetailPage() {
                   : 'Edit vendor, cost, schedule, and notes'
               }
             >
-              ✎ Edit fields
+              <Pencil size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> Edit fields
             </button>
           ) : null}
         </div>
@@ -821,7 +822,7 @@ function TransitionModal({
             aria-label="Close"
             disabled={submitting}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
         <div style={transitionStyles.body}>
@@ -914,7 +915,7 @@ function TransitionModal({
                   onClick={() => setQaDecision('passed')}
                   disabled={submitting}
                 >
-                  ✓ QA passed
+                  <Check size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> QA passed
                 </button>
                 <button
                   type="button"
@@ -926,7 +927,7 @@ function TransitionModal({
                   onClick={() => setQaDecision('failed')}
                   disabled={submitting}
                 >
-                  ✗ QA failed
+                  <X size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> QA failed
                 </button>
               </div>
               <span style={transitionStyles.hint}>
@@ -958,7 +959,7 @@ function TransitionModal({
             </label>
           ) : null}
 
-          {error ? <div style={transitionStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={transitionStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
         </div>
         <footer style={transitionStyles.footer}>
           <button
@@ -1351,9 +1352,9 @@ function EditForm({
       </label>
 
       {localError ? (
-        <div style={editStyles.error}>⚠ {localError}</div>
+        <div style={editStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {localError}</div>
       ) : null}
-      {error ? <div style={editStyles.error}>⚠ {error}</div> : null}
+      {error ? <div style={editStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
 
       <footer style={editStyles.footer}>
         <button
@@ -1598,7 +1599,7 @@ function UploadModal({
             aria-label="Close"
             disabled={submitting}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
         <div style={transitionStyles.body}>
@@ -1660,11 +1661,11 @@ function UploadModal({
             </div>
           ) : progress === 'recording' ? (
             <div style={transitionStyles.copy}>
-              💾 Recording metadata…
+              <Save size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> Recording metadata…
             </div>
           ) : null}
 
-          {error ? <div style={transitionStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={transitionStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
         </div>
         <footer style={transitionStyles.footer}>
           <button
@@ -1815,7 +1816,7 @@ function AttachReceiptModal({
             aria-label="Close"
             disabled={submitting !== null}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
         <div style={transitionStyles.body}>
@@ -1871,7 +1872,7 @@ function AttachReceiptModal({
             </div>
           ) : null}
 
-          {error ? <div style={transitionStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={transitionStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
 
           {loading ? (
             <div style={attachStyles.loadingHint}>Loading receipts…</div>

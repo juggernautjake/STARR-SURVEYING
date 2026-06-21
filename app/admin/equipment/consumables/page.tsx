@@ -13,6 +13,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { X, AlertTriangle, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -485,7 +486,7 @@ function RestockModal({
             aria-label="Close"
             disabled={submitting}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 
@@ -562,7 +563,7 @@ function RestockModal({
             />
           </label>
 
-          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={{ ...modalStyles.error, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={14} strokeWidth={2} /> {error}</div> : null}
         </div>
 
         <footer style={modalStyles.footer}>
@@ -710,14 +711,14 @@ function ThresholdModal({
     if (target.current_on_hand <= t) {
       return (
         <span style={modalStyles.previewRed}>
-          ⚠ Current on-hand ({target.current_on_hand}) is at-or-below
+          <AlertTriangle size={13} strokeWidth={2} style={{ verticalAlign: "middle" }} /> Current on-hand ({target.current_on_hand}) is at-or-below
           this threshold — row will flag Reorder NOW.
         </span>
       );
     }
     return (
       <span style={modalStyles.previewGreen}>
-        ✓ Current on-hand ({target.current_on_hand}) is above this
+        <Check size={13} strokeWidth={2} style={{ verticalAlign: "middle" }} /> Current on-hand ({target.current_on_hand}) is above this
         threshold.
       </span>
     );
@@ -748,7 +749,7 @@ function ThresholdModal({
             aria-label="Close"
             disabled={submitting}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
         <div style={modalStyles.body}>
@@ -773,7 +774,7 @@ function ThresholdModal({
           {previewBadge ? (
             <div style={modalStyles.previewBox}>{previewBadge}</div>
           ) : null}
-          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={{ ...modalStyles.error, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={14} strokeWidth={2} /> {error}</div> : null}
         </div>
         <footer style={modalStyles.footer}>
           <button
@@ -854,7 +855,7 @@ function DiscontinueModal({
             aria-label="Close"
             disabled={submitting}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
         <div style={modalStyles.body}>
@@ -869,7 +870,7 @@ function DiscontinueModal({
           </p>
           {target.current_on_hand > 0 ? (
             <div style={modalStyles.warningBox}>
-              ⚠ {target.current_on_hand}
+              <AlertTriangle size={13} strokeWidth={2} style={{ verticalAlign: "middle" }} /> {target.current_on_hand}
               {target.unit ? ` ${target.unit}` : ''} still on hand.
               Confirm you want to retire this anyway — the count
               becomes inaccessible after discontinue.
@@ -896,7 +897,7 @@ function DiscontinueModal({
               placeholder="optional context"
             />
           </label>
-          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={{ ...modalStyles.error, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={14} strokeWidth={2} /> {error}</div> : null}
         </div>
         <footer style={modalStyles.footer}>
           <button

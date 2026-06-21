@@ -10,6 +10,7 @@
 
 'use client';
 
+import { Calculator } from 'lucide-react';
 import { useCalculator } from './CalculatorProvider';
 
 export default function CalculatorFab() {
@@ -24,7 +25,7 @@ export default function CalculatorFab() {
         aria-label="Open exam calculator"
         title="Calculator"
       >
-        🧮
+        <Calculator size={22} strokeWidth={2} aria-hidden="true" />
       </button>
     </div>
   );

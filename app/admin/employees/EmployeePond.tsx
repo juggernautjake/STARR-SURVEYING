@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UserRole } from '@/lib/auth';
+import { matchesPersonPrefix } from '@/lib/admin/employee-search';
 import { useEmployeePondPhysics } from './useEmployeePondPhysics';
 import {
   anchorDialogue,
@@ -117,10 +118,10 @@ const ROLE_FILTER_LABELS: Record<UserRole, string> = {
   guest: 'Guest',
 };
 
-/** Slice E2 — search + role filter contract. Search is name + email
- *  only (case-insensitive substring); role filter is a Set; an empty
- *  Set means "all roles pass". Pure so the source-lock can verify
- *  each branch without React. */
+/** Slice E2 — search + role filter contract. Search prefix-matches the
+ *  first name, last name, or email (see lib/admin/employee-search.ts);
+ *  role filter is a Set; an empty Set means "all roles pass". Pure so
+ *  the source-lock can verify each branch without React. */
 export interface EmployeeFilter {
   query: string;
   selectedRoles: ReadonlySet<UserRole>;
@@ -130,11 +131,11 @@ export function matchesEmployee(
   employee: PondEmployee,
   filter: EmployeeFilter,
 ): boolean {
-  const q = filter.query.trim().toLowerCase();
-  if (q.length > 0) {
-    const hayName = employee.name.toLowerCase();
-    const hayEmail = employee.email.toLowerCase();
-    if (!hayName.includes(q) && !hayEmail.includes(q)) return false;
+  // Prefix-match (not substring): "e" must not surface "Audey". The
+  // shared helper handles name words + email forms identically to the
+  // list view. User request 2026-06-20.
+  if (!matchesPersonPrefix(filter.query, employee.name, employee.email)) {
+    return false;
   }
   if (filter.selectedRoles.size > 0) {
     let hit = false;

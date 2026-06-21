@@ -1,6 +1,7 @@
 // app/admin/components/jobs/FileViewer.tsx — Image/file viewer with zoom, pan, expand
 'use client';
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { FileText, Paperclip } from 'lucide-react';
 
 interface FileViewerProps {
   file: {
@@ -195,7 +196,7 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
         >
           {!file.file_url ? (
             <div className="file-viewer__no-preview">
-              <span className="file-viewer__no-preview-icon">&#x1F4C4;</span>
+              <span className="file-viewer__no-preview-icon"><FileText size={36} strokeWidth={1.5} /></span>
               <p>No file URL available for preview</p>
               <p className="file-viewer__no-preview-sub">The file metadata is stored but the file content needs to be uploaded to storage.</p>
             </div>
@@ -229,7 +230,7 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
             />
           ) : (
             <div className="file-viewer__no-preview">
-              <span className="file-viewer__no-preview-icon">&#x1F4CE;</span>
+              <span className="file-viewer__no-preview-icon"><Paperclip size={36} strokeWidth={1.5} /></span>
               <p>Preview not available for this file type</p>
               <p className="file-viewer__no-preview-sub">{file.file_name}</p>
               {file.file_url && (
