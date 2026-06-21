@@ -483,15 +483,16 @@ per-page note in §6.
   data-config/decorative stay). **Caution:** several are content editors/
   viewers (TipTapEditor, ArticleEditor/Reader, FlashcardViewer, QuizRunner,
   Fieldbook) whose emoji may be content-authoring tools — assess each.
-  - [x] **Navbar** (AdminTopBar hamburger ☰→Menu + XP ⭐→Star; AdminSidebar
-    section arrows ❯→ChevronRight). Verified in harness. Commit `8eeb99b8`.
-  - [ ] Remaining (~33): learn/modules(+[id]/[lessonId]), learn/manage(+
-    question-builder/lesson-builder/media/article-editor), learn/roadmap,
-    learn/exam-prep(+sit/+module/[id]/mock-exam), learn/flashcards(+bank/
-    practice), learn/articles/[id], rewards(+how-it-works/admin), my-notes,
-    users, discussions(+[id]), and components (TipTapEditor, JobFileManager,
+  - [x] **Navbar** (hamburger/XP/sidebar arrows). Commit `8eeb99b8`.
+  - [x] **learn/modules + roadmap + exam-prep** — loading/empty/lock/header/
+    stat entity emoji → lucide. Commit `34658211`.
+  - [ ] Remaining (~30): learn/modules/[id](+[lessonId]), learn/manage(+
+    question-builder/lesson-builder/media/article-editor), learn/exam-prep/
+    sit(+module/[id]/mock-exam), learn/flashcards(+bank/practice),
+    learn/articles/[id], rewards(+how-it-works/admin), my-notes, users,
+    discussions(+[id]), and components (TipTapEditor, JobFileManager,
     Fieldbook, FlashcardViewer, QuizRunner, FileViewer, ArticleReader/Editor,
-    SmallScreenBanner). Batch a few per iteration.
+    SmallScreenBanner). Content editors need per-file assessment.
 - ~~G3 — Payment seeds 323–327~~ — **deferred: BLOCKED on a human decision
   (live Stripe billing).** Root-caused 2026-06-21: `invoices` is a
   two-feature table-name collision — live = Stripe SaaS billing schema;
