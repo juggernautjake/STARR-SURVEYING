@@ -50,7 +50,7 @@
    finances, notes, settings, support, audit, error-log, announcements,
    messages, discussions, hours-approval, rewards, pay-progression.
 10. ~~D1 — dead-button sweep~~ ✅ DONE — 1 dead link fixed; no dead buttons.
-11. **G1 — badges + Safety-course badges** §5.5 (`seeds/001_config.sql`).
+11. ~~G1 — badges + Safety badges~~ ✅ DONE — 6 safety badges + auto-award.
 12. **G2 — Pay Progression visual polish** §5.5.
 13. **G4 — regenerate empty-lesson curriculum buildout** §5 D2 note
     (gen_seed pipeline; ~207/422 lessons empty).
@@ -453,11 +453,18 @@ per-page note in §6.
 
 ## 5.5 Session-surfaced open work (from the user's gap list)
 
-- [ ] **G1 — Badges expansion + Safety-course badges.** System mapped: 18
-  current badges, 28 modules, OSHA/HAZWOPER/First-Aid credentials exist
-  but zero Safety badges. Add the missing badge seed rows (with
-  appropriate lucide/emoji icons consistent with F2) to
-  `seeds/001_config.sql` (~lines 26–45) + apply per D2.
+- [x] **G1 — Badges expansion + Safety-course badges.** Added 6 safety
+  badges to `seeds/001_config.sql` (Safety First / OSHA Certified / First
+  Responder / HAZWOPER Qualified / Field-Safe / Safety Champion), using the
+  allowed certification/achievement categories (the `badges_category_check`
+  has no 'safety' value). Applied live (catalogue 18 → 24). **Also wired
+  the awarding** in `pay-config/credential-queue` — verifying a safety
+  credential now idempotently grants its badge + the Safety First entry +
+  Safety Champion (when all core safety creds are verified). Commit
+  `f2160364`. Badge `icon` stays emoji to match the 18 existing badges
+  (DB-stored content, same class as the G5 config icons). The internal
+  **Safety *course* content** (≠ the credentials, which exist) needs the
+  gen_seed curriculum pipeline → folded into G4.
 - [ ] **G2 — Pay Progression visual polish.** The broken `AdminRewards.css`
   import was already fixed so the page renders, but the hero card,
   work-type grid, role ladder, and timeline still want a deliberate
