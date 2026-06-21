@@ -55,15 +55,35 @@ describe('matchesEmployee — pure predicate', () => {
     expect(matchesEmployee(emp(), filter())).toBe(true);
   });
 
-  it('substring on name (case-insensitive)', () => {
+  it('prefix on first name (case-insensitive)', () => {
     expect(matchesEmployee(emp({ name: 'Rachel' }), filter({ query: 'ra' }))).toBe(true);
     expect(matchesEmployee(emp({ name: 'Raphael' }), filter({ query: 'RA' }))).toBe(true);
     expect(matchesEmployee(emp({ name: 'Jacob' }), filter({ query: 'ra' }))).toBe(false);
   });
 
-  it('substring on email', () => {
+  it('prefix on last name', () => {
+    // emp-search-prefix-2026-06-21 — typing the start of someone's
+    // last name should surface them even if their first name doesn't
+    // share the same prefix.
+    expect(matchesEmployee(emp({ name: 'Hank Maddux' }), filter({ query: 'mad' }))).toBe(true);
+    expect(matchesEmployee(emp({ name: 'Hank Maddux' }), filter({ query: 'han' }))).toBe(true);
+    expect(matchesEmployee(emp({ name: 'Hank Maddux' }), filter({ query: 'addu' }))).toBe(false);
+  });
+
+  it('prefix on email (the whole string, including @ if typed)', () => {
     expect(matchesEmployee(emp({ email: 'jacob@x.com' }), filter({ query: 'jacob' }))).toBe(true);
+    expect(matchesEmployee(emp({ email: 'jacob@x.com' }), filter({ query: 'jacob@' }))).toBe(true);
     expect(matchesEmployee(emp({ email: 'hank@x.com' }), filter({ query: 'jacob' }))).toBe(false);
+    // Substring-in-the-middle of the email no longer matches.
+    expect(matchesEmployee(emp({ email: 'jacob@x.com' }), filter({ query: 'x.com' }))).toBe(false);
+  });
+
+  it('rejects mid-string substrings (the regression this slice fixed)', () => {
+    // The old `.includes()` implementation matched any letter
+    // appearing anywhere in the name/email. Verify those exact
+    // cases are now rejected.
+    expect(matchesEmployee(emp({ name: 'Jacob' }), filter({ query: 'cob' }))).toBe(false);
+    expect(matchesEmployee(emp({ name: 'Randall' }), filter({ query: 'dall' }))).toBe(false);
   });
 
   it('trims whitespace before matching so "  ra  " behaves like "ra"', () => {

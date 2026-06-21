@@ -121,9 +121,28 @@ export default function EmployeesPage() {
   if (!canView) return null;
 
   const filtered = employees.filter(e => {
+    // emp-search-prefix-2026-06-21 — user feedback: the old substring
+    // .includes() filter kept everyone in the result set whenever the
+    // typed letters appeared *anywhere* in the name / email / role
+    // (e.g. typing "or" matched "Director" inside a role label).
+    // Tighten to a prefix match on first name, last name, or email
+    // so typing "ja" surfaces "Jacob …" / "… Jackson" /
+    // "jacobmaddux@…" and nothing else. Empty search short-circuits
+    // so we don't reject everyone when the box is empty.
     if (search) {
-      const q = search.toLowerCase();
-      if (!(e.name || '').toLowerCase().includes(q) && !e.email.toLowerCase().includes(q)) return false;
+      const q = search.toLowerCase().trim();
+      if (q) {
+        const name = (e.name || '').toLowerCase();
+        const email = e.email.toLowerCase();
+        const parts = name.split(/\s+/).filter(Boolean);
+        const firstName = parts[0] ?? '';
+        const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+        const matches =
+          firstName.startsWith(q) ||
+          lastName.startsWith(q) ||
+          email.startsWith(q);
+        if (!matches) return false;
+      }
     }
     if (roleFilter !== 'all' && !(e.roles || []).includes(roleFilter)) return false;
     if (statusFilter === 'active' && e.is_banned) return false;
@@ -250,61 +269,112 @@ export default function EmployeesPage() {
           <p>{search ? 'Try a different search term' : 'No company employees have signed in yet.'}</p>
         </div>
       ) : (
-        <div className="jobs-page__grid">
+        // emp-list-refactor-2026-06-21 — was rendering inside
+        // `.jobs-page__grid` + `.job-card` (jobs-page CSS hijacked
+        // for employees) with inline styles fighting class styles,
+        // a 28 px avatar, and inconsistent typography (0.65 / 0.68 /
+        // 0.7 / 0.85 rem). Replaced with a purpose-built
+        // `emp-list__*` BEM card: 44 px avatar, 3-region grid
+        // (identity / meta / status+badges), single info line for
+        // job title · rate · tenure, hover lift on clickable rows.
+        // Styles live in the <style jsx> block at the bottom of
+        // the file so this slice is fully self-contained.
+        <div className="emp-list__grid">
           {filtered.map(emp => {
             const primaryRole = (emp.roles || []).find(r => r !== 'employee') || 'employee';
             const isActive = !emp.is_banned && emp.is_active !== false;
+            const otherRoles = (emp.roles || []).filter(r => r !== 'employee' && r !== primaryRole);
+            const displayName = emp.name || emp.email.split('@')[0];
+            const initials = displayName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+            const clickable = isAdmin;
+
+            const metaParts: string[] = [];
+            if (emp.job_title) metaParts.push(JOB_TITLE_LABELS[emp.job_title] || emp.job_title);
+            if (emp.hourly_rate != null) metaParts.push(`$${emp.hourly_rate.toFixed(2)}/hr`);
+            if (emp.hire_date) {
+              metaParts.push(`Since ${new Date(emp.hire_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`);
+            } else if (emp.last_sign_in) {
+              metaParts.push(`Last login ${new Date(emp.last_sign_in).toLocaleDateString()}`);
+            }
+
             return (
               <div
                 key={emp.id}
-                className="job-card"
-                style={{ cursor: isAdmin ? 'pointer' : 'default', opacity: isActive ? 1 : 0.7 }}
+                className={`emp-list__card ${clickable ? 'emp-list__card--clickable' : ''} ${!isActive ? 'emp-list__card--inactive' : ''}`}
                 onClick={() => {
-                  if (isAdmin && emp.job_title) {
+                  if (!clickable) return;
+                  if (emp.job_title) {
                     router.push(`/admin/employees/manage?email=${encodeURIComponent(emp.email)}`);
-                  } else if (isAdmin) {
+                  } else {
                     router.push(`/admin/users`);
                   }
                 }}
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onKeyDown={(e) => {
+                  if (!clickable) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    (e.currentTarget as HTMLDivElement).click();
+                  }
+                }}
               >
-                <div className="job-card__header">
-                  <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-                    {emp.job_title && (
-                      <span className="job-card__stage" style={{ background: 'var(--color-brand-navy)', fontSize: '.68rem' }}>
-                        {JOB_TITLE_LABELS[emp.job_title] || emp.job_title}
-                      </span>
-                    )}
-                    <span className="job-card__stage" style={{ background: ROLE_COLORS[primaryRole] || '#6B7280', fontSize: '.68rem' }}>
+                <div className="emp-list__avatar" aria-hidden="true">
+                  {emp.avatar_url ? (
+                    <img src={emp.avatar_url} alt="" />
+                  ) : (
+                    <span>{initials}</span>
+                  )}
+                </div>
+
+                <div className="emp-list__identity">
+                  <h3 className="emp-list__name">{displayName}</h3>
+                  <p className="emp-list__email">{emp.email}</p>
+                  {metaParts.length > 0 && (
+                    <p className="emp-list__meta">
+                      {metaParts.map((part, i) => (
+                        <span key={i}>
+                          {i > 0 && <span className="emp-list__meta-sep" aria-hidden="true">·</span>}
+                          {part}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </div>
+
+                <div className="emp-list__side">
+                  <div className="emp-list__badges">
+                    <span
+                      className="emp-list__badge emp-list__badge--primary"
+                      style={{ background: ROLE_COLORS[primaryRole] || '#6B7280' }}
+                    >
                       {ROLE_LABELS[primaryRole as UserRole] || primaryRole}
                     </span>
+                    {otherRoles.slice(0, 2).map(r => (
+                      <span
+                        key={r}
+                        className="emp-list__badge emp-list__badge--ghost"
+                        style={{
+                          color: ROLE_COLORS[r] || '#6B7280',
+                          borderColor: (ROLE_COLORS[r] || '#6B7280') + '40',
+                          background: (ROLE_COLORS[r] || '#6B7280') + '10',
+                        }}
+                      >
+                        {ROLE_LABELS[r as UserRole] || r}
+                      </span>
+                    ))}
+                    {otherRoles.length > 2 && (
+                      <span className="emp-list__badge emp-list__badge--ghost emp-list__badge--more">
+                        +{otherRoles.length - 2}
+                      </span>
+                    )}
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: isActive ? '#059669' : 'var(--color-error)', fontWeight: 600 }}>
+                  <span
+                    className={`emp-list__status emp-list__status--${emp.is_banned ? 'banned' : isActive ? 'active' : 'inactive'}`}
+                  >
+                    <span className="emp-list__status-dot" aria-hidden="true" />
                     {emp.is_banned ? 'Banned' : isActive ? 'Active' : 'Inactive'}
                   </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
-                  {emp.avatar_url ? (
-                    <img src={emp.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem', fontWeight: 700, color: '#6B7280' }}>
-                      {(emp.name || emp.email.split('@')[0]).split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
-                    </div>
-                  )}
-                  <h3 className="job-card__name" style={{ margin: 0 }}>{emp.name || emp.email.split('@')[0]}</h3>
-                </div>
-                <p className="job-card__client">{emp.email}</p>
-                {/* Role badges */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem', marginTop: '.25rem', marginBottom: '.5rem' }}>
-                  {(emp.roles || []).filter(r => r !== 'employee').map(r => (
-                    <span key={r} style={{ fontSize: '.65rem', padding: '.1rem .35rem', borderRadius: '4px', background: (ROLE_COLORS[r] || '#6B7280') + '15', color: ROLE_COLORS[r] || '#6B7280', fontWeight: 600 }}>
-                      {ROLE_LABELS[r as UserRole] || r}
-                    </span>
-                  ))}
-                </div>
-                <div className="job-card__footer">
-                  {emp.hourly_rate != null ? <span>${emp.hourly_rate.toFixed(2)}/hr</span> : <span style={{ color: '#9CA3AF' }}>No payroll profile</span>}
-                  {emp.hire_date && <span>Since {new Date(emp.hire_date).toLocaleDateString()}</span>}
-                  {emp.last_sign_in && !emp.hire_date && <span>Last login: {new Date(emp.last_sign_in).toLocaleDateString()}</span>}
                 </div>
               </div>
             );
@@ -313,6 +383,174 @@ export default function EmployeesPage() {
       )}
       </>
       )}
+
+      <style jsx>{`
+        .emp-list__grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+          gap: 0.85rem;
+        }
+        .emp-list__card {
+          display: grid;
+          grid-template-columns: 44px 1fr auto;
+          gap: 0.85rem;
+          align-items: center;
+          padding: 0.9rem 1rem;
+          background: #FFFFFF;
+          border: 1px solid #E5E7EB;
+          border-radius: 10px;
+          transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+        }
+        .emp-list__card--clickable {
+          cursor: pointer;
+        }
+        .emp-list__card--clickable:hover {
+          border-color: #1D3095;
+          box-shadow: 0 1px 0 rgba(29, 48, 149, 0.06), 0 4px 14px -8px rgba(29, 48, 149, 0.25);
+        }
+        .emp-list__card--clickable:focus-visible {
+          outline: 2px solid #1D3095;
+          outline-offset: 2px;
+        }
+        .emp-list__card--clickable:active {
+          transform: translateY(1px);
+        }
+        .emp-list__card--inactive {
+          opacity: 0.7;
+        }
+
+        .emp-list__avatar {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: #F3F4F6;
+          color: #4B5563;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.85rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+        .emp-list__avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .emp-list__identity {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.1rem;
+        }
+        .emp-list__name {
+          margin: 0;
+          font-family: 'Sora', 'Inter', sans-serif;
+          font-size: 0.98rem;
+          font-weight: 600;
+          color: #0F1419;
+          line-height: 1.25;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .emp-list__email {
+          margin: 0;
+          font-size: 0.8rem;
+          color: #6B7280;
+          line-height: 1.3;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .emp-list__meta {
+          margin: 0.2rem 0 0;
+          font-size: 0.78rem;
+          color: #4B5563;
+          line-height: 1.3;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .emp-list__meta-sep {
+          margin: 0 0.4rem;
+          color: #D1D5DB;
+        }
+
+        .emp-list__side {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.45rem;
+          flex-shrink: 0;
+        }
+
+        .emp-list__badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.3rem;
+          justify-content: flex-end;
+        }
+        .emp-list__badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 0.18rem 0.5rem;
+          border-radius: 999px;
+          font-size: 0.68rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+          line-height: 1.2;
+        }
+        .emp-list__badge--primary {
+          color: #FFFFFF;
+        }
+        .emp-list__badge--ghost {
+          border: 1px solid currentColor;
+        }
+        .emp-list__badge--more {
+          color: #6B7280;
+          border-color: #E5E7EB;
+          background: #F9FAFB;
+        }
+
+        .emp-list__status {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          font-size: 0.72rem;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+          color: #6B7280;
+        }
+        .emp-list__status-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: currentColor;
+          flex-shrink: 0;
+        }
+        .emp-list__status--active { color: #059669; }
+        .emp-list__status--inactive { color: #9CA3AF; }
+        .emp-list__status--banned { color: #DC2626; }
+
+        @media (max-width: 640px) {
+          .emp-list__card {
+            grid-template-columns: 44px 1fr;
+          }
+          .emp-list__side {
+            grid-column: 1 / -1;
+            align-items: flex-start;
+          }
+          .emp-list__badges {
+            justify-content: flex-start;
+          }
+        }
+      `}</style>
     </div>
   );
 }

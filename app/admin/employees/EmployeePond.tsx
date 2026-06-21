@@ -117,10 +117,19 @@ const ROLE_FILTER_LABELS: Record<UserRole, string> = {
   guest: 'Guest',
 };
 
-/** Slice E2 — search + role filter contract. Search is name + email
- *  only (case-insensitive substring); role filter is a Set; an empty
- *  Set means "all roles pass". Pure so the source-lock can verify
- *  each branch without React. */
+/** Slice E2 — search + role filter contract. Search is a
+ *  case-insensitive PREFIX match against the first name, last name,
+ *  or email; role filter is a Set; an empty Set means "all roles
+ *  pass". Pure so the source-lock can verify each branch without
+ *  React.
+ *
+ *  emp-search-prefix-2026-06-21 — was a substring `.includes()`
+ *  match against the full name + email, which kept everyone in the
+ *  pond whenever the typed letters appeared *anywhere* (e.g. typing
+ *  "an" matched every "@firm.com" address because every email
+ *  contains "an" via "starr-surveying"). Prefix-on-each-token is
+ *  the intuitive "type the start of someone's name" behavior.
+ */
 export interface EmployeeFilter {
   query: string;
   selectedRoles: ReadonlySet<UserRole>;
@@ -132,9 +141,16 @@ export function matchesEmployee(
 ): boolean {
   const q = filter.query.trim().toLowerCase();
   if (q.length > 0) {
-    const hayName = employee.name.toLowerCase();
-    const hayEmail = employee.email.toLowerCase();
-    if (!hayName.includes(q) && !hayEmail.includes(q)) return false;
+    const name = employee.name.toLowerCase();
+    const email = employee.email.toLowerCase();
+    const parts = name.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] ?? '';
+    const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+    const matches =
+      firstName.startsWith(q) ||
+      lastName.startsWith(q) ||
+      email.startsWith(q);
+    if (!matches) return false;
   }
   if (filter.selectedRoles.size > 0) {
     let hit = false;
