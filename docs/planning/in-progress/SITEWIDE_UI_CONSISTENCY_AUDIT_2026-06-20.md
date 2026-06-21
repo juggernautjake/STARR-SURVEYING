@@ -298,6 +298,10 @@ per-page note in §6.
 - [ ] **W2 — Work workspace.** `work`, `jobs`, `jobs/new`,
   `jobs/import`, `jobs/[id]` detail, `calendar`, `field-data`,
   `field-data/[id]`, `team`, `timeline`, `assignments`.
+  - [x] **jobs** (All Jobs) — view-toggle ⊞/☰→LayoutGrid/List, delete 🗑→
+    Trash2 (×2), empty 📋→Briefcase. work/jobs-new/jobs-import: no emoji.
+  - [ ] Remaining: calendar (⛶/🖨/📅/✕…), team (⚡/🔋/📋…), timeline
+    (📍/🚗), field-data (🔄) emoji→lucide; jobs/[id] + field-data/[id].
 - [ ] **W3 — Equipment workspace.** `equipment` + `inventory`,
   `consumables`, `maintenance` (+`[id]`), `timeline`, `fleet-valuation`,
   `overrides`, `templates` (+`new`/`[id]`/`cleanup-queue`), `today`,
