@@ -358,9 +358,11 @@ per-page note in §6.
     flashcards/create → lucide. Most learn pages are already emoji-light.
   - [x] modules/[id]/[lessonId], students(+[email]), modules/[id]/test,
     knowledge-base/[slug], exam-prep/rpls → lucide / title-emoji dropped.
-  - [ ] Remaining: **manage/lesson-builder/[id]** (~40 — large content
-    editor; likely a block-type palette with author-facing emoji — assess
-    whether they're chrome vs content-authoring tools before converting).
+  - [~] **manage/lesson-builder/[id]** part 1 — 15 close ✕ + structural
+    glyphs + link-type ternary + Style 🎨→Palette → lucide. Kept the
+    author emoji-picker + block.content.icon (content-authoring feature).
+  - [ ] lesson-builder part 2: the BLOCK_TYPES insert-palette (~12 icons:
+    🖼🔊💡✦🎯📎🎞🔗🃏📰➡🧮) → lucide-component map + palette render.
 - [ ] **W6 — Office workspace.** `office`, `billing` (+`invoices`/
   `plan-history`/`upgrade`), `payroll` (+detail), `payout-log`,
   `payouts`, `employees` (+`manage`/history), `users`, `invites`,
