@@ -4,7 +4,10 @@ import '../styles/AdminPayroll.css';
 import '../styles/AdminRewards.css';
 
 import { useState, useEffect } from 'react';
-import { Settings, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import {
+  Settings, ShieldCheck, CheckCircle2, Loader2, Wallet, HardHat, BarChart3,
+  Calendar, ScrollText, Star, GraduationCap, Target, Calculator, ClipboardList,
+} from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { computeEffectiveRate, findSeniorityBracket } from '@/lib/payroll/effective-rate';
@@ -168,7 +171,7 @@ export default function PayProgressionPage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading Pay Progression...</div>
     </div>
   );
@@ -176,7 +179,7 @@ export default function PayProgressionPage() {
   return (
     <div className={`pay-prog-page ${editMode ? 'pay-prog-page--edit' : ''}`}>
       <div className="admin-learn__header">
-        <h2 className="admin-learn__title">&#x1F4B0; Pay Progression Roadmap</h2>
+        <h2 className="admin-learn__title"><Wallet size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Pay Progression Roadmap</h2>
         <p className="admin-learn__subtitle">
           See how your hourly pay grows through seniority, credentials, education, and XP milestones.
           Multiple paths to earning more!
@@ -288,7 +291,7 @@ export default function PayProgressionPage() {
 
       {/* Base Pay by Work Type — now shows bonus multiplier and cap */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F3D7;&#xFE0F; Base Pay by Work Type</h3>
+        <h3 className="pay-prog__section-title"><HardHat size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Base Pay by Work Type</h3>
         <p className="pay-prog__section-desc">
           Your base hourly rate depends on the type of work. Bonus multipliers determine how much of your
           role/seniority/credential bonuses apply to each work type.
@@ -321,7 +324,7 @@ export default function PayProgressionPage() {
        * bonus + optional cap + description. Connectors between rows
        * communicate the path. Replaces the horizontal scroll timeline. */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F4CA; Role Tier Ladder</h3>
+        <h3 className="pay-prog__section-title"><BarChart3 size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Role Tier Ladder</h3>
         <p className="pay-prog__section-desc">
           Every tier you climb adds to your role bonus on top of the base work-type rate.
           Your current position is highlighted; tiers below are unlocked, tiers above show what&apos;s next.
@@ -351,7 +354,7 @@ export default function PayProgressionPage() {
 
       {/* Seniority Milestones — P-12 added inline CRUD. */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F4C5; Seniority Milestones</h3>
+        <h3 className="pay-prog__section-title"><Calendar size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Seniority Milestones</h3>
         <p className="pay-prog__section-desc">The longer you stay with the company, the more your hourly bonus grows.</p>
         <div className="pay-prog__timeline">
           {seniority.map((s, i) => {
@@ -378,7 +381,7 @@ export default function PayProgressionPage() {
        * so the bonus impact is visible before earning. */}
       <div className="pay-prog__section">
         <div className="pay-prog__section-header">
-          <h3 className="pay-prog__section-title">&#x1F4DC; Credential Bonuses</h3>
+          <h3 className="pay-prog__section-title"><ScrollText size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Credential Bonuses</h3>
           <span className="pay-prog__section-count">
             {earnedCreds.length} of {credentials.length} earned \u00B7 cap +$8.00/hr
           </span>
@@ -460,7 +463,7 @@ export default function PayProgressionPage() {
         return (
           <div className="pay-prog__section">
             <div className="pay-prog__section-header">
-              <h3 className="pay-prog__section-title">&#x2B50; XP Milestones</h3>
+              <h3 className="pay-prog__section-title"><Star size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />XP Milestones</h3>
               <span className="pay-prog__section-count">
                 {currentXp.toLocaleString()} XP earned \u00b7 +${xpBonusEarned.toFixed(2)}/hr unlocked \u00b7 cap +$3.00/hr
               </span>
@@ -529,7 +532,7 @@ export default function PayProgressionPage() {
 
       {/* Education Reimbursement */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F393; Education &amp; College Classes</h3>
+        <h3 className="pay-prog__section-title"><GraduationCap size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Education &amp; College Classes</h3>
         <p className="pay-prog__section-desc">The company supports your education! Here&apos;s how class reimbursement works:</p>
         <div className="pay-prog__edu-rules">
           <div className="pay-prog__edu-rule pay-prog__edu-rule--green">
@@ -557,12 +560,12 @@ export default function PayProgressionPage() {
 
       {/* FS Exam Incentives */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F3AF; FS/SIT Exam Incentives</h3>
+        <h3 className="pay-prog__section-title"><Target size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />FS/SIT Exam Incentives</h3>
         <div className="pay-prog__incentive-cards">
           <div className="pay-prog__incentive-card">
             <h4>Complete FS Prep Course</h4>
             <ul>
-              <li>Earn the &#x1F3AF; <strong>FS Ready</strong> badge</li>
+              <li>Earn the <Target size={13} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} /><strong>FS Ready</strong> badge</li>
               <li>Earn <strong>3,500 XP</strong></li>
               <li>Company <strong>pays for your FS exam</strong></li>
               <li>Receive <strong>+$1.00/hr credential bonus</strong> upon passing</li>
@@ -597,7 +600,7 @@ export default function PayProgressionPage() {
 
       {/* How Pay is Calculated */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F9EE; How Your Pay is Calculated</h3>
+        <h3 className="pay-prog__section-title"><Calculator size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />How Your Pay is Calculated</h3>
         <div className="pay-prog__formula">
           <div className="pay-prog__formula-item">Base Rate (by work type)</div>
           <div className="pay-prog__formula-op">+</div>
@@ -630,7 +633,7 @@ export default function PayProgressionPage() {
 
       {/* Full Pay System Transparency */}
       <div className="pay-prog__section">
-        <h3 className="pay-prog__section-title">&#x1F4CB; Full Pay System Transparency</h3>
+        <h3 className="pay-prog__section-title"><ClipboardList size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Full Pay System Transparency</h3>
         <p className="pay-prog__section-desc">
           We believe in <strong>complete transparency</strong> about how every employee&apos;s pay is calculated.
           Below is a detailed breakdown of every mechanic, cap, and safeguard in our compensation system.
@@ -976,7 +979,7 @@ function PayCalculator({ roles, workRates, credentials, seniority, xpMilestones,
   return (
     <div className="pay-prog__section">
       <div className="pay-prog__section-header">
-        <h3 className="pay-prog__section-title">&#x1F9EE; Try the Calculator</h3>
+        <h3 className="pay-prog__section-title"><Calculator size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Try the Calculator</h3>
         <span className="pay-prog__section-count">Pre-filled with your values</span>
       </div>
       <p className="pay-prog__section-desc">
