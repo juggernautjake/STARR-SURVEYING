@@ -87,6 +87,9 @@ export interface OpenMeteoForecast {
     relative_humidity_2m?: number;
     // weather-icon-accuracy-2026-06-19 — current sustained wind.
     wind_speed_10m?: number;
+    // weather-night-icons-2026-06-20 — Open-Meteo's is_day field
+    // (0 = night, 1 = day) drives the night-icon variants.
+    is_day?: number;
   };
   daily?: {
     time?: string[];
@@ -143,9 +146,15 @@ export function toWeatherSnapshot(
     : (typeof windDailyMax === 'number' && Number.isFinite(windDailyMax) ? windDailyMax : null);
 
   const rainPct = typeof rain0 === 'number' && Number.isFinite(rain0) ? clampPct(rain0) : null;
+  // weather-night-icons-2026-06-20 — Open-Meteo's is_day is 1
+  // during the day, 0 at night. Default to day when the upstream
+  // omits it so we never silently flip the icon to night on a
+  // partial payload.
+  const isDay = forecast.current?.is_day === 0 ? false : true;
   const look = describeWeatherWithContext(code, {
     rainChancePct: rainPct,
     windMph: wind,
+    isDay,
   });
 
   return {

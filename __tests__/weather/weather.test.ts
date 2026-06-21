@@ -33,6 +33,53 @@ describe('describeWeather (WMO codes)', () => {
   });
 });
 
+// weather-night-icons-2026-06-20 — moon variants for clear / mainly-clear / partly cloudy.
+describe('describeWeather (night variants)', () => {
+  it('clear sky flips to a moon at night', () => {
+    expect(describeWeather(0, false)).toEqual({ description: 'Clear night', icon: '🌙' });
+  });
+
+  it('mainly clear flips to a moon at night', () => {
+    expect(describeWeather(1, false)).toEqual({ description: 'Mostly clear (night)', icon: '🌙' });
+  });
+
+  it('partly cloudy flips to a cloud at night (no moon-with-cloud emoji)', () => {
+    expect(describeWeather(2, false)).toEqual({ description: 'Partly cloudy (night)', icon: '☁️' });
+  });
+
+  it('overcast / rain / snow / fog / thunder look the same day or night', () => {
+    for (const code of [3, 45, 63, 75, 95]) {
+      expect(describeWeather(code, false).icon).toBe(describeWeather(code, true).icon);
+    }
+  });
+
+  it('shower codes drop the sun glyph at night (🌦️ → 🌧️)', () => {
+    expect(describeWeather(80, false).icon).toBe('🌧️');
+    expect(describeWeather(51, false).icon).toBe('🌧️');
+  });
+
+  it('isDay defaults to true so existing call sites stay sun-style', () => {
+    expect(describeWeather(0)).toEqual(describeWeather(0, true));
+  });
+});
+
+describe('describeWeatherWithContext respects isDay', () => {
+  it('current clear-sky snapshot at night renders the moon', () => {
+    expect(describeWeatherWithContext(0, { isDay: false }).icon).toBe('🌙');
+  });
+
+  it('a low-probability shower at night downgrades to "Partly cloudy (night)" with ☁️', () => {
+    expect(describeWeatherWithContext(80, { rainChancePct: 4, isDay: false })).toEqual({
+      description: 'Partly cloudy (night)',
+      icon: '☁️',
+    });
+  });
+
+  it('a low-probability thunderstorm at night also downgrades cleanly', () => {
+    expect(describeWeatherWithContext(95, { rainChancePct: 0, isDay: false }).icon).toBe('☁️');
+  });
+});
+
 // weather-icon-accuracy-2026-06-19 — refinement against probability + wind.
 describe('describeWeatherWithContext (icon accuracy)', () => {
   it('publishes the canonical thresholds', () => {
@@ -68,14 +115,30 @@ describe('describeWeatherWithContext (icon accuracy)', () => {
     expect(describeWeatherWithContext(63, { rainChancePct: 80 }).icon).toBe('🌧️');
   });
 
-  it('never downgrades snow / fog / thunder (those codes are decisive)', () => {
+  it('never downgrades snow / fog (those codes are decisive)', () => {
     // 71 stays generic "Snow"; 75 is now "Heavy snow" per the
     // P22 split — both retain their snow glyph regardless of rain%.
     expect(describeWeatherWithContext(71, { rainChancePct: 5 }).description).toBe('Snow');
     expect(describeWeatherWithContext(75, { rainChancePct: 5 }).description).toBe('Heavy snow');
     expect(describeWeatherWithContext(45, { rainChancePct: 5 }).description).toBe('Fog');
-    expect(describeWeatherWithContext(95, { rainChancePct: 5 }).description).toBe('Thunderstorm');
-    expect(describeWeatherWithContext(96, { rainChancePct: 5 }).description).toBe('Thunderstorm with hail');
+  });
+
+  it('weather-thunderstorm-downgrade-2026-06-20 — DOES downgrade thunderstorm codes when rain probability is low', () => {
+    // Texas summer afternoon: Open-Meteo emits 95 (thunderstorm)
+    // even at 0% rain probability because the dominant-code logic
+    // picks "could pop up". The icon should match what you'd
+    // actually see, not what the dominant code claims.
+    expect(describeWeatherWithContext(95, { rainChancePct: 0 })).toEqual({
+      description: 'Partly cloudy',
+      icon: '⛅',
+    });
+    expect(describeWeatherWithContext(96, { rainChancePct: 4 })).toEqual({
+      description: 'Partly cloudy',
+      icon: '⛅',
+    });
+    expect(describeWeatherWithContext(99, { rainChancePct: 10 }).icon).toBe('⛅');
+    // At a real probability, the thunderstorm icon survives.
+    expect(describeWeatherWithContext(95, { rainChancePct: 70 }).icon).toBe('⛈️');
   });
 
   it('elevates high wind + cloudy code to windy', () => {
