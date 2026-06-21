@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Info, AlertTriangle, AlertCircle, Siren, CheckCircle2, Flag, type LucideIcon } from 'lucide-react';
+import { Info, AlertTriangle, AlertCircle, Siren, CheckCircle2, Flag, Loader2, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import '../styles/AdminDiscussions.css';
 
@@ -80,7 +80,7 @@ export default function DiscussionsPage() {
 
       {loading ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">&#x23F3;</div>
+          <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
           <div className="admin-empty__title">Loading...</div>
         </div>
       ) : threads.length === 0 ? (
