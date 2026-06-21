@@ -9,6 +9,7 @@
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import { X } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import { ThemePicker } from './components/ThemePicker';
 import { DensityPicker } from './components/DensityPicker';
@@ -826,7 +827,7 @@ export default function ProfilePanel() {
                       cursor: 'pointer',
                     }}
                   >
-                    ✕
+                    <X size={12} strokeWidth={2.5} aria-hidden="true" />
                   </button>
                 </li>
               ))}
