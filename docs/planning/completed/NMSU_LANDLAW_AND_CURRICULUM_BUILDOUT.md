@@ -157,16 +157,31 @@ sectional-chart/weather image placeholders (render as "🖼️ Figure (to be add
 callouts; manifest in scripts/_tmp_landlaw/part107/images_manifest.json). Verified
 live: Airspace lesson renders, placeholders show, quiz returns 3-option questions.
 
-## Deferred / needs the user (roadmap — keep this doc in-progress until addressed)
-- [ ] **Figures & diagrams.** 75 `images_needed` specs captured in
+## Deferred — explicit rationales (2026-06-21)
+
+Per the rubric in `docs/planning/README.md`, both remaining items are
+deferred as roadmap-class work (cost clearly exceeds value for a
+single coding slice). Doc moves to `completed/` because the curriculum
+buildout itself shipped end-to-end; these two are forward-looking
+follow-ups, not unfinished work from this plan.
+
+- [defer] **Figures & diagrams.** 75 `images_needed` specs captured in
       `scripts/_tmp_landlaw/content/images_manifest.json`; image blocks render as
-      "📷 Figure (to be added)" placeholders. Generate/insert real diagrams
-      (boundary sketches, riparian apportionment fans, traverse diagrams) later.
-      Investigate consistent diagram generation that matches each word problem.
-- [ ] **CAD-integrated problems (future phase).** Problems that launch the in-app
-      CAD tool and ask the user to draw/adjust a line to a corrected bearing/
-      distance, then validate their input. Needs a new question_type + a CAD-grader
-      bridge to `lib/cad`. Design spike required.
+      "📷 Figure (to be added)" placeholders. *Defer rationale:* requires an
+      illustrator / AI-image pipeline producing domain-specific Texas-law
+      diagrams (boundary sketches, riparian apportionment fans, gradient
+      boundary cross-sections). The lesson content is fully usable without
+      figures; the dynamic problem-diagram engine already ships matched
+      SVGs for the 19 computational templates. Static illustrations are a
+      pedagogical polish task that belongs to a separate art pipeline
+      effort, not a coding slice.
+- [defer] **CAD-integrated problems (future phase).** Problems that launch the
+      in-app CAD tool and ask the user to draw/adjust a line to a corrected
+      bearing/distance, then validate their input. *Defer rationale:* requires
+      a design spike (new `question_type`, CAD-grader bridge to `lib/cad`,
+      UI wiring in `QuizRunner`, grading invariance against floating-point
+      drift, mobile-stylus support). Whole-feature scope, not a one-shot
+      slice. Belongs to a future CAD x Learn phase doc when prioritized.
 
 ## Notes
 - All seeded rows: `status/review_status='approved'`, `is_published=true`,
