@@ -14,6 +14,56 @@
 > or misaligned controls, consistent iconography, **clear and
 > consistent back / up navigation on every page**, no dead buttons,
 > and any missing seeds applied.
+>
+> **How to run a slice (fresh agent, no prior context needed):**
+> 1. `NEXT_PUBLIC_E2E_HARNESS=1 npm run dev` (port 3000/3001).
+> 2. Pick the **top unchecked `- [ ]`** in the "Remaining slices" index
+>    below. Read the slice's detail section + the live code it names.
+> 3. Visual audit via `…/ux-harness?page=<key>&chrome=1` at 1280/768/599
+>    (harness caveats: §1). Fix per the §2 pattern catalog + §2.5 / §3-5.6.
+> 4. `npm run type-check` + `npm run lint` (only the pre-existing
+>    `no-img-element` warnings are acceptable). Commit + push.
+> 5. Tick the box with a one-line note (commit hash). Move the doc to
+>    `completed/` only when ALL boxes are `[x]` or struck-deferred.
+
+## Remaining slices (execution order — work top to bottom)
+
+1. **F2 (FAB remainder)** §3 — `FloatingActionMenu`/FAB,
+   `DiscussionThreadButton`, `FloatingMessenger` emoji → lucide (or
+   confirm the colored FAB styling is intentional and skip with a note).
+2. **F3 — control-row + responsive utilities** §3. Audit the 36 page.tsx
+   files with inline `style={{display:'flex'}}` filter rows; migrate to
+   `.admin-form-row*`; confirm the globals reset + 36px baseline; add
+   missing `@media` rules. Grep list: `grep -rlE "style=\{\{[^}]*display:\s*['\"]flex" app/admin --include=page.tsx`.
+3. **F4 — styling contract** §3. Extend `docs/admin-styling-contract.md`
+   with the back-nav, icon (lucide vs emoji), and control-height rules.
+4. **W1 Hub** §4 — me, dashboard, assignments, schedule, time-off,
+   my-files, fieldbook, /admin/me tab panels.
+5. **W2 Work** §4 — work, jobs(+new/import/[id]), calendar, field-data
+   (+[id]), team, timeline, assignments.
+6. **W3 Equipment** §4 — equipment + inventory/consumables/maintenance/
+   timeline/fleet-valuation/overrides/templates/today/import, vehicles.
+7. **W4 Research & CAD** §4 — research-cad, research(+sub-pages/[id]);
+   CAD editor only for icon/cutoff in its title-bar + dialogs.
+8. **W5 Knowledge/Learn** §4 — learn hub + roadmap/modules/knowledge-base/
+   flashcards/exam-prep/search/quiz-history/students/manage/practice.
+9. **W6 Office** §4 — office, billing, payroll, employees, users, invites,
+   org-settings, orgs, reports, leads, contacts, receipts, mileage,
+   finances, notes, settings, support, audit, error-log, announcements,
+   messages, discussions, hours-approval, rewards, pay-progression.
+10. **D1 — dead-button / missing-functionality sweep** §5.
+11. **G1 — badges + Safety-course badges** §5.5 (`seeds/001_config.sql`).
+12. **G2 — Pay Progression visual polish** §5.5.
+13. **G4 — regenerate empty-lesson curriculum buildout** §5 D2 note
+    (gen_seed pipeline; ~207/422 lessons empty).
+14. **R1 — research-software analysis + optimization roadmap** §5.6.
+15. **(blocked, do not auto-run) G3 — payments/invoices collision** §5.5
+    → needs the user's decision per `docs/payments-invoices-collision-2026-06-21.md`.
+
+> **Done so far (do not redo):** planning doc, F1 (universal breadcrumb/back
+> nav), U1 (employee list + prefix search), U2 (credential-bonus overflow),
+> D0 (error-report triage), D2 (one-command seed runner + 101/226 fixes,
+> applied to live), F2-resolver + F2-dashboard + F2-sidebar/topbar.
 
 ---
 
