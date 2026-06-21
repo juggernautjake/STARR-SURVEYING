@@ -256,6 +256,46 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 18 — §10.3 Relevance columns on extracted_data_points ✅ (2026-06-21)
+`seeds/373_research_relevance_columns.sql` connects the pure-logic relevance
+classifier (slices 3 + 12) to the live extracted_data_points pipeline.
+
+  Three new columns on the existing seeds/090 table:
+    - `relevance` (text) — `subject` / `adjoiner` / `unrelated` / `unknown`
+      enforced via CHECK constraint matching `RelevanceTag` from slice 1.
+    - `parcel_ref` (text) — the parcel id (subject or adjoiner) the datum
+      belongs to. Lets the boundary builder cross-check against
+      `research_projects.subject_parcel_id` without re-classifying.
+    - `relevance_classification` (jsonb) — full slice-3 result
+      (`tag` + `matched_parcel_ref` + `confidence` + `rationale`) for
+      audit-trail reproducibility.
+
+  Two partial indexes for the §10.3 filter patterns:
+    - `idx_extracted_data_points_subject_adjoiner` — fast read of
+      "show me only subject + adjoiner data for this project", the
+      most-common path on the §10 pipeline.
+    - `idx_extracted_data_points_unrelated_audit` — for the human-
+      review "what did we drop?" audit view.
+
+  Idempotent (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`,
+  `DO $$ … EXCEPTION WHEN duplicate_object`). Every column documented
+  via `COMMENT ON COLUMN`.
+
+  Source-locked with 8 tests in
+  `__tests__/research/relevance-columns-schema.test.ts` covering: each
+  of the three column adds, CHECK constraint matching the exact slice-1
+  RelevanceTag union (`subject` / `adjoiner` / `unrelated` / `unknown`),
+  both partial indexes with their `WHERE` clauses, transaction wrap,
+  idempotency, and COMMENT ON COLUMN presence on every new column.
+
+266/266 research tests pass; clean tsc.
+
+The slice-3 `classifyRelevance()` + slice-12 `rankAndDisambiguate()`
+helpers can now write straight into `extracted_data_points` with no
+follow-up migration. The AI prompt change asking the model for the tag
+at extraction time + the route-level wiring that calls these helpers
+ship in a follow-up slice on the live extractor pipeline.
+
 ### Slice 17 — §9.8 (data layer) Dashboard rollup ✅ (2026-06-21)
 `lib/research/dashboard-rollup.ts` ships `rollupAdapterDashboard(adapters,
 checks, proposals, now, opts?)` — the pure aggregator that turns raw
@@ -1083,13 +1123,15 @@ surrounding/adjoining properties, and tag every datum's relevance.
   - `project_adjoiners` table persistence + the route handler that calls
     both halves and writes the merged adjoiner set lands in a follow-up
     slice that wires these into the live extractor pipeline.
-- [x] **10.3 Relevance-gated extraction** ✅ (2026-06-21, Slice 3, partial) —
-  `classifyRelevance()` + `filterRelevantRecords()` in
-  `lib/research/relevance.ts` are the contract every extractor will use to
-  tag a datum subject/adjoiner/unrelated/unknown. Adding the `relevance` +
-  `parcel_ref` columns to the existing `extracted_data_points` table + the
-  AI-prompt change that instructs the model to ask for the tag at extraction
-  time lands in a follow-up slice that touches the live pipeline.
+- [~] **10.3 Relevance-gated extraction** — helpers ✅ (Slice 3) +
+  columns ✅ (Slice 18). `classifyRelevance()` /
+  `filterRelevantRecords()` write straight into the new
+  `extracted_data_points.relevance` / `parcel_ref` /
+  `relevance_classification` columns from seeds/373. CHECK constraint
+  + partial indexes already in place. Remaining: the AI-prompt change
+  asking the model for the tag at extraction time + the route-level
+  wiring that calls the helpers; lands in a follow-up slice on the
+  live pipeline.
 - [~] **10.4 Two-pass for large multi-parcel docs** — Pass 1 ✅
   (2026-06-21, Slice 13): `segmentMultiParcelDocument()` in
   `lib/research/document-segmentation.ts` ships a deterministic, AI-free
