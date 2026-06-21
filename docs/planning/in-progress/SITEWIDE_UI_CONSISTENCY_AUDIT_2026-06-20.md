@@ -45,7 +45,7 @@
    CAD editor only for icon/cutoff in its title-bar + dialogs.
 8. ~~W5 Knowledge/Learn~~ ✅ DONE — §4 — learn hub + roadmap/modules/knowledge-base/
    flashcards/exam-prep/search/quiz-history/students/manage/practice.
-9. **W6 Office** §4 — office, billing, payroll, employees, users, invites,
+9. ~~W6 Office~~ ✅ DONE — §4 — office, billing, payroll, employees, users, invites,
    org-settings, orgs, reports, leads, contacts, receipts, mileage,
    finances, notes, settings, support, audit, error-log, announcements,
    messages, discussions, hours-approval, rewards, pay-progression.
@@ -363,7 +363,7 @@ per-page note in §6.
     author emoji-picker + block.content.icon (content-authoring feature).
   - [x] lesson-builder part 2 — BLOCK_TYPES palette (23 types) → lucide. W5 done.
     🖼🔊💡✦🎯📎🎞🔗🃏📰➡🧮) → lucide-component map + palette render.
-- [ ] **W6 — Office workspace.** `office`, `billing` (+`invoices`/
+- [x] **W6 — Office workspace.** `office`, `billing` (+`invoices`/
   `plan-history`/`upgrade`), `payroll` (+detail), `payout-log`,
   `payouts`, `employees` (+`manage`/history), `users`, `invites`,
   `org-settings`, `orgs`, `reports`, `leads`, `contacts`, `receipts`,
@@ -381,7 +381,7 @@ per-page note in §6.
     lucide.
   - [x] **receipts** (🗑/🔧/⚠/🏛/✕) + **payroll** (4 summary + 3 action
     icons) → lucide.
-  - [ ] Remaining: pay-progression (~10), messages (~7). hours-approval
+  - [x] pay-progression + messages chrome → lucide. All W6 pages done.
     icon = G5 (DB-config work-type).
 
 ## 5. Functional + data slices
