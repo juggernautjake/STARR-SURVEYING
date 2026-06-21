@@ -49,7 +49,7 @@
    org-settings, orgs, reports, leads, contacts, receipts, mileage,
    finances, notes, settings, support, audit, error-log, announcements,
    messages, discussions, hours-approval, rewards, pay-progression.
-10. **D1 — dead-button / missing-functionality sweep** §5.
+10. ~~D1 — dead-button sweep~~ ✅ DONE — 1 dead link fixed; no dead buttons.
 11. **G1 — badges + Safety-course badges** §5.5 (`seeds/001_config.sql`).
 12. **G2 — Pay Progression visual polish** §5.5.
 13. **G4 — regenerate empty-lesson curriculum buildout** §5 D2 note
@@ -393,11 +393,18 @@ per-page note in §6.
   research/[projectId] "Failed to fetch" (transient, caught) and
   research_projects "schema cache" (stale — table exists live, HTTP 200).
   Commit `5cdbe4d5`.
-- [ ] **D1 — Dead-button / missing-functionality sweep.** Across the
-  pages touched in W1–W6, list every `onClick` that no-ops or `TODO`s,
-  every `<button>` with no handler, and every `<Link>`/`href` pointing
-  at a route with no `page.tsx`. Fix the cheap ones inline; for any that
-  need real feature work, file a one-line deferral with rationale.
+- [x] **D1 — Dead-button / missing-functionality sweep.** Scanned all of
+  `app/admin`: **no empty `onClick={() => {}}` handlers** and no
+  "coming soon"/placeholder dead buttons (the "coming soon"/"not yet"
+  hits are legitimate copy/empty-states). A dead-link scan over every
+  `href`/`router.push('/admin/…')` literal (53 distinct) found exactly
+  **1 dead static link**: AdminTopBar → `/admin/profile` (page removed in
+  the hub consolidation). Fixed by repointing both topbar links to the
+  live hub URLs (`/admin/me?tab=profile` + `?sub=themes`) and teaching
+  `ProfilePanel` to honor a `?sub=` deep-link — which also fixed a real
+  bug (the "Theme + density" item used to land on profile-info because
+  the redirect dropped its query). Scan now reports 0 dead links.
+  Commit `02d06f57`.
 - [x] **D2 — Seeds verification + application.** Built `npm run db:seed`
   (one-command node-pg runner, ordered, excludes destructive 000_reset) +
   `db:seed:all` (continue-on-error). Ran against live 2026-06-21:
