@@ -256,6 +256,40 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 5 — §10.2 (GIS-adjacency half) Polygon-touching adjoiner finder ✅ (2026-06-21)
+`lib/research/gis-adjacency.ts` ships the pure geometry that completes §10.2.
+Given the subject's parcel polygon and a set of candidate polygons (e.g.
+everything within 200 m returned by a CAD layer query), returns the subset
+whose boundaries touch — those are the authoritative GIS adjoiners.
+
+  - `arePolygonsAdjacent(a, b, opts?)` → `{ adjacent, minBoundaryDistanceMeters,
+    sharedBoundaryLengthMeters }`. Tolerance defaults to
+    `DEFAULT_TOLERANCE_METERS` (≈3 m) so the typical surveyor gap / overlap
+    on real CAD polygons doesn't break adjacency.
+  - `findGisAdjoiners(subject, candidates, opts?)` — filters a candidate
+    list and sorts by `sharedBoundaryLengthMeters` descending (full-edge
+    neighbours rank above corner-only ones).
+  - `findGisAdjoinersFromRecords(subject, candidates, opts?)` — same but
+    operates on `CanonicalProperty` records straight from the registry
+    seeded in slice 2.
+
+Math: local-tangent-plane projection (equirectangular) anchored at the
+subject's first vertex → every vertex maps to local metres with <1 cm error
+at parcel scale (well below the 3 m tolerance). Planar segment-segment
+distance covers the four endpoint-to-other-segment cases + a segment-
+intersection short-circuit; `MultiPolygon` handled by flattening to rings.
+
+Source-locked with 13 tests in `__tests__/research/gis-adjacency.test.ts`
+covering identical-polygon, full-edge-share, corner-only, across-the-street,
+small-survey-gap-within-tolerance, custom-tolerance-rejection, MultiPolygon,
+empty-polygon robustness, candidate filtering, and shared-length sort
+ordering. 89/89 research tests pass; clean tsc.
+
+**§10.2 now complete.** The deed-call extractor (slice 4) and the GIS-
+adjacency finder (this slice) together produce the
+`RelevanceContext.adjoiners` array that `classifyRelevance()` from slice 3
+consumes — the AI extractor can now anchor + weed correctly.
+
 ### Slice 4 — §10.2 (deed-call half) Adjoiner extraction from legal prose ✅ (2026-06-21)
 `lib/research/adjoiner-extraction.ts` ships `extractDeedCallAdjoiners(legal)` —
 pure NLP that pulls adjoiner references out of Texas deed prose and emits
@@ -516,11 +550,16 @@ surrounding/adjoining properties, and tag every datum's relevance.
   the project route handlers; the contract surface (function signature
   + RelevanceContext shape) is locked first so route changes don't churn
   the algorithm.
-- [~] **10.2 Adjoiner resolution** — deed-call half ✅ (2026-06-21, Slice 4):
-  `lib/research/adjoiner-extraction.ts` covers named tracts / Lot-Block /
-  abstract / named survey / deed-citation patterns. GIS-adjacency half
-  (polygon-touching query) + `project_adjoiners` table persistence land
-  in a follow-up slice.
+- [x] **10.2 Adjoiner resolution** ✅ (2026-06-21):
+  - Deed-call half (Slice 4): `lib/research/adjoiner-extraction.ts` covers
+    named tracts / Lot-Block / abstract / named survey / deed citations.
+  - GIS-adjacency half (Slice 5): `lib/research/gis-adjacency.ts` ships
+    pure polygon-touching geometry + `findGisAdjoiners` / `…FromRecords`
+    helpers. Local-tangent-plane projection, segment-segment distance,
+    3 m default tolerance to absorb real-world surveyor gaps.
+  - `project_adjoiners` table persistence + the route handler that calls
+    both halves and writes the merged adjoiner set lands in a follow-up
+    slice that wires these into the live extractor pipeline.
 - [x] **10.3 Relevance-gated extraction** ✅ (2026-06-21, Slice 3, partial) —
   `classifyRelevance()` + `filterRelevantRecords()` in
   `lib/research/relevance.ts` are the contract every extractor will use to
