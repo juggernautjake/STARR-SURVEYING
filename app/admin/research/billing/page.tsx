@@ -57,6 +57,51 @@ interface PurchaseTransaction {
   purchasedAt: string;
 }
 
+// ── Raw API response (mirrors app/api/admin/research/billing/route.ts) ──────────
+// The route's shape differs from the view-model above; loadBillingData adapts it.
+
+interface ApiBillingResponse {
+  subscription?: {
+    tier?: string;
+    status?: string;
+    monthlyUsd?: number;
+    reportLimit?: number;
+    currentPeriodStart?: string | null;
+    currentPeriodEnd?: string | null;
+    isTrialing?: boolean;
+  };
+  usage?: {
+    totalReports?: number;
+    reportsThisMonth?: number;
+    totalTokens?: number;
+    totalAiCostUsd?: number;
+    monthlyBreakdown?: Array<{ month: string; callCount?: number; tokenCount?: number; costUsd?: number }>;
+  };
+  totals?: {
+    totalDocsPurchased?: number;
+    totalSpentUsd?: number;
+  };
+  invoices?: Array<{
+    id: string;
+    date: string;
+    description: string;
+    amountUsd?: number;
+    status: Invoice['status'];
+    pdfUrl?: string | null;
+  }>;
+  purchases?: Array<{
+    date: string;
+    documentType: string;
+    instrumentNumber?: string | null;
+    propertyAddress?: string | null;
+    vendor?: string | null;
+    vendorCostUsd?: number;
+    serviceFeeUsd?: number;
+    totalUsd?: number;
+    status?: string;
+  }>;
+}
+
 // ── Tier config ───────────────────────────────────────────────────────────────
 
 const TIER_LABELS: Record<SubscriptionInfo['tier'], string> = {
@@ -118,16 +163,86 @@ export default function ResearchBillingPage() {
     try {
       const res = await fetch('/api/admin/research/billing');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as {
-        subscription: SubscriptionInfo;
-        usage: UsageMetrics;
-        invoices: Invoice[];
-        purchases: PurchaseTransaction[];
-      };
-      setSubscription(data.subscription);
-      setUsage(data.usage);
-      setInvoices(data.invoices ?? []);
-      setPurchases(data.purchases ?? []);
+      const data = (await res.json()) as ApiBillingResponse;
+
+      // The API route (app/api/admin/research/billing/route.ts) emits a
+      // different shape than this page's view-model — it returns
+      // `usage.monthlyBreakdown` / `usage.totalTokens` / top-level
+      // `totals`, with no `topCounties`/`reportsByMonth`/`totalDocument*`
+      // keys. Reading those directly produced `$NaN` everywhere and a
+      // hard crash on `usage.topCounties.length` (error 175c7066,
+      // 2026-03-18). Adapt the response here so the render stays simple.
+      const a = data.subscription;
+      const u = data.usage;
+      const t = data.totals;
+
+      const mappedStatus = ((): SubscriptionInfo['status'] => {
+        switch (a?.status) {
+          case 'active': return 'active';
+          case 'trialing': return 'trialing';
+          case 'past_due': return 'past_due';
+          case 'cancelled':
+          case 'canceled': return 'cancelled';
+          default: return 'none';
+        }
+      })();
+      const limit = a?.reportLimit;
+      const reportsLimit: SubscriptionInfo['reportsLimit'] =
+        limit == null || limit < 0 ? 'unlimited' : limit;
+
+      setSubscription({
+        tier: (a?.tier as SubscriptionInfo['tier']) ?? 'free',
+        status: mappedStatus,
+        currentPeriodStart: a?.currentPeriodStart ?? '',
+        currentPeriodEnd: a?.currentPeriodEnd ?? '',
+        reportsUsedThisPeriod: u?.reportsThisMonth ?? 0,
+        reportsLimit,
+        batchEnabled: (a?.tier === 'firm_unlimited'),
+        nextInvoiceAmount: mappedStatus === 'active' ? (a?.monthlyUsd ?? null) : null,
+        trialEndsAt: a?.isTrialing ? (a?.currentPeriodEnd ?? undefined) : undefined,
+      });
+
+      setUsage({
+        totalReports: u?.totalReports ?? 0,
+        reportsThisMonth: u?.reportsThisMonth ?? 0,
+        totalDocumentsPurchased: t?.totalDocsPurchased ?? 0,
+        totalDocumentSpend: t?.totalSpentUsd ?? 0,
+        totalAiTokensUsed: u?.totalTokens ?? 0,
+        aiCostEstimate: u?.totalAiCostUsd ?? 0,
+        avgReportTimeMs: 0, // not tracked by the API yet
+        topCounties: [], // not tracked by the API yet
+        reportsByMonth: (u?.monthlyBreakdown ?? []).map((m) => ({
+          month: m.month,
+          count: m.callCount ?? 0,
+        })),
+      });
+
+      setInvoices(
+        (data.invoices ?? []).map((inv) => ({
+          invoiceId: inv.id,
+          date: inv.date,
+          description: inv.description,
+          amount: inv.amountUsd ?? 0,
+          status: inv.status,
+          pdfUrl: inv.pdfUrl ?? undefined,
+        })),
+      );
+
+      setPurchases(
+        (data.purchases ?? []).map((p, i) => ({
+          transactionId: `${p.date}-${i}`,
+          projectId: '',
+          projectAddress: p.propertyAddress ?? undefined,
+          documentType: p.documentType,
+          instrumentNumber: p.instrumentNumber ?? undefined,
+          vendor: p.vendor ?? '—',
+          amount: p.vendorCostUsd ?? 0,
+          serviceFee: p.serviceFeeUsd ?? 0,
+          total: p.totalUsd ?? 0,
+          status: (p.status === 'failed' ? 'failed' : p.status === 'refunded' ? 'refunded' : 'completed'),
+          purchasedAt: p.date,
+        })),
+      );
     } catch (err) {
       setLoadError(String(err));
     } finally {
@@ -282,7 +397,7 @@ export default function ResearchBillingPage() {
             ))}
 
             {/* Top counties */}
-            {usage.topCounties.length > 0 && (
+            {(usage.topCounties?.length ?? 0) > 0 && (
               <div className="col-span-2 bg-gray-900 border border-gray-800 rounded-lg p-4">
                 <h3 className="text-sm font-semibold mb-3 text-gray-300">Top Counties</h3>
                 {usage.topCounties.slice(0, 5).map(({ county, count }) => (
@@ -422,7 +537,7 @@ export default function ResearchBillingPage() {
         {activeTab === 'usage' && usage && (
           <div className="space-y-4">
             {/* Monthly report chart (simple bar chart) */}
-            {usage.reportsByMonth.length > 0 && (
+            {(usage.reportsByMonth?.length ?? 0) > 0 && (
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                 <h3 className="text-sm font-semibold mb-4 text-gray-300">Reports per Month</h3>
                 <div className="flex items-end gap-2 h-24">
