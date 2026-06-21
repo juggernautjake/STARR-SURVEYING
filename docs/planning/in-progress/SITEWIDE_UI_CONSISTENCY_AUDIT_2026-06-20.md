@@ -379,8 +379,10 @@ per-page note in §6.
     + empty + help-flag), employees/manage (5 tab icons) → lucide.
   - [x] **settings** — 6 section tabs + section/integration icon spans →
     lucide.
-  - [ ] Remaining: pay-progression (~10), receipts (~8), payroll (~7),
-    messages (~7). hours-approval icon = G5 (DB-config work-type).
+  - [x] **receipts** (🗑/🔧/⚠/🏛/✕) + **payroll** (4 summary + 3 action
+    icons) → lucide.
+  - [ ] Remaining: pay-progression (~10), messages (~7). hours-approval
+    icon = G5 (DB-config work-type).
 
 ## 5. Functional + data slices
 
