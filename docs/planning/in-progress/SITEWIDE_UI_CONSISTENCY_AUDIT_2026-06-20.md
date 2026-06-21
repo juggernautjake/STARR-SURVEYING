@@ -36,8 +36,7 @@
 3. ~~F4 — styling contract~~ ✅ DONE — nav/icon/control-row rules added.
    _(legacy detail below)_ §3. Extend `docs/admin-styling-contract.md`
    with the back-nav, icon (lucide vs emoji), and control-height rules.
-4. **W1 Hub** §4 — me, dashboard, assignments, schedule, time-off,
-   my-files, fieldbook, /admin/me tab panels.
+4. ~~W1 Hub~~ ✅ DONE — Hub pages emoji→lucide + time-off 36px baseline.
 5. **W2 Work** §4 — work, jobs(+new/import/[id]), calendar, field-data
    (+[id]), team, timeline, assignments.
 6. **W3 Equipment** §4 — equipment + inventory/consumables/maintenance/
@@ -270,9 +269,13 @@ present, replace stray emoji per F2, migrate hand-rolled filter rows
 per F3, and click every button to catch dead handlers. Record a
 per-page note in §6.
 
-- [ ] **W1 — Hub workspace.** `/admin/me`, `dashboard`, `assignments`,
+- [x] **W1 — Hub workspace.** `/admin/me`, `dashboard`, `assignments`,
   `schedule`, `time-off`, `my-files`, `learn/fieldbook`, and the
-  `/admin/me` tab panels (pay, hours, jobs, notes, profile).
+  `/admin/me` tab panels (pay, hours, jobs, notes, profile). DONE —
+  dashboard/my-files/assignments/my-pay/my-jobs/profile emoji→lucide;
+  time-off form pinned to the 36px baseline (pattern #3). me/schedule/
+  fieldbook had no emoji. Deferred: data-driven config icons + my-notes
+  emoji-picker (see sub-notes).
   - [x] **dashboard** — emoji→lucide (done in F2).
   - [x] **my-files** — 7 folder-filter category icons + dropzone + empty +
     loading emoji → lucide (Folder/MapPin/DraftingCompass/Camera/FileText/
@@ -283,11 +286,15 @@ per-page note in §6.
     native `<select>` options (SVG can't render in `<option>`).
   - [x] **my-pay / my-jobs / profile** — inline emoji → lucide (Wallet,
     Landmark, FolderOpen, X). me/schedule/time-off/fieldbook had no emoji.
-  - [ ] Remaining: time-off inline-flex filter row → `.admin-form-row`
-    (F3 list); responsive spot-check at 768/599; **data-driven config
-    icons** (my-pay `useJobTitles` 👤, my-hours `work_types` 📋 — emoji
-    stored in DB config; needs a config→lucide-name migration, tracked as
-    a follow-up under G-series, not a quick component swap).
+  - [x] **time-off** — form `inputStyle` pinned to 36px + border-box so
+    native date pickers align (pattern #3). The page is uniformly
+    inline-styled + internally consistent; a full `.admin-form-row`
+    migration would be disproportionate, so left as-is.
+  - ~~data-driven config icons~~ — deferred: my-pay `useJobTitles` 👤 +
+    my-hours `work_types` 📋 store emoji in DB config; needs a
+    config→lucide-name migration + a name→component renderer, not a
+    component swap. Tracked as **G5** below. Same for my-notes' emoji
+    list-icon picker (a legitimate emoji-picker feature — keep).
 - [ ] **W2 — Work workspace.** `work`, `jobs`, `jobs/new`,
   `jobs/import`, `jobs/[id]` detail, `calendar`, `field-data`,
   `field-data/[id]`, `team`, `timeline`, `assignments`.
@@ -365,6 +372,14 @@ per-page note in §6.
   pipeline against the current live lesson ids to fill the empty lessons,
   then apply. Separate content workstream from the UI audit; size it
   before starting. (Was implicitly deferred; surfaced by the D2 apply.)
+
+- ~~G5 — Data-driven config icons → lucide~~ — deferred: job-title
+  (`useJobTitles`) and work-type (`work_types` API) icons are emoji stored
+  in DB config and are admin-editable; converting needs a config→lucide-
+  name migration + a name→`RouteIcon` renderer wherever they display.
+  Low value (not broken, admin-configurable) and cross-cuts payroll +
+  hours + assignments. Revisit if the user wants the config UIs to offer a
+  lucide picker. Surfaced by W1.
 
 ## 5.5 Session-surfaced open work (from the user's gap list)
 
