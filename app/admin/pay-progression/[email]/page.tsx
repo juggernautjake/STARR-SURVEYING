@@ -15,6 +15,7 @@
 
 'use client';
 import '../../styles/AdminPayroll.css';
+import '../../styles/AdminRewards.css';
 
 import { useState, useEffect, useCallback, use } from 'react';
 import { useSession } from 'next-auth/react';

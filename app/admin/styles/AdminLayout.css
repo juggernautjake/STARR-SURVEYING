@@ -160,6 +160,46 @@
   white-space: nowrap;
 }
 
+/* === Marketing-form reset for admin pages =============================
+ * sitewide-input-reset-2026-06-21 — the global rule in
+ *   app/styles/globals.css (`input, textarea, select { width:100%;
+ *   margin-bottom:1.5rem; padding:0.875rem 1rem; border:2px solid …; }`)
+ * is a marketing-site default. It bleeds into every admin page and
+ * causes a recurring family of bugs the user has now reported on:
+ *   - /admin/messages/contacts — search bar floats above filter pills
+ *   - /admin/contacts          — search input misaligned with chips
+ *   - /admin/error-log         — "Status:/Type:/Severity:" labels
+ *                                sit below their dropdowns
+ *   - /admin/notes etc.        — assorted same-pattern misalignment
+ *
+ * Root cause: `margin-bottom: 1.5rem` makes the input's MARGIN BOX
+ * 24 px taller on the bottom. In a flex row with `align-items: center`
+ * the browser centers based on the margin box, so the input's visual
+ * box shifts UP relative to a sibling button that has no margin. The
+ * adjacent labels / buttons then appear lower than the dropdown.
+ *
+ * The neutralizing rule below scopes to `.admin-layout` so the
+ * marketing-site forms (login splash, public consent forms) keep
+ * their original styling. Component-specific padding / border /
+ * font-size declarations in the BEM CSS files still win on
+ * specificity. The reset only nukes the four declarations that
+ * actively break alignment everywhere:
+ *   - width: 100%   → controls should size intrinsically by default
+ *   - margin-bottom → kills the 24 px alignment offset
+ *   - padding       → component CSS sets its own padding
+ *   - font-size     → component CSS sets its own font-size
+ *
+ * Border / background / border-radius are left alone (component CSS
+ * usually overrides them anyway, and a bare input on an admin page
+ * should still look like an input).
+ * ====================================================================== */
+.admin-layout input,
+.admin-layout textarea,
+.admin-layout select {
+  width: auto;
+  margin: 0;
+}
+
 /* === Portal-rendered tooltip (Tooltip.tsx) =============================
  * button-tooltip-portal-2026-06-20 — these rules were previously in
  * AdminResearch.css which only loads on /admin/research/**, so every
