@@ -12,6 +12,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -162,7 +163,7 @@ export default function OverridesAuditPage() {
 
           {data.overrides.length === 0 ? (
             <div style={styles.empty}>
-              <strong>✓ Clean window.</strong>
+              <strong style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Check size={14} strokeWidth={2.5} /> Clean window.</strong>
               <p style={styles.cleanCopy}>
                 No soft-overrides in the selected range. Widen the
                 <code style={styles.code}>since</code> date if you

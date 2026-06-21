@@ -16,6 +16,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -431,7 +432,7 @@ function FailedQaPanel({ events }: { events: CalEvent[] }) {
   return (
     <div style={failedQaStyles.panel}>
       <header style={failedQaStyles.panelHeader}>
-        <span style={failedQaStyles.panelIcon}>⚠</span>
+        <span style={failedQaStyles.panelIcon}><AlertTriangle size={18} strokeWidth={2} /></span>
         <strong style={failedQaStyles.panelTitle}>
           {events.length} failed QA{' '}
           {events.length === 1 ? 'event' : 'events'} need re-work
