@@ -233,6 +233,32 @@
   opacity: 0.6;
 }
 
+/* file-input-reset-2026-06-21 (F3) — <input type="file"> also inherits the
+ * marketing-form default (full-width, 2px border, 0.875rem padding,
+ * 1.5rem bottom margin), which renders an oversized boxed control that
+ * doesn't line up in a control row. Reset to a compact native picker so
+ * file inputs match the rest of the admin form controls. */
+.admin-layout input[type="file"] {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* date-time-baseline-2026-06-21 (F3, pattern #3) — native date/time
+ * pickers carry built-in calendar/clock chrome that makes their intrinsic
+ * height ~36-40px. When one sits in an `.admin-form-row`, pin it to the
+ * shared 36px baseline so it never overhangs sibling buttons. Pages that
+ * don't use the utility class should add `.admin-form-row__input`. */
+.admin-layout .admin-form-row__input[type="date"],
+.admin-layout .admin-form-row__input[type="time"],
+.admin-layout .admin-form-row__input[type="datetime-local"] {
+  height: 36px;
+  line-height: 1.2;
+}
+
 /* === Portal-rendered tooltip (Tooltip.tsx) =============================
  * button-tooltip-portal-2026-06-20 — these rules were previously in
  * AdminResearch.css which only loads on /admin/research/**, so every

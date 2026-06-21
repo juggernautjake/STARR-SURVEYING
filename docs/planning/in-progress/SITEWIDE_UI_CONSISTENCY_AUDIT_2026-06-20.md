@@ -29,10 +29,10 @@
 ## Remaining slices (execution order — work top to bottom)
 
 1. ~~F2 (FAB remainder)~~ ✅ DONE — all 4 FAB launchers → lucide.
-2. **F3 — control-row + responsive utilities** §3. Audit the 36 page.tsx
-   files with inline `style={{display:'flex'}}` filter rows; migrate to
-   `.admin-form-row*`; confirm the globals reset + 36px baseline; add
-   missing `@media` rules. Grep list: `grep -rlE "style=\{\{[^}]*display:\s*['\"]flex" app/admin --include=page.tsx`.
+2. ~~F3 — control-row + responsive utilities (foundation)~~ ✅ DONE —
+   reset + utilities verified; file-input + date/time baseline added; the
+   35-page inline-flex migration list is recorded in the F3 detail and
+   handed to W1–W6.
 3. **F4 — styling contract** §3. Extend `docs/admin-styling-contract.md`
    with the back-nav, icon (lucide vs emoji), and control-height rules.
 4. **W1 Hub** §4 — me, dashboard, assignments, schedule, time-off,
@@ -237,14 +237,23 @@ per-workspace sweeps.
     (intentional brand styling); verified all 4 render lucide SVGs in the
     harness. Content emoji (the messenger emoji-picker + `QUICK_EMOJIS`)
     intentionally kept — those are an emoji feature, not nav icons.
-- [ ] **F3 — Control-row + responsive utilities sweep.** Confirm the
-  `AdminLayout.css` globals reset covers every input type (text, date,
-  time, checkbox, radio, select, file). Verify the 36 px control
-  baseline + `.admin-form-row*` utilities exist and are correct. Grep
-  for filter/action rows still hand-rolled with inline
-  `style={{display:'flex'…}}` (36 page.tsx files) and list them for the
-  per-workspace slices. Add any missing `@media` rules where a known
-  page overflows below 1100 px.
+- [x] **F3 — Control-row + responsive utilities (foundation).** Verified
+  the `AdminLayout.css` reset + utilities are solid: globals reset
+  (`input/textarea/select { width:auto; margin:0 }` @196), checkbox/radio
+  16×16 reset @214, and the full `.admin-form-row*` system @81 (36px
+  baseline, `__field`/`__action`/`__toggle`). **Gaps closed this slice:**
+  added a `input[type=file]` reset (was inheriting the marketing 2px
+  border + 1.5rem margin) and a date/time/datetime-local 36px baseline pin
+  (pattern #3). **Per-page migration handed to W1–W6** — 35 page.tsx files
+  still hand-roll filter rows with inline `style={{display:'flex'}}`:
+  calendar, contacts(+[id]), employees/manage(+history), employees/[email],
+  invites, jobs/import, jobs/[id], learn/{exam-prep, flashcard-bank,
+  flashcards, manage(+lesson-builder/media/question-builder), modules/[id]
+  (+[lessonId]), practice, quiz-history, search, students/[email]}, notes,
+  org-settings, orgs, payroll/[email], reports(+job/[jobId]),
+  research/[projectId](+report), rewards/{admin,how-it-works}, settings,
+  time-off, users. Each W slice migrates its workspace's pages to
+  `.admin-form-row*`.
 - [ ] **F4 — Update the styling contract.** Extend
   `docs/admin-styling-contract.md` with three new sections: (a) the
   back/up-navigation rule (every page uses the shared crumb; no
