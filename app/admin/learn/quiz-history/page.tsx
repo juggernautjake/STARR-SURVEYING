@@ -1,6 +1,7 @@
 // app/admin/learn/quiz-history/page.tsx
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { BarChart3, Check, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
@@ -170,7 +171,7 @@ export default function QuizHistoryPage() {
       {/* Attempts List */}
       {filtered.length === 0 ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">📊</div>
+          <div className="admin-empty__icon"><BarChart3 size={30} strokeWidth={1.5} /></div>
           <div className="admin-empty__title">No quiz attempts yet</div>
           <div className="admin-empty__desc">Take a quiz or exam prep test to see your results here.</div>
           <Link href="/admin/learn/exam-prep" className="admin-btn admin-btn--primary" style={{ marginTop: '1rem' }}>Start Exam Prep</Link>
@@ -213,7 +214,7 @@ export default function QuizHistoryPage() {
                           <div key={d.question_id} className={`quiz-history__question ${d.is_correct ? 'quiz-history__question--correct' : 'quiz-history__question--wrong'}`}>
                             <div className="quiz-history__question-header">
                               <span className="quiz-history__question-badge">
-                                {d.is_correct ? '✓' : '✗'}
+                                {d.is_correct ? <Check size={14} strokeWidth={2.5} /> : <X size={14} strokeWidth={2.5} />}
                               </span>
                               <span className="quiz-history__question-num">Q{i + 1}</span>
                             </div>

@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { GraduationCap, Map as MapIcon, BookOpen, Search, Layers, ClipboardCheck, Notebook, SquarePen } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { usePageError } from '../hooks/usePageError';
 import SmartSearch from './components/SmartSearch';
@@ -59,7 +60,7 @@ export default function LearnHubPage() {
   return (
     <>
       <div className="admin-learn__header">
-        <h2 className="admin-learn__title">🎓 Learning Hub</h2>
+        <h2 className="admin-learn__title"><GraduationCap size={22} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Learning Hub</h2>
         <p className="admin-learn__subtitle">
           Build your surveying expertise with structured courses, exam prep, flashcards, and a searchable reference library.
         </p>
@@ -73,7 +74,7 @@ export default function LearnHubPage() {
       {/* Section Cards */}
       <div className="admin-learn__sections">
         <Link href="/admin/learn/roadmap" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)', borderWidth: '2px' }}>
-          <span className="admin-learn__section-icon">🗺️</span>
+          <span className="admin-learn__section-icon"><MapIcon size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">My Roadmap</h3>
           <p className="admin-learn__section-desc">
             Track your progress through the full Texas Land Surveying curriculum — 28 modules, 9 parts, from foundations to RPLS exam readiness.
@@ -82,7 +83,7 @@ export default function LearnHubPage() {
         </Link>
 
         <Link href="/admin/learn/modules" className="admin-learn__section-card">
-          <span className="admin-learn__section-icon">📚</span>
+          <span className="admin-learn__section-icon"><BookOpen size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">Learning Modules</h3>
           <p className="admin-learn__section-desc">
             Progressive courses from beginner to advanced. Each module has lessons with topics, resources, videos, and quizzes. Complete a module test at the end.
@@ -91,7 +92,7 @@ export default function LearnHubPage() {
         </Link>
 
         <Link href="/admin/learn/knowledge-base" className="admin-learn__section-card">
-          <span className="admin-learn__section-icon">🔍</span>
+          <span className="admin-learn__section-icon"><Search size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">Knowledge Base</h3>
           <p className="admin-learn__section-desc">
             Searchable reference library covering any surveying topic. Designed for quick lookup — like a surveying encyclopedia.
@@ -100,7 +101,7 @@ export default function LearnHubPage() {
         </Link>
 
         <Link href="/admin/learn/flashcards" className="admin-learn__section-card">
-          <span className="admin-learn__section-icon">🃏</span>
+          <span className="admin-learn__section-icon"><Layers size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">Flashcards</h3>
           <p className="admin-learn__section-desc">
             Study terms and definitions with built-in flashcards. Create your own cards with up to 3 progressive hints. Link cards to modules and topics.
@@ -109,7 +110,7 @@ export default function LearnHubPage() {
         </Link>
 
         <Link href="/admin/learn/exam-prep" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-red)', borderWidth: '2px' }}>
-          <span className="admin-learn__section-icon">📝</span>
+          <span className="admin-learn__section-icon"><ClipboardCheck size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">Exam Prep (FS / RPLS)</h3>
           <p className="admin-learn__section-desc">
             Comprehensive FS exam preparation with 8 study modules, 270+ practice questions, timed mock exams, and progress tracking.
@@ -119,7 +120,7 @@ export default function LearnHubPage() {
         </Link>
 
         <Link href="/admin/learn/fieldbook" className="admin-learn__section-card">
-          <span className="admin-learn__section-icon">📓</span>
+          <span className="admin-learn__section-icon"><Notebook size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">My Fieldbook</h3>
           <p className="admin-learn__section-desc">
             Keep all your study notes in one place. Notes automatically record the date, time, and what page you were on when you wrote them.
@@ -129,7 +130,7 @@ export default function LearnHubPage() {
 
         {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
           <Link href="/admin/learn/students" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)' }}>
-            <span className="admin-learn__section-icon">👨‍🎓</span>
+            <span className="admin-learn__section-icon"><GraduationCap size={20} strokeWidth={1.75} /></span>
             <h3 className="admin-learn__section-title">Student Progress</h3>
             <p className="admin-learn__section-desc">
               View student learning activity, quiz scores, module completions, and XP.
@@ -140,7 +141,7 @@ export default function LearnHubPage() {
 
         {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
           <Link href="/admin/learn/manage" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-red)' }}>
-            <span className="admin-learn__section-icon">✏️</span>
+            <span className="admin-learn__section-icon"><SquarePen size={20} strokeWidth={1.75} /></span>
             <h3 className="admin-learn__section-title">Manage Content</h3>
             <p className="admin-learn__section-desc">
               Create and edit modules, lessons, questions, flashcards, and articles.
