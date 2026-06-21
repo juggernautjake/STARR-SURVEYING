@@ -756,6 +756,39 @@
   transform: rotate(90deg);
 }
 
+/* copy-error-button-2026-06-21 — small pill button in the error
+ * row header. Lets admins copy the full error details (everything
+ * the API returned + a human-readable formatted block) without
+ * expanding the row. Reads as a subtle action when idle, turns
+ * green for ~1.6s after the clipboard write succeeds. */
+.err-log__copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 26px;
+  padding: 0 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #4B5563;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.err-log__copy-btn:hover {
+  border-color: #1D3095;
+  color: #1D3095;
+}
+.err-log__copy-btn--copied,
+.err-log__copy-btn--copied:hover {
+  border-color: #10B981;
+  background: #ECFDF5;
+  color: #047857;
+}
+
 /* Expanded detail */
 .err-log__item-body {
   padding: 0 1rem 1rem;

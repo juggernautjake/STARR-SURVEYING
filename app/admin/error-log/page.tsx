@@ -94,6 +94,9 @@ export default function ErrorLogPage() {
   // Expanded items
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Per-error "Copied!" feedback (resets after 1.6s).
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounced(search), 400);
@@ -140,6 +143,116 @@ export default function ErrorLogPage() {
       });
       loadReports();
     } catch { /* ignore */ }
+  }
+
+  // copy-error-button-2026-06-21 — Renders every field of a single
+  // error report as a plaintext block that's easy to paste into a
+  // bug tracker, Slack, an AI chat, etc. Includes the raw JSON dump
+  // at the bottom so nothing the API returned is lost; the readable
+  // section above is for humans.
+  function formatErrorForCopy(r: ErrorReportRow): string {
+    const lines: string[] = [];
+    const push = (label: string, value: string | number | null | undefined) => {
+      if (value === null || value === undefined || value === '') return;
+      lines.push(`${label}: ${value}`);
+    };
+    const section = (title: string) => {
+      lines.push('');
+      lines.push(`── ${title} ──`);
+    };
+
+    lines.push(`STARR Surveying — Error Report ${r.id}`);
+    lines.push(`Pulled ${new Date().toISOString()}`);
+
+    section('Summary');
+    push('Severity', r.severity);
+    push('Status',   r.status);
+    push('Type',     r.error_type);
+    push('Code',     r.error_code);
+    push('Message',  r.error_message);
+
+    section('Context');
+    push('Page URL',     r.page_url);
+    push('Page Title',   r.page_title);
+    push('Route Path',   r.route_path);
+    push('Component',    r.component_name);
+    push('Element',      r.element_selector);
+    push('API Endpoint', r.api_endpoint ? `${r.request_method ?? 'GET'} ${r.api_endpoint}` : null);
+
+    section('User');
+    push('Email', r.user_email);
+    push('Name',  r.user_name);
+    push('Role',  r.user_role);
+    push('What they were doing',     r.user_notes);
+    push('What they expected',       r.user_expected);
+    push('Their guess at the cause', r.user_cause_guess);
+
+    section('Environment');
+    push('Browser',          r.browser_info);
+    push('Screen',           r.screen_size);
+    push('Viewport',         r.viewport_size);
+    push('Connection',       r.connection_type);
+    push('Memory',           r.memory_usage);
+    push('Session Duration', r.session_duration_ms != null ? formatDuration(r.session_duration_ms) : null);
+
+    section('Timeline');
+    push('Occurred At', formatFullDate(r.occurred_at));
+    push('Reported At', formatFullDate(r.created_at));
+    if (r.resolved_at) {
+      push('Resolved At', formatFullDate(r.resolved_at));
+      push('Resolved By', r.resolved_by);
+      push('Notes',       r.resolution_notes);
+    }
+    push('Assigned To', r.assigned_to);
+
+    if (r.error_stack) {
+      section('Stack Trace');
+      lines.push(r.error_stack);
+    }
+
+    if (Array.isArray(r.breadcrumbs) && r.breadcrumbs.length > 0) {
+      section(`User Actions Before Error (${r.breadcrumbs.length})`);
+      for (const b of r.breadcrumbs as { type: string; description: string; timestamp: string }[]) {
+        lines.push(`[${new Date(b.timestamp).toLocaleTimeString()}] ${b.type}: ${b.description}`);
+      }
+    }
+
+    if (Array.isArray(r.console_logs) && r.console_logs.length > 0) {
+      section(`Console Logs (${r.console_logs.length})`);
+      for (const l of r.console_logs as { level: string; message: string; timestamp: string }[]) {
+        lines.push(`[${l.level.toUpperCase()}] ${l.message}`);
+      }
+    }
+
+    section('Raw JSON (full record)');
+    lines.push(JSON.stringify(r, null, 2));
+
+    return lines.join('\n');
+  }
+
+  async function copyError(r: ErrorReportRow) {
+    const text = formatErrorForCopy(r);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Older browser fallback — invisible textarea + execCommand.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedId(r.id);
+      setTimeout(() => setCopiedId(c => (c === r.id ? null : c)), 1600);
+    } catch (err) {
+      console.error('Copy failed', err);
+      alert('Failed to copy. Open the error and select manually.');
+    }
   }
 
   async function deleteReport(id: string) {
@@ -243,6 +356,19 @@ export default function ErrorLogPage() {
                       {r.status === 'wont_fix' ? "Won't Fix" : r.status}
                     </span>
                     <span className="err-log__item-time">{formatTimeAgo(r.created_at)}</span>
+                    {/* copy-error-button-2026-06-21 — stopPropagation so the
+                     * click doesn't bubble up to the row's expand toggle.
+                     * The button replaces its label with "Copied!" for 1.6s
+                     * so the admin gets immediate feedback without a toast. */}
+                    <button
+                      type="button"
+                      className={`err-log__copy-btn ${copiedId === r.id ? 'err-log__copy-btn--copied' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); void copyError(r); }}
+                      aria-label={`Copy full details of this error to clipboard`}
+                      title="Copy full error details to clipboard"
+                    >
+                      {copiedId === r.id ? '✓ Copied' : '📋 Copy'}
+                    </button>
                     <span className={`err-log__item-arrow ${isExpanded ? 'err-log__item-arrow--open' : ''}`}>▶</span>
                   </div>
                 </div>
