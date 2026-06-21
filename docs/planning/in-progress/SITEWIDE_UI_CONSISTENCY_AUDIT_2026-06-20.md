@@ -375,9 +375,10 @@ per-page note in §6.
     reports, error-log, leads, notes, messages/new, messages/contacts →
     lucide. office/payout-log/payouts/users/invites/org-settings/orgs/
     mileage/audit/announcements/support: already emoji-free.
+  - [x] Batch 2: finances (⬇→Download), discussions (ESCALATION_ICONS map
+    + empty + help-flag), employees/manage (5 tab icons) → lucide.
   - [ ] Remaining: settings (~15), pay-progression (~10), receipts (~8),
-    payroll (~7), messages (~7), employees/manage (~5), finances (~3),
-    discussions (~3). hours-approval icon = G5 (DB-config work-type).
+    payroll (~7), messages (~7). hours-approval icon = G5 (DB-config).
 
 ## 5. Functional + data slices
 
