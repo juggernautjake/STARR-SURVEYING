@@ -43,7 +43,7 @@
    timeline/fleet-valuation/overrides/templates/today/import, vehicles.
 7. ~~W4 Research & CAD~~ ✅ DONE (research pages; CAD-internal emoji deferred) — §4 — research-cad, research(+sub-pages/[id]);
    CAD editor only for icon/cutoff in its title-bar + dialogs.
-8. **W5 Knowledge/Learn** §4 — learn hub + roadmap/modules/knowledge-base/
+8. ~~W5 Knowledge/Learn~~ ✅ DONE — §4 — learn hub + roadmap/modules/knowledge-base/
    flashcards/exam-prep/search/quiz-history/students/manage/practice.
 9. **W6 Office** §4 — office, billing, payroll, employees, users, invites,
    org-settings, orgs, reports, leads, contacts, receipts, mileage,
@@ -349,7 +349,7 @@ per-page note in §6.
     "dialogs/icon-cutoff only, don't touch the layout shell"), and CAD
     emoji are far less jarring than admin-chrome emoji (now fixed). The
     research-pages portion of W4 — the user-facing emoji problem — is done.
-- [ ] **W5 — Knowledge / Learn workspace.** `learn` hub + `roadmap`,
+- [x] **W5 — Knowledge / Learn workspace.** `learn` hub + `roadmap`,
   `modules` (+detail), `knowledge-base` (+article), `flashcards`
   (+`create`/`[deck]`), `flashcard-bank`, `exam-prep` (+`sit`/`rpls`/
   mock-exam), `search`, `quiz-history`, `students` (+detail), `manage`
@@ -358,10 +358,10 @@ per-page note in §6.
     flashcards/create → lucide. Most learn pages are already emoji-light.
   - [x] modules/[id]/[lessonId], students(+[email]), modules/[id]/test,
     knowledge-base/[slug], exam-prep/rpls → lucide / title-emoji dropped.
-  - [~] **manage/lesson-builder/[id]** part 1 — 15 close ✕ + structural
+  - [x] **manage/lesson-builder/[id]** part 1 — 15 close ✕ + structural
     glyphs + link-type ternary + Style 🎨→Palette → lucide. Kept the
     author emoji-picker + block.content.icon (content-authoring feature).
-  - [ ] lesson-builder part 2: the BLOCK_TYPES insert-palette (~12 icons:
+  - [x] lesson-builder part 2 — BLOCK_TYPES palette (23 types) → lucide. W5 done.
     🖼🔊💡✦🎯📎🎞🔗🃏📰➡🧮) → lucide-component map + palette render.
 - [ ] **W6 — Office workspace.** `office`, `billing` (+`invoices`/
   `plan-history`/`upgrade`), `payroll` (+detail), `payout-log`,
