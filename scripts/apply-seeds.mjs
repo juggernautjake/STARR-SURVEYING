@@ -41,6 +41,11 @@ const getOpt = (name) => {
 };
 const INCLUDE_RESET = hasFlag('--reset');
 const DRY_RUN = hasFlag('--dry-run');
+// Keep going past a file that errors (e.g. an INSERT colliding with rows
+// already live — many seeds are NOT fully idempotent). Each file manages
+// its own BEGIN/COMMIT, so on failure we ROLLBACK to clear the connection's
+// aborted-transaction state, record it, and move on.
+const CONTINUE_ON_ERROR = hasFlag('--continue-on-error');
 const ONLY = getOpt('--only'); // exact filename
 const FROM = getOpt('--from'); // numeric prefix lower bound
 
@@ -113,30 +118,46 @@ async function main() {
   if (DRY_RUN) { await client.end(); console.log('✓ connection OK (dry-run done).'); return; }
 
   let applied = 0;
+  const failures = [];
   try {
-    for (const f of files) {
+    for (const [i, f] of files.entries()) {
       const sql = fs.readFileSync(path.join(SEEDS_DIR, f), 'utf8');
       try {
         await client.query(sql);
         applied++;
-        console.log(`  ✓ ${String(applied).padStart(3)}/${files.length}  ${f}`);
+        console.log(`  ✓ ${String(i + 1).padStart(3)}/${files.length}  ${f}`);
       } catch (e) {
-        console.error(`\n✗ FAILED on ${f}: ${e.code || ''} ${e.message}`);
-        if (e.position) {
-          const p = parseInt(e.position, 10);
-          console.error('  near: …' + sql.slice(Math.max(0, p - 160), p + 100).replace(/\s+/g, ' ') + '…');
+        const detail = `${e.code || ''} ${e.message}`.trim();
+        // Each file manages its own transaction; a mid-file error leaves the
+        // connection in an aborted-transaction state, so reset it before the
+        // next file. Harmless no-op if no transaction is open.
+        await client.query('ROLLBACK').catch(() => {});
+
+        if (!CONTINUE_ON_ERROR) {
+          console.error(`\n✗ FAILED on ${f}: ${detail}`);
+          if (e.position) {
+            const p = parseInt(e.position, 10);
+            console.error('  near: …' + sql.slice(Math.max(0, p - 160), p + 100).replace(/\s+/g, ' ') + '…');
+          }
+          console.error(`\nStopped after ${applied} file(s). Fix the SQL above, then re-run` +
+            ` (or use --continue-on-error to skip already-applied / failing files, or --from ${f.slice(0, 3)}).`);
+          await client.end();
+          process.exit(1);
         }
-        console.error(`\nStopped after ${applied} file(s). Fix the SQL above, then re-run` +
-          ` (idempotent files already applied are safe to re-run, or use --from ${f.slice(0, 3)}).`);
-        await client.end();
-        process.exit(1);
+
+        failures.push({ f, detail });
+        console.log(`  ⤳ ${String(i + 1).padStart(3)}/${files.length}  ${f}  — skipped (${detail})`);
       }
     }
   } finally {
     try { await client.end(); } catch { /* ignore */ }
   }
 
-  console.log(`\n✓ Done — applied ${applied}/${files.length} seed file(s).`);
+  console.log(`\n✓ Done — ${applied}/${files.length} applied, ${failures.length} skipped.`);
+  if (failures.length) {
+    console.log('\nSkipped files (already-applied data or a real error — review):');
+    for (const { f, detail } of failures) console.log(`  · ${f} — ${detail}`);
+  }
 }
 
 main().catch((e) => { console.error('OUTER', e?.stack || e); process.exit(3); });
