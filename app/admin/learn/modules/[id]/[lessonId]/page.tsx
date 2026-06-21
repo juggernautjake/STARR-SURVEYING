@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Paperclip, FileText, Globe, Calculator } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -628,7 +629,7 @@ export default function LessonViewerPage() {
                   })()}
                   {block.block_type === 'file' && block.content.url && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: 'var(--border-light)' }}>
-                      <span style={{ fontSize: '1.5rem' }}>📎</span>
+                      <span style={{ display: "inline-flex" }}><Paperclip size={20} strokeWidth={1.75} /></span>
                       <div><div style={{ fontWeight: 600, fontSize: '.9rem' }}>{block.content.name || 'File'}</div></div>
                       <a href={block.content.url} download={block.content.name} className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginLeft: 'auto' }}>Download</a>
                     </div>
@@ -665,7 +666,7 @@ export default function LessonViewerPage() {
                               <span className="lesson-resources__link-status">
                                 {wasClicked ? '\u2705' : '\u25CB'}
                               </span>
-                              {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
+                              {link.type === 'pdf' ? <FileText size={14} style={{ verticalAlign: "-2px" }} /> : link.type === 'website' ? <Globe size={14} style={{ verticalAlign: "-2px" }} /> : <Paperclip size={14} style={{ verticalAlign: "-2px" }} />} {link.title || link.url}
                               {link.description && <span style={{ fontSize: '.78rem', color: 'var(--color-text-muted)', marginLeft: '.5rem' }}>{link.description}</span>}
                               <span className="lesson-resources__arrow">↗</span>
                             </a>
@@ -761,7 +762,7 @@ export default function LessonViewerPage() {
                     return (
                       <div className="block-practice" style={{ margin: '1.5rem 0' }}>
                         <div className="block-practice__header">
-                          <span className="block-practice__icon">🧮</span>
+                          <span className="block-practice__icon"><Calculator size={18} strokeWidth={1.75} /></span>
                           <div>
                             <h4 className="block-practice__title">{block.content.title || 'Practice Problem'}</h4>
                             <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
