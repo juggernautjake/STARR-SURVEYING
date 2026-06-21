@@ -273,6 +273,16 @@ per-page note in §6.
 - [ ] **W1 — Hub workspace.** `/admin/me`, `dashboard`, `assignments`,
   `schedule`, `time-off`, `my-files`, `learn/fieldbook`, and the
   `/admin/me` tab panels (pay, hours, jobs, notes, profile).
+  - [x] **dashboard** — emoji→lucide (done in F2).
+  - [x] **my-files** — 7 folder-filter category icons + dropzone + empty +
+    loading emoji → lucide (Folder/MapPin/DraftingCompass/Camera/FileText/
+    Mic/Package, Upload, Loader2, FolderOpen). Verified 7/7 SVG in harness.
+  - [x] **assignments** — 10 task-type emoji + empty-state → lucide
+    (ClipboardList/BookOpen/ClipboardCheck/PenSquare/Rocket/CheckCircle2/
+    Wrench/Clock/Satellite/GraduationCap); dropped the emoji from the
+    native `<select>` options (SVG can't render in `<option>`).
+  - [ ] Remaining: me/schedule/time-off/fieldbook + me tab panels — emoji,
+    inline-flex filter rows (time-off per F3 list), responsive at 768/599.
 - [ ] **W2 — Work workspace.** `work`, `jobs`, `jobs/new`,
   `jobs/import`, `jobs/[id]` detail, `calendar`, `field-data`,
   `field-data/[id]`, `team`, `timeline`, `assignments`.
