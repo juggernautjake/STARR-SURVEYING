@@ -256,6 +256,50 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 13 — §10.4 (first pass) Document segmentation ✅ (2026-06-21)
+`lib/research/document-segmentation.ts` ships
+`segmentMultiParcelDocument(text, context, opts?)` — the cheap first
+pass that lets the expensive deep extractor only run on the document
+slices that matter.
+
+  Large legal docs (100-lot plats, multi-tract deeds, bulk clerk
+  dumps) would blow up token cost AND bleed unrelated parcels into
+  the boundary if we naively fed the whole thing at the AI extractor.
+  This pass splits the document on deterministic deed-call markers
+  (BEGINNING, `LOT N BLOCK X`, TRACT N, A-NNNN, Vol/Pg), scores each
+  segment by overlap with the relevance context, and drops everything
+  below the score floor.
+
+  Key correctness fix during testing: tokens are emitted as composite
+  identifiers (`LOT-BLOCK:4-A`, `ABSTRACT:1234`, `DOC:VOL-100-PG-4`)
+  — never bare `LOT:4` or `BLOCK:A` alone — so two parcels in the
+  same subdivision (Lot 4 and Lot 30 of Block A) don't match each
+  other on the shared BLOCK token. Composite keys carry the
+  identifying signal; bare halves don't.
+
+  Scoring:
+    - subject-token overlap = 1.0 per hit
+    - adjoiner-token overlap = 0.5 per hit
+    - normalized by `(refTokens.size + 1)` so a long segment with
+      many random references can't dominate by hit-volume.
+    - markerless fallback: treat the whole document as one segment.
+
+  Output: top-N segments sorted high-to-low with byte-offset spans
+  pointing back into the original document so the §10.4 expensive
+  pass can re-locate them, plus the slice-4 references the segment
+  contains (lets the deep extractor anchor on the already-extracted
+  signals).
+
+  Source-locked with 9 tests in
+  `__tests__/research/document-segmentation.test.ts` including a
+  6-parcel subdivision-plat fixture that exercises: BEGINNING-marker
+  segmentation, subject-first ranking, adjoiner-promotion, score-
+  floor dropping, limit honoring, slice-4 reference attachment, byte-
+  offset span integrity, empty-input safety, markerless-singleton
+  fallback, and the "no overlap = nothing kept" path.
+
+206/206 research tests pass; clean tsc.
+
 ### Slice 12 — §10.5 + §10.6 Spatial filter + disambiguation ✅ (2026-06-21)
 `lib/research/spatial-filter.ts` ships the cost + correctness gate that
 sits in front of the §10.4 deep extractor: when a portal returns N
@@ -864,11 +908,15 @@ surrounding/adjoining properties, and tag every datum's relevance.
   `parcel_ref` columns to the existing `extracted_data_points` table + the
   AI-prompt change that instructs the model to ask for the tag at extraction
   time lands in a follow-up slice that touches the live pipeline.
-- [ ] **10.4 Two-pass for large multi-parcel docs** — for subdivision plats /
-  multi-tract deeds: **Pass 1 (cheap, Haiku)** segments the doc and locates only
-  the regions/lots matching the relevance set; **Pass 2 (Sonnet)** deep-extracts
-  only those segments. Avoids both cost blow-up and irrelevant-data bleed on
-  100-lot plats.
+- [~] **10.4 Two-pass for large multi-parcel docs** — Pass 1 ✅
+  (2026-06-21, Slice 13): `segmentMultiParcelDocument()` in
+  `lib/research/document-segmentation.ts` ships a deterministic, AI-free
+  segmenter that splits on deed-call markers, scores each segment against
+  the relevance context using composite tokens, and returns the top-N
+  segments with byte-offset spans. The expensive AI pass (Pass 2 Sonnet
+  deep-extract on the kept segments) lands as a route-level slice that
+  also wires extracted_data_points.relevance + parcel_ref persistence
+  (§10.3 follow-up).
 - [x] **10.5 Spatial result filtering** ✅ (2026-06-21, Slice 12) —
   `rankAndFilterCandidates()` in `lib/research/spatial-filter.ts`
   composes the relevance classifier (slice 3) with the polygon /
