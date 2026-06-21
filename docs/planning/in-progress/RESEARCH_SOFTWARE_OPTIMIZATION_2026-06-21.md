@@ -256,6 +256,27 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 2 — §7.1–7.4 Registry tables + vendor template seed ✅ (2026-06-21)
+`seeds/370_research_adapter_registry.sql` creates the four registry tables
+(`research_counties`, `research_data_vendors`, `research_site_adapters`,
+`research_county_data_sources`) + the supporting enums
+(`research_adapter_status_enum`, `research_site_type_enum`,
+`research_coverage_enum`) + `updated_at` triggers. Idempotent
+(`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT … DO NOTHING`, `DO $$ … EXCEPTION
+WHEN duplicate_object`). Seeds the four working vendor templates
+(`bell_cad_arcgis`, `trueautomation_propaccess`, `esearch_cad`,
+`publicsearch_clerk`) with their `url_fingerprints` (host/path regexes the §8.2
+auto-detect uses), `config_template` (flow steps + selectors for browser-based
+vendors; endpoint shapes for arcgis_rest), and `field_map_template`
+(`CanonicalFieldMap` shape from §7.5) — so registering a new county that uses
+one of these vendors is now a config row, not a code change. Seeds the 10
+Texas counties already integrated or near-term targets (Bell + the top-9
+metros) so the FKs resolve immediately; the full 254-county seed lands in a
+future small data slice. Source-locked with 12 tests in
+`__tests__/research/adapter-registry-schema.test.ts` covering table+column
+shape, idempotency, enum membership, and per-template field-map content (Bell
+must map `parcel_id` / `owner.display_name` / `acreage` / `legal.text`).
+
 ### Slice 1 — §7.5 Canonical schema ✅ (2026-06-21)
 `lib/research/canonical-schema.ts` ships the pure TypeScript ontology every
 vendor adapter will map INTO: `CanonicalProperty` + sub-shapes (`CanonicalOwner`,
@@ -277,31 +298,24 @@ Zero runtime deps; importable from server routes, workers, and tests freely.
 Everything below sits on a small registry. Build this first; the three pillars
 all consume it.
 
-- [ ] **7.1 `counties`** — one row per Texas county (254). Columns:
-  `id`, `fips`, `name`, `metro_tier` (1–4 for prioritization), `centroid`,
-  `seeded_at`. Seed all 254 up front (static data).
-- [ ] **7.2 `data_vendors`** — the reusable vendor templates (the moat).
-  Columns: `id`, `key` (`tyler_publicsearch` | `trueautomation_propaccess` |
-  `esearch_cad` | `bis_arcgis` | `kofile` | `txglo` | `generic_playwright`),
-  `display_name`, `access_method` (`json_api` | `html_scrape` | `arcgis_rest` |
-  `browser_playwright`), `url_fingerprints` (regex/host patterns used to
-  auto-detect the vendor from a pasted URL), `config_template` (JSONB: endpoint
-  shapes, default selectors, query templates, pagination, auth), `field_map_template`
-  (vendor-field → our canonical schema), `notes`. Seed from the **existing**
-  working adapters in `lib/research/` (Bell ArcGIS, TrueAutomation, eSearch,
-  publicsearch) so day-one templates are real.
-- [ ] **7.3 `site_adapters`** — a concrete registered site (a county's specific
-  portal). Columns: `id`, `county_id` FK, `vendor_id` FK (nullable for bespoke),
-  `site_type` (`appraisal_cad` | `clerk_deeds` | `plat_records` | `gis_parcels`
-  | `legal_description`), `base_url`, `access_method`, `config` (JSONB —
-  vendor template + county-specific params: client id, layer ids, selectors),
-  `field_map` (JSONB), `status` (`draft` | `active` | `degraded` | `broken` |
-  `quarantined`), `health` (JSONB rollup), `created_by`, `created_at`,
-  `updated_at`, `last_verified_at`.
-- [ ] **7.4 `county_data_sources`** — coverage rollup per county × site_type:
-  `coverage` (`full` | `partial` | `requested` | `none`), `adapter_id` FK.
-  Drives the customer-facing coverage dashboard (`/admin/research/coverage`
-  already exists — repoint it at this table).
+- [x] **7.1 `research_counties`** ✅ (2026-06-21, Slice 2) — table created;
+  seed includes the 10 Texas counties already integrated or near-term
+  targets (Bell + top-9 metros). Full 254-county seed deferred to a small
+  data-only follow-up so this schema migration stays auditable.
+- [x] **7.2 `research_data_vendors`** ✅ (2026-06-21, Slice 2) — table created
+  with all four working vendor templates seeded (`bell_cad_arcgis`,
+  `trueautomation_propaccess`, `esearch_cad`, `publicsearch_clerk`) including
+  url_fingerprints + config_template + CanonicalFieldMap-shaped
+  field_map_template.
+- [x] **7.3 `research_site_adapters`** ✅ (2026-06-21, Slice 2) — table created
+  with `research_adapter_status_enum` (draft/active/degraded/broken/quarantined
+  /retired) and `research_site_type_enum`. UNIQUE(county_id, site_type) by
+  default; relaxable when a county legitimately needs two portals of the
+  same type.
+- [x] **7.4 `research_county_data_sources`** ✅ (2026-06-21, Slice 2) — table
+  created with `research_coverage_enum`. Bell CAD seeded as 'partial'
+  (CAD-only, no clerk/plat). `/admin/research/coverage` repoint lands when
+  that route's next slice ships.
 - [x] **7.5 Canonical schema** ✅ (2026-06-21, Slice 1) —
   `lib/research/canonical-schema.ts` ships the pure TypeScript ontology every
   adapter maps INTO + `tagRelevance()` helper + JSON-serializable
