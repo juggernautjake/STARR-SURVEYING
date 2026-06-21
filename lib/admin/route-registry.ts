@@ -270,6 +270,123 @@ export function routesForWorkspace(workspace: Workspace): AdminRoute[] {
   return ADMIN_ROUTES.filter((r) => r.workspace === workspace);
 }
 
+// ── Breadcrumb trail (F1 — universal up-navigation) ─────────────────
+//
+// Every admin page gets a deterministic, clickable trail ending in the
+// current page, so the shared header chrome can render one consistent
+// "back / up" affordance instead of each page hand-rolling its own
+// "Back to X" link. Spec: docs/planning/in-progress/
+// SITEWIDE_UI_CONSISTENCY_AUDIT_2026-06-20.md §3 F1.
+
+export interface Crumb {
+  href: string;
+  label: string;
+  isCurrent: boolean;
+}
+
+/** Title-case a raw path segment: 'plan-history' → 'Plan History'. */
+function titleCaseSegment(seg: string): string {
+  return seg
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/** Naive English singulariser for detail-page labels: 'templates' →
+ *  'template', 'discussions' → 'discussion', 'employees' → 'employee'. */
+function singularise(seg: string): string {
+  const s = seg.toLowerCase();
+  if (s.endsWith('ies')) return s.slice(0, -3) + 'y';
+  if (s.endsWith('ses') || s.endsWith('xes') || s.endsWith('ches') || s.endsWith('shes')) {
+    return s.slice(0, -2);
+  }
+  if (s.endsWith('s') && !s.endsWith('ss')) return s.slice(0, -1);
+  return s;
+}
+
+/** Does this path segment look like an opaque identifier (uuid, numeric
+ *  id, long hash, or an email used as a key) rather than a real page
+ *  name? Such segments get a derived "<Parent> Detail" label. */
+function looksLikeId(seg: string): boolean {
+  return (
+    /^[0-9a-f]{8,}$/i.test(seg) ||
+    /^[0-9a-f-]{16,}$/i.test(seg) ||
+    /^\d+$/.test(seg) ||
+    seg.includes('@') ||
+    seg.includes('%40') ||
+    seg.length > 24
+  );
+}
+
+/** Best label for any pathname: the registry label when registered,
+ *  otherwise derived from the URL. Unregistered leaves that look like
+ *  ids become "<Singular parent> Detail" (e.g. /admin/jobs/abc123 →
+ *  "Job Detail"); everything else is title-cased from its segment. */
+export function routeLabel(pathname: string): string {
+  const clean = pathname.split('?')[0].split('#')[0];
+  const registered = findRoute(clean);
+  if (registered) return registered.label;
+  const segs = clean.split('/').filter(Boolean);
+  const last = segs[segs.length - 1] ?? 'admin';
+  if (looksLikeId(last)) {
+    const parent = segs[segs.length - 2];
+    if (parent) return `${titleCaseSegment(singularise(parent))} Detail`;
+    return 'Detail';
+  }
+  return titleCaseSegment(last);
+}
+
+/** Ordered breadcrumb trail for any admin pathname:
+ *    workspace landing → registered ancestors (prefix chain) → current page.
+ *  Always returns at least one crumb for an /admin path; returns [] for
+ *  non-admin paths so non-admin surfaces don't accidentally render a
+ *  trail. The last crumb is always `isCurrent`. */
+export function breadcrumbTrail(pathname: string): Crumb[] {
+  const path = pathname.split('?')[0].split('#')[0];
+  if (!path.startsWith('/admin')) return [];
+
+  const ws = workspaceOf(path) ?? 'hub';
+  const wsHref = WORKSPACES[ws].href;
+  const crumbs: Crumb[] = [
+    { href: wsHref, label: WORKSPACES[ws].label, isCurrent: path === wsHref },
+  ];
+
+  // Registered ancestors: every route whose href is `path` or a strict
+  // prefix of it, except the workspace landing (already the root crumb).
+  // Sorted shallow → deep so the chain reads left-to-right.
+  const ancestors = ADMIN_ROUTES.filter(
+    (r) =>
+      r.href !== wsHref &&
+      (path === r.href || path.startsWith(r.href + '/')),
+  ).sort((a, b) => a.href.length - b.href.length);
+
+  for (const r of ancestors) {
+    crumbs.push({ href: r.href, label: r.label, isCurrent: path === r.href });
+  }
+
+  // Unregistered leaf (detail / [id] page): append a derived crumb.
+  const last = crumbs[crumbs.length - 1];
+  if (last.href !== path) {
+    crumbs.push({ href: path, label: routeLabel(path), isCurrent: true });
+  }
+
+  // Collapse any accidental consecutive duplicates by href, then force the
+  // final crumb to be the current one.
+  const deduped = crumbs.filter(
+    (c, i) => i === 0 || c.href !== crumbs[i - 1].href,
+  );
+  return deduped.map((c, i) => ({ ...c, isCurrent: i === deduped.length - 1 }));
+}
+
+/** The immediate parent crumb (the one before the current page), or null
+ *  when the current page is already the workspace root. Drives the shared
+ *  "‹ back" affordance. */
+export function parentCrumb(pathname: string): Crumb | null {
+  const trail = breadcrumbTrail(pathname);
+  if (trail.length < 2) return null;
+  return trail[trail.length - 2];
+}
+
 // ── Fuzzy ranker (Cmd+K) ────────────────────────────────────────────
 
 /** Scores how well a route matches the user's query. Higher is better.

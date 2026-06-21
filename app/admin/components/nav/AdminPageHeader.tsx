@@ -14,12 +14,12 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Star, HelpCircle } from 'lucide-react';
+import { Star, HelpCircle, ChevronLeft } from 'lucide-react';
 
 import {
-  WORKSPACES,
+  breadcrumbTrail,
+  parentCrumb,
   findRoute,
-  workspaceOf,
 } from '@/lib/admin/route-registry';
 import {
   MAX_PINNED_ROUTES,
@@ -42,23 +42,19 @@ export default function AdminPageHeader() {
   const { addToast } = useToast();
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const trail = useMemo(() => {
-    if (HIDE_ON_PATHS.has(pathname)) return null;
-    const workspace = workspaceOf(pathname);
-    if (!workspace) return null;
-
-    const workspaceMeta = WORKSPACES[workspace];
-    const route = findRoute(pathname);
-
+  const { crumbs, parent } = useMemo(() => {
+    if (HIDE_ON_PATHS.has(pathname)) return { crumbs: [], parent: null };
     return {
-      workspace: workspaceMeta,
-      route,
+      crumbs: breadcrumbTrail(pathname),
+      parent: parentCrumb(pathname),
     };
   }, [pathname]);
 
-  if (!trail) return null;
+  if (crumbs.length === 0) return null;
 
-  const { workspace, route } = trail;
+  // Only registered routes are pinnable (the pin store keys off the
+  // registry); detail/[id] pages render the trail + back arrow but no star.
+  const route = findRoute(pathname);
   const isPinned = pinnedRoutes.includes(pathname);
   const pinDisabled = !route || (!isPinned && pinnedRoutes.length >= MAX_PINNED_ROUTES);
 
@@ -77,23 +73,40 @@ export default function AdminPageHeader() {
 
   return (
     <nav className="admin-page-header" aria-label="Breadcrumb">
-      <ol className="admin-page-header__trail">
-        <li>
-          <Link href={workspace.href} className="admin-page-header__crumb">
-            {workspace.label}
+      <div className="admin-page-header__nav">
+        {parent ? (
+          <Link
+            href={parent.href}
+            className="admin-page-header__back"
+            aria-label={`Back to ${parent.label}`}
+            title={`Back to ${parent.label}`}
+          >
+            <ChevronLeft size={16} strokeWidth={2} />
+            <span className="admin-page-header__back-label">{parent.label}</span>
           </Link>
-        </li>
-        {route ? (
-          <>
-            <li className="admin-page-header__sep" aria-hidden="true">›</li>
-            <li>
-              <span className="admin-page-header__crumb admin-page-header__crumb--active" aria-current="page">
-                {route.label}
-              </span>
-            </li>
-          </>
         ) : null}
-      </ol>
+        <ol className="admin-page-header__trail">
+          {crumbs.map((crumb, i) => (
+            <li key={crumb.href} className="admin-page-header__crumb-item">
+              {i > 0 ? (
+                <span className="admin-page-header__sep" aria-hidden="true">›</span>
+              ) : null}
+              {crumb.isCurrent ? (
+                <span
+                  className="admin-page-header__crumb admin-page-header__crumb--active"
+                  aria-current="page"
+                >
+                  {crumb.label}
+                </span>
+              ) : (
+                <Link href={crumb.href} className="admin-page-header__crumb">
+                  {crumb.label}
+                </Link>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
         <button
           type="button"
@@ -119,9 +132,9 @@ export default function AdminPageHeader() {
       <HelpDrawer
         open={helpOpen}
         pathname={pathname}
-        workspaceHref={workspace.href}
-        workspaceLabel={workspace.label}
-        routeLabel={route?.label ?? null}
+        workspaceHref={crumbs[0].href}
+        workspaceLabel={crumbs[0].label}
+        routeLabel={route?.label ?? crumbs[crumbs.length - 1].label}
         onClose={() => setHelpOpen(false)}
       />
     </nav>
