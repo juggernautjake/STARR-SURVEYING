@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { Loader2, Search, Lock, Clock, BookOpen, CheckCircle2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import SmartSearch from '../components/SmartSearch';
 
@@ -141,7 +142,7 @@ export default function ModulesListPage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading modules...</div>
     </div>
   );
@@ -204,7 +205,7 @@ export default function ModulesListPage() {
       {/* Regular Modules */}
       {filteredRegular.length === 0 && filteredAcademic.length === 0 ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">&#x1F50D;</div>
+          <div className="admin-empty__icon"><Search size={30} strokeWidth={1.5} /></div>
           <div className="admin-empty__title">No modules match your filters</div>
           <div className="admin-empty__desc">Try adjusting your search or filter criteria.</div>
         </div>
@@ -288,7 +289,7 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
       {/* Lock overlay */}
       {isLocked && (
         <div className="modules__card-lock">
-          <span className="modules__card-lock-icon">&#x1F512;</span>
+          <span className="modules__card-lock-icon"><Lock size={16} strokeWidth={2} /></span>
         </div>
       )}
 
@@ -325,10 +326,10 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
       <p className="modules__card-desc">{mod.description}</p>
 
       <div className="modules__card-meta">
-        <span>&#x23F1; ~{mod.estimated_hours}h</span>
-        <span>&#x1F4D6; {mod.total_lessons} lesson{mod.total_lessons !== 1 ? 's' : ''}</span>
+        <span><Clock size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />~{mod.estimated_hours}h</span>
+        <span><BookOpen size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{mod.total_lessons} lesson{mod.total_lessons !== 1 ? 's' : ''}</span>
         {mod.completed_lessons > 0 && (
-          <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>&#x2705; {mod.completed_lessons}/{mod.total_lessons}</span>
+          <span style={{ color: 'var(--color-success)', fontWeight: 600 }}><CheckCircle2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{mod.completed_lessons}/{mod.total_lessons}</span>
         )}
         {mod.avg_quiz_score != null && (
           <span className={`quiz-avg-badge ${mod.avg_quiz_score >= 70 ? 'quiz-avg-badge--green' : mod.avg_quiz_score >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
@@ -345,7 +346,7 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
   const tooltip = isLocked && showTooltip && typeof document !== 'undefined'
     ? createPortal(
         <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
-          <span className="lock-tooltip__icon">&#x1F512;</span>
+          <span className="lock-tooltip__icon"><Lock size={14} strokeWidth={2} /></span>
           <span className="lock-tooltip__text">{mod.lock_reason}</span>
         </div>,
         document.body,
